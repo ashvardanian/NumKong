@@ -30,8 +30,8 @@
  *  @section dlpack_interop_interop_partners Interop Partners
  *
  *  Every project below implements the same protocol. Because NumKong now implements it too, NumKong
- *  tensors interchange zero-copy with all of them in either direction, CPU only at this stage, GPU
- *  revisited if NumKong ever ships GPU kernels. PR / commit references are the canonical landing
+ *  tensors interchange zero-copy with all of them in either direction on the CPU, and CUDA or ROCm
+ *  tensors import one way for the GPU kernels. PR / commit references are the canonical landing
  *  point in each upstream:
  *
  *  - PyTorch — `torch.utils.dlpack`, @c to_dlpack and @c from_dlpack, since pytorch/pytorch#2933,
@@ -91,10 +91,9 @@
  *  @section dlpack_interop_importer_device_acceptance Importer Device Acceptance
  *
  *  Any DLPack capsule whose `device.device_type` corresponds to a host-dereferenceable pointer is
- *  accepted. The exporter still always reports @c kDLCPU; this widening only affects what
- *  `numkong.from_dlpack` will consume.
+ *  accepted as a CPU tensor. The exporter exports only those; a GPU tensor raises @c BufferError.
  *
- *  Accepted, because the pointer is CPU-readable:
+ *  Accepted as a CPU tensor, because the pointer is CPU-readable:
  *
  *  - @c kDLCPU — plain host memory, the default.
  *  - @c kDLCUDAHost — @c cudaMallocHost pinned host memory; semantically equivalent to @c kDLCPU.
@@ -108,10 +107,16 @@
  *  - @c kDLMetal — Metal buffer, host-readable on Apple Silicon's unified-memory SoC, the practical
  *    user being MLX, but not on an Intel-Mac dGPU.
  *
- *  Rejected, because the memory is device-only:
+ *  Accepted as a GPU tensor, which keeps its device type and ordinal: @c kDLCUDA and @c kDLROCM
+ *  device memory. Only the GPU paths of @c dots_pack and the dots, angulars and euclideans packed
+ *  and symmetric functions take it, dispatching with that device's capabilities; everything that
+ *  reads elements on the host raises @c BufferError. The import does not synchronize streams: the
+ *  caller orders the producer's work before the one passed as `stream=`.
  *
- *  - @c kDLCUDA, @c kDLROCM, @c kDLOpenCL, @c kDLVulkan, @c kDLWebGPU, @c kDLHexagon, @c kDLMAIA,
- *    @c kDLTrn, @c kDLVPI, @c kDLExtDev — error names the device code so the caller can debug.
+ *  Rejected, because NumKong has no kernels there and host code cannot read the memory:
+ *
+ *  - @c kDLOpenCL, @c kDLVulkan, @c kDLWebGPU, @c kDLHexagon, @c kDLMAIA, @c kDLTrn, @c kDLVPI,
+ *    @c kDLExtDev — error names the device code so the caller can debug.
  */
 #include "dlpack_interop.h"
 #include "dlpack_abi.h"
@@ -378,7 +383,8 @@ char const doc_dlpack[] =                                                       
     "    copy (bool, optional): Only False and the default None are supported; True raises.\n\n"           //
     "Notes:\n"                                                                                             //
     "    FP6 dtypes, e2m3 and e3m2, silently upgrade to versioned DLPack because they use the\n"           //
-    "    IS_SUBBYTE_TYPE_PADDED flag only available in v1+.\n\n"                                           //
+    "    IS_SUBBYTE_TYPE_PADDED flag only available in v1+.\n"                                             //
+    "    A CUDA or ROCm tensor imported by from_dlpack raises BufferError; export the original.\n\n"       //
     "Verified interop with:\n"                                                                             //
     "    - PyTorch       (`torch.from_dlpack`,           PRs pytorch/pytorch#2933, #57110, #145000)\n"     //
     "    - NumPy         (`np.from_dlpack`,              PR numpy/numpy#19083, NumPy >= 1.22)\n"           //
@@ -393,22 +399,38 @@ char const doc_dlpack[] =                                                       
     "    >>> def __dlpack__(self, *, stream=None, max_version=None, dl_device=None, copy=None): ...";
 
 char const doc_dlpack_device[] =                                                                       //
-    "Return the DLPack device tuple for this tensor. Always (1, 0), the kDLCPU device code.\n\n"       //
+    "Return the DLPack device tuple for this tensor: (1, 0), kDLCPU, unless from_dlpack imported\n"    //
+    "it from a GPU, which gives (2, ordinal) for kDLCUDA or (10, ordinal) for kDLROCM.\n\n"            //
     "Part of the Python Array API DLPack protocol; consumers such as PyTorch, NumPy, JAX, CuPy,\n"     //
     "TensorFlow, and PyArrow call this before `__dlpack__` to know whether a copy or stream sync is\n" //
     "needed before crossing the framework boundary.\n\n"                                               //
     "Signature:\n"                                                                                     //
     "    >>> def __dlpack_device__(self, /): ...";
 
-PyObject *Tensor_dlpack(PyObject *self, PyObject *args, PyObject *kwargs) {
-    static char const *kwlist[] = {"stream", "max_version", "dl_device", "copy", NULL};
-    PyObject *stream = Py_None, *max_version = Py_None, *dl_device = Py_None, *copy = Py_None;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|$OOOO", (char **)kwlist, //
-                                     &stream, &max_version, &dl_device, &copy))
+PyObject *Tensor_dlpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+    if (nargs) {
+        PyErr_Format(PyExc_TypeError, "__dlpack__() takes no positional arguments, got %zd", nargs);
         return NULL;
+    }
+    PyObject *stream = Py_None, *max_version = Py_None, *dl_device = Py_None, *copy = Py_None;
+    Py_ssize_t const nkw = kwnames ? PyTuple_GET_SIZE(kwnames) : 0;
+    for (Py_ssize_t i = 0; i < nkw; i++) {
+        PyObject *name = PyTuple_GET_ITEM(kwnames, i);
+        PyObject **slot = PyUnicode_CompareWithASCIIString(name, "stream") == 0        ? &stream
+                          : PyUnicode_CompareWithASCIIString(name, "max_version") == 0 ? &max_version
+                          : PyUnicode_CompareWithASCIIString(name, "dl_device") == 0   ? &dl_device
+                          : PyUnicode_CompareWithASCIIString(name, "copy") == 0        ? &copy
+                                                                                       : NULL;
+        if (!slot) return PyErr_Format(PyExc_TypeError, "__dlpack__() got an unexpected keyword argument '%S'", name);
+        *slot = args[i];
+    }
     nk_unused_(stream); // CPU-only: stream synchronization is a no-op.
 
     Tensor *tensor = (Tensor *)self;
+    if (tensor->device.device_type != kDLCPU) {
+        PyErr_SetString(PyExc_BufferError, "NumKong exports only host tensors; pass on the GPU tensor it imported");
+        return NULL;
+    }
 
     int const requested_copy = (copy != Py_None) ? PyObject_IsTrue(copy) : 0;
     if (requested_copy < 0) return NULL; // bool(copy) raised
@@ -453,9 +475,14 @@ PyObject *Tensor_dlpack(PyObject *self, PyObject *args, PyObject *kwargs) {
 }
 
 PyObject *Tensor_dlpack_device(PyObject *self, PyObject *noargs) {
-    nk_unused_(self);
     nk_unused_(noargs);
-    return Py_BuildValue("(ii)", (int)kDLCPU, 0);
+    DLDevice const device = ((Tensor *)self)->device;
+    PyObject *type_integer = PyLong_FromLong((long)device.device_type);
+    PyObject *id_integer = PyLong_FromLong((long)device.device_id);
+    PyObject *pair = type_integer && id_integer ? PyTuple_Pack(2, type_integer, id_integer) : NULL;
+    Py_XDECREF(type_integer);
+    Py_XDECREF(id_integer);
+    return pair;
 }
 
 /** Owner object that wraps an imported DLPack capsule and calls the producer's deleter on
@@ -504,15 +531,19 @@ char const doc_from_dlpack[] =                                                  
     "        __dlpack__.\n\n"                                                                              //
     "Returns:\n"                                                                                           //
     "    Tensor: A NumKong view sharing memory with the producer.\n\n"                                     //
-    "Accepts any DLPack device whose pointer is CPU-readable:\n"                                           //
+    "Accepts any DLPack device whose pointer is CPU-readable, as a CPU tensor:\n"                          //
     "    - kDLCPU        — plain host memory.\n"                                                           //
     "    - kDLCUDAHost   — cudaMallocHost pinned host memory.\n"                                           //
     "    - kDLROCMHost   — AMD ROCm pinned host equivalent.\n"                                             //
     "    - kDLCUDAManaged — cudaMallocManaged unified memory, where the first CPU touch migrates pages.\n" //
     "    - kDLOneAPI     — Intel oneAPI USM (host / shared variants only).\n"                              //
     "    - kDLMetal      — Apple Silicon unified memory, as used by MLX.\n"                                //
-    "Pure device memory such as kDLCUDA, kDLROCM, kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon, kDLMAIA,\n" //
-    "and kDLTrn is rejected with a clear ValueError naming the device code.\n\n"                           //
+    "Accepts kDLCUDA and kDLROCM device memory as a GPU tensor, which keeps its device. Only the\n"        //
+    "GPU paths of dots_pack and the dots, angulars and euclideans _packed and _symmetric functions\n"      //
+    "take it; element access, NumPy conversion and every CPU kernel raise BufferError. No stream\n"        //
+    "is synchronized: order the producer's work before the stream= passed to those functions.\n"           //
+    "Other device memory, such as kDLOpenCL, kDLVulkan, kDLWebGPU, kDLHexagon, kDLMAIA and kDLTrn,\n"      //
+    "is rejected with a clear ValueError naming the device code.\n\n"                                      //
     "Verified producers (zero-copy round-trip in tests):\n"                                                //
     "    - PyTorch       `torch.Tensor.__dlpack__`            (pytorch/pytorch#57110, #145000)\n"          //
     "    - NumPy         `ndarray.__dlpack__`                 (numpy/numpy#19083, NumPy >= 1.22)\n"        //
@@ -546,7 +577,10 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
         }
         // Pass max_version=(1, 0) so versioning-aware producers give us FP6 flags etc.
         PyObject *empty_args = PyTuple_New(0);
-        PyObject *max_version = Py_BuildValue("(ii)", 1, 0);
+        PyObject *major = PyLong_FromLong(1), *minor = PyLong_FromLong(0);
+        PyObject *max_version = major && minor ? PyTuple_Pack(2, major, minor) : NULL;
+        Py_XDECREF(major);
+        Py_XDECREF(minor);
         PyObject *kwargs = PyDict_New();
         if (empty_args && max_version && kwargs) {
             PyDict_SetItemString(kwargs, "max_version", max_version);
@@ -592,9 +626,8 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
         goto fail;
     }
 
-    // Accept any device whose pointer is dereferenceable from host code. The exporter still hands out plain CPU
-    // memory only; this widening is a consumer-side concession so callers can pass pinned-host, unified, oneAPI
-    // shared-USM, and Apple-Silicon Metal buffers without an explicit conversion step.
+    // Host-readable memory becomes a CPU tensor; CUDA and ROCm memory keeps its device
+    DLDevice device = {kDLCPU, 0};
     switch (dl_tensor->device.device_type) {
     case kDLCPU:         // plain host memory
     case kDLCUDAHost:    // cudaMallocHost — pinned host memory
@@ -603,11 +636,13 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
     case kDLOneAPI:      // Intel USM (host / shared variants are CPU-readable; device-only USM would fault)
     case kDLMetal:       // Apple Silicon: unified memory; intel-Mac dGPU: would fault
         break;
+    case kDLCUDA:
+    case kDLROCM: device = dl_tensor->device; break;
     default:
         PyErr_Format( //
             PyExc_ValueError,
-            "NumKong from_dlpack: device_type=%d is not CPU-accessible "    //
-            "(only kDLCPU/CUDAHost/ROCMHost/CUDAManaged/OneAPI/Metal are)", //
+            "NumKong from_dlpack: device_type=%d is neither CPU-accessible "           //
+            "(kDLCPU/CUDAHost/ROCMHost/CUDAManaged/OneAPI/Metal) nor kDLCUDA/kDLROCM", //
             (int)dl_tensor->device.device_type);
         goto fail;
     }
@@ -692,6 +727,7 @@ PyObject *api_from_dlpack(PyObject *self, PyObject *obj) {
     view->dtype = dtype;
     view->rank = (size_t)dl_tensor->ndim;
     view->exports = 0;
+    view->device = device;
     for (size_t i = 0; i < NUMKONG_TENSOR_MAX_RANK; i++) {
         view->shape[i] = 0;
         view->strides[i] = 0;

@@ -395,6 +395,11 @@ class Tensor(memoryview):
         """Allocated element capacity of the owned buffer (>= size)."""
         ...
 
+    @property
+    def device(self) -> Device:
+        """The device the data lives on: the CPU, or the GPU a `from_dlpack` tensor was imported from."""
+        ...
+
     def resize(self, *shape: int) -> Tensor:
         """Reshape in place within capacity without moving storage; returns self."""
         ...
@@ -575,8 +580,9 @@ class PackedMatrix:
         depth: int,
         /,
         dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType,
+        capabilities: Capability | int | None = None,
     ) -> int:
-        """Return packed buffer size in bytes for given dimensions and dtype."""
+        """Return packed buffer size in bytes for given dimensions, dtype and capabilities, GPU ones included."""
         ...
 
     def __repr__(self) -> str:
@@ -712,17 +718,54 @@ class _Dispatch(TypedDict, total=False):
     """Keywords every function that runs kernels accepts, after its own."""
 
     capabilities: Capability | int | None
-    """Capabilities to run, defaulting to `capabilities_enabled()`, or for packed operands to the mask that packed them."""
+    """Capabilities to run: the CPU's enabled ones by default, or for packed operands the mask that packed them."""
     stream: int | None
     """A GPU stream pointer, left None on the CPU."""
 
-# CPU capability controls.
-def capabilities_detected() -> Capability: ...
-def capabilities_compiled() -> Capability: ...
-def capabilities_enabled() -> Capability: ...
-def capabilities_enable(wanted: Capability, /) -> Capability: ...
+_DeviceKind: TypeAlias = Literal["cpu", "cuda", "rocm", "metal"]
 
-# Kernel pointer accessors, to the capabilities `capabilities_enabled()` picks.
+class Device:
+    """One device NumKong runs kernels on, raising ValueError for an ordinal it does not see."""
+
+    def __init__(self, kind: _DeviceKind, ordinal: int = 0) -> None: ...
+    @staticmethod
+    def cpu() -> Device:
+        """The CPU, the one device every process has."""
+        ...
+
+    @staticmethod
+    def count(kind: _DeviceKind, /) -> int:
+        """How many devices of `kind` this process sees: one CPU, zero without a runtime or its kernels."""
+        ...
+
+    @property
+    def kind(self) -> _DeviceKind: ...
+    @property
+    def ordinal(self) -> int: ...
+    def capabilities_detected(self) -> Capability:
+        """What this device can execute."""
+        ...
+
+    def capabilities_compiled(self) -> Capability:
+        """What this binary holds kernels for, on devices of this kind."""
+        ...
+
+    def capabilities_enabled(self) -> Capability:
+        """What kernels run with here: both of the above, narrowed on the CPU by `capabilities_enable`."""
+        ...
+
+    def capabilities_enable(self, wanted: Capability, /) -> Capability:
+        """Make `wanted`, clamped to what runs and always with SERIAL, the CPU's enabled set."""
+        ...
+
+    def configure_thread(self, capabilities: Capability, /) -> None:
+        """Prepare the calling thread for the kernels of `capabilities`, CPU only."""
+        ...
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+# Kernel pointer accessors, to the CPU's enabled capabilities.
 # Each takes a trailing `void *stream`, null on the CPU, and returns an `nk_status_t`.
 def pointer_to_euclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
 def pointer_to_sqeuclidean(dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType, /) -> int: ...
@@ -1419,6 +1462,8 @@ def dots_pack(
     b: _BufferType,
     /,
     dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType | None = None,
+    *,
+    out: _BufferType | None = None,
     **dispatch: Unpack[_Dispatch],
 ) -> PackedMatrix: ...
 

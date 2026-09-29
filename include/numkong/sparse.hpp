@@ -30,8 +30,8 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype index_type_>
 status_t sparse_intersect(index_type_ const *a, index_type_ const *b, std::size_t a_length, std::size_t b_length,
-                          index_type_ *result, std::size_t *count, nk_capability_t capabilities = cpu_capabilities(),
-                          void *stream = nullptr) noexcept {
+                          index_type_ *result, std::size_t *count,
+                          nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     typename index_type_::raw_t *result_raw = result ? &result->raw_ : nullptr;
     nk_size_t found = 0;
     if (capabilities) {
@@ -88,7 +88,7 @@ template <numeric_dtype index_type_, numeric_dtype weight_t,
           numeric_dtype result_type_ = typename weight_t::dot_result_t>
 status_t sparse_dot(index_type_ const *a, index_type_ const *b, weight_t const *a_weights, weight_t const *b_weights,
                     std::size_t a_length, std::size_t b_length, result_type_ *product,
-                    nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                    nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename weight_t::dot_result_t>;
 
     if (capabilities) {
@@ -123,7 +123,7 @@ namespace ashvardanian::numkong {
  *  one ending mid-value. */
 template <numeric_dtype index_type_, vector_of<index_type_> a_type_, vector_of<index_type_> b_type_>
 expected<std::size_t> sparse_intersect(a_type_ const &a, b_type_ const &b,
-                                       nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                                       nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<index_type_ const>(a);
     auto b_values = contiguous_values_<index_type_ const>(b);
     if (!a_values || !b_values) return {0, status_t::unexpected_dimensions_k};
@@ -140,7 +140,7 @@ template <numeric_dtype index_type_, numeric_dtype weight_t,
           vector_of<index_type_> b_type_, vector_of<weight_t> a_weights_type_, vector_of<weight_t> b_weights_type_>
 expected<result_type_> sparse_dot(a_type_ const &a, b_type_ const &b, a_weights_type_ const &a_weights,
                                   b_weights_type_ const &b_weights,
-                                  nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                                  nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<index_type_ const>(a);
     auto b_values = contiguous_values_<index_type_ const>(b);
     auto a_weights_values = contiguous_values_<weight_t const>(a_weights);

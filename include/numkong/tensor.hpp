@@ -1003,7 +1003,7 @@ constexpr tensor_type_ tensor_slice_suffix_(tensor_type_ input, range_t r, rest_
     if constexpr (sizeof...(rest_types_) == 1 &&
                   std::is_same_v<std::tuple_element_t<0, std::tuple<std::remove_cvref_t<rest_types_>...>>,
                                  tensor_slice_t>) {
-        // Fast path: range followed by just `slice` — no inner recursion needed.
+        // Fast path: range_t followed by just `slice` — no inner recursion needed.
         shape_type result_shape;
         result_shape.rank = input.rank();
         result_shape.extents[0] = range_extent;

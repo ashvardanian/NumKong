@@ -44,8 +44,9 @@ typedef struct {
 /**
  *  @brief Device identifier carried by every DLPack tensor.
  *
- *  NumKong only handles @c kDLCPU, value 1. The non-CPU values are declared so the rejected-device
- *  error message in @c from_dlpack can name the caller's device type. Numeric values match upstream
+ *  NumKong reads @c kDLCPU and the host-readable types, and launches kernels on @c kDLCUDA and
+ *  @c kDLROCM. The rest are declared so the rejected-device error message in @c from_dlpack can
+ *  name the caller's device type. Numeric values match upstream
  *  `dmlc/dlpack/include/dlpack/dlpack.h`.
  */
 typedef enum {
@@ -68,7 +69,7 @@ typedef enum {
 } DLDeviceType;
 
 /** Device handle pairing the device kind with its index. Always `(kDLCPU, 0)` for NumKong-produced
- *  tensors; non-CPU values are accepted only to be rejected with a clear @c from_dlpack message. */
+ *  tensors; a CUDA or ROCm one is kept on the tensors @c from_dlpack imports. */
 typedef struct {
     DLDeviceType device_type;
     int32_t device_id;

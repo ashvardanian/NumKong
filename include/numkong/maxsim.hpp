@@ -39,7 +39,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::maxsim_result_t>
 status_t maxsim_packed(void const *query_packed, void const *document_packed, std::size_t query_count,
                        std::size_t document_count, std::size_t depth, result_type_ *result,
-                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+                       nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::maxsim_result_t>;
 
     if (capabilities) {
@@ -95,7 +95,7 @@ template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_
 status_t maxsim_reference(typename in_type_::raw_t const *queries, std::size_t query_count, std::size_t query_stride,
                           typename in_type_::raw_t const *documents, std::size_t document_count,
                           std::size_t document_stride, std::size_t depth, result_type_ *result,
-                          nk_capability_t capabilities = cpu_capabilities()) {
+                          nk_capability_t capabilities = default_capabilities()) {
     result_type_ total_angular_distance {};
 
     for (std::size_t query_index = 0; query_index < query_count; query_index++) {

@@ -60,7 +60,7 @@ where A.Element == E, B.Element == E {
 package func _nkF32ToBf16Bits(_ value: Float32) -> UInt16 {
     var src = value
     var dst: nk_bf16_t = 0
-    nk_f32_to_bf16_best(&src, &dst, Capabilities.enabled.native)
+    nk_f32_to_bf16_best(&src, &dst, Device.cpuEnabled.native)
     return UInt16(dst)
 }
 
@@ -68,7 +68,7 @@ package func _nkF32ToBf16Bits(_ value: Float32) -> UInt16 {
 package func _nkBf16BitsToF32(_ bits: UInt16) -> Float32 {
     var src = nk_bf16_t(bits)
     var dst: Float32 = 0
-    nk_bf16_to_f32_best(&src, &dst, Capabilities.enabled.native)
+    nk_bf16_to_f32_best(&src, &dst, Device.cpuEnabled.native)
     return dst
 }
 
@@ -76,7 +76,7 @@ package func _nkBf16BitsToF32(_ bits: UInt16) -> Float32 {
 package func _nkF32ToE4M3Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e4m3_t = 0
-    nk_f32_to_e4m3_best(&src, &dst, Capabilities.enabled.native)
+    nk_f32_to_e4m3_best(&src, &dst, Device.cpuEnabled.native)
     return UInt8(dst)
 }
 
@@ -84,7 +84,7 @@ package func _nkF32ToE4M3Bits(_ value: Float32) -> UInt8 {
 package func _nkE4M3BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e4m3_t(bits)
     var dst: Float32 = 0
-    nk_e4m3_to_f32_best(&src, &dst, Capabilities.enabled.native)
+    nk_e4m3_to_f32_best(&src, &dst, Device.cpuEnabled.native)
     return dst
 }
 
@@ -92,7 +92,7 @@ package func _nkE4M3BitsToF32(_ bits: UInt8) -> Float32 {
 package func _nkF32ToE5M2Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e5m2_t = 0
-    nk_f32_to_e5m2_best(&src, &dst, Capabilities.enabled.native)
+    nk_f32_to_e5m2_best(&src, &dst, Device.cpuEnabled.native)
     return UInt8(dst)
 }
 
@@ -100,7 +100,7 @@ package func _nkF32ToE5M2Bits(_ value: Float32) -> UInt8 {
 package func _nkE5M2BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e5m2_t(bits)
     var dst: Float32 = 0
-    nk_e5m2_to_f32_best(&src, &dst, Capabilities.enabled.native)
+    nk_e5m2_to_f32_best(&src, &dst, Device.cpuEnabled.native)
     return dst
 }
 
@@ -108,7 +108,7 @@ package func _nkE5M2BitsToF32(_ bits: UInt8) -> Float32 {
 package func _nkF32ToE2M3Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e2m3_t = 0
-    nk_f32_to_e2m3_best(&src, &dst, Capabilities.enabled.native)
+    nk_f32_to_e2m3_best(&src, &dst, Device.cpuEnabled.native)
     return UInt8(dst)
 }
 
@@ -116,7 +116,7 @@ package func _nkF32ToE2M3Bits(_ value: Float32) -> UInt8 {
 package func _nkE2M3BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e2m3_t(bits)
     var dst: Float32 = 0
-    nk_e2m3_to_f32_best(&src, &dst, Capabilities.enabled.native)
+    nk_e2m3_to_f32_best(&src, &dst, Device.cpuEnabled.native)
     return dst
 }
 
@@ -124,7 +124,7 @@ package func _nkE2M3BitsToF32(_ bits: UInt8) -> Float32 {
 package func _nkF32ToE3M2Bits(_ value: Float32) -> UInt8 {
     var src = value
     var dst: nk_e3m2_t = 0
-    nk_f32_to_e3m2_best(&src, &dst, Capabilities.enabled.native)
+    nk_f32_to_e3m2_best(&src, &dst, Device.cpuEnabled.native)
     return UInt8(dst)
 }
 
@@ -132,7 +132,7 @@ package func _nkF32ToE3M2Bits(_ value: Float32) -> UInt8 {
 package func _nkE3M2BitsToF32(_ bits: UInt8) -> Float32 {
     var src = nk_e3m2_t(bits)
     var dst: Float32 = 0
-    nk_e3m2_to_f32_best(&src, &dst, Capabilities.enabled.native)
+    nk_e3m2_to_f32_best(&src, &dst, Device.cpuEnabled.native)
     return dst
 }
 

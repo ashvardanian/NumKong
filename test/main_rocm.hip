@@ -47,15 +47,16 @@ int main(int, char **argv) {
     log_environment();
     fmt::println("- Seed: {}", global_config.seed);
     fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", global_config.seed, argv[0]);
-    nk_size_t devices = 0;
-    if (nk_rocm_count_devices(&devices) != nk_success_k) {
+    auto const devices = nk::device_t::count(nk::device_kind_t::rocm_k);
+    if (!devices) {
         fmt::println("- ROCm: no device");
         return 0;
     }
-    nk_capability_t const capabilities = nk::rocm_capabilities();
+    nk_capability_t const capabilities =
+        nk::device_t::make(nk::device_kind_t::rocm_k, 0).value.capabilities_enabled().value;
     char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_name_capabilities(capabilities, names, sizeof(names));
-    fmt::println("- ROCm: {} devices, the first running {}", devices, names);
+    nk_capabilities_name(capabilities, names, sizeof(names));
+    fmt::println("- ROCm: {} devices, the first running {}", devices.value, names);
 
     error_stats_section_t check(nk_cap_any_k);
     check.section("ROCm capabilities", nk_cap_rocm_k);

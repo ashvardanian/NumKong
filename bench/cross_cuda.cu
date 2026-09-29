@@ -179,7 +179,7 @@ struct cuda_backend_t {
         keep(cudaStreamSynchronize((cudaStream_t)stream));
         nk_status_t const failure = status;
         status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
+        return failure == nk_success_k ? nullptr : nk_status_name(failure);
     }
 
     /** Remembers @p result unless an earlier failure is pending. */

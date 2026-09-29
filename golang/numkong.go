@@ -44,7 +44,7 @@
 //
 // # Threads
 //
-// [ConfigureThread] pins the goroutine to an OS thread and configures its SIMD state. A
+// [Device.ConfigureThread] pins the goroutine to an OS thread and configures its SIMD state. A
 // [WorkerPool] keeps such threads alive, and the WithPool variants split a batch across them.
 //
 // # Errors

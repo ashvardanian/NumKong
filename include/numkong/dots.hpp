@@ -108,7 +108,7 @@ void dots_unpacked_conjugated(in_type_ const *a, in_type_ const *b, result_type_
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::dot_result_t>
 status_t dots_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
                      std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes,
-                     std::size_t c_stride_in_bytes, nk_capability_t capabilities = cpu_capabilities(),
+                     std::size_t c_stride_in_bytes, nk_capability_t capabilities = default_capabilities(),
                      void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::dot_result_t>;
     if (capabilities) {
@@ -195,7 +195,7 @@ template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_
 status_t dots_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t depth, std::size_t a_stride_in_bytes,
                         result_type_ *c, std::size_t c_stride_in_bytes, std::size_t row_start = 0,
                         std::size_t row_count = std::numeric_limits<std::size_t>::max(),
-                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                        nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vectors_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::dot_result_t>;
 
@@ -295,7 +295,7 @@ template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_
 status_t hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t depth,
                             std::size_t a_stride_in_bytes, result_type_ *c, std::size_t c_stride_in_bytes,
                             std::size_t row_start = 0, std::size_t row_count = std::numeric_limits<std::size_t>::max(),
-                            nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                            nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vectors_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::hamming_result_t>;
 
@@ -351,7 +351,7 @@ status_t hammings_symmetric(in_type_ const *a, std::size_t vectors_count, std::s
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::hamming_result_t>
 status_t hammings_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
                          std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes = 0,
-                         std::size_t c_stride_in_bytes = 0, nk_capability_t capabilities = cpu_capabilities(),
+                         std::size_t c_stride_in_bytes = 0, nk_capability_t capabilities = default_capabilities(),
                          void *stream = nullptr) noexcept {
     // Compute default strides
     if (!a_stride_in_bytes) a_stride_in_bytes = depth / dimensions_per_value<in_type_>() * sizeof(in_type_);
@@ -404,7 +404,7 @@ template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_
 status_t jaccards_symmetric(in_type_ const *a, std::size_t vectors_count, std::size_t depth,
                             std::size_t a_stride_in_bytes, result_type_ *c, std::size_t c_stride_in_bytes,
                             std::size_t row_start = 0, std::size_t row_count = std::numeric_limits<std::size_t>::max(),
-                            nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                            nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     if (row_count == std::numeric_limits<std::size_t>::max()) row_count = vectors_count;
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::jaccard_result_t>;
 
@@ -442,7 +442,7 @@ status_t jaccards_symmetric(in_type_ const *a, std::size_t vectors_count, std::s
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::jaccard_result_t>
 status_t jaccards_packed(in_type_ const *a, void const *b_packed, result_type_ *c, std::size_t row_count,
                          std::size_t column_count, std::size_t depth, std::size_t a_stride_in_bytes = 0,
-                         std::size_t c_stride_in_bytes = 0, nk_capability_t capabilities = cpu_capabilities(),
+                         std::size_t c_stride_in_bytes = 0, nk_capability_t capabilities = default_capabilities(),
                          void *stream = nullptr) noexcept {
     if (!a_stride_in_bytes) a_stride_in_bytes = depth / dimensions_per_value<in_type_>() * sizeof(in_type_);
     if (!c_stride_in_bytes) c_stride_in_bytes = column_count * sizeof(result_type_);

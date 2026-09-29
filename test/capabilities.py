@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test CPU capability reporting and narrowing: nk.capabilities_{detected,compiled,enabled,enable}.
+"""Test capability reporting and narrowing: nk.Device and its capabilities_{detected,compiled,enabled,enable}.
 
 Capabilities are reported along two independent axes — `detected` (what this CPU can execute)
 and `compiled` (what the ISA probes baked into this build) — plus `enabled` (what dispatch uses,
@@ -22,6 +22,8 @@ import sys
 import pytest
 
 import numkong as nk
+
+cpu = nk.Device.cpu()
 
 
 BASELINE_BY_MACHINE: dict[tuple[str, ...], nk.Capability] = {
@@ -47,9 +49,9 @@ def baseline_for_this_machine() -> nk.Capability | None:
 @pytest.fixture(autouse=True)
 def restore_enabled_capabilities():
     """Restores the enabled set each test found, which `keep_one_capability` caches across tests."""
-    enabled = nk.capabilities_enabled()
+    enabled = cpu.capabilities_enabled()
     yield
-    nk.capabilities_enable(enabled)
+    cpu.capabilities_enable(enabled)
 
 
 def test_capability_members_are_the_cpu_capabilities():
@@ -77,9 +79,9 @@ def test_enabling_everything_keeps_what_runs_here():
     Without the clamp, enabling an ISA that was compiled in but that this CPU lacks points
     dispatch at instructions the hardware refuses to execute.
     """
-    detected, compiled = nk.capabilities_detected(), nk.capabilities_compiled()
-    enabled = nk.capabilities_enable(detected | compiled)
-    assert enabled == detected & compiled == nk.capabilities_enabled()
+    detected, compiled = cpu.capabilities_detected(), cpu.capabilities_compiled()
+    enabled = cpu.capabilities_enable(detected | compiled)
+    assert enabled == detected & compiled == cpu.capabilities_enabled()
     assert nk.Capability.SERIAL in enabled, "the serial fallback is always both detected and compiled in"
 
 
@@ -96,10 +98,10 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     baseline = baseline_for_this_machine()
     if baseline is None:
         pytest.skip(f"no SIMD baseline is guaranteed on {platform.machine()}")
-    if baseline not in nk.capabilities_detected():
+    if baseline not in cpu.capabilities_detected():
         pytest.skip(f"this CPU does not report {baseline.name}; nothing to verify")
 
-    assert baseline in nk.capabilities_compiled(), (
+    assert baseline in cpu.capabilities_compiled(), (
         f"this CPU reports {baseline.name} but no {baseline.name} kernels were compiled in — "
         f"the ISA probes failed at build time and this build is scalar"
     )
@@ -107,19 +109,39 @@ def test_compiled_covers_the_baseline_this_machine_detects():
 
 def test_enable_drops_the_tiers_left_out():
     """`capabilities_enable` makes `wanted` the enabled set, so a capability left out stops dispatching."""
-    available = nk.capabilities_detected() & nk.capabilities_compiled()
-    capabilities = [capability for capability in nk.Capability if capability in available and capability != nk.Capability.SERIAL]
+    available = cpu.capabilities_detected() & cpu.capabilities_compiled()
+    capabilities = [
+        capability for capability in nk.Capability if capability in available and capability != nk.Capability.SERIAL
+    ]
     if not capabilities:
         pytest.skip("scalar build: no capability other than serial to toggle")
 
-    enabled = nk.capabilities_enable(available ^ capabilities[0])
-    assert capabilities[0] not in enabled and enabled == nk.capabilities_enabled()
-    assert nk.capabilities_enable(available) == available
+    enabled = cpu.capabilities_enable(available ^ capabilities[0])
+    assert capabilities[0] not in enabled and enabled == cpu.capabilities_enabled()
+    assert cpu.capabilities_enable(available) == available
 
 
 def test_serial_survives_enabling_nothing():
     """The serial fallback always remains, so a kernel is always found."""
-    assert nk.capabilities_enable(nk.Capability(0)) == nk.Capability.SERIAL
+    assert cpu.capabilities_enable(nk.Capability(0)) == nk.Capability.SERIAL
+
+
+def test_device_names_one_device_it_sees():
+    """A `Device` is a kind and an ordinal, compared by value, and refuses an ordinal past the ones this process sees."""
+    assert cpu == nk.Device("cpu") == nk.Device(kind="cpu", ordinal=0) and hash(cpu) == hash(nk.Device("cpu"))
+    assert (cpu.kind, cpu.ordinal, repr(cpu)) == ("cpu", 0, "Device('cpu', 0)")
+    assert nk.zeros((2,), dtype="float32").device == cpu, "host tensors live on the CPU"
+    assert nk.Device.count("cpu") == 1
+    for kind in ("cpu", "cuda", "rocm", "metal"):
+        count = nk.Device.count(kind)
+        for ordinal in (-1, count):
+            with pytest.raises(ValueError):
+                nk.Device(kind, ordinal)
+        if count and kind != "cpu":
+            device = nk.Device(kind, count - 1)
+            assert device.capabilities_enabled() == device.capabilities_detected() & device.capabilities_compiled()
+    with pytest.raises(ValueError):
+        nk.Device("tpu")
 
 
 def test_capabilities_keyword_narrows_one_call():
@@ -128,9 +150,9 @@ def test_capabilities_keyword_narrows_one_call():
     Unlike `capabilities_enable`, the keyword keeps no serial fallback, so a mask of no capability finds no kernel.
     """
     a, b = array.array("f", [0.25] * 64), array.array("f", [0.5] * 64)
-    enabled = nk.capabilities_enabled()
+    enabled = cpu.capabilities_enabled()
     assert nk.dot(a, b, capabilities=nk.Capability.SERIAL) == nk.dot(a, b) == 8.0
-    assert nk.capabilities_enabled() == enabled
+    assert cpu.capabilities_enabled() == enabled
     with pytest.raises(LookupError):
         nk.dot(a, b, capabilities=nk.Capability(0))
     with pytest.raises(TypeError):
@@ -145,7 +167,7 @@ def test_packed_matrix_keeps_the_mask_it_was_packed_with():
     vectors = memoryview(array.array("f", [float(i % 7) for i in range(8 * 64)])).cast("B").cast("f", [8, 64])
     packed = nk.dots_pack(vectors)
     expected = nk.dots_packed(vectors, packed)
-    nk.capabilities_enable(nk.Capability.SERIAL)
+    cpu.capabilities_enable(nk.Capability.SERIAL)
     serial_packed = nk.dots_pack(vectors)
     assert nk.dots_packed(vectors, packed) == expected
     assert nk.dots_packed(vectors, serial_packed) == expected

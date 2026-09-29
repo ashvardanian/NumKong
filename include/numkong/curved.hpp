@@ -32,7 +32,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
 status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
-                  nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                  nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::curved_result_t>;
 
     if (capabilities) {
@@ -85,7 +85,7 @@ status_t bilinear(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t>
 status_t mahalanobis(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_t d, result_type_ *r,
-                     nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                     nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::curved_result_t>;
 
     if (capabilities) {
@@ -125,7 +125,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t,
           vector_of<in_type_> a_type_, vector_of<in_type_> b_type_, vector_of<in_type_> c_type_>
 expected<result_type_> bilinear(a_type_ const &a, b_type_ const &b, c_type_ const &c,
-                                nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                                nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     auto c_values = contiguous_values_<in_type_ const>(c);
@@ -144,7 +144,7 @@ expected<result_type_> bilinear(a_type_ const &a, b_type_ const &b, c_type_ cons
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::curved_result_t,
           vector_of<in_type_> a_type_, vector_of<in_type_> b_type_, vector_of<in_type_> c_type_>
 expected<result_type_> mahalanobis(a_type_ const &a, b_type_ const &b, c_type_ const &c,
-                                   nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                                   nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     auto c_values = contiguous_values_<in_type_ const>(c);

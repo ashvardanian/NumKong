@@ -35,7 +35,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
-                   std::size_t d, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
+                   std::size_t d, in_type_ *results, nk_capability_t capabilities = default_capabilities(),
                    void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
@@ -98,7 +98,7 @@ status_t haversine(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ cons
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
 status_t vincenty(in_type_ const *a_lats, in_type_ const *a_lons, in_type_ const *b_lats, in_type_ const *b_lons,
-                  std::size_t d, in_type_ *results, nk_capability_t capabilities = cpu_capabilities(),
+                  std::size_t d, in_type_ *results, nk_capability_t capabilities = default_capabilities(),
                   void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
@@ -233,7 +233,7 @@ template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, vect
           mutable_vector_of<in_type_> out_type_>
 status_t haversine(a_lats_type_ const &a_lats, a_lons_type_ const &a_lons, b_lats_type_ const &b_lats,
                    b_lons_type_ const &b_lons, out_type_ &&out,
-                   nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                   nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_lats_values = contiguous_values_<in_type_ const>(a_lats);
     auto a_lons_values = contiguous_values_<in_type_ const>(a_lons);
     auto b_lats_values = contiguous_values_<in_type_ const>(b_lats);
@@ -258,7 +258,7 @@ template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_, vect
           mutable_vector_of<in_type_> out_type_>
 status_t vincenty(a_lats_type_ const &a_lats, a_lons_type_ const &a_lons, b_lats_type_ const &b_lats,
                   b_lons_type_ const &b_lons, out_type_ &&out,
-                  nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                  nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_lats_values = contiguous_values_<in_type_ const>(a_lats);
     auto a_lons_values = contiguous_values_<in_type_ const>(a_lons);
     auto b_lats_values = contiguous_values_<in_type_ const>(b_lats);

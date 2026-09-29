@@ -55,7 +55,7 @@
 extern "C" void openblas_set_num_threads(int) __attribute__((weak));
 #endif
 
-#include "numkong/capabilities.h" // `nk_name_capabilities`, `NUMKONG_VERSION_MAJOR`
+#include "numkong/capabilities.h" // `nk_capabilities_name`, `NUMKONG_VERSION_MAJOR`
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
 #include "numkong/random.hpp"
@@ -102,15 +102,15 @@ inline nk_capability_t cpu_capabilities_compiled() noexcept {
 /** Whether a kernel's @p status is a success; otherwise skips @p state, naming the status. */
 inline bool succeeded(bm::State &state, nk_status_t status) noexcept {
     if (status == nk_success_k) return true;
-    state.SkipWithError(nk_status_to_string(status));
+    state.SkipWithError(nk_status_name(status));
     return false;
 }
 
 /** Prints the library version, the kits compiled in, and the kits this machine offers. */
 inline void log_environment() {
     char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_name_capabilities(cpu_capabilities_compiled(), compiled, sizeof(compiled));
-    nk_name_capabilities(cpu_capabilities_detected(), detected, sizeof(detected));
+    nk_capabilities_name(cpu_capabilities_compiled(), compiled, sizeof(compiled));
+    nk_capabilities_name(cpu_capabilities_detected(), detected, sizeof(detected));
     fmt::println("NumKong {}.{}.{}", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH);
     fmt::println("- Compiled for: {}", compiled);
     fmt::println("- This machine: {}", detected);

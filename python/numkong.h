@@ -283,34 +283,25 @@ int py_object_is_scalar(PyObject *obj);
  */
 int py_number_to_f64(PyObject *obj, nk_f64_t *value);
 
-/** The mask kernels run with unless a call overrides it, which @c capabilities_enable sets. */
+/** The CPU mask kernels run with by default, which @c Device.capabilities_enable sets. */
 extern nk_capability_t default_capabilities;
 
 /**
  *  @brief Parse the `capabilities=` or `stream=` keyword of every kernel-running function.
  *  @param[in] key Keyword name; any other than these two raises @c TypeError.
  *  @param[in] value A @c Capability mask, or a stream pointer as an integer; None keeps a default.
- *  @param[inout] capabilities Mask to find kernels with, less the CPU capabilities this machine lacks.
+ *  @param[inout] capabilities Mask to find kernels with, kept to this machine's CPU capabilities,
+ *      as a GPU mask comes from the device of the operands instead.
  *  @param[inout] stream Stream to pass kernels, null on the CPU.
  *  @return 1 on success, 0 on failure (Python exception set).
  */
 int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, void **stream);
 
 /**
- *  @brief Raise a @c RuntimeError named by @c nk_status_to_string unless @p status is a success.
+ *  @brief Raise a @c RuntimeError named by @c nk_status_name unless @p status is a success.
  *  @return 1 on success, 0 with a Python exception set.
  */
 int check_status(nk_status_t status);
-
-PyObject *api_capabilities_detected(PyObject *self);
-PyObject *api_capabilities_compiled(PyObject *self);
-PyObject *api_capabilities_enabled(PyObject *self);
-PyObject *api_capabilities_enable(PyObject *self, PyObject *wanted);
-
-extern char const doc_capabilities_detected[];
-extern char const doc_capabilities_compiled[];
-extern char const doc_capabilities_enabled[];
-extern char const doc_capabilities_enable[];
 
 #ifdef __cplusplus
 }

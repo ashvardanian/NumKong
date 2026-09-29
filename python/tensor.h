@@ -16,6 +16,7 @@
 #define NUMKONG_PYTHON_TENSOR_H
 
 #include "numkong.h"
+#include "dlpack_abi.h"
 
 /** Extra bytes appended to every SIMD-facing heap allocation: promoted buffers, cast-staging
  *  buffers, Tensor inline storage. MSVC versions before 19.30 can mis-compile AVX-512 masked
@@ -71,6 +72,9 @@ typedef struct Tensor {
 
     /** Outstanding buffer-protocol exports; `resize()`/`reserve()` raise @c BufferError if > 0. */
     Py_ssize_t exports;
+
+    /** @c kDLCUDA or @c kDLROCM for GPU memory from @c from_dlpack, else @c kDLCPU. */
+    DLDevice device;
 } Tensor;
 
 /**
@@ -135,6 +139,12 @@ extern PyTypeObject ScaledTensorType;
 /** Tensor iterator Python type object. */
 extern PyTypeObject TensorIterType;
 
+/** `numkong.Device` Python type object, defined with the capability queries in `numkong.c`. */
+extern PyTypeObject DeviceType;
+
+/** Wrap @p device as a `numkong.Device`, for `Tensor.device`. */
+PyObject *device_to_py_object(DLDevice device);
+
 /**
  *  @brief Allocate a new Tensor with uninitialized data.
  *  @param[in] dtype Logical dtype for elements.
@@ -147,18 +157,48 @@ Tensor *Tensor_new(nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape);
 /**
  *  @brief Create a view into an existing Tensor.
  *
- *  The view shares memory with the parent and holds a reference to it.
+ *  The view shares memory and the device with @p source, and holds a reference to whatever owns
+ *  that memory: @p source itself, or the owner @p source already views.
  *
- *  @param[in] parent Parent Tensor (reference count incremented).
+ *  @param[in] source Tensor whose memory the view reads.
  *  @param[in] data Pointer to first element of view.
- *  @param[in] dtype Logical dtype (usually same as parent).
+ *  @param[in] dtype Logical dtype (usually same as source).
  *  @param[in] rank Number of dimensions.
  *  @param[in] shape Array of dimension sizes.
  *  @param[in] strides Array of byte strides.
  *  @return New Tensor view, or NULL on failure.
  */
-Tensor *Tensor_view(Tensor *parent, char *data, nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape,
+Tensor *Tensor_view(Tensor *source, char *data, nk_dtype_t dtype, size_t rank, Py_ssize_t const *shape,
                     Py_ssize_t const *strides);
+
+/** The device @p object's memory lives on: a Tensor's own, the CPU for any other object. */
+DLDevice py_object_device(PyObject *object);
+
+/** Whether @p first and @p second name the same device. */
+static inline int same_device(DLDevice first, DLDevice second) {
+    return first.device_type == second.device_type && first.device_id == second.device_id;
+}
+
+/**
+ *  @brief Refuse a Tensor in GPU memory, which host code cannot read.
+ *  @return 1 for host memory, 0 with a @c BufferError for a CUDA or ROCm tensor.
+ */
+int tensor_on_host(Tensor const *tensor);
+
+/**
+ *  @brief Fill @p view for @p tensor as the buffer protocol does, but in GPU memory too.
+ *
+ *  Only a GPU kernel may read a GPU tensor's buffer; @c PyBuffer_Release releases it as usual.
+ *
+ *  @return 0 on success, -1 with a @c BufferError when @p flags ask for a layout it lacks.
+ */
+int tensor_export_buffer(Tensor *tensor, Py_buffer *view, int flags);
+
+/**
+ *  @brief Find the capabilities @c Device.capabilities_enabled reports for GPU @p device.
+ *  @return 1 on success, 0 with a @c ValueError when that device has none.
+ */
+int device_capabilities(DLDevice device, nk_capability_t *capabilities);
 
 /** Drain the recycled view-header free-list; call once at interpreter teardown. */
 void nk_tensor_view_freelist_clear(void);

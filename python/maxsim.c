@@ -68,7 +68,12 @@ static PyObject *MaxSimPackedMatrix_get_shape(PyObject *self, void *closure) {
     }
     nk_size_t vectors = 0, depth = 0;
     if (!check_status(shape_fn(mm->start, &vectors, &depth, NULL))) return NULL;
-    return Py_BuildValue("(nn)", (Py_ssize_t)vectors, (Py_ssize_t)depth);
+    PyObject *vectors_integer = PyLong_FromSsize_t((Py_ssize_t)vectors);
+    PyObject *depth_integer = PyLong_FromSsize_t((Py_ssize_t)depth);
+    PyObject *shape = vectors_integer && depth_integer ? PyTuple_Pack(2, vectors_integer, depth_integer) : NULL;
+    Py_XDECREF(vectors_integer);
+    Py_XDECREF(depth_integer);
+    return shape;
 }
 
 static PyGetSetDef MaxSimPackedMatrix_getset[] = {

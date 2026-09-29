@@ -25,7 +25,8 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
+use crate::tensor::{check_len, TensorError};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -34,41 +35,41 @@ extern "C" {
         a_lons: *const f32,
         b_lats: *const f32,
         b_lons: *const f32,
-        n: usize,
+        n: nk_size_t,
         results: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_haversine_f64_best(
         a_lats: *const f64,
         a_lons: *const f64,
         b_lats: *const f64,
         b_lons: *const f64,
-        n: usize,
+        n: nk_size_t,
         results: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_vincenty_f32_best(
         a_lats: *const f32,
         a_lons: *const f32,
         b_lats: *const f32,
         b_lons: *const f32,
-        n: usize,
+        n: nk_size_t,
         results: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_vincenty_f64_best(
         a_lats: *const f64,
         a_lons: *const f64,
         b_lats: *const f64,
         b_lons: *const f64,
-        n: usize,
+        n: nk_size_t,
         results: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 /// Computes __great-circle distances__ between geographic coordinates on Earth.
@@ -84,8 +85,9 @@ extern "C" {
 pub trait Haversine: Sized {
     /// Compute the great-circle distance for paired coordinates.
     ///
-    /// All four coordinate slices must be the same length, matching the output slice. Returns
-    /// `None` on length mismatch. Inputs are in __radians__ and results are written in __meters__.
+    /// All four coordinate slices must be the same length, matching the output slice, or it fails
+    /// with [`TensorError::ShapeMismatch`], and a refusing kernel fails with
+    /// [`TensorError::KernelFailed`]. Inputs are in __radians__ and results are in __meters__.
     ///
     /// # Examples
     ///
@@ -101,7 +103,13 @@ pub trait Haversine: Sized {
     /// // Approximate NY→LA great-circle distance ≈ 3 914 km.
     /// assert!((distance_meters[0] - 3_914_000.0).abs() < 30_000.0);
     /// ```
-    fn haversine(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()>;
+    fn haversine(
+        a_lat: &[Self],
+        a_lon: &[Self],
+        b_lat: &[Self],
+        b_lon: &[Self],
+        result: &mut [Self],
+    ) -> Result<(), TensorError>;
 }
 
 /// Computes __Vincenty geodesic distances__ on the WGS84 ellipsoid.
@@ -117,22 +125,31 @@ pub trait Haversine: Sized {
 /// Where a = equatorial radius, b = polar radius, f = flattening. ~20× more accurate than Haversine
 /// for long distances. Inputs are in radians, outputs in meters.
 pub trait Vincenty: Sized {
-    fn vincenty(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()>;
+    fn vincenty(
+        a_lat: &[Self],
+        a_lon: &[Self],
+        b_lat: &[Self],
+        b_lon: &[Self],
+        result: &mut [Self],
+    ) -> Result<(), TensorError>;
 }
 
 /// Combined trait for all geospatial distance computations.
 pub trait Geospatial: Haversine + Vincenty {}
 
 impl Haversine for f64 {
-    fn haversine(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
+    fn haversine(
+        a_lat: &[Self],
+        a_lon: &[Self],
+        b_lat: &[Self],
+        b_lon: &[Self],
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
         let coordinate_count = a_lat.len();
-        if a_lon.len() != coordinate_count
-            || b_lat.len() != coordinate_count
-            || b_lon.len() != coordinate_count
-            || result.len() != coordinate_count
-        {
-            return None;
-        }
+        check_len(coordinate_count, a_lon.len())?;
+        check_len(coordinate_count, b_lat.len())?;
+        check_len(coordinate_count, b_lon.len())?;
+        check_len(coordinate_count, result.len())?;
         unsafe {
             nk_haversine_f64_best(
                 a_lat.as_ptr(),
@@ -141,25 +158,27 @@ impl Haversine for f64 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl Vincenty for f64 {
-    fn vincenty(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
+    fn vincenty(
+        a_lat: &[Self],
+        a_lon: &[Self],
+        b_lat: &[Self],
+        b_lon: &[Self],
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
         let coordinate_count = a_lat.len();
-        if a_lon.len() != coordinate_count
-            || b_lat.len() != coordinate_count
-            || b_lon.len() != coordinate_count
-            || result.len() != coordinate_count
-        {
-            return None;
-        }
+        check_len(coordinate_count, a_lon.len())?;
+        check_len(coordinate_count, b_lat.len())?;
+        check_len(coordinate_count, b_lon.len())?;
+        check_len(coordinate_count, result.len())?;
         unsafe {
             nk_vincenty_f64_best(
                 a_lat.as_ptr(),
@@ -168,27 +187,29 @@ impl Vincenty for f64 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl Geospatial for f64 {}
 
 impl Haversine for f32 {
-    fn haversine(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
+    fn haversine(
+        a_lat: &[Self],
+        a_lon: &[Self],
+        b_lat: &[Self],
+        b_lon: &[Self],
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
         let coordinate_count = a_lat.len();
-        if a_lon.len() != coordinate_count
-            || b_lat.len() != coordinate_count
-            || b_lon.len() != coordinate_count
-            || result.len() != coordinate_count
-        {
-            return None;
-        }
+        check_len(coordinate_count, a_lon.len())?;
+        check_len(coordinate_count, b_lat.len())?;
+        check_len(coordinate_count, b_lon.len())?;
+        check_len(coordinate_count, result.len())?;
         unsafe {
             nk_haversine_f32_best(
                 a_lat.as_ptr(),
@@ -197,25 +218,27 @@ impl Haversine for f32 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl Vincenty for f32 {
-    fn vincenty(a_lat: &[Self], a_lon: &[Self], b_lat: &[Self], b_lon: &[Self], result: &mut [Self]) -> Option<()> {
+    fn vincenty(
+        a_lat: &[Self],
+        a_lon: &[Self],
+        b_lat: &[Self],
+        b_lon: &[Self],
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
         let coordinate_count = a_lat.len();
-        if a_lon.len() != coordinate_count
-            || b_lat.len() != coordinate_count
-            || b_lon.len() != coordinate_count
-            || result.len() != coordinate_count
-        {
-            return None;
-        }
+        check_len(coordinate_count, a_lon.len())?;
+        check_len(coordinate_count, b_lat.len())?;
+        check_len(coordinate_count, b_lon.len())?;
+        check_len(coordinate_count, result.len())?;
         unsafe {
             nk_vincenty_f32_best(
                 a_lat.as_ptr(),
@@ -224,12 +247,11 @@ impl Vincenty for f32 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 

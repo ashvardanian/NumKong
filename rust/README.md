@@ -11,10 +11,11 @@ That matters for fp16, bf16, fp8, packed bits, and strided reductions.
 ## Quickstart
 
 ```rust
-use numkong::{capabilities, Capabilities, Dot};
+use numkong::{Device, Dot};
 
 fn main() {
-    capabilities::configure_thread(Capabilities::enabled()).unwrap();
+    let cpu = Device::cpu();
+    cpu.configure_thread(cpu.capabilities_enabled().unwrap()).unwrap();
     let a = [1.0_f32, 2.0, 3.0];
     let b = [4.0_f32, 5.0, 6.0];
     let dot = f32::dot(&a, &b).unwrap();
@@ -116,31 +117,37 @@ RUSTFLAGS="-C target-feature=+relaxed-simd" cargo build --target wasm32-wasip1
 
 ## Runtime Dispatch and Capabilities
 
-`capabilities::configure_thread` enables CPU-specific acceleration features such as Intel AMX.
+A `Device` is the host CPU or one GPU, and `Device::configure_thread` enables CPU-specific acceleration features such as Intel AMX.
 It must be called once per thread before using AMX operations.
 
 ```rust
-use numkong::{capabilities, Capabilities, Capability};
+use numkong::{Capability, Device, DeviceKind};
 
-let enabled = Capabilities::enabled();
-capabilities::configure_thread(enabled).unwrap();
+let cpu = Device::cpu();
+let enabled = cpu.capabilities_enabled().unwrap();
+cpu.configure_thread(enabled).unwrap();
 
 println!("dispatching to {enabled}"); // like "serial,neon,neonhalf"
 if enabled.contains(Capability::SapphireAmx) {
     println!("AMX enabled");
 }
+
+for ordinal in 0..Device::count(DeviceKind::Cuda).unwrap() {
+    let gpu = Device::new(DeviceKind::Cuda, ordinal).unwrap();
+    println!("CUDA device {ordinal} runs {}", gpu.capabilities_enabled().unwrap()); // like "cuda,ampere,hopper"
+}
 ```
 
-A `Capabilities` set of `Capability` capabilities is reported along two independent axes, plus the set dispatch uses:
+A device reports its `Capabilities`, a set of `Capability` bits, along two independent axes, plus the set dispatch uses:
 
-- `Capabilities::detected()`: what this CPU can execute, from CPUID or HWCAP
-- `Capabilities::compiled()`: what this binary contains, from the ISA probes at build time
-- `Capabilities::enabled()`: what dispatch uses, i.e. both axes at once unless narrowed
+- `capabilities_detected()`: what the device can execute, from CPUID or HWCAP on the CPU and from the runtime on a GPU
+- `capabilities_compiled()`: what this binary contains, from the probes at build time
+- `capabilities_enabled()`: what dispatch uses, i.e. both axes at once unless narrowed
 
-Reach for `enabled()` unless you specifically mean one of the raw axes.
-`detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
-Narrow dispatch with `Capabilities::enabled().without(Capability::Skylake).enable()`, which clamps to both axes, always keeps `Capability::Serial`, and returns the set that stuck.
-Every kernel call passes `enabled()` as its capability mask, and packed kernels refuse another capability's layout, so pack matrices again after narrowing.
+Reach for `capabilities_enabled()` unless you specifically mean one of the raw axes.
+`capabilities_detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+Narrow CPU dispatch with `cpu.capabilities_enable(enabled.without(Capability::Skylake))`, which clamps to both axes, always keeps `Capability::Serial`, and returns the set that stuck.
+It is the one piece of process state the crate keeps: every kernel call passes the CPU's `capabilities_enabled()` as its capability mask, and packed kernels refuse another capability's layout, so pack matrices again after narrowing.
 
 Call `configure_thread` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.
@@ -177,6 +184,9 @@ let jsd = f32::jensenshannon(&p, &q).unwrap();
 
 println!("{dot} {jaccard} {jsd}");
 ```
+
+Every slice kernel returns a `Result`, failing with `TensorError::ShapeMismatch` when operand lengths differ and with `TensorError::KernelFailed` carrying the kernel's `Status` when it refuses its operands.
+`ReduceMinMax` returns `Ok(None)` for an all-NaN input, which is an empty result rather than a failure.
 
 ## Dot Products
 
@@ -339,6 +349,8 @@ The container model is unusual enough that it needs direct documentation.
 
 The allocator story is explicit.
 `Tensor` and `DotsPackedMatrix` are generic over `core::alloc::Allocator` and default to `numkong::Global`, which forwards to the system heap.
+Views and spans borrow their owner's allocator, and every allocating operation, like `view.sin()` or `view.dots_packed(&packed)`, allocates its result through a clone of its first operand's allocator.
+An arena that is not `Clone` works by reference, as `&Arena`, and views over foreign memory report `Global`.
 The underlying layout uses `SIMD_ALIGNMENT == 64` for owned allocations.
 That does _not_ mean callers must align their source buffers manually.
 It means owned outputs and packed payloads are allocated in a SIMD-friendly way when the crate owns them.
@@ -649,7 +661,7 @@ use numkong::{cast, f16, bf16};
 
 let src: Vec<f32> = vec![1.0, 2.0, 3.0];
 let mut dst: Vec<f16> = vec![f16::from(0.0_f32); 3];
-cast(&src, &mut dst);
+cast(&src, &mut dst).unwrap();
 assert!((dst[0].to_f32() - 1.0).abs() < 0.01);
 ```
 

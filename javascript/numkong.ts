@@ -146,62 +146,92 @@ function unwrapTensor(input: TensorBase): { arr: DistanceArray; dtype: DType } {
   }
 }
 
-/**
- *  Returns the CPU capabilities this machine executes, as a bitmask.
- *
- *  Describes the machine only, and says nothing about whether a kernel was compiled into this build
- *  — a prebuild whose ISA probes failed still reports your CPU's full feature set while containing
- *  no SIMD kernels at all. Prefer {@link capabilitiesEnabled}.
- *
- *  @returns Bitmask of {@link Capability} bits.
- */
-export const capabilitiesDetected = (): bigint => addon.capabilitiesDetected();
+/** Which runtime a device belongs to, as the `nk_<kind>_*` C functions name it. */
+export type DeviceKind = 'cpu' | 'cuda' | 'rocm' | 'metal';
+
+/** The device kinds, in the order the addon numbers them. */
+const deviceKinds: readonly DeviceKind[] = ['cpu', 'cuda', 'rocm', 'metal'];
+
+/** The addon's number for `kind`, throwing for an unknown one. */
+function deviceKindIndex(kind: DeviceKind): number {
+  const index = deviceKinds.indexOf(kind);
+  if (index < 0) throw new TypeError(`Unknown device kind: ${kind}`);
+  return index;
+}
 
 /**
- *  Returns the CPU capabilities whose kernels were compiled into this binary, as a bitmask.
+ *  One device NumKong can run kernels on: the host CPU, or a GPU by its runtime's own ordinal, the
+ *  one `cudaSetDevice` or `hipSetDevice` takes, or the position in Metal's device list.
  *
- *  Decided at build time by the ISA probes, independent of the CPU. The only accessor that can tell
- *  you a prebuild is silently scalar.
- *
- *  @returns Bitmask of {@link Capability} bits.
- */
-export const capabilitiesCompiled = (): bigint => addon.capabilitiesCompiled();
-
-/**
- *  Returns the CPU capabilities dispatch uses, as a bitmask.
- *
- *  Both {@link capabilitiesDetected} and {@link capabilitiesCompiled} at once, unless narrowed by
- *  {@link capabilitiesEnable}. Always includes `Capability.serial`.
- *
- *  @returns Bitmask of {@link Capability} bits.
+ *  Prefer {@link Device.capabilitiesEnabled} unless you specifically mean one of the raw axes:
+ *  {@link Device.capabilitiesDetected} describes the device and says nothing about whether a kernel
+ *  was compiled into this build, so a prebuild whose ISA probes failed still reports your CPU's
+ *  full feature set while containing no SIMD kernels at all.
  *
  *  @example
  *  ```ts
- *  import { capabilitiesEnabled, Capability } from 'numkong';
+ *  import { Device, Capability } from 'numkong';
  *
- *  const enabled = capabilitiesEnabled();
- *  if (enabled & Capability.haswell) console.log('AVX2 kernels in use');
+ *  const cpu = Device.cpu();
+ *  if (cpu.capabilitiesEnabled() & Capability.haswell) console.log('AVX2 kernels in use');
+ *  cpu.capabilitiesEnable(cpu.capabilitiesEnabled() & ~Capability.skylake);
  *  ```
  */
-export const capabilitiesEnabled = (): bigint => addon.capabilitiesEnabled();
+export class Device {
+  /**
+   *  @param kind - The runtime the device belongs to.
+   *  @param ordinal - The runtime's own index of the device, below {@link Device.count}.
+   *  @throws Without a device of `kind`, or past the last one.
+   */
+  constructor(readonly kind: DeviceKind, readonly ordinal: number = 0) {
+    if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal >= Device.count(kind))
+      throw new RangeError(`No ${kind} device at ordinal ${ordinal}`);
+  }
 
-/**
- *  Makes `wanted` the set dispatch uses, clamped to {@link capabilitiesDetected} and
- *  {@link capabilitiesCompiled}. The serial fallback is always kept.
- *
- *  @param wanted - Bitmask of {@link Capability} bits.
- *  @returns The enabled set that took effect.
- *
- *  @example
- *  ```ts
- *  import { capabilitiesEnable, capabilitiesEnabled, Capability } from 'numkong';
- *
- *  capabilitiesEnable(capabilitiesEnabled() & ~Capability.skylake);
- *  ```
- */
-export const capabilitiesEnable = (wanted: bigint): bigint => addon.capabilitiesEnable(wanted);
+  /** The host CPU, which every build has. */
+  static cpu(): Device {
+    return new Device('cpu', 0);
+  }
 
-/** Lowercase CPU capability names, like `haswell` or `neon`, mapped to their capability bits. */
+  /**
+   *  How many devices of `kind` the process sees: one CPU, or the GPUs its runtime counts.
+   *  @throws Without a GPU of `kind`.
+   */
+  static count(kind: DeviceKind): number {
+    return addon.deviceCount(deviceKindIndex(kind));
+  }
+
+  /** The capabilities this device runs, compiled in or not, as a bitmask. */
+  capabilitiesDetected(): bigint {
+    return addon.capabilitiesDetected(deviceKindIndex(this.kind), this.ordinal);
+  }
+
+  /** The capabilities compiled into this build for devices of this kind, as a bitmask. */
+  capabilitiesCompiled(): bigint {
+    return addon.capabilitiesCompiled(deviceKindIndex(this.kind));
+  }
+
+  /** The capabilities this device's kernel calls pass: detected and compiled at once, as a bitmask.
+   *  On the CPU it is what every kernel call passes, narrowed by {@link Device.capabilitiesEnable},
+   *  and always includes `Capability.serial`. */
+  capabilitiesEnabled(): bigint {
+    return addon.capabilitiesEnabled(deviceKindIndex(this.kind), this.ordinal);
+  }
+
+  /**
+   *  Makes `wanted` the CPU's enabled set, clamped to what it detects and this build compiled, and
+   *  keeping the serial fallback. Pack matrices again afterwards.
+   *  @param wanted - Bitmask of {@link Capability} bits.
+   *  @returns The enabled set that took effect.
+   *  @throws On a GPU, which keeps no such set.
+   */
+  capabilitiesEnable(wanted: bigint): bigint {
+    return addon.capabilitiesEnable(deviceKindIndex(this.kind), wanted);
+  }
+}
+
+/** Lowercase capability names, like `haswell`, `neon` or `ampere`, mapped to their bits, and the
+ *  `cpus`, `devices` and `any` groups to theirs. */
 export const Capability: Readonly<Record<string, bigint>> = Object.freeze(addon.Capability);
 
 /**

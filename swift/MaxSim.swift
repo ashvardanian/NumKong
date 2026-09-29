@@ -94,7 +94,7 @@ extension Float32: NumKongMaxSimElement {
     public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) throws -> Int {
         var bytes: nk_size_t = 0
         try _nkCheck(
-            nk_maxsim_pack_size_f32_best(nk_size_t(vectors), nk_size_t(depth), Capabilities.enabled.native, &bytes))
+            nk_maxsim_pack_size_f32_best(nk_size_t(vectors), nk_size_t(depth), Device.cpuEnabled.native, &bytes))
         return Int(bytes)
     }
 
@@ -103,7 +103,7 @@ extension Float32: NumKongMaxSimElement {
     {
         var v: nk_size_t = 0
         var d: nk_size_t = 0
-        try _nkCheck(nk_maxsim_packed_shape_f32_best(packed, &v, &d, Capabilities.enabled.native, nil))
+        try _nkCheck(nk_maxsim_packed_shape_f32_best(packed, &v, &d, Device.cpuEnabled.native, nil))
         vectors = Int(v)
         depth = Int(d)
     }
@@ -115,7 +115,7 @@ extension Float32: NumKongMaxSimElement {
         try _nkCheck(
             nk_maxsim_pack_f32_best(
                 vectorsData, nk_size_t(vectorsCount), nk_size_t(depth), nk_size_t(stride), packed,
-                Capabilities.enabled.native, nil))
+                Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_maxsim_packed(
@@ -125,7 +125,7 @@ extension Float32: NumKongMaxSimElement {
         try _nkCheck(
             nk_maxsim_packed_f32_best(
                 queryPacked, docPacked, nk_size_t(queryCount), nk_size_t(docCount), nk_size_t(depth), result,
-                Capabilities.enabled.native, nil))
+                Device.cpuEnabled.native, nil))
     }
 }
 
@@ -137,7 +137,7 @@ extension BFloat16: NumKongMaxSimElement {
     public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) throws -> Int {
         var bytes: nk_size_t = 0
         try _nkCheck(
-            nk_maxsim_pack_size_bf16_best(nk_size_t(vectors), nk_size_t(depth), Capabilities.enabled.native, &bytes))
+            nk_maxsim_pack_size_bf16_best(nk_size_t(vectors), nk_size_t(depth), Device.cpuEnabled.native, &bytes))
         return Int(bytes)
     }
 
@@ -146,7 +146,7 @@ extension BFloat16: NumKongMaxSimElement {
     {
         var v: nk_size_t = 0
         var d: nk_size_t = 0
-        try _nkCheck(nk_maxsim_packed_shape_bf16_best(packed, &v, &d, Capabilities.enabled.native, nil))
+        try _nkCheck(nk_maxsim_packed_shape_bf16_best(packed, &v, &d, Device.cpuEnabled.native, nil))
         vectors = Int(v)
         depth = Int(d)
     }
@@ -159,7 +159,7 @@ extension BFloat16: NumKongMaxSimElement {
         try _nkCheck(
             nk_maxsim_pack_bf16_best(
                 cPtr, nk_size_t(vectorsCount), nk_size_t(depth), nk_size_t(stride), packed,
-                Capabilities.enabled.native, nil))
+                Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_maxsim_packed(
@@ -169,7 +169,7 @@ extension BFloat16: NumKongMaxSimElement {
         try _nkCheck(
             nk_maxsim_packed_bf16_best(
                 queryPacked, docPacked, nk_size_t(queryCount), nk_size_t(docCount), nk_size_t(depth), result,
-                Capabilities.enabled.native, nil))
+                Device.cpuEnabled.native, nil))
     }
 }
 
@@ -182,7 +182,7 @@ extension Float16: NumKongMaxSimElement {
     public static func _nk_maxsim_pack_size(_ vectors: Int, _ depth: Int) throws -> Int {
         var bytes: nk_size_t = 0
         try _nkCheck(
-            nk_maxsim_pack_size_f16_best(nk_size_t(vectors), nk_size_t(depth), Capabilities.enabled.native, &bytes))
+            nk_maxsim_pack_size_f16_best(nk_size_t(vectors), nk_size_t(depth), Device.cpuEnabled.native, &bytes))
         return Int(bytes)
     }
 
@@ -191,7 +191,7 @@ extension Float16: NumKongMaxSimElement {
     {
         var v: nk_size_t = 0
         var d: nk_size_t = 0
-        try _nkCheck(nk_maxsim_packed_shape_f16_best(packed, &v, &d, Capabilities.enabled.native, nil))
+        try _nkCheck(nk_maxsim_packed_shape_f16_best(packed, &v, &d, Device.cpuEnabled.native, nil))
         vectors = Int(v)
         depth = Int(d)
     }
@@ -204,7 +204,7 @@ extension Float16: NumKongMaxSimElement {
         try _nkCheck(
             nk_maxsim_pack_f16_best(
                 cPtr, nk_size_t(vectorsCount), nk_size_t(depth), nk_size_t(stride), packed,
-                Capabilities.enabled.native, nil))
+                Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_maxsim_packed(
@@ -214,7 +214,7 @@ extension Float16: NumKongMaxSimElement {
         try _nkCheck(
             nk_maxsim_packed_f16_best(
                 queryPacked, docPacked, nk_size_t(queryCount), nk_size_t(docCount), nk_size_t(depth), result,
-                Capabilities.enabled.native, nil))
+                Device.cpuEnabled.native, nil))
     }
 }
 #endif

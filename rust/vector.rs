@@ -53,7 +53,9 @@
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 
-use crate::tensor::{alloc_block, alloc_filled, layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError};
+use crate::tensor::{
+    alloc_block, alloc_filled, layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError, GLOBAL,
+};
 use crate::types::{DimMut, DimRef, FloatConvertible, NumberLike, StorageElement};
 
 // region: VectorIndex — Signed Indexing
@@ -361,7 +363,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Drop for Vector<Scalar, Alloc> {
 
 /// Rejects `dims` unless it counts dimensions, a multiple of the values per byte.
 fn ensure_whole_values<Scalar: StorageElement>(dims: usize) -> Result<(), TensorError> {
-    if dims % Scalar::dimensions_per_value() != 0 {
+    if !dims.is_multiple_of(Scalar::dimensions_per_value()) {
         return Err(TensorError::InvalidShape {
             axis: 0,
             size: dims,
@@ -592,27 +594,29 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
 
     /// Create an immutable view of this vector.
     #[inline]
-    pub fn view(&self) -> VectorView<'_, Scalar> {
+    pub fn view(&self) -> VectorView<'_, Scalar, Alloc> {
         VectorView {
             data: self.data.as_ptr() as *const Scalar,
             dims: self.dims,
             stride_bytes: core::mem::size_of::<Scalar>() as isize,
+            allocator: &self.alloc,
             _marker: PhantomData,
         }
     }
 
     /// Create a mutable span of this vector.
     #[inline]
-    pub fn span(&mut self) -> VectorSpan<'_, Scalar> {
+    pub fn span(&mut self) -> VectorSpan<'_, Scalar, Alloc> {
         VectorSpan {
             data: self.data.as_ptr(),
             dims: self.dims,
             stride_bytes: core::mem::size_of::<Scalar>() as isize,
+            allocator: &self.alloc,
             _marker: PhantomData,
         }
     }
 
-    /// Try to get the logical dimension at `index`; supports signed indexing.
+    /// Get the logical dimension at `index`; supports signed indexing.
     ///
     /// Returns the native `DimScalar` type, e.g. `f64` for `Vector<f64>` or `i8` for
     /// `Vector<i4x2>`. For sub-byte types, unpacks the appropriate sub-dimension from the packed
@@ -646,7 +650,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         Ok(unsafe { location.read_from(self.data.as_ptr().add(location.value_index)) })
     }
 
-    /// Try to set the logical dimension at `index`.
+    /// Set the logical dimension at `index`.
     ///
     /// Accepts the native `DimScalar` type. For sub-byte types, reads the current packed value,
     /// updates the targeted sub-dimension, and writes back the modified packed value.
@@ -834,23 +838,26 @@ impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
 /// which offers the same striding semantics plus element writes. Both types support the
 /// [`VectorIndex`] trait, so `view.get(0_usize)`, `view.get(-1_i32)`, and friends all resolve via
 /// the same Python-style rules.
-pub struct VectorView<'a, Scalar: StorageElement> {
+pub struct VectorView<'a, Scalar: StorageElement, Alloc = Global> {
     data: *const Scalar,
     dims: usize,
     stride_bytes: isize,
+    /// The allocator of the vector this view borrows.
+    allocator: &'a Alloc,
     _marker: PhantomData<&'a Scalar>,
 }
 
-unsafe impl<'a, Scalar: StorageElement + Sync> Send for VectorView<'a, Scalar> {}
-unsafe impl<'a, Scalar: StorageElement + Sync> Sync for VectorView<'a, Scalar> {}
+unsafe impl<'a, Scalar: StorageElement + Sync, Alloc: Sync> Send for VectorView<'a, Scalar, Alloc> {}
+unsafe impl<'a, Scalar: StorageElement + Sync, Alloc: Sync> Sync for VectorView<'a, Scalar, Alloc> {}
 
-impl<'a, Scalar: StorageElement> Clone for VectorView<'a, Scalar> {
+impl<'a, Scalar: StorageElement, Alloc> Clone for VectorView<'a, Scalar, Alloc> {
     fn clone(&self) -> Self { *self }
 }
-impl<'a, Scalar: StorageElement> Copy for VectorView<'a, Scalar> {}
+impl<'a, Scalar: StorageElement, Alloc> Copy for VectorView<'a, Scalar, Alloc> {}
 
 impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
-    /// Create a view from a raw pointer, dimension count, and byte stride.
+    /// Create a view from a raw pointer, dimension count, and byte stride, reporting [`Global`]
+    /// as its allocator.
     ///
     /// # Safety
     /// - `data` must be valid for reads of `dims` elements at the given stride.
@@ -858,13 +865,34 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
     /// - `stride_bytes` must be non-zero for non-empty views.
     #[inline]
     pub unsafe fn from_raw_parts(data: *const Scalar, dims: usize, stride_bytes: isize) -> Self {
+        Self::from_raw_parts_in(data, dims, stride_bytes, &GLOBAL)
+    }
+}
+
+impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc> {
+    /// Like [`VectorView::from_raw_parts`], reporting `allocator` as the view's allocator.
+    ///
+    /// # Safety
+    /// The same as for [`VectorView::from_raw_parts`].
+    #[inline]
+    pub unsafe fn from_raw_parts_in(
+        data: *const Scalar,
+        dims: usize,
+        stride_bytes: isize,
+        allocator: &'a Alloc,
+    ) -> Self {
         Self {
             data,
             dims,
             stride_bytes,
+            allocator,
             _marker: PhantomData,
         }
     }
+
+    /// The allocator of the vector this view borrows, or [`Global`] for foreign memory.
+    #[inline]
+    pub fn allocator(&self) -> &'a Alloc { self.allocator }
 
     /// Number of logical dimensions.
     #[inline]
@@ -934,6 +962,7 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
             data: unsafe { (self.data as *const u8).offset(last_offset) as *const Scalar },
             dims: self.dims,
             stride_bytes: -self.stride_bytes,
+            allocator: self.allocator,
             _marker: PhantomData,
         }
     }
@@ -966,6 +995,7 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
             data: new_data,
             dims: count,
             stride_bytes: self.stride_bytes * step,
+            allocator: self.allocator,
             _marker: PhantomData,
         })
     }
@@ -1000,18 +1030,21 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
 /// [`VectorSpan::as_view`] + [`VectorView::rev`], and Python-style slicing through their view
 /// projection. The `'a` lifetime mirrors the owner of the underlying memory, and Rust's borrow
 /// checker prevents aliasing a single span with any other reference for the duration of `'a`.
-pub struct VectorSpan<'a, Scalar: StorageElement> {
+pub struct VectorSpan<'a, Scalar: StorageElement, Alloc = Global> {
     data: *mut Scalar,
     dims: usize,
     stride_bytes: isize,
+    /// The allocator of the vector this span borrows.
+    allocator: &'a Alloc,
     _marker: PhantomData<&'a mut Scalar>,
 }
 
-unsafe impl<'a, Scalar: StorageElement + Send> Send for VectorSpan<'a, Scalar> {}
-unsafe impl<'a, Scalar: StorageElement + Sync> Sync for VectorSpan<'a, Scalar> {}
+unsafe impl<'a, Scalar: StorageElement + Send, Alloc: Sync> Send for VectorSpan<'a, Scalar, Alloc> {}
+unsafe impl<'a, Scalar: StorageElement + Sync, Alloc: Sync> Sync for VectorSpan<'a, Scalar, Alloc> {}
 
 impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
-    /// Create a mutable view from a raw pointer, dimension count, and byte stride.
+    /// Create a mutable view from a raw pointer, dimension count, and byte stride, reporting
+    /// [`Global`] as its allocator.
     ///
     /// # Safety
     /// - `data` must be valid for reads and writes of `dims` elements at the given stride.
@@ -1020,13 +1053,29 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     /// - No other references to the memory may exist for the duration of `'a`.
     #[inline]
     pub unsafe fn from_raw_parts(data: *mut Scalar, dims: usize, stride_bytes: isize) -> Self {
+        Self::from_raw_parts_in(data, dims, stride_bytes, &GLOBAL)
+    }
+}
+
+impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc> {
+    /// Like [`VectorSpan::from_raw_parts`], reporting `allocator` as the span's allocator.
+    ///
+    /// # Safety
+    /// The same as for [`VectorSpan::from_raw_parts`].
+    #[inline]
+    pub unsafe fn from_raw_parts_in(data: *mut Scalar, dims: usize, stride_bytes: isize, allocator: &'a Alloc) -> Self {
         Self {
             data,
             dims,
             stride_bytes,
+            allocator,
             _marker: PhantomData,
         }
     }
+
+    /// The allocator of the vector this span borrows, or [`Global`] for foreign memory.
+    #[inline]
+    pub fn allocator(&self) -> &'a Alloc { self.allocator }
 
     /// Number of logical dimensions.
     #[inline]
@@ -1057,11 +1106,12 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     pub fn as_mut_ptr(&mut self) -> *mut Scalar { self.data }
 
     /// Reborrow as an immutable view, sharing the same data pointer and stride.
-    pub fn as_view(&self) -> VectorView<'_, Scalar> {
+    pub fn as_view(&self) -> VectorView<'_, Scalar, Alloc> {
         VectorView {
             data: self.data,
             dims: self.dims,
             stride_bytes: self.stride_bytes,
+            allocator: self.allocator,
             _marker: PhantomData,
         }
     }
@@ -1183,7 +1233,7 @@ impl<Alloc: Allocator> Vector<u1x8, Alloc> {
     pub fn all_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == self.dims as u64) }
 }
 
-impl<'a> VectorView<'a, u1x8> {
+impl<'a, Alloc: Allocator> VectorView<'a, u1x8, Alloc> {
     /// Number of set bits across the entire vector view.
     pub fn popcount(&self) -> Result<u64, TensorError> {
         let storage_count = u1x8::dimensions_to_values(self.dims);
@@ -1201,7 +1251,7 @@ impl<'a> VectorView<'a, u1x8> {
     pub fn all_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == self.dims as u64) }
 }
 
-impl<'a> VectorSpan<'a, u1x8> {
+impl<'a, Alloc: Allocator> VectorSpan<'a, u1x8, Alloc> {
     /// Number of set bits across the entire vector span.
     pub fn popcount(&self) -> Result<u64, TensorError> {
         let storage_count = u1x8::dimensions_to_values(self.dims);
@@ -1286,7 +1336,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> CopyFrom<&[Scalar]> for Vector<Sc
     }
 }
 
-impl<'a, Scalar: StorageElement> Fill<Scalar> for VectorSpan<'a, Scalar> {
+impl<'a, Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for VectorSpan<'a, Scalar, Alloc> {
     fn fill_zeros(&mut self) {
         let storage_count = Scalar::dimensions_to_values(self.dims);
         if storage_count == 0 {
@@ -1352,8 +1402,10 @@ impl<'a, Scalar: StorageElement> Fill<Scalar> for VectorSpan<'a, Scalar> {
     }
 }
 
-impl<'a, 'b, Scalar: StorageElement> CopyFrom<&'b VectorView<'_, Scalar>> for VectorSpan<'a, Scalar> {
-    fn copy_from(&mut self, source: &'b VectorView<'_, Scalar>) -> Result<(), TensorError> {
+impl<'a, 'b, Scalar: StorageElement, Alloc: Allocator, SourceAlloc: Allocator>
+    CopyFrom<&'b VectorView<'_, Scalar, SourceAlloc>> for VectorSpan<'a, Scalar, Alloc>
+{
+    fn copy_from(&mut self, source: &'b VectorView<'_, Scalar, SourceAlloc>) -> Result<(), TensorError> {
         if source.size() != self.dims {
             return Err(TensorError::ShapeMismatch {
                 axis: 0,
@@ -1512,13 +1564,13 @@ impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a Vector
     fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
-impl<'a, Scalar: FloatConvertible> IntoIterator for &'a VectorView<'a, Scalar> {
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a VectorView<'a, Scalar, Alloc> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
     fn into_iter(self) -> Self::IntoIter { self.iter() }
 }
 
-impl<'a, Scalar: FloatConvertible> IntoIterator for &'a VectorSpan<'a, Scalar> {
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a VectorSpan<'a, Scalar, Alloc> {
     type Item = DimRef<'a, Scalar>;
     type IntoIter = VectorViewIterator<'a, Scalar>;
     fn into_iter(self) -> Self::IntoIter { self.iter() }
@@ -1534,7 +1586,7 @@ impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a mut Ve
     fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
 }
 
-impl<'a, Scalar: FloatConvertible> IntoIterator for &'a mut VectorSpan<'a, Scalar> {
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> IntoIterator for &'a mut VectorSpan<'a, Scalar, Alloc> {
     type Item = DimMut<'a, Scalar>;
     type IntoIter = VectorSpanIterator<'a, Scalar>;
     fn into_iter(self) -> Self::IntoIter { self.iter_mut() }
@@ -1568,14 +1620,14 @@ where
     }
 }
 
-impl<'a, Scalar: FloatConvertible> PartialEq for VectorView<'a, Scalar>
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> PartialEq for VectorView<'a, Scalar, Alloc>
 where
     Scalar::DimScalar: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool { self.dims == other.dims && self.iter().zip(other.iter()).all(|(a, b)| a == b) }
 }
 
-impl<'a, Scalar: FloatConvertible> PartialEq for VectorSpan<'a, Scalar>
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> PartialEq for VectorSpan<'a, Scalar, Alloc>
 where
     Scalar::DimScalar: PartialEq,
 {
@@ -1603,7 +1655,7 @@ where
     }
 }
 
-impl<'a, Scalar: FloatConvertible> VectorView<'a, Scalar>
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
 where
     Scalar::DimScalar: NumberLike,
 {
@@ -1620,7 +1672,7 @@ where
     }
 }
 
-impl<'a, Scalar: FloatConvertible> VectorSpan<'a, Scalar>
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
 where
     Scalar::DimScalar: NumberLike,
 {
@@ -1699,7 +1751,7 @@ where
     }
 }
 
-impl<'a, Scalar: FloatConvertible> core::fmt::Debug for VectorView<'a, Scalar>
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> core::fmt::Debug for VectorView<'a, Scalar, Alloc>
 where
     Scalar::DimScalar: core::fmt::Debug,
 {
@@ -1708,7 +1760,7 @@ where
     }
 }
 
-impl<'a, Scalar: FloatConvertible> core::fmt::Debug for VectorSpan<'a, Scalar>
+impl<'a, Scalar: FloatConvertible, Alloc: Allocator> core::fmt::Debug for VectorSpan<'a, Scalar, Alloc>
 where
     Scalar::DimScalar: core::fmt::Debug,
 {
@@ -1743,7 +1795,7 @@ mod tests {
         assert_eq!(count, test_dims);
     }
 
-    fn check_vector_try_get_set<Scalar: FloatConvertible>()
+    fn check_vector_get_set<Scalar: FloatConvertible>()
     where
         Scalar::DimScalar: core::fmt::Debug,
     {
@@ -1771,12 +1823,12 @@ mod tests {
     }
 
     #[test]
-    fn vector_try_get_set_all_types() {
-        check_vector_try_get_set::<f32>();
-        check_vector_try_get_set::<f64>();
-        check_vector_try_get_set::<i4x2>();
-        check_vector_try_get_set::<u4x2>();
-        check_vector_try_get_set::<u1x8>();
+    fn vector_get_set_all_types() {
+        check_vector_get_set::<f32>();
+        check_vector_get_set::<f64>();
+        check_vector_get_set::<i4x2>();
+        check_vector_get_set::<u4x2>();
+        check_vector_get_set::<u1x8>();
     }
 
     #[test]

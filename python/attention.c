@@ -143,7 +143,16 @@ static PyObject *AttentionPackedMatrix_get_shape(PyObject *self, void *closure) 
     }
     nk_size_t heads = 0, depth = 0, segments = 0;
     if (!check_status(shape_fn(mm->start, &heads, &depth, &segments, NULL))) return NULL;
-    return Py_BuildValue("(nnn)", (Py_ssize_t)heads, (Py_ssize_t)depth, (Py_ssize_t)segments);
+    PyObject *heads_integer = PyLong_FromSsize_t((Py_ssize_t)heads);
+    PyObject *depth_integer = PyLong_FromSsize_t((Py_ssize_t)depth);
+    PyObject *segments_integer = PyLong_FromSsize_t((Py_ssize_t)segments);
+    PyObject *shape = heads_integer && depth_integer && segments_integer
+                          ? PyTuple_Pack(3, heads_integer, depth_integer, segments_integer)
+                          : NULL;
+    Py_XDECREF(heads_integer);
+    Py_XDECREF(depth_integer);
+    Py_XDECREF(segments_integer);
+    return shape;
 }
 
 static PyGetSetDef AttentionPackedMatrix_getset[] = {
@@ -530,6 +539,7 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
             goto release_query_offsets;
         }
         Tensor *output = (Tensor *)output_object;
+        if (!tensor_on_host(output)) goto release_query_offsets;
         if (output->dtype != nk_f32_k || output->rank != 2 || (nk_size_t)output->shape[0] < query_tokens ||
             (nk_size_t)output->shape[1] != row_values) {
             PyErr_SetString(PyExc_ValueError, "out must be an f32 Tensor of shape (tokens, heads*depth)");

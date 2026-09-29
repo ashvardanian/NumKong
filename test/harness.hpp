@@ -462,11 +462,11 @@ nk_status_t call_best(nk_capability_t capabilities, arguments_types_... argument
     }(std::make_index_sequence<sizeof...(arguments_types_) - 1> {});
 }
 
-/** The dispatch point @p best_ in the shape of its capability kernels, over the CPU capabilities this process
- *  enables: callable like them, and convertible to their function pointers. */
+/** The dispatch point @p best_ in the shape of its capability kernels, over the CPU capabilities
+ *  this process enables: callable like them, and convertible to their function pointers. */
 template <auto best_>
 inline constexpr auto cpu_best =
-    [](auto... arguments) noexcept { return call_best<best_>(nk::cpu_capabilities(), arguments...); };
+    [](auto... arguments) noexcept { return call_best<best_>(nk::default_capabilities(), arguments...); };
 
 struct error_stats_section_t {
     char const *title = nullptr;
@@ -712,7 +712,7 @@ struct error_stats_t {
 
     /** Record a kernel's @p status, failing it by the status's name when it wrote no result. */
     void expect(nk_status_t status) noexcept {
-        if (status != nk_success_k) expect(false, nk_status_to_string(status));
+        if (status != nk_success_k) expect(false, nk_status_name(status));
     }
 
     /** Record a C++ wrapper's @p status, like the C one. */
@@ -838,8 +838,9 @@ struct error_stats_t {
 };
 
 #if NUMKONG_HEADER_ONLY
-/** The header-only stub of @p best_, called with the arguments of its capability kernels, which it never
- *  reads, reports the missing library over every mask. */
+
+/** The header-only stub of @p best_, called with the arguments of its capability kernels, which it
+ *  never reads, reports the missing library over every mask. */
 template <auto best_, typename... arguments_types_>
 error_stats_t test_missing_library(arguments_types_... arguments) {
     error_stats_t stats(comparison_family_t::exact_k);
@@ -972,7 +973,7 @@ struct host_backend_t {
     char const *synchronize() noexcept {
         nk_status_t const failure = status;
         status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
+        return failure == nk_success_k ? nullptr : nk_status_name(failure);
     }
 
     /** Remembers @p result unless an earlier failure is pending. */
@@ -996,8 +997,8 @@ typename backend_type_::template allocator<value_type_> allocator_of(backend_typ
  *  binary. */
 inline void log_environment() {
     char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_name_capabilities(cpu_capabilities_compiled(), compiled, sizeof(compiled));
-    nk_name_capabilities(cpu_capabilities_detected(), detected, sizeof(detected));
+    nk_capabilities_name(cpu_capabilities_compiled(), compiled, sizeof(compiled));
+    nk_capabilities_name(cpu_capabilities_detected(), detected, sizeof(detected));
     fmt::println("NumKong {}.{}.{}", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH);
     fmt::println("- Compiled for: {}", compiled);
     fmt::println("- This machine: {}", detected);

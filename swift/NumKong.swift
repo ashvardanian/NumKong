@@ -68,7 +68,7 @@ extension Float64: NumKongHaversine {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Capabilities.enabled.native,
+            Device.cpuEnabled.native,
             nil
         ) == nk_success_k
     }
@@ -97,7 +97,7 @@ extension Float64: NumKongVincenty {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Capabilities.enabled.native,
+            Device.cpuEnabled.native,
             nil
         ) == nk_success_k
     }
@@ -126,7 +126,7 @@ extension Float32: NumKongHaversine {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Capabilities.enabled.native,
+            Device.cpuEnabled.native,
             nil
         ) == nk_success_k
     }
@@ -155,7 +155,7 @@ extension Float32: NumKongVincenty {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Capabilities.enabled.native,
+            Device.cpuEnabled.native,
             nil
         ) == nk_success_k
     }
@@ -170,7 +170,7 @@ extension Float64 {
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f64_best(a, b, c, d, nk_size_t(n), r, Capabilities.enabled.native, nil)
+            nk_haversine_f64_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
         }
     }
 
@@ -180,7 +180,7 @@ extension Float64 {
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f64_best(a, b, c, d, nk_size_t(n), r, Capabilities.enabled.native, nil)
+            nk_vincenty_f64_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
         }
     }
 }
@@ -192,7 +192,7 @@ extension Float32 {
     ) -> [Float32]?
     where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f32_best(a, b, c, d, nk_size_t(n), r, Capabilities.enabled.native, nil)
+            nk_haversine_f32_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
         }
     }
 
@@ -202,7 +202,7 @@ extension Float32 {
     ) -> [Float32]?
     where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f32_best(a, b, c, d, nk_size_t(n), r, Capabilities.enabled.native, nil)
+            nk_vincenty_f32_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
         }
     }
 }
@@ -241,13 +241,9 @@ where A.Element == Float32 {
     Float32.vincenty(aLat: aLat, aLon: aLon, bLat: bLat, bLon: bLon)
 }
 
-// MARK: - Capabilities
+// MARK: - Capabilities and Devices
 
-/// A set of CPU SIMD capabilities, reported along two independent axes and the set dispatch uses.
-///
-/// Prefer ``enabled`` unless you specifically mean one of the raw axes: ``detected`` describes
-/// the CPU and says nothing about whether a kernel was compiled into this binary, so selecting on
-/// it alone claims hardware support for code that may not exist here.
+/// A set of capabilities of a CPU or a GPU, as a ``Device`` reports them.
 public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     public let rawValue: UInt64
     public init(rawValue: UInt64) { self.rawValue = rawValue }
@@ -291,50 +287,163 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     public static let powerVsx = Capabilities(rawValue: 1 << 33)
     public static let loongsonAsx = Capabilities(rawValue: 1 << 34)
 
-    /// What this CPU supports, from CPUID or HWCAP.
-    public static var detected: Capabilities { query(nk_cpu_capabilities_detected) }
+    public static let cuda = Capabilities(rawValue: 1 << 48)
+    public static let ampere = Capabilities(rawValue: 1 << 49)
+    public static let ada = Capabilities(rawValue: 1 << 50)
+    public static let hopper = Capabilities(rawValue: 1 << 51)
+    public static let blackwell = Capabilities(rawValue: 1 << 52)
+    public static let blackwellRtx = Capabilities(rawValue: 1 << 53)
+    public static let rocm = Capabilities(rawValue: 1 << 56)
+    public static let cdna4 = Capabilities(rawValue: 1 << 57)
+    public static let cdna5 = Capabilities(rawValue: 1 << 58)
+    public static let metal = Capabilities(rawValue: 1 << 60)
+    public static let apple9 = Capabilities(rawValue: 1 << 61)
+    public static let apple10 = Capabilities(rawValue: 1 << 62)
 
-    /// What this binary contains, as decided by the ISA probes at build time.
-    public static var compiled: Capabilities { query(nk_cpu_capabilities_compiled) }
-
-    /// What every kernel call passes: ``detected`` and ``compiled`` at once, unless narrowed by
-    /// ``enable(_:)``. Always contains ``serial``.
-    public static var enabled: Capabilities { selected }
-
-    /// Backs ``enabled``; ``enable(_:)`` writes it unsynchronized, so narrow before threads start.
-    nonisolated(unsafe) private static var selected = query(nk_cpu_capabilities_enabled)
-
-    /// Makes `wanted` the ``enabled`` set, clamped to ``detected`` and ``compiled`` and keeping
-    /// ``serial``. Matrices packed before the call must be packed again under the new set.
-    /// - Returns: The set that took effect.
-    @discardableResult
-    public static func enable(_ wanted: Capabilities) -> Capabilities {
-        selected = wanted.intersection(query(nk_cpu_capabilities_enabled)).union(.serial)
-        return selected
-    }
-
-    /// Configures the current thread for `capabilities`, usually ``enabled``, e.g. AMX tile state
-    /// on x86. Must be called once per thread before using AMX operations.
-    /// - Returns: `true` on success.
-    @discardableResult
-    public static func configureThread(_ capabilities: Capabilities) -> Bool {
-        nk_cpu_configure_thread(capabilities.native) == nk_success_k
-    }
+    /// Every CPU capability, the bits below the first GPU vendor's.
+    public static let cpus = Capabilities(rawValue: (1 << 48) - 1)
+    /// Every GPU capability.
+    public static let devices: Capabilities = [
+        .cuda, .ampere, .ada, .hopper, .blackwell, .blackwellRtx, .rocm, .cdna4, .cdna5, .metal, .apple9, .apple10,
+    ]
+    /// Every capability.
+    public static let any = Capabilities(rawValue: .max)
 
     /// The capability names, comma-separated, like "serial,haswell".
     public var description: String {
         String(unsafeUninitializedCapacity: Int(NUMKONG_CAPABILITIES_NAME_CAPACITY)) { names in
             names.withMemoryRebound(to: CChar.self) {
-                Int(nk_name_capabilities(native, $0.baseAddress, nk_size_t($0.count)))
+                Int(nk_capabilities_name(native, $0.baseAddress, nk_size_t($0.count)))
             }
         }
     }
+}
 
-    /// Reads one of the `nk_cpu_capabilities_*` masks, which never fail on the CPU.
-    private static func query(_ read: (UnsafeMutablePointer<nk_capability_t>?) -> nk_status_t) -> Capabilities {
+/// Which runtime a device belongs to, as the `nk_<kind>_*` C functions name it.
+public enum DeviceKind: Sendable {
+    case cpu, cuda, rocm, metal
+}
+
+/// Why a ``Device`` query failed, as `nk_status_name` spells the C status.
+public struct DeviceError: Error, CustomStringConvertible {
+    public let description: String
+    init(_ status: nk_status_t) { description = String(cString: nk_status_name(status)) }
+}
+
+/// One device NumKong can run kernels on: the host CPU, or a GPU by its runtime's own ordinal, the
+/// one `cudaSetDevice` or `hipSetDevice` takes, or the position in Metal's device list.
+///
+/// Prefer ``capabilitiesEnabled`` unless you specifically mean one of the raw axes:
+/// ``capabilitiesDetected`` describes the device and says nothing about whether a kernel was
+/// compiled into this binary, so selecting on it alone claims support for code that may not exist.
+public struct Device: Sendable, Equatable {
+    public let kind: DeviceKind
+    public let ordinal: Int
+
+    /// The host CPU, which every build has.
+    public static let cpu = Device(kind: .cpu, unchecked: 0)
+
+    /// The CPU mask every kernel call passes; ``capabilitiesEnable(_:)`` writes it unsynchronized,
+    /// so narrow before threads start.
+    @usableFromInline nonisolated(unsafe) static var cpuEnabled: Capabilities = {
         var mask = Capabilities.serial.native
-        _ = read(&mask)
+        _ = nk_cpu_capabilities_enabled(&mask)
         return Capabilities(rawValue: UInt64(mask))
+    }()
+
+    private init(kind: DeviceKind, unchecked ordinal: Int) {
+        self.kind = kind
+        self.ordinal = ordinal
+    }
+
+    /// Device `ordinal` of `kind`.
+    /// - Throws: ``DeviceError`` past the last device of `kind`.
+    public init(kind: DeviceKind, ordinal: Int) throws {
+        guard ordinal >= 0, ordinal < (try Device.count(kind)) else { throw DeviceError(nk_missing_gpu_k) }
+        self.init(kind: kind, unchecked: ordinal)
+    }
+
+    /// How many devices of `kind` the process sees: one CPU, or the GPUs its runtime counts.
+    /// - Throws: ``DeviceError`` without a GPU of `kind`.
+    public static func count(_ kind: DeviceKind) throws -> Int {
+        var count: nk_size_t = 1
+        switch kind {
+        case .cpu: break
+        case .cuda: try check(nk_cuda_count_devices(&count))
+        case .rocm: try check(nk_rocm_count_devices(&count))
+        case .metal: try check(nk_metal_count_devices(&count))
+        }
+        return Int(count)
+    }
+
+    /// What this device runs, whether or not this binary holds kernels for it.
+    public var capabilitiesDetected: Capabilities {
+        get throws {
+            var mask: nk_capability_t = 0
+            let device = nk_size_t(ordinal)
+            switch kind {
+            case .cpu: try Device.check(nk_cpu_capabilities_detected(&mask))
+            case .cuda: try Device.check(nk_cuda_capabilities_detected(device, &mask))
+            case .rocm: try Device.check(nk_rocm_capabilities_detected(device, &mask))
+            case .metal: try Device.check(nk_metal_capabilities_detected(device, &mask))
+            }
+            return Capabilities(rawValue: UInt64(mask))
+        }
+    }
+
+    /// What this binary holds kernels for on devices of this kind, whether or not this one runs.
+    public var capabilitiesCompiled: Capabilities {
+        var mask: nk_capability_t = 0
+        switch kind {
+        case .cpu: _ = nk_cpu_capabilities_compiled(&mask)
+        case .cuda: _ = nk_cuda_capabilities_compiled(&mask)
+        case .rocm: _ = nk_rocm_capabilities_compiled(&mask)
+        case .metal: _ = nk_metal_capabilities_compiled(&mask)
+        }
+        return Capabilities(rawValue: UInt64(mask))
+    }
+
+    /// What this device's kernel calls pass: ``capabilitiesDetected`` and ``capabilitiesCompiled``
+    /// at once. On the CPU it is what every kernel call of this module passes, narrowed by
+    /// ``capabilitiesEnable(_:)``, and always contains ``Capabilities/serial``.
+    public var capabilitiesEnabled: Capabilities {
+        get throws {
+            var mask: nk_capability_t = 0
+            let device = nk_size_t(ordinal)
+            switch kind {
+            case .cpu: return Device.cpuEnabled
+            case .cuda: try Device.check(nk_cuda_capabilities_enabled(device, &mask))
+            case .rocm: try Device.check(nk_rocm_capabilities_enabled(device, &mask))
+            case .metal: try Device.check(nk_metal_capabilities_enabled(device, &mask))
+            }
+            return Capabilities(rawValue: UInt64(mask))
+        }
+    }
+
+    /// Makes `wanted` the CPU's ``capabilitiesEnabled`` set, clamped to what it detects and this
+    /// binary compiled and keeping ``Capabilities/serial``. Matrices packed before the call must be
+    /// packed again under the new set.
+    /// - Returns: The set that took effect.
+    /// - Throws: ``DeviceError`` on a GPU, which keeps no such set.
+    @discardableResult
+    public func capabilitiesEnable(_ wanted: Capabilities) throws -> Capabilities {
+        guard kind == .cpu else { throw DeviceError(nk_missing_kernel_k) }
+        var mask = Capabilities.serial.native
+        _ = nk_cpu_capabilities_enabled(&mask)
+        Device.cpuEnabled = wanted.intersection(Capabilities(rawValue: UInt64(mask))).union(.serial)
+        return Device.cpuEnabled
+    }
+
+    /// Configures the current thread for `capabilities`, usually ``capabilitiesEnabled``, e.g. AMX
+    /// tile state on x86. Must be called once per thread before using AMX operations.
+    /// - Throws: ``DeviceError`` on a GPU, which has no thread state to configure.
+    public func configureThread(_ capabilities: Capabilities) throws {
+        guard kind == .cpu else { throw DeviceError(nk_missing_kernel_k) }
+        try Device.check(nk_cpu_configure_thread(capabilities.native))
+    }
+
+    private static func check(_ status: nk_status_t) throws {
+        guard status == nk_success_k else { throw DeviceError(status) }
     }
 }
 

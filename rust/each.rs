@@ -50,8 +50,8 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
-use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
+use crate::tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
@@ -59,760 +59,762 @@ extern "C" {
     // Elementwise operations
     fn nk_each_scale_f64_best(
         a: *const f64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_f32_best(
         a: *const f32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_f16_best(
         a: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_bf16_best(
         a: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_i8_best(
         a: *const i8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut i8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_u8_best(
         a: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_i16_best(
         a: *const i16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut i16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_u16_best(
         a: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_i32_best(
         a: *const i32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut i32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_u32_best(
         a: *const u32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_i64_best(
         a: *const i64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut i64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_u64_best(
         a: *const u64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut u64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_e4m3_best(
         a: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_e5m2_best(
         a: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_e2m3_best(
         a: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_e3m2_best(
         a: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_each_sum_f64_best(
         a: *const f64,
         b: *const f64,
-        n: usize,
+        n: nk_size_t,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_f32_best(
         a: *const f32,
         b: *const f32,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_f16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_bf16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_i8_best(
         a: *const i8,
         b: *const i8,
-        n: usize,
+        n: nk_size_t,
         result: *mut i8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_u8_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_i16_best(
         a: *const i16,
         b: *const i16,
-        n: usize,
+        n: nk_size_t,
         result: *mut i16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_u16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_i32_best(
         a: *const i32,
         b: *const i32,
-        n: usize,
+        n: nk_size_t,
         result: *mut i32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_u32_best(
         a: *const u32,
         b: *const u32,
-        n: usize,
+        n: nk_size_t,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_i64_best(
         a: *const i64,
         b: *const i64,
-        n: usize,
+        n: nk_size_t,
         result: *mut i64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_u64_best(
         a: *const u64,
         b: *const u64,
-        n: usize,
+        n: nk_size_t,
         result: *mut u64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_e4m3_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_e5m2_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_e2m3_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_e3m2_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_each_blend_f64_best(
         a: *const f64,
         b: *const f64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_f32_best(
         a: *const f32,
         b: *const f32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_f16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_bf16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_i8_best(
         a: *const i8,
         b: *const i8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut i8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_u8_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_i16_best(
         a: *const i16,
         b: *const i16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut i16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_u16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_i32_best(
         a: *const i32,
         b: *const i32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut i32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_u32_best(
         a: *const u32,
         b: *const u32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_i64_best(
         a: *const i64,
         b: *const i64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut i64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_u64_best(
         a: *const u64,
         b: *const u64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut u64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_e4m3_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_e5m2_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_e2m3_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_e3m2_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_each_fma_f64_best(
         a: *const f64,
         b: *const f64,
         c: *const f64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_f32_best(
         a: *const f32,
         b: *const f32,
         c: *const f32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_f16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_bf16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_i8_best(
         a: *const i8,
         b: *const i8,
         c: *const i8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut i8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_u8_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_e4m3_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_e5m2_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_e2m3_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_e3m2_best(
         a: *const u8,
         b: *const u8,
         c: *const u8,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut u8,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_i16_best(
         a: *const i16,
         b: *const i16,
         c: *const i16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         r: *mut i16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_u16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         r: *mut u16,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_i32_best(
         a: *const i32,
         b: *const i32,
         c: *const i32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         r: *mut i32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_u32_best(
         a: *const u32,
         b: *const u32,
         c: *const u32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         r: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_i64_best(
         a: *const i64,
         b: *const i64,
         c: *const i64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         r: *mut i64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_u64_best(
         a: *const u64,
         b: *const u64,
         c: *const u64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         r: *mut u64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     // Complex elementwise operations — interleaved real/imag layout, n = number of complex pairs
     fn nk_each_sum_f32c_best(
         a: *const f32,
         b: *const f32,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_sum_f64c_best(
         a: *const f64,
         b: *const f64,
-        n: usize,
+        n: nk_size_t,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_f32c_best(
         a: *const f32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_scale_f64c_best(
         a: *const f64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_f32c_best(
         a: *const f32,
         b: *const f32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_blend_f64c_best(
         a: *const f64,
         b: *const f64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_f32c_best(
         a: *const f32,
         b: *const f32,
         c: *const f32,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f32,
         beta: *const f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_fma_f64c_best(
         a: *const f64,
         b: *const f64,
         c: *const f64,
-        n: usize,
+        n: nk_size_t,
         alpha: *const f64,
         beta: *const f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_swiglu_f32_best(
         gate: *const f32,
         up: *const f32,
         y: *mut f32,
-        rows: usize,
-        cols: usize,
-        gate_row_stride: usize,
-        up_row_stride: usize,
-        y_row_stride: usize,
+        rows: nk_size_t,
+        cols: nk_size_t,
+        gate_row_stride: nk_size_t,
+        up_row_stride: nk_size_t,
+        y_row_stride: nk_size_t,
         input_scale: f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_swiglu_bf16_best(
         gate: *const u16,
         up: *const u16,
         y: *mut u16,
-        rows: usize,
-        cols: usize,
-        gate_row_stride: usize,
-        up_row_stride: usize,
-        y_row_stride: usize,
+        rows: nk_size_t,
+        cols: nk_size_t,
+        gate_row_stride: nk_size_t,
+        up_row_stride: nk_size_t,
+        y_row_stride: nk_size_t,
         input_scale: f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_each_swiglu_e4m3_best(
         gate: *const u8,
         up: *const u8,
         y: *mut u8,
-        rows: usize,
-        cols: usize,
-        gate_row_stride: usize,
-        up_row_stride: usize,
-        y_row_stride: usize,
+        rows: nk_size_t,
+        cols: nk_size_t,
+        gate_row_stride: nk_size_t,
+        up_row_stride: nk_size_t,
+        y_row_stride: nk_size_t,
         input_scale: f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 // Complex fallback helpers
 
-fn complex_each_sum_fallback<Scalar>(a: &[Scalar], b: &[Scalar], result: &mut [Scalar]) -> Option<()>
+fn complex_each_sum_fallback<Scalar>(a: &[Scalar], b: &[Scalar], result: &mut [Scalar]) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar>,
 {
-    if a.len() != b.len() || a.len() != result.len() {
-        return None;
-    }
+    check_len(a.len(), b.len())?;
+    check_len(a.len(), result.len())?;
     for ((left, right), out) in a.iter().zip(b.iter()).zip(result.iter_mut()) {
         *out = *left + *right;
     }
-    Some(())
+    Ok(())
 }
 
-fn complex_each_scale_fallback<Scalar>(a: &[Scalar], alpha: Scalar, beta: Scalar, result: &mut [Scalar]) -> Option<()>
+fn complex_each_scale_fallback<Scalar>(
+    a: &[Scalar],
+    alpha: Scalar,
+    beta: Scalar,
+    result: &mut [Scalar],
+) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
-    if a.len() != result.len() {
-        return None;
-    }
+    check_len(a.len(), result.len())?;
     for (value, out) in a.iter().zip(result.iter_mut()) {
         *out = alpha * *value + beta;
     }
-    Some(())
+    Ok(())
 }
 
 fn complex_each_blend_fallback<Scalar>(
@@ -821,17 +823,16 @@ fn complex_each_blend_fallback<Scalar>(
     alpha: Scalar,
     beta: Scalar,
     result: &mut [Scalar],
-) -> Option<()>
+) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
-    if a.len() != b.len() || a.len() != result.len() {
-        return None;
-    }
+    check_len(a.len(), b.len())?;
+    check_len(a.len(), result.len())?;
     for ((left, right), out) in a.iter().zip(b.iter()).zip(result.iter_mut()) {
         *out = alpha * *left + beta * *right;
     }
-    Some(())
+    Ok(())
 }
 
 fn complex_each_fma_fallback<Scalar>(
@@ -841,43 +842,45 @@ fn complex_each_fma_fallback<Scalar>(
     alpha: Scalar,
     beta: Scalar,
     result: &mut [Scalar],
-) -> Option<()>
+) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
-    if a.len() != b.len() || a.len() != c.len() || a.len() != result.len() {
-        return None;
-    }
+    check_len(a.len(), b.len())?;
+    check_len(a.len(), c.len())?;
+    check_len(a.len(), result.len())?;
     for (((left, right), third), out) in a.iter().zip(b.iter()).zip(c.iter()).zip(result.iter_mut()) {
         *out = alpha * *left * *right + beta * *third;
     }
-    Some(())
+    Ok(())
 }
 
 // In-place complex fallbacks: read-modify-write through a single `&mut` — sound, with no aliased
 // `&[T]` over the same storage. `data` is both the `a` operand and the result.
 
-fn complex_each_sum_inplace_fallback<Scalar>(data: &mut [Scalar], other: &[Scalar]) -> Option<()>
+fn complex_each_sum_inplace_fallback<Scalar>(data: &mut [Scalar], other: &[Scalar]) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar>,
 {
-    if data.len() != other.len() {
-        return None;
-    }
+    check_len(data.len(), other.len())?;
     for (out, right) in data.iter_mut().zip(other.iter()) {
         *out = *out + *right;
     }
-    Some(())
+    Ok(())
 }
 
-fn complex_each_scale_inplace_fallback<Scalar>(data: &mut [Scalar], alpha: Scalar, beta: Scalar) -> Option<()>
+fn complex_each_scale_inplace_fallback<Scalar>(
+    data: &mut [Scalar],
+    alpha: Scalar,
+    beta: Scalar,
+) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
     for out in data.iter_mut() {
         *out = alpha * *out + beta;
     }
-    Some(())
+    Ok(())
 }
 
 fn complex_each_blend_inplace_fallback<Scalar>(
@@ -885,17 +888,15 @@ fn complex_each_blend_inplace_fallback<Scalar>(
     other: &[Scalar],
     alpha: Scalar,
     beta: Scalar,
-) -> Option<()>
+) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
-    if data.len() != other.len() {
-        return None;
-    }
+    check_len(data.len(), other.len())?;
     for (out, right) in data.iter_mut().zip(other.iter()) {
         *out = alpha * *out + beta * *right;
     }
-    Some(())
+    Ok(())
 }
 
 fn complex_each_fma_inplace_fallback<Scalar>(
@@ -903,20 +904,18 @@ fn complex_each_fma_inplace_fallback<Scalar>(
     b: &[Scalar],
     alpha: Scalar,
     beta: Scalar,
-) -> Option<()>
+) -> Result<(), TensorError>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
-    if data.len() != b.len() {
-        return None;
-    }
+    check_len(data.len(), b.len())?;
     // In-place fused multiply-add matches `each_fma` with the `c` operand bound to `a`, the same
     // storage — exactly how out-of-place `mul_tensor` wires `c = self`.
     for (out, right) in data.iter_mut().zip(b.iter()) {
         let value = *out;
         *out = alpha * value * *right + beta * value;
     }
-    Some(())
+    Ok(())
 }
 
 // region: Scale
@@ -925,7 +924,8 @@ where
 ///
 /// rᵢ = α × aᵢ + β
 ///
-/// Returns `None` if `a` and `result` lengths differ.
+/// Fails with [`TensorError::ShapeMismatch`] if `a` and `result` lengths differ, or
+/// [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
@@ -935,7 +935,6 @@ pub trait EachScale: Sized + StorageElement {
     /// Writes resultᵢ = α × aᵢ + β into the pre-sized output slice.
     ///
     /// Both slices, `a` and `result`, must have identical length — the kernel does not allocate.
-    /// Returns `None` on length mismatch.
     ///
     /// # Examples
     ///
@@ -947,21 +946,19 @@ pub trait EachScale: Sized + StorageElement {
     /// f32::each_scale(&input, 1.0, -2.0, &mut output).unwrap();
     /// assert_eq!(output, [-1.0, 0.0, 1.0]);
     /// ```
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()>;
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError>;
 
     /// In-place affine: dataᵢ = α × dataᵢ + β.
     ///
     /// Both source and destination pointers are derived from the single `&mut`, so no aliased
     /// `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError>;
 }
 
 impl EachScale for f64 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f64_best(
                 a.as_ptr(),
@@ -969,29 +966,35 @@ impl EachScale for f64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_f64_best(p as *const f64, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_f64_best(
+                p as *const f64,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for f32 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f32_best(
                 a.as_ptr(),
@@ -999,29 +1002,35 @@ impl EachScale for f32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_f32_best(p as *const f32, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_f32_best(
+                p as *const f32,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for f16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f16_best(
                 a.as_ptr() as *const u16,
@@ -1029,15 +1038,14 @@ impl EachScale for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1047,21 +1055,18 @@ impl EachScale for f16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for bf16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_bf16_best(
                 a.as_ptr() as *const u16,
@@ -1069,15 +1074,14 @@ impl EachScale for bf16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1087,21 +1091,18 @@ impl EachScale for bf16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for i8 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i8_best(
                 a.as_ptr(),
@@ -1109,28 +1110,35 @@ impl EachScale for i8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i8_best(p as *const i8, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }.ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_i8_best(
+                p as *const i8,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for u8 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u8_best(
                 a.as_ptr(),
@@ -1138,28 +1146,35 @@ impl EachScale for u8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u8_best(p as *const u8, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }.ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_u8_best(
+                p as *const u8,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for i16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i16_best(
                 a.as_ptr(),
@@ -1167,29 +1182,35 @@ impl EachScale for i16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i16_best(p as *const i16, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_i16_best(
+                p as *const i16,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for u16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u16_best(
                 a.as_ptr(),
@@ -1197,29 +1218,35 @@ impl EachScale for u16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u16_best(p as *const u16, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_u16_best(
+                p as *const u16,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for i32 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i32_best(
                 a.as_ptr(),
@@ -1227,29 +1254,35 @@ impl EachScale for i32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i32_best(p as *const i32, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_i32_best(
+                p as *const i32,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for u32 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u32_best(
                 a.as_ptr(),
@@ -1257,29 +1290,35 @@ impl EachScale for u32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u32_best(p as *const u32, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_u32_best(
+                p as *const u32,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for i64 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i64_best(
                 a.as_ptr(),
@@ -1287,29 +1326,35 @@ impl EachScale for i64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_i64_best(p as *const i64, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_i64_best(
+                p as *const i64,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for u64 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u64_best(
                 a.as_ptr(),
@@ -1317,29 +1362,35 @@ impl EachScale for u64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_scale_u64_best(p as *const u64, len, &alpha, &beta, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_scale_u64_best(
+                p as *const u64,
+                len,
+                &alpha,
+                &beta,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachScale for e4m3 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e4m3_best(
                 a.as_ptr() as *const u8,
@@ -1347,15 +1398,14 @@ impl EachScale for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1365,21 +1415,18 @@ impl EachScale for e4m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for e5m2 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e5m2_best(
                 a.as_ptr() as *const u8,
@@ -1387,15 +1434,14 @@ impl EachScale for e5m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1405,21 +1451,18 @@ impl EachScale for e5m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for e2m3 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e2m3_best(
                 a.as_ptr() as *const u8,
@@ -1427,15 +1470,14 @@ impl EachScale for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1445,21 +1487,18 @@ impl EachScale for e2m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for e3m2 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e3m2_best(
                 a.as_ptr() as *const u8,
@@ -1467,15 +1506,14 @@ impl EachScale for e3m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1485,21 +1523,18 @@ impl EachScale for e3m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for f64c {
     type Scalar = f64c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f64c_best(
                 a.as_ptr() as *const f64,
@@ -1507,15 +1542,14 @@ impl EachScale for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1525,21 +1559,18 @@ impl EachScale for f64c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for f32c {
     type Scalar = f32c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
-        if a.len() != result.len() {
-            return None;
-        }
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f32c_best(
                 a.as_ptr() as *const f32,
@@ -1547,15 +1578,14 @@ impl EachScale for f32c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1565,33 +1595,32 @@ impl EachScale for f32c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachScale for f16c {
     type Scalar = f16c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
         complex_each_scale_fallback(a, alpha, beta, result)
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
         complex_each_scale_inplace_fallback(data, alpha, beta)
     }
 }
 
 impl EachScale for bf16c {
     type Scalar = bf16c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
         complex_each_scale_fallback(a, alpha, beta, result)
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
         complex_each_scale_inplace_fallback(data, alpha, beta)
     }
 }
@@ -1604,106 +1633,111 @@ impl EachScale for bf16c {
 ///
 /// rᵢ = aᵢ + bᵢ
 ///
-/// Returns `None` if lengths differ.
+/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachSum: Sized + StorageElement {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()>;
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError>;
 
     /// In-place sum: dataᵢ = dataᵢ + otherᵢ.
     ///
     /// `data` is both the `a` operand and the result; its source and destination pointers come from
     /// the single `&mut`, while `other` is disjoint storage — no aliased `&[Self]` + `&mut [Self]`
     /// over the same buffer is formed.
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()>;
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError>;
 }
 
 impl EachSum for f64 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_f64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_f64_best(p as *const f64, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_f64_best(
+                p as *const f64,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for f32 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_f32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_f32_best(p as *const f32, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_f32_best(
+                p as *const f32,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for f16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_f16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1712,38 +1746,33 @@ impl EachSum for f16 {
                 other.as_ptr() as *const u16,
                 len,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for bf16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_bf16_best(
                 a.as_ptr() as *const u16,
                 b.as_ptr() as *const u16,
                 a.len(),
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1752,284 +1781,313 @@ impl EachSum for bf16 {
                 other.as_ptr() as *const u16,
                 len,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for i8 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_i8_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i8_best(p as *const i8, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }.ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_i8_best(
+                p as *const i8,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for u8 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_u8_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u8_best(p as *const u8, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }.ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_u8_best(
+                p as *const u8,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for i16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_i16_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i16_best(p as *const i16, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_i16_best(
+                p as *const i16,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for u16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_u16_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u16_best(p as *const u16, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_u16_best(
+                p as *const u16,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for i32 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_i32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i32_best(p as *const i32, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_i32_best(
+                p as *const i32,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for u32 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_u32_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u32_best(p as *const u32, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_u32_best(
+                p as *const u32,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for i64 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_i64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_i64_best(p as *const i64, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_i64_best(
+                p as *const i64,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for u64 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_u64_best(
                 a.as_ptr(),
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_each_sum_u64_best(p as *const u64, other.as_ptr(), len, p, cpu_capabilities(), null_mut()) }
-            .ok()?;
-        Some(())
+        unsafe {
+            nk_each_sum_u64_best(
+                p as *const u64,
+                other.as_ptr(),
+                len,
+                p,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+        }
+        .check()
     }
 }
 
 impl EachSum for e4m3 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_e4m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2038,38 +2096,33 @@ impl EachSum for e4m3 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for e5m2 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_e5m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2078,38 +2131,33 @@ impl EachSum for e5m2 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for e2m3 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_e2m3_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2118,38 +2166,33 @@ impl EachSum for e2m3 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for e3m2 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_e3m2_best(
                 a.as_ptr() as *const u8,
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2158,38 +2201,33 @@ impl EachSum for e3m2 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for f64c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_f64c_best(
                 a.as_ptr() as *const f64,
                 b.as_ptr() as *const f64,
                 a.len(),
                 result.as_mut_ptr() as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2198,38 +2236,33 @@ impl EachSum for f64c {
                 other.as_ptr() as *const f64,
                 len,
                 p as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for f32c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_sum_f32c_best(
                 a.as_ptr() as *const f32,
                 b.as_ptr() as *const f32,
                 a.len(),
                 result.as_mut_ptr() as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2238,27 +2271,30 @@ impl EachSum for f32c {
                 other.as_ptr() as *const f32,
                 len,
                 p as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachSum for f16c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> { complex_each_sum_fallback(a, b, result) }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        complex_each_sum_fallback(a, b, result)
+    }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
         complex_each_sum_inplace_fallback(data, other)
     }
 }
 
 impl EachSum for bf16c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Option<()> { complex_each_sum_fallback(a, b, result) }
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+        complex_each_sum_fallback(a, b, result)
+    }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Option<()> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
         complex_each_sum_inplace_fallback(data, other)
     }
 }
@@ -2271,28 +2307,39 @@ impl EachSum for bf16c {
 ///
 /// rᵢ = α × aᵢ + β × bᵢ
 ///
-/// Returns `None` if lengths differ.
+/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachBlend: Sized + StorageElement {
     type Scalar;
-    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()>;
+    fn each_blend(
+        a: &[Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+        result: &mut [Self],
+    ) -> Result<(), TensorError>;
 
     /// In-place blend: dataᵢ = α × dataᵢ + β × otherᵢ.
     ///
     /// `data` is both the `a` operand and the result; its source and destination pointers come from
     /// the single `&mut`, while `other` is disjoint storage — no aliased `&[Self]` + `&mut [Self]`
     /// over the same buffer is formed.
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError>;
 }
 
 impl EachBlend for f64 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_f64_best(
                 a.as_ptr(),
@@ -2301,18 +2348,15 @@ impl EachBlend for f64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2323,21 +2367,19 @@ impl EachBlend for f64 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for f32 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_f32_best(
                 a.as_ptr(),
@@ -2346,18 +2388,15 @@ impl EachBlend for f32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2368,21 +2407,19 @@ impl EachBlend for f32 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for f16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_f16_best(
                 a.as_ptr() as *const u16,
@@ -2391,18 +2428,15 @@ impl EachBlend for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2413,21 +2447,19 @@ impl EachBlend for f16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for bf16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_bf16_best(
                 a.as_ptr() as *const u16,
@@ -2436,18 +2468,15 @@ impl EachBlend for bf16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2458,21 +2487,19 @@ impl EachBlend for bf16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for i8 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_i8_best(
                 a.as_ptr(),
@@ -2481,18 +2508,15 @@ impl EachBlend for i8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2503,21 +2527,19 @@ impl EachBlend for i8 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for u8 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_u8_best(
                 a.as_ptr(),
@@ -2526,18 +2548,15 @@ impl EachBlend for u8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2548,21 +2567,19 @@ impl EachBlend for u8 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for i16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_i16_best(
                 a.as_ptr(),
@@ -2571,18 +2588,15 @@ impl EachBlend for i16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2593,21 +2607,19 @@ impl EachBlend for i16 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for u16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_u16_best(
                 a.as_ptr(),
@@ -2616,18 +2628,15 @@ impl EachBlend for u16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2638,21 +2647,19 @@ impl EachBlend for u16 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for i32 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_i32_best(
                 a.as_ptr(),
@@ -2661,18 +2668,15 @@ impl EachBlend for i32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2683,21 +2687,19 @@ impl EachBlend for i32 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for u32 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_u32_best(
                 a.as_ptr(),
@@ -2706,18 +2708,15 @@ impl EachBlend for u32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2728,21 +2727,19 @@ impl EachBlend for u32 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for i64 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_i64_best(
                 a.as_ptr(),
@@ -2751,18 +2748,15 @@ impl EachBlend for i64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2773,21 +2767,19 @@ impl EachBlend for i64 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for u64 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_u64_best(
                 a.as_ptr(),
@@ -2796,18 +2788,15 @@ impl EachBlend for u64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2818,21 +2807,19 @@ impl EachBlend for u64 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for e4m3 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_e4m3_best(
                 a.as_ptr() as *const u8,
@@ -2841,18 +2828,15 @@ impl EachBlend for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2863,21 +2847,19 @@ impl EachBlend for e4m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for e5m2 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_e5m2_best(
                 a.as_ptr() as *const u8,
@@ -2886,18 +2868,15 @@ impl EachBlend for e5m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2908,21 +2887,19 @@ impl EachBlend for e5m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for e2m3 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_e2m3_best(
                 a.as_ptr() as *const u8,
@@ -2931,18 +2908,15 @@ impl EachBlend for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2953,21 +2927,19 @@ impl EachBlend for e2m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for e3m2 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_e3m2_best(
                 a.as_ptr() as *const u8,
@@ -2976,18 +2948,15 @@ impl EachBlend for e3m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -2998,21 +2967,25 @@ impl EachBlend for e3m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for f64c {
     type Scalar = f64c;
-    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(
+        a: &[Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_f64c_best(
                 a.as_ptr() as *const f64,
@@ -3021,18 +2994,20 @@ impl EachBlend for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3043,21 +3018,25 @@ impl EachBlend for f64c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for f32c {
     type Scalar = f32c;
-    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_blend(
+        a: &[Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_blend_f32c_best(
                 a.as_ptr() as *const f32,
@@ -3066,18 +3045,20 @@ impl EachBlend for f32c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
-        if data.len() != other.len() {
-            return None;
-        }
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
+        check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3088,33 +3069,54 @@ impl EachBlend for f32c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachBlend for f16c {
     type Scalar = f16c;
-    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
+    fn each_blend(
+        a: &[Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
         complex_each_blend_inplace_fallback(data, other, alpha, beta)
     }
 }
 
 impl EachBlend for bf16c {
     type Scalar = bf16c;
-    fn each_blend(a: &[Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Option<()> {
+    fn each_blend(
+        a: &[Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_blend_inplace(
+        data: &mut [Self],
+        other: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
         complex_each_blend_inplace_fallback(data, other, alpha, beta)
     }
 }
@@ -3127,7 +3129,8 @@ impl EachBlend for bf16c {
 ///
 /// rᵢ = α × aᵢ × bᵢ + β × cᵢ
 ///
-/// Returns `None` if lengths differ.
+/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
@@ -3140,7 +3143,7 @@ pub trait EachFMA: Sized + StorageElement {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Option<()>;
+    ) -> Result<(), TensorError>;
 
     /// In-place fused multiply-add with the `c` operand bound to `a`:
     /// dataᵢ = α × dataᵢ × bᵢ + β × dataᵢ.
@@ -3149,15 +3152,27 @@ pub trait EachFMA: Sized + StorageElement {
     /// `&mut`, while `b` is disjoint storage. This matches out-of-place `mul_tensor`, which wires
     /// `c = self` and is the only in-place FMA caller. No aliased `&[Self]` + `&mut [Self]` over
     /// the same buffer is formed.
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()>;
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError>;
 }
 
 impl EachFMA for f64 {
     type Scalar = f64;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f64,
+        beta: f64,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_f64_best(
                 a.as_ptr(),
@@ -3167,18 +3182,15 @@ impl EachFMA for f64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3190,21 +3202,27 @@ impl EachFMA for f64 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for f32 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_f32_best(
                 a.as_ptr(),
@@ -3214,18 +3232,15 @@ impl EachFMA for f32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3237,21 +3252,27 @@ impl EachFMA for f32 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for f16 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_f16_best(
                 a.as_ptr() as *const u16,
@@ -3261,18 +3282,15 @@ impl EachFMA for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3284,21 +3302,27 @@ impl EachFMA for f16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for bf16 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_bf16_best(
                 a.as_ptr() as *const u16,
@@ -3308,18 +3332,15 @@ impl EachFMA for bf16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3331,21 +3352,27 @@ impl EachFMA for bf16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for i8 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_i8_best(
                 a.as_ptr(),
@@ -3355,18 +3382,15 @@ impl EachFMA for i8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3378,21 +3402,27 @@ impl EachFMA for i8 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for u8 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_u8_best(
                 a.as_ptr(),
@@ -3402,18 +3432,15 @@ impl EachFMA for u8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3425,21 +3452,27 @@ impl EachFMA for u8 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for e4m3 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_e4m3_best(
                 a.as_ptr() as *const u8,
@@ -3449,18 +3482,15 @@ impl EachFMA for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3472,21 +3502,27 @@ impl EachFMA for e4m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for e5m2 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_e5m2_best(
                 a.as_ptr() as *const u8,
@@ -3496,18 +3532,15 @@ impl EachFMA for e5m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3519,21 +3552,27 @@ impl EachFMA for e5m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for e2m3 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_e2m3_best(
                 a.as_ptr() as *const u8,
@@ -3543,18 +3582,15 @@ impl EachFMA for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3566,21 +3602,27 @@ impl EachFMA for e2m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for e3m2 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_e3m2_best(
                 a.as_ptr() as *const u8,
@@ -3590,18 +3632,15 @@ impl EachFMA for e3m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3613,21 +3652,27 @@ impl EachFMA for e3m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for i16 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_i16_best(
                 a.as_ptr(),
@@ -3637,18 +3682,15 @@ impl EachFMA for i16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3660,21 +3702,27 @@ impl EachFMA for i16 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for u16 {
     type Scalar = f32;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f32,
+        beta: f32,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_u16_best(
                 a.as_ptr(),
@@ -3684,18 +3732,15 @@ impl EachFMA for u16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3707,21 +3752,27 @@ impl EachFMA for u16 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for i32 {
     type Scalar = f64;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f64,
+        beta: f64,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_i32_best(
                 a.as_ptr(),
@@ -3731,18 +3782,15 @@ impl EachFMA for i32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3754,21 +3802,27 @@ impl EachFMA for i32 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for u32 {
     type Scalar = f64;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f64,
+        beta: f64,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_u32_best(
                 a.as_ptr(),
@@ -3778,18 +3832,15 @@ impl EachFMA for u32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3801,21 +3852,27 @@ impl EachFMA for u32 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for i64 {
     type Scalar = f64;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f64,
+        beta: f64,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_i64_best(
                 a.as_ptr(),
@@ -3825,18 +3882,15 @@ impl EachFMA for i64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3848,21 +3902,27 @@ impl EachFMA for i64 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
 impl EachFMA for u64 {
     type Scalar = f64;
-    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Option<()> {
-        if a.len() != b.len() || b.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    fn each_fma(
+        a: &[Self],
+        b: &[Self],
+        c: &[Self],
+        alpha: f64,
+        beta: f64,
+        result: &mut [Self],
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_u64_best(
                 a.as_ptr(),
@@ -3872,18 +3932,15 @@ impl EachFMA for u64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3895,12 +3952,11 @@ impl EachFMA for u64 {
                 &alpha,
                 &beta,
                 p,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
@@ -3913,10 +3969,10 @@ impl EachFMA for f64c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Option<()> {
-        if a.len() != b.len() || a.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_f64c_best(
                 a.as_ptr() as *const f64,
@@ -3926,18 +3982,20 @@ impl EachFMA for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -3949,12 +4007,11 @@ impl EachFMA for f64c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
@@ -3967,10 +4024,10 @@ impl EachFMA for f32c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Option<()> {
-        if a.len() != b.len() || a.len() != c.len() || a.len() != result.len() {
-            return None;
-        }
+    ) -> Result<(), TensorError> {
+        check_len(a.len(), b.len())?;
+        check_len(a.len(), c.len())?;
+        check_len(a.len(), result.len())?;
         unsafe {
             nk_each_fma_f32c_best(
                 a.as_ptr() as *const f32,
@@ -3980,18 +4037,20 @@ impl EachFMA for f32c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
-        if data.len() != b.len() {
-            return None;
-        }
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
+        check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -4003,12 +4062,11 @@ impl EachFMA for f32c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(())
+        .check()
     }
 }
 
@@ -4021,11 +4079,16 @@ impl EachFMA for f16c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Option<()> {
+    ) -> Result<(), TensorError> {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
         complex_each_fma_inplace_fallback(data, b, alpha, beta)
     }
 }
@@ -4039,11 +4102,16 @@ impl EachFMA for bf16c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Option<()> {
+    ) -> Result<(), TensorError> {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Option<()> {
+    fn each_fma_inplace(
+        data: &mut [Self],
+        b: &[Self],
+        alpha: Self::Scalar,
+        beta: Self::Scalar,
+    ) -> Result<(), TensorError> {
         complex_each_fma_inplace_fallback(data, b, alpha, beta)
     }
 }
@@ -4089,15 +4157,24 @@ pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>: TensorRef<
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    fn add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    fn add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         self.view().add_scalar(scalar)
     }
 
-    fn sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    fn sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         self.view().sub_scalar(scalar)
     }
 
-    fn mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    fn mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         self.view().mul_scalar(scalar)
     }
 
@@ -4140,7 +4217,7 @@ impl<Scalar: Clone + EachScale, const R: usize, C: TensorRef<Scalar, R> + ?Sized
 {
 }
 
-impl<Scalar: Clone + EachScale, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK>
+impl<Scalar: Clone + EachScale, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
@@ -4165,7 +4242,10 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
     fn add_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
-    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         self.view().add_tensor(&other.view())
     }
 
@@ -4184,8 +4264,11 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
 
 impl<Scalar: Clone + EachSum, const R: usize, C: TensorRef<Scalar, R> + ?Sized> SumOps<Scalar, R> for C {}
 
-impl<Scalar: Clone + EachSum, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK> {
-    pub fn add_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
+impl<Scalar: Clone + EachSum, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
+    pub fn add_tensor_inplace<OtherAlloc: Allocator>(
+        &mut self,
+        other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
+    ) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().add_inplace(&other_view)
     }
@@ -4199,7 +4282,10 @@ where
     fn sub_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
-    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         self.view().sub_tensor(&other.view())
     }
 
@@ -4235,11 +4321,14 @@ impl<Scalar: Clone + EachBlend, const R: usize, C: TensorRef<Scalar, R> + ?Sized
 {
 }
 
-impl<Scalar: Clone + EachBlend, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK>
+impl<Scalar: Clone + EachBlend, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn sub_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
+    pub fn sub_tensor_inplace<OtherAlloc: Allocator>(
+        &mut self,
+        other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
+    ) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().sub_inplace(&other_view)
     }
@@ -4253,7 +4342,10 @@ where
     fn mul_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
-    ) -> Result<Tensor<Scalar, Global, MAX_RANK>, TensorError> {
+    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         self.view().mul_tensor(&other.view())
     }
 
@@ -4291,11 +4383,14 @@ impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 {
 }
 
-impl<Scalar: Clone + EachFMA, const MAX_RANK: usize> Tensor<Scalar, Global, MAX_RANK>
+impl<Scalar: Clone + EachFMA, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
-    pub fn mul_tensor_inplace(&mut self, other: &Tensor<Scalar, Global, MAX_RANK>) -> Result<(), TensorError> {
+    pub fn mul_tensor_inplace<OtherAlloc: Allocator>(
+        &mut self,
+        other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
+    ) -> Result<(), TensorError> {
         let other_view = other.view();
         self.span().mul_inplace(&other_view)
     }
@@ -4443,7 +4538,7 @@ impl EachSwiglu for f32 {
                 up_stride,
                 y_stride,
                 input_scale,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
             .check()?;
@@ -4486,7 +4581,7 @@ impl EachSwiglu for bf16 {
                 up_stride,
                 y_stride,
                 input_scale,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
             .check()?;
@@ -4529,7 +4624,7 @@ impl EachSwiglu for e4m3 {
                 up_stride,
                 y_stride,
                 input_scale,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
             .check()?;
@@ -4553,7 +4648,7 @@ mod tests {
         label: &str,
     ) where
         Scalar: FloatLike + TestableType,
-        F: FnOnce(&[Scalar], &[Scalar], &mut [Scalar]) -> Option<()>,
+        F: FnOnce(&[Scalar], &[Scalar], &mut [Scalar]) -> Result<(), TensorError>,
     {
         let a: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
         let b: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
@@ -4696,7 +4791,14 @@ mod tests {
         let a: Vec<f32> = vec![1.0, 2.0, 3.0];
         let b: Vec<f32> = vec![4.0, 5.0];
         let mut result = vec![0.0f32; a.len()];
-        assert!(f32::each_sum(&a, &b, &mut result).is_none());
+        assert_eq!(
+            f32::each_sum(&a, &b, &mut result),
+            Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: 3,
+                got: 2
+            })
+        );
     }
 
     #[test]

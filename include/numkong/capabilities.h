@@ -254,7 +254,7 @@ typedef nk_u64_t nk_capability_t;
 /** Every CPU capability, the bits below the first GPU vendor's. */
 #define nk_cap_cpus_k (nk_cap_cuda_k - 1)
 
-/** Buffer size @c nk_name_capabilities never overruns, including its null terminator. */
+/** Buffer size @c nk_capabilities_name never overruns, including its null terminator. */
 #define NUMKONG_CAPABILITIES_NAME_CAPACITY 1024
 
 /** Every named capability in bit order, spelled as the bindings parse them; a null name ends the
@@ -313,8 +313,8 @@ static struct {
     {0, 0},
 };
 
-/** Writes the names of @p capabilities into @p buffer, behind @c nk_name_capabilities. */
-NUMKONG_CONSTEXPR nk_size_t nk_name_capabilities_(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+/** Writes the names of @p capabilities into @p buffer, behind @c nk_capabilities_name. */
+NUMKONG_CONSTEXPR nk_size_t nk_capabilities_name_(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
     if (!capacity) return 0;
     nk_size_t length = 0;
     for (nk_size_t entry = 0; nk_capability_names_[entry].name; ++entry) {
@@ -1260,7 +1260,7 @@ NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities);
  *      capacity writes nothing.
  *  @return Bytes written, excluding the null terminator.
  */
-NUMKONG_API nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity);
+NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *buffer, nk_size_t capacity);
 
 /*  The library detects once per process; header-only builds ask on every call. */
 #if NUMKONG_HEADER_ONLY
@@ -1283,9 +1283,9 @@ NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities) {
     return nk_cpu_configure_thread_(capabilities);
 }
 
-/** @copydoc nk_name_capabilities */
-NUMKONG_API nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
-    return nk_name_capabilities_(capabilities, buffer, capacity);
+/** @copydoc nk_capabilities_name */
+NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+    return nk_capabilities_name_(capabilities, buffer, capacity);
 }
 
 #endif

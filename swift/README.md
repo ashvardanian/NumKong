@@ -439,28 +439,35 @@ Capability detection is exposed directly for diagnostics and tests:
 ```swift
 import NumKong
 
-// `enabled` is what dispatch uses: detected on this CPU AND compiled into the binary.
-print(Capabilities.enabled)                 // like "serial,neon,neonhalf,neonfhm,neonsdot"
-print(Capabilities.enabled.contains(.neon)) // `Capabilities` is an `OptionSet`
+// `capabilitiesEnabled` is what dispatch uses: detected on this CPU AND compiled into the binary.
+let enabled = try Device.cpu.capabilitiesEnabled
+print(enabled)                 // like "serial,neon,neonhalf,neonfhm,neonsdot"
+print(enabled.contains(.neon)) // `Capabilities` is an `OptionSet`
 
 // The two raw axes, when you specifically mean one of them:
-let onThisCpu = Capabilities.detected
-let inThisBinary = Capabilities.compiled
+let onThisCpu = try Device.cpu.capabilitiesDetected
+let inThisBinary = Device.cpu.capabilitiesCompiled
 
 // Narrow dispatch, then set up each thread that runs kernels:
-Capabilities.enable(Capabilities.enabled.subtracting(.sme))
-Capabilities.configureThread(.enabled)
+let narrowed = try Device.cpu.capabilitiesEnable(enabled.subtracting(.sme))
+try Device.cpu.configureThread(narrowed)
+
+// GPUs are devices too, by their runtime's own ordinal:
+for ordinal in 0..<((try? Device.count(.metal)) ?? 0) {
+    print(try Device(kind: .metal, ordinal: ordinal).capabilitiesEnabled) // like "metal,apple9"
+}
 ```
 
-- `Capabilities.detected` is what this CPU can execute, from CPUID or HWCAP.
-- `Capabilities.compiled` is what this binary contains, from the ISA probes at build time.
-- `Capabilities.enabled` is what dispatch uses, both axes at once unless narrowed, and always contains `.serial`.
-- `Capabilities.enable(_:)` makes its argument the enabled set, clamped to both axes, and returns what took effect.
+- `Device.cpu` is the host CPU, and `Device(kind:ordinal:)` any device `Device.count(_:)` counts, throwing a `DeviceError` past the last one.
+- `capabilitiesDetected` is what the device can execute, from CPUID or HWCAP on the CPU.
+- `capabilitiesCompiled` is what this binary contains for devices of its kind, from the ISA probes at build time.
+- `capabilitiesEnabled` is what dispatch uses, both axes at once unless narrowed, and on the CPU always contains `.serial`.
+- `capabilitiesEnable(_:)` makes its argument the CPU's enabled set, clamped to both axes, and returns what took effect.
   Narrow it before starting threads, and pack matrices again afterwards, since packed kernels refuse another capability's layout.
-- `Capabilities.configureThread(_:)` sets per-thread state such as Intel AMX tiles for the given capabilities, usually `.enabled`.
+- `configureThread(_:)` sets per-thread state such as Intel AMX tiles for the given CPU capabilities, usually the enabled ones.
 
-Reach for `enabled` unless you specifically mean one of the raw axes.
-`detected` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+Reach for `capabilitiesEnabled` unless you specifically mean one of the raw axes.
+`capabilitiesDetected` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
 
 You usually do not need to branch on this in application code.
 The native layer still selects the best enabled kernel automatically.

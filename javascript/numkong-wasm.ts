@@ -62,8 +62,8 @@ interface EmscriptenModule {
   _nk_cpu_capabilities_detected(capabilities: any): number;
   _nk_cpu_capabilities_compiled(capabilities: any): number;
   _nk_cpu_capabilities_enabled(capabilities: any): number;
-  _nk_name_capabilities(capabilities: any, buffer: any, capacity: any): any;
-  _nk_status_to_string(status: number): any;
+  _nk_capabilities_name(capabilities: any, buffer: any, capacity: any): any;
+  _nk_status_name(status: number): any;
 
   [key: string]: any;
 }
@@ -92,7 +92,7 @@ let HEAPU32: Uint32Array;
 let HEAPF32: Float32Array;
 let HEAPF64: Float64Array;
 
-/** The mask kernels run with, which {@link capabilitiesEnable} narrows from the enabled ones. */
+/** The mask kernels run with, which {@link Device.capabilitiesEnable} narrows. */
 let defaultCapabilities: bigint = 1n;
 
 /** Convert a number, e.g. from `_malloc` or `byteOffset`, to the pointer type expected by raw C
@@ -101,12 +101,12 @@ function toWasmPtr(n: number): WasmPtr {
   return isMemory64 ? BigInt(n) : n;
 }
 
-/** Throws the `nk_status_to_string` text of `status`, an `nk_status_t`, unless it is a success. */
+/** Throws the `nk_status_name` text of `status`, an `nk_status_t`, unless it is a success. */
 function checkStatus(status: number): void {
   if (status === 0) return;
   // The C string is decoded by hand, as the module exports `wasmMemory` but not `UTF8ToString`.
   const module = requireModule();
-  const text = new Uint8Array(module.wasmMemory.buffer, Number(module._nk_status_to_string(status)));
+  const text = new Uint8Array(module.wasmMemory.buffer, Number(module._nk_status_name(status)));
   throw new Error(new TextDecoder().decode(text.subarray(0, text.indexOf(0))));
 }
 
@@ -151,14 +151,18 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   defaultCapabilities = queryCapabilities('_nk_cpu_capabilities_enabled');
 
   // 1024 is `NUMKONG_CAPABILITIES_NAME_CAPACITY`; bits from 48 up, past `nk_cap_cpus_k`, are GPUs.
+  const cpus = (1n << 48n) - 1n, any = (1n << 64n) - 1n;
   const names: Record<string, bigint> = {};
   const namePtr = wasmModule._malloc(1024);
-  for (let bit = 1n; bit < 1n << 48n; bit <<= 1n) {
-    const length = wasmModule._nk_name_capabilities(bit, toWasmPtr(namePtr), 1024);
-    if (length) names[String.fromCharCode(...HEAPU8.subarray(namePtr, namePtr + length))] = bit;
+  let devices = 0n;
+  for (let bit = 1n; bit <= any; bit <<= 1n) {
+    const length = wasmModule._nk_capabilities_name(bit, toWasmPtr(namePtr), 1024);
+    if (!length) continue;
+    names[String.fromCharCode(...HEAPU8.subarray(namePtr, namePtr + length))] = bit;
+    if (bit > cpus) devices |= bit;
   }
   wasmModule._free(namePtr);
-  Capability = Object.freeze(names);
+  Capability = Object.freeze({ ...names, cpus, devices, any });
 }
 
 /** Type information for dispatching */
@@ -542,51 +546,71 @@ function requireModule(): any {
   return Module;
 }
 
-/**
- *  Returns the SIMD capabilities this WASM host supports, as a bitmask.
- *
- *  Describes the host only, and says nothing about what was compiled into this module.
- *
- *  @returns Bitmask of {@link Capability} bits.
- */
-export function capabilitiesDetected(): bigint {
-  return queryCapabilities('_nk_cpu_capabilities_detected');
+/** Which runtime a device belongs to, as the `nk_<kind>_*` C functions name it. */
+export type DeviceKind = 'cpu' | 'cuda' | 'rocm' | 'metal';
+
+/** `nk_missing_gpu_k` and `nk_missing_kernel_k`, the statuses GPU kinds report here. */
+const missingGpuStatus = -16, missingKernelStatus = -19;
+
+/** One device NumKong can run kernels on. A WebAssembly module has only the host CPU: every GPU
+ *  kind counts none, and the constructor refuses them. */
+export class Device {
+  /**
+   *  @param kind - The runtime the device belongs to.
+   *  @param ordinal - The runtime's own index of the device, below {@link Device.count}.
+   *  @throws Without a device of `kind`, or past the last one.
+   */
+  constructor(readonly kind: DeviceKind, readonly ordinal: number = 0) {
+    if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal >= Device.count(kind))
+      throw new RangeError(`No ${kind} device at ordinal ${ordinal}`);
+  }
+
+  /** The host CPU, which every build has. */
+  static cpu(): Device {
+    return new Device('cpu', 0);
+  }
+
+  /**
+   *  How many devices of `kind` the module sees: one CPU.
+   *  @throws For every GPU kind.
+   */
+  static count(kind: DeviceKind): number {
+    if (kind !== 'cpu') checkStatus(missingGpuStatus);
+    return 1;
+  }
+
+  /** The SIMD capabilities this WASM host supports, compiled in or not, as a bitmask. */
+  capabilitiesDetected(): bigint {
+    return queryCapabilities('_nk_cpu_capabilities_detected');
+  }
+
+  /** The SIMD capabilities compiled into this module, as a bitmask. */
+  capabilitiesCompiled(): bigint {
+    return queryCapabilities('_nk_cpu_capabilities_compiled');
+  }
+
+  /** The SIMD capabilities every kernel call passes: detected and compiled at once, unless narrowed
+   *  by {@link Device.capabilitiesEnable}, as a bitmask. Always includes `Capability.serial`. */
+  capabilitiesEnabled(): bigint {
+    requireModule();
+    return defaultCapabilities;
+  }
+
+  /**
+   *  Makes `wanted` the enabled set, clamped to what the host detects and this module compiled, and
+   *  keeping the serial fallback. Pack matrices again afterwards.
+   *  @param wanted - Bitmask of {@link Capability} bits.
+   *  @returns The enabled set that took effect.
+   */
+  capabilitiesEnable(wanted: bigint): bigint {
+    if (this.kind !== 'cpu') checkStatus(missingKernelStatus);
+    defaultCapabilities = (wanted & queryCapabilities('_nk_cpu_capabilities_enabled')) | 1n;
+    return defaultCapabilities;
+  }
 }
 
-/**
- *  Returns the SIMD capabilities whose kernels were compiled into this module, as a bitmask.
- *  @returns Bitmask of {@link Capability} bits.
- */
-export function capabilitiesCompiled(): bigint {
-  return queryCapabilities('_nk_cpu_capabilities_compiled');
-}
-
-/**
- *  Returns the SIMD capabilities dispatch uses, as a bitmask.
- *
- *  Both {@link capabilitiesDetected} and {@link capabilitiesCompiled} at once, unless narrowed by
- *  {@link capabilitiesEnable}. Always includes `Capability.serial`.
- *
- *  @returns Bitmask of {@link Capability} bits.
- */
-export function capabilitiesEnabled(): bigint {
-  requireModule();
-  return defaultCapabilities;
-}
-
-/**
- *  Makes `wanted` the set dispatch uses, clamped to {@link capabilitiesDetected} and
- *  {@link capabilitiesCompiled}. The serial fallback is always kept.
- *
- *  @param wanted - Bitmask of {@link Capability} bits.
- *  @returns The enabled set that took effect.
- */
-export function capabilitiesEnable(wanted: bigint): bigint {
-  defaultCapabilities = (wanted & queryCapabilities('_nk_cpu_capabilities_enabled')) | 1n;
-  return defaultCapabilities;
-}
-
-/** Lowercase CPU capability names, like `v128`, mapped to their bits by {@link initWasm}. */
+/** Lowercase capability names, like `v128` or `ampere`, mapped to their bits, and the `cpus`,
+ *  `devices` and `any` groups to theirs, by {@link initWasm}. */
 export let Capability: Readonly<Record<string, bigint>>;
 
 /** `FinalizationRegistry` for WASM `PackedMatrix` cleanup, an ES2021 feature from Node 14. */

@@ -29,14 +29,16 @@ extern "C" {
  *  @brief `Tensor.__dlpack__(stream=None, max_version=None, dl_device=None, copy=None)`.
  *
  *  Produces a @c PyCapsule named `"dltensor"`, legacy v0, or `"dltensor_versioned"`, v1+, and
- *  reports @c kDLCPU only, so any other requested @c dl_device gets a @c BufferError; zero-copy
- *  exchange is verified with PyTorch, NumPy, JAX, CuPy, TensorFlow, PyArrow and MLX.
+ *  reports @c kDLCPU only, so any other requested @c dl_device, or a GPU tensor from
+ *  @c from_dlpack, gets a @c BufferError; zero-copy exchange is verified with PyTorch, NumPy, JAX,
+ *  CuPy, TensorFlow, PyArrow and MLX.
  */
-PyObject *Tensor_dlpack(PyObject *self, PyObject *args, PyObject *kwargs);
+PyObject *Tensor_dlpack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /**
- *  @brief `Tensor.__dlpack_device__()`. Always returns `(kDLCPU=1, 0)`.
+ *  @brief `Tensor.__dlpack_device__()`.
  *
+ *  Returns `(kDLCPU=1, 0)`, or the CUDA or ROCm device a GPU tensor was imported from.
  *  Part of the Array API DLPack negotiation: consumers call this before @c __dlpack__ to know
  *  whether a copy or stream sync is needed.
  */
@@ -47,7 +49,8 @@ PyObject *Tensor_dlpack_device(PyObject *self, PyObject *noargs);
  *
  *  Accepts a `"dltensor"` or `"dltensor_versioned"` capsule or any object implementing
  *  @c __dlpack__. Any device whose pointer is host-readable, kDLCPU, kDLCUDAHost, kDLROCMHost,
- *  kDLCUDAManaged, kDLOneAPI, kDLMetal, is accepted; pure device memory, kDLCUDA, kDLROCM,
+ *  kDLCUDAManaged, kDLOneAPI, kDLMetal, is accepted as a CPU tensor; kDLCUDA and kDLROCM memory is
+ *  accepted as a GPU tensor recording its device, for the GPU kernels only; other device memory,
  *  kDLOpenCL, kDLVulkan, kDLWebGPU, ..., is rejected with a clear @c ValueError naming the device
  *  code. Verified producers, zero-copy: PyTorch, NumPy, JAX, CuPy, TensorFlow, PyArrow, MLX, ONNX
  *  Runtime, training builds, MXNet.

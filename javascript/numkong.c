@@ -21,10 +21,10 @@
 /** The mask kernels run with: detected and compiled, unless @c capabilitiesEnable narrows it. */
 static nk_capability_t default_capabilities = nk_cap_serial_k;
 
-/** Throws the @c nk_status_to_string of a failed @p status; returns whether it succeeded. */
+/** Throws the @c nk_status_name of a failed @p status; returns whether it succeeded. */
 static int check_status(napi_env env, nk_status_t status) {
     if (status == nk_success_k) return 1;
-    napi_throw_error(env, NULL, nk_status_to_string(status));
+    napi_throw_error(env, NULL, nk_status_name(status));
     return 0;
 }
 
@@ -228,84 +228,135 @@ napi_value api_jaccard(napi_env env, napi_callback_info info) { return dense(env
 
 #pragma region Capabilities API
 
-/**
- *  @brief Returns the CPU capabilities this machine executes.
- *  @return BigInt bitmask of nk_capability_t flags.
- *
- *  Describes the machine only. A capability reported here whose kernels were not compiled in will
- *  never run — see @b api_capabilities_enabled().
- */
-napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
-    nk_capability_t detected = nk_cap_serial_k;
-    if (!check_status(env, nk_cpu_capabilities_detected(&detected))) return NULL;
-    napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)detected, &result);
-    return result;
-}
+/** Device kinds, numbered as the TypeScript @c Device passes them. */
+enum { device_cpu_k, device_cuda_k, device_rocm_k, device_metal_k };
 
-/**
- *  @brief Returns the CPU capabilities whose kernels were compiled into this binary.
- *  @return BigInt bitmask of nk_capability_t flags.
- */
-napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
-    nk_capability_t compiled = nk_cap_serial_k;
-    if (!check_status(env, nk_cpu_capabilities_compiled(&compiled))) return NULL;
-    napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)compiled, &result);
-    return result;
-}
-
-/**
- *  @brief Returns the CPU capabilities dispatch uses.
- *  @return BigInt bitmask of nk_capability_t flags, detected and compiled unless narrowed.
- *
- *  This is the mask every kernel lookup walks.
- */
-napi_value api_capabilities_enabled(napi_env env, napi_callback_info info) {
-    napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)default_capabilities, &result);
-    return result;
-}
-
-/**
- *  @brief Makes the BigInt mask argument the enabled set, clamped to detected and compiled.
- *  @return BigInt bitmask of the enabled set that took effect, always with the serial fallback.
- */
-napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
-    size_t argc = 1;
-    napi_value args[1];
-    if (napi_get_cb_info(env, info, &argc, args, NULL, NULL) != napi_ok || argc < 1) {
-        napi_throw_error(env, NULL, "Expected 1 argument: a BigInt capability mask");
-        return NULL;
-    }
-    uint64_t wanted;
+/** Reads the @p count leading arguments of a @c Device call: a kind, then an ordinal or a mask. */
+static int read_device_arguments(napi_env env, napi_callback_info info, size_t count, uint32_t *kind, uint32_t *ordinal,
+                                 uint64_t *mask) {
+    size_t argc = 2;
+    napi_value args[2];
     bool lossless;
-    if (napi_get_value_bigint_uint64(env, args[0], &wanted, &lossless) != napi_ok) {
-        napi_throw_error(env, NULL, "Capability mask must be a BigInt");
-        return NULL;
+    if (napi_get_cb_info(env, info, &argc, args, NULL, NULL) != napi_ok || argc < count ||
+        napi_get_value_uint32(env, args[0], kind) != napi_ok ||
+        (count == 2 && ordinal && napi_get_value_uint32(env, args[1], ordinal) != napi_ok) ||
+        (count == 2 && mask && napi_get_value_bigint_uint64(env, args[1], mask, &lossless) != napi_ok)) {
+        napi_throw_error(env, NULL, "Expected a device kind, then an ordinal or a BigInt capability mask");
+        return 0;
     }
+    return 1;
+}
+
+/** Returns @p capabilities as a BigInt, or throws when @p status failed. */
+static napi_value capabilities_or_throw(napi_env env, nk_status_t status, nk_capability_t capabilities) {
+    if (!check_status(env, status)) return NULL;
+    napi_value result;
+    napi_create_bigint_uint64(env, (uint64_t)capabilities, &result);
+    return result;
+}
+
+/** Counts the devices of a kind: one CPU, or the GPUs its runtime sees, throwing without one. */
+napi_value api_device_count(napi_env env, napi_callback_info info) {
+    uint32_t kind;
+    if (!read_device_arguments(env, info, 1, &kind, NULL, NULL)) return NULL;
+    nk_size_t count = 1;
+    nk_status_t status = nk_success_k;
+    switch (kind) {
+    case device_cpu_k: break;
+    case device_cuda_k: status = nk_cuda_count_devices(&count); break;
+    case device_rocm_k: status = nk_rocm_count_devices(&count); break;
+    case device_metal_k: status = nk_metal_count_devices(&count); break;
+    default: status = nk_missing_gpu_k;
+    }
+    if (!check_status(env, status)) return NULL;
+    napi_value result;
+    napi_create_uint32(env, (uint32_t)count, &result);
+    return result;
+}
+
+/** The capabilities a device of a kind and ordinal runs, whether or not they were compiled in. */
+napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
+    uint32_t kind, ordinal;
+    if (!read_device_arguments(env, info, 2, &kind, &ordinal, NULL)) return NULL;
+    nk_capability_t capabilities = 0;
+    nk_status_t status;
+    switch (kind) {
+    case device_cpu_k: status = nk_cpu_capabilities_detected(&capabilities); break;
+    case device_cuda_k: status = nk_cuda_capabilities_detected(ordinal, &capabilities); break;
+    case device_rocm_k: status = nk_rocm_capabilities_detected(ordinal, &capabilities); break;
+    case device_metal_k: status = nk_metal_capabilities_detected(ordinal, &capabilities); break;
+    default: status = nk_missing_gpu_k;
+    }
+    return capabilities_or_throw(env, status, capabilities);
+}
+
+/** The capabilities compiled in for devices of a kind, whether or not a device runs them. */
+napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
+    uint32_t kind;
+    if (!read_device_arguments(env, info, 1, &kind, NULL, NULL)) return NULL;
+    nk_capability_t capabilities = 0;
+    nk_status_t status;
+    switch (kind) {
+    case device_cpu_k: status = nk_cpu_capabilities_compiled(&capabilities); break;
+    case device_cuda_k: status = nk_cuda_capabilities_compiled(&capabilities); break;
+    case device_rocm_k: status = nk_rocm_capabilities_compiled(&capabilities); break;
+    case device_metal_k: status = nk_metal_capabilities_compiled(&capabilities); break;
+    default: status = nk_missing_gpu_k;
+    }
+    return capabilities_or_throw(env, status, capabilities);
+}
+
+/** The mask a device's kernel calls pass; on the CPU, the one every kernel lookup here walks. */
+napi_value api_capabilities_enabled(napi_env env, napi_callback_info info) {
+    uint32_t kind, ordinal;
+    if (!read_device_arguments(env, info, 2, &kind, &ordinal, NULL)) return NULL;
+    nk_capability_t capabilities = default_capabilities;
+    nk_status_t status;
+    switch (kind) {
+    case device_cpu_k: status = nk_success_k; break;
+    case device_cuda_k: status = nk_cuda_capabilities_enabled(ordinal, &capabilities); break;
+    case device_rocm_k: status = nk_rocm_capabilities_enabled(ordinal, &capabilities); break;
+    case device_metal_k: status = nk_metal_capabilities_enabled(ordinal, &capabilities); break;
+    default: status = nk_missing_gpu_k;
+    }
+    return capabilities_or_throw(env, status, capabilities);
+}
+
+/** Makes a BigInt mask the CPU's enabled set, clamped to detected and compiled and keeping the
+ *  serial fallback, and returns the set that took effect; GPUs keep no such set. */
+napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
+    uint32_t kind;
+    uint64_t wanted;
+    if (!read_device_arguments(env, info, 2, &kind, NULL, &wanted)) return NULL;
+    if (kind != device_cpu_k) return capabilities_or_throw(env, nk_missing_kernel_k, 0);
     nk_capability_t available = nk_cap_serial_k;
     if (!check_status(env, nk_cpu_capabilities_enabled(&available))) return NULL;
     default_capabilities = ((nk_capability_t)wanted & available) | nk_cap_serial_k;
-    napi_value result;
-    napi_create_bigint_uint64(env, (uint64_t)default_capabilities, &result);
-    return result;
+    return capabilities_or_throw(env, nk_success_k, default_capabilities);
 }
 
-/** Exports @c Capability, mapping each CPU capability's name to its BigInt bit, and no GPU ones. */
+/** Exports @c Capability, mapping each capability's name to its BigInt bit, and the @c cpus,
+ *  @c devices and @c any groups to theirs. */
 static napi_status export_capability_names(napi_env env, napi_value exports) {
-    napi_value names;
+    napi_value names, value;
     napi_status status = napi_create_object(env, &names);
     if (status != napi_ok) return status;
     for (unsigned shift = 0; shift != 64; ++shift) {
         nk_capability_t const bit = (nk_capability_t)1 << shift;
         char name[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-        if ((bit & nk_cap_devices_k) || !nk_name_capabilities(bit, name, sizeof(name))) continue;
-        napi_value value;
+        if (!nk_capabilities_name(bit, name, sizeof(name))) continue;
         if ((status = napi_create_bigint_uint64(env, (uint64_t)bit, &value)) != napi_ok ||
             (status = napi_set_named_property(env, names, name, value)) != napi_ok)
             return status;
     }
+    struct {
+        char const *name;
+        nk_capability_t mask;
+    } const groups[] = {{"cpus", nk_cap_cpus_k}, {"devices", nk_cap_devices_k}, {"any", nk_cap_any_k}};
+    for (size_t group = 0; group != sizeof(groups) / sizeof(groups[0]); ++group)
+        if ((status = napi_create_bigint_uint64(env, (uint64_t)groups[group].mask, &value)) != napi_ok ||
+            (status = napi_set_named_property(env, names, groups[group].name, value)) != napi_ok)
+            return status;
     return napi_set_named_property(env, exports, "Capability", names);
 }
 
@@ -802,6 +853,7 @@ napi_value Init(napi_env env, napi_value exports) {
         export_function(env, exports, "jaccard", api_jaccard) != napi_ok ||
         export_function(env, exports, "kullbackleibler", api_kld) != napi_ok ||
         export_function(env, exports, "jensenshannon", api_jsd) != napi_ok ||
+        export_function(env, exports, "deviceCount", api_device_count) != napi_ok ||
         export_function(env, exports, "capabilitiesDetected", api_capabilities_detected) != napi_ok ||
         export_function(env, exports, "capabilitiesCompiled", api_capabilities_compiled) != napi_ok ||
         export_function(env, exports, "capabilitiesEnabled", api_capabilities_enabled) != napi_ok ||

@@ -29,7 +29,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
 status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
-             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+             nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::probability_result_t>;
 
     if (capabilities) {
@@ -64,7 +64,7 @@ status_t kld(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *
  */
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t>
 status_t jsd(in_type_ const *p, in_type_ const *q, std::size_t d, result_type_ *r,
-             nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+             nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<result_type_, typename in_type_::probability_result_t>;
 
     if (capabilities) {
@@ -102,7 +102,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t,
           vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
 expected<result_type_> kld(a_type_ const &a, b_type_ const &b,
-                           nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                           nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
@@ -118,7 +118,7 @@ expected<result_type_> kld(a_type_ const &a, b_type_ const &b,
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::probability_result_t,
           vector_of<in_type_> a_type_, vector_of<in_type_> b_type_>
 expected<result_type_> jsd(a_type_ const &a, b_type_ const &b,
-                           nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                           nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();

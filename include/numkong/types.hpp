@@ -171,9 +171,7 @@ constexpr bool succeeded(status_t status) noexcept { return status == status_t::
 constexpr bool failed(status_t status) noexcept { return status != status_t::success_k; }
 
 /** Static, English description of @p status. Never returns @c nullptr, never allocates. */
-inline char const *status_to_string(status_t status) noexcept {
-    return nk_status_to_string_(static_cast<nk_status_t>(status));
-}
+inline char const *status_name(status_t status) noexcept { return nk_status_name_(static_cast<nk_status_t>(status)); }
 
 /** A result paired with the @c status_t explaining it; the value is only meaningful
  *  on @c success_k. */
@@ -199,14 +197,101 @@ struct [[nodiscard]] expected<value_type_ &> {
 
 #pragma endregion Status
 
+#pragma region Devices
+
+/** Which runtime a device belongs to, as the `nk_<kind>_*` C functions name it. */
+enum class device_kind_t : int { cpu_k, cuda_k, rocm_k, metal_k };
+
+/** One device NumKong can run kernels on: the host CPU, or a GPU by its runtime's own ordinal. */
+class device_t {
+    device_kind_t kind_;
+    std::size_t ordinal_;
+
+    constexpr device_t(device_kind_t kind, std::size_t ordinal) noexcept : kind_(kind), ordinal_(ordinal) {}
+
+  public:
+    /** The host CPU, which every build has. */
+    static constexpr device_t cpu() noexcept { return {device_kind_t::cpu_k, 0}; }
+
+    /** How many devices of @p kind the process sees: one CPU, or @c missing_gpu_k and zero GPUs. */
+    static expected<std::size_t> count(device_kind_t kind) noexcept {
+        nk_size_t count = 1;
+        nk_status_t status = nk_success_k;
+        switch (kind) {
+        case device_kind_t::cpu_k: break;
+        case device_kind_t::cuda_k: status = nk_cuda_count_devices(&count); break;
+        case device_kind_t::rocm_k: status = nk_rocm_count_devices(&count); break;
+        case device_kind_t::metal_k: status = nk_metal_count_devices(&count); break;
+        }
+        return {count, static_cast<status_t>(status)};
+    }
+
+    /** Device @p ordinal of @p kind, or @c missing_gpu_k past the last one. */
+    static expected<device_t> make(device_kind_t kind, std::size_t ordinal) noexcept {
+        expected<std::size_t> const devices = count(kind);
+        status_t const status = devices && ordinal >= devices.value ? status_t::missing_gpu_k : devices.status;
+        return {device_t {kind, ordinal}, status};
+    }
+
+    constexpr device_kind_t kind() const noexcept { return kind_; }
+    constexpr std::size_t ordinal() const noexcept { return ordinal_; }
+
+    /** What this device runs, whether or not this binary holds kernels for it; zero on failure. */
+    expected<nk_capability_t> capabilities_detected() const noexcept {
+        nk_capability_t capabilities = 0;
+        nk_status_t status = nk_success_k;
+        switch (kind_) {
+        case device_kind_t::cpu_k: status = nk_cpu_capabilities_detected(&capabilities); break;
+        case device_kind_t::cuda_k: status = nk_cuda_capabilities_detected(ordinal_, &capabilities); break;
+        case device_kind_t::rocm_k: status = nk_rocm_capabilities_detected(ordinal_, &capabilities); break;
+        case device_kind_t::metal_k: status = nk_metal_capabilities_detected(ordinal_, &capabilities); break;
+        }
+        return {capabilities, static_cast<status_t>(status)};
+    }
+
+    /** What this binary holds kernels for on devices of this kind, whether or not this one runs. */
+    nk_capability_t capabilities_compiled() const noexcept {
+        nk_capability_t capabilities = 0;
+        [[maybe_unused]] nk_status_t status = nk_success_k; // Never fails: the mask is fixed at build time
+        switch (kind_) {
+        case device_kind_t::cpu_k: status = nk_cpu_capabilities_compiled(&capabilities); break;
+        case device_kind_t::cuda_k: status = nk_cuda_capabilities_compiled(&capabilities); break;
+        case device_kind_t::rocm_k: status = nk_rocm_capabilities_compiled(&capabilities); break;
+        case device_kind_t::metal_k: status = nk_metal_capabilities_compiled(&capabilities); break;
+        }
+        return capabilities;
+    }
+
+    /** Both at once: the mask for this device's dispatch points; zero on failure. */
+    expected<nk_capability_t> capabilities_enabled() const noexcept {
+        nk_capability_t capabilities = 0;
+        nk_status_t status = nk_success_k;
+        switch (kind_) {
+        case device_kind_t::cpu_k: status = nk_cpu_capabilities_enabled(&capabilities); break;
+        case device_kind_t::cuda_k: status = nk_cuda_capabilities_enabled(ordinal_, &capabilities); break;
+        case device_kind_t::rocm_k: status = nk_rocm_capabilities_enabled(ordinal_, &capabilities); break;
+        case device_kind_t::metal_k: status = nk_metal_capabilities_enabled(ordinal_, &capabilities); break;
+        }
+        return {capabilities, static_cast<status_t>(status)};
+    }
+
+    /** Prepares the calling thread for the CPU kernels of @p capabilities; GPUs have no such
+     *  kernels, so they report @c missing_kernel_k. */
+    status_t configure_thread(nk_capability_t capabilities) const noexcept {
+        if (kind_ != device_kind_t::cpu_k) return status_t::missing_kernel_k;
+        return static_cast<status_t>(nk_cpu_configure_thread(capabilities));
+    }
+};
+
 /**
- *  @brief The CPU capabilities every wrapper dispatches over by default: the ones this CPU runs and
- *      the library holds, or none in header-only builds, whose dispatch points are stubs.
+ *  @brief The mask every wrapper dispatches over by default: the CPU's enabled capabilities, as
+ *      @c device_t::cpu().capabilities_enabled() reports them, or none in header-only builds, whose
+ *      dispatch points are stubs.
  *
  *  A zero mask names no capability, so the wrappers run their C++ templates instead, the references
  *  every capability is tested against. Header-only and linked C++ units must not share a binary.
  */
-inline nk_capability_t cpu_capabilities() noexcept {
+inline nk_capability_t default_capabilities() noexcept {
 #if NUMKONG_HEADER_ONLY
     return 0;
 #else
@@ -215,23 +300,7 @@ inline nk_capability_t cpu_capabilities() noexcept {
 #endif
 }
 
-/** The capabilities of CUDA device @p device, by runtime ordinal, this binary has kernels for. */
-inline nk_capability_t cuda_capabilities(std::size_t device = 0) noexcept {
-    nk_capability_t capabilities = 0;
-    return nk_cuda_capabilities_enabled(device, &capabilities) == nk_success_k ? capabilities : 0;
-}
-
-/** The capabilities of ROCm device @p device, by runtime ordinal, this binary has kernels for. */
-inline nk_capability_t rocm_capabilities(std::size_t device = 0) noexcept {
-    nk_capability_t capabilities = 0;
-    return nk_rocm_capabilities_enabled(device, &capabilities) == nk_success_k ? capabilities : 0;
-}
-
-/** The capabilities of Metal device @p device, in system order, this binary has kernels for. */
-inline nk_capability_t metal_capabilities(std::size_t device = 0) noexcept {
-    nk_capability_t capabilities = 0;
-    return nk_metal_capabilities_enabled(device, &capabilities) == nk_success_k ? capabilities : 0;
-}
+#pragma endregion Devices
 
 struct f118c_t;
 struct f64c_t;
@@ -579,14 +648,14 @@ struct f32_t {
     NUMKONG_CMATH_CONSTEXPR_ f32_t trunc() const noexcept { return f32_t {std::trunc(raw_)}; }
     NUMKONG_CMATH_CONSTEXPR_ f32_t fract() const noexcept { return f32_t {raw_ - std::trunc(raw_)}; }
 
-    inline f32_t sqrt() const noexcept { return f32_t {nk_f32_sqrt_best(raw_, cpu_capabilities())}; }
+    inline f32_t sqrt() const noexcept { return f32_t {nk_f32_sqrt_best(raw_, default_capabilities())}; }
     NUMKONG_CMATH_CONSTEXPR_ f32_t cbrt() const noexcept { return f32_t {std::cbrt(raw_)}; }
-    inline f32_t rsqrt() const noexcept { return f32_t {nk_f32_rsqrt_best(raw_, cpu_capabilities())}; }
+    inline f32_t rsqrt() const noexcept { return f32_t {nk_f32_rsqrt_best(raw_, default_capabilities())}; }
     constexpr f32_t recip() const noexcept { return f32_t {1.0f / raw_}; }
 
     /** @sa std::fma */
     inline f32_t fma(f32_t a, f32_t b) const noexcept {
-        return f32_t {nk_f32_fma_best(raw_, a.raw_, b.raw_, cpu_capabilities())};
+        return f32_t {nk_f32_fma_best(raw_, a.raw_, b.raw_, default_capabilities())};
     }
     NUMKONG_CMATH_CONSTEXPR_ f32_t powf(f32_t exp) const noexcept { return f32_t {std::pow(raw_, exp.raw_)}; }
     constexpr f32_t powi(int n) const noexcept {
@@ -860,14 +929,14 @@ struct f64_t {
     NUMKONG_CMATH_CONSTEXPR_ f64_t trunc() const noexcept { return f64_t {std::trunc(raw_)}; }
     NUMKONG_CMATH_CONSTEXPR_ f64_t fract() const noexcept { return f64_t {raw_ - std::trunc(raw_)}; }
 
-    inline f64_t sqrt() const noexcept { return f64_t {nk_f64_sqrt_best(raw_, cpu_capabilities())}; }
+    inline f64_t sqrt() const noexcept { return f64_t {nk_f64_sqrt_best(raw_, default_capabilities())}; }
     NUMKONG_CMATH_CONSTEXPR_ f64_t cbrt() const noexcept { return f64_t {std::cbrt(raw_)}; }
-    inline f64_t rsqrt() const noexcept { return f64_t {nk_f64_rsqrt_best(raw_, cpu_capabilities())}; }
+    inline f64_t rsqrt() const noexcept { return f64_t {nk_f64_rsqrt_best(raw_, default_capabilities())}; }
     constexpr f64_t recip() const noexcept { return f64_t {1.0 / raw_}; }
 
     /** @sa std::fma */
     inline f64_t fma(f64_t a, f64_t b) const noexcept {
-        return f64_t {nk_f64_fma_best(raw_, a.raw_, b.raw_, cpu_capabilities())};
+        return f64_t {nk_f64_fma_best(raw_, a.raw_, b.raw_, default_capabilities())};
     }
     NUMKONG_CMATH_CONSTEXPR_ f64_t powf(f64_t exp) const noexcept { return f64_t {std::pow(raw_, exp.raw_)}; }
     constexpr f64_t powi(int n) const noexcept {
@@ -1513,25 +1582,25 @@ struct f16_t {
 
     inline float to_f32() const noexcept {
         float r;
-        nk_f16_to_f32_best(&raw_, &r, cpu_capabilities());
+        nk_f16_to_f32_best(&raw_, &r, default_capabilities());
         return r;
     }
     static inline f16_t from_f32(float v) noexcept {
         f16_t r;
-        nk_f32_to_f16_best(&v, &r.raw_, cpu_capabilities());
+        nk_f32_to_f16_best(&v, &r.raw_, default_capabilities());
         return r;
     }
 
     constexpr f16_t() noexcept : raw_(0) {}
-    f16_t(float v) noexcept { nk_f32_to_f16_best(&v, &raw_, cpu_capabilities()); }
+    f16_t(float v) noexcept { nk_f32_to_f16_best(&v, &raw_, default_capabilities()); }
     explicit f16_t(double v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_f16_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_f16_best(&f, &raw_, default_capabilities());
     }
     template <std::integral integral_type_>
     f16_t(integral_type_ v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_f16_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_f16_best(&f, &raw_, default_capabilities());
     }
     operator float() const noexcept { return to_f32(); }
     float raw() const noexcept { return to_f32(); }
@@ -1595,15 +1664,27 @@ struct f16_t {
     inline f16_t &operator*=(f16_t o) noexcept { return *this = *this * o; }
     inline f16_t &operator/=(f16_t o) noexcept { return *this = *this / o; }
 
-    inline bool operator==(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, cpu_capabilities()) == 0; }
-    inline bool operator!=(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, cpu_capabilities()) != 0; }
-    inline bool operator<(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, cpu_capabilities()) < 0; }
-    inline bool operator>(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, cpu_capabilities()) > 0; }
-    inline bool operator<=(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, cpu_capabilities()) <= 0; }
-    inline bool operator>=(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, cpu_capabilities()) >= 0; }
+    inline bool operator==(f16_t o) const noexcept {
+        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) == 0;
+    }
+    inline bool operator!=(f16_t o) const noexcept {
+        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) != 0;
+    }
+    inline bool operator<(f16_t o) const noexcept {
+        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) < 0;
+    }
+    inline bool operator>(f16_t o) const noexcept {
+        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) > 0;
+    }
+    inline bool operator<=(f16_t o) const noexcept {
+        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) <= 0;
+    }
+    inline bool operator>=(f16_t o) const noexcept {
+        return nk_f16_order_best(raw_, o.raw_, default_capabilities()) >= 0;
+    }
 
     /** Total ordering via nk_f16_order_best. */
-    inline int order(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, cpu_capabilities()); }
+    inline int order(f16_t o) const noexcept { return nk_f16_order_best(raw_, o.raw_, default_capabilities()); }
 
     /** Alias for order(), Rust-style. */
     inline int total_cmp(f16_t o) const noexcept { return order(o); }
@@ -1626,14 +1707,14 @@ struct f16_t {
         return from_f32(f - std::trunc(f));
     }
 
-    inline f16_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), cpu_capabilities())); }
+    inline f16_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
     NUMKONG_CMATH_CONSTEXPR_ f16_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline f16_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), cpu_capabilities())); }
+    inline f16_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
     inline f16_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
 
     /** @sa std::fma */
     inline f16_t fma(f16_t a, f16_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), cpu_capabilities()));
+        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
     }
     NUMKONG_CMATH_CONSTEXPR_ f16_t powf(f16_t exp) const noexcept { return from_f32(std::pow(to_f32(), exp.to_f32())); }
 
@@ -1788,25 +1869,25 @@ struct bf16_t {
 
     inline float to_f32() const noexcept {
         float r;
-        nk_bf16_to_f32_best(&raw_, &r, cpu_capabilities());
+        nk_bf16_to_f32_best(&raw_, &r, default_capabilities());
         return r;
     }
     static inline bf16_t from_f32(float v) noexcept {
         bf16_t r;
-        nk_f32_to_bf16_best(&v, &r.raw_, cpu_capabilities());
+        nk_f32_to_bf16_best(&v, &r.raw_, default_capabilities());
         return r;
     }
 
     constexpr bf16_t() noexcept : raw_(0) {}
-    bf16_t(float v) noexcept { nk_f32_to_bf16_best(&v, &raw_, cpu_capabilities()); }
+    bf16_t(float v) noexcept { nk_f32_to_bf16_best(&v, &raw_, default_capabilities()); }
     explicit bf16_t(double v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_bf16_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_bf16_best(&f, &raw_, default_capabilities());
     }
     template <std::integral integral_type_>
     bf16_t(integral_type_ v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_bf16_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_bf16_best(&f, &raw_, default_capabilities());
     }
     operator float() const noexcept { return to_f32(); }
     float raw() const noexcept { return to_f32(); }
@@ -1869,22 +1950,26 @@ struct bf16_t {
     inline bf16_t &operator/=(bf16_t o) noexcept { return *this = *this / o; }
 
     inline bool operator==(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, cpu_capabilities()) == 0;
+        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) == 0;
     }
     inline bool operator!=(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, cpu_capabilities()) != 0;
+        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) != 0;
     }
-    inline bool operator<(bf16_t o) const noexcept { return nk_bf16_order_best(raw_, o.raw_, cpu_capabilities()) < 0; }
-    inline bool operator>(bf16_t o) const noexcept { return nk_bf16_order_best(raw_, o.raw_, cpu_capabilities()) > 0; }
+    inline bool operator<(bf16_t o) const noexcept {
+        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) < 0;
+    }
+    inline bool operator>(bf16_t o) const noexcept {
+        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) > 0;
+    }
     inline bool operator<=(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, cpu_capabilities()) <= 0;
+        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) <= 0;
     }
     inline bool operator>=(bf16_t o) const noexcept {
-        return nk_bf16_order_best(raw_, o.raw_, cpu_capabilities()) >= 0;
+        return nk_bf16_order_best(raw_, o.raw_, default_capabilities()) >= 0;
     }
 
     /** Total ordering via nk_bf16_order_best. */
-    inline int order(bf16_t o) const noexcept { return nk_bf16_order_best(raw_, o.raw_, cpu_capabilities()); }
+    inline int order(bf16_t o) const noexcept { return nk_bf16_order_best(raw_, o.raw_, default_capabilities()); }
 
     /** Alias for order(), Rust-style. */
     inline int total_cmp(bf16_t o) const noexcept { return order(o); }
@@ -1907,14 +1992,14 @@ struct bf16_t {
         return from_f32(f - std::trunc(f));
     }
 
-    inline bf16_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), cpu_capabilities())); }
+    inline bf16_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
     NUMKONG_CMATH_CONSTEXPR_ bf16_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline bf16_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), cpu_capabilities())); }
+    inline bf16_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
     inline bf16_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
 
     /** @sa std::fma */
     inline bf16_t fma(bf16_t a, bf16_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), cpu_capabilities()));
+        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
     }
     NUMKONG_CMATH_CONSTEXPR_ bf16_t powf(bf16_t exp) const noexcept {
         return from_f32(std::pow(to_f32(), exp.to_f32()));
@@ -2252,25 +2337,25 @@ struct e4m3_t {
 
     inline float to_f32() const noexcept {
         float r;
-        nk_e4m3_to_f32_best(&raw_, &r, cpu_capabilities());
+        nk_e4m3_to_f32_best(&raw_, &r, default_capabilities());
         return r;
     }
     static inline e4m3_t from_f32(float v) noexcept {
         e4m3_t r;
-        nk_f32_to_e4m3_best(&v, &r.raw_, cpu_capabilities());
+        nk_f32_to_e4m3_best(&v, &r.raw_, default_capabilities());
         return r;
     }
 
     constexpr e4m3_t() noexcept : raw_(0) {}
-    e4m3_t(float v) noexcept { nk_f32_to_e4m3_best(&v, &raw_, cpu_capabilities()); }
+    e4m3_t(float v) noexcept { nk_f32_to_e4m3_best(&v, &raw_, default_capabilities()); }
     explicit e4m3_t(double v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e4m3_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e4m3_best(&f, &raw_, default_capabilities());
     }
     template <std::integral integral_type_>
     e4m3_t(integral_type_ v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e4m3_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e4m3_best(&f, &raw_, default_capabilities());
     }
     operator float() const noexcept { return to_f32(); }
     float raw() const noexcept { return to_f32(); }
@@ -2330,22 +2415,26 @@ struct e4m3_t {
     inline e4m3_t &operator/=(e4m3_t o) noexcept { return *this = *this / o; }
 
     inline bool operator==(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, cpu_capabilities()) == 0;
+        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) == 0;
     }
     inline bool operator!=(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, cpu_capabilities()) != 0;
+        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) != 0;
     }
-    inline bool operator<(e4m3_t o) const noexcept { return nk_e4m3_order_best(raw_, o.raw_, cpu_capabilities()) < 0; }
-    inline bool operator>(e4m3_t o) const noexcept { return nk_e4m3_order_best(raw_, o.raw_, cpu_capabilities()) > 0; }
+    inline bool operator<(e4m3_t o) const noexcept {
+        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) < 0;
+    }
+    inline bool operator>(e4m3_t o) const noexcept {
+        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) > 0;
+    }
     inline bool operator<=(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, cpu_capabilities()) <= 0;
+        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) <= 0;
     }
     inline bool operator>=(e4m3_t o) const noexcept {
-        return nk_e4m3_order_best(raw_, o.raw_, cpu_capabilities()) >= 0;
+        return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()) >= 0;
     }
 
     /** Total ordering via nk_e4m3_order_best. */
-    inline int order(e4m3_t o) const noexcept { return nk_e4m3_order_best(raw_, o.raw_, cpu_capabilities()); }
+    inline int order(e4m3_t o) const noexcept { return nk_e4m3_order_best(raw_, o.raw_, default_capabilities()); }
 
     /** Alias for order(), Rust-style. */
     inline int total_cmp(e4m3_t o) const noexcept { return order(o); }
@@ -2366,14 +2455,14 @@ struct e4m3_t {
         return from_f32(f - std::trunc(f));
     }
 
-    inline e4m3_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), cpu_capabilities())); }
+    inline e4m3_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
     NUMKONG_CMATH_CONSTEXPR_ e4m3_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline e4m3_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), cpu_capabilities())); }
+    inline e4m3_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
     inline e4m3_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
 
     /** @sa std::fma */
     inline e4m3_t fma(e4m3_t a, e4m3_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), cpu_capabilities()));
+        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
     }
     NUMKONG_CMATH_CONSTEXPR_ e4m3_t powf(e4m3_t exp) const noexcept {
         return from_f32(std::pow(to_f32(), exp.to_f32()));
@@ -2483,25 +2572,25 @@ struct e5m2_t {
 
     inline float to_f32() const noexcept {
         float r;
-        nk_e5m2_to_f32_best(&raw_, &r, cpu_capabilities());
+        nk_e5m2_to_f32_best(&raw_, &r, default_capabilities());
         return r;
     }
     static inline e5m2_t from_f32(float v) noexcept {
         e5m2_t r;
-        nk_f32_to_e5m2_best(&v, &r.raw_, cpu_capabilities());
+        nk_f32_to_e5m2_best(&v, &r.raw_, default_capabilities());
         return r;
     }
 
     constexpr e5m2_t() noexcept : raw_(0) {}
-    e5m2_t(float v) noexcept { nk_f32_to_e5m2_best(&v, &raw_, cpu_capabilities()); }
+    e5m2_t(float v) noexcept { nk_f32_to_e5m2_best(&v, &raw_, default_capabilities()); }
     explicit e5m2_t(double v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e5m2_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e5m2_best(&f, &raw_, default_capabilities());
     }
     template <std::integral integral_type_>
     e5m2_t(integral_type_ v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e5m2_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e5m2_best(&f, &raw_, default_capabilities());
     }
     operator float() const noexcept { return to_f32(); }
     float raw() const noexcept { return to_f32(); }
@@ -2563,22 +2652,26 @@ struct e5m2_t {
     inline e5m2_t &operator/=(e5m2_t o) noexcept { return *this = *this / o; }
 
     inline bool operator==(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, cpu_capabilities()) == 0;
+        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) == 0;
     }
     inline bool operator!=(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, cpu_capabilities()) != 0;
+        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) != 0;
     }
-    inline bool operator<(e5m2_t o) const noexcept { return nk_e5m2_order_best(raw_, o.raw_, cpu_capabilities()) < 0; }
-    inline bool operator>(e5m2_t o) const noexcept { return nk_e5m2_order_best(raw_, o.raw_, cpu_capabilities()) > 0; }
+    inline bool operator<(e5m2_t o) const noexcept {
+        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) < 0;
+    }
+    inline bool operator>(e5m2_t o) const noexcept {
+        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) > 0;
+    }
     inline bool operator<=(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, cpu_capabilities()) <= 0;
+        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) <= 0;
     }
     inline bool operator>=(e5m2_t o) const noexcept {
-        return nk_e5m2_order_best(raw_, o.raw_, cpu_capabilities()) >= 0;
+        return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()) >= 0;
     }
 
     /** Total ordering via nk_e5m2_order_best. */
-    inline int order(e5m2_t o) const noexcept { return nk_e5m2_order_best(raw_, o.raw_, cpu_capabilities()); }
+    inline int order(e5m2_t o) const noexcept { return nk_e5m2_order_best(raw_, o.raw_, default_capabilities()); }
 
     /** Alias for order(), Rust-style. */
     inline int total_cmp(e5m2_t o) const noexcept { return order(o); }
@@ -2599,14 +2692,14 @@ struct e5m2_t {
         return from_f32(f - std::trunc(f));
     }
 
-    inline e5m2_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), cpu_capabilities())); }
+    inline e5m2_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
     NUMKONG_CMATH_CONSTEXPR_ e5m2_t cbrt() const noexcept { return from_f32(std::cbrt(to_f32())); }
-    inline e5m2_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), cpu_capabilities())); }
+    inline e5m2_t rsqrt() const noexcept { return from_f32(nk_f32_rsqrt_best(to_f32(), default_capabilities())); }
     inline e5m2_t recip() const noexcept { return from_f32(1.0f / to_f32()); }
 
     /** @sa std::fma */
     inline e5m2_t fma(e5m2_t a, e5m2_t b) const noexcept {
-        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), cpu_capabilities()));
+        return from_f32(nk_f32_fma_best(to_f32(), a.to_f32(), b.to_f32(), default_capabilities()));
     }
     NUMKONG_CMATH_CONSTEXPR_ e5m2_t powf(e5m2_t exp) const noexcept {
         return from_f32(std::pow(to_f32(), exp.to_f32()));
@@ -2719,25 +2812,25 @@ struct e2m3_t {
 
     inline float to_f32() const noexcept {
         float r;
-        nk_e2m3_to_f32_best(&raw_, &r, cpu_capabilities());
+        nk_e2m3_to_f32_best(&raw_, &r, default_capabilities());
         return r;
     }
     static inline e2m3_t from_f32(float v) noexcept {
         e2m3_t r;
-        nk_f32_to_e2m3_best(&v, &r.raw_, cpu_capabilities());
+        nk_f32_to_e2m3_best(&v, &r.raw_, default_capabilities());
         return r;
     }
 
     constexpr e2m3_t() noexcept : raw_(0) {}
-    inline e2m3_t(float v) noexcept { nk_f32_to_e2m3_best(&v, &raw_, cpu_capabilities()); }
+    inline e2m3_t(float v) noexcept { nk_f32_to_e2m3_best(&v, &raw_, default_capabilities()); }
     explicit e2m3_t(double v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e2m3_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e2m3_best(&f, &raw_, default_capabilities());
     }
     template <std::integral integral_type_>
     e2m3_t(integral_type_ v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e2m3_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e2m3_best(&f, &raw_, default_capabilities());
     }
     inline operator float() const noexcept { return to_f32(); }
     inline float raw() const noexcept { return to_f32(); }
@@ -2796,22 +2889,26 @@ struct e2m3_t {
     inline e2m3_t &operator/=(e2m3_t o) noexcept { return *this = *this / o; }
 
     inline bool operator==(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, cpu_capabilities()) == 0;
+        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) == 0;
     }
     inline bool operator!=(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, cpu_capabilities()) != 0;
+        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) != 0;
     }
-    inline bool operator<(e2m3_t o) const noexcept { return nk_e2m3_order_best(raw_, o.raw_, cpu_capabilities()) < 0; }
-    inline bool operator>(e2m3_t o) const noexcept { return nk_e2m3_order_best(raw_, o.raw_, cpu_capabilities()) > 0; }
+    inline bool operator<(e2m3_t o) const noexcept {
+        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) < 0;
+    }
+    inline bool operator>(e2m3_t o) const noexcept {
+        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) > 0;
+    }
     inline bool operator<=(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, cpu_capabilities()) <= 0;
+        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) <= 0;
     }
     inline bool operator>=(e2m3_t o) const noexcept {
-        return nk_e2m3_order_best(raw_, o.raw_, cpu_capabilities()) >= 0;
+        return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()) >= 0;
     }
 
     /** Total ordering via nk_e2m3_order_best. */
-    inline int order(e2m3_t o) const noexcept { return nk_e2m3_order_best(raw_, o.raw_, cpu_capabilities()); }
+    inline int order(e2m3_t o) const noexcept { return nk_e2m3_order_best(raw_, o.raw_, default_capabilities()); }
 
     /** Alias for order(), Rust-style. */
     inline int total_cmp(e2m3_t o) const noexcept { return order(o); }
@@ -2819,7 +2916,7 @@ struct e2m3_t {
     constexpr e2m3_t abs() const noexcept { return from_bits(raw_ & 0x1F); }
     constexpr e2m3_t copysign(e2m3_t sign) const noexcept { return from_bits((raw_ & 0x1F) | (sign.raw_ & 0x20)); }
 
-    inline e2m3_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), cpu_capabilities())); }
+    inline e2m3_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
     NUMKONG_CMATH_CONSTEXPR_ e2m3_t min(e2m3_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
     NUMKONG_CMATH_CONSTEXPR_ e2m3_t max(e2m3_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
     inline e2m3_t clamp(e2m3_t lo, e2m3_t hi) const noexcept { return max(lo).min(hi); }
@@ -2914,25 +3011,25 @@ struct e3m2_t {
 
     inline float to_f32() const noexcept {
         float r;
-        nk_e3m2_to_f32_best(&raw_, &r, cpu_capabilities());
+        nk_e3m2_to_f32_best(&raw_, &r, default_capabilities());
         return r;
     }
     static inline e3m2_t from_f32(float v) noexcept {
         e3m2_t r;
-        nk_f32_to_e3m2_best(&v, &r.raw_, cpu_capabilities());
+        nk_f32_to_e3m2_best(&v, &r.raw_, default_capabilities());
         return r;
     }
 
     constexpr e3m2_t() noexcept : raw_(0) {}
-    inline e3m2_t(float v) noexcept { nk_f32_to_e3m2_best(&v, &raw_, cpu_capabilities()); }
+    inline e3m2_t(float v) noexcept { nk_f32_to_e3m2_best(&v, &raw_, default_capabilities()); }
     explicit e3m2_t(double v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e3m2_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e3m2_best(&f, &raw_, default_capabilities());
     }
     template <std::integral integral_type_>
     e3m2_t(integral_type_ v) noexcept {
         float f = static_cast<float>(v);
-        nk_f32_to_e3m2_best(&f, &raw_, cpu_capabilities());
+        nk_f32_to_e3m2_best(&f, &raw_, default_capabilities());
     }
     inline operator float() const noexcept { return to_f32(); }
     inline float raw() const noexcept { return to_f32(); }
@@ -2991,22 +3088,26 @@ struct e3m2_t {
     inline e3m2_t &operator/=(e3m2_t o) noexcept { return *this = *this / o; }
 
     inline bool operator==(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, cpu_capabilities()) == 0;
+        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) == 0;
     }
     inline bool operator!=(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, cpu_capabilities()) != 0;
+        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) != 0;
     }
-    inline bool operator<(e3m2_t o) const noexcept { return nk_e3m2_order_best(raw_, o.raw_, cpu_capabilities()) < 0; }
-    inline bool operator>(e3m2_t o) const noexcept { return nk_e3m2_order_best(raw_, o.raw_, cpu_capabilities()) > 0; }
+    inline bool operator<(e3m2_t o) const noexcept {
+        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) < 0;
+    }
+    inline bool operator>(e3m2_t o) const noexcept {
+        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) > 0;
+    }
     inline bool operator<=(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, cpu_capabilities()) <= 0;
+        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) <= 0;
     }
     inline bool operator>=(e3m2_t o) const noexcept {
-        return nk_e3m2_order_best(raw_, o.raw_, cpu_capabilities()) >= 0;
+        return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()) >= 0;
     }
 
     /** Total ordering via nk_e3m2_order_best. */
-    inline int order(e3m2_t o) const noexcept { return nk_e3m2_order_best(raw_, o.raw_, cpu_capabilities()); }
+    inline int order(e3m2_t o) const noexcept { return nk_e3m2_order_best(raw_, o.raw_, default_capabilities()); }
 
     /** Alias for order(), Rust-style. */
     inline int total_cmp(e3m2_t o) const noexcept { return order(o); }
@@ -3014,7 +3115,7 @@ struct e3m2_t {
     constexpr e3m2_t abs() const noexcept { return from_bits(raw_ & 0x1F); }
     constexpr e3m2_t copysign(e3m2_t sign) const noexcept { return from_bits((raw_ & 0x1F) | (sign.raw_ & 0x20)); }
 
-    inline e3m2_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), cpu_capabilities())); }
+    inline e3m2_t sqrt() const noexcept { return from_f32(nk_f32_sqrt_best(to_f32(), default_capabilities())); }
     NUMKONG_CMATH_CONSTEXPR_ e3m2_t min(e3m2_t o) const noexcept { return from_f32(std::fmin(to_f32(), o.to_f32())); }
     NUMKONG_CMATH_CONSTEXPR_ e3m2_t max(e3m2_t o) const noexcept { return from_f32(std::fmax(to_f32(), o.to_f32())); }
     inline e3m2_t clamp(e3m2_t lo, e3m2_t hi) const noexcept { return max(lo).min(hi); }
@@ -4347,7 +4448,7 @@ struct i8_t {
         return i8_t {static_cast<raw_t>(result)};
     }
     inline i8_t saturating_mul(i8_t o) const noexcept {
-        return i8_t {nk_i8_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return i8_t {nk_i8_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -4509,7 +4610,7 @@ struct u8_t {
         return o.raw_ > raw_ ? u8_t::zero() : u8_t {static_cast<raw_t>(raw_ - o.raw_)};
     }
     inline u8_t saturating_mul(u8_t o) const noexcept {
-        return u8_t {nk_u8_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return u8_t {nk_u8_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -4656,7 +4757,7 @@ struct i32_t {
         return i32_t {static_cast<raw_t>(result)};
     }
     inline i32_t saturating_mul(i32_t o) const noexcept {
-        return i32_t {nk_i32_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return i32_t {nk_i32_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -4790,7 +4891,7 @@ struct u32_t {
         return o.raw_ > raw_ ? u32_t::zero() : u32_t {static_cast<raw_t>(raw_ - o.raw_)};
     }
     inline u32_t saturating_mul(u32_t o) const noexcept {
-        return u32_t {nk_u32_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return u32_t {nk_u32_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -4938,7 +5039,7 @@ struct i64_t {
         return i64_t {result};
     }
     inline i64_t saturating_mul(i64_t o) const noexcept {
-        return i64_t {nk_i64_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return i64_t {nk_i64_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -5070,7 +5171,7 @@ struct u64_t {
         return o.raw_ > raw_ ? u64_t::zero() : u64_t {raw_ - o.raw_};
     }
     inline u64_t saturating_mul(u64_t o) const noexcept {
-        return u64_t {nk_u64_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return u64_t {nk_u64_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -5212,7 +5313,7 @@ struct i16_t {
         return i16_t {static_cast<raw_t>(result)};
     }
     inline i16_t saturating_mul(i16_t o) const noexcept {
-        return i16_t {nk_i16_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return i16_t {nk_i16_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -5346,7 +5447,7 @@ struct u16_t {
         return o.raw_ > raw_ ? u16_t::zero() : u16_t {static_cast<raw_t>(raw_ - o.raw_)};
     }
     inline u16_t saturating_mul(u16_t o) const noexcept {
-        return u16_t {nk_u16_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return u16_t {nk_u16_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 };
 
@@ -5829,7 +5930,7 @@ struct i4x2_t {
     }
 
     inline i4x2_t saturating_mul(i4x2_t o) const noexcept {
-        return i4x2_t {nk_i4x2_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return i4x2_t {nk_i4x2_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 
     constexpr i4x2_t wrapping_add(i4x2_t o) const noexcept {
@@ -5946,7 +6047,7 @@ struct u4x2_t {
     }
 
     inline u4x2_t saturating_mul(u4x2_t o) const noexcept {
-        return u4x2_t {nk_u4x2_saturating_mul_best(raw_, o.raw_, cpu_capabilities())};
+        return u4x2_t {nk_u4x2_saturating_mul_best(raw_, o.raw_, default_capabilities())};
     }
 
     constexpr u4x2_t wrapping_add(u4x2_t o) const noexcept {

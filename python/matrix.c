@@ -69,7 +69,17 @@ static nk_status_t matrix_symmetric_tile_(nk_size_t tile_index, void *context) {
                         task->result_stride_bytes, tile_start, tile_rows, task->stream);
 }
 
-static void PackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
+static void PackedMatrix_dealloc(PyObject *self) {
+    Py_XDECREF(((PackedMatrix *)self)->storage);
+    Py_TYPE(self)->tp_free(self);
+}
+
+/** @c nk_get_buffer that also describes a GPU Tensor, for the GPU kernels that alone read it. */
+static int matrix_get_buffer(PyObject *object, Py_buffer *buffer, nk_buffer_backing_t *backing) {
+    if (py_object_device(object).device_type == kDLCPU)
+        return nk_get_buffer(object, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing);
+    return tensor_export_buffer((Tensor *)object, buffer, PyBUF_STRIDES | PyBUF_FORMAT) == 0;
+}
 
 /** Compute packed buffer size for a PackedMatrix, or 0 if no kernel sizes it. */
 static size_t packed_matrix_nbytes(PackedMatrix *mm) {
@@ -122,8 +132,13 @@ static PyObject *PackedMatrix_get_shape(PyObject *self, void *closure) {
         return NULL;
     }
     nk_size_t width = 0, depth = 0;
-    if (!check_status(shape_fn(mm->start, &width, &depth, NULL))) return NULL;
-    return Py_BuildValue("(nn)", (Py_ssize_t)width, (Py_ssize_t)depth);
+    if (!check_status(shape_fn(mm->data, &width, &depth, NULL))) return NULL;
+    PyObject *width_integer = PyLong_FromSsize_t((Py_ssize_t)width);
+    PyObject *depth_integer = PyLong_FromSsize_t((Py_ssize_t)depth);
+    PyObject *shape = width_integer && depth_integer ? PyTuple_Pack(2, width_integer, depth_integer) : NULL;
+    Py_XDECREF(width_integer);
+    Py_XDECREF(depth_integer);
+    return shape;
 }
 
 static PyGetSetDef PackedMatrix_getset[] = {
@@ -139,11 +154,12 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
     nk_unused_(cls);
 
     PyObject *width_obj = NULL, *depth_obj = NULL, *dtype_obj = NULL;
+    nk_capability_t capabilities = default_capabilities;
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
 
-    if (nargs < 2 || total > 3 || nargs > 3) {
-        PyErr_SetString(PyExc_TypeError, "pack_size(width, depth, /, dtype='bf16')");
+    if (nargs < 2 || total > 4 || nargs > 3) {
+        PyErr_SetString(PyExc_TypeError, "pack_size(width, depth, /, dtype='bf16', *, capabilities=None)");
         return NULL;
     }
 
@@ -160,6 +176,12 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
                 return NULL;
             }
             dtype_obj = value;
+        }
+        // Sizes are computed on the host, so unlike `parse_dispatch_keyword` it keeps GPU bits
+        else if (PyUnicode_CompareWithASCIIString(name, "capabilities") == 0) {
+            if (value == Py_None) continue;
+            capabilities = (nk_capability_t)PyLong_AsUnsignedLongLong(value);
+            if (capabilities == (nk_capability_t)-1 && PyErr_Occurred()) return NULL;
         }
         else {
             PyErr_Format(PyExc_TypeError, "pack_size() got unexpected keyword argument '%S'", name);
@@ -184,8 +206,7 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
-                          &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, capabilities, (nk_kernel_punned_t *)&size_fn, &cap);
     if (!size_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No pack_size kernel for dtype '%s'", nk_dtype_to_pybuffer_typestr(dtype));
         return NULL;
@@ -198,7 +219,8 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
 
 static PyMethodDef PackedMatrix_methods[] = {
     {"pack_size", (PyCFunction)PackedMatrix_pack_size, METH_CLASS | METH_FASTCALL | METH_KEYWORDS,
-     "Return packed buffer size in bytes for a matrix shape and dtype."},
+     "Return packed buffer size in bytes for a matrix shape and dtype, under the CPU's enabled capabilities\n" //
+     "or the `capabilities=` mask, like `b.device.capabilities_enabled()` to size a GPU `dots_pack(b, out=...)`."},
     {NULL, NULL, 0, NULL},
 };
 
@@ -225,6 +247,10 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     }
 
     PackedMatrix *packed = (PackedMatrix *)other;
+    if (a->device.device_type != kDLCPU || packed->device.device_type != kDLCPU) {
+        PyErr_SetString(PyExc_ValueError, "`@` cannot allocate a GPU result; call dots_packed(a, b, out=...)");
+        return NULL;
+    }
 
     if (a->rank != 2) {
         PyErr_SetString(PyExc_ValueError, "matmul requires 2D array as left operand");
@@ -294,7 +320,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     task.kernel = matmul_fn;
     task.stream = NULL;
     task.a = a->data;
-    task.b_packed = packed->start;
+    task.b_packed = packed->data;
     task.c = result->data;
     task.rows = height;
     task.columns = n;
@@ -451,9 +477,23 @@ static PyObject *api_packed_common( //
         else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
 
+    if (out_obj == Py_None) out_obj = NULL;
+    if (!same_device(py_object_device(a_obj), packed->device) ||
+        (out_obj && !same_device(py_object_device(out_obj), packed->device))) {
+        PyErr_Format(PyExc_ValueError, "%s_packed needs a, b and out on one device", spec->name);
+        return NULL;
+    }
+    int const on_gpu = packed->device.device_type != kDLCPU;
+    if (on_gpu && !out_obj) {
+        PyErr_Format(PyExc_ValueError, "%s_packed on a GPU needs out=, a Tensor on the same device", spec->name);
+        return NULL;
+    }
+    // `capabilities=` narrows the CPU dispatch only, while a GPU runs the mask it packed with
+    if (on_gpu) capabilities = packed->capabilities;
+
     Py_buffer a_buffer;
     nk_buffer_backing_t a_backing;
-    if (!nk_get_buffer(a_obj, &a_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &a_backing)) {
+    if (!matrix_get_buffer(a_obj, &a_buffer, &a_backing)) {
         PyErr_SetString(PyExc_TypeError, "a must support buffer protocol or __array_interface__");
         return NULL;
     }
@@ -551,15 +591,21 @@ static PyObject *api_packed_common( //
         task.kernel = kernel;
         task.stream = stream;
         task.a = a_ptr;
-        task.b_packed = packed->start;
+        task.b_packed = packed->data;
         task.c = out_ptr;
         task.rows = slice_height;
         task.columns = width;
         task.depth = depth_packed;
         task.a_stride_bytes = input_row_stride;
         task.c_stride_bytes = output_row_stride;
-        nk_status_t const status = nk_parallel_for_tiles(
-            nk_size_divide_round_up_(slice_height, NUMKONG_PARALLEL_PACKED_TILE), threads, matrix_packed_tile_, &task);
+        // A GPU parallelizes the whole slice itself, in one launch rather than the thread pool
+        nk_status_t status;
+        if (on_gpu)
+            status = kernel(a_ptr, packed->data, out_ptr, slice_height, width, depth_packed, input_row_stride,
+                            output_row_stride, stream);
+        else
+            status = nk_parallel_for_tiles(nk_size_divide_round_up_(slice_height, NUMKONG_PARALLEL_PACKED_TILE),
+                                           threads, matrix_packed_tile_, &task);
         PyEval_RestoreThread(save);
         if (!check_status(status)) {
             PyBuffer_Release(&a_buffer);
@@ -618,9 +664,22 @@ static PyObject *api_symmetric_common( //
         else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
+    if (out_obj == Py_None) out_obj = NULL;
+    DLDevice const device = py_object_device(vectors_obj);
+    if (out_obj && !same_device(py_object_device(out_obj), device)) {
+        PyErr_Format(PyExc_ValueError, "%s_symmetric needs vectors and out on one device", spec->name);
+        return NULL;
+    }
+    int const on_gpu = device.device_type != kDLCPU;
+    if (on_gpu && !out_obj) {
+        PyErr_Format(PyExc_ValueError, "%s_symmetric on a GPU needs out=, a Tensor on the same device", spec->name);
+        return NULL;
+    }
+    if (on_gpu && !device_capabilities(device, &capabilities)) return NULL;
+
     Py_buffer vec_buf;
     nk_buffer_backing_t vec_backing;
-    if (!nk_get_buffer(vectors_obj, &vec_buf, PyBUF_STRIDES | PyBUF_FORMAT, &vec_backing)) {
+    if (!matrix_get_buffer(vectors_obj, &vec_buf, &vec_backing)) {
         PyErr_SetString(PyExc_TypeError, "vectors must support buffer protocol or __array_interface__");
         return NULL;
     }
@@ -698,9 +757,13 @@ static PyObject *api_symmetric_common( //
         task.result_stride_bytes = result_stride;
         task.row_start = row_start;
         task.row_end = row_end;
-        nk_status_t const status = nk_parallel_for_tiles(
-            nk_size_divide_round_up_(row_count_val, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads, matrix_symmetric_tile_,
-            &task);
+        nk_status_t status;
+        if (on_gpu)
+            status = kernel(vec_buf.buf, n_vectors, depth, stride, out_data, result_stride, row_start, row_count_val,
+                            stream);
+        else
+            status = nk_parallel_for_tiles(nk_size_divide_round_up_(row_count_val, NUMKONG_PARALLEL_SYMMETRIC_TILE),
+                                           threads, matrix_symmetric_tile_, &task);
         PyEval_RestoreThread(save);
         if (!check_status(status)) {
             if (owns_result) Py_DECREF(result);
@@ -719,34 +782,42 @@ cleanup:
     return return_obj;
 }
 
-char const doc_dots_pack[] =                                                         //
-    "dots_pack(b, /, dtype=None) -> PackedMatrix\n\n"                                //
-    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"          //
-    "Args:\n"                                                                        //
-    "    b (array_like): Source matrix with shape [width,depth].\n"                  //
-    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"      //
-    "        Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"           //
-    "        'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n\n"          //
-    "Returns:\n"                                                                     //
-    "    PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"            //
-    "        angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n\n" //
-    "Example:\n"                                                                     //
-    "    >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                        //
-    "    >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"        //
-    "Signature:\n"                                                                   //
-    "    >>> def dots_pack(b, /, dtype=None) -> PackedMatrix: ...";
+char const doc_dots_pack[] =                                                                 //
+    "dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix\n\n"              //
+    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                  //
+    "Args:\n"                                                                                //
+    "    b (array_like): Source matrix with shape [width,depth], or a CUDA or ROCm\n"        //
+    "        Tensor from from_dlpack() to pack on that GPU.\n"                               //
+    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"              //
+    "        Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                   //
+    "        'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                    //
+    "    out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n"  //
+    "        of PackedMatrix.pack_size(..., capabilities=b.device.capabilities_enabled())\n" //
+    "        bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"     //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"      //
+    "        the legacy stream. The call returns before the packing finishes.\n\n"           //
+    "Returns:\n"                                                                             //
+    "    PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"                    //
+    "        angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n"           //
+    "        A GPU one keeps its device and that device's capabilities.\n\n"                 //
+    "Example:\n"                                                                             //
+    "    >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                                //
+    "    >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"                //
+    "Signature:\n"                                                                           //
+    "    >>> def dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix: ...";
 
 static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, nk_dtype_t default_dtype) {
 
     PyObject *b_obj = NULL;
     PyObject *dtype_obj = NULL;
+    PyObject *out_obj = NULL;
     nk_capability_t capabilities = default_capabilities;
     void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
 
-    if (nargs < 1 || nargs > 2 || total > 4) {
+    if (nargs < 1 || nargs > 2 || total > 5) {
         PyErr_SetString(PyExc_TypeError, "pack requires 1-2 arguments: b, dtype");
         return NULL;
     }
@@ -762,6 +833,9 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
             }
             dtype_obj = args[nargs + i];
         }
+        else if (PyUnicode_CompareWithASCIIString(name, "out") == 0) {
+            if (args[nargs + i] != Py_None) out_obj = args[nargs + i];
+        }
         else if (!parse_dispatch_keyword(name, args[nargs + i], &capabilities, &stream)) return NULL;
     }
     if (nargs >= 2) dtype_obj = args[1];
@@ -769,9 +843,25 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     nk_dtype_t target_dtype = dtype_obj ? py_object_to_nk_dtype(dtype_obj) : default_dtype;
     if (dtype_obj && target_dtype == nk_dtype_unknown_k) return NULL;
 
+    DLDevice const device = py_object_device(b_obj);
+    if (out_obj && !PyObject_TypeCheck(out_obj, &TensorType)) {
+        PyErr_SetString(PyExc_TypeError, "out must be a Tensor");
+        return NULL;
+    }
+    if (out_obj && (device.device_type == kDLCPU || !same_device(((Tensor *)out_obj)->device, device))) {
+        PyErr_SetString(PyExc_ValueError, "out must be on the GPU of b, as packing on the host allocates its own");
+        return NULL;
+    }
+    if (device.device_type != kDLCPU && !out_obj) {
+        PyErr_SetString(PyExc_ValueError, "packing a GPU matrix needs out=, a Tensor on its device of " //
+                                          "PackedMatrix.pack_size(width, depth, dtype, capabilities=...) bytes");
+        return NULL;
+    }
+    if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
+
     Py_buffer b_buffer;
     nk_buffer_backing_t b_backing;
-    if (!nk_get_buffer(b_obj, &b_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &b_backing)) {
+    if (!matrix_get_buffer(b_obj, &b_buffer, &b_backing)) {
         PyErr_SetString(PyExc_TypeError, "b must support buffer protocol or __array_interface__");
         return NULL;
     }
@@ -832,7 +922,20 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
         return NULL;
     }
 
-    PackedMatrix *packed = PyObject_NewVar(PackedMatrix, &PackedMatrixType, packed_size);
+    Tensor *out = (Tensor *)out_obj;
+    if (out) {
+        size_t out_bytes = nk_dtype_bytes_per_value(out->dtype);
+        for (size_t i = 0; i < out->rank; i++)
+            out_bytes *= (size_t)storage_extent(out->dtype, out->rank, out->shape, i);
+        if (!strides_are_c_contiguous(out->dtype, out->rank, out->shape, out->strides) || out_bytes < packed_size) {
+            PyBuffer_Release(&b_buffer);
+            PyErr_Format(PyExc_ValueError, "out must be a C-contiguous Tensor of at least %zu bytes",
+                         (size_t)packed_size);
+            return NULL;
+        }
+    }
+
+    PackedMatrix *packed = PyObject_NewVar(PackedMatrix, &PackedMatrixType, out ? 0 : (Py_ssize_t)packed_size);
     if (!packed) {
         PyBuffer_Release(&b_buffer);
         PyErr_NoMemory();
@@ -843,6 +946,10 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     packed->width = width;
     packed->depth = depth;
     packed->capabilities = capabilities;
+    packed->device = device;
+    packed->storage = (PyObject *)out;
+    Py_XINCREF(packed->storage);
+    packed->data = out ? out->data : packed->start;
 
     nk_dots_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
@@ -855,7 +962,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     }
 
     PyThreadState *save = PyEval_SaveThread();
-    nk_status_t const status = pack_fn(b_buffer.buf, width, depth, row_stride, packed->start, 0, width, stream);
+    nk_status_t const status = pack_fn(b_buffer.buf, width, depth, row_stride, packed->data, 0, width, stream);
     PyEval_RestoreThread(save);
 
     PyBuffer_Release(&b_buffer);
@@ -875,18 +982,21 @@ char const doc_dots_packed[] =                                                  
     "dots_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise dot products between matrix a and pre-packed matrix b.\n\n"              //
     "Args:\n"                                                                                  //
-    "    a (array_like): Query matrix with shape [height,depth].\n"                            //
+    "    a (array_like): Query matrix with shape [height,depth], on the device of b.\n"        //
     "    b (PackedMatrix): Matrix packed with dots_pack(); shape [width,depth].\n"             //
     "    out (Tensor, optional): C-contiguous output tensor with shape\n"                      //
-    "        [height,width] and matching output dtype.\n"                                      //
+    "        [height,width] and matching output dtype. Required, on the same GPU,\n"           //
+    "        when b was packed on a GPU.\n"                                                    //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"             //
     "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"  //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                        //
+    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"        //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"      //
     "Returns:\n"                                                                               //
     "    Tensor: Dot-product matrix with shape [height,width].\n"                              //
     "    Returns out when provided.\n\n"                                                       //
     "Note:\n"                                                                                  //
-    "    Equivalent to A @ B.T where B is the original unpacked matrix.\n\n"                   //
+    "    Equivalent to A @ B.T where B is the original unpacked matrix.\n"                     //
+    "    On a GPU it runs the device's kernel and returns before it finishes.\n\n"             //
     "Signature:\n"                                                                             //
     "    >>> def dots_packed(a, b, /, *, out=None, start_row=None, end_row=None,\n"            //
     "    ...                 threads=1) -> Tensor: ...";
@@ -971,14 +1081,16 @@ char const doc_angulars_packed[] =                                              
     "angulars_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise angular distances between matrix a and pre-packed b.\n\n"                    //
     "Args:\n"                                                                                      //
-    "    a (array_like): Query matrix with shape [height,depth].\n"                                //
+    "    a (array_like): Query matrix with shape [height,depth], on the device of b.\n"            //
     "    b (PackedMatrix): Matrix packed with dots_pack();\n"                                      //
     "        shape [width,depth].\n"                                                               //
     "    out (Tensor, optional): C-contiguous output tensor with\n"                                //
-    "        shape [height,width] and matching output dtype.\n"                                    //
+    "        shape [height,width] and matching output dtype. Required, on the\n"                   //
+    "        same GPU, when b was packed on a GPU.\n"                                              //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"                 //
     "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"      //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                            //
+    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"            //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"          //
     "Returns:\n"                                                                                   //
     "    Tensor: Angular-distance matrix with shape [height,width].\n"                             //
     "    Returns out when provided.\n\n"                                                           //
@@ -998,14 +1110,16 @@ char const doc_euclideans_packed[] =                                            
     "euclideans_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise Euclidean distances between matrix a and pre-packed b.\n\n"                    //
     "Args:\n"                                                                                        //
-    "    a (array_like): Query matrix with shape [height,depth].\n"                                  //
+    "    a (array_like): Query matrix with shape [height,depth], on the device of b.\n"              //
     "    b (PackedMatrix): Matrix packed with dots_pack();\n"                                        //
     "        shape [width,depth].\n"                                                                 //
     "    out (Tensor, optional): C-contiguous output tensor with\n"                                  //
-    "        shape [height,width] and matching output dtype.\n"                                      //
+    "        shape [height,width] and matching output dtype. Required, on the\n"                     //
+    "        same GPU, when b was packed on a GPU.\n"                                                //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"                   //
     "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"        //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                              //
+    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"              //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"            //
     "Returns:\n"                                                                                     //
     "    Tensor: Euclidean-distance matrix with shape [height,width].\n"                             //
     "    Returns out when provided.\n\n"                                                             //
@@ -1027,14 +1141,17 @@ char const doc_dots_symmetric[] =                                               
     "Compute the symmetric all-pairs dot-product matrix, the Gram matrix. Only the upper triangle of\n" //
     "the output is guaranteed to be initialized.\n\n"                                                   //
     "Args:\n"                                                                                           //
-    "    vectors (array_like): Input matrix with shape [count,depth].\n"                                //
+    "    vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"       //
+    "        from from_dlpack() to run on that GPU with its capabilities.\n"                            //
     "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                         //
     "    out (Tensor, optional): C-contiguous output tensor with shape\n"                               //
-    "        [count,count] and matching output dtype.\n"                                                //
+    "        [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"    //
     "    start_row (int, optional): First row to compute, defaulting to 0.\n"                           //
     "    end_row (int, optional): One-past-last row to compute, defaulting to count.\n"                 //
     "        Only the upper triangle overlapping with the specified row range is filled.\n"             //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                 //
+    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                 //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"      //
+    "        returns before the kernel finishes.\n\n"                                                   //
     "Returns:\n"                                                                                        //
     "    Tensor: Symmetric dot-product matrix with shape [count,count].\n"                              //
     "    Returns out when provided.\n\n"                                                                //
@@ -1116,14 +1233,17 @@ char const doc_angulars_symmetric[] =                                           
     "Compute the symmetric all-pairs angular-distance matrix. Only the upper triangle of the output is\n" //
     "guaranteed to be initialized.\n\n"                                                                   //
     "Args:\n"                                                                                             //
-    "    vectors (array_like): Input matrix with shape [count,depth].\n"                                  //
+    "    vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"         //
+    "        from from_dlpack() to run on that GPU with its capabilities.\n"                              //
     "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                           //
     "    out (Tensor, optional): C-contiguous output tensor with shape\n"                                 //
-    "        [count,count] and matching output dtype.\n"                                                  //
+    "        [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"      //
     "    start_row (int, optional): First row to compute, defaulting to 0.\n"                             //
     "    end_row (int, optional): One-past-last row to compute, defaulting to count.\n"                   //
     "        Only the upper triangle overlapping with the specified row range is filled.\n"               //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                   //
+    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                   //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"        //
+    "        returns before the kernel finishes.\n\n"                                                     //
     "Returns:\n"                                                                                          //
     "    Tensor: Symmetric angular-distance matrix with shape [count,count].\n"                           //
     "    Returns out when provided.\n\n"                                                                  //
@@ -1145,14 +1265,17 @@ char const doc_euclideans_symmetric[] =                                         
     "Compute the symmetric all-pairs Euclidean-distance matrix. Only the upper triangle of the output\n"   //
     "is guaranteed to be initialized.\n\n"                                                                 //
     "Args:\n"                                                                                              //
-    "    vectors (array_like): Input matrix with shape [count,depth].\n"                                   //
+    "    vectors (array_like): Input matrix with shape [count,depth], or a CUDA or ROCm Tensor\n"          //
+    "        from from_dlpack() to run on that GPU with its capabilities.\n"                               //
     "    dtype (str, optional): Optional dtype override for kernel dispatch.\n"                            //
     "    out (Tensor, optional): C-contiguous output tensor with shape\n"                                  //
-    "        [count,count] and matching output dtype.\n"                                                   //
+    "        [count,count] and matching output dtype. Required, on the same GPU, for GPU vectors.\n"       //
     "    start_row (int, optional): First row to compute, defaulting to 0.\n"                              //
     "    end_row (int, optional): One-past-last row to compute, defaulting to count.\n"                    //
     "        Only the upper triangle overlapping with the specified row range is filled.\n"                //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                    //
+    "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"                    //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0. A GPU call\n"         //
+    "        returns before the kernel finishes.\n\n"                                                      //
     "Returns:\n"                                                                                           //
     "    Tensor: Symmetric Euclidean-distance matrix with shape [count,count].\n"                          //
     "    Returns out when provided.\n\n"                                                                   //

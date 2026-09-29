@@ -85,7 +85,7 @@ static void crash_handler(int sig) {
 
 #pragma region Dispatch Points
 
-/** One capability's own kernel, which a dispatch point must run when its mask holds that capability alone. */
+/** One capability's own kernel, which a dispatch point must run under a mask of it alone. */
 template <typename kernel_type_>
 struct capability_kernel {
     nk_capability_t capability;
@@ -99,8 +99,8 @@ static nk_capability_t runnable_capabilities() noexcept {
 
 #if !NUMKONG_HEADER_ONLY
 
-/** @c nk_dot_f32_best over each runnable capability alone runs that capability's kernel, and a GPU mask finds
- *  no kernel at all. */
+/** @c nk_dot_f32_best over each runnable capability alone runs that capability's kernel, and a GPU
+ *  mask finds no kernel at all. */
 static error_stats_t test_best_dot_f32() {
     capability_kernel<f32_t::dot_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_dot_f32_serial},
@@ -148,8 +148,8 @@ static error_stats_t test_best_dot_f32() {
     return stats;
 }
 
-/** @c nk_dots_pack_bf16_best and @c nk_dots_packed_bf16_best over each runnable capability alone pack and
- *  multiply as that capability's own kernels do, and a GPU mask finds none in a binary without one. */
+/** @c nk_dots_pack_bf16_best and @c nk_dots_packed_bf16_best over each runnable capability alone
+ *  pack and multiply as its own kernels do, and a GPU mask finds none in a binary without one. */
 static error_stats_t test_best_dots_packed_bf16() {
     struct capability_kernels_t {
         nk_capability_t capability;
@@ -236,7 +236,7 @@ static error_stats_t test_best_dots_packed_bf16() {
     return stats;
 }
 
-/** @c nk_reduce_moments_f32_best over each runnable capability alone runs that capability's kernel. */
+/** @c nk_reduce_moments_f32_best over each runnable capability alone runs its own kernel. */
 static error_stats_t test_best_reduce_moments_f32() {
     capability_kernel<f32_t::reduce_moments_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_reduce_moments_f32_serial},
@@ -322,8 +322,8 @@ static error_stats_t test_best_cast() {
 
 #endif // !NUMKONG_HEADER_ONLY
 
-/** @c nk_f32_sqrt_best over each runnable capability alone runs that capability's function, or serial in a
- *  header-only build, and keeps serial for a mask of no CPU capability. */
+/** @c nk_f32_sqrt_best over each runnable capability alone runs that capability's function, or
+ *  serial in a header-only build, and keeps serial for a mask of no CPU capability. */
 static error_stats_t test_best_f32_sqrt() {
     capability_kernel<nk_f32_t (*)(nk_f32_t)> const capabilities[] = {
         {nk_cap_serial_k, nk_f32_sqrt_serial},
@@ -351,8 +351,9 @@ static error_stats_t test_best_f32_sqrt() {
     for (auto const &[capability, function] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         for (nk_f32_t input : inputs)
-            stats.expect(nk_f32_sqrt_best(input, capability) == (NUMKONG_HEADER_ONLY ? nk_f32_sqrt_serial : function)(input),
-                         "the dispatch point ran another capability's function");
+            stats.expect(
+                nk_f32_sqrt_best(input, capability) == (NUMKONG_HEADER_ONLY ? nk_f32_sqrt_serial : function)(input),
+                "the dispatch point ran another capability's function");
     }
     stats.expect(nk_f32_sqrt_best(2.0f, nk_cap_cuda_k) == nk_f32_sqrt_serial(2.0f),
                  "a GPU mask lost the serial capability");
@@ -361,8 +362,8 @@ static error_stats_t test_best_f32_sqrt() {
 
 #if !NUMKONG_HEADER_ONLY
 
-/** For every kind and dtype, a mask of the runnable capabilities up to each one finds a kernel of that
- *  capability or a lower one, or reports none with null outputs. */
+/** For every kind and dtype, a mask of the runnable capabilities up to each one finds a kernel of
+ *  that capability or a lower one, or reports none with null outputs. */
 static error_stats_t test_find_kernel() {
     nk_kernel_kind_t const kinds[] = {
         nk_kernel_dot_k,
@@ -461,6 +462,35 @@ static error_stats_t test_find_kernel() {
 
 #endif // !NUMKONG_HEADER_ONLY
 
+/** The CPU device answers as the C queries do, with one ordinal, and every kind refuses the ordinal
+ *  past its last device. */
+static error_stats_t test_device_capabilities() {
+    error_stats_t stats(comparison_family_t::exact_k);
+    nk::device_t const cpu = nk::device_t::cpu();
+    auto const detected = cpu.capabilities_detected();
+    auto const enabled = cpu.capabilities_enabled();
+    stats.expect(detected && detected.value == cpu_capabilities_detected(), "the CPU detected another mask");
+    stats.expect(cpu.capabilities_compiled() == cpu_capabilities_compiled(), "the CPU compiled another mask");
+    stats.expect(enabled && enabled.value == (detected.value & cpu.capabilities_compiled()),
+                 "the CPU enabled more than it detected and compiled");
+    stats.expect(nk::default_capabilities() == (NUMKONG_HEADER_ONLY ? 0 : enabled.value),
+                 "the wrappers' default mask is not the CPU's enabled one");
+    stats.expect(nk::succeeded(cpu.configure_thread(enabled.value)), "the CPU refused its own mask");
+    for (nk::device_kind_t kind :
+         {nk::device_kind_t::cpu_k, nk::device_kind_t::cuda_k, nk::device_kind_t::rocm_k, nk::device_kind_t::metal_k}) {
+        auto const devices = nk::device_t::count(kind);
+        stats.expect(kind != nk::device_kind_t::cpu_k || (devices && devices.value == 1), "the CPU is not one");
+        auto const past = nk::device_t::make(kind, devices.value);
+        stats.expect(past.status == nk::status_t::missing_gpu_k, "a device past the last one was made");
+        if (kind == nk::device_kind_t::cpu_k || !devices) continue;
+        auto const gpu = nk::device_t::make(kind, 0);
+        stats.expect(gpu && !(gpu.value.capabilities_compiled() & nk_cap_cpus_k), "a GPU compiled a CPU capability");
+        stats.expect(gpu.value.configure_thread(nk_cap_any_k) == nk::status_t::missing_kernel_k,
+                     "a GPU configured a CPU thread");
+    }
+    return stats;
+}
+
 static void test_dispatch_points() {
     error_stats_section_t check;
     check.section("Dispatch Points", nk_cap_serial_k);
@@ -469,12 +499,10 @@ static void test_dispatch_points() {
     check("best_dots_packed_bf16", [] {
         return test_missing_library<nk_dots_packed_bf16_best>(nullptr, nullptr, nullptr, 0, 0, 0, 0, 0, nullptr);
     });
-    check("best_reduce_moments_f32", [] {
-        return test_missing_library<nk_reduce_moments_f32_best>(nullptr, 0, 0, nullptr, nullptr, nullptr);
-    });
-    check("best_cast", [] {
-        return test_missing_library<nk_cast_best>(nullptr, nk_f32_k, 0, nullptr, nk_f16_k, nullptr);
-    });
+    check("best_reduce_moments_f32",
+          [] { return test_missing_library<nk_reduce_moments_f32_best>(nullptr, 0, 0, nullptr, nullptr, nullptr); });
+    check("best_cast",
+          [] { return test_missing_library<nk_cast_best>(nullptr, nk_f32_k, 0, nullptr, nk_f16_k, nullptr); });
 #else
     check("best_dot_f32", test_best_dot_f32);
     check("best_dots_packed_bf16", test_best_dots_packed_bf16);
@@ -483,6 +511,7 @@ static void test_dispatch_points() {
 #endif
     check("best_f32_sqrt", test_best_f32_sqrt);
     check("find_kernel", test_find_kernel);
+    check("device_capabilities", test_device_capabilities);
 }
 
 #pragma endregion Dispatch Points

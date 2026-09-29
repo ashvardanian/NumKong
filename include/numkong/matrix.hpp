@@ -8,7 +8,7 @@
  *  plus the @c packed_maxsim and @c packed_attention sets over their own packing kernels.
  *
  *  @code{.cpp}
- *  auto [b, b_status] = nk::tensor<nk::f32_t>::zeros({256, 512});
+ *  auto [b, b_status] = nk::matrix<nk::f32_t>::zeros({256, 512});
  *  if (nk::failed(b_status)) return b_status;
  *  auto [packed, packed_status] = nk::packed_matrix<nk::f32_t>::make(b.view());
  *  if (nk::failed(packed_status)) return packed_status;
@@ -43,7 +43,7 @@ namespace ashvardanian::numkong {
  */
 template <numeric_dtype in_type_>
 expected<std::size_t> dots_pack_size(std::size_t row_count, std::size_t depth,
-                                     nk_capability_t capabilities = cpu_capabilities()) {
+                                     nk_capability_t capabilities = default_capabilities()) {
     // The C++ template packs only the pointer to the original B matrix and its stride
     nk_size_t bytes = sizeof(void *) + sizeof(std::size_t);
     nk_status_t status = nk_success_k;
@@ -92,7 +92,7 @@ expected<std::size_t> dots_pack_size(std::size_t row_count, std::size_t depth,
  */
 template <numeric_dtype in_type_>
 status_t dots_pack(in_type_ const *b, std::size_t row_count, std::size_t depth, std::size_t b_stride_in_bytes,
-                   void *b_packed, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+                   void *b_packed, nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     raw_t const *b_raw = reinterpret_cast<raw_t const *>(b);
 
@@ -156,7 +156,7 @@ status_t dots_pack(in_type_ const *b, std::size_t row_count, std::size_t depth, 
  */
 template <numeric_dtype in_type_>
 expected<std::size_t> maxsim_pack_size(std::size_t vector_count, std::size_t depth,
-                                       nk_capability_t capabilities = cpu_capabilities()) {
+                                       nk_capability_t capabilities = default_capabilities()) {
     // The C++ template packs only the pointer to the original vectors and their stride
     nk_size_t bytes = sizeof(void *) + sizeof(std::size_t);
     nk_status_t status = nk_success_k;
@@ -185,7 +185,7 @@ expected<std::size_t> maxsim_pack_size(std::size_t vector_count, std::size_t dep
  */
 template <numeric_dtype in_type_>
 status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector_count, std::size_t depth,
-                     std::size_t stride, void *packed, nk_capability_t capabilities = cpu_capabilities(),
+                     std::size_t stride, void *packed, nk_capability_t capabilities = default_capabilities(),
                      void *stream = nullptr) {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
@@ -219,7 +219,7 @@ status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector
 template <numeric_dtype in_type_>
 expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std::size_t depth,
                                           std::uint32_t const *segment_lengths, std::size_t segment_count,
-                                          nk_capability_t capabilities = cpu_capabilities()) {
+                                          nk_capability_t capabilities = default_capabilities()) {
     nk_size_t bytes = 0;
     nk_status_t status = nk_missing_kernel_k;
     if (capabilities) {
@@ -266,7 +266,7 @@ status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_
                         std::size_t segment_count, std::size_t keys_stride_in_bytes, std::size_t values_stride_in_bytes,
                         void *key_value_packed, std::size_t task_start = 0,
                         std::size_t task_count = static_cast<std::size_t>(-1),
-                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+                        nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     raw_t const *keys_raw = reinterpret_cast<raw_t const *>(keys);
     raw_t const *values_raw = reinterpret_cast<raw_t const *>(values);
@@ -557,7 +557,7 @@ class packed_attention {
                                            tensor_view<value_type_, max_rank_> values,
                                            vector_view<std::uint32_t> segment_offsets,
                                            vector_view<std::uint32_t> segment_lengths, allocator_type_ alloc = {},
-                                           nk_capability_t capabilities = cpu_capabilities()) noexcept {
+                                           nk_capability_t capabilities = default_capabilities()) noexcept {
         std::size_t const segment_count = segment_lengths.size();
         bool shaped = attention_rows_supported_(keys) && attention_rows_supported_(values) &&
                       segment_offsets.size() == segment_count + 1 && segment_offsets.is_contiguous() &&

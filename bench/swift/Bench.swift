@@ -147,7 +147,7 @@ let workloads: [Workload] = {
 @Suite(.serialized)
 struct Bench {
     @Test func configuration() {
-        print("Capabilities: \(Capabilities.enabled)")
+        print("Capabilities: \((try? Device.cpu.capabilitiesEnabled) ?? .serial)")
         print("Dense dimensions: \(denseDims)")
         print("Matrix: \(matrixHeight)×\(matrixDepth) × \(matrixWidth)×\(matrixDepth)")
     }
@@ -156,8 +156,8 @@ struct Bench {
     @Test(arguments: workloads, [false, true])
     func run(_ workload: Workload, serial: Bool) throws {
         // Packed kernels refuse another capability's layout, so pack inputs under the timed mask.
-        if serial { Capabilities.enable(.serial) }
-        defer { Capabilities.enable(.detected) }
+        if serial { try Device.cpu.capabilitiesEnable(.serial) }
+        defer { _ = try? Device.cpu.capabilitiesEnable(.any) }
         let call = try workload.prepare()
         let clock = ContinuousClock()
         let fastest = (0..<10).map { _ in clock.measure(call) }.min()!

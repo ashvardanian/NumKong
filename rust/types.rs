@@ -43,22 +43,22 @@
 
 #![allow(non_camel_case_types)]
 
-use crate::capabilities::cpu_capabilities;
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t};
 
 #[link(name = "numkong")]
 extern "C" {
-    fn nk_f32_to_f16_best(src: *const f32, dest: *mut u16, capabilities: u64);
-    fn nk_f16_to_f32_best(src: *const u16, dest: *mut f32, capabilities: u64);
-    fn nk_f32_to_bf16_best(src: *const f32, dest: *mut u16, capabilities: u64);
-    fn nk_bf16_to_f32_best(src: *const u16, dest: *mut f32, capabilities: u64);
-    fn nk_f32_to_e4m3_best(src: *const f32, dest: *mut u8, capabilities: u64);
-    fn nk_e4m3_to_f32_best(src: *const u8, dest: *mut f32, capabilities: u64);
-    fn nk_f32_to_e5m2_best(src: *const f32, dest: *mut u8, capabilities: u64);
-    fn nk_e5m2_to_f32_best(src: *const u8, dest: *mut f32, capabilities: u64);
-    fn nk_f32_to_e2m3_best(src: *const f32, dest: *mut u8, capabilities: u64);
-    fn nk_e2m3_to_f32_best(src: *const u8, dest: *mut f32, capabilities: u64);
-    fn nk_f32_to_e3m2_best(src: *const f32, dest: *mut u8, capabilities: u64);
-    fn nk_e3m2_to_f32_best(src: *const u8, dest: *mut f32, capabilities: u64);
+    fn nk_f32_to_f16_best(src: *const f32, dest: *mut u16, capabilities: nk_capability_t);
+    fn nk_f16_to_f32_best(src: *const u16, dest: *mut f32, capabilities: nk_capability_t);
+    fn nk_f32_to_bf16_best(src: *const f32, dest: *mut u16, capabilities: nk_capability_t);
+    fn nk_bf16_to_f32_best(src: *const u16, dest: *mut f32, capabilities: nk_capability_t);
+    fn nk_f32_to_e4m3_best(src: *const f32, dest: *mut u8, capabilities: nk_capability_t);
+    fn nk_e4m3_to_f32_best(src: *const u8, dest: *mut f32, capabilities: nk_capability_t);
+    fn nk_f32_to_e5m2_best(src: *const f32, dest: *mut u8, capabilities: nk_capability_t);
+    fn nk_e5m2_to_f32_best(src: *const u8, dest: *mut f32, capabilities: nk_capability_t);
+    fn nk_f32_to_e2m3_best(src: *const f32, dest: *mut u8, capabilities: nk_capability_t);
+    fn nk_e2m3_to_f32_best(src: *const u8, dest: *mut f32, capabilities: nk_capability_t);
+    fn nk_f32_to_e3m2_best(src: *const f32, dest: *mut u8, capabilities: nk_capability_t);
+    fn nk_e3m2_to_f32_best(src: *const u8, dest: *mut f32, capabilities: nk_capability_t);
 }
 
 /// Compatibility function for pre 1.85 Rust versions lacking `f32::abs`.
@@ -149,7 +149,7 @@ impl f16 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u16 = 0;
-        unsafe { nk_f32_to_f16_best(&value, &mut result, cpu_capabilities()) };
+        unsafe { nk_f32_to_f16_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
         f16(result)
     }
 
@@ -165,7 +165,7 @@ impl f16 {
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_f16_to_f32_best(&self.0, &mut result, cpu_capabilities()) };
+        unsafe { nk_f16_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
         result
     }
 
@@ -316,7 +316,7 @@ impl bf16 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u16 = 0;
-        unsafe { nk_f32_to_bf16_best(&value, &mut result, cpu_capabilities()) };
+        unsafe { nk_f32_to_bf16_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
         bf16(result)
     }
 
@@ -324,7 +324,7 @@ impl bf16 {
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_bf16_to_f32_best(&self.0, &mut result, cpu_capabilities()) };
+        unsafe { nk_bf16_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
         result
     }
 
@@ -475,7 +475,7 @@ impl e4m3 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e4m3_best(&value, &mut result, cpu_capabilities()) };
+        unsafe { nk_f32_to_e4m3_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
         e4m3(result)
     }
 
@@ -483,7 +483,7 @@ impl e4m3 {
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e4m3_to_f32_best(&self.0, &mut result, cpu_capabilities()) };
+        unsafe { nk_e4m3_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
         result
     }
 
@@ -641,14 +641,14 @@ impl e5m2 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e5m2_best(&value, &mut result, cpu_capabilities()) };
+        unsafe { nk_f32_to_e5m2_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
         e5m2(result)
     }
 
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e5m2_to_f32_best(&self.0, &mut result, cpu_capabilities()) };
+        unsafe { nk_e5m2_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
         result
     }
 
@@ -815,14 +815,14 @@ impl e2m3 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e2m3_best(&value, &mut result, cpu_capabilities()) };
+        unsafe { nk_f32_to_e2m3_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
         e2m3(result)
     }
 
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e2m3_to_f32_best(&self.0, &mut result, cpu_capabilities()) };
+        unsafe { nk_e2m3_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
         result
     }
 
@@ -981,14 +981,14 @@ impl e3m2 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e3m2_best(&value, &mut result, cpu_capabilities()) };
+        unsafe { nk_f32_to_e3m2_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
         e3m2(result)
     }
 
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e3m2_to_f32_best(&self.0, &mut result, cpu_capabilities()) };
+        unsafe { nk_e3m2_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
         result
     }
 
@@ -2698,7 +2698,7 @@ static PACKED_TEST_INIT: std::sync::Once = std::sync::Once::new();
 #[cfg(test)]
 pub(crate) fn init_thread() {
     PACKED_TEST_INIT.call_once(|| {
-        crate::capabilities::configure_thread(crate::Capabilities::enabled()).unwrap();
+        crate::capabilities::configure_cpu_thread().unwrap();
     });
 }
 

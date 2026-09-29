@@ -48,7 +48,7 @@ status_t attention_bidirectional_packed(in_type_ const *queries, void const *key
                                         std::uint32_t const *query_offsets, std::size_t queries_stride_in_bytes,
                                         std::size_t output_stride_in_bytes, f32_t scale, std::size_t task_start = 0,
                                         std::size_t task_count = static_cast<std::size_t>(-1),
-                                        nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+                                        nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");
@@ -103,7 +103,7 @@ status_t attention_causal_packed(in_type_ const *queries, void const *key_value_
                                  std::size_t output_stride_in_bytes, f32_t scale, std::int64_t diagonal_offset = 0,
                                  std::size_t window = static_cast<std::size_t>(-1), std::size_t task_start = 0,
                                  std::size_t task_count = static_cast<std::size_t>(-1),
-                                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) {
+                                 nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     static_assert(std::is_same_v<result_type_, typename in_type_::attention_result_t>,
                   "Attention accumulates and normalizes in F32");
@@ -193,7 +193,7 @@ template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_t
 status_t attention_bidirectional_packed(tensor_view<value_type_, max_rank_> queries,
                                         packed_attention<value_type_, allocator_type_> const &key_value_packed,
                                         tensor_span<typename value_type_::attention_result_t, max_rank_> output,
-                                        f32_t scale, nk_capability_t capabilities = cpu_capabilities(),
+                                        f32_t scale, nk_capability_t capabilities = default_capabilities(),
                                         void *stream = nullptr) noexcept {
     if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
     return attention_bidirectional_packed<value_type_>(
@@ -209,7 +209,7 @@ template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_t
 status_t attention_causal_packed(tensor_view<value_type_, max_rank_> queries,
                                  packed_attention<value_type_, allocator_type_> const &key_value_packed,
                                  tensor_span<typename value_type_::attention_result_t, max_rank_> output, f32_t scale,
-                                 causal_mask_t mask = {}, nk_capability_t capabilities = cpu_capabilities(),
+                                 causal_mask_t mask = {}, nk_capability_t capabilities = default_capabilities(),
                                  void *stream = nullptr) noexcept {
     if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
     return attention_causal_packed<value_type_>(

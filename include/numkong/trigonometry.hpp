@@ -28,7 +28,7 @@ namespace ashvardanian::numkong {
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
              void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
@@ -56,7 +56,7 @@ status_t sin(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
              void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
@@ -84,7 +84,7 @@ status_t cos(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t c
  *  @tparam precision_type_ Precision type for scalar fallback, defaults to @c in_type_
  */
 template <numeric_dtype in_type_, numeric_dtype precision_type_ = in_type_>
-status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = cpu_capabilities(),
+status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t capabilities = default_capabilities(),
               void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<in_type_, precision_type_>;
 
@@ -121,7 +121,7 @@ status_t atan(in_type_ const *in, std::size_t n, in_type_ *out, nk_capability_t 
 template <numeric_dtype in_type_>
 status_t rope(in_type_ const *x, in_type_ *y, f32_t const *cos, f32_t const *sin, std::size_t rows, std::size_t heads,
               std::size_t half_dim, std::size_t x_row_stride, std::size_t y_row_stride, f32_t input_scale = 1.0f,
-              nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+              nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
             return static_cast<status_t>(nk_trig_rope_f32_best(&x->raw_, &y->raw_, &cos->raw_, &sin->raw_, rows, heads,
@@ -169,7 +169,7 @@ namespace ashvardanian::numkong {
 /** Elementwise sin of one run into another of equal dimensions; @c unexpected_dimensions_k
  *  when they differ or either run is strided or ends mid-value. */
 template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
-status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
              void *stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
     auto output_values = contiguous_values_<in_type_>(output);
@@ -181,7 +181,7 @@ status_t sin(input_type_ const &input, output_type_ &&output, nk_capability_t ca
 
 /** Elementwise cos of one run into another, failing like the concept @c sin. */
 template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
-status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
              void *stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
     auto output_values = contiguous_values_<in_type_>(output);
@@ -193,7 +193,7 @@ status_t cos(input_type_ const &input, output_type_ &&output, nk_capability_t ca
 
 /** Elementwise atan of one run into another, failing like the concept @c sin. */
 template <numeric_dtype in_type_, vector_of<in_type_> input_type_, mutable_vector_of<in_type_> output_type_>
-status_t atan(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = cpu_capabilities(),
+status_t atan(input_type_ const &input, output_type_ &&output, nk_capability_t capabilities = default_capabilities(),
               void *stream = nullptr) noexcept {
     auto input_values = contiguous_values_<in_type_ const>(input);
     auto output_values = contiguous_values_<in_type_>(output);

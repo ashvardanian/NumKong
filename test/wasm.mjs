@@ -215,23 +215,39 @@ test(`[${runtime}] Euclidean distance`, () => {
 });
 
 test(`[${runtime}] Capability detection`, () => {
-  const { Capability } = numkong;
-  const detected = numkong.capabilitiesDetected();
-  const compiled = numkong.capabilitiesCompiled();
-  const enabled = numkong.capabilitiesEnabled();
+  const { Capability, Device } = numkong;
+  const cpu = Device.cpu();
+  const detected = cpu.capabilitiesDetected();
+  const compiled = cpu.capabilitiesCompiled();
+  const enabled = cpu.capabilitiesEnabled();
   console.log(`  Enabled capabilities: 0x${enabled.toString(16)}`);
   assert.strictEqual(enabled, detected & compiled, "enabled must default to detected & compiled");
   assert.strictEqual(enabled & Capability.serial, Capability.serial, "serial must always be enabled");
 
-  // The C library names them at load: one per CPU capability, none for GPU ones from bit 48 up.
+  // The C library names them at load, GPU ones from bit 48 up included, and the groups split them.
   assert(Object.isFrozen(Capability), "Capability must be frozen");
   assert.strictEqual(Capability.v128, 1n << 31n);
-  assert.strictEqual(Capability.ampere, undefined);
+  assert.strictEqual(Capability.ampere, 1n << 49n);
+  assert.strictEqual(Capability.cpus & Capability.devices, 0n);
+  assert.strictEqual(Capability.devices & Capability.metal, Capability.metal);
+  assert.strictEqual(Capability.any, (1n << 64n) - 1n);
 
   // Narrowing to nothing keeps serial, and asking for everything restores the default set.
-  assert.strictEqual(numkong.capabilitiesEnable(0n), Capability.serial);
-  assert.strictEqual(numkong.capabilitiesEnabled(), Capability.serial);
-  assert.strictEqual(numkong.capabilitiesEnable(~0n), enabled);
+  assert.strictEqual(cpu.capabilitiesEnable(0n), Capability.serial);
+  assert.strictEqual(cpu.capabilitiesEnabled(), Capability.serial);
+  assert.strictEqual(cpu.capabilitiesEnable(Capability.any), enabled);
+
+  // One CPU, refusing the ordinal past it, and GPUs counted by their runtimes where there are any.
+  assert.strictEqual(Device.count("cpu"), 1);
+  assert.throws(() => new Device("cpu", 1));
+  for (const kind of ["cuda", "rocm", "metal"]) {
+    let count = 0;
+    try { count = Device.count(kind); } catch { continue; }
+    assert.throws(() => new Device(kind, count));
+    const gpu = new Device(kind, 0);
+    assert.strictEqual(gpu.capabilitiesCompiled() & Capability.cpus, 0n);
+    assert.throws(() => gpu.capabilitiesEnable(Capability.any));
+  }
 
   // Every engine in the support matrix validates the SIMD128 probe; relaxed SIMD varies by engine.
   if (runtime !== "native") {

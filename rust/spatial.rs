@@ -41,8 +41,9 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
 use crate::dot::Dot;
+use crate::tensor::{check_len, TensorError};
 use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement};
 
 #[link(name = "numkong")]
@@ -52,295 +53,295 @@ extern "C" {
     fn nk_angular_i8_best(
         a: *const i8,
         b: *const i8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_u8_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_f16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_bf16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_e4m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_e5m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_e2m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_e3m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_f32_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_f64_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_sqeuclidean_i8_best(
         a: *const i8,
         b: *const i8,
-        c: usize,
+        c: nk_size_t,
         d: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_u8_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_f16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_bf16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_e4m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_e5m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_e2m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_e3m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_f32_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_f64_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_euclidean_i8_best(
         a: *const i8,
         b: *const i8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_u8_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_f16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_bf16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_e4m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_e5m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_e2m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_e3m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_f32_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_f64_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     // 4-bit integer kernels
     fn nk_sqeuclidean_i4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_sqeuclidean_u4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_i4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_euclidean_u4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_i4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_angular_u4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 // region: Angular
@@ -349,24 +350,23 @@ extern "C" {
 ///
 /// d = 1 − (a · b) / (‖a‖ × ‖b‖)
 ///
-/// Range: \[0, 2\]. Returns `None` if lengths differ.
+/// Range: \[0, 2\]. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
+/// [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, and `u4x2`.
 pub trait Angular: StorageElement {
     type Output;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output>;
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
 
     /// Alias for `angular`.
-    fn cosine(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::angular(a, b) }
+    fn cosine(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> { Self::angular(a, b) }
 }
 
 impl Angular for f64 {
     type Output = f64;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_f64_best(
@@ -374,21 +374,19 @@ impl Angular for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for f32 {
     type Output = f64;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_f32_best(
@@ -396,21 +394,19 @@ impl Angular for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for f16 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_f16_best(
@@ -418,21 +414,19 @@ impl Angular for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for bf16 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_bf16_best(
@@ -440,21 +434,19 @@ impl Angular for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for i8 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_i8_best(
@@ -462,21 +454,19 @@ impl Angular for i8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for u8 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_u8_best(
@@ -484,21 +474,19 @@ impl Angular for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for e4m3 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_e4m3_best(
@@ -506,21 +494,19 @@ impl Angular for e4m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for e5m2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_e5m2_best(
@@ -528,21 +514,19 @@ impl Angular for e5m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for e2m3 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_e2m3_best(
@@ -550,21 +534,19 @@ impl Angular for e2m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for e3m2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_angular_e3m2_best(
@@ -572,21 +554,19 @@ impl Angular for e3m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for i4x2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -595,21 +575,19 @@ impl Angular for i4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Angular for u4x2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -618,12 +596,12 @@ impl Angular for u4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -635,7 +613,8 @@ impl Angular for u4x2 {
 ///
 /// d = √(∑ᵢ (aᵢ − bᵢ)²)
 ///
-/// Range: \[0, ∞). Returns `None` if lengths differ.
+/// Range: \[0, ∞). Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
+/// [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, and `u4x2`.
@@ -644,20 +623,18 @@ pub trait Euclidean: StorageElement {
     type EuclideanOutput;
 
     /// Squared Euclidean distance, i.e. L2². Faster than `euclidean` for comparisons.
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput>;
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError>;
 
     /// Euclidean distance, i.e. L2. True metric distance.
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput>;
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError>;
 }
 
 impl Euclidean for f64 {
     type SqEuclideanOutput = f64;
     type EuclideanOutput = f64;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_f64_best(
@@ -665,18 +642,16 @@ impl Euclidean for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_f64_best(
@@ -684,12 +659,12 @@ impl Euclidean for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -697,10 +672,8 @@ impl Euclidean for f32 {
     type SqEuclideanOutput = f64;
     type EuclideanOutput = f64;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_f32_best(
@@ -708,18 +681,16 @@ impl Euclidean for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_f32_best(
@@ -727,12 +698,12 @@ impl Euclidean for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -740,10 +711,8 @@ impl Euclidean for f16 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_f16_best(
@@ -751,18 +720,16 @@ impl Euclidean for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_f16_best(
@@ -770,12 +737,12 @@ impl Euclidean for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -783,10 +750,8 @@ impl Euclidean for bf16 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_bf16_best(
@@ -794,18 +759,16 @@ impl Euclidean for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_bf16_best(
@@ -813,12 +776,12 @@ impl Euclidean for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -826,10 +789,8 @@ impl Euclidean for i8 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         unsafe {
             nk_sqeuclidean_i8_best(
@@ -837,18 +798,16 @@ impl Euclidean for i8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_i8_best(
@@ -856,12 +815,12 @@ impl Euclidean for i8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -869,10 +828,8 @@ impl Euclidean for u8 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         unsafe {
             nk_sqeuclidean_u8_best(
@@ -880,18 +837,16 @@ impl Euclidean for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_u8_best(
@@ -899,12 +854,12 @@ impl Euclidean for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -912,10 +867,8 @@ impl Euclidean for e4m3 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_e4m3_best(
@@ -923,18 +876,16 @@ impl Euclidean for e4m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_e4m3_best(
@@ -942,12 +893,12 @@ impl Euclidean for e4m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -955,10 +906,8 @@ impl Euclidean for e5m2 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_e5m2_best(
@@ -966,18 +915,16 @@ impl Euclidean for e5m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_e5m2_best(
@@ -985,12 +932,12 @@ impl Euclidean for e5m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -998,10 +945,8 @@ impl Euclidean for e2m3 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_e2m3_best(
@@ -1009,18 +954,16 @@ impl Euclidean for e2m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_e2m3_best(
@@ -1028,12 +971,12 @@ impl Euclidean for e2m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -1041,10 +984,8 @@ impl Euclidean for e3m2 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
             nk_sqeuclidean_e3m2_best(
@@ -1052,18 +993,16 @@ impl Euclidean for e3m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
             nk_euclidean_e3m2_best(
@@ -1071,12 +1010,12 @@ impl Euclidean for e3m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -1084,10 +1023,8 @@ impl Euclidean for i4x2 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -1096,18 +1033,16 @@ impl Euclidean for i4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -1116,12 +1051,12 @@ impl Euclidean for i4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -1129,10 +1064,8 @@ impl Euclidean for u4x2 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Option<Self::SqEuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -1141,18 +1074,16 @@ impl Euclidean for u4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Option<Self::EuclideanOutput> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -1161,12 +1092,12 @@ impl Euclidean for u4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -1186,7 +1117,7 @@ mod tests {
     where
         Scalar: FloatLike + TestableType,
         R: FloatLike,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Option<R>,
+        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, TensorError>,
     {
         let a: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
         let b: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();

@@ -2719,6 +2719,18 @@ check_ceiling_divisions_use_helpers() {
         "            or nk::divide_round_up(value, divisor) in C++:"
 }
 
+# Rejects a format-string shortcut of the CPython API in the binding glue: `Py_BuildValue`, `PyArg_Parse*`,
+# `PyArg_UnpackTuple`, `PyObject_CallFunction` and `PyObject_CallMethod` interpret a format at runtime, so a wrong
+# specifier is a crash rather than a compile error, and argument parsing skips the fast calling convention.
+check_cpython_format_shortcuts_absent() {
+    local shortcuts
+    shortcuts=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
+        grep -E '\b(Py_BuildValue|PyArg_Parse[A-Za-z]*|PyArg_UnpackTuple|PyObject_CallFunction|PyObject_CallMethod)[[:space:]]*\(' || true)
+    [ -z "$shortcuts" ] || reject_with_reason "$shortcuts" \
+        "$staged_path calls a format-string shortcut of the CPython API; parse METH_FASTCALL arguments by hand," \
+        "            build tuples with PyTuple_Pack and PyLong_From*, and call with PyObject_CallOneArg:"
+}
+
 # Routes one staged file through the checks only NumKong has.
 run_project_checks() {
     case "$staged_path" in
@@ -2747,6 +2759,7 @@ run_project_checks() {
     case "$staged_path" in
     include/numkong/*.cuh | include/numkong/*/*.cuh) check_cuda_headers_stay_c ;;
     CMakeLists.txt) check_cmake_internal_variables_uppercase ;;
+    python/*.c | python/*.h) check_cpython_format_shortcuts_absent ;;
     esac
     case "$staged_path" in
     test/harness.* | test/main.* | test/main_*.*) ;;

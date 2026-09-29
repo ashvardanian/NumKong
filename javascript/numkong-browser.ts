@@ -30,11 +30,12 @@ import { initWasm } from './numkong-wasm.js';
 export {
     dot, inner, euclidean, sqeuclidean, angular,
     hamming, jaccard, kullbackleibler, jensenshannon,
-    capabilitiesDetected, capabilitiesCompiled, capabilitiesEnabled, capabilitiesEnable, Capability,
+    Device, Capability,
     dotsPack, dotsPackedSize,
     dotsPacked, angularsPacked, euclideansPacked,
     dotsSymmetric, angularsSymmetric, euclideansSymmetric,
 } from './numkong-wasm.js';
+export type { DeviceKind } from './numkong-wasm.js';
 import { detectWasmSimdTier } from './wasm-probes.js';
 
 /** Thrown at import where the engine validates neither SIMD probe; no serial module is shipped. */

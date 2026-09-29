@@ -2361,6 +2361,15 @@ NUMKONG_CONSTEXPR nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t
 static nk_size_t probe(nk_size_t count) { return nk_size_divide_round_up_(count, 16); }
 FIXTURE
 
+assert_rejects "CPython format-string shortcut" "calls a format-string shortcut of the CPython API" python/probe.c <<'FIXTURE'
+static PyObject *probe(PyObject *type, Py_ssize_t width) { return PyObject_CallFunction(type, "n", width); }
+FIXTURE
+
+assert_accepts "CPython tuple packed by hand, and prose naming Py_BuildValue" python/probe.c <<'FIXTURE'
+/* Built by hand rather than with Py_BuildValue("(nn)", ...). */
+static PyObject *probe(PyObject *type, PyObject *width) { return PyObject_CallFunctionObjArgs(type, width, NULL); }
+FIXTURE
+
 # endregion NumKong Fixtures
 
 # region Commit Message Fixtures

@@ -243,26 +243,32 @@ Owned `Vector` and `Matrix` are fixed-capacity resizable.
 
 ## Capabilities and Runtime Selection
 
-Capability detection is explicit:
+Capability detection is explicit, one `Device` at a time:
 
 ```ts
-import { Capability, capabilitiesEnabled, capabilitiesEnable } from "numkong";
+import { Capability, Device } from "numkong";
 
-console.log(capabilitiesEnabled()); // what dispatch uses
-console.log((capabilitiesEnabled() & Capability.haswell) !== 0n);
-capabilitiesEnable(capabilitiesEnabled() & ~Capability.skylake); // stop dispatching to AVX-512
+const cpu = Device.cpu();
+console.log(cpu.capabilitiesEnabled()); // what dispatch uses
+console.log((cpu.capabilitiesEnabled() & Capability.haswell) !== 0n);
+cpu.capabilitiesEnable(cpu.capabilitiesEnabled() & ~Capability.skylake); // stop dispatching to AVX-512
+
+const metal = new Device("metal", 0); // throws without that GPU
+console.log(metal.capabilitiesEnabled() & Capability.devices);
 ```
 
+`Device.cpu()` is the host CPU, and `new Device(kind, ordinal)` any device `Device.count(kind)` counts, with `kind` one of `"cpu"`, `"cuda"`, `"rocm"` or `"metal"`.
 `capabilitiesEnabled()` is the one you usually want, and derives from two independent axes:
 
-- `capabilitiesDetected()`: what this CPU or WASM host can execute.
-- `capabilitiesCompiled()`: what this build contains, from the ISA probes at build time.
+- `capabilitiesDetected()`: what the device, like this CPU or WASM host, can execute.
+- `capabilitiesCompiled()`: what this build contains for devices of its kind, from the ISA probes at build time.
 - `capabilitiesEnabled()`: what dispatch uses, both axes at once unless narrowed.
-- `capabilitiesEnable(wanted)`: makes `wanted` the enabled set, clamped to both axes, and returns what took effect.
+- `capabilitiesEnable(wanted)`: makes `wanted` the CPU's enabled set, clamped to both axes, and returns what took effect.
 
 `capabilitiesDetected()` describes the machine and says nothing about whether a kernel was compiled in, so a prebuild whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
 The enabled set always keeps the `serial` fallback.
-`Capability` maps each lowercase CPU capability name, like `haswell`, `neon` or `v128relaxed`, to its bit, and is built at load from the C library's own names.
+`Capability` maps each lowercase capability name, like `haswell`, `neon`, `v128relaxed` or `ampere`, to its bit, and is built at load from the C library's own names; `cpus`, `devices` and `any` group them.
+A WASM module has only the CPU, so `Device.count` throws for every GPU kind there.
 
 The exact bitmask depends on whether you are running the native addon or a WASM runtime.
 

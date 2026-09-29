@@ -956,22 +956,24 @@ static PyObject *implement_pointer_access(nk_kernel_kind_t metric_kind, PyObject
     return PyLong_FromUnsignedLongLong((unsigned long long)metric);
 }
 
-char const doc_cdist[] =                                                                               //
-    "Compute pairwise distances between two input sets.\n\n"                                           //
-    "Args:\n"                                                                                          //
-    "    a (Tensor): First matrix.\n"                                                                  //
-    "    b (Tensor): Second matrix.\n"                                                                 //
-    "    metric (str, optional): One of 'euclidean', 'sqeuclidean', 'angular' or 'dot', defaulting\n"  //
-    "        to 'euclidean'.\n"                                                                        //
-    "    out (Tensor, optional): Output matrix to store the result.\n"                                 //
-    "    dtype (Union[IntegralType, FloatType, ComplexType], optional): Override the presumed input\n" //
-    "        type name.\n"                                                                             //
-    "    out_dtype (Union[FloatType, ComplexType], optional): Result type, default is 'float64'.\n"    //
-    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                //
-    "Returns:\n"                                                                                       //
-    "    Tensor: Pairwise distances between all inputs.\n\n"                                           //
-    "Equivalent to: `scipy.spatial.distance.cdist`.\n\n"                                               //
-    "Signature:\n"                                                                                     //
+char const doc_cdist[] =                                                                                //
+    "Compute pairwise distances between two input sets.\n\n"                                            //
+    "Args:\n"                                                                                           //
+    "    a (Tensor): First matrix.\n"                                                                   //
+    "    b (Tensor): Second matrix.\n"                                                                  //
+    "    metric (str, optional): One of 'euclidean', 'sqeuclidean', 'angular' or 'dot', defaulting\n"   //
+    "        to 'euclidean'.\n"                                                                         //
+    "    out (Tensor, optional): Output matrix to store the result.\n"                                  //
+    "    dtype (Union[IntegralType, FloatType, ComplexType], optional): Override the presumed input\n"  //
+    "        type name.\n"                                                                              //
+    "    out_dtype (Union[FloatType, ComplexType], optional): Result type, default is 'float64'.\n"     //
+    "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                                 //
+    "Returns:\n"                                                                                        //
+    "    Tensor: Pairwise distances between all inputs.\n\n"                                            //
+    "Equivalent to: `scipy.spatial.distance.cdist`.\n\n"                                                //
+    "GPU tensors raise BufferError, as packing b and mirroring a symmetric result both need device\n"   //
+    "memory NumKong cannot allocate: use dots_pack(b, out=...) with the _packed functions instead.\n\n" //
+    "Signature:\n"                                                                                      //
     "    >>> def cdist(a, b, /, metric, *, dtype, out, out_dtype, threads) -> Optional[Tensor]: ...";
 
 PyObject *api_cdist( //

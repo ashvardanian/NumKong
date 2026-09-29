@@ -20,7 +20,7 @@
 //! - [`geospatial`]: Geospatial distances — Haversine, Vincenty
 //! - [`sparse`]: Sparse set operations
 //! - [`mod@cast`]: Type casting between scalar formats
-//! - [`capabilities`]: Runtime SIMD feature detection
+//! - [`capabilities`]: Devices and the capabilities they detect, compile and enable
 //! - [`dots`]: Batched GEMM over pre-packed matrices
 //! - [`spatials`]: Batched spatial distances — angular, Euclidean — over pre-packed matrices
 //! - [`sets`]: Batched binary/set metrics — Hamming, Jaccard — over pre-packed matrices
@@ -52,7 +52,8 @@
 //! let l2sq_dist = f32::sqeuclidean(a, b);
 //!
 //! // Enable AMX and other platform-specific SIMD features
-//! numkong::capabilities::configure_thread(numkong::Capabilities::enabled());
+//! let cpu = numkong::Device::cpu();
+//! cpu.configure_thread(cpu.capabilities_enabled().unwrap()).unwrap();
 //! ```
 //!
 //! ## Mixed Precision Support
@@ -193,7 +194,7 @@ pub use cast::{
 };
 
 // Re-export capabilities
-pub use capabilities::{Capabilities, Capability};
+pub use capabilities::{Capabilities, Capability, Device, DeviceKind, Status};
 
 // Re-export tensor types
 pub use tensor::{
@@ -283,7 +284,7 @@ mod tests {
 
     #[test]
     fn maxsim_smoke() {
-        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        capabilities::configure_cpu_thread().unwrap();
         let queries = Tensor::<f32>::full(&[4, 16], 1.0).unwrap();
         let documents = Tensor::<f32>::full(&[8, 16], 1.0).unwrap();
         let queries_view = queries.view();
@@ -298,7 +299,7 @@ mod tests {
 
     #[test]
     fn attention_smoke() {
-        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        capabilities::configure_cpu_thread().unwrap();
         let (tokens, heads, head_dim) = (24usize, 2usize, 32usize);
         let keys = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.25)).unwrap();
         let values = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.5)).unwrap();
@@ -320,7 +321,7 @@ mod tests {
 
     #[test]
     fn attention_kv_cache_reuse() {
-        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        capabilities::configure_cpu_thread().unwrap();
         let (heads, head_dim) = (2usize, 32usize);
         let small = Tensor::<bf16>::full(&[10, heads * head_dim], bf16::from_f32(0.25)).unwrap();
         let big = Tensor::<bf16>::full(&[24, heads * head_dim], bf16::from_f32(0.25)).unwrap();
@@ -359,7 +360,7 @@ mod tests {
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     #[test]
     fn attention_parallel_matches_serial() {
-        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        capabilities::configure_cpu_thread().unwrap();
         let (heads, head_dim) = (4usize, 64usize);
         let lengths = [7u32, 250, 0, 33, 129]; // ragged mix: tiny, sub-panel, pad, odd
         let mut offsets = vec![0u32];
@@ -394,7 +395,7 @@ mod tests {
     #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
     #[test]
     fn attention_capabilities_symmetry() {
-        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        capabilities::configure_cpu_thread().unwrap();
         let (heads, head_dim) = (4usize, 64usize);
         let lengths = [7u32, 250, 0, 33, 129]; // ragged mix incl. a pad segment
         let mut offsets = vec![0u32];
@@ -444,7 +445,7 @@ mod tests {
 
     #[test]
     fn tensor_dots_smoke() {
-        capabilities::configure_thread(Capabilities::enabled()).unwrap();
+        capabilities::configure_cpu_thread().unwrap();
         let queries = Tensor::<f32>::full(&[2, 4], 1.0).unwrap();
         let targets = Tensor::<f32>::full(&[3, 4], 1.0).unwrap();
         let packed_targets = DotsPackedMatrix::new(&targets).unwrap();

@@ -338,7 +338,7 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
 status_t rmsd(                                           //
     in_type_ const *a, in_type_ const *b, std::size_t n, //
     transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
                               std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
@@ -406,7 +406,7 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
 status_t kabsch(                                         //
     in_type_ const *a, in_type_ const *b, std::size_t n, //
     transform_type_ *a_centroid, transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale,
-    metric_type_ *metric, nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+    metric_type_ *metric, nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
                               std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
@@ -576,7 +576,7 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
           typename metric_type_ = typename in_type_::mesh_metric_t>
 status_t umeyama(in_type_ const *a, in_type_ const *b, std::size_t n, transform_type_ *a_centroid,
                  transform_type_ *b_centroid, transform_type_ *rotation, transform_type_ *scale, metric_type_ *metric,
-                 nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                 nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<transform_type_, typename in_type_::mesh_transform_t> &&
                               std::is_same_v<metric_type_, typename in_type_::mesh_metric_t>;
 
@@ -766,8 +766,8 @@ struct mesh_result {
 template <typename in_type_, typename transform_type_ = typename in_type_::mesh_transform_t,
           typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
           vector_of<in_type_> b_type_>
-expected<mesh_result<transform_type_, metric_type_>> rmsd(a_type_ const &a, b_type_ const &b,
-                                                          nk_capability_t capabilities = cpu_capabilities()) noexcept {
+expected<mesh_result<transform_type_, metric_type_>> rmsd(
+    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
@@ -787,7 +787,7 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
           typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
           vector_of<in_type_> b_type_>
 expected<mesh_result<transform_type_, metric_type_>> kabsch(
-    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();
@@ -807,7 +807,7 @@ template <typename in_type_, typename transform_type_ = typename in_type_::mesh_
           typename metric_type_ = typename in_type_::mesh_metric_t, vector_of<in_type_> a_type_,
           vector_of<in_type_> b_type_>
 expected<mesh_result<transform_type_, metric_type_>> umeyama(
-    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = cpu_capabilities()) noexcept {
+    a_type_ const &a, b_type_ const &b, nk_capability_t capabilities = default_capabilities()) noexcept {
     auto a_values = contiguous_values_<in_type_ const>(a);
     auto b_values = contiguous_values_<in_type_ const>(b);
     std::size_t const dimensions = a_values.value.size() * dimensions_per_value<in_type_>();

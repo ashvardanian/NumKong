@@ -12,7 +12,8 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
+use crate::tensor::{check_len, TensorError};
 use crate::types::{bf16, f16};
 
 #[link(name = "numkong")]
@@ -20,68 +21,68 @@ extern "C" {
     fn nk_jsd_f16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_jsd_bf16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_jsd_f32_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_jsd_f64_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_kld_f16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_kld_bf16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_kld_f32_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_kld_f64_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 // region: KullbackLeibler
@@ -90,23 +91,22 @@ extern "C" {
 ///
 /// D_KL(P‖Q) = ∑ᵢ pᵢ × ln(pᵢ / qᵢ)
 ///
-/// Range: \[0, ∞). Not symmetric. Returns `None` if lengths differ.
+/// Range: \[0, ∞). Not symmetric. Fails with [`TensorError::ShapeMismatch`] if lengths differ,
+/// or [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`.
 pub trait KullbackLeibler: Sized {
     type Output;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Option<Self::Output>;
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
 
     /// Alias for `kullbackleibler`.
-    fn kl(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::kullbackleibler(a, b) }
+    fn kl(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> { Self::kullbackleibler(a, b) }
 }
 
 impl KullbackLeibler for f64 {
     type Output = f64;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_kld_f64_best(
@@ -114,21 +114,19 @@ impl KullbackLeibler for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl KullbackLeibler for f32 {
     type Output = f64;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_kld_f32_best(
@@ -136,21 +134,19 @@ impl KullbackLeibler for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl KullbackLeibler for f16 {
     type Output = f32;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_kld_f16_best(
@@ -158,21 +154,19 @@ impl KullbackLeibler for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl KullbackLeibler for bf16 {
     type Output = f32;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_kld_bf16_best(
@@ -180,12 +174,12 @@ impl KullbackLeibler for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -197,23 +191,22 @@ impl KullbackLeibler for bf16 {
 ///
 /// d_JS(P, Q) = √(½(D_KL(P‖M) + D_KL(Q‖M))), where M = (P + Q) / 2
 ///
-/// Range: \[0, √ln2\]. Symmetric. Returns `None` if lengths differ.
+/// Range: \[0, √ln2\]. Symmetric. Fails with [`TensorError::ShapeMismatch`] if lengths differ,
+/// or [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`.
 pub trait JensenShannon: Sized {
     type Output;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Option<Self::Output>;
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
 
     /// Alias for `jensenshannon`.
-    fn js(a: &[Self], b: &[Self]) -> Option<Self::Output> { Self::jensenshannon(a, b) }
+    fn js(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> { Self::jensenshannon(a, b) }
 }
 
 impl JensenShannon for f64 {
     type Output = f64;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_jsd_f64_best(
@@ -221,21 +214,19 @@ impl JensenShannon for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl JensenShannon for f32 {
     type Output = f64;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_jsd_f32_best(
@@ -243,21 +234,19 @@ impl JensenShannon for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl JensenShannon for f16 {
     type Output = f32;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_jsd_f16_best(
@@ -265,21 +254,19 @@ impl JensenShannon for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl JensenShannon for bf16 {
     type Output = f32;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_jsd_bf16_best(
@@ -287,12 +274,12 @@ impl JensenShannon for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 

@@ -11,6 +11,7 @@
 #define NUMKONG_PYTHON_MATRIX_H
 
 #include "numkong.h"
+#include "dlpack_abi.h"
 
 /** Below this many multiply-accumulates an auto-threaded op stays serial: waking the thread pool
  *  dominates small products. Explicit dots_packed(..., threads=N) / cdist(..., threads=N) paths are
@@ -57,10 +58,19 @@ typedef struct PackedMatrix {
     /** Number of columns in original matrix, the depth. */
     nk_size_t depth;
 
-    /** The mask that packed it; later calls default to it, as only its capability reads the layout. */
+    /** The mask that packed it; later calls default to it, as only that mask reads the layout. */
     nk_capability_t capabilities;
 
-    /** Variable-length packed data. */
+    /** Where @ref data lives: a GPU when @c dots_pack packed a GPU matrix, else the CPU. */
+    DLDevice device;
+
+    /** The `out=` Tensor holding the packed bytes, or NULL when they follow in @ref start. */
+    PyObject *storage;
+
+    /** The packed bytes: @ref start, or the memory of @ref storage. */
+    char *data;
+
+    /** Variable-length packed data, empty when @ref storage holds it. */
     char start[];
 } PackedMatrix;
 

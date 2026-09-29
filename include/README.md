@@ -20,7 +20,7 @@ int main(void) {
     nk_cpu_capabilities_enabled(&capabilities); // the capabilities this CPU runs and this build holds
     nk_cpu_configure_thread(capabilities);
     nk_status_t status = nk_dot_f32_best(a, b, 3, &dot, capabilities, NULL); // widened f32 → f64 output
-    printf("dot=%f, %s\n", dot, nk_status_to_string(status));
+    printf("dot=%f, %s\n", dot, nk_status_name(status));
     return status != nk_success_k;
 }
 ```
@@ -159,11 +159,22 @@ Strided views are refused with `nk::status_t::unexpected_dimensions_k`, and `vec
 Outputs of elementwise kernels, like `nk::scale<nk::f32_t>(a, 2.0f, 1.0f, out)`, are any mutable run of the same size, and the call returns an `nk::status_t`.
 Multi-part results come back as small structs: `nk::reduce_moments` returns `{sum, sumsq}`, `nk::reduce_minmax` a `minmax_result`, and `nk::kabsch` a `mesh_result`.
 
-Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk::cpu_capabilities()` and a null stream, and returns an `nk::status_t`.
+Every wrapper ends in the two arguments of its dispatch point, defaulted to `nk::default_capabilities()` and a null stream, and returns an `nk::status_t`.
 That scoped enum mirrors `nk_status_t` value for value, converts to it with `static_cast`, and is tested with `nk::succeeded` and `nk::failed` rather than as a `bool`.
 Factories, like `nk::tensor<T>::zeros`, and the allocating overloads return an `nk::expected<T>` holding the `value` and its `status`, which converts to `true` on success and unpacks with structured bindings.
 A failed factory leaves its `value` empty, while a zero-volume request succeeds with an empty one.
-`nk::cpu_capabilities()` is the `nk_cpu_capabilities_enabled` mask, and a zero mask runs the C++ reference template instead of any capability's kernel.
+`nk::default_capabilities()` is the `nk_cpu_capabilities_enabled` mask, and a zero mask runs the C++ reference template instead of any capability's kernel.
+`nk::device_t` names one device by its kind and its runtime's ordinal, and asks the matching `nk_<kind>_*` functions for its masks:
+
+```cpp
+nk::device_t const cpu = nk::device_t::cpu();
+if (auto enabled = cpu.capabilities_enabled()) (void)cpu.configure_thread(enabled.value);
+auto const [devices, counted] = nk::device_t::count(nk::device_kind_t::cuda_k);
+for (std::size_t ordinal = 0; ordinal != devices; ++ordinal)
+    if (auto gpu = nk::device_t::make(nk::device_kind_t::cuda_k, ordinal))
+        if (auto mask = gpu.value.capabilities_enabled()) { /* dispatch over `mask.value` on that GPU */ }
+```
+
 In header-only builds the dispatch points report `nk_missing_library_k`, so wrappers there take a zero mask or call a capability's kernel.
 
 The API is intentionally not STL-shaped.
@@ -646,7 +657,7 @@ if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enab
     nk_dots_packed_bf16_best(a, b_packed, c, height, width, depth, a_stride, c_stride, gpu, cuda_stream);
 ```
 
-`nk_name_capabilities` spells any such mask as the names bindings accept, like "serial,neon,neonhalf", into a buffer of `NUMKONG_CAPABILITIES_NAME_CAPACITY` bytes.
+`nk_capabilities_name` spells any such mask as the names bindings accept, like "serial,neon,neonhalf", into a buffer of `NUMKONG_CAPABILITIES_NAME_CAPACITY` bytes.
 
 For exact register-level details, see `capabilities.h`.
 Capability kernels, like `nk_dot_f32_haswell`, stay callable directly if you want to pin a path for testing or benchmarking.

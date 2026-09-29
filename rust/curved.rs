@@ -11,7 +11,8 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
+use crate::tensor::{check_len, TensorError};
 use crate::types::{bf16, bf16c, f16, f16c, f32c, f64c, StorageElement};
 
 #[link(name = "numkong")]
@@ -20,112 +21,112 @@ extern "C" {
         a: *const f64,
         b: *const f64,
         c: *const f64,
-        n: usize,
+        n: nk_size_t,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_bilinear_f32_best(
         a: *const f32,
         b: *const f32,
         c: *const f32,
-        n: usize,
+        n: nk_size_t,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_bilinear_f16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_bilinear_bf16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_bilinear_f64c_best(
         a: *const f64,
         b: *const f64,
         c: *const f64,
-        n: usize,
+        n: nk_size_t,
         results: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_bilinear_f32c_best(
         a: *const f32,
         b: *const f32,
         c: *const f32,
-        n: usize,
+        n: nk_size_t,
         results: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_bilinear_f16c_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         results: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_bilinear_bf16c_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         results: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     // Mahalanobis distance
     fn nk_mahalanobis_f64_best(
         a: *const f64,
         b: *const f64,
         c: *const f64,
-        n: usize,
+        n: nk_size_t,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_mahalanobis_f32_best(
         a: *const f32,
         b: *const f32,
         c: *const f32,
-        n: usize,
+        n: nk_size_t,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_mahalanobis_f16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_mahalanobis_bf16_best(
         a: *const u16,
         b: *const u16,
         c: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 /// Bilinear form computation: aᵀ × C × b where C is a metric tensor.
@@ -143,19 +144,26 @@ pub trait Bilinear: StorageElement {
     /// - `b` - Second vector of length n
     /// - `c` - Metric tensor, symmetric __[n,n]__ matrix in row-major order, flattened to length n²
     ///
-    /// # Returns
-    /// `Some(result)` if inputs are valid, `None` if lengths are incompatible.
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output>;
+    /// # Errors
+    /// [`TensorError::InvalidShape`] for empty vectors, [`TensorError::ShapeMismatch`] if lengths
+    /// are incompatible, or [`TensorError::KernelFailed`] carrying the kernel's status.
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError>;
 }
 
 impl Bilinear for f64 {
     type Output = f64;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f64 = 0.0;
         unsafe {
             nk_bilinear_f64_best(
@@ -164,23 +172,29 @@ impl Bilinear for f64 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 
 impl Bilinear for f32 {
     type Output = f64;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f64 = 0.0;
         unsafe {
             nk_bilinear_f32_best(
@@ -189,23 +203,29 @@ impl Bilinear for f32 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 
 impl Bilinear for f16 {
     type Output = f32;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f32 = 0.0;
         unsafe {
             nk_bilinear_f16_best(
@@ -214,23 +234,29 @@ impl Bilinear for f16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 
 impl Bilinear for bf16 {
     type Output = f32;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f32 = 0.0;
         unsafe {
             nk_bilinear_bf16_best(
@@ -239,23 +265,29 @@ impl Bilinear for bf16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 
 impl Bilinear for f64c {
     type Output = f64c;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
             nk_bilinear_f64c_best(
@@ -264,12 +296,12 @@ impl Bilinear for f64c {
                 c.as_ptr() as *const f64,
                 point_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(f64c {
+        Ok(f64c {
             re: result[0],
             im: result[1],
         })
@@ -279,11 +311,17 @@ impl Bilinear for f64c {
 impl Bilinear for f32c {
     type Output = f64c;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
             nk_bilinear_f32c_best(
@@ -292,12 +330,12 @@ impl Bilinear for f32c {
                 c.as_ptr() as *const f32,
                 point_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(f64c {
+        Ok(f64c {
             re: result[0],
             im: result[1],
         })
@@ -307,11 +345,17 @@ impl Bilinear for f32c {
 impl Bilinear for f16c {
     type Output = f32c;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
             nk_bilinear_f16c_best(
@@ -320,12 +364,12 @@ impl Bilinear for f16c {
                 c.as_ptr() as *const u16,
                 point_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(f32c {
+        Ok(f32c {
             re: result[0],
             im: result[1],
         })
@@ -335,11 +379,17 @@ impl Bilinear for f16c {
 impl Bilinear for bf16c {
     type Output = f32c;
 
-    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn bilinear(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
             nk_bilinear_bf16c_best(
@@ -348,12 +398,12 @@ impl Bilinear for bf16c {
                 c.as_ptr() as *const u16,
                 point_count,
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(f32c {
+        Ok(f32c {
             re: result[0],
             im: result[1],
         })
@@ -376,19 +426,26 @@ pub trait Mahalanobis: StorageElement {
     /// - `c` - Inverse covariance matrix, a symmetric __[n,n]__ matrix in row-major order,
     ///   flattened to length n²
     ///
-    /// # Returns
-    /// `Some(result)` if inputs are valid, `None` if lengths are incompatible.
-    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output>;
+    /// # Errors
+    /// [`TensorError::InvalidShape`] for empty vectors, [`TensorError::ShapeMismatch`] if lengths
+    /// are incompatible, or [`TensorError::KernelFailed`] carrying the kernel's status.
+    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError>;
 }
 
 impl Mahalanobis for f64 {
     type Output = f64;
 
-    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f64 = 0.0;
         unsafe {
             nk_mahalanobis_f64_best(
@@ -397,23 +454,29 @@ impl Mahalanobis for f64 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 
 impl Mahalanobis for f32 {
     type Output = f64;
 
-    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f64 = 0.0;
         unsafe {
             nk_mahalanobis_f32_best(
@@ -422,23 +485,29 @@ impl Mahalanobis for f32 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 
 impl Mahalanobis for f16 {
     type Output = f32;
 
-    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f32 = 0.0;
         unsafe {
             nk_mahalanobis_f16_best(
@@ -447,23 +516,29 @@ impl Mahalanobis for f16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 
 impl Mahalanobis for bf16 {
     type Output = f32;
 
-    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Option<Self::Output> {
+    fn mahalanobis(a: &[Self], b: &[Self], c: &[Self]) -> Result<Self::Output, TensorError> {
         let point_count = a.len();
-        if point_count == 0 || b.len() != point_count || c.len() != point_count * point_count {
-            return None;
+        if point_count == 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: 0,
+                reason: "curved metrics need at least one dimension",
+            });
         }
+        check_len(point_count, b.len())?;
+        check_len(point_count * point_count, c.len())?;
         let mut result: f32 = 0.0;
         unsafe {
             nk_mahalanobis_bf16_best(
@@ -472,12 +547,12 @@ impl Mahalanobis for bf16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
-            .ok()?;
+            .check()?;
         }
-        Some(result)
+        Ok(result)
     }
 }
 

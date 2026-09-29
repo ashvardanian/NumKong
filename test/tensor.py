@@ -288,7 +288,7 @@ def test_pointers_availability():
         (nk.sqeuclidean, ValueError, (to_array([1.0]), to_array([1.0]), "missing_dtype"), {}),
         (nk.sqeuclidean, TypeError, (to_array([1.0]), "invalid"), {}),
         (nk.sqeuclidean, TypeError, (to_array([1.0]), to_array([1.0])), {"invalid_kwarg": "value"}),
-        (nk.capabilities_enable, TypeError, ("haswell",), {}),
+        (nk.Device.cpu().capabilities_enable, TypeError, ("haswell",), {}),
         (nk.mahalanobis, TypeError, (to_array([1.0]), to_array([1.0])), {}),
         (nk.bilinear, TypeError, (to_array([1.0]),), {}),
         (nk.angular, TypeError, (to_array([1.0]), to_array([1.0]), to_array([1.0])), {}),

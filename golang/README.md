@@ -398,7 +398,7 @@ func main() {
 
 `WorkerPool` provides pre-pinned goroutines with pre-configured SIMD state.
 Create once, reuse across batch calls, close when done.
-The pool amortizes `ConfigureThread` + `LockOSThread` cost across all batch operations.
+The pool amortizes `Device.ConfigureThread` + `LockOSThread` cost across all batch operations.
 
 ```go
 package main
@@ -452,30 +452,37 @@ For one-off parallel work without a pool, you can still use `ConfigureThread` di
 
 ```go
 go func() {
-	unlock := nk.ConfigureThread(nk.CapabilitiesEnabled()) // lock thread + configure SIMD
-	defer unlock()                                         // release the OS thread on return
+	enabled, _ := nk.CPU().CapabilitiesEnabled()
+	unlock, _ := nk.CPU().ConfigureThread(enabled) // lock thread + configure SIMD
+	defer unlock()                                 // release the OS thread on return
 	nk.DotsPackedF32(queries, dbPacked, results, height)
 }()
 ```
 
 ## Thread Configuration and Capabilities
 
-`ConfigureThread` pins the current goroutine to an OS thread via `runtime.LockOSThread`, enables the CPU-specific state the given capabilities need, such as Intel AMX tiles, then returns an unlock function.
+A `Device` is the host CPU, from `CPU()`, or a GPU by its runtime's own ordinal, from `NewDevice(DeviceCUDA, 0)` and its `DeviceROCm` and `DeviceMetal` twins, counted by `CountDevices`.
+`Device.ConfigureThread` pins the current goroutine to an OS thread via `runtime.LockOSThread`, enables the CPU-specific state the given capabilities need, such as Intel AMX tiles, then returns an unlock function.
 Goroutines can migrate between OS threads, so thread-local state (AMX tiles) would be lost without pinning.
 
 ```go
-unlock := nk.ConfigureThread(nk.CapabilitiesEnabled()) // lock thread, configure what dispatch uses
-defer unlock()                                         // release the OS thread on return
+cpu := nk.CPU()
+enabled, _ := cpu.CapabilitiesEnabled() // what dispatch uses: detected on this CPU and compiled in
+unlock, _ := cpu.ConfigureThread(enabled) // lock thread, configure what dispatch uses
+defer unlock()                            // release the OS thread on return
 
-enabled := nk.CapabilitiesEnabled()         // what dispatch uses: detected on this CPU and compiled in
-fmt.Println(enabled)                        // like "serial,neon,neonhalf,neonfhm,neonsdot"
-fmt.Println(enabled.Has(nk.CapNeon))        // test one capability
-nk.CapabilitiesEnable(enabled &^ nk.CapSme) // narrow dispatch, returns what took effect
+fmt.Println(enabled)                         // like "serial,neon,neonhalf,neonfhm,neonsdot"
+fmt.Println(enabled.Has(nk.CapNeon))         // test one capability
+cpu.CapabilitiesEnable(enabled &^ nk.CapSme) // narrow dispatch, returns what took effect
+
+if gpu, err := nk.NewDevice(nk.DeviceMetal, 0); err == nil {
+	fmt.Println(gpu.CapabilitiesEnabled()) // like "metal,apple9"
+}
 ```
 
-`CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what this CPU executes and what this binary contains.
-Every kernel call dispatches over `CapabilitiesEnabled`, so a matrix packed before `CapabilitiesEnable` narrows it must be packed again: packed kernels refuse another capability's layout.
-Every capability is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSkylake`, `CapSapphire`, `CapSapphireAmx`, and `CapSme`.
+`CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what the device executes and what this binary contains for its kind.
+Every kernel call dispatches over the CPU's `CapabilitiesEnabled`, so a matrix packed before `CapabilitiesEnable` narrows it must be packed again: packed kernels refuse another capability's layout.
+Every capability is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSapphireAmx`, `CapSme`, `CapAmpere`, and `CapApple9`, and `CapCpus`, `CapDevices`, and `CapAny` group them.
 These are useful for logging the active platform or gating optional benchmark paths.
 
 ## cGo Integration Notes

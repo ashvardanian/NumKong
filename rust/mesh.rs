@@ -22,9 +22,9 @@
 //!   but the result also reports an optimal `s > 0` so rescaled copies of the
 //!   same cloud align cleanly.
 //!
-//! Inputs are `[[Scalar; 3]]` slices, length ≥ 3 and matching on both sides; mismatched or
-//! too-small inputs return `None`. The struct-returning API makes downstream `transform_point` /
-//! `transform_points` calls trivial.
+//! Inputs are `[[Scalar; 3]]` slices, length ≥ 3 and matching on both sides; mismatched inputs fail
+//! with [`TensorError::ShapeMismatch`] and too-small ones with [`TensorError::InvalidShape`]. The
+//! struct-returning API makes downstream `transform_point` / `transform_points` calls trivial.
 //!
 //! File: rust/mesh.rs
 //! Author: Ash Vardanian
@@ -32,7 +32,8 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
+use crate::tensor::{check_len, TensorError};
 use crate::types::{bf16, f16};
 
 #[link(name = "numkong")]
@@ -40,147 +41,147 @@ extern "C" {
     fn nk_rmsd_f32_best(
         a: *const f32,
         b: *const f32,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_rmsd_f64_best(
         a: *const f64,
         b: *const f64,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f64,
         b_centroid: *mut f64,
         rotation: *mut f64,
         scale: *mut f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_rmsd_f16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_rmsd_bf16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_kabsch_f32_best(
         a: *const f32,
         b: *const f32,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_kabsch_f64_best(
         a: *const f64,
         b: *const f64,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f64,
         b_centroid: *mut f64,
         rotation: *mut f64,
         scale: *mut f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_kabsch_f16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_kabsch_bf16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_umeyama_f32_best(
         a: *const f32,
         b: *const f32,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_umeyama_f64_best(
         a: *const f64,
         b: *const f64,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f64,
         b_centroid: *mut f64,
         rotation: *mut f64,
         scale: *mut f64,
         result: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_umeyama_f16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_umeyama_bf16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         a_centroid: *mut f32,
         b_centroid: *mut f32,
         rotation: *mut f32,
         scale: *mut f32,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 /// Result of mesh alignment operations: RMSD, Kabsch, Umeyama.
@@ -277,15 +278,19 @@ pub trait MeshAlignment: Sized {
     type Metric: Default + Copy;
 
     /// Root-mean-square deviation between two point-for-point correspondent clouds, without solving
-    /// for a transform. Returns `None` if the lengths differ or are below the 3-point minimum.
-    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
+    /// for a transform. Fails with [`TensorError::ShapeMismatch`] if the lengths differ, or
+    /// [`TensorError::InvalidShape`] below the 3-point minimum.
+    fn rmsd(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError>;
 
     /// Kabsch rigid-body alignment: recovers the best-fit 3×3 rotation matrix with no scaling that
     /// aligns `a` onto `b`, plus the residual RMSD. The returned struct's `scale` is always `1.0`
     /// by construction.
     ///
-    /// Returns `None` if `a.len() != b.len()` or if either cloud has fewer than three points — a
-    /// degenerate SVD.
+    /// Fails with [`TensorError::ShapeMismatch`] if `a.len() != b.len()`, or with
+    /// [`TensorError::InvalidShape`] if either cloud has under three points — a degenerate SVD.
     ///
     /// # Examples
     ///
@@ -302,20 +307,34 @@ pub trait MeshAlignment: Sized {
     /// assert!((fit.scale - 1.0).abs() < 1e-9);
     /// assert!(fit.rmsd.abs() < 1e-9);
     /// ```
-    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
+    fn kabsch(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError>;
 
     /// Umeyama similarity alignment: like Kabsch but also recovers an optimal uniform scale factor
     /// `s > 0`. Useful when the two clouds are related by rotation __and__ scaling.
-    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>>;
+    fn umeyama(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError>;
 }
 
 impl MeshAlignment for f64 {
     type Transform = f64;
     type Metric = f64;
 
-    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn rmsd(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -334,17 +353,25 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn kabsch(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -363,17 +390,25 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn umeyama(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -392,12 +427,12 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -405,9 +440,17 @@ impl MeshAlignment for f32 {
     type Transform = f32;
     type Metric = f64;
 
-    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn rmsd(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -426,17 +469,25 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn kabsch(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -455,17 +506,25 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn umeyama(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -484,12 +543,12 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -497,9 +556,17 @@ impl MeshAlignment for f16 {
     type Transform = f32;
     type Metric = f32;
 
-    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn rmsd(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -518,17 +585,25 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn kabsch(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -547,17 +622,25 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn umeyama(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -576,12 +659,12 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -589,9 +672,17 @@ impl MeshAlignment for bf16 {
     type Transform = f32;
     type Metric = f32;
 
-    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn rmsd(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -610,17 +701,25 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn kabsch(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -639,17 +738,25 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 
-    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Option<MeshAlignmentResult<Self::Transform, Self::Metric>> {
-        if a.len() != b.len() || a.len() < 3 {
-            return None;
+    fn umeyama(
+        a: &[[Self; 3]],
+        b: &[[Self; 3]],
+    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+        check_len(a.len(), b.len())?;
+        if a.len() < 3 {
+            return Err(TensorError::InvalidShape {
+                axis: 0,
+                size: a.len(),
+                reason: "mesh alignment needs at least three points",
+            });
         }
         let mut result = MeshAlignmentResult {
             rotation_matrix: [0.0; 9],
@@ -668,12 +775,12 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -782,12 +889,20 @@ mod tests {
         let pair: &[[f64; 3]] = &[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
 
         // Length mismatch
-        assert!(f64::kabsch(tri, pair).is_none());
-        assert!(f64::rmsd(tri, pair).is_none());
-        assert!(f64::umeyama(tri, pair).is_none());
+        let mismatch = Err(TensorError::ShapeMismatch {
+            axis: 0,
+            expected: 3,
+            got: 2,
+        });
+        assert_eq!(f64::kabsch(tri, pair), mismatch);
+        assert_eq!(f64::rmsd(tri, pair), mismatch);
+        assert_eq!(f64::umeyama(tri, pair), mismatch);
 
         // Too few points
-        assert!(f64::kabsch(pair, pair).is_none());
+        assert!(matches!(
+            f64::kabsch(pair, pair),
+            Err(TensorError::InvalidShape { size: 2, .. })
+        ));
 
         // Kabsch on random-ish clouds: check outputs are finite and scale == 1.
         // The underlying SVD solver — Jacobi, 16 fixed iterations — is only approximate,

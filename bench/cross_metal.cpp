@@ -151,7 +151,7 @@ struct metal_backend_t {
         keep(nk_metal_synchronize(&opened()));
         nk_status_t const failure = status;
         status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
+        return failure == nk_success_k ? nullptr : nk_status_name(failure);
     }
 
     /** Remembers @p result unless an earlier failure is pending. */
@@ -183,7 +183,7 @@ void bench_cross_metal() {
     if (nk_metal_capabilities_detected(0, &detected) != nk_success_k || !detected)
         return fmt::println("- Metal: no device");
     char families[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_name_capabilities(detected, families, sizeof(families));
+    nk_capabilities_name(detected, families, sizeof(families));
     fmt::println("- Metal: {}", families);
 
     if (nk_metal_capabilities_enabled(0, &enabled) != nk_success_k) enabled = 0;

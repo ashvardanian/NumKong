@@ -10,7 +10,9 @@
 //! File: rust/cast.rs
 //! Author: Ash Vardanian
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{
+    enabled_cpu_capabilities_mask, nk_capability_t, nk_dtype_t, nk_size_t, nk_status_t, StatusCode,
+};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
 use core::ffi::c_void;
 use core::ptr::null_mut;
@@ -19,13 +21,13 @@ use core::ptr::null_mut;
 extern "C" {
     fn nk_cast_best(
         from: *const c_void,
-        from_type: u32,
-        n: usize,
+        from_type: nk_dtype_t,
+        n: nk_size_t,
         to: *mut c_void,
-        to_type: u32,
-        capabilities: u64,
+        to_type: nk_dtype_t,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_cast_block_scaled_best(
         from: *const c_void,
@@ -36,47 +38,49 @@ extern "C" {
         to_scales: *mut c_void,
         to_tensor_scale: *mut ScalarBuffer,
         to_format: *const BlockScaledDescriptor,
-        count: usize,
-        capabilities: u64,
+        count: nk_size_t,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 /// Internal dtype codes matching `nk_dtype_t` from C.
 /// Not exposed to users.
 pub(crate) mod dtype {
-    pub(crate) const F64: u32 = 1 << 10;
-    pub(crate) const F32: u32 = 1 << 11;
-    pub(crate) const BF16: u32 = 1 << 13;
-    pub(crate) const F16: u32 = 1 << 12;
-    pub(crate) const E5M2: u32 = 1 << 15;
-    pub(crate) const E4M3: u32 = 1 << 14;
-    pub(crate) const E3M2: u32 = 1 << 19;
-    pub(crate) const E2M3: u32 = 1 << 18;
+    use crate::capabilities::nk_dtype_t;
 
-    pub(crate) const F64C: u32 = 1 << 20;
-    pub(crate) const F32C: u32 = 1 << 21;
-    pub(crate) const BF16C: u32 = 1 << 23;
-    pub(crate) const F16C: u32 = 1 << 22;
+    pub(crate) const F64: nk_dtype_t = 1 << 10;
+    pub(crate) const F32: nk_dtype_t = 1 << 11;
+    pub(crate) const BF16: nk_dtype_t = 1 << 13;
+    pub(crate) const F16: nk_dtype_t = 1 << 12;
+    pub(crate) const E5M2: nk_dtype_t = 1 << 15;
+    pub(crate) const E4M3: nk_dtype_t = 1 << 14;
+    pub(crate) const E3M2: nk_dtype_t = 1 << 19;
+    pub(crate) const E2M3: nk_dtype_t = 1 << 18;
 
-    pub(crate) const I64: u32 = 1 << 5;
-    pub(crate) const I32: u32 = 1 << 4;
-    pub(crate) const I16: u32 = 1 << 3;
-    pub(crate) const I8: u32 = 1 << 2;
+    pub(crate) const F64C: nk_dtype_t = 1 << 20;
+    pub(crate) const F32C: nk_dtype_t = 1 << 21;
+    pub(crate) const BF16C: nk_dtype_t = 1 << 23;
+    pub(crate) const F16C: nk_dtype_t = 1 << 22;
 
-    pub(crate) const U64: u32 = 1 << 9;
-    pub(crate) const U32: u32 = 1 << 8;
-    pub(crate) const U16: u32 = 1 << 7;
-    pub(crate) const U8: u32 = 1 << 6;
+    pub(crate) const I64: nk_dtype_t = 1 << 5;
+    pub(crate) const I32: nk_dtype_t = 1 << 4;
+    pub(crate) const I16: nk_dtype_t = 1 << 3;
+    pub(crate) const I8: nk_dtype_t = 1 << 2;
+
+    pub(crate) const U64: nk_dtype_t = 1 << 9;
+    pub(crate) const U32: nk_dtype_t = 1 << 8;
+    pub(crate) const U16: nk_dtype_t = 1 << 7;
+    pub(crate) const U8: nk_dtype_t = 1 << 6;
 
     // Block-scaled element / scale dtype codes, matching `nk_dtype_t`.
     // Consumed by `crate::block_scaled` to build format descriptors.
-    pub(crate) const E2M1: u32 = 1 << 24;
-    pub(crate) const UE8M0: u32 = 1 << 25;
-    pub(crate) const UE4M3: u32 = 1 << 26;
+    pub(crate) const E2M1: nk_dtype_t = 1 << 24;
+    pub(crate) const UE8M0: nk_dtype_t = 1 << 25;
+    pub(crate) const UE4M3: nk_dtype_t = 1 << 26;
 
     /// Sentinel for "no dtype" — plain buffers, absent scale / tensor-scale.
-    pub(crate) const UNKNOWN: u32 = 0;
+    pub(crate) const UNKNOWN: nk_dtype_t = 0;
 }
 
 // Sealed trait pattern to prevent external implementations
@@ -182,9 +186,9 @@ impl CastDType for u64 {
 /// - `source` - Source slice of elements to cast
 /// - `dest` - Destination slice to receive cast elements; must be same length as source
 ///
-/// # Returns
-/// - `Some(())` if successful
-/// - `None` if slices have different lengths
+/// # Errors
+/// - [`TensorError::ShapeMismatch`] if slices have different lengths
+/// - [`TensorError::KernelFailed`] carrying the kernel's status when it refuses the pair
 ///
 /// # Example
 /// ```ignore
@@ -194,10 +198,8 @@ impl CastDType for u64 {
 /// let mut f32_data: Vec<f32> = vec![0.0; f16_data.len()];
 /// cast(&f16_data, &mut f32_data);
 /// ```
-pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Option<()> {
-    if source.len() != dest.len() {
-        return None;
-    }
+pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Result<(), TensorError> {
+    check_len(source.len(), dest.len())?;
     unsafe {
         nk_cast_best(
             source.as_ptr() as *const c_void,
@@ -205,20 +207,23 @@ pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Option<
             source.len(),
             dest.as_mut_ptr() as *mut c_void,
             D::dtype_code(),
-            cpu_capabilities(),
+            enabled_cpu_capabilities_mask(),
             null_mut(),
         )
     }
-    .ok()
+    .check()
 }
 
 // region: Tensor-shaped cast
 
-use crate::tensor::{Global, Tensor, TensorError, TensorMut, TensorRef, DEFAULT_MAX_RANK};
+use crate::tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef, DEFAULT_MAX_RANK};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDType, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
-    fn cast<Destination: Clone + CastDType>(&self) -> Result<Tensor<Destination, Global, MAX_RANK>, TensorError> {
+    fn cast<Destination: Clone + CastDType>(&self) -> Result<Tensor<Destination, Self::Alloc, MAX_RANK>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         self.view().cast()
     }
 
@@ -533,7 +538,7 @@ fn block_scaled_cast_(
             to_scale_ptr,
             to_format,
             count,
-            cpu_capabilities(),
+            enabled_cpu_capabilities_mask(),
             null_mut(),
         )
     }
@@ -551,7 +556,10 @@ fn block_scaled_cast_(
 /// Blanket-implemented for every [`TensorRef<f32, MAX_RANK>`], so `Tensor<f32>`, `TensorView<f32>`,
 /// and `TensorSpan<f32>` all expose `.cast_to_scaled::<F>()` without an intervening `.view()`.
 pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
-    fn cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F>, TensorError> {
+    fn cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F, Self::Alloc>, TensorError>
+    where
+        Self::Alloc: Clone,
+    {
         let shape = self.shape();
         let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
         let scales_ndim = blocked_scales_shape_into(shape, F::BLOCK_SIZE, &mut scales_buf)?;
@@ -560,8 +568,8 @@ pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
         let view = self.view();
         let source = view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
 
-        let mut elements = Tensor::<F::Element>::zeros(shape)?;
-        let mut block_scales = Tensor::<F::Scale>::zeros(scales_shape)?;
+        let mut elements = Tensor::zeros_in(shape, self.allocator().clone())?;
+        let mut block_scales = Tensor::zeros_in(scales_shape, self.allocator().clone())?;
         let tensor_scale = block_scaled_cast_(
             source.as_ptr() as *const c_void,
             core::ptr::null(),
@@ -581,9 +589,9 @@ impl<const R: usize, C: TensorRef<f32, R> + ?Sized> DenseToScaledOps<R> for C {}
 
 /// Decode / materialize: a [`ScaledTensorView`] → a dense `Tensor<T>`, e.g. `f32`.
 /// Transcode: a [`ScaledTensorView`] → another [`ScaledTensor`].
-impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
+impl<'a, F: BlockScaledFormat, A: Allocator + Clone> ScaledTensorView<'a, F, A> {
     /// Materialize this block-scaled view into a dense `Tensor<T>` of the same shape.
-    pub fn cast<T: Clone + CastDType>(&self) -> Result<Tensor<T>, TensorError> {
+    pub fn cast<T: Clone + CastDType>(&self) -> Result<Tensor<T, A>, TensorError> {
         let shape = self.shape();
         let count: usize = shape.iter().product();
         let elements_view = self.elements();
@@ -591,7 +599,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
         let elements = elements_view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
         let scales = scales_view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
 
-        let mut out = Tensor::<T>::zeros(shape)?;
+        let mut out = Tensor::zeros_in(shape, elements_view.allocator().clone())?;
         block_scaled_cast_(
             elements.as_ptr() as *const c_void,
             scales.as_ptr() as *const c_void,
@@ -607,7 +615,7 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
     }
 
     /// Transcode this block-scaled view into a different block-scaled format.
-    pub fn cast_to_scaled<G: BlockScaledFormat>(&self) -> Result<ScaledTensor<G>, TensorError> {
+    pub fn cast_to_scaled<G: BlockScaledFormat>(&self) -> Result<ScaledTensor<G, A>, TensorError> {
         let shape = self.shape();
         let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
         let scales_ndim = blocked_scales_shape_into(shape, G::BLOCK_SIZE, &mut scales_buf)?;
@@ -623,8 +631,8 @@ impl<'a, F: BlockScaledFormat> ScaledTensorView<'a, F> {
             .as_packed_slice()
             .ok_or(TensorError::NonContiguousRows)?;
 
-        let mut elements = Tensor::<G::Element>::zeros(shape)?;
-        let mut block_scales = Tensor::<G::Scale>::zeros(scales_shape)?;
+        let mut elements = Tensor::zeros_in(shape, src_elements_view.allocator().clone())?;
+        let mut block_scales = Tensor::zeros_in(scales_shape, src_elements_view.allocator().clone())?;
         let tensor_scale = block_scaled_cast_(
             src_elements.as_ptr() as *const c_void,
             src_scales.as_ptr() as *const c_void,
@@ -709,7 +717,14 @@ mod tests {
     fn cast_length_mismatch() {
         let src = [f16(0x3C00)];
         let mut dst = [0.0f32; 2];
-        assert!(cast(&src, &mut dst).is_none());
+        assert_eq!(
+            cast(&src, &mut dst),
+            Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: 1,
+                got: 2
+            })
+        );
     }
 
     #[test]
@@ -1062,7 +1077,7 @@ mod tests {
                 },
                 &to_format,
                 count,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }

@@ -12,7 +12,8 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
+use crate::tensor::{check_len, TensorError};
 use crate::types::{u1x8, StorageElement};
 
 #[link(name = "numkong")]
@@ -20,43 +21,43 @@ extern "C" {
     fn nk_hamming_u1_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_jaccard_u1_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_hamming_u8_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_jaccard_u16_best(
         a: *const u16,
         b: *const u16,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_jaccard_u32_best(
         a: *const u32,
         b: *const u32,
-        n: usize,
+        n: nk_size_t,
         result: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 // region: Hamming
@@ -65,20 +66,19 @@ extern "C" {
 ///
 /// Counts differing bits for `u1x8`, or differing bytes for `u8`.
 ///
-/// Range: \[0, n\]. Returns `None` if lengths differ.
+/// Range: \[0, n\]. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
+/// [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `u1x8`, `u8`.
 pub trait Hamming: StorageElement {
     type Output;
-    fn hamming(a: &[Self], b: &[Self]) -> Option<Self::Output>;
+    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
 }
 
 impl Hamming for u1x8 {
     type Output = u32;
-    fn hamming(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0;
         let n_bits = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -87,21 +87,19 @@ impl Hamming for u1x8 {
                 b.as_ptr() as *const u8,
                 n_bits,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Hamming for u8 {
     type Output = u32;
-    fn hamming(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0;
         unsafe {
             nk_hamming_u8_best(
@@ -109,12 +107,12 @@ impl Hamming for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
@@ -126,20 +124,19 @@ impl Hamming for u8 {
 ///
 /// d = 1 − |A ∩ B| / |A ∪ B|
 ///
-/// Range: \[0, 1\]. Returns `None` if lengths differ.
+/// Range: \[0, 1\]. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
+/// [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `u1x8`, `u16`, `u32`.
 pub trait Jaccard: StorageElement {
     type Output;
-    fn jaccard(a: &[Self], b: &[Self]) -> Option<Self::Output>;
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
 }
 
 impl Jaccard for u1x8 {
     type Output = f32;
-    fn jaccard(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         let n_bits = a.len() * Self::dimensions_per_value();
         unsafe {
@@ -148,21 +145,19 @@ impl Jaccard for u1x8 {
                 b.as_ptr() as *const u8,
                 n_bits,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Jaccard for u16 {
     type Output = f32;
-    fn jaccard(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_jaccard_u16_best(
@@ -170,21 +165,19 @@ impl Jaccard for u16 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Jaccard for u32 {
     type Output = f32;
-    fn jaccard(a: &[Self], b: &[Self]) -> Option<Self::Output> {
-        if a.len() != b.len() {
-            return None;
-        }
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_jaccard_u32_best(
@@ -192,12 +185,12 @@ impl Jaccard for u32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 

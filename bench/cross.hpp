@@ -95,7 +95,7 @@ struct host_backend_t {
     char const *synchronize() noexcept {
         nk_status_t const failure = status;
         status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
+        return failure == nk_success_k ? nullptr : nk_status_name(failure);
     }
 
     /** Calls @p launch once per iteration over rotating sets, returning the call count. */

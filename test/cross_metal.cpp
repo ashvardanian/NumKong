@@ -4,8 +4,8 @@
  *  @date September 24, 2026
  *  @brief Batch operation tests - Metal capabilities.
  *
- *  Runs the dots scenarios of `cross.hpp` through a @c metal_backend_t for the Metal baseline and every
- *  Apple GPU family the device runs, against the serial `nk::` references on the host.
+ *  Runs the dots scenarios of `cross.hpp` through a @c metal_backend_t for the Metal baseline and
+ *  every Apple GPU family the device runs, against the serial `nk::` references on the host.
  */
 #include "numkong/metal.h" // `nk_metal_queue_t`
 
@@ -99,7 +99,7 @@ struct metal_backend_t {
         keep(nk_metal_synchronize(&queue));
         nk_status_t const failure = status;
         status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
+        return failure == nk_success_k ? nullptr : nk_status_name(failure);
     }
 
     /** Remembers @p result unless an earlier failure is pending. */
@@ -114,11 +114,17 @@ metal_shared_allocator<value_type_> allocator_of(metal_backend_t const &backend)
     return metal_shared_allocator<value_type_>(backend.queue);
 }
 
-/** The dispatch point @p best_ in the shape of its capability kernels, over the capabilities of GPU 0, where
- *  the backend encodes: callable like them, and convertible to their function pointers. */
+/** The capabilities of the first Metal device, where every backend encodes. */
+inline nk_capability_t metal_capabilities() noexcept {
+    auto const device = nk::device_t::make(nk::device_kind_t::metal_k, 0);
+    return device ? device.value.capabilities_enabled().value : 0;
+}
+
+/** The dispatch point @p best_ in the shape of its capability kernels, over GPU 0's capabilities,
+ *  where the backend encodes: callable like them, and convertible to their function pointers. */
 template <auto best_>
 inline constexpr auto gpu_best =
-    [](auto... arguments) noexcept { return call_best<best_>(nk::metal_capabilities(), arguments...); };
+    [](auto... arguments) noexcept { return call_best<best_>(metal_capabilities(), arguments...); };
 
 } // namespace ashvardanian::numkong::test
 
@@ -127,7 +133,7 @@ using namespace ashvardanian::numkong::test;
 /** Every Metal baseline entry point, on any Apple GPU of family 7 or newer. */
 static void test_cross_metal_baseline(nk_metal_queue_t &queue) {
     metal_backend_t const backend {queue};
-    error_stats_section_t check(nk::metal_capabilities());
+    error_stats_section_t check(metal_capabilities());
     check.section("Cross Metal", nk_cap_metal_k);
     check("dots_packed_i8_metal", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_metal,
           nk_dots_pack_i8_metal, nk_dots_packed_i8_metal);
@@ -263,7 +269,7 @@ static void test_cross_metal_baseline(nk_metal_queue_t &queue) {
 static void test_cross_apple9([[maybe_unused]] nk_metal_queue_t &queue) {
 #if NUMKONG_TARGET_APPLE9
     metal_backend_t const backend {queue};
-    error_stats_section_t check(nk::metal_capabilities());
+    error_stats_section_t check(metal_capabilities());
     check.section("Cross Apple9", nk_cap_apple9_k);
     check("dots_packed_f16_apple9", test_dots_packed<f16_t, metal_backend_t>, backend, nk_dots_pack_size_f16_apple9,
           nk_dots_pack_f16_apple9, nk_dots_packed_f16_apple9);
@@ -356,7 +362,7 @@ static void test_cross_apple9([[maybe_unused]] nk_metal_queue_t &queue) {
 static void test_cross_apple10([[maybe_unused]] nk_metal_queue_t &queue) {
 #if NUMKONG_TARGET_APPLE10
     metal_backend_t const backend {queue};
-    error_stats_section_t check(nk::metal_capabilities());
+    error_stats_section_t check(metal_capabilities());
     check.section("Cross Apple10", nk_cap_apple10_k);
     check("dots_packed_i8_apple10", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_apple10,
           nk_dots_pack_i8_apple10, nk_dots_packed_i8_apple10);
@@ -477,7 +483,7 @@ void test_cross_metal(nk_metal_queue_t &queue) {
 
 /** The dispatching entry points, over the capabilities of the device the backend encodes on. */
 void test_cross_dispatch([[maybe_unused]] nk_metal_queue_t &queue) {
-    error_stats_section_t check(nk::metal_capabilities());
+    error_stats_section_t check(metal_capabilities());
     check.section("Cross Dispatch", nk_cap_metal_k);
 #if NUMKONG_HEADER_ONLY
     check("dots_packed_i8_dispatch", [] {

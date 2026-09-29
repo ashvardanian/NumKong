@@ -52,7 +52,7 @@ python -m pip install .
 Quick runtime check:
 
 ```sh
-python -c "import numkong as nk; print(repr(nk.capabilities_enabled()))"
+python -c "import numkong as nk; print(repr(nk.Device.cpu().capabilities_enabled()))"
 ```
 
 ## Wheel Compatibility and Building from Source
@@ -65,12 +65,12 @@ When building from source, the compiler requirements depend on the platform.
 On macOS x86 only AVX2 is available; on macOS ARM NEON is always present, but SME requires Apple M4+ with Xcode 16+ (AppleClang 16+).
 RISC-V builds require Clang and LLD because GCC lacks `zvfh`, `zvfbfwma`, and `zvbb` support.
 On Windows, MSVC 19.44+ (Visual Studio 2022 17.14+) is recommended for full AVX-512 with FP16/BF16/VNNI.
-Build parallelism is controlled by `NUMKONG_BUILD_JOBS`, which defaults to `min(cpu_count, 4)` and should be lowered in memory-constrained containers.
+Build parallelism is controlled by `CMAKE_BUILD_PARALLEL_LEVEL`, which should be lowered in memory-constrained containers.
 There is no OpenMP dependency.
 Python-side parallelism uses the `threads=` argument on the GIL-free kernels, or `concurrent.futures` around them.
 
 ```sh
-NUMKONG_BUILD_JOBS=2 pip install . --no-build-isolation
+CMAKE_BUILD_PARALLEL_LEVEL=2 pip install . --no-build-isolation
 ```
 
 ## Dot Products
@@ -710,23 +710,28 @@ Rows that see no key come back as zeros.
 
 ## Capabilities, GIL Behavior, and Parallel Partitioning
 
-Capability detection is explicit:
+Capability detection is explicit, and asked of a `Device`:
 
 ```python
 import numpy as np
 import numkong as nk
 
+cpu = nk.Device.cpu() # the same as nk.Device("cpu", 0)
+
 # `enabled` is what dispatch uses: detected on this CPU AND compiled into the wheel.
-print(repr(nk.capabilities_enabled()))
-print(nk.Capability.SKYLAKE in nk.capabilities_enabled()) # will AVX-512 kernels run here?
+print(repr(cpu.capabilities_enabled()))
+print(nk.Capability.SKYLAKE in cpu.capabilities_enabled()) # will AVX-512 kernels run here?
 
 # The two raw axes, when you specifically mean one of them:
-print(repr(nk.capabilities_detected())) # this CPU
-print(repr(nk.capabilities_compiled())) # this build
+print(repr(cpu.capabilities_detected())) # this CPU
+print(repr(cpu.capabilities_compiled())) # this build
 
 # Narrow dispatch to one capability, e.g. to test it: what cannot run here is dropped, and serial always stays.
-nk.capabilities_enable(nk.Capability.HASWELL)
-nk.capabilities_enable(nk.capabilities_detected() & nk.capabilities_compiled()) # and back to everything
+cpu.capabilities_enable(nk.Capability.HASWELL)
+cpu.capabilities_enable(cpu.capabilities_detected() & cpu.capabilities_compiled()) # and back to everything
+
+# Prepare another thread that runs kernels, like AMX tiles on x86, as `capabilities_enable` does for its own.
+cpu.configure_thread(cpu.capabilities_enabled())
 
 # Or narrow a single call, leaving the default of every other call alone.
 a = np.random.randn(1536).astype(np.float32)
@@ -734,6 +739,7 @@ print(nk.dot(a, a, capabilities=nk.Capability.SERIAL)) # the reference kernel
 ```
 
 Every function that runs kernels takes the mask as `capabilities=` and a GPU stream as `stream=`, an integer pointer left `None` on the CPU.
+That mask keeps only this CPU's capabilities, as GPU tensors dispatch with their own device's, see [GPU Tensors through DLPack](#gpu-tensors-through-dlpack).
 Packed operands, like `PackedMatrix`, remember the mask that packed them and are read with it, since each capability lays its packs out differently.
 The mask model is the one in [Dispatch Points & Capability Masks](../README.md#dispatch-points--capability-masks).
 
@@ -778,6 +784,35 @@ with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
 
 OpenMP and other native schedulers still matter in lower layers.
 For Python, the intended user-facing story is external partitioning around the GIL-free kernels you actually use.
+
+## GPU Tensors through DLPack
+
+Builds configured with `-C cmake.define.NUMKONG_BUILD_CUDA=ON` or `-C cmake.define.NUMKONG_BUILD_ROCM=ON` also carry the CUDA or ROCm kernels.
+`nk.Device.count("cuda")` counts the devices this process sees, zero without the runtime or its kernels, and `nk.Device("cuda", 0)` names one, raising `ValueError` past the last.
+Its `capabilities_detected()`, `capabilities_compiled()` and `capabilities_enabled()` answer as they do for the CPU, while `capabilities_enable` and `configure_thread` are CPU only.
+`nk.from_dlpack` imports a CUDA or ROCm tensor without a copy and records its device as `tensor.device`.
+Only `dots_pack` and the dots, angulars and euclideans `_packed` and `_symmetric` functions run on it, with `tensor.device.capabilities_enabled()`.
+Element access, NumPy conversion, `cdist`, `maxsim` and every other CPU kernel raise `BufferError` rather than read device memory.
+NumKong allocates no device memory, so every GPU call writes into an `out=` Tensor on the same device, and mixing devices raises `ValueError`.
+A GPU call queues one launch on `stream=`, an integer handle defaulting to 0, the legacy stream, and returns before it finishes, as PyTorch does.
+Metal tensors are host-readable and keep running on the CPU kernels.
+
+```python
+import torch
+import numkong as nk
+
+left = torch.randn(4096, 768, device="cuda", dtype=torch.bfloat16)
+right = torch.randn(8192, 768, device="cuda", dtype=torch.bfloat16)
+capabilities = nk.from_dlpack(right).device.capabilities_enabled()
+packed_storage = torch.empty(nk.PackedMatrix.pack_size(8192, 768, "bf16", capabilities=capabilities),
+                             device="cuda", dtype=torch.uint8)
+result = torch.empty(4096, 8192, device="cuda", dtype=torch.float32)
+
+stream = torch.cuda.current_stream().cuda_stream
+packed = nk.dots_pack(nk.from_dlpack(right), out=nk.from_dlpack(packed_storage), stream=stream)
+nk.dots_packed(nk.from_dlpack(left), packed, out=nk.from_dlpack(result), stream=stream)
+torch.cuda.current_stream().synchronize()
+```
 
 ## Addressing External Memory
 

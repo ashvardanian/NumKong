@@ -23,7 +23,7 @@
  *  @code{.cpp}
  *  template <typename in_type_, typename result_type_ = typename in_type_::dot_result_t>
  *  status_t dot(in_type_ const *, in_type_ const *, std::size_t, result_type_ *,
- *               nk_capability_t = cpu_capabilities(), void * = nullptr);
+ *               nk_capability_t = default_capabilities(), void * = nullptr);
  *  @endcode
  *
  *  The concept layer takes any contiguous run satisfying @c vector_of, or a matrix satisfying

@@ -103,11 +103,11 @@ NUMKONG_API nk_status_t nk_cpu_configure_thread(nk_capability_t capabilities) {
     return nk_cpu_configure_thread_(capabilities);
 }
 
-NUMKONG_API nk_size_t nk_name_capabilities(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
-    return nk_name_capabilities_(capabilities, buffer, capacity);
+NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *buffer, nk_size_t capacity) {
+    return nk_capabilities_name_(capabilities, buffer, capacity);
 }
 
-NUMKONG_API char const *nk_status_to_string(nk_status_t status) { return nk_status_to_string_(status); }
+NUMKONG_API char const *nk_status_name(nk_status_t status) { return nk_status_name_(status); }
 
 /*  With CUDA kernels in the library, `c/nvidia/cuda.cu` counts and probes the devices instead. */
 #if !NUMKONG_ARCH_CUDA_

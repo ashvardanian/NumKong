@@ -4,8 +4,8 @@
  *  @date March 5, 2026
  *  @brief Batch operation tests - WASM ISA family.
  *
- *  The strict capability carries the bf16, i8, u8 and u1 GEMMs and the packing routines every module
- *  shares; the relaxed capability carries every other dtype and its own bf16, i8 and u8 twins.
+ *  The strict capability carries the bf16, i8, u8 and u1 GEMMs and the packing routines shared by
+ *  every module; the relaxed one carries every other dtype and its own bf16, i8 and u8 twins.
  */
 #include "harness.hpp"
 #include "cross.hpp"

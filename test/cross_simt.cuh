@@ -119,7 +119,7 @@ struct cuda_backend_t {
         keep(cudaStreamSynchronize((cudaStream_t)stream));
         nk_status_t const failure = status;
         status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_to_string(failure);
+        return failure == nk_success_k ? nullptr : nk_status_name(failure);
     }
 
     /** Remembers @p result unless an earlier failure is pending. */
@@ -134,14 +134,15 @@ struct cuda_backend_t {
 /** The capabilities of this build's vendor's first device, where every backend launches. */
 inline nk_capability_t simt_capabilities() noexcept {
 #if NUMKONG_ARCH_ROCM_
-    return nk::rocm_capabilities();
+    auto const device = nk::device_t::make(nk::device_kind_t::rocm_k, 0);
 #else
-    return nk::cuda_capabilities();
+    auto const device = nk::device_t::make(nk::device_kind_t::cuda_k, 0);
 #endif
+    return device ? device.value.capabilities_enabled().value : 0;
 }
 
-/** The dispatch point @p best_ in the shape of its capability kernels, over the capabilities of GPU 0, where
- *  the backend launches: callable like them, and convertible to their function pointers. */
+/** The dispatch point @p best_ in the shape of its capability kernels, over GPU 0's capabilities,
+ *  where the backend launches: callable like them, and convertible to their function pointers. */
 template <auto best_>
 inline constexpr auto gpu_best =
     [](auto... arguments) noexcept { return call_best<best_>(simt_capabilities(), arguments...); };

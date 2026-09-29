@@ -50,7 +50,8 @@
 use core::ffi::c_void;
 use core::ptr::null_mut;
 
-use crate::capabilities::{cpu_capabilities, Status};
+use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
+use crate::tensor::{check_len, TensorError};
 use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement};
 
 #[link(name = "numkong")]
@@ -60,175 +61,175 @@ extern "C" {
     fn nk_dot_i8_best(
         a: *const i8,
         b: *const i8,
-        c: usize,
+        c: nk_size_t,
         d: *mut i32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_u8_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_f16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_bf16_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_e4m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_e5m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_e2m3_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_e3m2_best(
         a: *const u8,
         b: *const u8,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_f32_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_f64_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_dot_f16c_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_bf16c_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_f32c_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_f64c_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     fn nk_vdot_f16c_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_vdot_bf16c_best(
         a: *const u16,
         b: *const u16,
-        c: usize,
+        c: nk_size_t,
         d: *mut f32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_vdot_f32c_best(
         a: *const f32,
         b: *const f32,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_vdot_f64c_best(
         a: *const f64,
         b: *const f64,
-        c: usize,
+        c: nk_size_t,
         d: *mut f64,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 
     // Sub-byte integer kernels
     fn nk_dot_i4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut i32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_u4_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
     fn nk_dot_u1_best(
         a: *const u8,
         b: *const u8,
-        n: usize,
+        n: nk_size_t,
         result: *mut u32,
-        capabilities: u64,
+        capabilities: nk_capability_t,
         stream: *mut c_void,
-    ) -> Status;
+    ) -> nk_status_t;
 }
 
 // region: Dot
@@ -237,7 +238,8 @@ extern "C" {
 ///
 /// d = ∑ᵢ aᵢ × bᵢ
 ///
-/// Range: unbounded. Returns `None` if lengths differ.
+/// Range: unbounded. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
+/// [`TensorError::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, `u4x2`, `u1x8`.
@@ -256,18 +258,16 @@ extern "C" {
 /// ```
 pub trait Dot: StorageElement {
     type Output;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output>;
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError>;
 
     /// Alias for `dot`.
-    fn inner(first: &[Self], second: &[Self]) -> Option<Self::Output> { Self::dot(first, second) }
+    fn inner(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> { Self::dot(first, second) }
 }
 
 impl Dot for f64 {
     type Output = f64;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_f64_best(
@@ -275,21 +275,19 @@ impl Dot for f64 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for f32 {
     type Output = f64;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_f32_best(
@@ -297,21 +295,19 @@ impl Dot for f32 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for f16 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_f16_best(
@@ -319,21 +315,19 @@ impl Dot for f16 {
                 second.as_ptr() as *const u16,
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for bf16 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_bf16_best(
@@ -341,21 +335,19 @@ impl Dot for bf16 {
                 second.as_ptr() as *const u16,
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for i8 {
     type Output = i32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         unsafe {
             nk_dot_i8_best(
@@ -363,21 +355,19 @@ impl Dot for i8 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for u8 {
     type Output = u32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         unsafe {
             nk_dot_u8_best(
@@ -385,21 +375,19 @@ impl Dot for u8 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for e4m3 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_e4m3_best(
@@ -407,21 +395,19 @@ impl Dot for e4m3 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for e5m2 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_e5m2_best(
@@ -429,21 +415,19 @@ impl Dot for e5m2 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for e2m3 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_e2m3_best(
@@ -451,21 +435,19 @@ impl Dot for e2m3 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for e3m2 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
             nk_dot_e3m2_best(
@@ -473,21 +455,19 @@ impl Dot for e3m2 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for i4x2 {
     type Output = i32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         let element_count = first.len() * Self::dimensions_per_value();
         unsafe {
@@ -496,21 +476,19 @@ impl Dot for i4x2 {
                 second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for u4x2 {
     type Output = u32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         let element_count = first.len() * Self::dimensions_per_value();
         unsafe {
@@ -519,21 +497,19 @@ impl Dot for u4x2 {
                 second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for u1x8 {
     type Output = u32;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         let n = first.len() * Self::dimensions_per_value();
         unsafe {
@@ -542,21 +518,19 @@ impl Dot for u1x8 {
                 second.as_ptr() as *const u8,
                 n,
                 &mut result,
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(result)
+        .check()?;
+        Ok(result)
     }
 }
 
 impl Dot for f16c {
     type Output = f32c;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
             nk_dot_f16c_best(
@@ -564,12 +538,12 @@ impl Dot for f16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f32c {
+        .check()?;
+        Ok(f32c {
             re: result[0],
             im: result[1],
         })
@@ -578,10 +552,8 @@ impl Dot for f16c {
 
 impl Dot for bf16c {
     type Output = f32c;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
             nk_dot_bf16c_best(
@@ -589,12 +561,12 @@ impl Dot for bf16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f32c {
+        .check()?;
+        Ok(f32c {
             re: result[0],
             im: result[1],
         })
@@ -603,10 +575,8 @@ impl Dot for bf16c {
 
 impl Dot for f32c {
     type Output = f64c;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
             nk_dot_f32c_best(
@@ -614,12 +584,12 @@ impl Dot for f32c {
                 second.as_ptr() as *const f32,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f64c {
+        .check()?;
+        Ok(f64c {
             re: result[0],
             im: result[1],
         })
@@ -628,10 +598,8 @@ impl Dot for f32c {
 
 impl Dot for f64c {
     type Output = f64c;
-    fn dot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
             nk_dot_f64c_best(
@@ -639,12 +607,12 @@ impl Dot for f64c {
                 second.as_ptr() as *const f64,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f64c {
+        .check()?;
+        Ok(f64c {
             re: result[0],
             im: result[1],
         })
@@ -669,7 +637,7 @@ pub trait VDot: Dot {
     /// Hermitian inner product. On real-valued types this falls back to `Dot::dot`; on complex
     /// types it returns ∑ᵢ conj(aᵢ) × bᵢ computed in the widened accumulator described by
     /// `Dot::Output`.
-    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> { Self::dot(first, second) }
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> { Self::dot(first, second) }
 }
 
 impl VDot for f64 {}
@@ -687,10 +655,8 @@ impl VDot for u4x2 {}
 impl VDot for u1x8 {}
 
 impl VDot for f16c {
-    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
             nk_vdot_f16c_best(
@@ -698,12 +664,12 @@ impl VDot for f16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f32c {
+        .check()?;
+        Ok(f32c {
             re: result[0],
             im: result[1],
         })
@@ -711,10 +677,8 @@ impl VDot for f16c {
 }
 
 impl VDot for bf16c {
-    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
             nk_vdot_bf16c_best(
@@ -722,12 +686,12 @@ impl VDot for bf16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f32c {
+        .check()?;
+        Ok(f32c {
             re: result[0],
             im: result[1],
         })
@@ -735,10 +699,8 @@ impl VDot for bf16c {
 }
 
 impl VDot for f32c {
-    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
             nk_vdot_f32c_best(
@@ -746,12 +708,12 @@ impl VDot for f32c {
                 second.as_ptr() as *const f32,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f64c {
+        .check()?;
+        Ok(f64c {
             re: result[0],
             im: result[1],
         })
@@ -759,10 +721,8 @@ impl VDot for f32c {
 }
 
 impl VDot for f64c {
-    fn vdot(first: &[Self], second: &[Self]) -> Option<Self::Output> {
-        if first.len() != second.len() {
-            return None;
-        }
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+        check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
             nk_vdot_f64c_best(
@@ -770,12 +730,12 @@ impl VDot for f64c {
                 second.as_ptr() as *const f64,
                 first.len(),
                 result.as_mut_ptr(),
-                cpu_capabilities(),
+                enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
         }
-        .ok()?;
-        Some(f64c {
+        .check()?;
+        Ok(f64c {
             re: result[0],
             im: result[1],
         })
@@ -798,7 +758,7 @@ mod tests {
     where
         Scalar: FloatLike + TestableType,
         R: FloatLike,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Option<R>,
+        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, TensorError>,
     {
         let first: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
         let second: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
@@ -850,7 +810,14 @@ mod tests {
 
         // Self-overlap equals the population count, and length mismatch is rejected.
         assert_eq!(u1x8::dot(&left, &left).unwrap(), 8);
-        assert!(u1x8::dot(&left, &right[..1]).is_none());
+        assert_eq!(
+            u1x8::dot(&left, &right[..1]),
+            Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: 2,
+                got: 1
+            })
+        );
     }
 
     // endregion
@@ -926,7 +893,7 @@ mod tests {
     ) where
         Scalar: ComplexSample,
         R: ComplexValue,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Option<R>,
+        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, TensorError>,
     {
         let a_t: Vec<Scalar> = first.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
         let b_t: Vec<Scalar> = second.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();

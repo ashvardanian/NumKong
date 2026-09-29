@@ -36,7 +36,7 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
           numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t>
 status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t stride_bytes, sum_type_ *sum,
-                        sumsq_type_ *sumsq, nk_capability_t capabilities = cpu_capabilities(),
+                        sumsq_type_ *sumsq, nk_capability_t capabilities = default_capabilities(),
                         void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<sum_type_, typename in_type_::reduce_moments_sum_t> &&
                               std::is_same_v<sumsq_type_, typename in_type_::reduce_moments_sumsq_t>;
@@ -152,7 +152,7 @@ status_t reduce_moments(in_type_ const *data, std::size_t count, std::size_t str
 template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t>
 status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stride_bytes, minmax_type_ *min_value,
                        std::size_t *min_index, minmax_type_ *max_value, std::size_t *max_index,
-                       nk_capability_t capabilities = cpu_capabilities(), void *stream = nullptr) noexcept {
+                       nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     constexpr bool dispatch = std::is_same_v<minmax_type_, typename in_type_::reduce_minmax_value_t>;
     static_assert(sizeof(std::size_t) == sizeof(nk_size_t), "std::size_t and nk_size_t must have the same width");
     nk_size_t min_offset = NUMKONG_SIZE_MAX, max_offset = NUMKONG_SIZE_MAX;
@@ -263,7 +263,7 @@ status_t reduce_minmax(in_type_ const *data, std::size_t count, std::size_t stri
 template <numeric_dtype in_type_>
 status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
                  std::size_t cols, std::size_t x_row_stride, std::size_t y_row_stride, f32_t eps,
-                 f32_t input_scale = 1.0f, nk_capability_t capabilities = cpu_capabilities(),
+                 f32_t input_scale = 1.0f, nk_capability_t capabilities = default_capabilities(),
                  void *stream = nullptr) noexcept {
     nk_f32_t const *gamma_raw = gamma ? &gamma->raw_ : nullptr;
     if (capabilities) {
@@ -747,7 +747,7 @@ std::size_t argmax(tensor_view<value_type_, max_rank_> input) noexcept {
 template <numeric_dtype in_type_, numeric_dtype sum_type_ = typename in_type_::reduce_moments_sum_t,
           numeric_dtype sumsq_type_ = typename in_type_::reduce_moments_sumsq_t, vector_of<in_type_> input_type_>
 expected<moments_result<sum_type_, sumsq_type_>> reduce_moments(input_type_ const &input,
-                                                                nk_capability_t capabilities = cpu_capabilities(),
+                                                                nk_capability_t capabilities = default_capabilities(),
                                                                 void *stream = nullptr) noexcept {
     auto values = contiguous_values_<in_type_ const>(input);
     std::size_t const dimensions = values.value.size() * dimensions_per_value<in_type_>();
@@ -764,7 +764,7 @@ expected<moments_result<sum_type_, sumsq_type_>> reduce_moments(input_type_ cons
 template <numeric_dtype in_type_, numeric_dtype minmax_type_ = typename in_type_::reduce_minmax_value_t,
           vector_of<in_type_> input_type_>
 expected<minmax_result<minmax_type_>> reduce_minmax(input_type_ const &input,
-                                                    nk_capability_t capabilities = cpu_capabilities(),
+                                                    nk_capability_t capabilities = default_capabilities(),
                                                     void *stream = nullptr) noexcept {
     auto values = contiguous_values_<in_type_ const>(input);
     std::size_t const dimensions = values.value.size() * dimensions_per_value<in_type_>();

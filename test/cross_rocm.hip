@@ -11,7 +11,7 @@
 using namespace ashvardanian::numkong::test;
 
 void test_cross_rocm() {
-    error_stats_section_t check(nk::rocm_capabilities());
+    error_stats_section_t check(simt_capabilities());
     check.section("Cross ROCm", nk_cap_rocm_k);
     check("dots_packed_f64_rocm", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_rocm,
           nk_dots_pack_f64_rocm, nk_dots_packed_f64_rocm);

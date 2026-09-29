@@ -1282,8 +1282,8 @@ typedef enum {
     nk_missing_library_k = -22,
 } nk_status_t;
 
-/** Static English description of @p status, behind @c nk_status_to_string. */
-NUMKONG_CONSTEXPR char const *nk_status_to_string_(nk_status_t status) {
+/** Static English description of @p status, behind @c nk_status_name. */
+NUMKONG_CONSTEXPR char const *nk_status_name_(nk_status_t status) {
     switch (status) {
     case nk_success_k: return "success";
     case nk_bad_alloc_k: return "out of memory";
@@ -1300,10 +1300,10 @@ NUMKONG_CONSTEXPR char const *nk_status_to_string_(nk_status_t status) {
 }
 
 /** Static English description of @p status, never null. */
-NUMKONG_API char const *nk_status_to_string(nk_status_t status);
+NUMKONG_API char const *nk_status_name(nk_status_t status);
 
 #if NUMKONG_HEADER_ONLY
-NUMKONG_API char const *nk_status_to_string(nk_status_t status) { return nk_status_to_string_(status); }
+NUMKONG_API char const *nk_status_name(nk_status_t status) { return nk_status_name_(status); }
 #endif
 
 /**
