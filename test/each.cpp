@@ -6,6 +6,7 @@
  */
 
 #include "harness.hpp"
+#include "each.hpp"                 // `test_rmsnorm`
 #include "numkong/each.hpp"         // `nk::add`, `nk::scale`, `nk::blend`, `nk::fma`
 #include "numkong/trigonometry.hpp" // `nk::sin`, `nk::cos`, `nk::atan` wrappers
 
@@ -178,6 +179,9 @@ void test_each() {
     check("each_fma_bf16_serial", test_fma<bf16_t>, nk_each_fma_bf16_serial);
     check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
     check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
+    check("each_rmsnorm_f32_serial", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_serial);
+    check("each_rmsnorm_bf16_serial", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_serial);
+    check("each_rmsnorm_e4m3_serial", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_serial);
 
 #if !NUMKONG_HEADER_ONLY
     check.section("Elementwise Operations Runtime Dispatch", nk_cap_serial_k);
@@ -319,6 +323,9 @@ void test_each() {
     check("each_scale_i8_haswell", test_scale<i8_t>, nk_each_scale_i8_haswell);
     check("each_scale_u16_haswell", test_scale<u16_t>, nk_each_scale_u16_haswell);
     check("each_scale_u8_haswell", test_scale<u8_t>, nk_each_scale_u8_haswell);
+    check("each_rmsnorm_f32_haswell", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_haswell);
+    check("each_rmsnorm_bf16_haswell", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_haswell);
+    check("each_rmsnorm_e4m3_haswell", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_haswell);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -354,6 +361,9 @@ void test_each() {
     check("each_scale_u8_skylake", test_scale<u8_t>, nk_each_scale_u8_skylake);
     check("each_blend_u8_skylake", test_blend<u8_t>, nk_each_blend_u8_skylake);
     check("each_fma_u8_skylake", test_fma<u8_t>, nk_each_fma_u8_skylake);
+    check("each_rmsnorm_f32_skylake", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_skylake);
+    check("each_rmsnorm_bf16_skylake", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_skylake);
+    check("each_rmsnorm_e4m3_skylake", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_skylake);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
@@ -367,6 +377,12 @@ void test_each() {
     check("each_sum_i64_icelake", test_sum<i64_t>, nk_each_sum_i64_icelake);
     check("each_sum_u64_icelake", test_sum<u64_t>, nk_each_sum_u64_icelake);
 #endif // NUMKONG_TARGET_ICELAKE
+
+#if NUMKONG_TARGET_GENOA
+    check.section("Elementwise Operations Genoa", nk_cap_genoa_k);
+    check("each_rmsnorm_bf16_genoa", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_genoa);
+    check("each_rmsnorm_e4m3_genoa", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_genoa);
+#endif // NUMKONG_TARGET_GENOA
 
 #if NUMKONG_TARGET_SAPPHIRE
     check.section("Elementwise Operations Sapphire", nk_cap_sapphire_k);

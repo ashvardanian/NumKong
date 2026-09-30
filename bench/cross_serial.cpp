@@ -176,4 +176,7 @@ void bench_cross_serial() {
                                       nk_attention_pack_i8_serial, nk_attention_bidirectional_packed_i8_serial);
     run_attention_causal<i8_k>("attention_causal_packed_i8_serial", nk_attention_pack_size_i8_serial,
                                nk_attention_pack_i8_serial, nk_attention_causal_packed_i8_serial);
+    run_attention_rope<f32_k>("attention_rope_f32_serial", nk_attention_rope_f32_serial);
+    run_attention_rope<bf16_k>("attention_rope_bf16_serial", nk_attention_rope_bf16_serial);
+    run_attention_rope<e4m3_k>("attention_rope_e4m3_serial", nk_attention_rope_e4m3_serial);
 }

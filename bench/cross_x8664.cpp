@@ -164,6 +164,9 @@ void bench_cross_x8664() {
                                       nk_attention_pack_i8_haswell, nk_attention_bidirectional_packed_i8_haswell);
     run_attention_causal<i8_k>("attention_causal_packed_i8_haswell", nk_attention_pack_size_i8_haswell,
                                nk_attention_pack_i8_haswell, nk_attention_causal_packed_i8_haswell);
+    run_attention_rope<f32_k>("attention_rope_f32_haswell", nk_attention_rope_f32_haswell);
+    run_attention_rope<bf16_k>("attention_rope_bf16_haswell", nk_attention_rope_bf16_haswell);
+    run_attention_rope<e4m3_k>("attention_rope_e4m3_haswell", nk_attention_rope_e4m3_haswell);
 
 #endif
 
@@ -266,6 +269,9 @@ void bench_cross_x8664() {
                                         nk_attention_bidirectional_packed_e4m3_skylake);
     run_attention_causal<e4m3_k>("attention_causal_packed_e4m3_skylake", nk_attention_pack_size_e4m3_skylake,
                                  nk_attention_pack_e4m3_skylake, nk_attention_causal_packed_e4m3_skylake);
+    run_attention_rope<f32_k>("attention_rope_f32_skylake", nk_attention_rope_f32_skylake);
+    run_attention_rope<bf16_k>("attention_rope_bf16_skylake", nk_attention_rope_bf16_skylake);
+    run_attention_rope<e4m3_k>("attention_rope_e4m3_skylake", nk_attention_rope_e4m3_skylake);
 
 #endif
 

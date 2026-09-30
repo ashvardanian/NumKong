@@ -20,6 +20,7 @@
 
 #include <cstddef>
 #include <limits>
+#include <type_traits>
 
 #include "numkong/attention.h"
 #include "numkong/types.hpp"
@@ -144,6 +145,68 @@ status_t attention_causal_packed(in_type_ const *queries, void const *key_value_
     else return status_t::missing_kernel_k;
 }
 
+/**
+ *  @brief NeoX split-half RoPE: rotates channel pairs of every head by per-token angles.
+ *
+ *  Rotates each pair `(i, i + @p depth / 2)` of every head by the `[rows, @p depth / 2]` grids.
+ *
+ *  @param[in] x Row-major matrix of shape @b [rows,channels]; channels = @p head_count · @p depth
+ *  @param[in] cos,sin `[rows, @p depth / 2]` per-token angle grids, shared across heads
+ *  @param[out] y Output, same shape and dtype as x; may alias x for in-place rotation
+ *  @param[in] rows Token count
+ *  @param[in] head_count Heads per token
+ *  @param[in] depth Even channel count per head; channel @c i pairs with `i + depth / 2`
+ *  @param[in] x_stride_bytes Row (token) stride of x in bytes
+ *  @param[in] y_stride_bytes Row (token) stride of y in bytes
+ *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
+ *
+ *  @tparam in_type_ Element type
+ */
+template <numeric_dtype in_type_>
+status_t attention_rope(in_type_ const *x, f32_t const *cos, f32_t const *sin, in_type_ *y, std::size_t rows,
+                        std::size_t head_count, std::size_t depth, std::size_t x_stride_bytes,
+                        std::size_t y_stride_bytes, f32_t input_scale = 1.0f,
+                        nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
+    if (depth % 2) return status_t::unexpected_dimensions_k;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t>)
+            return static_cast<status_t>(nk_attention_rope_f32_best(&x->raw_, &cos->raw_, &sin->raw_, &y->raw_, rows,
+                                                                    head_count, depth, x_stride_bytes, y_stride_bytes,
+                                                                    input_scale.raw_, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return static_cast<status_t>(nk_attention_rope_bf16_best(&x->raw_, &cos->raw_, &sin->raw_, &y->raw_, rows,
+                                                                     head_count, depth, x_stride_bytes, y_stride_bytes,
+                                                                     input_scale.raw_, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return static_cast<status_t>(nk_attention_rope_e4m3_best(&x->raw_, &cos->raw_, &sin->raw_, &y->raw_, rows,
+                                                                     head_count, depth, x_stride_bytes, y_stride_bytes,
+                                                                     input_scale.raw_, capabilities, stream));
+    }
+    // Scalar fallback for other numeric dtypes or a mask of no capability.
+    std::size_t const half_depth = depth / 2;
+    for (std::size_t row = 0; row < rows; ++row) {
+        f32_t const *cos_row = cos + row * half_depth;
+        f32_t const *sin_row = sin + row * half_depth;
+        in_type_ const *x_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
+                                                                   row * x_stride_bytes);
+        in_type_ *y_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_stride_bytes);
+        for (std::size_t head = 0; head < head_count; ++head) {
+            in_type_ const *x_base = x_row + head * depth;
+            in_type_ *y_base = y_row + head * depth;
+            for (std::size_t i = 0; i < half_depth; ++i) {
+                float low = static_cast<float>(x_base[i]) * input_scale.raw_;
+                float high = static_cast<float>(x_base[i + half_depth]) * input_scale.raw_;
+                float cosine = static_cast<float>(cos_row[i]), sine = static_cast<float>(sin_row[i]);
+                y_base[i] = f32_t(low * cosine - high * sine).template to<in_type_>();
+                y_base[i + half_depth] = f32_t(low * sine + high * cosine).template to<in_type_>();
+            }
+        }
+    }
+    return status_t::success_k;
+}
+
 } // namespace ashvardanian::numkong
 
 #include "numkong/matrix.hpp"
@@ -255,6 +318,22 @@ expected<tensor<typename value_type_::attention_result_t, allocator_type_, max_r
         failed(status))
         return {out_tensor_t(alloc), status};
     return result;
+}
+
+/** NeoX split-half RoPE of a @b [rows,channels] matrix into a matching span, which may alias it,
+ *  channels being @p head_count times an even @p depth; @c unexpected_dimensions_k when the shapes
+ *  or the tables are too small. */
+template <numeric_dtype value_type_>
+status_t attention_rope(matrix_view<value_type_> x, vector_view<f32_t> cos, vector_view<f32_t> sin,
+                        matrix_span<value_type_> y, std::size_t head_count, std::size_t depth,
+                        f32_t input_scale = 1.0f) noexcept {
+    if (x.extent(0) != y.extent(0) || x.extent(1) != y.extent(1)) return status_t::unexpected_dimensions_k;
+    if (x.extent(1) < head_count * depth) return status_t::unexpected_dimensions_k;
+    if (cos.size() < x.extent(0) * depth / 2 || sin.size() < x.extent(0) * depth / 2)
+        return status_t::unexpected_dimensions_k;
+    return numkong::attention_rope<value_type_>(x.data(), cos.data(), sin.data(), y.data(), x.extent(0), head_count,
+                                                depth, static_cast<std::size_t>(x.stride_bytes(0)),
+                                                static_cast<std::size_t>(y.stride_bytes(0)), input_scale);
 }
 
 #pragma endregion Attention Views

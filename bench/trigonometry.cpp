@@ -77,47 +77,10 @@ void run_trigonometry(std::string name, kernel_type_ *kernel) {
                           bench_config.dense_dimensions);
 }
 
-template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_rope(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
-    using input_t = typename nk::type_for<input_dtype_>::type;
-    std::size_t const half_dim = dimensions / 2;
-    std::size_t const vectors_count = bench_input_count(bench_dtype_bytes(input_dtype_, dimensions));
-    std::vector<nk::vector<input_t>> tokens(vectors_count);
-    auto generator = make_random_engine();
-    for (std::size_t i = 0; i < vectors_count; ++i) {
-        tokens[i] = make_vector<input_t>(dimensions);
-        nk::fill_uniform(generator, tokens[i].values_data(), tokens[i].size_values());
-    }
-    std::vector<nk_f32_t> cos_grid(half_dim, 0.5f), sin_grid(half_dim, 0.5f); // [rows=1, half_dim]
-    std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
-
-    std::size_t iterations = 0;
-    for (auto _ : state) {
-        std::size_t const index = iterations & (vectors_count - 1);
-        auto *ptr = tokens[index].raw_values_data();
-        if (!succeeded(state, kernel(ptr, ptr, cos_grid.data(), sin_grid.data(), 1, 1, half_dim, stride, stride, 1.0f,
-                                     nullptr)))
-            break;
-        bm::ClobberMemory();
-        ++iterations;
-    }
-    state.counters["bytes"] = bm::Counter(1.0 * iterations * tokens[0].size_bytes(), bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
-}
-
-template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_rope(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_rope<input_dtype_, kernel_type_ *>, kernel,
-                          bench_config.dense_dimensions);
-}
-
 void bench_trigonometry() {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;
-    constexpr nk_dtype_t bf16_k = nk_bf16_k;
-    constexpr nk_dtype_t e4m3_k = nk_e4m3_k;
 
 #if NUMKONG_TARGET_NEON
     run_trigonometry<f32_k>("trig_sin_f32_neon", nk_trig_sin_f32_neon);
@@ -147,9 +110,6 @@ void bench_trigonometry() {
     run_trigonometry<f64_k>("trig_sin_f64_haswell", nk_trig_sin_f64_haswell);
     run_trigonometry<f64_k>("trig_cos_f64_haswell", nk_trig_cos_f64_haswell);
     run_trigonometry<f64_k>("trig_atan_f64_haswell", nk_trig_atan_f64_haswell);
-    run_rope<f32_k>("trig_rope_f32_haswell", nk_trig_rope_f32_haswell);
-    run_rope<bf16_k>("trig_rope_bf16_haswell", nk_trig_rope_bf16_haswell);
-    run_rope<e4m3_k>("trig_rope_e4m3_haswell", nk_trig_rope_e4m3_haswell);
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -162,9 +122,6 @@ void bench_trigonometry() {
     run_trigonometry<f16_k>("trig_sin_f16_skylake", nk_trig_sin_f16_skylake);
     run_trigonometry<f16_k>("trig_cos_f16_skylake", nk_trig_cos_f16_skylake);
     run_trigonometry<f16_k>("trig_atan_f16_skylake", nk_trig_atan_f16_skylake);
-    run_rope<f32_k>("trig_rope_f32_skylake", nk_trig_rope_f32_skylake);
-    run_rope<bf16_k>("trig_rope_bf16_skylake", nk_trig_rope_bf16_skylake);
-    run_rope<e4m3_k>("trig_rope_e4m3_skylake", nk_trig_rope_e4m3_skylake);
 #endif
 
 #if NUMKONG_TARGET_SAPPHIRE
@@ -200,7 +157,4 @@ void bench_trigonometry() {
     run_trigonometry<f16_k>("trig_sin_f16_serial", nk_trig_sin_f16_serial);
     run_trigonometry<f16_k>("trig_cos_f16_serial", nk_trig_cos_f16_serial);
     run_trigonometry<f16_k>("trig_atan_f16_serial", nk_trig_atan_f16_serial);
-    run_rope<f32_k>("trig_rope_f32_serial", nk_trig_rope_f32_serial);
-    run_rope<bf16_k>("trig_rope_bf16_serial", nk_trig_rope_bf16_serial);
-    run_rope<e4m3_k>("trig_rope_e4m3_serial", nk_trig_rope_e4m3_serial);
 }

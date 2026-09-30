@@ -403,6 +403,9 @@ typedef enum {
     /** Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU). */
     nk_kernel_each_swiglu_k = 'W',
 
+    /** Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ. */
+    nk_kernel_each_rmsnorm_k = 'H',
+
     /** Element-wise sine. */
     nk_kernel_trig_sin_k = 'S',
 
@@ -412,17 +415,11 @@ typedef enum {
     /** Element-wise arctangent. */
     nk_kernel_trig_atan_k = 'A',
 
-    /** NeoX split-half rotary position embedding (in place). */
-    nk_kernel_trig_rope_k = 'I',
-
     /** Horizontal moments reduction (sum + sum-of-squares). */
     nk_kernel_reduce_moments_k = 'R',
 
     /** Horizontal minmax reduction (min + argmin + max + argmax). */
     nk_kernel_reduce_minmax_k = 'X',
-
-    /** Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ. */
-    nk_kernel_reduce_rmsnorm_k = 'H',
 
     /** GEMM packed buffer size. */
     nk_kernel_dots_pack_size_k = 'P',
@@ -490,6 +487,9 @@ typedef enum {
     /** Attention packed shape read (heads, depth, segments). */
     nk_kernel_attention_packed_shape_k = 'z',
 
+    /** NeoX split-half rotary position embedding (in place). */
+    nk_kernel_attention_rope_k = 'I',
+
     /** Type casting from one type to another. */
     nk_kernel_cast_k = '-',
 
@@ -525,13 +525,12 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_each_blend_k: return "each_blend";
     case nk_kernel_each_fma_k: return "each_fma";
     case nk_kernel_each_swiglu_k: return "each_swiglu";
+    case nk_kernel_each_rmsnorm_k: return "each_rmsnorm";
     case nk_kernel_trig_sin_k: return "trig_sin";
     case nk_kernel_trig_cos_k: return "trig_cos";
     case nk_kernel_trig_atan_k: return "trig_atan";
-    case nk_kernel_trig_rope_k: return "trig_rope";
     case nk_kernel_reduce_moments_k: return "reduce_moments";
     case nk_kernel_reduce_minmax_k: return "reduce_minmax";
-    case nk_kernel_reduce_rmsnorm_k: return "reduce_rmsnorm";
     case nk_kernel_dots_pack_size_k: return "dots_pack_size";
     case nk_kernel_dots_pack_k: return "dots_pack";
     case nk_kernel_dots_packed_k: return "dots_packed";
@@ -554,6 +553,7 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_attention_bidirectional_packed_k: return "attention_bidirectional_packed";
     case nk_kernel_attention_causal_packed_k: return "attention_causal_packed";
     case nk_kernel_attention_packed_shape_k: return "attention_packed_shape";
+    case nk_kernel_attention_rope_k: return "attention_rope";
     case nk_kernel_cast_k: return "cast";
     case nk_kernel_cast_block_scaled_k: return "cast_block_scaled";
     default: return "unknown";
@@ -586,13 +586,12 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "each_blend")) return nk_kernel_each_blend_k;
     if (nk_same_literal_(name, length, "each_fma")) return nk_kernel_each_fma_k;
     if (nk_same_literal_(name, length, "each_swiglu")) return nk_kernel_each_swiglu_k;
+    if (nk_same_literal_(name, length, "each_rmsnorm")) return nk_kernel_each_rmsnorm_k;
     if (nk_same_literal_(name, length, "trig_sin")) return nk_kernel_trig_sin_k;
     if (nk_same_literal_(name, length, "trig_cos")) return nk_kernel_trig_cos_k;
     if (nk_same_literal_(name, length, "trig_atan")) return nk_kernel_trig_atan_k;
-    if (nk_same_literal_(name, length, "trig_rope")) return nk_kernel_trig_rope_k;
     if (nk_same_literal_(name, length, "reduce_moments")) return nk_kernel_reduce_moments_k;
     if (nk_same_literal_(name, length, "reduce_minmax")) return nk_kernel_reduce_minmax_k;
-    if (nk_same_literal_(name, length, "reduce_rmsnorm")) return nk_kernel_reduce_rmsnorm_k;
     if (nk_same_literal_(name, length, "dots_pack_size")) return nk_kernel_dots_pack_size_k;
     if (nk_same_literal_(name, length, "dots_pack")) return nk_kernel_dots_pack_k;
     if (nk_same_literal_(name, length, "dots_packed")) return nk_kernel_dots_packed_k;
@@ -616,6 +615,7 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
         return nk_kernel_attention_bidirectional_packed_k;
     if (nk_same_literal_(name, length, "attention_causal_packed")) return nk_kernel_attention_causal_packed_k;
     if (nk_same_literal_(name, length, "attention_packed_shape")) return nk_kernel_attention_packed_shape_k;
+    if (nk_same_literal_(name, length, "attention_rope")) return nk_kernel_attention_rope_k;
     if (nk_same_literal_(name, length, "cast")) return nk_kernel_cast_k;
     if (nk_same_literal_(name, length, "cast_block_scaled")) return nk_kernel_cast_block_scaled_k;
     return nk_kernel_unknown_k;
@@ -661,19 +661,14 @@ typedef nk_status_t (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t cou
                                                  void *min_value, nk_size_t *min_index, void *max_value,
                                                  nk_size_t *max_index, void *stream);
 
-typedef nk_status_t (*nk_reduce_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows,
-                                                  nk_size_t groups, nk_size_t cols, nk_size_t x_row_stride,
-                                                  nk_size_t y_row_stride, nk_f32_t eps, nk_f32_t input_scale,
-                                                  void *stream);
+typedef nk_status_t (*nk_each_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows,
+                                                nk_size_t groups, nk_size_t cols, nk_size_t x_stride_bytes,
+                                                nk_size_t y_stride_bytes, nk_f32_t eps, nk_f32_t input_scale,
+                                                void *stream);
 
 typedef nk_status_t (*nk_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows,
-                                               nk_size_t cols, nk_size_t gate_row_stride, nk_size_t up_row_stride,
-                                               nk_size_t y_row_stride, nk_f32_t input_scale, void *stream);
-
-typedef nk_status_t (*nk_kernel_trig_rope_punned_t)(void const *x, void *y, void const *cos, void const *sin,
-                                                    nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                                    nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                                    nk_f32_t input_scale, void *stream);
+                                               nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes,
+                                               nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream);
 
 /** Pack sizes are host arithmetic, so they take no stream. */
 typedef nk_status_t (*nk_dots_pack_size_punned_t)(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
@@ -734,6 +729,11 @@ typedef nk_status_t (*nk_attention_causal_packed_punned_t)(void const *q, void c
                                                            nk_size_t q_stride_bytes, nk_size_t o_stride_bytes,
                                                            nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window,
                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
+
+typedef nk_status_t (*nk_attention_rope_punned_t)(void const *x, void const *cos, void const *sin, void *y,
+                                                  nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                  nk_f32_t input_scale, void *stream);
 
 typedef nk_status_t (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
                                                nk_dtype_t to_type, void *stream);

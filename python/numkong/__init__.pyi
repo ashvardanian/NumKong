@@ -1275,32 +1275,6 @@ def atan(
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None: ...
 
-# NeoX split-half rotary position embedding.
-def rope(
-    x: _BufferType,
-    cos: _BufferType,
-    sin: _BufferType,
-    /,
-    heads: int,
-    half_dim: int,
-    *,
-    out: _BufferType | None = None,
-    input_scale: float = 1.0,
-    **dispatch: Unpack[_Dispatch],
-) -> None:
-    """Rotate every channel pair of each head by the per-token angle grids, in place unless `out` is given.
-
-    Args:
-        x: `[rows,heads*2*half_dim]`, float32, bfloat16, or e4m3.
-        cos: `[rows,half_dim]` float32 angle grid, shared across heads.
-        sin: `[rows,half_dim]` float32 angle grid, shared across heads.
-        heads: Number of heads per token.
-        half_dim: Half the head dimension.
-        out: Output, same shape and dtype as `x`, may alias `x`, defaulting to `x`.
-        input_scale: Scale folded onto each loaded element.
-    """
-    ...
-
 # endregion Trigonometry
 
 # region Elementwise Arithmetic
@@ -1588,6 +1562,32 @@ def attention_causal_packed(
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
     """Compute ragged causal attention, row r seeing the `window` keys ending at `r + diagonal_offset`."""
+    ...
+
+# NeoX split-half rotary position embedding.
+def attention_rope(
+    x: _BufferType,
+    cos: _BufferType,
+    sin: _BufferType,
+    /,
+    head_count: int,
+    depth: int,
+    *,
+    out: _BufferType | None = None,
+    input_scale: float = 1.0,
+    **dispatch: Unpack[_Dispatch],
+) -> None:
+    """Rotate every channel pair of each head by the per-token angle grids, in place unless `out` is given.
+
+    Args:
+        x: `[rows,head_count*depth]`, float32, bfloat16, or e4m3.
+        cos: `[rows,depth/2]` float32 angle grid, shared across heads.
+        sin: `[rows,depth/2]` float32 angle grid, shared across heads.
+        head_count: Number of heads per token.
+        depth: Even number of channels per head.
+        out: Output, same shape and dtype as `x`, may alias `x`, defaulting to `x`.
+        input_scale: Scale folded onto each loaded element.
+    """
     ...
 
 def maxsim(

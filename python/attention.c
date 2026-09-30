@@ -705,3 +705,176 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
     check_status(status);
     return attention_buffers_release_(&buffers);
 }
+
+char const doc_attention_rope[] =                                                                        //
+    "NeoX split-half rotary position embedding, RoPE.\n\n"                                               //
+    "Rotates every channel pair (channel i against i+depth/2) of each head by the per-token angle\n"     //
+    "grids. Bake position lookup and multi-axis, M-RoPE, assignment into the `[rows,depth/2]` cos/sin\n" //
+    "grids so a single call rotates the whole head.\n\n"                                                 //
+    "Args:\n"                                                                                            //
+    "    x (Tensor): [rows,head_count×depth], float32/bfloat16/e4m3.\n"                                  //
+    "    cos, sin (Tensor): `[rows, depth/2]` float32 angle grids, shared across heads.\n"               //
+    "    head_count (int): Number of heads per token.\n"                                                 //
+    "    depth (int): Even number of channels per head.\n"                                               //
+    "    out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n"           //
+    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n"      //
+    "Returns:\n"                                                                                         //
+    "    None: The result is written into `out`, or into `x` in place.\n\n"                              //
+    "Signature:\n"                                                                                       //
+    "    >>> def attention_rope(x, cos, sin, head_count, depth, /, *, out, input_scale) -> None: ...";
+
+PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
+                             PyObject *args_names_tuple) {
+    nk_unused_(self);
+    PyObject *x_object = NULL, *cos_object = NULL, *sin_object = NULL, *head_count_object = NULL, *depth_object = NULL;
+    PyObject *out_object = NULL, *scale_object = NULL;
+    nk_capability_t capabilities = default_capabilities;
+    void *stream = NULL;
+
+    Py_buffer x_buffer, y_buffer, cos_buffer, sin_buffer;
+    nk_buffer_backing_t x_backing, y_backing, cos_backing, sin_backing;
+    memset(&x_buffer, 0, sizeof(Py_buffer));
+    memset(&y_buffer, 0, sizeof(Py_buffer));
+    memset(&cos_buffer, 0, sizeof(Py_buffer));
+    memset(&sin_buffer, 0, sizeof(Py_buffer));
+    int got_x = 0, got_y = 0, got_cos = 0, got_sin = 0;
+
+    Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
+    Py_ssize_t const args_count = positional_args_count + args_names_count;
+    if (args_count < 5 || args_count > 9) {
+        PyErr_Format(PyExc_TypeError, "Function expects 5-9 arguments, got %zd", args_count);
+        return NULL;
+    }
+    if (positional_args_count > 5) {
+        PyErr_Format(PyExc_TypeError, "Only first 5 arguments can be positional, received %zd", positional_args_count);
+        return NULL;
+    }
+    PyObject *positional[5] = {NULL, NULL, NULL, NULL, NULL};
+    for (Py_ssize_t i = 0; i < positional_args_count; ++i) positional[i] = args[i];
+    x_object = positional[0], cos_object = positional[1], sin_object = positional[2];
+    head_count_object = positional[3], depth_object = positional[4];
+    for (Py_ssize_t k = 0, p = positional_args_count; k < args_names_count; ++p, ++k) {
+        PyObject *const key = PyTuple_GetItem(args_names_tuple, k);
+        PyObject *const value = args[p];
+        if (PyUnicode_CompareWithASCIIString(key, "head_count") == 0 && !head_count_object) head_count_object = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "depth") == 0 && !depth_object) depth_object = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_object) out_object = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !scale_object) scale_object = value;
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
+    }
+    if (!x_object || !cos_object || !sin_object || !head_count_object || !depth_object) {
+        PyErr_SetString(PyExc_TypeError, "attention_rope requires x, cos, sin, head_count, depth");
+        return NULL;
+    }
+
+    long head_count = PyLong_AsLong(head_count_object), depth = PyLong_AsLong(depth_object);
+    if (PyErr_Occurred()) return NULL;
+    if (head_count <= 0 || depth <= 0 || depth % 2) {
+        PyErr_SetString(PyExc_ValueError, "head_count and depth must be positive, and depth even");
+        return NULL;
+    }
+    nk_f32_t input_scale = 1.0f;
+    if (scale_object) {
+        double s = PyFloat_AsDouble(scale_object);
+        if (PyErr_Occurred()) return NULL;
+        input_scale = (nk_f32_t)s;
+    }
+
+    int const x_flags = out_object ? (PyBUF_STRIDES | PyBUF_FORMAT) : (PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT);
+    if (!nk_get_buffer(x_object, &x_buffer, x_flags, &x_backing)) return NULL;
+    got_x = 1;
+    if (x_buffer.ndim < 1 || x_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", x_buffer.ndim);
+        goto cleanup;
+    }
+    nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&x_buffer);
+    if (dtype != nk_f32_k && dtype != nk_bf16_k && dtype != nk_e4m3_k) {
+        PyErr_Format(PyExc_TypeError, "attention_rope supports f32, bf16, e4m3; got '%s'", nk_dtype_python_name(dtype));
+        goto cleanup;
+    }
+    int const ndim = x_buffer.ndim;
+    size_t const value_bytes = nk_dtype_bytes_per_value(dtype);
+    if ((size_t)x_buffer.strides[ndim - 1] != value_bytes) {
+        PyErr_SetString(PyExc_ValueError, "attention_rope requires the last axis to be contiguous");
+        goto cleanup;
+    }
+    if ((nk_size_t)x_buffer.shape[ndim - 1] < (nk_size_t)(head_count * depth)) {
+        PyErr_SetString(PyExc_ValueError, "last axis too small for head_count * depth");
+        goto cleanup;
+    }
+    nk_size_t rows = 1;
+    for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
+    for (int d = 0; d + 2 < ndim; ++d) {
+        if (x_buffer.strides[d] != x_buffer.shape[d + 1] * x_buffer.strides[d + 1]) {
+            PyErr_SetString(PyExc_ValueError, "attention_rope requires C-contiguous leading axes for rank > 2");
+            goto cleanup;
+        }
+    }
+    nk_size_t const x_stride_bytes = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+
+    void *y_data = x_buffer.buf;
+    nk_size_t y_stride_bytes = x_stride_bytes;
+    if (out_object) {
+        if (!nk_get_buffer(out_object, &y_buffer, PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT, &y_backing))
+            goto cleanup;
+        got_y = 1;
+        if (y_buffer.ndim != ndim || resolve_nk_dtype_in_py_buffer(&y_buffer) != dtype) {
+            PyErr_SetString(PyExc_ValueError, "out must have the same shape and dtype as x");
+            goto cleanup;
+        }
+        for (int d = 0; d < ndim; ++d)
+            if (y_buffer.shape[d] != x_buffer.shape[d]) {
+                PyErr_SetString(PyExc_ValueError, "out must have the same shape as x");
+                goto cleanup;
+            }
+        if ((size_t)y_buffer.strides[ndim - 1] != value_bytes) {
+            PyErr_SetString(PyExc_ValueError, "out requires the last axis to be contiguous");
+            goto cleanup;
+        }
+        y_data = y_buffer.buf;
+        y_stride_bytes = ndim >= 2 ? (nk_size_t)y_buffer.strides[ndim - 2] : 0;
+    }
+
+    if (!nk_get_buffer(cos_object, &cos_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &cos_backing)) goto cleanup;
+    got_cos = 1;
+    if (!nk_get_buffer(sin_object, &sin_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &sin_backing)) goto cleanup;
+    got_sin = 1;
+    if (resolve_nk_dtype_in_py_buffer(&cos_buffer) != nk_f32_k ||
+        resolve_nk_dtype_in_py_buffer(&sin_buffer) != nk_f32_k) {
+        PyErr_SetString(PyExc_TypeError, "cos and sin must be float32");
+        goto cleanup;
+    }
+    if ((nk_size_t)(cos_buffer.len / (Py_ssize_t)sizeof(nk_f32_t)) < rows * (nk_size_t)depth / 2 ||
+        (nk_size_t)(sin_buffer.len / (Py_ssize_t)sizeof(nk_f32_t)) < rows * (nk_size_t)depth / 2) {
+        PyErr_SetString(PyExc_ValueError, "cos and sin must each have at least rows * depth / 2 elements");
+        goto cleanup;
+    }
+
+    nk_attention_rope_punned_t kernel = NULL;
+    nk_capability_t capability = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_attention_rope_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
+    if (!kernel || !capability) {
+        PyErr_Format(PyExc_LookupError, "No attention_rope kernel for dtype '%s'", nk_dtype_python_name(dtype));
+        goto cleanup;
+    }
+
+    {
+        PyThreadState *gil = PyEval_SaveThread();
+        nk_status_t const status = kernel(x_buffer.buf, (nk_f32_t const *)cos_buffer.buf,
+                                          (nk_f32_t const *)sin_buffer.buf, y_data, rows, (nk_size_t)head_count,
+                                          (nk_size_t)depth, x_stride_bytes, y_stride_bytes, input_scale, stream);
+        PyEval_RestoreThread(gil);
+        if (!check_status(status)) goto cleanup;
+    }
+    if (got_x) PyBuffer_Release(&x_buffer);
+    if (got_y) PyBuffer_Release(&y_buffer);
+    if (got_cos) PyBuffer_Release(&cos_buffer);
+    if (got_sin) PyBuffer_Release(&sin_buffer);
+    Py_RETURN_NONE;
+cleanup:
+    if (got_x) PyBuffer_Release(&x_buffer);
+    if (got_y) PyBuffer_Release(&y_buffer);
+    if (got_cos) PyBuffer_Release(&cos_buffer);
+    if (got_sin) PyBuffer_Release(&sin_buffer);
+    return NULL;
+}

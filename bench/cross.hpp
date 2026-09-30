@@ -626,6 +626,42 @@ void run_attention_causal(std::string const &name, pack_size_kernel_type_ packed
     }
 }
 
+/** Measures an in-place NeoX split-half RoPE kernel, single head, all pairs rotated. */
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void measure_attention_rope(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    std::size_t const half_depth = dimensions / 2;
+    std::size_t const vectors_count = bench_input_count(bench_dtype_bytes(input_dtype_, dimensions));
+    std::vector<nk::vector<input_t>> tokens(vectors_count);
+    auto generator = make_random_engine();
+    for (std::size_t i = 0; i < vectors_count; ++i) {
+        tokens[i] = make_vector<input_t>(dimensions);
+        nk::fill_uniform(generator, tokens[i].values_data(), tokens[i].size_values());
+    }
+    std::vector<nk_f32_t> cos_grid(half_depth, 0.5f), sin_grid(half_depth, 0.5f); // [rows=1, half_depth]
+    std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
+
+    std::size_t iterations = 0;
+    for (auto _ : state) {
+        std::size_t const index = iterations & (vectors_count - 1);
+        auto *ptr = tokens[index].raw_values_data();
+        if (!succeeded(state, kernel(ptr, cos_grid.data(), sin_grid.data(), ptr, 1, 1, dimensions, stride, stride, 1.0f,
+                                     nullptr)))
+            break;
+        bm::ClobberMemory();
+        ++iterations;
+    }
+    state.counters["bytes"] = bm::Counter(1.0 * iterations * tokens[0].size_bytes(), bm::Counter::kIsRate);
+    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+}
+
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void run_attention_rope(std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
+    bm::RegisterBenchmark(bench_name.c_str(), measure_attention_rope<input_dtype_, kernel_type_ *>, kernel,
+                          bench_config.dense_dimensions);
+}
+
 #pragma endregion Attention
 
 } // namespace ashvardanian::numkong::bench

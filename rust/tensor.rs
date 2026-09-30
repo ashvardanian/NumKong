@@ -80,7 +80,7 @@ use core::ptr::NonNull;
 use crate::capabilities::Status;
 use crate::cast::{cast, CastDType};
 use crate::dot::Dot;
-use crate::each::{EachBlend, EachFMA, EachScale, EachSum};
+use crate::each::{EachBlend, EachFma, EachScale, EachSum};
 use crate::reduce::{ReduceMinMax, ReduceMoments, SumSqToF64};
 use crate::scalar::Roots;
 use crate::trigonometry::{TrigAtan, TrigCos, TrigSin};
@@ -5565,7 +5565,7 @@ where
     }
 }
 
-impl<'a, Scalar: Clone + EachFMA, const MAX_RANK: usize, Alloc: Allocator> TensorSpan<'a, Scalar, MAX_RANK, Alloc>
+impl<'a, Scalar: Clone + EachFma, const MAX_RANK: usize, Alloc: Allocator> TensorSpan<'a, Scalar, MAX_RANK, Alloc>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
@@ -5734,7 +5734,7 @@ where
     }
 }
 
-impl<Scalar: Clone + EachFMA, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK>
+impl<Scalar: Clone + EachFma, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
@@ -5931,7 +5931,7 @@ where
     }
 }
 
-impl<'a, Scalar: Clone + EachFMA, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Scalar, MAX_RANK, Alloc>
+impl<'a, Scalar: Clone + EachFma, const MAX_RANK: usize, Alloc: Allocator> TensorView<'a, Scalar, MAX_RANK, Alloc>
 where
     Scalar::Scalar: From<f32> + Copy,
 {

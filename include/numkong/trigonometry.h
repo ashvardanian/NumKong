@@ -310,87 +310,6 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_svehalf(nk_f16_t const *ins, nk_size_t 
  *  need to implement AVX2 versions of @c f32 and @c f64 functions, as those are properly
  *  vectorized by recent compilers. */
 
-/**
- *  @brief NeoX split-half rotary position embedding (RoPE): rotates channel pairs
- *      by per-token angles.
- *
- *  Rotates the channel pair i and i + @p half_dim of every head in every row:
- *
- *  @verbatim
- *  y[i]            = x[i] · cos - x[i + half_dim] · sin
- *  y[i + half_dim] = x[i] · sin + x[i + half_dim] · cos
- *  @endverbatim
- *
- *  @param[in] x Input token matrix of shape rows by (heads * 2 * @p half_dim).
- *  @param[out] y Output matrix, same shape and dtype as x; may alias x for in-place rotation.
- *  @param[in] cos Per-token cosine angle grid of shape rows by @p half_dim, shared across heads.
- *  @param[in] sin Per-token sine angle grid of shape rows by @p half_dim, shared across heads.
- *  @param[in] rows The number of token rows.
- *  @param[in] heads The number of heads per token.
- *  @param[in] half_dim Half the head dimension; channel i pairs with channel i + @p half_dim.
- *  @param[in] x_row_stride Row (token) stride of x in bytes.
- *  @param[in] y_row_stride Row (token) stride of y in bytes.
- *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
- *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
- */
-NUMKONG_API nk_status_t nk_trig_rope_f32_best(nk_f32_t const *x, nk_f32_t *y, nk_rope_angle_t const *cos,
-                                              nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                              nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                              nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_bf16_best(nk_bf16_t const *x, nk_bf16_t *y, nk_rope_angle_t const *cos,
-                                               nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                               nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                               nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_e4m3_best(nk_e4m3_t const *x, nk_e4m3_t *y, nk_rope_angle_t const *cos,
-                                               nk_rope_angle_t const *sin, nk_size_t rows, nk_size_t heads,
-                                               nk_size_t half_dim, nk_size_t x_row_stride, nk_size_t y_row_stride,
-                                               nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_f32_serial(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
-                                                nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                nk_size_t, nk_f32_t, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_bf16_serial(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
-                                                 nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_f32_t, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_e4m3_serial(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
-                                                 nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_f32_t, void *stream);
-
-#if NUMKONG_TARGET_HASWELL
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_f32_haswell(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
-                                                 nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_f32_t, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_bf16_haswell(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
-                                                  nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                  nk_size_t, nk_f32_t, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_e4m3_haswell(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
-                                                  nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                  nk_size_t, nk_f32_t, void *stream);
-#endif // NUMKONG_TARGET_HASWELL
-#if NUMKONG_TARGET_SKYLAKE
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_f32_skylake(nk_f32_t const *, nk_f32_t *, nk_rope_angle_t const *,
-                                                 nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                 nk_size_t, nk_f32_t, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_bf16_skylake(nk_bf16_t const *, nk_bf16_t *, nk_rope_angle_t const *,
-                                                  nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                  nk_size_t, nk_f32_t, void *stream);
-/** @copydoc nk_trig_rope_f32_best */
-NUMKONG_API nk_status_t nk_trig_rope_e4m3_skylake(nk_e4m3_t const *, nk_e4m3_t *, nk_rope_angle_t const *,
-                                                  nk_rope_angle_t const *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
-                                                  nk_size_t, nk_f32_t, void *stream);
-#endif // NUMKONG_TARGET_SKYLAKE
-
 #if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_trig_sin_f64_best */
 NUMKONG_API nk_status_t nk_trig_sin_f64_haswell(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream);
@@ -539,26 +458,6 @@ NUMKONG_API nk_status_t nk_trig_atan_f32_best(nk_f32_t const *inputs, nk_size_t 
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_trig_rope_f32_best(nk_f32_t const *x, nk_f32_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
-                                              nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                              nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale,
-                                              nk_capability_t capabilities, void *stream) {
-    nk_unused_(x), nk_unused_(y), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(heads),
-        nk_unused_(half_dim), nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale),
-        nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
-NUMKONG_API nk_status_t nk_trig_rope_bf16_best(nk_bf16_t const *x, nk_bf16_t *y, nk_f32_t const *cos,
-                                               nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                               nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale,
-                                               nk_capability_t capabilities, void *stream) {
-    nk_unused_(x), nk_unused_(y), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(heads),
-        nk_unused_(half_dim), nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale),
-        nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
 NUMKONG_API nk_status_t nk_trig_sin_f16_best(nk_f16_t const *inputs, nk_size_t n, nk_f16_t *outputs,
                                              nk_capability_t capabilities, void *stream) {
     nk_unused_(inputs), nk_unused_(n), nk_unused_(outputs), nk_unused_(capabilities), nk_unused_(stream);
@@ -574,16 +473,6 @@ NUMKONG_API nk_status_t nk_trig_cos_f16_best(nk_f16_t const *inputs, nk_size_t n
 NUMKONG_API nk_status_t nk_trig_atan_f16_best(nk_f16_t const *inputs, nk_size_t n, nk_f16_t *outputs,
                                               nk_capability_t capabilities, void *stream) {
     nk_unused_(inputs), nk_unused_(n), nk_unused_(outputs), nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
-NUMKONG_API nk_status_t nk_trig_rope_e4m3_best(nk_e4m3_t const *x, nk_e4m3_t *y, nk_f32_t const *cos,
-                                               nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                               nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale,
-                                               nk_capability_t capabilities, void *stream) {
-    nk_unused_(x), nk_unused_(y), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(heads),
-        nk_unused_(half_dim), nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(input_scale),
-        nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 

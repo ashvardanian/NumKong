@@ -8,7 +8,7 @@
 #include <cstring> // std::memset
 
 #include "numkong/capabilities.h" // nk_kernel_kind_t
-#include "numkong/each.h"         // nk_each_swiglu_*
+#include "numkong/each.h"         // nk_each_swiglu_*, nk_each_rmsnorm_*
 
 #include "harness.hpp"
 
@@ -172,7 +172,42 @@ void run_swiglu(std::string name, kernel_type_ *kernel) {
                           bench_config.dense_dimensions);
 }
 
-/** Measures an in-place NeoX split-half RoPE kernel, single head, all pairs rotated. */
+/** Measures the performance of a grouped RMSNorm kernel, single row, single group. */
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void measure_rmsnorm(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    // Each set holds an input and an output, so the ring is sized against twice the vector bytes.
+    std::size_t const vectors_count = bench_input_count(bench_dtype_bytes(input_dtype_, 2 * dimensions));
+    std::vector<nk::vector<input_t>> inputs(vectors_count), outputs(vectors_count);
+    auto generator = make_random_engine();
+    for (std::size_t i = 0; i < vectors_count; ++i) {
+        inputs[i] = make_vector<input_t>(dimensions);
+        outputs[i] = make_vector<input_t>(dimensions);
+        nk::fill_uniform(generator, inputs[i].values_data(), inputs[i].size_values());
+    }
+    std::vector<nk_f32_t> gamma(dimensions, 1.0f);
+    std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
+
+    std::size_t iterations = 0;
+    for (auto _ : state) {
+        std::size_t const index = iterations & (vectors_count - 1);
+        if (!succeeded(state, kernel(inputs[index].raw_values_data(), gamma.data(), outputs[index].raw_values_data(), 1,
+                                     1, dimensions, stride, stride, 1e-6f, 1.0f, nullptr)))
+            break;
+        bm::ClobberMemory();
+        ++iterations;
+    }
+    state.counters["bytes"] = bm::Counter(1.0 * iterations * inputs[0].size_bytes(), bm::Counter::kIsRate);
+    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+}
+
+template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
+void run_rmsnorm(std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
+    bm::RegisterBenchmark(bench_name.c_str(), measure_rmsnorm<input_dtype_, kernel_type_ *>, kernel,
+                          bench_config.dense_dimensions);
+}
+
 void bench_each() {
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
@@ -302,6 +337,9 @@ void bench_each() {
     run_swiglu<f32_k>("each_swiglu_f32_haswell", nk_each_swiglu_f32_haswell);
     run_swiglu<bf16_k>("each_swiglu_bf16_haswell", nk_each_swiglu_bf16_haswell);
     run_swiglu<e4m3_k>("each_swiglu_e4m3_haswell", nk_each_swiglu_e4m3_haswell);
+    run_rmsnorm<f32_k>("each_rmsnorm_f32_haswell", nk_each_rmsnorm_f32_haswell);
+    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_haswell", nk_each_rmsnorm_bf16_haswell);
+    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_haswell", nk_each_rmsnorm_e4m3_haswell);
     // e4m3
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_haswell", nk_each_sum_e4m3_haswell);
     run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_haswell", nk_each_scale_e4m3_haswell);
@@ -367,6 +405,9 @@ void bench_each() {
     run_swiglu<f32_k>("each_swiglu_f32_skylake", nk_each_swiglu_f32_skylake);
     run_swiglu<bf16_k>("each_swiglu_bf16_skylake", nk_each_swiglu_bf16_skylake);
     run_swiglu<e4m3_k>("each_swiglu_e4m3_skylake", nk_each_swiglu_e4m3_skylake);
+    run_rmsnorm<f32_k>("each_rmsnorm_f32_skylake", nk_each_rmsnorm_f32_skylake);
+    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_skylake", nk_each_rmsnorm_bf16_skylake);
+    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_skylake", nk_each_rmsnorm_e4m3_skylake);
     // e4m3
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_skylake", nk_each_sum_e4m3_skylake);
     run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_skylake", nk_each_scale_e4m3_skylake);
@@ -417,6 +458,11 @@ void bench_each() {
     run_each<u32_k, sum_k, f32_k>("each_sum_u32_icelake", nk_each_sum_u32_icelake);
     run_each<i64_k, sum_k, f64_k>("each_sum_i64_icelake", nk_each_sum_i64_icelake);
     run_each<u64_k, sum_k, f64_k>("each_sum_u64_icelake", nk_each_sum_u64_icelake);
+#endif
+
+#if NUMKONG_TARGET_GENOA
+    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_genoa", nk_each_rmsnorm_bf16_genoa);
+    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_genoa", nk_each_rmsnorm_e4m3_genoa);
 #endif
 
 #if NUMKONG_TARGET_SAPPHIRE
@@ -494,6 +540,9 @@ void bench_each() {
     run_swiglu<f32_k>("each_swiglu_f32_serial", nk_each_swiglu_f32_serial);
     run_swiglu<bf16_k>("each_swiglu_bf16_serial", nk_each_swiglu_bf16_serial);
     run_swiglu<e4m3_k>("each_swiglu_e4m3_serial", nk_each_swiglu_e4m3_serial);
+    run_rmsnorm<f32_k>("each_rmsnorm_f32_serial", nk_each_rmsnorm_f32_serial);
+    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_serial", nk_each_rmsnorm_bf16_serial);
+    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_serial", nk_each_rmsnorm_e4m3_serial);
     // Serial fallbacks — e4m3, e5m2, e2m3, e3m2
     run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_serial", nk_each_sum_e4m3_serial);
     run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_serial", nk_each_scale_e4m3_serial);

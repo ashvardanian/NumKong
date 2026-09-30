@@ -6,7 +6,7 @@
 //!   - [`EachScale`]: Linear scaling (alpha * x + beta)
 //!   - [`EachSum`]: Elementwise addition of two vectors
 //!   - [`EachBlend`]: Weighted blend of two vectors
-//!   - [`EachFMA`]: Fused multiply-add (a * alpha + b * beta)
+//!   - [`EachFma`]: Fused multiply-add (a * alpha + b * beta)
 //! - Tensor-shaped extension traits, auto-implemented on every [`crate::tensor::TensorRef`]:
 //!   - [`ScaleOps`], [`SumOps`], [`BlendOps`], [`FmaOps`]: Tensor wrappers around the slice traits
 //!   - [`AllCloseOps`]: Tolerance-based equality for any [`crate::tensor::TensorRef`]
@@ -752,9 +752,9 @@ extern "C" {
         y: *mut f32,
         rows: nk_size_t,
         cols: nk_size_t,
-        gate_row_stride: nk_size_t,
-        up_row_stride: nk_size_t,
-        y_row_stride: nk_size_t,
+        gate_stride_bytes: nk_size_t,
+        up_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
         input_scale: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -765,9 +765,9 @@ extern "C" {
         y: *mut u16,
         rows: nk_size_t,
         cols: nk_size_t,
-        gate_row_stride: nk_size_t,
-        up_row_stride: nk_size_t,
-        y_row_stride: nk_size_t,
+        gate_stride_bytes: nk_size_t,
+        up_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
         input_scale: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -778,9 +778,51 @@ extern "C" {
         y: *mut u8,
         rows: nk_size_t,
         cols: nk_size_t,
-        gate_row_stride: nk_size_t,
-        up_row_stride: nk_size_t,
-        y_row_stride: nk_size_t,
+        gate_stride_bytes: nk_size_t,
+        up_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
+        input_scale: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmsnorm_f32_best(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut f32,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        cols: nk_size_t,
+        x_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
+        eps: f32,
+        input_scale: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmsnorm_bf16_best(
+        x: *const u16,
+        gamma: *const f32,
+        y: *mut u16,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        cols: nk_size_t,
+        x_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
+        eps: f32,
+        input_scale: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmsnorm_e4m3_best(
+        x: *const u8,
+        gamma: *const f32,
+        y: *mut u8,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        cols: nk_size_t,
+        x_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
+        eps: f32,
         input_scale: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -3134,7 +3176,7 @@ impl EachBlend for bf16c {
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
-pub trait EachFMA: Sized + StorageElement {
+pub trait EachFma: Sized + StorageElement {
     type Scalar;
     fn each_fma(
         a: &[Self],
@@ -3160,7 +3202,7 @@ pub trait EachFMA: Sized + StorageElement {
     ) -> Result<(), TensorError>;
 }
 
-impl EachFMA for f64 {
+impl EachFma for f64 {
     type Scalar = f64;
     fn each_fma(
         a: &[Self],
@@ -3210,7 +3252,7 @@ impl EachFMA for f64 {
     }
 }
 
-impl EachFMA for f32 {
+impl EachFma for f32 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3260,7 +3302,7 @@ impl EachFMA for f32 {
     }
 }
 
-impl EachFMA for f16 {
+impl EachFma for f16 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3310,7 +3352,7 @@ impl EachFMA for f16 {
     }
 }
 
-impl EachFMA for bf16 {
+impl EachFma for bf16 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3360,7 +3402,7 @@ impl EachFMA for bf16 {
     }
 }
 
-impl EachFMA for i8 {
+impl EachFma for i8 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3410,7 +3452,7 @@ impl EachFMA for i8 {
     }
 }
 
-impl EachFMA for u8 {
+impl EachFma for u8 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3460,7 +3502,7 @@ impl EachFMA for u8 {
     }
 }
 
-impl EachFMA for e4m3 {
+impl EachFma for e4m3 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3510,7 +3552,7 @@ impl EachFMA for e4m3 {
     }
 }
 
-impl EachFMA for e5m2 {
+impl EachFma for e5m2 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3560,7 +3602,7 @@ impl EachFMA for e5m2 {
     }
 }
 
-impl EachFMA for e2m3 {
+impl EachFma for e2m3 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3610,7 +3652,7 @@ impl EachFMA for e2m3 {
     }
 }
 
-impl EachFMA for e3m2 {
+impl EachFma for e3m2 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3660,7 +3702,7 @@ impl EachFMA for e3m2 {
     }
 }
 
-impl EachFMA for i16 {
+impl EachFma for i16 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3710,7 +3752,7 @@ impl EachFMA for i16 {
     }
 }
 
-impl EachFMA for u16 {
+impl EachFma for u16 {
     type Scalar = f32;
     fn each_fma(
         a: &[Self],
@@ -3760,7 +3802,7 @@ impl EachFMA for u16 {
     }
 }
 
-impl EachFMA for i32 {
+impl EachFma for i32 {
     type Scalar = f64;
     fn each_fma(
         a: &[Self],
@@ -3810,7 +3852,7 @@ impl EachFMA for i32 {
     }
 }
 
-impl EachFMA for u32 {
+impl EachFma for u32 {
     type Scalar = f64;
     fn each_fma(
         a: &[Self],
@@ -3860,7 +3902,7 @@ impl EachFMA for u32 {
     }
 }
 
-impl EachFMA for i64 {
+impl EachFma for i64 {
     type Scalar = f64;
     fn each_fma(
         a: &[Self],
@@ -3910,7 +3952,7 @@ impl EachFMA for i64 {
     }
 }
 
-impl EachFMA for u64 {
+impl EachFma for u64 {
     type Scalar = f64;
     fn each_fma(
         a: &[Self],
@@ -3960,7 +4002,7 @@ impl EachFMA for u64 {
     }
 }
 
-impl EachFMA for f64c {
+impl EachFma for f64c {
     type Scalar = f64c;
     fn each_fma(
         a: &[Self],
@@ -4015,7 +4057,7 @@ impl EachFMA for f64c {
     }
 }
 
-impl EachFMA for f32c {
+impl EachFma for f32c {
     type Scalar = f32c;
     fn each_fma(
         a: &[Self],
@@ -4070,7 +4112,7 @@ impl EachFMA for f32c {
     }
 }
 
-impl EachFMA for f16c {
+impl EachFma for f16c {
     type Scalar = f16c;
     fn each_fma(
         a: &[Self],
@@ -4093,7 +4135,7 @@ impl EachFMA for f16c {
     }
 }
 
-impl EachFMA for bf16c {
+impl EachFma for bf16c {
     type Scalar = bf16c;
     fn each_fma(
         a: &[Self],
@@ -4335,7 +4377,7 @@ where
 }
 
 /// Extension trait: element-wise multiplication for any [`TensorRef`] implementor.
-pub trait FmaOps<Scalar: Clone + EachFMA, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
+pub trait FmaOps<Scalar: Clone + EachFma, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
@@ -4378,12 +4420,12 @@ where
     }
 }
 
-impl<Scalar: Clone + EachFMA, const R: usize, C: TensorRef<Scalar, R> + ?Sized> FmaOps<Scalar, R> for C where
+impl<Scalar: Clone + EachFma, const R: usize, C: TensorRef<Scalar, R> + ?Sized> FmaOps<Scalar, R> for C where
     Scalar::Scalar: From<f32> + Copy
 {
 }
 
-impl<Scalar: Clone + EachFMA, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK>
+impl<Scalar: Clone + EachFma, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK>
 where
     Scalar::Scalar: From<f32> + Copy,
 {
@@ -4402,7 +4444,7 @@ where
 
 /// Fused SwiGLU of a row-major __[rows,cols]__ slice, where `up = None` reduces it to plain SiLU
 /// over `gate.len() / rows` columns: y = silu(input_scale × gate) × input_scale × up.
-pub trait EachSwiglu: Sized + StorageElement {
+pub trait EachSwiGlu: Sized + StorageElement {
     /// Fused SwiGLU of 2D `[rows, cols]` tensors: y = silu(input_scale × gate) × input_scale × up.
     ///
     /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
@@ -4504,7 +4546,7 @@ where
     }))
 }
 
-impl EachSwiglu for f32 {
+impl EachSwiGlu for f32 {
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
         up: Option<&UIn>,
@@ -4547,7 +4589,7 @@ impl EachSwiglu for f32 {
     }
 }
 
-impl EachSwiglu for bf16 {
+impl EachSwiGlu for bf16 {
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
         up: Option<&UIn>,
@@ -4590,7 +4632,7 @@ impl EachSwiglu for bf16 {
     }
 }
 
-impl EachSwiglu for e4m3 {
+impl EachSwiGlu for e4m3 {
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
         up: Option<&UIn>,
@@ -4634,6 +4676,243 @@ impl EachSwiglu for e4m3 {
 }
 
 // endregion: Fused SwiGLU
+
+// region: Grouped RMSNorm
+
+/// Grouped RMSNorm over a row-major __[rows,groups×cols]__ slice, y = x / √(mean(x²) + ε) × γ,
+/// where each row holds `groups` independent `cols`-vectors, normalized separately, with `cols`
+/// equal to `x.len() / rows / groups`. `gamma` is an optional per-column gain of length `cols`,
+/// which defaults to unit scale when `None`.
+pub trait EachRmsNorm: Sized + StorageElement {
+    /// Grouped RMSNorm of a 2D __[rows,groups×cols]__ tensor into `y` of the same shape.
+    ///
+    /// Row strides are read from the tensors, so `x` and `y` may be non-contiguous sub-spans, for
+    /// example a strided section of a fused activation buffer. `gamma` is an optional per-column
+    /// gain of length `cols` (`None` = unit scale). Returns `Err` on a shape mismatch.
+    fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XIn: TensorRef<Self, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized;
+}
+
+/// Geometry a fused RMS-norm kernel needs once its operands are validated.
+struct RmsNormPlan {
+    rows: usize,
+    cols: usize,
+    x_stride: usize,
+    y_stride: usize,
+    gamma_ptr: *const f32,
+}
+
+/// Validate an RMS-norm's operands and resolve the kernel geometry.
+///
+/// `None` means there is nothing to normalize. Note the ordering this preserves: the empty-input
+/// return comes _before_ the gamma-length check, so a zero-row tensor never validates gamma — the
+/// three per-type impls each relied on that, and folding them together keeps it deliberate.
+fn validate_rmsnorm<Scalar, XIn, YOut, const RX: usize, const RY: usize>(
+    x: &XIn,
+    gamma: Option<&[f32]>,
+    y: &YOut,
+    groups: usize,
+) -> Result<Option<RmsNormPlan>, TensorError>
+where
+    Scalar: StorageElement,
+    XIn: TensorRef<Scalar, RX> + ?Sized,
+    YOut: TensorRef<Scalar, RY> + ?Sized,
+{
+    if x.ndim() != 2 {
+        return Err(TensorError::DimensionMismatch {
+            expected: 2,
+            got: x.ndim(),
+        });
+    }
+    if y.ndim() != 2 {
+        return Err(TensorError::DimensionMismatch {
+            expected: 2,
+            got: y.ndim(),
+        });
+    }
+    if x.shape() != y.shape() {
+        let axis = if x.shape()[0] != y.shape()[0] { 0 } else { 1 };
+        return Err(TensorError::ShapeMismatch {
+            axis,
+            expected: x.shape()[axis],
+            got: y.shape()[axis],
+        });
+    }
+    let (rows, width) = (x.shape()[0], x.shape()[1]);
+    if groups == 0 || width % groups != 0 {
+        return Err(TensorError::InvalidShape {
+            axis: 1,
+            size: width,
+            reason: "width must be a positive multiple of groups",
+        });
+    }
+    if rows == 0 {
+        return Ok(None);
+    }
+    let cols = width / groups;
+    if let Some(g) = gamma {
+        if g.len() != cols {
+            return Err(TensorError::ShapeMismatch {
+                axis: 1,
+                expected: cols,
+                got: g.len(),
+            });
+        }
+    }
+    let x_stride = x.stride_bytes(0) as usize;
+    let y_stride = y.stride_bytes(0) as usize;
+    let gamma_ptr = gamma.map_or(core::ptr::null(), |g| g.as_ptr());
+    Ok(Some(RmsNormPlan {
+        rows,
+        cols,
+        x_stride,
+        y_stride,
+        gamma_ptr,
+    }))
+}
+
+impl EachRmsNorm for f32 {
+    fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XIn: TensorRef<Self, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        let Some(RmsNormPlan {
+            rows,
+            cols,
+            x_stride,
+            y_stride,
+            gamma_ptr,
+        }) = validate_rmsnorm(x, gamma, y, groups)?
+        else {
+            return Ok(());
+        };
+        unsafe {
+            nk_each_rmsnorm_f32_best(
+                x.as_ptr(),
+                gamma_ptr,
+                y.as_mut_ptr(),
+                rows,
+                groups,
+                cols,
+                x_stride,
+                y_stride,
+                eps,
+                input_scale,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+            .check()?;
+        }
+        Ok(())
+    }
+}
+
+impl EachRmsNorm for bf16 {
+    fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XIn: TensorRef<Self, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        let Some(RmsNormPlan {
+            rows,
+            cols,
+            x_stride,
+            y_stride,
+            gamma_ptr,
+        }) = validate_rmsnorm(x, gamma, y, groups)?
+        else {
+            return Ok(());
+        };
+        unsafe {
+            nk_each_rmsnorm_bf16_best(
+                x.as_ptr() as *const u16,
+                gamma_ptr,
+                y.as_mut_ptr() as *mut u16,
+                rows,
+                groups,
+                cols,
+                x_stride,
+                y_stride,
+                eps,
+                input_scale,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+            .check()?;
+        }
+        Ok(())
+    }
+}
+
+impl EachRmsNorm for e4m3 {
+    fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        eps: f32,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XIn: TensorRef<Self, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        let Some(RmsNormPlan {
+            rows,
+            cols,
+            x_stride,
+            y_stride,
+            gamma_ptr,
+        }) = validate_rmsnorm(x, gamma, y, groups)?
+        else {
+            return Ok(());
+        };
+        unsafe {
+            nk_each_rmsnorm_e4m3_best(
+                x.as_ptr() as *const u8,
+                gamma_ptr,
+                y.as_mut_ptr() as *mut u8,
+                rows,
+                groups,
+                cols,
+                x_stride,
+                y_stride,
+                eps,
+                input_scale,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+            .check()?;
+        }
+        Ok(())
+    }
+}
+
+// endregion: Grouped RMSNorm
 
 #[cfg(test)]
 mod tests {
@@ -4724,15 +5003,15 @@ mod tests {
 
     fn check_each_fma<Scalar>(values_a: &[f32], values_b: &[f32], values_c: &[f32], alpha: f32, beta: f32)
     where
-        Scalar: FloatLike + TestableType + EachFMA,
-        <Scalar as EachFMA>::Scalar: FloatLike,
+        Scalar: FloatLike + TestableType + EachFma,
+        <Scalar as EachFma>::Scalar: FloatLike,
     {
         let a: Vec<Scalar> = values_a.iter().map(|&v| Scalar::from_f32(v)).collect();
         let b: Vec<Scalar> = values_b.iter().map(|&v| Scalar::from_f32(v)).collect();
         let c: Vec<Scalar> = values_c.iter().map(|&v| Scalar::from_f32(v)).collect();
         let mut result = vec![Scalar::zero(); a.len()];
-        let alpha_s = <<Scalar as EachFMA>::Scalar>::from_f32(alpha);
-        let beta_s = <<Scalar as EachFMA>::Scalar>::from_f32(beta);
+        let alpha_s = <<Scalar as EachFma>::Scalar>::from_f32(alpha);
+        let beta_s = <<Scalar as EachFma>::Scalar>::from_f32(beta);
         Scalar::each_fma(&a, &b, &c, alpha_s, beta_s, &mut result).unwrap();
         for (i, r) in result.iter().enumerate() {
             let expected = alpha as f64 * values_a[i] as f64 * values_b[i] as f64 + beta as f64 * values_c[i] as f64;
@@ -5019,7 +5298,7 @@ mod tests {
 
     fn check_swiglu<Scalar>(values: &[f32], with_up: bool)
     where
-        Scalar: FloatLike + TestableType + EachSwiglu,
+        Scalar: FloatLike + TestableType + EachSwiGlu,
     {
         let rows = 2;
         let gate: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
@@ -5096,5 +5375,53 @@ mod tests {
                 "strided gate|up SwiGLU mismatch at {i}"
             );
         }
+    }
+
+    fn check_rmsnorm<Scalar>(values: &[f32], rows: usize, groups: usize)
+    where
+        Scalar: FloatLike + TestableType + EachRmsNorm,
+    {
+        let x: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
+        let cols = x.len() / rows / groups;
+        let width = x.len() / rows;
+        let gamma: Vec<f32> = (0..cols).map(|i| 1.0 + 0.01 * i as f32).collect();
+        let x_t = Tensor::<Scalar>::from_slice(&x, &[rows, width]).unwrap();
+        let mut y_t = Tensor::<Scalar>::full(&[rows, width], Scalar::zero()).unwrap();
+        Scalar::rmsnorm_into(&x_t, Some(&gamma), &mut y_t, groups, 1e-6, 1.0).unwrap();
+        let y = y_t.as_slice().to_vec();
+        for r in 0..rows {
+            for g in 0..groups {
+                let base = (r * groups + g) * cols;
+                let mean_square: f64 = (0..cols)
+                    .map(|c| {
+                        let v = Scalar::from_f32(values[base + c]).to_f64();
+                        v * v
+                    })
+                    .sum::<f64>()
+                    / cols as f64;
+                let inverse_rms = 1.0 / (mean_square + 1e-6).sqrt();
+                for c in 0..cols {
+                    let v = Scalar::from_f32(values[base + c]).to_f64();
+                    // round the reference through the dtype, matching what the kernel stores
+                    let expected = Scalar::from_f32((v * inverse_rms * gamma[c] as f64) as f32).to_f64();
+                    assert_close(
+                        y[base + c].to_f64(),
+                        expected,
+                        Scalar::atol() * 4.0,
+                        Scalar::rtol() * 4.0,
+                        &format!("rmsnorm<{}>[{base}+{c}]", core::any::type_name::<Scalar>()),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rmsnorm_grouped() {
+        let values: Vec<f32> = (0..96).map(|i| ((i % 17) as f32 - 8.0) * 0.3).collect();
+        check_rmsnorm::<f32>(&values, 3, 1);
+        check_rmsnorm::<f32>(&values, 3, 2);
+        check_rmsnorm::<bf16>(&values, 3, 1);
+        check_rmsnorm::<e4m3>(&values, 3, 2);
     }
 }

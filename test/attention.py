@@ -1,4 +1,4 @@
-"""Tests for ragged scaled-dot-product attention: `attention_pack` with both compute modes.
+"""Tests for ragged scaled-dot-product attention: `attention_pack` with both compute modes, and RoPE.
 
 The reference is a float64 NumPy softmax-attention over the same dtype-rounded inputs and an
 explicit visibility mask, so tolerances only cover kernel arithmetic, not input rounding.
@@ -10,6 +10,15 @@ Date: July 7, 2026
 
 import numpy as np
 import pytest
+from base import (
+    assert_allclose,
+    keep_one_capability,
+    make_nk,
+    make_random,
+    nk_seed,  # noqa: F401 — pytest fixture
+    possible_capabilities,
+    tolerances_for_dtype,
+)
 
 import numkong as nk
 
@@ -239,6 +248,63 @@ def test_attention_validation():
         nk.attention_bidirectional_packed(matrix, kv, query_offsets=offsets, window=4)
     with pytest.raises(TypeError):  # missing head_dim for a 2-D input
         nk.attention_pack(matrix, matrix, segment_offsets=offsets)
+
+
+def baseline_rope(x, cos, sin, head_count, depth):
+    """NumPy float64 reference for NeoX split-half RoPE over the rounded input."""
+    xf = np.asarray(x, dtype=np.float64)
+    y = xf.copy()
+    for r in range(xf.shape[0]):
+        cosine, sine = cos[r].astype(np.float64), sin[r].astype(np.float64)
+        for h in range(head_count):
+            b, half_depth = h * depth, depth // 2
+            low, high = xf[r, b : b + half_depth], xf[r, b + half_depth : b + depth]
+            y[r, b : b + half_depth] = low * cosine - high * sine
+            y[r, b + half_depth : b + depth] = low * sine + high * cosine
+    return y
+
+
+# (rows, head_count, depth)
+@pytest.mark.parametrize("geom", [(4, 1, 8), (3, 2, 16), (5, 1, 128), (2, 3, 40)])
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        pytest.param("float32", id="f32"),
+        pytest.param("bf16", id="bf16"),
+        pytest.param("e4m3", id="e4m3"),
+    ],
+)
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_attention_rope(geom, dtype, capability, nk_seed):
+    """Test nk.attention_rope() out-of-place and in-place (out == x) against a float64 rotate-half reference."""
+    keep_one_capability(capability)
+    rows, head_count, depth = geom
+    width = head_count * depth
+    rng = np.random.default_rng(nk_seed)
+    angles = rng.standard_normal((rows, depth // 2)).astype(np.float32) * 0.5
+    cos = np.cos(angles).astype(np.float32)
+    sin = np.sin(angles).astype(np.float32)
+    x_raw, x_base = make_random((rows, width), dtype, seed=nk_seed)
+
+    expected = baseline_rope(x_base, cos, sin, head_count, depth)
+    if dtype != "float32":  # round the reference through the lossy output dtype
+        expected = np.asarray(
+            nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
+        ).astype(np.float64)
+    atol, rtol = tolerances_for_dtype(dtype)
+
+    # Out-of-place: rotate x into a separate output buffer.
+    nk_x = make_nk(x_raw, dtype)
+    nk_y = make_nk(x_raw, dtype)
+    nk.attention_rope(nk_x, cos, sin, head_count, depth, out=nk_y)
+    y_out = np.asarray(nk_y if dtype == "float32" else nk_y.astype("float32"))
+    assert_allclose(y_out, expected, atol=atol, rtol=rtol)
+
+    # In-place: out defaults to x.
+    nk_inplace = make_nk(x_raw, dtype)
+    nk.attention_rope(nk_inplace, cos, sin, head_count, depth)
+    y_inplace = np.asarray(nk_inplace if dtype == "float32" else nk_inplace.astype("float32"))
+    assert_allclose(y_inplace, expected, atol=atol, rtol=rtol)
 
 
 if __name__ == "__main__":

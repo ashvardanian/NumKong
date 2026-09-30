@@ -321,50 +321,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_
                                                  nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                  nk_capability_t capabilities, void *stream);
 
-/**
- *  @brief Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma; NULL means unit scale.
- *  @param[in] x Input matrix; each row holds @p groups separately normalized @p cols-vectors.
- *  @param[in] gamma Per-column gain, length @p cols, shared by groups and rows; NULL is unit scale.
- *  @param[out] y Output matrix, same shape/dtype as @p x; may alias @p x for in-place operation.
- *  @param[in] rows Number of rows in the input and output matrices.
- *  @param[in] groups Number of independent normalization groups per row.
- *  @param[in] cols Number of columns per group.
- *  @param[in] x_row_stride Row (outer) stride of @p x in bytes; groups pack at `group * cols`.
- *  @param[in] y_row_stride Row (outer) stride of @p y in bytes.
- *  @param[in] eps Variance epsilon added before the reciprocal square root.
- *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
- *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
- */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_f32_best(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
-                                                   nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                   nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                   nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_bf16_best(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
-                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
-                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
-
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_f32_serial(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t,
-                                                     nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                     void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_bf16_serial(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                      nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                      void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_e4m3_serial(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                      nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                      void *stream);
-
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_f32_serial(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *,
                                                      void *stream);
@@ -710,18 +666,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_haswell(nk_e2m3_t const *, nk_size
 /** @copydoc nk_reduce_minmax_f64_best */
 NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_haswell(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
                                                       nk_e3m2_t *, nk_size_t *, void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_f32_haswell(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t,
-                                                      nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                      void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_bf16_haswell(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                       void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_e4m3_haswell(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                       void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -830,18 +774,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_skylake(nk_e2m3_t const *, nk_size
 /** @copydoc nk_reduce_minmax_f64_best */
 NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_skylake(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
                                                       nk_e3m2_t *, nk_size_t *, void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_f32_skylake(nk_f32_t const *, nk_f32_t const *, nk_f32_t *, nk_size_t,
-                                                      nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                      void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_bf16_skylake(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                       void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_e4m3_skylake(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                       nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                       void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
@@ -871,14 +803,6 @@ NUMKONG_API nk_status_t nk_reduce_moments_e4m3_genoa(nk_e4m3_t const *, nk_size_
                                                      void *stream);
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_e5m2_genoa(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
-                                                     void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_bf16_genoa(nk_bf16_t const *, nk_f32_t const *, nk_bf16_t *, nk_size_t,
-                                                     nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
-                                                     void *stream);
-/** @copydoc nk_reduce_rmsnorm_f32_best */
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_e4m3_genoa(nk_e4m3_t const *, nk_f32_t const *, nk_e4m3_t *, nk_size_t,
-                                                     nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t,
                                                      void *stream);
 #endif // NUMKONG_TARGET_GENOA
 
@@ -1258,16 +1182,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_f32_best(nk_f32_t const *data, nk_size_
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_f32_best(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
-                                                   nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                   nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                   nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
-    nk_unused_(x), nk_unused_(gamma), nk_unused_(y), nk_unused_(rows), nk_unused_(groups), nk_unused_(cols),
-        nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(eps), nk_unused_(input_scale),
-        nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
 NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
@@ -1281,16 +1195,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_bf16_best(nk_bf16_t const *data, nk_siz
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_bf16_best(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
-                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
-    nk_unused_(x), nk_unused_(gamma), nk_unused_(y), nk_unused_(rows), nk_unused_(groups), nk_unused_(cols),
-        nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(eps), nk_unused_(input_scale),
-        nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
@@ -1339,16 +1243,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_best(nk_e4m3_t const *data, nk_siz
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
-                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
-    nk_unused_(x), nk_unused_(gamma), nk_unused_(y), nk_unused_(rows), nk_unused_(groups), nk_unused_(cols),
-        nk_unused_(x_row_stride), nk_unused_(y_row_stride), nk_unused_(eps), nk_unused_(input_scale),
-        nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 

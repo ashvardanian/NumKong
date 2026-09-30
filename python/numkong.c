@@ -1394,7 +1394,6 @@ static PyMethodDef nk_methods[] = {
     {"sin", (PyCFunction)api_sin, METH_FASTCALL | METH_KEYWORDS, doc_sin},
     {"cos", (PyCFunction)api_cos, METH_FASTCALL | METH_KEYWORDS, doc_cos},
     {"atan", (PyCFunction)api_atan, METH_FASTCALL | METH_KEYWORDS, doc_atan},
-    {"rope", (PyCFunction)api_rope, METH_FASTCALL | METH_KEYWORDS, doc_rope},
 
     // Mesh alignment (point cloud registration)
     {"kabsch", (PyCFunction)api_kabsch, METH_FASTCALL | METH_KEYWORDS, doc_kabsch},
@@ -1419,6 +1418,7 @@ static PyMethodDef nk_methods[] = {
      doc_attention_bidirectional_packed},
     {"attention_causal_packed", (PyCFunction)api_attention_causal_packed, METH_FASTCALL | METH_KEYWORDS,
      doc_attention_causal_packed},
+    {"attention_rope", (PyCFunction)api_attention_rope, METH_FASTCALL | METH_KEYWORDS, doc_attention_rope},
 
     // Sentinel
     {NULL, NULL, 0, NULL}};

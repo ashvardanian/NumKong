@@ -1327,10 +1327,106 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_best(
                   : nk_missing_kernel_k;
 }
 
+static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_attention_rope_f32_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_rope_f32_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_rope_f32_skylake,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_f32_best(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                   nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                   nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                   nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+    nk_attention_rope_punned_t const kernel = (nk_attention_rope_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_rope_f32_capabilities());
+    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride_bytes, y_stride_bytes, input_scale, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_attention_rope_bf16_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_rope_bf16_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_rope_bf16_skylake,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_bf16_best(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_bf16_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+    nk_attention_rope_punned_t const kernel = (nk_attention_rope_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_rope_bf16_capabilities());
+    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride_bytes, y_stride_bytes, input_scale, stream)
+                  : nk_missing_kernel_k;
+}
+
+static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_attention_rope_e4m3_serial,
+#if NUMKONG_TARGET_HASWELL
+        (nk_kernel_punned_t)&nk_attention_rope_e4m3_haswell,
+#endif
+#if NUMKONG_TARGET_SKYLAKE
+        (nk_kernel_punned_t)&nk_attention_rope_e4m3_skylake,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+    nk_attention_rope_punned_t const kernel = (nk_attention_rope_punned_t)nk_kernel_pick_(
+        capabilities, nk_attention_rope_e4m3_capabilities());
+    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride_bytes, y_stride_bytes, input_scale, stream)
+                  : nk_missing_kernel_k;
+}
+
 NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                                  nk_kernel_punned_t *kernel, nk_capability_t *capability) {
     nk_capability_kernels_t const *lists = NUMKONG_NULL;
     switch (dtype) {
+    case nk_f32_k:
+        switch (kind) {
+        case nk_kernel_attention_rope_k: lists = nk_attention_rope_f32_capabilities(); break;
+        default: break;
+        }
+        break;
     case nk_bf16_k:
         switch (kind) {
         case nk_kernel_attention_pack_size_k: lists = nk_attention_pack_size_bf16_capabilities(); break;
@@ -1340,6 +1436,7 @@ NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype
             lists = nk_attention_bidirectional_packed_bf16_capabilities();
             break;
         case nk_kernel_attention_causal_packed_k: lists = nk_attention_causal_packed_bf16_capabilities(); break;
+        case nk_kernel_attention_rope_k: lists = nk_attention_rope_bf16_capabilities(); break;
         default: break;
         }
         break;
@@ -1352,6 +1449,7 @@ NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype
             lists = nk_attention_bidirectional_packed_e4m3_capabilities();
             break;
         case nk_kernel_attention_causal_packed_k: lists = nk_attention_causal_packed_e4m3_capabilities(); break;
+        case nk_kernel_attention_rope_k: lists = nk_attention_rope_e4m3_capabilities(); break;
         default: break;
         }
         break;

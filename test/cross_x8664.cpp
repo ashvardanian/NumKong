@@ -187,6 +187,9 @@ void test_cross_x8664() {
           nk_attention_bidirectional_packed_i8_haswell);
     check("attention_causal_packed_i8_haswell", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_haswell,
           nk_attention_pack_i8_haswell, nk_attention_causal_packed_i8_haswell);
+    check("attention_rope_f32_haswell", test_attention_rope<f32_t>, nk_attention_rope_f32_haswell);
+    check("attention_rope_bf16_haswell", test_attention_rope<bf16_t>, nk_attention_rope_bf16_haswell);
+    check("attention_rope_e4m3_haswell", test_attention_rope<e4m3_t>, nk_attention_rope_e4m3_haswell);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -313,6 +316,9 @@ void test_cross_x8664() {
           nk_attention_bidirectional_packed_e4m3_skylake);
     check("attention_causal_packed_e4m3_skylake", test_attention_causal_packed<e4m3_t>,
           nk_attention_pack_size_e4m3_skylake, nk_attention_pack_e4m3_skylake, nk_attention_causal_packed_e4m3_skylake);
+    check("attention_rope_f32_skylake", test_attention_rope<f32_t>, nk_attention_rope_f32_skylake);
+    check("attention_rope_bf16_skylake", test_attention_rope<bf16_t>, nk_attention_rope_bf16_skylake);
+    check("attention_rope_e4m3_skylake", test_attention_rope<e4m3_t>, nk_attention_rope_e4m3_skylake);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE

@@ -163,7 +163,7 @@ The crate root re-exports the main metric families:
 - `Haversine`, `Vincenty`
 - `Bilinear`, `Mahalanobis`
 - `ReduceMoments`, `ReduceMinMax`
-- `EachScale`, `EachSum`, `EachBlend`, `EachFMA`
+- `EachScale`, `EachSum`, `EachBlend`, `EachFma`
 
 The standard call shape is:
 

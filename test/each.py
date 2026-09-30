@@ -151,6 +151,18 @@ def baseline_swiglu(gate, up, input_scale):
     return y
 
 
+def baseline_rmsnorm(x, gamma, groups, eps, input_scale):
+    """NumPy float64 reference for grouped RMSNorm over the rounded input."""
+    rows, width = x.shape
+    cols = width // groups
+    scaled = (np.asarray(x, dtype=np.float64) * input_scale).reshape(rows, groups, cols)
+    mean_sq = np.mean(scaled * scaled, axis=2, keepdims=True)
+    normalized = scaled / np.sqrt(mean_sq + eps)
+    if gamma is not None:
+        normalized = normalized * np.asarray(gamma, dtype=np.float64).reshape(1, 1, cols)
+    return normalized.reshape(rows, width)
+
+
 _INT_CLIP_RANGES = {
     "int32": (-2147483648, 2147483647),
     "int16": (-32768, 32767),
@@ -871,6 +883,51 @@ def test_swiglu(shape, with_up, dtype, capability, nk_seed):
         ).astype(np.float64)
     atol, rtol = tolerances_for_dtype(dtype)
     assert_allclose(y, expected, atol=atol, rtol=rtol)
+
+
+@pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
+@pytest.mark.parametrize("shape", [(1, 8), (3, 100), (8, 128), (7, 63)])
+@pytest.mark.parametrize("groups", [1, 2])
+@pytest.mark.parametrize("with_gamma", [False, True])
+@pytest.mark.parametrize(
+    "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
+)
+@pytest.mark.parametrize("capability", possible_capabilities)
+def test_rmsnorm(shape, groups, with_gamma, dtype, capability, nk_seed):
+    """Test nk.rmsnorm() against a float64 reference; low-precision dtypes use dtype-aware tolerances."""
+    keep_one_capability(capability)
+    _rows, width = shape
+    if width % groups != 0:
+        pytest.skip("width not divisible by groups")
+    cols = width // groups
+    x_raw, x_base = make_random(shape, dtype, seed=nk_seed)
+    nk_x = make_nk(x_raw, dtype)
+    gamma = make_random((cols,), "float32", seed=nk_seed + 1)[0] if with_gamma else None
+    input_scale = 0.75 if dtype == "e4m3" else 1.0
+
+    result = nk.rmsnorm(nk_x, gamma, groups=groups, eps=1e-6, input_scale=input_scale)
+    y = np.asarray(result if dtype == "float32" else result.astype("float32"))
+
+    expected = baseline_rmsnorm(x_base, gamma, groups, 1e-6, input_scale)
+    if dtype != "float32":  # round the reference through the lossy output dtype (matches what the kernel stores)
+        expected = np.asarray(
+            nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
+        ).astype(np.float64)
+    atol, rtol = tolerances_for_dtype(dtype)
+    assert_allclose(y, expected, atol=atol, rtol=rtol)
+
+
+def test_rmsnorm_strided_qk_norm():
+    """Unit QK-norm shape: a strided [tokens, head_dim] view of a fused [tokens, 3*hidden] buffer."""
+    keep_one_capability("serial")
+    rng = np.random.default_rng(3)
+    tokens, hidden = 5, 96
+    qkv = rng.standard_normal((tokens, 3 * hidden)).astype(np.float32)
+    q_view = qkv[:, 0:hidden]  # row stride = 3*hidden*4 bytes
+    heads = 3
+    out = np.asarray(nk.rmsnorm(q_view, None, groups=heads, eps=1e-6))
+    expected = baseline_rmsnorm(np.ascontiguousarray(q_view), None, heads, 1e-6, 1.0)
+    assert_allclose(out, expected, atol=1e-4, rtol=1e-4)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")

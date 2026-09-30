@@ -1064,9 +1064,6 @@ typedef nk_i32_t nk_ssize_t;
 #endif
 typedef nk_f64_t nk_fmax_t;
 
-/** RoPE rotation-coefficient type for the cos/sin angle grids. */
-typedef nk_f32_t nk_rope_angle_t;
-
 #define NUMKONG_SIZE_MAX ((nk_size_t) - 1)
 
 /** @c NUMKONG_NULL, analogous to @c NULL, so headers need not pull in `<stddef.h>`. @c __null gives

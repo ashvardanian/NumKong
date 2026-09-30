@@ -10,7 +10,7 @@
 //! - [`dot`]: Real and complex dot products
 //! - [`spatial`]: Angular, also called cosine, and Euclidean distances
 //! - [`each`]: Elementwise operations — scale, sum, blend, FMA
-//! - [`trigonometry`]: Elementwise trigonometry — sin, cos, atan, RoPE
+//! - [`trigonometry`]: Elementwise trigonometry — sin, cos, atan
 //! - [`reduce`]: Statistical reductions — moments, min/max
 //! - [`scalar`]: Scalar math primitives — square root, reciprocal square root
 //! - [`set`]: Binary set similarity — Hamming, Jaccard
@@ -96,7 +96,7 @@
 //! - `jensenshannon(a, b)`: Computes Jensen-Shannon distance.
 //! - `kullbackleibler(a, b)`: Computes Kullback-Leibler divergence.
 //!
-//! The elementwise traits, including `EachScale`, `EachSum`, `EachBlend`, `EachFMA`, cover:
+//! The elementwise traits, including `EachScale`, `EachSum`, `EachBlend`, `EachFma`, cover:
 //!
 //! - `scale(a, alpha, beta, result)`: Element-wise `result[i] = α × a[i] + β`.
 //! - `sum(a, b, result)`: Element-wise `result[i] = a[i] + b[i]`.
@@ -168,10 +168,12 @@ pub use set::{BinarySimilarity, Hamming, Jaccard};
 pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 
 // Re-export elementwise and trig traits
-pub use each::{AllCloseOps, BlendOps, EachBlend, EachFMA, EachScale, EachSum, EachSwiglu, FmaOps, ScaleOps, SumOps};
+pub use each::{
+    AllCloseOps, BlendOps, EachBlend, EachFma, EachRmsNorm, EachScale, EachSum, EachSwiGlu, FmaOps, ScaleOps, SumOps,
+};
 
-pub use reduce::{BitwiseReductionsOps, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, ReduceRmsNorm, Reductions};
-pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigRope, TrigSin, TrigSinOps, Trigonometry};
+pub use reduce::{BitwiseReductionsOps, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, Reductions};
+pub use trigonometry::{TrigAtan, TrigAtanOps, TrigCos, TrigCosOps, TrigSin, TrigSinOps, Trigonometry};
 
 // Re-export curved metric traits
 pub use curved::{Bilinear, Mahalanobis};
@@ -228,7 +230,7 @@ pub use sets::{HammingsPackedParallelOps, JaccardsPackedParallelOps};
 pub use vector::{Vector, VectorIndex, VectorIterator, VectorSpan, VectorSpanIterator, VectorView, VectorViewIterator};
 
 // Re-export maxsim and attention types
-pub use attention::{Attention, AttentionPackedMatrix};
+pub use attention::{Attention, AttentionPackedMatrix, AttentionRope};
 
 pub use maxsim::{MaxSim, MaxSimPackedMatrix};
 
@@ -237,10 +239,11 @@ pub use maxsim::{MaxSim, MaxSimPackedMatrix};
 /// trait by name.
 pub mod prelude {
     pub use crate::{
-        AllCloseOps, AngularsPackedOps, BitwiseReductionsOps, BlendOps, CastOps, DenseToScaledOps, DotsPackedMatrix,
-        DotsPackedOps, EachSwiglu, EuclideansPackedOps, FmaOps, HammingsPackedOps, JaccardsPackedOps, Matrix,
-        MinMaxOps, MomentsOps, ReduceRmsNorm, Reductions, ScaleOps, ScaledTensor, SumOps, Tensor, TensorMut, TensorRef,
-        TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigRope, TrigSinOps, Vector, VectorSpan, VectorView,
+        AllCloseOps, AngularsPackedOps, AttentionRope, BitwiseReductionsOps, BlendOps, CastOps, DenseToScaledOps,
+        DotsPackedMatrix, DotsPackedOps, EachRmsNorm, EachSwiGlu, EuclideansPackedOps, FmaOps, HammingsPackedOps,
+        JaccardsPackedOps, Matrix, MinMaxOps, MomentsOps, Reductions, ScaleOps, ScaledTensor, SumOps, Tensor,
+        TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigSinOps, Vector, VectorSpan,
+        VectorView,
     };
 
     #[cfg(feature = "parallel")]

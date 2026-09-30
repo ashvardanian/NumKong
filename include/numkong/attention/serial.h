@@ -637,6 +637,52 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_serial(                   
     return nk_success_k;
 }
 
+/** RoPE, the NeoX split-half rotary position embedding. Each row, a token @c x_stride_bytes long,
+ *  holds @c head_count heads of an even @c depth channels. Every pair @c i rotates channel @c i
+ *  against its split-half partner i + depth / 2 by the per-token angle from the
+ *  @b [rows,depth/2] cosine and sine grids, where row @c r starts at r × depth / 2 and is shared
+ *  across heads, exactly a complex multiply by (cos, sin). The whole head is written, so the output
+ *  @c y, @c y_stride_bytes per row, may alias @c x for in-place rotation, and the caller bakes
+ *  position lookup and M-RoPE axis assignment into the grids. @c input_scale folds an E4M3 descale
+ *  onto the load, and is 1.0 for BF16 and F32. */
+#define nk_define_attention_rope_(input_type, load_and_convert, convert_and_store)                                 \
+    NUMKONG_API nk_status_t nk_attention_rope_##input_type##_serial(                                               \
+        nk_##input_type##_t const *x, nk_f32_t const *cos, nk_f32_t const *sin, nk_##input_type##_t *y,            \
+        nk_size_t rows, nk_size_t head_count, nk_size_t depth, nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, \
+        nk_f32_t input_scale, void *stream) {                                                                      \
+        nk_assert_(stream == NUMKONG_NULL);                                                                        \
+        nk_assert_(depth % 2 == 0);                                                                                \
+        nk_size_t const half_depth = depth / 2;                                                                    \
+        for (nk_size_t r = 0; r != rows; ++r) {                                                                    \
+            nk_f32_t const *cos_row = cos + r * half_depth;                                                        \
+            nk_f32_t const *sin_row = sin + r * half_depth;                                                        \
+            nk_##input_type##_t const *x_row = (nk_##input_type##_t const *)((unsigned char const *)x +            \
+                                                                             r * x_stride_bytes);                  \
+            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_stride_bytes);         \
+            for (nk_size_t h = 0; h != head_count; ++h) {                                                          \
+                nk_##input_type##_t const *x_base = x_row + h * depth;                                             \
+                nk_##input_type##_t *y_base = y_row + h * depth;                                                   \
+                for (nk_size_t i = 0; i != half_depth; ++i) {                                                      \
+                    nk_f32_t low, high;                                                                            \
+                    load_and_convert(x_base + i, &low);                                                            \
+                    load_and_convert(x_base + i + half_depth, &high);                                              \
+                    low *= input_scale, high *= input_scale;                                                       \
+                    nk_f32_t cosine = cos_row[i], sine = sin_row[i];                                               \
+                    nk_f32_t rotated_low = low * cosine - high * sine;                                             \
+                    nk_f32_t rotated_high = low * sine + high * cosine;                                            \
+                    convert_and_store(&rotated_low, y_base + i);                                                   \
+                    convert_and_store(&rotated_high, y_base + i + half_depth);                                     \
+                }                                                                                                  \
+            }                                                                                                      \
+        }                                                                                                          \
+        return nk_success_k;                                                                                       \
+    }
+
+nk_define_attention_rope_(f32, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_attention_rope_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
+nk_define_attention_rope_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
+#undef nk_define_attention_rope_
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

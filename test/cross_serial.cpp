@@ -199,6 +199,9 @@ void test_cross_serial() {
           nk_attention_pack_size_i8_serial, nk_attention_pack_i8_serial, nk_attention_bidirectional_packed_i8_serial);
     check("attention_causal_packed_i8_serial", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_serial,
           nk_attention_pack_i8_serial, nk_attention_causal_packed_i8_serial);
+    check("attention_rope_f32_serial", test_attention_rope<f32_t>, nk_attention_rope_f32_serial);
+    check("attention_rope_bf16_serial", test_attention_rope<bf16_t>, nk_attention_rope_bf16_serial);
+    check("attention_rope_e4m3_serial", test_attention_rope<e4m3_t>, nk_attention_rope_e4m3_serial);
 
 #if !NUMKONG_HEADER_ONLY
     check.section("Cross Runtime Dispatch", nk_cap_serial_k);

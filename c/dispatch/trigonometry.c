@@ -357,96 +357,6 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_best(nk_f16_t const *inputs, nk_size_t 
     return kernel ? kernel(inputs, n, outputs, stream) : nk_missing_kernel_k;
 }
 
-static nk_capability_kernels_t const *nk_trig_rope_f32_capabilities(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_trig_rope_f32_serial,
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_trig_rope_f32_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_trig_rope_f32_skylake,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-    };
-    return lists;
-}
-
-NUMKONG_API nk_status_t nk_trig_rope_f32_best(nk_f32_t const *x, nk_f32_t *y, nk_f32_t const *cos, nk_f32_t const *sin,
-                                              nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                              nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale,
-                                              nk_capability_t capabilities, void *stream) {
-    nk_kernel_trig_rope_punned_t const kernel = (nk_kernel_trig_rope_punned_t)nk_kernel_pick_(
-        capabilities, nk_trig_rope_f32_capabilities());
-    return kernel ? kernel(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale, stream)
-                  : nk_missing_kernel_k;
-}
-
-static nk_capability_kernels_t const *nk_trig_rope_bf16_capabilities(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_trig_rope_bf16_serial,
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_trig_rope_bf16_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_trig_rope_bf16_skylake,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-    };
-    return lists;
-}
-
-NUMKONG_API nk_status_t nk_trig_rope_bf16_best(nk_bf16_t const *x, nk_bf16_t *y, nk_f32_t const *cos,
-                                               nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                               nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale,
-                                               nk_capability_t capabilities, void *stream) {
-    nk_kernel_trig_rope_punned_t const kernel = (nk_kernel_trig_rope_punned_t)nk_kernel_pick_(
-        capabilities, nk_trig_rope_bf16_capabilities());
-    return kernel ? kernel(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale, stream)
-                  : nk_missing_kernel_k;
-}
-
-static nk_capability_kernels_t const *nk_trig_rope_e4m3_capabilities(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_trig_rope_e4m3_serial,
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_trig_rope_e4m3_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_trig_rope_e4m3_skylake,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-    };
-    return lists;
-}
-
-NUMKONG_API nk_status_t nk_trig_rope_e4m3_best(nk_e4m3_t const *x, nk_e4m3_t *y, nk_f32_t const *cos,
-                                               nk_f32_t const *sin, nk_size_t rows, nk_size_t heads, nk_size_t half_dim,
-                                               nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t input_scale,
-                                               nk_capability_t capabilities, void *stream) {
-    nk_kernel_trig_rope_punned_t const kernel = (nk_kernel_trig_rope_punned_t)nk_kernel_pick_(
-        capabilities, nk_trig_rope_e4m3_capabilities());
-    return kernel ? kernel(x, y, cos, sin, rows, heads, half_dim, x_row_stride, y_row_stride, input_scale, stream)
-                  : nk_missing_kernel_k;
-}
-
 NUMKONG_API nk_status_t nk_trigonometry_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype,
                                                     nk_capability_t capabilities, nk_kernel_punned_t *kernel,
                                                     nk_capability_t *capability) {
@@ -465,13 +375,6 @@ NUMKONG_API nk_status_t nk_trigonometry_find_kernel(nk_kernel_kind_t kind, nk_dt
         case nk_kernel_trig_sin_k: lists = nk_trig_sin_f32_capabilities(); break;
         case nk_kernel_trig_cos_k: lists = nk_trig_cos_f32_capabilities(); break;
         case nk_kernel_trig_atan_k: lists = nk_trig_atan_f32_capabilities(); break;
-        case nk_kernel_trig_rope_k: lists = nk_trig_rope_f32_capabilities(); break;
-        default: break;
-        }
-        break;
-    case nk_bf16_k:
-        switch (kind) {
-        case nk_kernel_trig_rope_k: lists = nk_trig_rope_bf16_capabilities(); break;
         default: break;
         }
         break;
@@ -480,12 +383,6 @@ NUMKONG_API nk_status_t nk_trigonometry_find_kernel(nk_kernel_kind_t kind, nk_dt
         case nk_kernel_trig_sin_k: lists = nk_trig_sin_f16_capabilities(); break;
         case nk_kernel_trig_cos_k: lists = nk_trig_cos_f16_capabilities(); break;
         case nk_kernel_trig_atan_k: lists = nk_trig_atan_f16_capabilities(); break;
-        default: break;
-        }
-        break;
-    case nk_e4m3_k:
-        switch (kind) {
-        case nk_kernel_trig_rope_k: lists = nk_trig_rope_e4m3_capabilities(); break;
         default: break;
         }
         break;

@@ -1438,6 +1438,57 @@ error_stats_t test_attention_causal_packed(pack_size_kernel_type_ packed_size_fn
     return stats;
 }
 
+/** NeoX split-half RoPE of two heads over padded rows against an F64 reference: into a separate
+ *  output, then in place. E4M3 rows fold a descale. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t, typename rope_kernel_type_>
+error_stats_t test_attention_rope(rope_kernel_type_ rope_fn) {
+    using scalar_t = scalar_type_;
+    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
+    using angles_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
+
+    backend_type_ backend;
+    error_stats_t stats(nk_attention_rope_error_bound(scalar_t::dtype()));
+    std::mt19937 generator(global_config.seed);
+    std::uniform_real_distribution<float> angle_distribution(-3.0f, 3.0f);
+    nk_f32_t const input_scale = scalar_t::dtype() == nk_e4m3_k ? 0.25f : 1.0f;
+    std::size_t const rows = 33, head_count = 2, depth = 74, half_depth = depth / 2;
+    std::size_t const row_values = head_count * depth + 8, row_bytes = row_values * sizeof(scalar_t);
+
+    for (auto start = test_start_time(); within_time_budget(start);)
+        for (bool const in_place : {false, true}) {
+            auto x = scalars_t::zeros(rows * row_values).value, y = scalars_t::zeros(rows * row_values).value;
+            auto cosines = angles_t::zeros(rows * half_depth).value, sines = angles_t::zeros(rows * half_depth).value;
+            fill_random(generator, x);
+            for (std::size_t i = 0; i < rows * half_depth; i++) {
+                float const angle = angle_distribution(generator);
+                cosines.raw_values_data()[i] = std::cos(angle), sines.raw_values_data()[i] = std::sin(angle);
+            }
+            if (in_place) backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes);
+
+            backend.call(rope_fn, in_place ? y.raw_values_data() : x.raw_values_data(), cosines.raw_values_data(),
+                         sines.raw_values_data(), y.raw_values_data(), rows, head_count, depth, row_bytes, row_bytes,
+                         input_scale);
+            if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+
+            for (std::size_t row = 0; row < rows; row++)
+                for (std::size_t head = 0; head < head_count; head++)
+                    for (std::size_t pair = 0; pair < half_depth; pair++) {
+                        std::size_t const first = row * row_values + head * depth + pair;
+                        double const low = static_cast<double>(x[first]) * input_scale;
+                        double const high = static_cast<double>(x[first + half_depth]) * input_scale;
+                        double const cosine = static_cast<double>(cosines[row * half_depth + pair]);
+                        double const sine = static_cast<double>(sines[row * half_depth + pair]);
+                        stats.accumulate_bounded(
+                            y[first], low * cosine - high * sine,
+                            stats.term_error_bound * (std::fabs(low * cosine) + std::fabs(high * sine)));
+                        stats.accumulate_bounded(
+                            y[first + half_depth], low * sine + high * cosine,
+                            stats.term_error_bound * (std::fabs(low * sine) + std::fabs(high * cosine)));
+                    }
+        }
+    return stats;
+}
+
 #pragma endregion Attention
 
 } // namespace ashvardanian::numkong::test

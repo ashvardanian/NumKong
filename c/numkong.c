@@ -37,14 +37,13 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_each_sum_k:
     case nk_kernel_each_blend_k:
     case nk_kernel_each_fma_k:
-    case nk_kernel_each_swiglu_k: return nk_each_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_each_swiglu_k:
+    case nk_kernel_each_rmsnorm_k: return nk_each_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_trig_sin_k:
     case nk_kernel_trig_cos_k:
-    case nk_kernel_trig_atan_k:
-    case nk_kernel_trig_rope_k: return nk_trigonometry_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_trig_atan_k: return nk_trigonometry_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_reduce_moments_k:
-    case nk_kernel_reduce_minmax_k:
-    case nk_kernel_reduce_rmsnorm_k: return nk_reduce_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_reduce_minmax_k: return nk_reduce_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_dots_pack_size_k:
     case nk_kernel_dots_pack_k:
     case nk_kernel_dots_packed_k:
@@ -68,7 +67,7 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_attention_bidirectional_packed_k:
     case nk_kernel_attention_causal_packed_k:
     case nk_kernel_attention_packed_shape_k:
-        return nk_attention_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_attention_rope_k: return nk_attention_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_cast_k:
     case nk_kernel_cast_block_scaled_k: return nk_cast_find_kernel(kind, dtype, capabilities, kernel, capability);
     default: *kernel = NUMKONG_NULL, *capability = 0; return nk_missing_kernel_k;

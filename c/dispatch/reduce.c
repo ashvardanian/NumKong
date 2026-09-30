@@ -1546,106 +1546,6 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_
                   : nk_missing_kernel_k;
 }
 
-static nk_capability_kernels_t const *nk_reduce_rmsnorm_f32_capabilities(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_f32_serial,
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_f32_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_f32_skylake,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-    };
-    return lists;
-}
-
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_f32_best(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
-                                                   nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                   nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                   nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
-    nk_reduce_rmsnorm_punned_t const kernel = (nk_reduce_rmsnorm_punned_t)nk_kernel_pick_(
-        capabilities, nk_reduce_rmsnorm_f32_capabilities());
-    return kernel ? kernel(x, gamma, y, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale, stream)
-                  : nk_missing_kernel_k;
-}
-
-static nk_capability_kernels_t const *nk_reduce_rmsnorm_bf16_capabilities(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_bf16_serial,
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_bf16_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_bf16_skylake,
-#endif
-#if NUMKONG_TARGET_GENOA
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_bf16_genoa,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-             nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
-         cpu},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-    };
-    return lists;
-}
-
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_bf16_best(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
-                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
-    nk_reduce_rmsnorm_punned_t const kernel = (nk_reduce_rmsnorm_punned_t)nk_kernel_pick_(
-        capabilities, nk_reduce_rmsnorm_bf16_capabilities());
-    return kernel ? kernel(x, gamma, y, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale, stream)
-                  : nk_missing_kernel_k;
-}
-
-static nk_capability_kernels_t const *nk_reduce_rmsnorm_e4m3_capabilities(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_e4m3_serial,
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_e4m3_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_e4m3_skylake,
-#endif
-#if NUMKONG_TARGET_GENOA
-        (nk_kernel_punned_t)&nk_reduce_rmsnorm_e4m3_genoa,
-#endif
-    };
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-             nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
-         cpu},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-    };
-    return lists;
-}
-
-NUMKONG_API nk_status_t nk_reduce_rmsnorm_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
-                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                    nk_size_t x_row_stride, nk_size_t y_row_stride, nk_f32_t eps,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
-    nk_reduce_rmsnorm_punned_t const kernel = (nk_reduce_rmsnorm_punned_t)nk_kernel_pick_(
-        capabilities, nk_reduce_rmsnorm_e4m3_capabilities());
-    return kernel ? kernel(x, gamma, y, rows, groups, cols, x_row_stride, y_row_stride, eps, input_scale, stream)
-                  : nk_missing_kernel_k;
-}
-
 NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                               nk_kernel_punned_t *kernel, nk_capability_t *capability) {
     nk_capability_kernels_t const *lists = NUMKONG_NULL;
@@ -1661,7 +1561,6 @@ NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
         switch (kind) {
         case nk_kernel_reduce_moments_k: lists = nk_reduce_moments_f32_capabilities(); break;
         case nk_kernel_reduce_minmax_k: lists = nk_reduce_minmax_f32_capabilities(); break;
-        case nk_kernel_reduce_rmsnorm_k: lists = nk_reduce_rmsnorm_f32_capabilities(); break;
         default: break;
         }
         break;
@@ -1669,7 +1568,6 @@ NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
         switch (kind) {
         case nk_kernel_reduce_moments_k: lists = nk_reduce_moments_bf16_capabilities(); break;
         case nk_kernel_reduce_minmax_k: lists = nk_reduce_minmax_bf16_capabilities(); break;
-        case nk_kernel_reduce_rmsnorm_k: lists = nk_reduce_rmsnorm_bf16_capabilities(); break;
         default: break;
         }
         break;
@@ -1691,7 +1589,6 @@ NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
         switch (kind) {
         case nk_kernel_reduce_moments_k: lists = nk_reduce_moments_e4m3_capabilities(); break;
         case nk_kernel_reduce_minmax_k: lists = nk_reduce_minmax_e4m3_capabilities(); break;
-        case nk_kernel_reduce_rmsnorm_k: lists = nk_reduce_rmsnorm_e4m3_capabilities(); break;
         default: break;
         }
         break;

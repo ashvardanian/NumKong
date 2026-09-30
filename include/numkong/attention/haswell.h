@@ -923,6 +923,135 @@ NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_haswell(           
                                            query_offsets, query_stride_bytes, output_stride_bytes, scale,
                                            NUMKONG_I64_MAX / 2, NUMKONG_SIZE_MAX, task_start, task_count);
 }
+
+NUMKONG_API nk_status_t nk_attention_rope_f32_haswell(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                      nk_f32_t *y, nk_size_t rows, nk_size_t head_count,
+                                                      nk_size_t depth, nk_size_t x_stride_bytes,
+                                                      nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(depth % 2 == 0);
+    nk_size_t const half_depth = depth / 2;
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_depth;
+        nk_f32_t const *sin_row = sin + r * half_depth;
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t h = 0; h != head_count; ++h) {
+            nk_f32_t const *x_base = x_row + h * depth;
+            nk_f32_t *y_base = y_row + h * depth;
+            nk_size_t i = 0;
+            for (; i + 8 <= half_depth; i += 8) {
+                __m256 low_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(x_base + i), scale_f32x8);
+                __m256 high_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(x_base + i + half_depth), scale_f32x8);
+                __m256 cos_f32x8 = _mm256_loadu_ps(cos_row + i), sin_f32x8 = _mm256_loadu_ps(sin_row + i);
+                _mm256_storeu_ps(y_base + i,
+                                 _mm256_fmsub_ps(low_f32x8, cos_f32x8, _mm256_mul_ps(high_f32x8, sin_f32x8)));
+                _mm256_storeu_ps(y_base + i + half_depth,
+                                 _mm256_fmadd_ps(low_f32x8, sin_f32x8, _mm256_mul_ps(high_f32x8, cos_f32x8)));
+            }
+            for (; i != half_depth; ++i) {
+                nk_f32_t low = x_base[i] * input_scale, high = x_base[i + half_depth] * input_scale;
+                nk_f32_t cosine = cos_row[i], sine = sin_row[i];
+                y_base[i] = low * cosine - high * sine;
+                y_base[i + half_depth] = low * sine + high * cosine;
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_bf16_haswell(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                       nk_bf16_t *y, nk_size_t rows, nk_size_t head_count,
+                                                       nk_size_t depth, nk_size_t x_stride_bytes,
+                                                       nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(depth % 2 == 0);
+    nk_size_t const half_depth = depth / 2;
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_depth;
+        nk_f32_t const *sin_row = sin + r * half_depth;
+        nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t h = 0; h != head_count; ++h) {
+            nk_bf16_t const *x_base = x_row + h * depth;
+            nk_bf16_t *y_base = y_row + h * depth;
+            nk_size_t i = 0;
+            for (; i + 8 <= half_depth; i += 8) {
+                nk_b256_vec_t low_vec, high_vec;
+                nk_load_bf16x8_to_f32x8_haswell_(x_base + i, &low_vec);
+                nk_load_bf16x8_to_f32x8_haswell_(x_base + i + half_depth, &high_vec);
+                __m256 low_f32x8 = _mm256_mul_ps(low_vec.ymm_ps, scale_f32x8),
+                       high_f32x8 = _mm256_mul_ps(high_vec.ymm_ps, scale_f32x8);
+                __m256 cos_f32x8 = _mm256_loadu_ps(cos_row + i), sin_f32x8 = _mm256_loadu_ps(sin_row + i);
+                _mm_storeu_si128((__m128i *)(y_base + i),
+                                 nk_f32x8_to_bf16x8_haswell_(
+                                     _mm256_fmsub_ps(low_f32x8, cos_f32x8, _mm256_mul_ps(high_f32x8, sin_f32x8))));
+                _mm_storeu_si128((__m128i *)(y_base + i + half_depth),
+                                 nk_f32x8_to_bf16x8_haswell_(
+                                     _mm256_fmadd_ps(low_f32x8, sin_f32x8, _mm256_mul_ps(high_f32x8, cos_f32x8))));
+            }
+            for (; i != half_depth; ++i) {
+                nk_f32_t low, high;
+                nk_bf16_to_f32_(x_base + i, &low);
+                nk_bf16_to_f32_(x_base + i + half_depth, &high);
+                low *= input_scale, high *= input_scale;
+                nk_f32_t cosine = cos_row[i], sine = sin_row[i], rotated_low = low * cosine - high * sine,
+                         rotated_high = low * sine + high * cosine;
+                nk_f32_to_bf16_(&rotated_low, y_base + i);
+                nk_f32_to_bf16_(&rotated_high, y_base + i + half_depth);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_haswell(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                       nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count,
+                                                       nk_size_t depth, nk_size_t x_stride_bytes,
+                                                       nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(depth % 2 == 0);
+    nk_size_t const half_depth = depth / 2;
+    __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_depth;
+        nk_f32_t const *sin_row = sin + r * half_depth;
+        nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t h = 0; h != head_count; ++h) {
+            nk_e4m3_t const *x_base = x_row + h * depth;
+            nk_e4m3_t *y_base = y_row + h * depth;
+            nk_size_t i = 0;
+            for (; i + 8 <= half_depth; i += 8) {
+                nk_b256_vec_t low_vec, high_vec;
+                nk_load_e4m3x8_to_f32x8_haswell_(x_base + i, &low_vec);
+                nk_load_e4m3x8_to_f32x8_haswell_(x_base + i + half_depth, &high_vec);
+                __m256 low_f32x8 = _mm256_mul_ps(low_vec.ymm_ps, scale_f32x8),
+                       high_f32x8 = _mm256_mul_ps(high_vec.ymm_ps, scale_f32x8);
+                __m256 cos_f32x8 = _mm256_loadu_ps(cos_row + i), sin_f32x8 = _mm256_loadu_ps(sin_row + i);
+                _mm_storel_epi64((__m128i *)(y_base + i),
+                                 nk_f32x8_to_e4m3x8_haswell_(
+                                     _mm256_fmsub_ps(low_f32x8, cos_f32x8, _mm256_mul_ps(high_f32x8, sin_f32x8))));
+                _mm_storel_epi64((__m128i *)(y_base + i + half_depth),
+                                 nk_f32x8_to_e4m3x8_haswell_(
+                                     _mm256_fmadd_ps(low_f32x8, sin_f32x8, _mm256_mul_ps(high_f32x8, cos_f32x8))));
+            }
+            for (; i != half_depth; ++i) {
+                nk_f32_t low, high;
+                nk_e4m3_to_f32_(x_base + i, &low);
+                nk_e4m3_to_f32_(x_base + i + half_depth, &high);
+                low *= input_scale, high *= input_scale;
+                nk_f32_t cosine = cos_row[i], sine = sin_row[i], rotated_low = low * cosine - high * sine,
+                         rotated_high = low * sine + high * cosine;
+                nk_f32_to_e4m3_(&rotated_low, y_base + i);
+                nk_f32_to_e4m3_(&rotated_high, y_base + i + half_depth);
+            }
+        }
+    }
+    return nk_success_k;
+}
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

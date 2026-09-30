@@ -100,6 +100,7 @@ StatementMacros:
   - nk_define_each_blend_
   - nk_define_each_fma_
   - nk_define_each_swiglu_
+  - nk_define_each_rmsnorm_
   - nk_define_sqeuclidean_
   - nk_define_sqeuclidean_serial_
   - nk_define_euclidean_
@@ -119,7 +120,6 @@ StatementMacros:
   - nk_define_qr_orthogonal_factor_
   - nk_define_svd3x3_
   - nk_define_det3x3_
-  - nk_define_reduce_rmsnorm_
   - nk_define_cross_pack_size_
   - nk_define_cross_packed_shape_
   - nk_define_cross_pack_
@@ -149,7 +149,7 @@ StatementMacros:
   - nk_define_device_attention_baseline_packed_
   - nk_define_device_attention_baseline_
   - nk_define_device_attention_packed_
-  - nk_define_trig_rope_
+  - nk_define_attention_rope_
 
 # Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:

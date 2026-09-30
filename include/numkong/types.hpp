@@ -461,7 +461,6 @@ struct f32_t {
     using component_t = f32_t;
 
     using scale_t = nk_f32_t;
-    using rope_angle_t = nk_f32_t;
     using sparse_dot_index_t = u32_t;
     using dot_result_t = f64_t;           // `nk_dot_f32` output
     using sqeuclidean_result_t = f64_t;   // `nk_sqeuclidean_f32` output
@@ -498,14 +497,15 @@ struct f32_t {
     using swiglu_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
                                             nk_size_t, nk_size_t, nk_f32_t, void *);
     using trigonometry_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, raw_t *, void *);
-    using rope_kernel_t = nk_status_t (*)(raw_t const *, raw_t *, nk_f32_t const *, nk_f32_t const *, nk_size_t,
-                                          nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, void *);
+    using attention_rope_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, nk_f32_t const *, raw_t *,
+                                                    nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                    void *);
     using reduce_moments_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *,
                                                     void *);
     using reduce_minmax_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, raw_t *, nk_size_t *, raw_t *,
                                                    nk_size_t *, void *);
-    using reduce_rmsnorm_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t, void *);
+    using rmsnorm_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_f32_t, nk_f32_t, void *);
     using dots_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, void *);
@@ -1514,7 +1514,6 @@ struct f16_t {
     using component_t = f16_t;
 
     using scale_t = nk_f32_t;
-    using rope_angle_t = nk_f32_t;
     using dot_result_t = f32_t;           // `nk_dot_f16` output
     using sqeuclidean_result_t = f32_t;   // `nk_sqeuclidean_f16` output
     using euclidean_result_t = f32_t;     // `nk_euclidean_f16` output
@@ -1780,7 +1779,6 @@ struct bf16_t {
     using component_t = bf16_t;
 
     using scale_t = nk_f32_t;
-    using rope_angle_t = nk_f32_t;
     using sparse_dot_index_t = u16_t;
     using dot_result_t = f32_t;           // `nk_dot_bf16` output
     using attention_result_t = f32_t;     // `nk_attention_*_packed_*` output
@@ -1814,14 +1812,15 @@ struct bf16_t {
                                          scale_t const *, raw_t *, void *);
     using swiglu_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
                                             nk_size_t, nk_size_t, nk_f32_t, void *);
-    using rope_kernel_t = nk_status_t (*)(raw_t const *, raw_t *, nk_f32_t const *, nk_f32_t const *, nk_size_t,
-                                          nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, void *);
+    using attention_rope_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, nk_f32_t const *, raw_t *,
+                                                    nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                    void *);
     using reduce_moments_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
                                                     void *);
     using reduce_minmax_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, raw_t *, nk_size_t *, raw_t *,
                                                    nk_size_t *, void *);
-    using reduce_rmsnorm_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t, void *);
+    using rmsnorm_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_f32_t, nk_f32_t, void *);
     using dots_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, void *);
@@ -2264,7 +2263,6 @@ struct e4m3_t {
     using component_t = e4m3_t;
 
     using scale_t = nk_f32_t;
-    using rope_angle_t = nk_f32_t;
     using dot_result_t = f32_t;           // `nk_dot_e4m3` output
     using attention_result_t = f32_t;     // `nk_attention_*_packed_*` output
     using sqeuclidean_result_t = f32_t;   // `nk_sqeuclidean_e4m3` output
@@ -2286,14 +2284,15 @@ struct e4m3_t {
                                          scale_t const *, raw_t *, void *);
     using swiglu_kernel_t = nk_status_t (*)(raw_t const *, raw_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
                                             nk_size_t, nk_size_t, nk_f32_t, void *);
-    using rope_kernel_t = nk_status_t (*)(raw_t const *, raw_t *, nk_f32_t const *, nk_f32_t const *, nk_size_t,
-                                          nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t, void *);
+    using attention_rope_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, nk_f32_t const *, raw_t *,
+                                                    nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                    void *);
     using reduce_moments_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
                                                     void *);
     using reduce_minmax_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, raw_t *, nk_size_t *, raw_t *,
                                                    nk_size_t *, void *);
-    using reduce_rmsnorm_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t,
-                                                    nk_size_t, nk_size_t, nk_size_t, nk_f32_t, nk_f32_t, void *);
+    using rmsnorm_kernel_t = nk_status_t (*)(raw_t const *, nk_f32_t const *, raw_t *, nk_size_t, nk_size_t, nk_size_t,
+                                             nk_size_t, nk_size_t, nk_f32_t, nk_f32_t, void *);
     using dots_pack_size_kernel_t = nk_status_t (*)(nk_size_t, nk_size_t, nk_size_t *);
     using dots_pack_kernel_t = nk_status_t (*)(raw_t const *, nk_size_t, nk_size_t, nk_size_t, void *, nk_size_t,
                                                nk_size_t, void *);

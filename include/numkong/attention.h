@@ -294,6 +294,46 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_best(
     nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
     nk_size_t task_count, nk_capability_t capabilities, void *stream);
 
+/**
+ *  @brief NeoX split-half rotary position embedding (RoPE): rotates channel pairs
+ *      by per-token angles.
+ *
+ *  Rotates the channel pair i and i + h of every head in every row, h being half the @p depth:
+ *
+ *  @verbatim
+ *  y[i]     = x[i] · cos - x[i + h] · sin
+ *  y[i + h] = x[i] · sin + x[i + h] · cos
+ *  @endverbatim
+ *
+ *  @param[in] x Input token matrix of shape rows by @p head_count × @p depth.
+ *  @param[in] cos Per-token cosine angle grid of shape rows by @p depth / 2, shared across heads.
+ *  @param[in] sin Per-token sine angle grid of shape rows by @p depth / 2, shared across heads.
+ *  @param[out] y Output matrix, same shape and dtype as x; may alias x for in-place rotation.
+ *  @param[in] rows The number of token rows.
+ *  @param[in] head_count The number of heads per token.
+ *  @param[in] depth The even number of channels per head.
+ *  @param[in] x_stride_bytes Row (token) stride of x in bytes.
+ *  @param[in] y_stride_bytes Row (token) stride of y in bytes.
+ *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32).
+ *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
+ *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ */
+NUMKONG_API nk_status_t nk_attention_rope_f32_best(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                   nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                   nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                   nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_bf16_best(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_bf16_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream);
+
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
@@ -369,6 +409,18 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_serial(
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
     nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
     nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_f32_serial(nk_f32_t const *, nk_f32_t const *, nk_f32_t const *, nk_f32_t *,
+                                                     nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                     void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_bf16_serial(nk_bf16_t const *, nk_f32_t const *, nk_f32_t const *,
+                                                      nk_bf16_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                      nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_serial(nk_e4m3_t const *, nk_f32_t const *, nk_f32_t const *,
+                                                      nk_e4m3_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                      nk_size_t, nk_f32_t, void *stream);
 
 #if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_attention_pack_size_bf16_best */
@@ -446,6 +498,18 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_haswell(
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
     nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
     nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_f32_haswell(nk_f32_t const *, nk_f32_t const *, nk_f32_t const *, nk_f32_t *,
+                                                      nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                      void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_bf16_haswell(nk_bf16_t const *, nk_f32_t const *, nk_f32_t const *,
+                                                       nk_bf16_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                       nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_haswell(nk_e4m3_t const *, nk_f32_t const *, nk_f32_t const *,
+                                                       nk_e4m3_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                       nk_size_t, nk_f32_t, void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -499,6 +563,18 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_skylake(
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride_bytes,
     nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
     nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_f32_skylake(nk_f32_t const *, nk_f32_t const *, nk_f32_t const *, nk_f32_t *,
+                                                      nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_size_t, nk_f32_t,
+                                                      void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_bf16_skylake(nk_bf16_t const *, nk_f32_t const *, nk_f32_t const *,
+                                                       nk_bf16_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                       nk_size_t, nk_f32_t, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_skylake(nk_e4m3_t const *, nk_f32_t const *, nk_f32_t const *,
+                                                       nk_e4m3_t *, nk_size_t, nk_size_t, nk_size_t, nk_size_t,
+                                                       nk_size_t, nk_f32_t, void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
@@ -1591,6 +1667,14 @@ NUMKONG_INLINE nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of RoPE outputs before they round into their type, relative to the two
+ *  products each of them sums: 3 roundings in F32, which every input type rotates in, through the
+ *  descale, the product and the sum. */
+NUMKONG_INLINE nk_f64_t nk_attention_rope_error_bound(nk_dtype_t dtype) {
+    nk_unused_(dtype);
+    return 3 * nk_accumulation_error_bound(nk_f32_k);
+}
+
 /**
  *  @brief Finds the attention kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.
@@ -1790,6 +1874,36 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_best(
         nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets), nk_unused_(query_stride_bytes),
         nk_unused_(output_stride_bytes), nk_unused_(scale), nk_unused_(diagonal_offset), nk_unused_(window),
         nk_unused_(task_start), nk_unused_(task_count), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_f32_best(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                   nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                   nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                   nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+    nk_unused_(x), nk_unused_(y), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(head_count),
+        nk_unused_(depth), nk_unused_(x_stride_bytes), nk_unused_(y_stride_bytes), nk_unused_(input_scale),
+        nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_bf16_best(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_bf16_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+    nk_unused_(x), nk_unused_(y), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(head_count),
+        nk_unused_(depth), nk_unused_(x_stride_bytes), nk_unused_(y_stride_bytes), nk_unused_(input_scale),
+        nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+    nk_unused_(x), nk_unused_(y), nk_unused_(cos), nk_unused_(sin), nk_unused_(rows), nk_unused_(head_count),
+        nk_unused_(depth), nk_unused_(x_stride_bytes), nk_unused_(y_stride_bytes), nk_unused_(input_scale),
+        nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 

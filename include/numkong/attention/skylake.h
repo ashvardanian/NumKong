@@ -519,6 +519,155 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_skylake(                
                                  scale, diagonal_offset, window, task_start, task_count);
     return nk_success_k;
 }
+
+NUMKONG_API nk_status_t nk_attention_rope_f32_skylake(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                      nk_f32_t *y, nk_size_t rows, nk_size_t head_count,
+                                                      nk_size_t depth, nk_size_t x_stride_bytes,
+                                                      nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(depth % 2 == 0);
+    nk_size_t const half_depth = depth / 2;
+    __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_depth;
+        nk_f32_t const *sin_row = sin + r * half_depth;
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t h = 0; h != head_count; ++h) {
+            nk_f32_t const *x_base = x_row + h * depth;
+            nk_f32_t *y_base = y_row + h * depth;
+            nk_size_t i = 0;
+            for (; i + 16 <= half_depth; i += 16) {
+                __m512 low_f32x16 = _mm512_mul_ps(_mm512_loadu_ps(x_base + i), scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(_mm512_loadu_ps(x_base + i + half_depth), scale_f32x16);
+                __m512 cos_f32x16 = _mm512_loadu_ps(cos_row + i), sin_f32x16 = _mm512_loadu_ps(sin_row + i);
+                _mm512_storeu_ps(y_base + i,
+                                 _mm512_fmsub_ps(low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16)));
+                _mm512_storeu_ps(y_base + i + half_depth,
+                                 _mm512_fmadd_ps(low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16)));
+            }
+            if (i < half_depth) {
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(half_depth - i));
+                __m512 low_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, x_base + i), scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, x_base + i + half_depth),
+                                                   scale_f32x16);
+                __m512 cos_f32x16 = _mm512_maskz_loadu_ps(mask_m16, cos_row + i);
+                __m512 sin_f32x16 = _mm512_maskz_loadu_ps(mask_m16, sin_row + i);
+                _mm512_mask_storeu_ps(y_base + i, mask_m16,
+                                      _mm512_fmsub_ps(low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16)));
+                _mm512_mask_storeu_ps(y_base + i + half_depth, mask_m16,
+                                      _mm512_fmadd_ps(low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16)));
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_bf16_skylake(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                       nk_bf16_t *y, nk_size_t rows, nk_size_t head_count,
+                                                       nk_size_t depth, nk_size_t x_stride_bytes,
+                                                       nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(depth % 2 == 0);
+    nk_size_t const half_depth = depth / 2;
+    __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_depth;
+        nk_f32_t const *sin_row = sin + r * half_depth;
+        nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t h = 0; h != head_count; ++h) {
+            nk_bf16_t const *x_base = x_row + h * depth;
+            nk_bf16_t *y_base = y_row + h * depth;
+            nk_size_t i = 0;
+            for (; i + 16 <= half_depth; i += 16) {
+                nk_b512_vec_t low_vec, high_vec;
+                nk_load_bf16x16_to_f32x16_skylake_(x_base + i, &low_vec);
+                nk_load_bf16x16_to_f32x16_skylake_(x_base + i + half_depth, &high_vec);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_loadu_ps(cos_row + i), sin_f32x16 = _mm512_loadu_ps(sin_row + i);
+                _mm256_storeu_si256((__m256i *)(y_base + i),
+                                    nk_f32x16_to_bf16x16_skylake_(_mm512_fmsub_ps(
+                                        low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm256_storeu_si256((__m256i *)(y_base + i + half_depth),
+                                    nk_f32x16_to_bf16x16_skylake_(_mm512_fmadd_ps(
+                                        low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+            if (i < half_depth) {
+                nk_size_t remaining = half_depth - i;
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
+                nk_b512_vec_t low_vec, high_vec;
+                nk_partial_load_bf16x16_to_f32x16_skylake_(x_base + i, &low_vec, remaining);
+                nk_partial_load_bf16x16_to_f32x16_skylake_(x_base + i + half_depth, &high_vec, remaining);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_maskz_loadu_ps(mask_m16, cos_row + i);
+                __m512 sin_f32x16 = _mm512_maskz_loadu_ps(mask_m16, sin_row + i);
+                _mm256_mask_storeu_epi16((void *)(y_base + i), mask_m16,
+                                         nk_f32x16_to_bf16x16_skylake_(_mm512_fmsub_ps(
+                                             low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm256_mask_storeu_epi16((void *)(y_base + i + half_depth), mask_m16,
+                                         nk_f32x16_to_bf16x16_skylake_(_mm512_fmadd_ps(
+                                             low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_skylake(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                       nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count,
+                                                       nk_size_t depth, nk_size_t x_stride_bytes,
+                                                       nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_assert_(depth % 2 == 0);
+    nk_size_t const half_depth = depth / 2;
+    __m512 scale_f32x16 = _mm512_set1_ps(input_scale);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *cos_row = cos + r * half_depth;
+        nk_f32_t const *sin_row = sin + r * half_depth;
+        nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t h = 0; h != head_count; ++h) {
+            nk_e4m3_t const *x_base = x_row + h * depth;
+            nk_e4m3_t *y_base = y_row + h * depth;
+            nk_size_t i = 0;
+            for (; i + 16 <= half_depth; i += 16) {
+                nk_b512_vec_t low_vec, high_vec;
+                nk_load_e4m3x16_to_f32x16_skylake_(x_base + i, &low_vec);
+                nk_load_e4m3x16_to_f32x16_skylake_(x_base + i + half_depth, &high_vec);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_loadu_ps(cos_row + i), sin_f32x16 = _mm512_loadu_ps(sin_row + i);
+                _mm_storeu_si128((__m128i *)(y_base + i),
+                                 nk_f32x16_to_e4m3x16_skylake_(
+                                     _mm512_fmsub_ps(low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm_storeu_si128((__m128i *)(y_base + i + half_depth),
+                                 nk_f32x16_to_e4m3x16_skylake_(
+                                     _mm512_fmadd_ps(low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+            if (i < half_depth) {
+                nk_size_t remaining = half_depth - i;
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)remaining);
+                nk_b512_vec_t low_vec, high_vec;
+                nk_partial_load_e4m3x16_to_f32x16_skylake_(x_base + i, &low_vec, remaining);
+                nk_partial_load_e4m3x16_to_f32x16_skylake_(x_base + i + half_depth, &high_vec, remaining);
+                __m512 low_f32x16 = _mm512_mul_ps(low_vec.zmm_ps, scale_f32x16);
+                __m512 high_f32x16 = _mm512_mul_ps(high_vec.zmm_ps, scale_f32x16);
+                __m512 cos_f32x16 = _mm512_maskz_loadu_ps(mask_m16, cos_row + i);
+                __m512 sin_f32x16 = _mm512_maskz_loadu_ps(mask_m16, sin_row + i);
+                _mm_mask_storeu_epi8((void *)(y_base + i), mask_m16,
+                                     nk_f32x16_to_e4m3x16_skylake_(_mm512_fmsub_ps(
+                                         low_f32x16, cos_f32x16, _mm512_mul_ps(high_f32x16, sin_f32x16))));
+                _mm_mask_storeu_epi8((void *)(y_base + i + half_depth), mask_m16,
+                                     nk_f32x16_to_e4m3x16_skylake_(_mm512_fmadd_ps(
+                                         low_f32x16, sin_f32x16, _mm512_mul_ps(high_f32x16, cos_f32x16))));
+            }
+        }
+    }
+    return nk_success_k;
+}
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)

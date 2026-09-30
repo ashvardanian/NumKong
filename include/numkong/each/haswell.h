@@ -28,9 +28,10 @@
 #if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"   // `nk_f32_to_i8_serial_`
-#include "numkong/cast/haswell.h"  // `nk_e4m3x8_to_f32x8_haswell_`
-#include "numkong/scalar/serial.h" // `nk_f32_silu_serial_`
+#include "numkong/cast/serial.h"    // `nk_f32_to_i8_serial_`
+#include "numkong/cast/haswell.h"   // `nk_e4m3x8_to_f32x8_haswell_`
+#include "numkong/reduce/haswell.h" // `nk_reduce_moments_f32_haswell_chunked_`
+#include "numkong/scalar/serial.h"  // `nk_f32_silu_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -1909,16 +1910,16 @@ NUMKONG_INLINE __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
 
 #if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y,
-                                                   nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                   nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                   nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
+                                                   nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
                                                    nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
-        nk_f32_t const *gate_row = (nk_f32_t const *)((unsigned char const *)gate + row * gate_row_stride);
-        nk_f32_t const *up_row = up ? (nk_f32_t const *)((unsigned char const *)up + row * up_row_stride)
+        nk_f32_t const *gate_row = (nk_f32_t const *)((unsigned char const *)gate + row * gate_stride_bytes);
+        nk_f32_t const *up_row = up ? (nk_f32_t const *)((unsigned char const *)up + row * up_stride_bytes)
                                     : NUMKONG_NULL;
-        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + row * y_row_stride);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + row * y_stride_bytes);
         nk_size_t col = 0;
         for (; col + 8 <= cols; col += 8) {
             __m256 result_f32x8 = nk_silu_f32x8_haswell_(_mm256_mul_ps(_mm256_loadu_ps(gate_row + col), scale_f32x8));
@@ -1936,16 +1937,16 @@ NUMKONG_API nk_status_t nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_
 }
 
 NUMKONG_API nk_status_t nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                    nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
+                                                    nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
                                                     nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
-        nk_bf16_t const *gate_row = (nk_bf16_t const *)((unsigned char const *)gate + row * gate_row_stride);
-        nk_bf16_t const *up_row = up ? (nk_bf16_t const *)((unsigned char const *)up + row * up_row_stride)
+        nk_bf16_t const *gate_row = (nk_bf16_t const *)((unsigned char const *)gate + row * gate_stride_bytes);
+        nk_bf16_t const *up_row = up ? (nk_bf16_t const *)((unsigned char const *)up + row * up_stride_bytes)
                                      : NUMKONG_NULL;
-        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + row * y_row_stride);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + row * y_stride_bytes);
         nk_size_t col = 0;
         for (; col + 8 <= cols; col += 8) {
             nk_b256_vec_t gate_vec;
@@ -1974,16 +1975,16 @@ NUMKONG_API nk_status_t nk_each_swiglu_bf16_haswell(nk_bf16_t const *gate, nk_bf
 }
 
 NUMKONG_API nk_status_t nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
-                                                    nk_size_t rows, nk_size_t cols, nk_size_t gate_row_stride,
-                                                    nk_size_t up_row_stride, nk_size_t y_row_stride,
+                                                    nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
+                                                    nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
                                                     nk_f32_t input_scale, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     __m256 scale_f32x8 = _mm256_set1_ps(input_scale);
     for (nk_size_t row = 0; row != rows; ++row) {
-        nk_e4m3_t const *gate_row = (nk_e4m3_t const *)((unsigned char const *)gate + row * gate_row_stride);
-        nk_e4m3_t const *up_row = up ? (nk_e4m3_t const *)((unsigned char const *)up + row * up_row_stride)
+        nk_e4m3_t const *gate_row = (nk_e4m3_t const *)((unsigned char const *)gate + row * gate_stride_bytes);
+        nk_e4m3_t const *up_row = up ? (nk_e4m3_t const *)((unsigned char const *)up + row * up_stride_bytes)
                                      : NUMKONG_NULL;
-        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + row * y_row_stride);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + row * y_stride_bytes);
         nk_size_t col = 0;
         for (; col + 8 <= cols; col += 8) {
             nk_b256_vec_t gate_vec;
@@ -2006,6 +2007,110 @@ NUMKONG_API nk_status_t nk_each_swiglu_e4m3_haswell(nk_e4m3_t const *gate, nk_e4
                 result *= up_value * input_scale;
             }
             nk_f32_to_e4m3_(&result, y_row + col);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_f32_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
+                                                    nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f32_t const *group_input = x_row + group * cols;
+            nk_f32_t *group_output = y_row + group * cols;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f32_haswell_chunked_(group_input, cols, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= cols; c += 8) {
+                __m256 normalized_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(group_input + c), gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm256_storeu_ps(group_output + c, normalized_f32x8);
+            }
+            for (; c != cols; ++c) group_output[c] = group_input[c] * gain * (gamma ? gamma[c] : 1.0f);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                     nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                     nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
+                                                     nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_bf16_t const *x_row = (nk_bf16_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_bf16_t const *group_input = x_row + group * cols;
+            nk_bf16_t *group_output = y_row + group * cols;
+            nk_f32_t sum, sumsq;
+            nk_reduce_moments_bf16_haswell_chunked_(group_input, cols, sizeof(nk_bf16_t), &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= cols; c += 8) {
+                nk_b256_vec_t input_vec;
+                nk_load_bf16x8_to_f32x8_haswell_(group_input + c, &input_vec);
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_vec.ymm_ps, gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm_storeu_si128((__m128i *)(group_output + c), nk_f32x8_to_bf16x8_haswell_(normalized_f32x8));
+            }
+            for (; c != cols; ++c) {
+                nk_f32_t value;
+                nk_bf16_to_f32_(group_input + c, &value);
+                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_bf16_(&result, group_output + c);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                     nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                     nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
+                                                     nk_f32_t input_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_e4m3_t const *x_row = (nk_e4m3_t const *)((unsigned char const *)x + r * x_stride_bytes);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_stride_bytes);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_e4m3_t const *group_input = x_row + group * cols;
+            nk_e4m3_t *group_output = y_row + group * cols;
+            nk_f32_t sum, sumsq;
+            nk_reduce_moments_e4m3_haswell_chunked_(group_input, cols, sizeof(nk_e4m3_t), &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols) + eps;
+            nk_f32_t gain = input_scale *
+                            _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= cols; c += 8) {
+                nk_b256_vec_t input_vec;
+                nk_load_e4m3x8_to_f32x8_haswell_(group_input + c, &input_vec);
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_vec.ymm_ps, gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm_storel_epi64((__m128i *)(group_output + c), nk_f32x8_to_e4m3x8_haswell_(normalized_f32x8));
+            }
+            for (; c != cols; ++c) {
+                nk_f32_t value;
+                nk_e4m3_to_f32_(group_input + c, &value);
+                nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_e4m3_(&result, group_output + c);
+            }
         }
     }
     return nk_success_k;

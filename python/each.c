@@ -589,7 +589,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
             goto cleanup;
         }
     }
-    nk_size_t const x_row_stride = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+    nk_size_t const x_stride_bytes = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
 
     nk_f32_t const *gamma_ptr = NULL;
     if (gamma_obj) {
@@ -608,9 +608,9 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
         gamma_ptr = (nk_f32_t const *)gamma_buffer.buf;
     }
 
-    nk_reduce_rmsnorm_punned_t kernel = NULL;
+    nk_each_rmsnorm_punned_t kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_reduce_rmsnorm_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_each_rmsnorm_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
     if (!kernel || !capability) {
         PyErr_Format(PyExc_LookupError, "No rmsnorm kernel for dtype '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
@@ -623,12 +623,12 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
                                  &result_data, result_strides, &contiguous_tail, &return_obj))
         goto cleanup;
-    nk_size_t const y_row_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+    nk_size_t const y_stride_bytes = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        nk_status_t const status = kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, cols, x_row_stride,
-                                          y_row_stride, eps, input_scale, stream);
+        nk_status_t const status = kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, cols, x_stride_bytes,
+                                          y_stride_bytes, eps, input_scale, stream);
         PyEval_RestoreThread(gil);
         if (!check_status(status)) Py_CLEAR(return_obj);
     }
@@ -722,10 +722,10 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
             goto cleanup;
         }
     }
-    nk_size_t const gate_row_stride = ndim >= 2 ? (nk_size_t)gate_buffer.strides[ndim - 2] : 0;
+    nk_size_t const gate_stride_bytes = ndim >= 2 ? (nk_size_t)gate_buffer.strides[ndim - 2] : 0;
 
     void const *up_ptr = NUMKONG_NULL;
-    nk_size_t up_row_stride = 0;
+    nk_size_t up_stride_bytes = 0;
     if (up_obj) {
         if (!nk_get_buffer(up_obj, &up_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &up_backing)) goto cleanup;
         have_up = 1;
@@ -739,7 +739,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
             goto cleanup;
         }
         up_ptr = up_buffer.buf;
-        up_row_stride = ndim >= 2 ? (nk_size_t)up_buffer.strides[ndim - 2] : 0;
+        up_stride_bytes = ndim >= 2 ? (nk_size_t)up_buffer.strides[ndim - 2] : 0;
     }
 
     nk_each_swiglu_punned_t kernel = NULL;
@@ -757,12 +757,12 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
                                  &result_data, result_strides, &contiguous_tail, &return_obj))
         goto cleanup;
-    nk_size_t const y_row_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+    nk_size_t const y_stride_bytes = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        nk_status_t const status = kernel(gate_buffer.buf, up_ptr, result_data, rows, cols, gate_row_stride,
-                                          up_row_stride, y_row_stride, input_scale, stream);
+        nk_status_t const status = kernel(gate_buffer.buf, up_ptr, result_data, rows, cols, gate_stride_bytes,
+                                          up_stride_bytes, y_stride_bytes, input_scale, stream);
         PyEval_RestoreThread(gil);
         if (!check_status(status)) Py_CLEAR(return_obj);
     }

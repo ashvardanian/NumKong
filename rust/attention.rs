@@ -257,6 +257,48 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
+    fn nk_attention_rope_f32_best(
+        x: *const f32,
+        cos: *const f32,
+        sin: *const f32,
+        y: *mut f32,
+        rows: nk_size_t,
+        head_count: nk_size_t,
+        depth: nk_size_t,
+        x_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
+        input_scale: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_attention_rope_bf16_best(
+        x: *const u16,
+        cos: *const f32,
+        sin: *const f32,
+        y: *mut u16,
+        rows: nk_size_t,
+        head_count: nk_size_t,
+        depth: nk_size_t,
+        x_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
+        input_scale: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_attention_rope_e4m3_best(
+        x: *const u8,
+        cos: *const f32,
+        sin: *const f32,
+        y: *mut u8,
+        rows: nk_size_t,
+        head_count: nk_size_t,
+        depth: nk_size_t,
+        x_stride_bytes: nk_size_t,
+        y_stride_bytes: nk_size_t,
+        input_scale: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
 }
 
 // endregion: FFI
@@ -1628,10 +1670,232 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
 
 // endregion: AttentionPackedMatrix
 
+// region: RoPE
+
+/// In-place NeoX split-half RoPE over a row-major __[rows,head_count × depth]__ tensor.
+pub trait AttentionRope: Sized + StorageElement {
+    /// Rotates a 2D __[rows,head_count × depth]__ tensor in place using the __[rows,depth/2]__
+    /// `cos`/`sin` angle grids, shared across heads, for an even `depth` of channels per head.
+    ///
+    /// The row stride is read from the tensor, so `x` may be a non-contiguous sub-span, for example
+    /// the Q or K column-section of a fused QKV buffer. Returns `Err` on a shape mismatch.
+    fn attention_rope_into<XMut, const RX: usize>(
+        x: &mut XMut,
+        cos: &[f32],
+        sin: &[f32],
+        head_count: usize,
+        depth: usize,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XMut: TensorMut<Self, RX> + ?Sized;
+}
+
+impl AttentionRope for f32 {
+    fn attention_rope_into<XMut, const RX: usize>(
+        x: &mut XMut,
+        cos: &[f32],
+        sin: &[f32],
+        head_count: usize,
+        depth: usize,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XMut: TensorMut<Self, RX> + ?Sized,
+    {
+        if x.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        }
+        if depth % 2 != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 1,
+                size: depth,
+                reason: "RoPE depth must be even",
+            });
+        }
+        let (rows, width) = (x.shape()[0], x.shape()[1]);
+        if width < head_count * depth {
+            return Err(TensorError::ShapeMismatch {
+                axis: 1,
+                expected: head_count * depth,
+                got: width,
+            });
+        }
+        if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
+            return Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: rows * depth / 2,
+                got: cos.len().min(sin.len()),
+            });
+        }
+        if rows == 0 {
+            return Ok(());
+        }
+        let stride = x.stride_bytes(0) as usize;
+        let yp = x.as_mut_ptr();
+        unsafe {
+            nk_attention_rope_f32_best(
+                yp,
+                cos.as_ptr(),
+                sin.as_ptr(),
+                yp,
+                rows,
+                head_count,
+                depth,
+                stride,
+                stride,
+                input_scale,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+            .check()?;
+        }
+        Ok(())
+    }
+}
+
+impl AttentionRope for bf16 {
+    fn attention_rope_into<XMut, const RX: usize>(
+        x: &mut XMut,
+        cos: &[f32],
+        sin: &[f32],
+        head_count: usize,
+        depth: usize,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XMut: TensorMut<Self, RX> + ?Sized,
+    {
+        if x.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        }
+        if depth % 2 != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 1,
+                size: depth,
+                reason: "RoPE depth must be even",
+            });
+        }
+        let (rows, width) = (x.shape()[0], x.shape()[1]);
+        if width < head_count * depth {
+            return Err(TensorError::ShapeMismatch {
+                axis: 1,
+                expected: head_count * depth,
+                got: width,
+            });
+        }
+        if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
+            return Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: rows * depth / 2,
+                got: cos.len().min(sin.len()),
+            });
+        }
+        if rows == 0 {
+            return Ok(());
+        }
+        let stride = x.stride_bytes(0) as usize;
+        let yp = x.as_mut_ptr() as *mut u16;
+        unsafe {
+            nk_attention_rope_bf16_best(
+                yp,
+                cos.as_ptr(),
+                sin.as_ptr(),
+                yp,
+                rows,
+                head_count,
+                depth,
+                stride,
+                stride,
+                input_scale,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+            .check()?;
+        }
+        Ok(())
+    }
+}
+
+impl AttentionRope for e4m3 {
+    fn attention_rope_into<XMut, const RX: usize>(
+        x: &mut XMut,
+        cos: &[f32],
+        sin: &[f32],
+        head_count: usize,
+        depth: usize,
+        input_scale: f32,
+    ) -> Result<(), TensorError>
+    where
+        XMut: TensorMut<Self, RX> + ?Sized,
+    {
+        if x.ndim() != 2 {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        }
+        if depth % 2 != 0 {
+            return Err(TensorError::InvalidShape {
+                axis: 1,
+                size: depth,
+                reason: "RoPE depth must be even",
+            });
+        }
+        let (rows, width) = (x.shape()[0], x.shape()[1]);
+        if width < head_count * depth {
+            return Err(TensorError::ShapeMismatch {
+                axis: 1,
+                expected: head_count * depth,
+                got: width,
+            });
+        }
+        if cos.len() < rows * depth / 2 || sin.len() < rows * depth / 2 {
+            return Err(TensorError::ShapeMismatch {
+                axis: 0,
+                expected: rows * depth / 2,
+                got: cos.len().min(sin.len()),
+            });
+        }
+        if rows == 0 {
+            return Ok(());
+        }
+        let stride = x.stride_bytes(0) as usize;
+        let yp = x.as_mut_ptr() as *mut u8;
+        unsafe {
+            nk_attention_rope_e4m3_best(
+                yp,
+                cos.as_ptr(),
+                sin.as_ptr(),
+                yp,
+                rows,
+                head_count,
+                depth,
+                stride,
+                stride,
+                input_scale,
+                enabled_cpu_capabilities_mask(),
+                null_mut(),
+            )
+            .check()?;
+        }
+        Ok(())
+    }
+}
+
+// endregion: RoPE
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tensor::SIMD_ALIGNMENT;
+    use crate::types::{assert_close, FloatLike, TestableType};
 
     #[test]
     fn shape_matches_packed_cache() {
@@ -1736,5 +2000,106 @@ mod tests {
             pack_with_fill(0xFF),
             "attention pack must be a pure function of its inputs (no allocator garbage in the blob)"
         );
+    }
+
+    fn check_attention_rope<Scalar>(values: &[f32], head_count: usize, depth: usize)
+    where
+        Scalar: FloatLike + TestableType + AttentionRope,
+    {
+        let (rows, half_depth) = (2, depth / 2);
+        let width = head_count * depth;
+        assert_eq!(values.len(), rows * width);
+        let x: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
+        // Per-token angle grids [rows, half_depth].
+        let cos: Vec<f32> = (0..rows * half_depth).map(|k| (0.1 * k as f32).cos()).collect();
+        let sin: Vec<f32> = (0..rows * half_depth).map(|k| (0.1 * k as f32).sin()).collect();
+        let reference = x.clone();
+        let mut x_t = crate::tensor::Tensor::<Scalar>::from_slice(&x, &[rows, width]).unwrap();
+        Scalar::attention_rope_into(&mut x_t, &cos, &sin, head_count, depth, 1.0).unwrap();
+        let x = x_t.as_slice().to_vec();
+        for r in 0..rows {
+            for h in 0..head_count {
+                let base = r * width + h * depth;
+                for i in 0..half_depth {
+                    let low = reference[base + i].to_f64();
+                    let high = reference[base + i + half_depth].to_f64();
+                    let cosine = cos[r * half_depth + i] as f64;
+                    let sine = sin[r * half_depth + i] as f64;
+                    let expected_low = Scalar::from_f32((low * cosine - high * sine) as f32).to_f64();
+                    let expected_high = Scalar::from_f32((low * sine + high * cosine) as f32).to_f64();
+                    assert_close(
+                        x[base + i].to_f64(),
+                        expected_low,
+                        Scalar::atol() * 4.0,
+                        Scalar::rtol() * 4.0,
+                        "rope low",
+                    );
+                    assert_close(
+                        x[base + i + half_depth].to_f64(),
+                        expected_high,
+                        Scalar::atol() * 4.0,
+                        Scalar::rtol() * 4.0,
+                        "rope high",
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn rope_split_half() {
+        let values: Vec<f32> = (0..2 * 2 * 2 * 8).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
+        check_attention_rope::<f32>(&values, 2, 16);
+        check_attention_rope::<bf16>(&values, 2, 16);
+        check_attention_rope::<e4m3>(&values, 2, 16);
+    }
+
+    #[test]
+    fn rope_strided_section() {
+        use crate::tensor::{SliceRange, Tensor};
+        // Rotate the left __[rows,width]__ column-section of a __[rows,2×width]__ buffer in place
+        // with a row stride of twice the width, the Q or K section of a fused QKV buffer.
+        let (rows, head_count, depth) = (3, 2, 8);
+        let (width, half_depth) = (head_count * depth, depth / 2);
+        let full = 2 * width;
+        let section: Vec<f32> = (0..rows * width).map(|i| (i as f32 % 7.0) - 3.0).collect();
+        let mut wide_vec = vec![999.0f32; rows * full]; // right half is a sentinel
+        for r in 0..rows {
+            for c in 0..width {
+                wide_vec[r * full + c] = section[r * width + c];
+            }
+        }
+        let cos: Vec<f32> = (0..rows * half_depth).map(|k| (0.1 * k as f32).cos()).collect();
+        let sin: Vec<f32> = (0..rows * half_depth).map(|k| (0.1 * k as f32).sin()).collect();
+
+        let mut wide = Tensor::<f32>::from_slice(&wide_vec, &[rows, full]).unwrap();
+        {
+            let mut span = wide.span();
+            let mut sec = span
+                .slice_mut(&[SliceRange::Full, SliceRange::range(0, width)][..])
+                .unwrap();
+            f32::attention_rope_into(&mut sec, &cos, &sin, head_count, depth, 1.0).unwrap();
+        }
+
+        let mut contig = Tensor::<f32>::from_slice(&section, &[rows, width]).unwrap();
+        f32::attention_rope_into(&mut contig, &cos, &sin, head_count, depth, 1.0).unwrap();
+
+        let wide_after = wide.as_slice();
+        let contig_after = contig.as_slice();
+        for r in 0..rows {
+            for c in 0..width {
+                assert!(
+                    (wide_after[r * full + c] - contig_after[r * width + c]).abs() < 1e-5,
+                    "strided RoPE section mismatch at [{r},{c}]"
+                );
+            }
+            for c in width..full {
+                assert_eq!(
+                    wide_after[r * full + c],
+                    999.0,
+                    "RoPE wrote outside its strided section"
+                );
+            }
+        }
     }
 }

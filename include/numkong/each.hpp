@@ -332,9 +332,9 @@ status_t fma(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_
  *  @param[out] y Output, same shape and dtype as @p gate; may alias @p gate
  *  @param[in] rows Logical row count
  *  @param[in] cols Logical column count
- *  @param[in] gate_row_stride Row stride of @p gate in bytes
- *  @param[in] up_row_stride Row stride of @p up in bytes
- *  @param[in] y_row_stride Row stride of @p y in bytes
+ *  @param[in] gate_stride_bytes Row stride of @p gate in bytes
+ *  @param[in] up_stride_bytes Row stride of @p up in bytes
+ *  @param[in] y_stride_bytes Row stride of @p y in bytes
  *  @param[in] input_scale Scalar applied to each loaded element: E4M3 descale, or 1.0 for BF16/F32
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
@@ -343,36 +343,100 @@ status_t fma(in_type_ const *a, in_type_ const *b, in_type_ const *c, std::size_
  */
 template <numeric_dtype in_type_>
 status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size_t rows, std::size_t cols,
-                std::size_t gate_row_stride, std::size_t up_row_stride, std::size_t y_row_stride,
+                std::size_t gate_stride_bytes, std::size_t up_stride_bytes, std::size_t y_stride_bytes,
                 f32_t input_scale = 1.0f, nk_capability_t capabilities = default_capabilities(),
                 void *stream = nullptr) noexcept {
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
-            return static_cast<status_t>(nk_each_swiglu_f32_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows,
-                                                                 cols, gate_row_stride, up_row_stride, y_row_stride,
-                                                                 input_scale.raw_, capabilities, stream));
+            return static_cast<status_t>(
+                nk_each_swiglu_f32_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_stride_bytes,
+                                        up_stride_bytes, y_stride_bytes, input_scale.raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
-            return static_cast<status_t>(nk_each_swiglu_bf16_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows,
-                                                                  cols, gate_row_stride, up_row_stride, y_row_stride,
-                                                                  input_scale.raw_, capabilities, stream));
+            return static_cast<status_t>(
+                nk_each_swiglu_bf16_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_stride_bytes,
+                                         up_stride_bytes, y_stride_bytes, input_scale.raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-            return static_cast<status_t>(nk_each_swiglu_e4m3_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows,
-                                                                  cols, gate_row_stride, up_row_stride, y_row_stride,
-                                                                  input_scale.raw_, capabilities, stream));
+            return static_cast<status_t>(
+                nk_each_swiglu_e4m3_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, cols, gate_stride_bytes,
+                                         up_stride_bytes, y_stride_bytes, input_scale.raw_, capabilities, stream));
     }
     // Scalar fallback for other numeric dtypes or a mask of no capability.
     for (std::size_t row = 0; row < rows; ++row) {
         in_type_ const *gate_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(gate) +
-                                                                      row * gate_row_stride);
-        in_type_ const *up_row =
-            up ? reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(up) + row * up_row_stride) : nullptr;
-        in_type_ *output_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_row_stride);
+                                                                      row * gate_stride_bytes);
+        in_type_ const *up_row = up ? reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(up) +
+                                                                         row * up_stride_bytes)
+                                    : nullptr;
+        in_type_ *output_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_stride_bytes);
         // SiLU(g) = g / (1 + exp(-g)), with exp from the type method, like the sin/cos fallbacks.
         for (std::size_t column = 0; column < cols; ++column) {
             float gate_value = static_cast<float>(gate_row[column]) * input_scale.raw_;
             float result = gate_value / (1.0f + static_cast<float>(f32_t(-gate_value).exp()));
             if (up_row) result *= static_cast<float>(up_row[column]) * input_scale.raw_;
             output_row[column] = f32_t(result).template to<in_type_>();
+        }
+    }
+    return status_t::success_k;
+}
+
+/**
+ *  @brief Grouped RMSNorm: yᵢ = xᵢ · rsqrt(mean(x²) + eps) · gammaᵢ
+ *
+ *  Each row holds @p groups independent @p cols-vectors, normalized separately.
+ *
+ *  @param[in] x Input matrix, shaped @b [rows,groups,cols], with each group packed as @p cols
+ *      contiguous elements within its row.
+ *  @param[in] gamma Per-column gain, length @p cols, shared by groups; @c nullptr is unit scale.
+ *  @param[out] y Output matrix, same shape and dtype as @p x; may alias @p x
+ *  @param[in] rows,groups,cols Logical shape
+ *  @param[in] x_stride_bytes, @p y_stride_bytes Row (outer) strides in bytes
+ *  @param[in] eps Variance epsilon added before the reciprocal square root
+ *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
+ *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
+ *
+ *  @tparam in_type_ Element type
+ */
+template <numeric_dtype in_type_>
+status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t rows, std::size_t groups,
+                 std::size_t cols, std::size_t x_stride_bytes, std::size_t y_stride_bytes, f32_t eps,
+                 f32_t input_scale = 1.0f, nk_capability_t capabilities = default_capabilities(),
+                 void *stream = nullptr) noexcept {
+    nk_f32_t const *gamma_raw = gamma ? &gamma->raw_ : nullptr;
+    if (capabilities) {
+        if constexpr (std::is_same_v<in_type_, f32_t>)
+            return static_cast<status_t>(nk_each_rmsnorm_f32_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
+                                                                  x_stride_bytes, y_stride_bytes, eps.raw_,
+                                                                  input_scale.raw_, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, bf16_t>)
+            return static_cast<status_t>(nk_each_rmsnorm_bf16_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
+                                                                   x_stride_bytes, y_stride_bytes, eps.raw_,
+                                                                   input_scale.raw_, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, e4m3_t>)
+            return static_cast<status_t>(nk_each_rmsnorm_e4m3_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, cols,
+                                                                   x_stride_bytes, y_stride_bytes, eps.raw_,
+                                                                   input_scale.raw_, capabilities, stream));
+    }
+    // Scalar fallback for other numeric dtypes or a mask of no capability.
+    for (std::size_t row = 0; row < rows; ++row) {
+        in_type_ const *row_input = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
+                                                                       row * x_stride_bytes);
+        in_type_ *row_output = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_stride_bytes);
+        for (std::size_t group = 0; group < groups; ++group) {
+            in_type_ const *group_input = row_input + group * cols;
+            in_type_ *group_output = row_output + group * cols;
+            double mean_square = 0;
+            for (std::size_t column = 0; column < cols; ++column) {
+                float value = static_cast<float>(group_input[column]) * input_scale.raw_;
+                mean_square += static_cast<double>(value) * static_cast<double>(value);
+            }
+            float inverse_rms = static_cast<float>(
+                f32_t(static_cast<float>(mean_square / static_cast<double>(cols)) + eps.raw_).rsqrt());
+            for (std::size_t column = 0; column < cols; ++column) {
+                float value = static_cast<float>(group_input[column]) * input_scale.raw_;
+                float gamma_value = gamma ? static_cast<float>(gamma[column]) : 1.0f;
+                group_output[column] = f32_t(value * inverse_rms * gamma_value).template to<in_type_>();
+            }
         }
     }
     return status_t::success_k;
@@ -492,6 +556,40 @@ expected<tensor<value_type_, allocator_type_, 2>> swiglu(matrix_view<value_type_
     auto result = out_tensor_t::uninitialized(gate_shape.extents, gate_shape.rank, alloc);
     if (!result) return result;
     if (status_t status = swiglu<value_type_>(gate, up, result.value.span(), input_scale); failed(status))
+        return {out_tensor_t(alloc), status};
+    return result;
+}
+
+/** Grouped RMSNorm over a matrix of @c rows rows, @p groups groups and @c cols columns, into a
+ *  matching output span; @c unexpected_dimensions_k when the shapes, the groups or @p gamma
+ *  disagree with each other. */
+template <numeric_dtype value_type_>
+status_t rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma, matrix_span<value_type_> output,
+                 std::size_t groups, f32_t eps, f32_t input_scale = 1.0f) noexcept {
+    if (input.extent(0) != output.extent(0) || input.extent(1) != output.extent(1))
+        return status_t::unexpected_dimensions_k;
+    std::size_t const columns_total = input.extent(1);
+    if (groups == 0 || columns_total % groups != 0) return status_t::unexpected_dimensions_k;
+    if (!gamma.empty() && gamma.size() != columns_total / groups) return status_t::unexpected_dimensions_k;
+    f32_t const *gamma_ptr = gamma.empty() ? nullptr : gamma.data();
+    return numkong::rmsnorm<value_type_>(input.data(), gamma_ptr, output.data(), input.extent(0), groups,
+                                         columns_total / groups, static_cast<std::size_t>(input.stride_bytes(0)),
+                                         static_cast<std::size_t>(output.stride_bytes(0)), eps, input_scale);
+}
+
+/** Allocating grouped RMSNorm returning a fresh matrix, empty for an empty @p input, or the
+ *  allocation's or the kernel's failure. */
+template <numeric_dtype value_type_, typename allocator_type_ = aligned_allocator<value_type_>>
+expected<tensor<value_type_, allocator_type_, 2>> rmsnorm(matrix_view<value_type_> input, vector_view<f32_t> gamma,
+                                                          std::size_t groups, f32_t eps, f32_t input_scale = 1.0f,
+                                                          allocator_type_ alloc = {}) noexcept {
+    using out_tensor_t = tensor<value_type_, allocator_type_, 2>;
+    if (input.empty()) return {out_tensor_t(alloc), status_t::success_k};
+    auto &input_shape = input.shape();
+    auto result = out_tensor_t::uninitialized(input_shape.extents, input_shape.rank, alloc);
+    if (!result) return result;
+    if (status_t status = rmsnorm<value_type_>(input, gamma, result.value.span(), groups, eps, input_scale);
+        failed(status))
         return {out_tensor_t(alloc), status};
     return result;
 }

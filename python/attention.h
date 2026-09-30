@@ -60,8 +60,12 @@ PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *ar
 /** Ragged causal scaled-dot-product attention against a pre-packed KV-cache. */
 PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
+/** NeoX split-half rotary position embedding, RoPE, separate aliasable output. */
+PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
 extern char const doc_attention_pack[];
 extern char const doc_attention_bidirectional_packed[];
 extern char const doc_attention_causal_packed[];
+extern char const doc_attention_rope[];
 
 #endif // NUMKONG_PYTHON_ATTENTION_H
