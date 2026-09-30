@@ -142,11 +142,20 @@
 #define NUMKONG_INLINE NUMKONG_MAYBE_UNUSED_ __attribute__((always_inline)) NUMKONG_C_INLINE_
 #endif
 
-/** @c NUMKONG_CONSTEXPR is @c constexpr from C++20, so callers can fold it at compile time and
- *  CUDA kernels reach it through @c --expt-relaxed-constexpr. A helper that touches an intrinsic,
- *  @c asm or a runtime can never be constant-evaluated, so it takes @c NUMKONG_INLINE instead, and
- *  MSVC gets the plain helper, as it rejects its own intrinsics in @c constexpr. */
-#if defined(__cplusplus) && __cplusplus >= 202002L && !(defined(_MSC_VER) && !defined(__clang__))
+/** The C++ standard in effect, or zero in C. MSVC reports it in @c _MSVC_LANG and leaves
+ *  @c __cplusplus at C++98. */
+#if defined(_MSVC_LANG)
+#define NUMKONG_CXX_STANDARD_ _MSVC_LANG
+#elif defined(__cplusplus)
+#define NUMKONG_CXX_STANDARD_ __cplusplus
+#else
+#define NUMKONG_CXX_STANDARD_ 0
+#endif
+
+/** Internal helper that callers can fold at compile time, and that CUDA kernels can call through
+ *  @c --expt-relaxed-constexpr. It is @c constexpr from C++20, except under MSVC's own front end,
+ *  which rejects its intrinsics there. */
+#if NUMKONG_CXX_STANDARD_ >= 202002L && (!defined(_MSC_VER) || defined(__clang__) || defined(__CUDACC__))
 #define NUMKONG_CONSTEXPR NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ constexpr
 #else
 #define NUMKONG_CONSTEXPR NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_
@@ -1245,7 +1254,7 @@ typedef enum {
 
 /** Outcome of every NumKong call that can fail: zero on success, negative when nothing was
  *  written. Positive values are reserved for results written with a caveat. */
-#if (defined(__cplusplus) && __cplusplus >= 201703L) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
+#if NUMKONG_CXX_STANDARD_ >= 201703L || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
 typedef enum [[nodiscard]] {
 #else
 typedef enum {
@@ -1867,7 +1876,7 @@ NUMKONG_CONSTEXPR void nk_assert_failure_(char const *condition, char const *fil
 /** Compile-time assert akin to C++ @c static_assert. Uses the native assertion where available
  *  (C++11 @c static_assert, C11 @c _Static_assert); the older-C typedef fallback must sit at file
  *  scope to stay clear of @c -Wunused-local-typedef. */
-#if defined(__cplusplus) && __cplusplus >= 201103L
+#if NUMKONG_CXX_STANDARD_ >= 201103L
 #define nk_static_assert_(condition, name) static_assert(condition, #name)
 #elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
 #define nk_static_assert_(condition, name) _Static_assert(condition, #name)

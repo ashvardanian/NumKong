@@ -1346,9 +1346,10 @@ error_stats_t test_attention_bidirectional_packed(pack_size_kernel_type_ packed_
                                                                    layout.depth, segments.lengths.values_data(),
                                                                    segments.count()))
                                         .value;
+            // Allocated before any launch: Windows faults on host writes to managed memory then
+            auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
             // Run kernel being tested: pack in two windows, then attention over the whole task grid
             pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
-            auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
             backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
                          output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
                          segments.query_offsets.values_data(), query_stride_bytes, output_stride_bytes, layout.scale, 0,

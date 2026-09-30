@@ -31,7 +31,7 @@
     "prebuild": "npm run build-native && node javascript/stage-prebuild.js build_node",
     "prebuild-arm64": "cmake-js compile --out build_node_arm64 --arch arm64 --CDNUMKONG_BUILD_NODE=ON --CDCMAKE_OSX_DEPLOYMENT_TARGET=11.0 --target numkong_node && node javascript/stage-prebuild.js build_node_arm64 arm64",
     "prebuild-x64": "cmake-js compile --out build_node_x64 --arch x64 --CDNUMKONG_BUILD_NODE=ON --CDCMAKE_OSX_DEPLOYMENT_TARGET=11.0 --target numkong_node && node javascript/stage-prebuild.js build_node_x64 x64",
-    "build-js": "rm -fr javascript/dist/* && tsc -p javascript/tsconfig-esm.json && tsc -p javascript/tsconfig-cjs.json && cp javascript/dist-package-esm.json javascript/dist/esm/package.json && cp javascript/dist-package-cjs.json javascript/dist/cjs/package.json",
+    "build-js": "node -e \"require('fs').rmSync('javascript/dist', {recursive: true, force: true})\" && tsc -p javascript/tsconfig-esm.json && tsc -p javascript/tsconfig-cjs.json && node -e \"for (const f of ['esm', 'cjs']) require('fs').copyFileSync('javascript/dist-package-' + f + '.json', 'javascript/dist/' + f + '/package.json')\"",
     "build-browser": "esbuild javascript/dist/esm/numkong-browser.js --bundle --format=esm --platform=browser --target=es2022 --outfile=build_wasm32_emscripten/numkong-bundle.js",
     "test": "node --test ./test/main.mjs",
     "test:bun": "bun test ./test/main.mjs",

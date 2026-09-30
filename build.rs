@@ -9,6 +9,9 @@ use std::path::{Path, PathBuf};
 /// The Cargo features that switch a CMake option, each passed as ON or OFF, never left to the host.
 const FEATURE_OPTIONS: &[(&str, &str)] = &[("CUDA", "NUMKONG_BUILD_CUDA"), ("ROCM", "NUMKONG_BUILD_ROCM")];
 
+/// CMake cache variables read from the environment, like `NUMKONG_CUDA_ARCHITECTURES=120f-real`.
+const ENVIRONMENT_VARIABLES: &[&str] = &["NUMKONG_CUDA_ARCHITECTURES", "NUMKONG_ROCM_ARCHITECTURES"];
+
 /// Rebuilds when a directory's contents change, recursing as Cargo watches only what it is told.
 fn watch(directory: &Path) {
     println!("cargo:rerun-if-changed={}", directory.display());
@@ -74,17 +77,25 @@ fn build_library(manifest: &Path, enabled: impl Fn(&str) -> bool) -> PathBuf {
     }
 
     let mut library = cmake::Config::new(manifest);
-    // The crate reconfigures on every invocation by default, which reruns every ISA probe before a
-    // build that has nothing to do.
     library
         .profile("Release")
         .define("NUMKONG_INSTALL", "OFF")
         .define("NUMKONG_BUILD_SHARED", "OFF")
-        .build_target("numkong_static")
-        .always_configure(false);
+        .build_target("numkong_static");
     for (feature, option) in FEATURE_OPTIONS {
         library.define(option, if enabled(feature) { "ON" } else { "OFF" });
     }
+    // The crate reconfigures on every invocation by default, which reruns every ISA probe before a
+    // build that has nothing to do, but a variable from the environment may have changed since.
+    let mut from_environment = false;
+    for variable in ENVIRONMENT_VARIABLES {
+        println!("cargo:rerun-if-env-changed={variable}");
+        if let Ok(value) = env::var(variable) {
+            library.define(variable, value);
+            from_environment = true;
+        }
+    }
+    library.always_configure(from_environment);
 
     let arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap();
     if arch == "wasm32" || arch == "wasm64" {

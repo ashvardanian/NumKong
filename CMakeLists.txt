@@ -428,8 +428,20 @@ endif ()
 # Every probed kit switched off, for units that must stay at the platform baseline.
 list(TRANSFORM nk_compile_definitions_ REPLACE "=1$" "=0" OUTPUT_VARIABLE NUMKONG_SERIAL_DEFINITIONS_)
 
-# HIP comes on before any target: `numkong_static` carries the HIP units, so every target linking it, the tests and
-# benchmarks included, needs the architecture list.
+# CUDA and HIP come on before any target: `numkong_static` carries their units, so every target linking it, the
+# bindings, tests and benchmarks included, needs the architecture list. One cubin per device family plus a PTX tail,
+# needing CUDA 12.9 or newer; Turing, CUDA 13's floor, runs the CUDA baseline only. Every code lands in one fat binary,
+# and each kernel checks its own architecture in device code. To iterate on one GPU keep its family, like
+# "120f-real": "native" drops the family suffix and with it the family's capabilities.
+if (NUMKONG_BUILD_CUDA)
+    enable_language(CUDA)
+    set(NUMKONG_CUDA_ARCHITECTURES "75-real;80-real;89-real;90a-real;100f-real;120f-real;80-virtual"
+        CACHE STRING "GPU architectures baked into the CUDA targets"
+    )
+    set(CMAKE_CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}")
+    # NVCC's default leaves Turing and Ampere cubins uncompressed, ten times their compressed size.
+    add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--compress-mode=size>)
+endif ()
 if (NUMKONG_BUILD_ROCM)
     enable_language(HIP)
     set(NUMKONG_ROCM_ARCHITECTURES "gfx942;gfx950;gfx1250;gfx1251"
@@ -1074,18 +1086,7 @@ function (numkong_rocm_capabilities_ architectures output)
     set(${output} ${cdna4} ${cdna5} PARENT_SCOPE)
 endfunction ()
 
-# One cubin per device family plus a PTX tail, needing CUDA 12.9 or newer; Turing, CUDA 13's floor, runs the CUDA
-# baseline only. Every code lands in one fat binary, and each kernel checks its own architecture in device code. To
-# iterate on one GPU keep its family, like "120f-real": "native" drops the family suffix and with it the family's
-# capabilities.
 if (NUMKONG_BUILD_CUDA)
-    enable_language(CUDA)
-    set(NUMKONG_CUDA_ARCHITECTURES "75-real;80-real;89-real;90a-real;100f-real;120f-real;80-virtual"
-        CACHE STRING "GPU architectures baked into the CUDA targets"
-    )
-    # NVCC's default leaves Turing and Ampere cubins uncompressed, ten times their compressed size.
-    add_compile_options($<$<COMPILE_LANGUAGE:CUDA>:--compress-mode=size>)
-
     # "native", "all" and "all-major" stand for the lists CMake resolved them to.
     set(NUMKONG_CUDA_RESOLVED_ARCHITECTURES_)
     foreach (nk_entry_ IN LISTS NUMKONG_CUDA_ARCHITECTURES)
@@ -1198,7 +1199,6 @@ if (NUMKONG_BUILD_CUDA)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_CUDA_=1 ${NUMKONG_CUDA_FAMILY_DEFINITIONS_})
     endforeach ()
-    set_target_properties(${NUMKONG_LIBRARIES_} PROPERTIES CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}")
 endif ()
 
 # Both GPU vendors may share one library: their units are separate files, each vendor has its own capability group,
