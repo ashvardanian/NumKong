@@ -486,6 +486,11 @@ NUMKONG_INLINE nk_dtype_t nk_maxsim_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of MaxSim scores, per @c nk_accumulation_error_bound of their output. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_error_bound(nk_dtype_t dtype) {
+    return nk_accumulation_error_bound(nk_maxsim_output_dtype(dtype));
+}
+
 /**
  *  @brief Finds the MaxSim kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when none of @p capabilities has it.

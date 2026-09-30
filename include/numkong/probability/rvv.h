@@ -117,6 +117,17 @@ NUMKONG_INLINE vfloat64m4_t nk_log2_f64m4_rvv_(vfloat64m4_t x, nk_size_t vector_
     return __riscv_vfadd_vv_f64m4(exponent_f64m4, log2_f64m4, vector_length);
 }
 
+/** Adds @p term to the first @p vector_length lanes of @p sum, keeping what rounding drops in
+ *  @p compensation, after Kahan. */
+NUMKONG_INLINE void nk_kahan_add_f64m4_rvv_(vfloat64m4_t term, vfloat64m4_t *sum, vfloat64m4_t *compensation,
+                                            nk_size_t vector_length) {
+    vfloat64m4_t compensated_f64m4 = __riscv_vfsub_vv_f64m4(term, *compensation, vector_length);
+    vfloat64m4_t tentative_f64m4 = __riscv_vfadd_vv_f64m4(*sum, compensated_f64m4, vector_length);
+    *compensation = __riscv_vfsub_vv_f64m4_tu(
+        *compensation, __riscv_vfsub_vv_f64m4(tentative_f64m4, *sum, vector_length), compensated_f64m4, vector_length);
+    *sum = __riscv_vmv_v_v_f64m4_tu(*sum, tentative_f64m4, vector_length);
+}
+
 #pragma region Kullback Leibler Divergence
 
 #if NUMKONG_TARGET_RVV
@@ -152,6 +163,7 @@ NUMKONG_API nk_status_t nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
     vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    vfloat64m4_t compensation_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t a_f64m4 = __riscv_vle64_v_f64m4(a, vector_length);
@@ -164,13 +176,14 @@ NUMKONG_API nk_status_t nk_kld_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_
         vfloat64m4_t log_ratio_f64m4 = nk_log2_f64m4_rvv_(ratio_f64m4, vector_length);
         // contribution = a * log2(a / b)
         vfloat64m4_t contribution_f64m4 = __riscv_vfmul_vv_f64m4(a_f64m4, log_ratio_f64m4, vector_length);
-        // Per-lane accumulation
-        sum_f64m4 = __riscv_vfadd_vv_f64m4_tu(sum_f64m4, sum_f64m4, contribution_f64m4, vector_length);
+        nk_kahan_add_f64m4_rvv_(contribution_f64m4, &sum_f64m4, &compensation_f64m4, vector_length);
     }
     // Single horizontal reduction after loop
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     // Convert from log2 to ln by multiplying by ln(2)
-    *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(sum_f64m4, zero_f64m1, max_vector_length)) *
+    *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(
+                  __riscv_vfsub_vv_f64m4(sum_f64m4, compensation_f64m4, max_vector_length), zero_f64m1,
+                  max_vector_length)) *
               NUMKONG_F64_LN2_;
     return nk_success_k;
 }
@@ -284,8 +297,8 @@ NUMKONG_API nk_status_t nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_
                                        void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t sum_a_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
-    vfloat64m4_t sum_b_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    vfloat64m4_t sum_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
+    vfloat64m4_t compensation_f64m4 = __riscv_vfmv_v_f_f64m4(0.0, max_vector_length);
     for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, b += vector_length) {
         vector_length = __riscv_vsetvl_e64m4(n);
         vfloat64m4_t va_f64m4 = __riscv_vle64_v_f64m4(a, vector_length);
@@ -304,14 +317,16 @@ NUMKONG_API nk_status_t nk_jsd_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_
         vfloat64m4_t log_ratio_a_f64m4 = nk_log2_f64m4_rvv_(ratio_a_f64m4, vector_length);
         vfloat64m4_t log_ratio_b_f64m4 = nk_log2_f64m4_rvv_(ratio_b_f64m4, vector_length);
         // contribution_a = a * log2(a / M), contribution_b = b * log2(b / M)
-        sum_a_f64m4 = __riscv_vfmacc_vv_f64m4_tu(sum_a_f64m4, va_f64m4, log_ratio_a_f64m4, vector_length);
-        sum_b_f64m4 = __riscv_vfmacc_vv_f64m4_tu(sum_b_f64m4, vb_f64m4, log_ratio_b_f64m4, vector_length);
+        nk_kahan_add_f64m4_rvv_(__riscv_vfmul_vv_f64m4(va_f64m4, log_ratio_a_f64m4, vector_length), &sum_f64m4,
+                                &compensation_f64m4, vector_length);
+        nk_kahan_add_f64m4_rvv_(__riscv_vfmul_vv_f64m4(vb_f64m4, log_ratio_b_f64m4, vector_length), &sum_f64m4,
+                                &compensation_f64m4, vector_length);
     }
     // Single horizontal reduction after loop
     vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, 1);
     // JSD = sqrt((sum_a + sum_b) * ln(2) / 2)
     nk_f64_t sum = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m4_f64m1(
-                       __riscv_vfadd_vv_f64m4(sum_a_f64m4, sum_b_f64m4, max_vector_length), zero_f64m1,
+                       __riscv_vfsub_vv_f64m4(sum_f64m4, compensation_f64m4, max_vector_length), zero_f64m1,
                        max_vector_length)) *
                    NUMKONG_F64_LN2_ / 2;
     *result = sum > 0 ? __riscv_vfmv_f_s_f64m1_f64(__riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(sum, 1), 1)) : 0;

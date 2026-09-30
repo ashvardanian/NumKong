@@ -199,7 +199,7 @@ nk_kld_f64_skylake_cycle:
     if (n) goto nk_kld_f64_skylake_cycle;
 
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
-    *result = _mm512_reduce_add_pd(sum_f64x8) * log2_normalizer;
+    *result = _mm512_reduce_add_pd(_mm512_sub_pd(sum_f64x8, compensation_f64x8)) * log2_normalizer;
     return nk_success_k;
 }
 
@@ -245,7 +245,7 @@ nk_jsd_f64_skylake_cycle:
     if (n) goto nk_jsd_f64_skylake_cycle;
 
     nk_f64_t log2_normalizer = NUMKONG_F64_LN2_;
-    nk_f64_t sum = _mm512_reduce_add_pd(sum_f64x8);
+    nk_f64_t sum = _mm512_reduce_add_pd(_mm512_sub_pd(sum_f64x8, compensation_f64x8));
     sum *= log2_normalizer / 2;
     *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
     return nk_success_k;

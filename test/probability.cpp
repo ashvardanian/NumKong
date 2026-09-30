@@ -17,9 +17,10 @@ error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::probability_result_t;
-    using reference_t = reference_for<scalar_t>;
+    using reference_t = bounded_reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::probability_k);
+    error_stats_t stats(nk_probability_error_bound(scalar_t::dtype()),
+                        nk_accumulation_error_bound(nk_probability_output_dtype(scalar_t::dtype())));
     std::mt19937 generator(global_config.seed);
     auto p = make_vector<scalar_t>(global_config.dense_dimensions),
          q = make_vector<scalar_t>(global_config.dense_dimensions);
@@ -49,9 +50,10 @@ error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::probability_result_t;
-    using reference_t = reference_for<scalar_t>;
+    using reference_t = bounded_reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(comparison_family_t::probability_k);
+    error_stats_t stats(nk_probability_error_bound(scalar_t::dtype()),
+                        nk_accumulation_error_bound(nk_probability_output_dtype(scalar_t::dtype())));
     std::mt19937 generator(global_config.seed);
     auto p = make_vector<scalar_t>(global_config.dense_dimensions),
          q = make_vector<scalar_t>(global_config.dense_dimensions);

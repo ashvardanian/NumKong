@@ -1431,6 +1431,12 @@ NUMKONG_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of squared Euclidean distances, per @c nk_accumulation_error_bound of
+ *  their output. */
+NUMKONG_INLINE nk_f64_t nk_sqeuclidean_error_bound(nk_dtype_t dtype) {
+    return nk_accumulation_error_bound(nk_sqeuclidean_output_dtype(dtype));
+}
+
 /** Returns the error bound of Euclidean distances, per @c nk_accumulation_error_bound of their
  *  output. */
 NUMKONG_INLINE nk_f64_t nk_euclidean_error_bound(nk_dtype_t dtype) {

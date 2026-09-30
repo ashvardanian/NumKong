@@ -103,17 +103,14 @@ All floating-point families report `max_abs` and `max_rel`; the rest of each row
 - __`exact_k`__ — integer and binary metrics: Hamming, Jaccard, set intersections, integer min/max.
   Reports `max_dist`, `mean_dist`, `max_abs`, `mismatch`, `exact`.
   Fails on any `max_dist > 0`.
-- __`approximate_k`__ — everything measured against a ULP budget: single-vector distances, trigonometry, mesh alignment, MaxSim and elementwise sums.
-  Fails on `max_ulp > NUMKONG_ULP_THRESHOLD_{F32,F16,BF16}`.
-- __`bounded_k`__ — results held to the `nk_*_error_bound` of their family, like `nk_dot_error_bound`, on every backend: dot products, batched dots and distances, bilinear and Mahalanobis forms, sparse dots, moments, and elementwise scale, blend and FMA.
+- __`approximate_k`__ — results computed and stored in one type, measured against a ULP budget: trigonometry, mesh alignment and elementwise sums.
+  Fails on `max_ulp > NUMKONG_ULP_THRESHOLD_{F32,F16,BF16}`, picked by the type of the results.
+- __`bounded_k`__ — results held to the `nk_*_error_bound` of their family, like `nk_dot_error_bound`, on every backend: dot products, batched dots and distances, bilinear and Mahalanobis forms, sparse dots, moments, probability divergences, single-vector distances, MaxSim, geographic distances, and elementwise scale, blend and FMA.
   A result may land (roundings + 1) · bound · Σ|terms| from exact, plus the rounding into its output type, where `tracked` references carry the roundings and Σ|terms| through the same arithmetic.
+  Roundings of products, quotients and functions count against the term's bound, and those of sums against the reduction's, which differ when a family sums in a wider type than it computes its terms in.
   Reports `max_bound`, the largest error as a share of its own bound, and fails when it exceeds 1.
 - __`normalized_reduction_k`__ — attention outputs, which pass through zero where ULP distances explode.
   Fails when `max_abs` exceeds `NUMKONG_SCALE_THRESHOLD` times the largest reference.
-- __`probability_k`__ — probability divergences: KL, Jensen-Shannon.
-  Also reports `mean_abs` and `mean_rel`.
-- __`geospatial_k`__ — geographic distances: Haversine, Vincenty.
-  Also reports `mean_abs`.
 
 ### Reference Baselines
 

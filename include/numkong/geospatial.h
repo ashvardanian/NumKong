@@ -351,6 +351,21 @@ NUMKONG_INLINE nk_dtype_t nk_vincenty_output_dtype(nk_dtype_t dtype) {
     }
 }
 
+/** Returns the error bound of a Haversine central angle, in radians: 12 roundings on the longest
+ *  path, through 2 differences, 2 halvings, a sine or cosine, 3 products, a sum, a root, an
+ *  arctangent and the doubling, each per @c nk_accumulation_error_bound of the inputs' own type,
+ *  which every step is computed in. */
+NUMKONG_INLINE nk_f64_t nk_haversine_error_bound(nk_dtype_t dtype) { return 12 * nk_accumulation_error_bound(dtype); }
+
+/** Returns the error bound of a Vincenty angular distance, in radians: the longitude the iteration
+ *  stops within, and 20 roundings on the longest path from the reduced latitudes through one
+ *  iteration and the series, per @c nk_accumulation_error_bound of the inputs' own type. */
+NUMKONG_INLINE nk_f64_t nk_vincenty_error_bound(nk_dtype_t dtype) {
+    return (dtype == nk_f64_k ? NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F64
+                              : NUMKONG_VINCENTY_CONVERGENCE_THRESHOLD_F32) +
+           20 * nk_accumulation_error_bound(dtype);
+}
+
 /**
  *  @brief Finds the geospatial kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.

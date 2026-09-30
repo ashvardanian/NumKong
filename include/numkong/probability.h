@@ -18,13 +18,12 @@
  *
  *  Precision policy:
  *
- *  - For @c f32 inputs, the per-element vertical path stays in @c f32 to preserve the fast
- *    ratio/log approximations and SIMD throughput.
- *  - The horizontal reduction over those per-element contributions widens to @c f64, and public
- *    @c f32 results are exposed as @c f64.
- *  - For @c f64 inputs, both the vertical path and the horizontal reduction stay in @c f64, with
- *    stable summation in the serial kernels.
- *  - For @c f16 and @c bf16 inputs, the kernels still widen to @c f32.
+ *  - Every term's ratio and logarithm are computed in the input's own type, which preserves the
+ *    fast approximations and SIMD throughput, or in @c f32 for @c f16 and @c bf16 inputs, which
+ *    have no logarithm of their own: @c nk_probability_term_dtype.
+ *  - The horizontal reduction over the terms runs one tier wider: in @c f32 for @c f16 and @c bf16
+ *    inputs, in @c f64 for @c f32 inputs, and in compensated @c f64 for @c f64 inputs.
+ *  - Results are exposed in the reduction's type, so public @c f32 results are @c f64.
  *  - Both operands of every ratio are clamped to at least ε, which is
  *    @c NUMKONG_F32_DIVISION_EPSILON or @c NUMKONG_F64_DIVISION_EPSILON, so terms at or above ε
  *    follow the exact formula.
@@ -344,6 +343,22 @@ NUMKONG_INLINE nk_dtype_t nk_probability_output_dtype(nk_dtype_t dtype) {
     case nk_bf16_k: return nk_f32_k;
     default: return nk_dtype_unknown_k;
     }
+}
+
+/** Returns the type the ratio and logarithm of every term are computed in. */
+NUMKONG_INLINE nk_dtype_t nk_probability_term_dtype(nk_dtype_t dtype) {
+    switch (dtype) {
+    case nk_f64_k: return nk_f64_k;
+    case nk_f32_k: return nk_f32_k;
+    case nk_f16_k: return nk_f32_k;
+    case nk_bf16_k: return nk_f32_k;
+    default: return nk_dtype_unknown_k;
+    }
+}
+
+/** Returns the error bound of divergences, per @c nk_accumulation_error_bound of their terms. */
+NUMKONG_INLINE nk_f64_t nk_probability_error_bound(nk_dtype_t dtype) {
+    return nk_accumulation_error_bound(nk_probability_term_dtype(dtype));
 }
 
 /**

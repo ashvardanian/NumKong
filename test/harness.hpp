@@ -206,8 +206,6 @@ enum class comparison_family_t {
     exact_k,
     approximate_k,
     normalized_reduction_k,
-    probability_k,
-    geospatial_k,
     bounded_k,
 };
 enum class comparison_failure_mode_t { exact_distance_k, ulp_threshold_k, scale_threshold_k, bound_threshold_k };
@@ -221,10 +219,6 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
     switch (family) {
     case comparison_family_t::exact_k:
         return {comparison_failure_mode_t::exact_distance_k, {"max_dist", "mean_dist", "max_abs", "mismatch", "exact"}};
-    case comparison_family_t::probability_k:
-        return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "mean_abs", "max_rel", "mean_rel", "mean_ulp"}};
-    case comparison_family_t::geospatial_k:
-        return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "mean_abs", "max_rel", "mean_ulp", "max_ulp"}};
     case comparison_family_t::approximate_k:
         return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
     case comparison_family_t::normalized_reduction_k:
@@ -404,9 +398,9 @@ struct test_config_t {
         }
     }
 
-    std::uint64_t ulp_threshold_for(char const *kernel_name) const noexcept {
-        if (std::strstr(kernel_name, "_bf16")) return ulp_threshold_bf16;
-        if (std::strstr(kernel_name, "_f16")) return ulp_threshold_f16;
+    std::uint64_t ulp_threshold_for(nk_dtype_t dtype) const noexcept {
+        if (dtype == nk_bf16_k) return ulp_threshold_bf16;
+        if (dtype == nk_f16_k) return ulp_threshold_f16;
         return ulp_threshold_f32;
     }
 
@@ -429,7 +423,7 @@ inline void print_stats_header(comparison_family_t family) noexcept {
 }
 
 struct error_stats_t;
-bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept;
+bool should_fail(error_stats_t const &stats) noexcept;
 void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexcept;
 
 /** Names the running kernel for SIGILL diagnostics: set before each kernel call, cleared after, and
@@ -514,7 +508,7 @@ struct error_stats_section_t {
         }
         print_stats_row(kernel_name, stats);
         ++global_config.kernel_count;
-        if (should_fail(kernel_name, stats)) {
+        if (should_fail(stats)) {
             ++global_config.failure_count;
             fmt::println("  rerun: NUMKONG_SEED={} NUMKONG_FILTER='^{}$' {}", global_config.seed, kernel_name,
                          global_config.program);
@@ -616,14 +610,20 @@ template <typename value_type_>
 struct tracked {
     value_type_ value {};
     double magnitude = 0;
-    std::size_t roundings = 0;
+
+    /** Roundings on the longest path through products, quotients and functions: a term's own. */
+    std::size_t term_roundings = 0;
+
+    /** Roundings on the longest path through sums and differences: the reduction's. */
+    std::size_t sum_roundings = 0;
 
     static constexpr nk_dtype_t dtype() noexcept { return value_type_::dtype(); }
     static constexpr bool is_integer() noexcept { return false; }
+    static tracked finite_max() noexcept { return tracked(value_type_::finite_max()); }
 
     tracked() = default;
-    tracked(value_type_ value, double magnitude, std::size_t roundings) noexcept
-        : value(value), magnitude(magnitude), roundings(roundings) {}
+    tracked(value_type_ value, double magnitude, std::size_t term_roundings, std::size_t sum_roundings) noexcept
+        : value(value), magnitude(magnitude), term_roundings(term_roundings), sum_roundings(sum_roundings) {}
 
     /** An input, exact in the reference type and not rounded yet. */
     template <typename input_type_>
@@ -631,16 +631,28 @@ struct tracked {
         : value(static_cast<value_type_>(input)), magnitude(static_cast<double>(value.abs())) {}
 
     friend tracked operator+(tracked const &a, tracked const &b) noexcept {
-        return {a.value + b.value, a.magnitude + b.magnitude, std::max(a.roundings, b.roundings) + 1};
+        return {a.value + b.value, a.magnitude + b.magnitude, std::max(a.term_roundings, b.term_roundings),
+                std::max(a.sum_roundings, b.sum_roundings) + 1};
     }
     friend tracked operator-(tracked const &a, tracked const &b) noexcept {
-        return {a.value - b.value, a.magnitude + b.magnitude, std::max(a.roundings, b.roundings) + 1};
+        return {a.value - b.value, a.magnitude + b.magnitude, std::max(a.term_roundings, b.term_roundings),
+                std::max(a.sum_roundings, b.sum_roundings) + 1};
     }
     friend tracked operator*(tracked const &a, tracked const &b) noexcept {
         // Each part of a complex product also adds two real products
         std::size_t const own_roundings = value_type_::is_complex() ? 2 : 1;
-        return {a.value * b.value, a.magnitude * b.magnitude, a.roundings + b.roundings + own_roundings};
+        return {a.value * b.value, a.magnitude * b.magnitude, a.term_roundings + b.term_roundings + own_roundings,
+                a.sum_roundings + b.sum_roundings};
     }
+
+    /** Relative errors add in a quotient as in a product, and the division rounds once more. */
+    friend tracked operator/(tracked const &a, tracked const &b) noexcept {
+        double const divisor = static_cast<double>(b.value.abs());
+        return {a.value / b.value, a.magnitude * b.magnitude / (divisor * divisor),
+                a.term_roundings + b.term_roundings + 1, a.sum_roundings + b.sum_roundings};
+    }
+    friend bool operator>(tracked const &a, tracked const &b) noexcept { return a.value > b.value; }
+    friend bool operator<(tracked const &a, tracked const &b) noexcept { return a.value < b.value; }
     tracked saturating_add(tracked const &other) const noexcept { return *this + other; }
     tracked saturating_mul(tracked const &other) const noexcept { return *this * other; }
 
@@ -648,7 +660,15 @@ struct tracked {
     tracked sqrt() const noexcept {
         value_type_ const root = value.sqrt();
         double const root_magnitude = static_cast<double>(root);
-        return {root, std::max(magnitude / (2 * root_magnitude), root_magnitude), roundings + 1};
+        return {root, std::max(magnitude / (2 * root_magnitude), root_magnitude), term_roundings + 1, sum_roundings};
+    }
+
+    /** The argument's error shrinks by the derivative 1 / v, and the logarithm rounds once more. */
+    tracked log() const noexcept {
+        value_type_ const logarithm = value.log();
+        double const argument = static_cast<double>(value.abs());
+        return {logarithm, std::max(magnitude / argument, static_cast<double>(logarithm.abs())), term_roundings + 1,
+                sum_roundings};
     }
 };
 
@@ -659,13 +679,16 @@ using bounded_reference_for =
     std::conditional_t<nk::is_integral_dtype<result_type_>(), result_type_, tracked<reference_for<input_type_>>>;
 
 /** Half a unit in the last place of @p scalar_type_ at @p value, subnormals included: what rounding
- *  a result into that type adds. */
+ *  a result into that type adds. Integers step by one everywhere. */
 template <typename scalar_type_>
 double half_ulp(double value) noexcept {
-    using component_t = typename scalar_type_::component_t;
-    int const smallest_normal_exponent = std::ilogb(static_cast<double>(component_t::positive_min()));
-    int const exponent = std::max(std::ilogb(value), smallest_normal_exponent);
-    return std::ldexp(1.0, exponent - static_cast<int>(component_t::mantissa_bits()) - 1);
+    if constexpr (nk::is_integral_dtype<scalar_type_>()) return 0.5;
+    else {
+        using component_t = typename scalar_type_::component_t;
+        int const smallest_normal_exponent = std::ilogb(static_cast<double>(component_t::positive_min()));
+        int const exponent = std::max(std::ilogb(value), smallest_normal_exponent);
+        return std::ldexp(1.0, exponent - static_cast<int>(component_t::mantissa_bits()) - 1);
+    }
 }
 
 #pragma endregion Tracked References
@@ -674,6 +697,10 @@ double half_ulp(double value) noexcept {
 struct error_stats_t {
     comparison_family_t family = comparison_family_t::approximate_k;
     nk_f64_t term_error_bound = 0;
+    nk_f64_t sum_error_bound = 0;
+
+    /** The type of the results recorded, which picks their ULP threshold. */
+    nk_dtype_t result_dtype = nk_dtype_unknown_k;
 
     nk_f64_t min_abs_err = std::numeric_limits<nk_f64_t>::max();
     nk_f64_t max_abs_err = 0;
@@ -700,9 +727,13 @@ struct error_stats_t {
 
     /** Judges results against tracked references, each term adding up to @p term_error_bound of
      *  Σ|terms|, like the `nk_*_error_bound` helpers return; zero demands exact results. */
-    explicit error_stats_t(nk_f64_t term_error_bound) noexcept
+    explicit error_stats_t(nk_f64_t term_error_bound) noexcept : error_stats_t(term_error_bound, term_error_bound) {}
+
+    /** Judges results whose terms round within @p term_error_bound and whose sums, kept in a wider
+     *  type, round within @p sum_error_bound. */
+    error_stats_t(nk_f64_t term_error_bound, nk_f64_t sum_error_bound) noexcept
         : family(term_error_bound == 0 ? comparison_family_t::exact_k : comparison_family_t::bounded_k),
-          term_error_bound(term_error_bound) {}
+          term_error_bound(term_error_bound), sum_error_bound(sum_error_bound) {}
 
     /** Record a boolean property; @p property names it in the report when it does not hold. */
     void expect(bool held, char const *property) noexcept {
@@ -745,10 +776,13 @@ struct error_stats_t {
     }
 
     /** Records a result against a tracked reference: integers exactly once it rounds into them,
-     *  floats within @c term_error_bound of its magnitude per rounding. */
+     *  floats within @c term_error_bound of its magnitude per rounding of a term, and
+     *  @c sum_error_bound per rounding of a sum. */
     template <typename actual_type_, typename value_type_>
     void accumulate(actual_type_ actual, tracked<value_type_> const &expected) noexcept {
-        nk_f64_t const bound = (expected.roundings + 1) * term_error_bound * expected.magnitude;
+        nk_f64_t const bound = ((expected.term_roundings + 1) * term_error_bound +
+                                expected.sum_roundings * sum_error_bound) *
+                               expected.magnitude;
         if constexpr (nk::is_integral_dtype<actual_type_>())
             accumulate_scalar(actual, expected.value.template to<actual_type_>());
         else if constexpr (nk::is_complex_dtype<actual_type_>())
@@ -776,6 +810,7 @@ struct error_stats_t {
             if (ulps == std::numeric_limits<std::uint64_t>::max()) return;
 
         if constexpr (!nk::is_integral_dtype<actual_type_>()) saw_floating_distance = true;
+        if constexpr (requires { actual_type_::dtype(); }) result_dtype = actual_type_::dtype();
 
         if constexpr (!nk::is_integral_dtype<actual_type_>() || std::is_integral_v<actual_type_>) {
             nk_f64_t exp_f64 = static_cast<nk_f64_t>(expected_as_actual);
@@ -851,15 +886,15 @@ error_stats_t test_missing_library(arguments_types_... arguments) {
 }
 #endif
 
-inline bool should_fail(char const *kernel_name, error_stats_t const &stats) noexcept {
+inline bool should_fail(error_stats_t const &stats) noexcept {
     if (stats.failed_expectations) return true;
     comparison_family_spec_t const spec = comparison_family_spec(stats.family);
     switch (spec.failure_mode) {
     case comparison_failure_mode_t::exact_distance_k:
         if (!stats.saw_floating_distance) return stats.max_ulp > 0;
-        return stats.max_ulp > global_config.ulp_threshold_for(kernel_name);
+        return stats.max_ulp > global_config.ulp_threshold_for(stats.result_dtype);
     case comparison_failure_mode_t::ulp_threshold_k:
-        return stats.max_ulp > global_config.ulp_threshold_for(kernel_name);
+        return stats.max_ulp > global_config.ulp_threshold_for(stats.result_dtype);
     case comparison_failure_mode_t::scale_threshold_k:
         return stats.max_abs_err > global_config.scale_threshold * stats.max_reference;
     case comparison_failure_mode_t::bound_threshold_k: return !(stats.max_bound_ratio <= 1);
@@ -872,14 +907,6 @@ inline void print_stats_row(char const *kernel_name, error_stats_t const &stats)
     case comparison_family_t::exact_k:
         fmt::println("{:<40} {:>12} {:>10.1f} {:>12.2e} {:>12} {:>10}", kernel_name, stats.max_ulp, stats.mean_ulp(),
                      stats.max_abs_err, stats.mismatches(), stats.exact_matches);
-        break;
-    case comparison_family_t::probability_k:
-        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12.2e} {:>10.2e}", kernel_name, stats.max_abs_err,
-                     stats.mean_abs_err(), stats.max_rel_err, stats.mean_rel_err(), stats.mean_ulp());
-        break;
-    case comparison_family_t::geospatial_k:
-        fmt::println("{:<40} {:>12.2e} {:>10.2e} {:>12.2e} {:>12.1f} {:>10}", kernel_name, stats.max_abs_err,
-                     stats.mean_abs_err(), stats.max_rel_err, stats.mean_ulp(), stats.max_ulp);
         break;
     case comparison_family_t::approximate_k:
     case comparison_family_t::normalized_reduction_k:
