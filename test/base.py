@@ -20,6 +20,7 @@ import faulthandler
 import math
 import os
 import random
+import sys
 import time
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING, Any
@@ -793,6 +794,8 @@ def print_stats_report(stats: dict[str, list]) -> None:
     """Print a condensed error/speedup report: two rows per (metric, dtype) showing min/max ndim."""
     if not stats["metric"]:
         return
+    # Windows consoles default to cp1252, which lacks the report's brackets.
+    sys.stdout.reconfigure(errors="replace")
 
     # Stage 1: Group raw stats by (metric, ndim, dtype, capability) and compute per-group means.
     grouped = collections.defaultdict(

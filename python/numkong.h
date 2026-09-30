@@ -298,7 +298,9 @@ extern nk_capability_t default_capabilities;
 int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, void **stream);
 
 /**
- *  @brief Raise a @c RuntimeError named by @c nk_status_name unless @p status is a success.
+ *  @brief Raise an exception named by @c nk_status_name unless @p status is a success:
+ *      @c ValueError when the arguments are at fault, @c MemoryError when allocation failed, else
+ *      @c RuntimeError.
  *  @return 1 on success, 0 with a Python exception set.
  */
 int check_status(nk_status_t status);

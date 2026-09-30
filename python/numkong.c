@@ -311,53 +311,26 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
         // Unsigned integers
         case 'B': return nk_u8_k;
         case 'H': return nk_u16_k;
+        // `int` is 32 bits and `long long` 64 everywhere; only `long` follows the platform
+        case 'i': return nk_i32_k;
+        case 'I': return nk_u32_k;
+        case 'q': return nk_i64_k;
+        case 'Q': return nk_u64_k;
 #if SIZEOF_LONG == 4
         case 'l': return nk_i32_k;
-        case 'q': return nk_i64_k;
         case 'L': return nk_u32_k;
-        case 'Q': return nk_u64_k;
 #else
-        case 'i': return nk_i32_k;
         case 'l': return nk_i64_k;
-        case 'I': return nk_u32_k;
         case 'L': return nk_u64_k;
 #endif
         }
         break;
 
     case 2:
-        // Floating-point: "f2" → f16, "f4" → f32, "f8" → f64
-        if (same_literal_(name, len, "f2")) return nk_f16_k;
-        if (same_literal_(name, len, "f4")) return nk_f32_k;
-        if (same_literal_(name, len, "f8")) return nk_f64_k;
-        // Signed integers
-        if (same_literal_(name, len, "i1")) return nk_i8_k;
-        if (same_literal_(name, len, "i2")) return nk_i16_k;
-#if SIZEOF_LONG == 4
-        if (same_literal_(name, len, "i4")) return nk_i32_k;
-        if (same_literal_(name, len, "i8")) return nk_i64_k;
-#else
-        if (same_literal_(name, len, "i4")) return nk_i32_k;
-        if (same_literal_(name, len, "i8")) return nk_i64_k;
-#endif
-        // Unsigned integers
-        if (same_literal_(name, len, "u1")) return nk_u8_k;
-        if (same_literal_(name, len, "u2")) return nk_u16_k;
-#if SIZEOF_LONG == 4
-        if (same_literal_(name, len, "u4")) return nk_u32_k;
-        if (same_literal_(name, len, "u8")) return nk_u64_k;
-#else
-        if (same_literal_(name, len, "u4")) return nk_u32_k;
-        if (same_literal_(name, len, "u8")) return nk_u64_k;
-#endif
         // Complex: "Zf" → f32c, "Zd" → f64c, "Ze" → f16c
         if (same_literal_(name, len, "Zf")) return nk_f32c_k;
         if (same_literal_(name, len, "Zd")) return nk_f64c_k;
         if (same_literal_(name, len, "Ze")) return nk_f16c_k;
-        // Complex shorthand: "F2" → f16c, "F4" → f32c, "F8" → f64c
-        if (same_literal_(name, len, "F2")) return nk_f16c_k;
-        if (same_literal_(name, len, "F4")) return nk_f32c_k;
-        if (same_literal_(name, len, "F8")) return nk_f64c_k;
         // Buffer protocol shorthand
         if (same_literal_(name, len, "<f")) return nk_f32_k;
         if (same_literal_(name, len, "<e")) return nk_f16_k;
@@ -369,15 +342,15 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
         if (same_literal_(name, len, "<B")) return nk_u8_k;
         if (same_literal_(name, len, "<h")) return nk_i16_k;
         if (same_literal_(name, len, "<H")) return nk_u16_k;
+        if (same_literal_(name, len, "<i")) return nk_i32_k;
+        if (same_literal_(name, len, "<I")) return nk_u32_k;
+        if (same_literal_(name, len, "<q")) return nk_i64_k;
+        if (same_literal_(name, len, "<Q")) return nk_u64_k;
 #if SIZEOF_LONG == 4
         if (same_literal_(name, len, "<l")) return nk_i32_k;
-        if (same_literal_(name, len, "<q")) return nk_i64_k;
         if (same_literal_(name, len, "<L")) return nk_u32_k;
-        if (same_literal_(name, len, "<Q")) return nk_u64_k;
 #else
-        if (same_literal_(name, len, "<i")) return nk_i32_k;
         if (same_literal_(name, len, "<l")) return nk_i64_k;
-        if (same_literal_(name, len, "<I")) return nk_u32_k;
         if (same_literal_(name, len, "<L")) return nk_u64_k;
 #endif
         break;
@@ -400,33 +373,19 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
         if (same_literal_(name, len, "|i1")) return nk_i8_k;
         if (same_literal_(name, len, "<i2")) return nk_i16_k;
         if (same_literal_(name, len, "|i2")) return nk_i16_k;
-#if SIZEOF_LONG == 4
         if (same_literal_(name, len, "<i4")) return nk_i32_k;
         if (same_literal_(name, len, "|i4")) return nk_i32_k;
         if (same_literal_(name, len, "<i8")) return nk_i64_k;
         if (same_literal_(name, len, "|i8")) return nk_i64_k;
-#else
-        if (same_literal_(name, len, "<i4")) return nk_i32_k;
-        if (same_literal_(name, len, "|i4")) return nk_i32_k;
-        if (same_literal_(name, len, "<i8")) return nk_i64_k;
-        if (same_literal_(name, len, "|i8")) return nk_i64_k;
-#endif
         // Unsigned integers: "<u1", "<u2", "|u1", "|u2"
         if (same_literal_(name, len, "<u1")) return nk_u8_k;
         if (same_literal_(name, len, "|u1")) return nk_u8_k;
         if (same_literal_(name, len, "<u2")) return nk_u16_k;
         if (same_literal_(name, len, "|u2")) return nk_u16_k;
-#if SIZEOF_LONG == 4
         if (same_literal_(name, len, "<u4")) return nk_u32_k;
         if (same_literal_(name, len, "|u4")) return nk_u32_k;
         if (same_literal_(name, len, "<u8")) return nk_u64_k;
         if (same_literal_(name, len, "|u8")) return nk_u64_k;
-#else
-        if (same_literal_(name, len, "<u4")) return nk_u32_k;
-        if (same_literal_(name, len, "|u4")) return nk_u32_k;
-        if (same_literal_(name, len, "<u8")) return nk_u64_k;
-        if (same_literal_(name, len, "|u8")) return nk_u64_k;
-#endif
         break;
 
     case 4:
@@ -517,7 +476,8 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
 
     default: break;
     }
-    return nk_dtype_unknown_k;
+    // No byte-order prefix: a NumKong name, counting bits where NumPy's typestrings count bytes
+    return nk_dtype_named(name, (nk_size_t)len);
 }
 
 nk_dtype_t py_object_to_nk_dtype(PyObject *obj) {
@@ -999,8 +959,17 @@ int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capa
 }
 
 int check_status(nk_status_t status) {
-    if (status == nk_success_k) return 1;
-    PyErr_SetString(PyExc_RuntimeError, nk_status_name(status));
+    PyObject *type = PyExc_RuntimeError;
+    switch (status) {
+    case nk_success_k: return 1;
+    case nk_bad_alloc_k: type = PyExc_MemoryError; break;
+    case nk_unexpected_dimensions_k:
+    case nk_device_memory_mismatch_k:
+    case nk_misaligned_k:
+    case nk_pack_mismatch_k: type = PyExc_ValueError; break;
+    default: break;
+    }
+    PyErr_SetString(type, nk_status_name(status));
     return 0;
 }
 

@@ -172,5 +172,5 @@ def test_packed_matrix_keeps_the_mask_it_was_packed_with():
     assert nk.dots_packed(vectors, packed) == expected
     assert nk.dots_packed(vectors, serial_packed) == expected
     if serial_packed.nbytes != packed.nbytes:
-        with pytest.raises(RuntimeError):
+        with pytest.raises(ValueError):
             nk.dots_packed(vectors, packed, capabilities=nk.Capability.SERIAL)
