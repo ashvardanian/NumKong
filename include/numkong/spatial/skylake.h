@@ -163,10 +163,10 @@ nk_angular_f32_skylake_cycle:
 }
 #endif // NUMKONG_TARGET_SKYLAKE
 
-/** Squared Euclidean distance between two f64 vectors. */
+/** Squared Euclidean distance between two f64 vectors, summed in Dot2. */
 NUMKONG_INLINE void nk_squared_distance_f64_skylake_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                      nk_f64_t *result) {
-    __m512d sum_f64x8 = _mm512_setzero_pd();
+    __m512d sum_f64x8 = _mm512_setzero_pd(), compensation_f64x8 = _mm512_setzero_pd();
     __m512d a_f64x8, b_f64x8;
 
 nk_sqeuclidean_f64_skylake_cycle:
@@ -182,10 +182,10 @@ nk_sqeuclidean_f64_skylake_cycle:
         a += 8, b += 8, n -= 8;
     }
     __m512d diff_f64x8 = _mm512_sub_pd(a_f64x8, b_f64x8);
-    sum_f64x8 = _mm512_fmadd_pd(diff_f64x8, diff_f64x8, sum_f64x8);
+    nk_dot2_f64x8_skylake_(&sum_f64x8, &compensation_f64x8, diff_f64x8, diff_f64x8);
     if (n) goto nk_sqeuclidean_f64_skylake_cycle;
 
-    *result = _mm512_reduce_add_pd(sum_f64x8);
+    *result = nk_dot_stable_sum_f64x8_skylake_(sum_f64x8, compensation_f64x8);
 }
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -207,12 +207,9 @@ NUMKONG_API nk_status_t nk_euclidean_f64_skylake(nk_f64_t const *a, nk_f64_t con
 NUMKONG_API nk_status_t nk_angular_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    // Dot2 (Ogita-Rump-Oishi 2005) for cross-product a × b only - it may have cancellation.
-    // Self-products ‖a‖² and ‖b‖² use simple FMA - all terms are non-negative, no cancellation.
-    __m512d dot_sum_f64x8 = _mm512_setzero_pd();
-    __m512d dot_compensation_f64x8 = _mm512_setzero_pd();
-    __m512d a_norm_sq_f64x8 = _mm512_setzero_pd();
-    __m512d b_norm_sq_f64x8 = _mm512_setzero_pd();
+    __m512d dot_sum_f64x8 = _mm512_setzero_pd(), dot_compensation_f64x8 = _mm512_setzero_pd();
+    __m512d a_norm_sq_f64x8 = _mm512_setzero_pd(), a_compensation_f64x8 = _mm512_setzero_pd();
+    __m512d b_norm_sq_f64x8 = _mm512_setzero_pd(), b_compensation_f64x8 = _mm512_setzero_pd();
     __m512d a_f64x8, b_f64x8;
 
 nk_angular_f64_skylake_cycle:
@@ -227,29 +224,14 @@ nk_angular_f64_skylake_cycle:
         b_f64x8 = _mm512_loadu_pd(b);
         a += 8, b += 8, n -= 8;
     }
-    // TwoProd for cross-product: product = a * b, error = fma(a, b, -product)
-    __m512d x_f64x8 = _mm512_mul_pd(a_f64x8, b_f64x8);
-    __m512d product_error_f64x8 = _mm512_fmsub_pd(a_f64x8, b_f64x8, x_f64x8);
-    // Neumaier TwoSum: t = sum + x, with masked error recovery
-    __m512d tentative_sum_f64x8 = _mm512_add_pd(dot_sum_f64x8, x_f64x8);
-    __m512d abs_sum_f64x8 = _mm512_abs_pd(dot_sum_f64x8);
-    __m512d abs_x_f64x8 = _mm512_abs_pd(x_f64x8);
-    __mmask8 sum_ge_x_m8 = _mm512_cmp_pd_mask(abs_sum_f64x8, abs_x_f64x8, _CMP_GE_OQ);
-    // z = t - larger, error = smaller - z
-    __m512d virtual_addend_f64x8 = _mm512_sub_pd(tentative_sum_f64x8, x_f64x8);
-    virtual_addend_f64x8 = _mm512_mask_sub_pd(virtual_addend_f64x8, sum_ge_x_m8, tentative_sum_f64x8, dot_sum_f64x8);
-    __m512d sum_error_f64x8 = _mm512_sub_pd(dot_sum_f64x8, virtual_addend_f64x8);
-    sum_error_f64x8 = _mm512_mask_sub_pd(sum_error_f64x8, sum_ge_x_m8, x_f64x8, virtual_addend_f64x8);
-    dot_sum_f64x8 = tentative_sum_f64x8;
-    dot_compensation_f64x8 = _mm512_add_pd(dot_compensation_f64x8, _mm512_add_pd(sum_error_f64x8, product_error_f64x8));
-    // Simple FMA for self-products (no cancellation possible)
-    a_norm_sq_f64x8 = _mm512_fmadd_pd(a_f64x8, a_f64x8, a_norm_sq_f64x8);
-    b_norm_sq_f64x8 = _mm512_fmadd_pd(b_f64x8, b_f64x8, b_norm_sq_f64x8);
+    nk_dot2_f64x8_skylake_(&dot_sum_f64x8, &dot_compensation_f64x8, a_f64x8, b_f64x8);
+    nk_dot2_f64x8_skylake_(&a_norm_sq_f64x8, &a_compensation_f64x8, a_f64x8, a_f64x8);
+    nk_dot2_f64x8_skylake_(&b_norm_sq_f64x8, &b_compensation_f64x8, b_f64x8, b_f64x8);
     if (n) goto nk_angular_f64_skylake_cycle;
 
     nk_f64_t dot_product_f64 = nk_dot_stable_sum_f64x8_skylake_(dot_sum_f64x8, dot_compensation_f64x8);
-    nk_f64_t a_norm_sq_f64 = _mm512_reduce_add_pd(a_norm_sq_f64x8);
-    nk_f64_t b_norm_sq_f64 = _mm512_reduce_add_pd(b_norm_sq_f64x8);
+    nk_f64_t a_norm_sq_f64 = nk_dot_stable_sum_f64x8_skylake_(a_norm_sq_f64x8, a_compensation_f64x8);
+    nk_f64_t b_norm_sq_f64 = nk_dot_stable_sum_f64x8_skylake_(b_norm_sq_f64x8, b_compensation_f64x8);
     *result = nk_angular_normalize_f64_skylake_(dot_product_f64, a_norm_sq_f64, b_norm_sq_f64);
     return nk_success_k;
 }

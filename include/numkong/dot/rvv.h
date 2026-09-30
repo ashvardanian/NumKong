@@ -79,6 +79,25 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfl
     return __riscv_vfmv_f_s_f64m1_f64(tentative_sum_f64m1) + __riscv_vfmv_f_s_f64m1_f64(accumulated_error_f64m1);
 }
 
+/** Dot2 step over the first @p vector_length lanes, sum += a × b, mirroring @c nk_f64_dot2_:
+ *  TwoProd through FMA, then TwoSum, leaving the lanes past them undisturbed. */
+NUMKONG_INLINE void nk_dot2_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m1_t *compensation_f64m1, vfloat64m1_t a_f64m1,
+                                       vfloat64m1_t b_f64m1, nk_size_t vector_length) {
+    vfloat64m1_t product_f64m1 = __riscv_vfmul_vv_f64m1(a_f64m1, b_f64m1, vector_length);
+    vfloat64m1_t product_error_f64m1 = __riscv_vfmsac_vv_f64m1(product_f64m1, a_f64m1, b_f64m1, vector_length);
+    vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(*sum_f64m1, product_f64m1, vector_length);
+    vfloat64m1_t virtual_addend_f64m1 = __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, *sum_f64m1, vector_length);
+    vfloat64m1_t sum_error_f64m1 = __riscv_vfadd_vv_f64m1(
+        __riscv_vfsub_vv_f64m1(*sum_f64m1,
+                               __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, virtual_addend_f64m1, vector_length),
+                               vector_length),
+        __riscv_vfsub_vv_f64m1(product_f64m1, virtual_addend_f64m1, vector_length), vector_length);
+    *sum_f64m1 = __riscv_vslideup_vx_f64m1_tu(*sum_f64m1, tentative_sum_f64m1, 0, vector_length);
+    *compensation_f64m1 = __riscv_vfadd_vv_f64m1_tu(
+        *compensation_f64m1, *compensation_f64m1,
+        __riscv_vfadd_vv_f64m1(sum_error_f64m1, product_error_f64m1, vector_length), vector_length);
+}
+
 /** Dot product of @p count_scalars F64 pairs with Dot2 (Ogita-Rump-Oishi) compensation. */
 NUMKONG_INLINE nk_f64_t nk_dot2_f64_rvv_(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
                                          nk_size_t count_scalars) {

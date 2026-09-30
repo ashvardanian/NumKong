@@ -18,41 +18,18 @@
 extern "C" {
 #endif
 
-/**
- *  @brief Macro for L2 squared distance with Neumaier compensated summation.
- *
- *  Implements Neumaier's Kahan-Babuška variant to minimize floating-point rounding errors.
- *  Unlike Kahan, Neumaier handles the case where the term being added is larger than the
- *  running sum. Achieves O(1) error growth regardless of vector dimension.
- *
- *  Performance vs Accuracy Tradeoff:
- *  - Adds ~30% overhead (3 extra FP operations per iteration) compared to naive summation
- *  - Reduces relative error from ~10⁻⁵ to ~10⁻⁷ at n=100K for f32
- *  - Benefits all floating-point types: f64, f32, f16, bf16
- *  - Integer types (i8) maintain perfect accuracy regardless
- *
- *  Algorithm: For each term, compute t = sum + term, then:
- *    - If |sum| ≥ |term|: c += (sum − t) + term   (lost low-order bits of term)
- *    - Else:              c += (term − t) + sum   (lost low-order bits of sum)
- *
- *  The method follows "Rundungsfehleranalyse einiger Verfahren zur Summation endlicher Summen" by
- *  A. Neumaier, 1974.
- */
+/** Generates @c nk_sqeuclidean_<input_type>_, a squared distance with simple accumulation. */
 #define nk_define_sqeuclidean_(input_type, accumulator_type, output_type, load_and_convert)                        \
     NUMKONG_INLINE void nk_sqeuclidean_##input_type##_(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
                                                        nk_size_t n, nk_##output_type##_t *result) {                \
-        nk_##accumulator_type##_t sum = 0, compensation = 0, a_value, b_value;                                     \
+        nk_##accumulator_type##_t sum = 0, a_value, b_value;                                                       \
         for (nk_size_t i = 0; i != n; ++i) {                                                                       \
             load_and_convert(a + i, &a_value);                                                                     \
             load_and_convert(b + i, &b_value);                                                                     \
             nk_##accumulator_type##_t diff = a_value - b_value;                                                    \
-            nk_##accumulator_type##_t term = diff * diff, t = sum + term;                                          \
-            compensation += (nk_##accumulator_type##_abs_(sum) >= nk_##accumulator_type##_abs_(term))              \
-                                ? ((sum - t) + term)                                                               \
-                                : ((term - t) + sum);                                                              \
-            sum = t;                                                                                               \
+            sum += diff * diff;                                                                                    \
         }                                                                                                          \
-        *result = (nk_##output_type##_t)(sum + compensation);                                                      \
+        *result = (nk_##output_type##_t)sum;                                                                       \
     }
 
 /** Generates @c nk_sqeuclidean_<input_type>_serial, the public kernel over its helper. */
@@ -77,52 +54,29 @@ extern "C" {
         return nk_success_k;                                                                                 \
     }
 
-/**
- *  @brief Macro for cosine/angular distance with Neumaier compensated summation.
- *
- *  Uses Neumaier summation for all three accumulators (dot_product, a_norm_sq, b_norm_sq).
- *  Achieves O(1) error growth regardless of vector dimension.
- *
- *  @sa nk_define_sqeuclidean_ for detailed documentation on Neumaier summation.
- */
-#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)            \
-    NUMKONG_API nk_status_t nk_angular_##input_type##_serial(nk_##input_type##_t const *a,                        \
-                                                             nk_##input_type##_t const *b, nk_size_t n,           \
-                                                             nk_##output_type##_t *result, void *stream) {        \
-        nk_assert_(stream == NUMKONG_NULL);                                                                       \
-        nk_##accumulator_type##_t dot_sum = 0, a_sum = 0, b_sum = 0, a_value, b_value;                            \
-        nk_##accumulator_type##_t compensation_dot = 0, compensation_a = 0, compensation_b = 0;                   \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                      \
-            load_and_convert(a + i, &a_value);                                                                    \
-            load_and_convert(b + i, &b_value);                                                                    \
-            nk_##accumulator_type##_t term_dot = a_value * b_value, t_dot = dot_sum + term_dot;                   \
-            nk_##accumulator_type##_t term_a = a_value * a_value, t_a = a_sum + term_a;                           \
-            nk_##accumulator_type##_t term_b = b_value * b_value, t_b = b_sum + term_b;                           \
-            compensation_dot += (nk_##accumulator_type##_abs_(dot_sum) >= nk_##accumulator_type##_abs_(term_dot)) \
-                                    ? ((dot_sum - t_dot) + term_dot)                                              \
-                                    : ((term_dot - t_dot) + dot_sum);                                             \
-            compensation_a += (nk_##accumulator_type##_abs_(a_sum) >= nk_##accumulator_type##_abs_(term_a))       \
-                                  ? ((a_sum - t_a) + term_a)                                                      \
-                                  : ((term_a - t_a) + a_sum);                                                     \
-            compensation_b += (nk_##accumulator_type##_abs_(b_sum) >= nk_##accumulator_type##_abs_(term_b))       \
-                                  ? ((b_sum - t_b) + term_b)                                                      \
-                                  : ((term_b - t_b) + b_sum);                                                     \
-            dot_sum = t_dot;                                                                                      \
-            a_sum = t_a;                                                                                          \
-            b_sum = t_b;                                                                                          \
-        }                                                                                                         \
-        nk_##accumulator_type##_t dot_product = dot_sum + compensation_dot;                                       \
-        nk_##accumulator_type##_t a_norm_sq = a_sum + compensation_a;                                             \
-        nk_##accumulator_type##_t b_norm_sq = b_sum + compensation_b;                                             \
-        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                                    \
-        else if (dot_product == 0) { *result = 1; }                                                               \
-        else {                                                                                                    \
-            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                                     \
-                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *          \
-                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                          \
-            *result = unclipped_distance > 0 ? unclipped_distance : 0;                                            \
-        }                                                                                                         \
-        return nk_success_k;                                                                                      \
+/** Generates @c nk_angular_<input_type>_serial, an angular distance with simple accumulation. */
+#define nk_define_angular_(input_type, accumulator_type, output_type, load_and_convert, compute_rsqrt)     \
+    NUMKONG_API nk_status_t nk_angular_##input_type##_serial(nk_##input_type##_t const *a,                 \
+                                                             nk_##input_type##_t const *b, nk_size_t n,    \
+                                                             nk_##output_type##_t *result, void *stream) { \
+        nk_assert_(stream == NUMKONG_NULL);                                                                \
+        nk_##accumulator_type##_t dot_product = 0, a_norm_sq = 0, b_norm_sq = 0, a_value, b_value;         \
+        for (nk_size_t i = 0; i != n; ++i) {                                                               \
+            load_and_convert(a + i, &a_value);                                                             \
+            load_and_convert(b + i, &b_value);                                                             \
+            dot_product += a_value * b_value;                                                              \
+            a_norm_sq += a_value * a_value;                                                                \
+            b_norm_sq += b_value * b_value;                                                                \
+        }                                                                                                  \
+        if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }                                             \
+        else if (dot_product == 0) { *result = 1; }                                                        \
+        else {                                                                                             \
+            nk_##output_type##_t unclipped_distance = (nk_##output_type##_t)(                              \
+                1 - (nk_##output_type##_t)dot_product * compute_rsqrt((nk_##output_type##_t)a_norm_sq) *   \
+                        compute_rsqrt((nk_##output_type##_t)b_norm_sq));                                   \
+            *result = unclipped_distance > 0 ? unclipped_distance : 0;                                     \
+        }                                                                                                  \
+        return nk_success_k;                                                                               \
     }
 
 /*  GCC inlines a helper only into callers whose targets include its own, so serial code builds at
@@ -132,7 +86,6 @@ extern "C" {
 #pragma GCC target("arch=armv8-a")
 #endif
 
-nk_define_sqeuclidean_(f64, f64, f64, nk_assign_from_to_) // nk_sqeuclidean_f64_
 nk_define_sqeuclidean_(f32, f64, f64, nk_assign_from_to_) // nk_sqeuclidean_f32_
 nk_define_sqeuclidean_(f16, f32, f32, nk_f16_to_f32_)     // nk_sqeuclidean_f16_
 nk_define_sqeuclidean_(bf16, f32, f32, nk_bf16_to_f32_)   // nk_sqeuclidean_bf16_
@@ -144,6 +97,13 @@ nk_define_sqeuclidean_(i8, i32, u32, nk_assign_from_to_)  // nk_sqeuclidean_i8_
 nk_define_sqeuclidean_(u8, u32, u32, nk_assign_from_to_)  // nk_sqeuclidean_u8_
 
 #undef nk_define_sqeuclidean_
+
+/** Squared Euclidean distance between @p n F64 values, summed in Dot2. */
+NUMKONG_INLINE void nk_sqeuclidean_f64_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+    nk_f64_t sum = 0, compensation = 0;
+    for (nk_size_t i = 0; i != n; ++i) nk_f64_dot2_(&sum, &compensation, a[i] - b[i], a[i] - b[i]);
+    *result = sum + compensation;
+}
 
 /** Squared Euclidean distance between @p n packed I4 values, exact in I32. */
 NUMKONG_INLINE void nk_sqeuclidean_i4_(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
@@ -192,7 +152,25 @@ NUMKONG_INLINE void nk_sqeuclidean_u4_(nk_u4x2_t const *a, nk_u4x2_t const *b, n
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-nk_define_angular_(f64, f64, f64, nk_assign_from_to_, nk_f64_rsqrt_)       // nk_angular_f64_serial
+NUMKONG_API nk_status_t nk_angular_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_f64_t dot_product = 0, a_norm_sq = 0, b_norm_sq = 0;
+    nk_f64_t dot_compensation = 0, a_compensation = 0, b_compensation = 0;
+    for (nk_size_t i = 0; i != n; ++i) {
+        nk_f64_dot2_(&dot_product, &dot_compensation, a[i], b[i]);
+        nk_f64_dot2_(&a_norm_sq, &a_compensation, a[i], a[i]);
+        nk_f64_dot2_(&b_norm_sq, &b_compensation, b[i], b[i]);
+    }
+    dot_product += dot_compensation, a_norm_sq += a_compensation, b_norm_sq += b_compensation;
+    if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
+    else if (dot_product == 0) { *result = 1; }
+    else {
+        nk_f64_t unclipped_distance = 1 - dot_product * nk_f64_rsqrt_(a_norm_sq) * nk_f64_rsqrt_(b_norm_sq);
+        *result = unclipped_distance > 0 ? unclipped_distance : 0;
+    }
+    return nk_success_k;
+}
 nk_define_sqeuclidean_serial_(f64, f64)                                    // nk_sqeuclidean_f64_serial
 nk_define_euclidean_(f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_) // nk_euclidean_f64_serial
 

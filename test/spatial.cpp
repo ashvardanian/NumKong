@@ -19,7 +19,7 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
     using result_t = typename scalar_t::sqeuclidean_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(nk_sqeuclidean_error_bound(scalar_t::dtype()));
+    error_stats_t stats(nk_sqeuclidean_error_bound(scalar_t::dtype()), nk_spatial_sum_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
@@ -50,7 +50,7 @@ error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
     using result_t = typename scalar_t::angular_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(nk_angular_error_bound(scalar_t::dtype()));
+    error_stats_t stats(nk_angular_error_bound(scalar_t::dtype()), nk_spatial_sum_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
@@ -80,7 +80,7 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
     using result_t = typename scalar_t::euclidean_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
-    error_stats_t stats(nk_euclidean_error_bound(scalar_t::dtype()));
+    error_stats_t stats(nk_euclidean_error_bound(scalar_t::dtype()), nk_spatial_sum_error_bound(scalar_t::dtype()));
     std::mt19937 generator(global_config.seed);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;

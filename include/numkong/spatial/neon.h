@@ -120,33 +120,20 @@ NUMKONG_INLINE nk_f64_t nk_angular_normalize_f64_neon_(nk_f64_t ab, nk_f64_t a2,
 
 #pragma region F32 and F64 Floats
 
-/** Adds the squares of @p diff_f64x2 to @p sum_f64x2, keeping every rounding error, TwoProd's and
- *  TwoSum's, in @p compensation_f64x2. */
-NUMKONG_INLINE void nk_squared_distance_dot2_f64x2_neon_(float64x2_t diff_f64x2, float64x2_t *sum_f64x2,
-                                                         float64x2_t *compensation_f64x2) {
-    float64x2_t square_f64x2 = vmulq_f64(diff_f64x2, diff_f64x2);
-    float64x2_t square_error_f64x2 = vnegq_f64(vfmsq_f64(square_f64x2, diff_f64x2, diff_f64x2));
-    float64x2_t tentative_sum_f64x2 = vaddq_f64(*sum_f64x2, square_f64x2);
-    float64x2_t virtual_addend_f64x2 = vsubq_f64(tentative_sum_f64x2, *sum_f64x2);
-    float64x2_t sum_error_f64x2 = vaddq_f64(vsubq_f64(*sum_f64x2, vsubq_f64(tentative_sum_f64x2, virtual_addend_f64x2)),
-                                            vsubq_f64(square_f64x2, virtual_addend_f64x2));
-    *sum_f64x2 = tentative_sum_f64x2;
-    *compensation_f64x2 = vaddq_f64(*compensation_f64x2, vaddq_f64(sum_error_f64x2, square_error_f64x2));
-}
-
-/** Sums the squared differences of @p n F32 pairs, widened to F64 and compensated. */
+/** Sums the squared differences of @p n F32 pairs, widened to F64. */
 NUMKONG_INLINE void nk_squared_distance_f32_neon_(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result) {
-    float64x2_t sum_f64x2 = vdupq_n_f64(0), compensation_f64x2 = vdupq_n_f64(0);
+    float64x2_t sum_f64x2 = vdupq_n_f64(0);
     nk_size_t i = 0;
     for (; i + 2 <= n; i += 2) {
         float64x2_t diff_f64x2 = vsubq_f64(vcvt_f64_f32(vld1_f32(a + i)), vcvt_f64_f32(vld1_f32(b + i)));
-        nk_squared_distance_dot2_f64x2_neon_(diff_f64x2, &sum_f64x2, &compensation_f64x2);
+        sum_f64x2 = vfmaq_f64(sum_f64x2, diff_f64x2, diff_f64x2);
     }
+    nk_f64_t sum = vaddvq_f64(sum_f64x2);
     if (i < n) {
-        float64x2_t diff_f64x2 = vsetq_lane_f64((nk_f64_t)a[i] - (nk_f64_t)b[i], vdupq_n_f64(0), 0);
-        nk_squared_distance_dot2_f64x2_neon_(diff_f64x2, &sum_f64x2, &compensation_f64x2);
+        nk_f64_t const diff = (nk_f64_t)a[i] - (nk_f64_t)b[i];
+        sum += diff * diff;
     }
-    *result = nk_dot_stable_sum_f64x2_neon_(sum_f64x2, compensation_f64x2);
+    *result = sum;
 }
 
 #if NUMKONG_TARGET_NEON
@@ -195,7 +182,7 @@ NUMKONG_API nk_status_t nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b
 
 #endif // NUMKONG_TARGET_NEON
 
-/** Sums the squared differences of @p n F64 pairs, compensated. */
+/** Sums the squared differences of @p n F64 pairs in Dot2. */
 NUMKONG_INLINE void nk_squared_distance_f64_neon_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     float64x2_t sum_f64x2 = vdupq_n_f64(0), compensation_f64x2 = vdupq_n_f64(0);
     float64x2_t a_f64x2, b_f64x2;
@@ -214,7 +201,8 @@ nk_sqeuclidean_f64_neon_cycle:
         b_f64x2 = vld1q_f64(b);
         a += 2, b += 2, n -= 2;
     }
-    nk_squared_distance_dot2_f64x2_neon_(vsubq_f64(a_f64x2, b_f64x2), &sum_f64x2, &compensation_f64x2);
+    float64x2_t diff_f64x2 = vsubq_f64(a_f64x2, b_f64x2);
+    nk_dot2_f64x2_neon_(&sum_f64x2, &compensation_f64x2, diff_f64x2, diff_f64x2);
     if (n) goto nk_sqeuclidean_f64_neon_cycle;
 
     *result = nk_dot_stable_sum_f64x2_neon_(sum_f64x2, compensation_f64x2);
@@ -239,12 +227,9 @@ NUMKONG_API nk_status_t nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const 
 NUMKONG_API nk_status_t nk_angular_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
-    // simple FMA for self-products a2/b2 (all positive, no cancellation)
-    float64x2_t ab_sum_f64x2 = vdupq_n_f64(0);
-    float64x2_t ab_compensation_f64x2 = vdupq_n_f64(0);
-    float64x2_t a2_f64x2 = vdupq_n_f64(0);
-    float64x2_t b2_f64x2 = vdupq_n_f64(0);
+    float64x2_t ab_sum_f64x2 = vdupq_n_f64(0), ab_compensation_f64x2 = vdupq_n_f64(0);
+    float64x2_t a2_sum_f64x2 = vdupq_n_f64(0), a2_compensation_f64x2 = vdupq_n_f64(0);
+    float64x2_t b2_sum_f64x2 = vdupq_n_f64(0), b2_compensation_f64x2 = vdupq_n_f64(0);
     float64x2_t a_f64x2, b_f64x2;
 
 nk_angular_f64_neon_cycle:
@@ -261,24 +246,15 @@ nk_angular_f64_neon_cycle:
         b_f64x2 = vld1q_f64(b);
         a += 2, b += 2, n -= 2;
     }
-    // TwoProd for ab: product = a*b, error = fma(a,b,-product)
-    float64x2_t product_f64x2 = vmulq_f64(a_f64x2, b_f64x2);
-    float64x2_t product_error_f64x2 = vnegq_f64(vfmsq_f64(product_f64x2, a_f64x2, b_f64x2));
-    // TwoSum: (t, q) = TwoSum(sum, product)
-    float64x2_t tentative_sum_f64x2 = vaddq_f64(ab_sum_f64x2, product_f64x2);
-    float64x2_t virtual_addend_f64x2 = vsubq_f64(tentative_sum_f64x2, ab_sum_f64x2);
-    float64x2_t sum_error_f64x2 = vaddq_f64(
-        vsubq_f64(ab_sum_f64x2, vsubq_f64(tentative_sum_f64x2, virtual_addend_f64x2)),
-        vsubq_f64(product_f64x2, virtual_addend_f64x2));
-    ab_sum_f64x2 = tentative_sum_f64x2;
-    ab_compensation_f64x2 = vaddq_f64(ab_compensation_f64x2, vaddq_f64(sum_error_f64x2, product_error_f64x2));
-    // Simple FMA for self-products (no cancellation)
-    a2_f64x2 = vfmaq_f64(a2_f64x2, a_f64x2, a_f64x2);
-    b2_f64x2 = vfmaq_f64(b2_f64x2, b_f64x2, b_f64x2);
+    nk_dot2_f64x2_neon_(&ab_sum_f64x2, &ab_compensation_f64x2, a_f64x2, b_f64x2);
+    nk_dot2_f64x2_neon_(&a2_sum_f64x2, &a2_compensation_f64x2, a_f64x2, a_f64x2);
+    nk_dot2_f64x2_neon_(&b2_sum_f64x2, &b2_compensation_f64x2, b_f64x2, b_f64x2);
     if (n) goto nk_angular_f64_neon_cycle;
 
     *result = nk_angular_normalize_f64_neon_( //
-        nk_dot_stable_sum_f64x2_neon_(ab_sum_f64x2, ab_compensation_f64x2), vaddvq_f64(a2_f64x2), vaddvq_f64(b2_f64x2));
+        nk_dot_stable_sum_f64x2_neon_(ab_sum_f64x2, ab_compensation_f64x2),
+        nk_dot_stable_sum_f64x2_neon_(a2_sum_f64x2, a2_compensation_f64x2),
+        nk_dot_stable_sum_f64x2_neon_(b2_sum_f64x2, b2_compensation_f64x2));
     return nk_success_k;
 }
 

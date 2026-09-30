@@ -246,18 +246,16 @@ NUMKONG_INLINE void nk_squared_distance_f64_rvv_(nk_f64_t const *a_scalars, nk_f
                                                  nk_size_t count_scalars, nk_f64_t *result) {
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
+    vfloat64m1_t compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
     for (nk_size_t vector_length; count_scalars > 0;
          count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
         vector_length = __riscv_vsetvl_e64m1(count_scalars);
         vfloat64m1_t a_f64m1 = __riscv_vle64_v_f64m1(a_scalars, vector_length);
         vfloat64m1_t b_f64m1 = __riscv_vle64_v_f64m1(b_scalars, vector_length);
-        // Compute difference and accumulate diff² into vector lanes
         vfloat64m1_t diff_f64m1 = __riscv_vfsub_vv_f64m1(a_f64m1, b_f64m1, vector_length);
-        sum_f64m1 = __riscv_vfmacc_vv_f64m1_tu(sum_f64m1, diff_f64m1, diff_f64m1, vector_length);
+        nk_dot2_f64m1_rvv_(&sum_f64m1, &compensation_f64m1, diff_f64m1, diff_f64m1, vector_length);
     }
-    // Single horizontal reduction at the end
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
-    *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m1_f64m1(sum_f64m1, zero_f64m1, vector_length_max));
+    *result = nk_dot_stable_sum_f64m1_rvv_(sum_f64m1, compensation_f64m1);
 }
 
 #if NUMKONG_TARGET_RVV
@@ -411,48 +409,27 @@ NUMKONG_API nk_status_t nk_angular_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t c
 NUMKONG_API nk_status_t nk_angular_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
                                            nk_size_t count_scalars, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    // Dot2 (Ogita-Rump-Oishi) for cross-product (may have cancellation),
-    // simple FMA for self-products a²/b² (all positive, no cancellation)
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m1();
     vfloat64m1_t dot_sum_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
     vfloat64m1_t dot_compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
     vfloat64m1_t a_norm_sq_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
+    vfloat64m1_t a_compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
     vfloat64m1_t b_norm_sq_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
+    vfloat64m1_t b_compensation_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
 
     for (nk_size_t vector_length; count_scalars > 0;
          count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
         vector_length = __riscv_vsetvl_e64m1(count_scalars);
         vfloat64m1_t a_f64m1 = __riscv_vle64_v_f64m1(a_scalars, vector_length);
         vfloat64m1_t b_f64m1 = __riscv_vle64_v_f64m1(b_scalars, vector_length);
-
-        // TwoProd: product = a*b, product_error = fma(a,b,-product)
-        vfloat64m1_t product_f64m1 = __riscv_vfmul_vv_f64m1(a_f64m1, b_f64m1, vector_length);
-        vfloat64m1_t product_error_f64m1 = __riscv_vfmsac_vv_f64m1(product_f64m1, a_f64m1, b_f64m1, vector_length);
-        // TwoSum: tentative_sum = sum + product
-        vfloat64m1_t tentative_sum_f64m1 = __riscv_vfadd_vv_f64m1(dot_sum_f64m1, product_f64m1, vector_length);
-        vfloat64m1_t virtual_addend_f64m1 = __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, dot_sum_f64m1, vector_length);
-        vfloat64m1_t sum_error_f64m1 = __riscv_vfadd_vv_f64m1(
-            __riscv_vfsub_vv_f64m1(dot_sum_f64m1,
-                                   __riscv_vfsub_vv_f64m1(tentative_sum_f64m1, virtual_addend_f64m1, vector_length),
-                                   vector_length),
-            __riscv_vfsub_vv_f64m1(product_f64m1, virtual_addend_f64m1, vector_length), vector_length);
-        // Tail-undisturbed updates: preserve zero tails across partial iterations
-        dot_sum_f64m1 = __riscv_vslideup_vx_f64m1_tu(dot_sum_f64m1, tentative_sum_f64m1, 0, vector_length);
-        vfloat64m1_t total_error_f64m1 = __riscv_vfadd_vv_f64m1(sum_error_f64m1, product_error_f64m1, vector_length);
-        dot_compensation_f64m1 = __riscv_vfadd_vv_f64m1_tu(dot_compensation_f64m1, dot_compensation_f64m1,
-                                                           total_error_f64m1, vector_length);
-        // Simple FMA for self-products (no cancellation possible)
-        a_norm_sq_f64m1 = __riscv_vfmacc_vv_f64m1_tu(a_norm_sq_f64m1, a_f64m1, a_f64m1, vector_length);
-        b_norm_sq_f64m1 = __riscv_vfmacc_vv_f64m1_tu(b_norm_sq_f64m1, b_f64m1, b_f64m1, vector_length);
+        nk_dot2_f64m1_rvv_(&dot_sum_f64m1, &dot_compensation_f64m1, a_f64m1, b_f64m1, vector_length);
+        nk_dot2_f64m1_rvv_(&a_norm_sq_f64m1, &a_compensation_f64m1, a_f64m1, a_f64m1, vector_length);
+        nk_dot2_f64m1_rvv_(&b_norm_sq_f64m1, &b_compensation_f64m1, b_f64m1, b_f64m1, vector_length);
     }
 
-    // Compensated horizontal reduction for cross-product, simple reduction for self-products
     nk_f64_t dot_f64 = nk_dot_stable_sum_f64m1_rvv_(dot_sum_f64m1, dot_compensation_f64m1);
-    vfloat64m1_t zero_f64m1 = __riscv_vfmv_v_f_f64m1(0.0, vector_length_max);
-    nk_f64_t a_norm_sq_f64 = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m1_f64m1(a_norm_sq_f64m1, zero_f64m1, vector_length_max));
-    nk_f64_t b_norm_sq_f64 = __riscv_vfmv_f_s_f64m1_f64(
-        __riscv_vfredusum_vs_f64m1_f64m1(b_norm_sq_f64m1, zero_f64m1, vector_length_max));
+    nk_f64_t a_norm_sq_f64 = nk_dot_stable_sum_f64m1_rvv_(a_norm_sq_f64m1, a_compensation_f64m1);
+    nk_f64_t b_norm_sq_f64 = nk_dot_stable_sum_f64m1_rvv_(b_norm_sq_f64m1, b_compensation_f64m1);
 
     // Normalize: 1 − dot / √(‖a‖² × ‖b‖²)
     if (a_norm_sq_f64 == 0.0 && b_norm_sq_f64 == 0.0) { *result = 0.0; }

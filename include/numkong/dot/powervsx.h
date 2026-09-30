@@ -125,6 +125,19 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x2_powervsx_(nk_vf64x2_t sum_f64x2,
     return tentative_sum + (lower_error + upper_error + rounding_error);
 }
 
+/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_: TwoProd through FMA, then TwoSum. */
+NUMKONG_INLINE void nk_dot2_f64x2_powervsx_(nk_vf64x2_t *sum_f64x2, nk_vf64x2_t *compensation_f64x2,
+                                            nk_vf64x2_t a_f64x2, nk_vf64x2_t b_f64x2) {
+    nk_vf64x2_t product_f64x2 = vec_mul(a_f64x2, b_f64x2);
+    nk_vf64x2_t product_error_f64x2 = vec_msub(a_f64x2, b_f64x2, product_f64x2);
+    nk_vf64x2_t tentative_sum_f64x2 = vec_add(*sum_f64x2, product_f64x2);
+    nk_vf64x2_t virtual_addend_f64x2 = vec_sub(tentative_sum_f64x2, *sum_f64x2);
+    nk_vf64x2_t sum_error_f64x2 = vec_add(vec_sub(*sum_f64x2, vec_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
+                                          vec_sub(product_f64x2, virtual_addend_f64x2));
+    *sum_f64x2 = tentative_sum_f64x2;
+    *compensation_f64x2 = vec_add(*compensation_f64x2, vec_add(sum_error_f64x2, product_error_f64x2));
+}
+
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_dot_f32_powervsx(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,

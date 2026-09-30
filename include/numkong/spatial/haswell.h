@@ -727,10 +727,10 @@ NUMKONG_API nk_status_t nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const
 }
 #endif // NUMKONG_TARGET_HASWELL
 
-/** Squared Euclidean distance between two f64 vectors. */
+/** Squared Euclidean distance between two f64 vectors, summed in Dot2. */
 NUMKONG_INLINE void nk_squared_distance_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                      nk_f64_t *result) {
-    __m256d sum_f64x4 = _mm256_setzero_pd();
+    __m256d sum_f64x4 = _mm256_setzero_pd(), compensation_f64x4 = _mm256_setzero_pd();
     __m256d a_f64x4, b_f64x4;
 
 nk_sqeuclidean_f64_haswell_cycle:
@@ -748,10 +748,10 @@ nk_sqeuclidean_f64_haswell_cycle:
         a += 4, b += 4, n -= 4;
     }
     __m256d diff_f64x4 = _mm256_sub_pd(a_f64x4, b_f64x4);
-    sum_f64x4 = _mm256_fmadd_pd(diff_f64x4, diff_f64x4, sum_f64x4);
+    nk_dot2_f64x4_haswell_(&sum_f64x4, &compensation_f64x4, diff_f64x4, diff_f64x4);
     if (n) goto nk_sqeuclidean_f64_haswell_cycle;
 
-    *result = nk_reduce_add_f64x4_haswell_(sum_f64x4);
+    *result = nk_dot_stable_sum_f64x4_haswell_(sum_f64x4, compensation_f64x4);
 }
 
 #if NUMKONG_TARGET_HASWELL
@@ -773,14 +773,9 @@ NUMKONG_API nk_status_t nk_euclidean_f64_haswell(nk_f64_t const *a, nk_f64_t con
 NUMKONG_API nk_status_t nk_angular_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    // Dot2 (Ogita-Rump-Oishi 2005) for cross-product a × b only - it may have cancellation.
-    // Self-products ‖a‖² and ‖b‖² use simple FMA - all terms are non-negative, no cancellation.
-    // Note: For cross-product we use Knuth TwoSum (6 ops) rather than Neumaier with blends (10 ops)
-    // since products can be signed and Knuth handles any operand ordering efficiently.
-    __m256d dot_sum_f64x4 = _mm256_setzero_pd();
-    __m256d dot_compensation_f64x4 = _mm256_setzero_pd();
-    __m256d a_norm_sq_f64x4 = _mm256_setzero_pd();
-    __m256d b_norm_sq_f64x4 = _mm256_setzero_pd();
+    __m256d dot_sum_f64x4 = _mm256_setzero_pd(), dot_compensation_f64x4 = _mm256_setzero_pd();
+    __m256d a_norm_sq_f64x4 = _mm256_setzero_pd(), a_compensation_f64x4 = _mm256_setzero_pd();
+    __m256d b_norm_sq_f64x4 = _mm256_setzero_pd(), b_compensation_f64x4 = _mm256_setzero_pd();
     __m256d a_f64x4, b_f64x4;
 
 nk_angular_f64_haswell_cycle:
@@ -797,25 +792,15 @@ nk_angular_f64_haswell_cycle:
         b_f64x4 = _mm256_loadu_pd(b);
         a += 4, b += 4, n -= 4;
     }
-    // TwoProd: product = a × b, error = fma(a, b, -product)
-    __m256d x_f64x4 = _mm256_mul_pd(a_f64x4, b_f64x4);
-    __m256d product_error_f64x4 = _mm256_fmsub_pd(a_f64x4, b_f64x4, x_f64x4);
-    // Knuth TwoSum: error = (sum - (t - z)) + (x - z) where z = t - sum
-    __m256d tentative_sum_f64x4 = _mm256_add_pd(dot_sum_f64x4, x_f64x4);
-    __m256d virtual_addend_f64x4 = _mm256_sub_pd(tentative_sum_f64x4, dot_sum_f64x4);
-    __m256d sum_error_f64x4 = _mm256_add_pd(
-        _mm256_sub_pd(dot_sum_f64x4, _mm256_sub_pd(tentative_sum_f64x4, virtual_addend_f64x4)),
-        _mm256_sub_pd(x_f64x4, virtual_addend_f64x4));
-    dot_sum_f64x4 = tentative_sum_f64x4;
-    dot_compensation_f64x4 = _mm256_add_pd(dot_compensation_f64x4, _mm256_add_pd(sum_error_f64x4, product_error_f64x4));
-    // Simple FMA for self-products (no cancellation possible)
-    a_norm_sq_f64x4 = _mm256_fmadd_pd(a_f64x4, a_f64x4, a_norm_sq_f64x4);
-    b_norm_sq_f64x4 = _mm256_fmadd_pd(b_f64x4, b_f64x4, b_norm_sq_f64x4);
+    nk_dot2_f64x4_haswell_(&dot_sum_f64x4, &dot_compensation_f64x4, a_f64x4, b_f64x4);
+    nk_dot2_f64x4_haswell_(&a_norm_sq_f64x4, &a_compensation_f64x4, a_f64x4, a_f64x4);
+    nk_dot2_f64x4_haswell_(&b_norm_sq_f64x4, &b_compensation_f64x4, b_f64x4, b_f64x4);
     if (n) goto nk_angular_f64_haswell_cycle;
 
     *result = nk_angular_normalize_f64_haswell_( //
         nk_dot_stable_sum_f64x4_haswell_(dot_sum_f64x4, dot_compensation_f64x4),
-        nk_reduce_add_f64x4_haswell_(a_norm_sq_f64x4), nk_reduce_add_f64x4_haswell_(b_norm_sq_f64x4));
+        nk_dot_stable_sum_f64x4_haswell_(a_norm_sq_f64x4, a_compensation_f64x4),
+        nk_dot_stable_sum_f64x4_haswell_(b_norm_sq_f64x4, b_compensation_f64x4));
     return nk_success_k;
 }
 

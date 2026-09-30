@@ -126,6 +126,23 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x8_skylake_(__m512d sum_f64x8, __m5
     return nk_dot_stable_sum_f64x4_haswell_(tentative_sum_f64x4, accumulated_error_f64x4);
 }
 
+/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_: TwoProd through FMA, then a masked
+ *  Neumaier TwoSum, which subtracts the larger operand first. */
+NUMKONG_INLINE void nk_dot2_f64x8_skylake_(__m512d *sum_f64x8, __m512d *compensation_f64x8, __m512d a_f64x8,
+                                           __m512d b_f64x8) {
+    __m512d product_f64x8 = _mm512_mul_pd(a_f64x8, b_f64x8);
+    __m512d product_error_f64x8 = _mm512_fmsub_pd(a_f64x8, b_f64x8, product_f64x8);
+    __m512d tentative_sum_f64x8 = _mm512_add_pd(*sum_f64x8, product_f64x8);
+    __mmask8 sum_ge_product_m8 = _mm512_cmp_pd_mask(_mm512_abs_pd(*sum_f64x8), _mm512_abs_pd(product_f64x8),
+                                                    _CMP_GE_OQ);
+    __m512d virtual_addend_f64x8 = _mm512_sub_pd(tentative_sum_f64x8, product_f64x8);
+    virtual_addend_f64x8 = _mm512_mask_sub_pd(virtual_addend_f64x8, sum_ge_product_m8, tentative_sum_f64x8, *sum_f64x8);
+    __m512d sum_error_f64x8 = _mm512_sub_pd(*sum_f64x8, virtual_addend_f64x8);
+    sum_error_f64x8 = _mm512_mask_sub_pd(sum_error_f64x8, sum_ge_product_m8, product_f64x8, virtual_addend_f64x8);
+    *sum_f64x8 = tentative_sum_f64x8;
+    *compensation_f64x8 = _mm512_add_pd(*compensation_f64x8, _mm512_add_pd(sum_error_f64x8, product_error_f64x8));
+}
+
 #pragma region F32 and F64 Floats
 
 /**

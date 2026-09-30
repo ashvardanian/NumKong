@@ -37,6 +37,7 @@
 #include "numkong/types.h"
 #include "numkong/spatial/v128.h" // `nk_angular_normalize_f64_v128_`
 #include "numkong/reduce/v128.h"  // `nk_reduce_add_f32x4_v128_`, `nk_reduce_add_i32x4_v128_`
+#include "numkong/dot/v128.h"     // `nk_dot2_f64x2_v128_`, `nk_dot_stable_sum_f64x2_v128_`
 #include "numkong/cast/serial.h"
 #include "numkong/cast/v128.h" // `nk_load_b128_v128_`, `nk_e5m2x4_to_f32x4_v128_`
 #include "numkong/cast/v128relaxed.h"
@@ -89,7 +90,7 @@ NUMKONG_API nk_status_t nk_sqeuclidean_f32_v128relaxed(nk_f32_t const *a, nk_f32
 
 NUMKONG_INLINE void nk_squared_distance_f64_v128relaxed_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                          nk_f64_t *result) {
-    v128_t sum_f64x2 = wasm_f64x2_splat(0.0);
+    v128_t sum_f64x2 = wasm_f64x2_splat(0.0), compensation_f64x2 = wasm_f64x2_splat(0.0);
     nk_f64_t const *a_scalars = a, *b_scalars = b;
     nk_size_t count_scalars = n;
     nk_b128_vec_t a_vec, b_vec;
@@ -106,10 +107,10 @@ nk_sqeuclidean_f64_v128relaxed_cycle:
         a_scalars += 2, b_scalars += 2, count_scalars -= 2;
     }
     v128_t diff_f64x2 = wasm_f64x2_sub(a_vec.v128, b_vec.v128);
-    sum_f64x2 = wasm_f64x2_relaxed_madd(diff_f64x2, diff_f64x2, sum_f64x2);
+    nk_dot2_f64x2_v128_(&sum_f64x2, &compensation_f64x2, diff_f64x2, diff_f64x2);
     if (count_scalars) goto nk_sqeuclidean_f64_v128relaxed_cycle;
 
-    *result = nk_reduce_add_f64x2_v128_(sum_f64x2);
+    *result = nk_dot_stable_sum_f64x2_v128_(sum_f64x2, compensation_f64x2);
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
@@ -183,9 +184,9 @@ nk_angular_f32_v128relaxed_cycle:
 NUMKONG_API nk_status_t nk_angular_f64_v128relaxed(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                    void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    v128_t ab_f64x2 = wasm_f64x2_splat(0.0);
-    v128_t a2_f64x2 = wasm_f64x2_splat(0.0);
-    v128_t b2_f64x2 = wasm_f64x2_splat(0.0);
+    v128_t ab_f64x2 = wasm_f64x2_splat(0.0), ab_compensation_f64x2 = wasm_f64x2_splat(0.0);
+    v128_t a2_f64x2 = wasm_f64x2_splat(0.0), a2_compensation_f64x2 = wasm_f64x2_splat(0.0);
+    v128_t b2_f64x2 = wasm_f64x2_splat(0.0), b2_compensation_f64x2 = wasm_f64x2_splat(0.0);
     nk_f64_t const *a_scalars = a, *b_scalars = b;
     nk_size_t count_scalars = n;
     nk_b128_vec_t a_vec, b_vec;
@@ -202,16 +203,14 @@ nk_angular_f64_v128relaxed_cycle:
         a_scalars += 2, b_scalars += 2, count_scalars -= 2;
     }
 
-    // Accumulate: ab += a · b, a2 += a · a, b2 += b · b
-    ab_f64x2 = wasm_f64x2_relaxed_madd(a_vec.v128, b_vec.v128, ab_f64x2);
-    a2_f64x2 = wasm_f64x2_relaxed_madd(a_vec.v128, a_vec.v128, a2_f64x2);
-    b2_f64x2 = wasm_f64x2_relaxed_madd(b_vec.v128, b_vec.v128, b2_f64x2);
+    nk_dot2_f64x2_v128_(&ab_f64x2, &ab_compensation_f64x2, a_vec.v128, b_vec.v128);
+    nk_dot2_f64x2_v128_(&a2_f64x2, &a2_compensation_f64x2, a_vec.v128, a_vec.v128);
+    nk_dot2_f64x2_v128_(&b2_f64x2, &b2_compensation_f64x2, b_vec.v128, b_vec.v128);
     if (count_scalars) goto nk_angular_f64_v128relaxed_cycle;
 
-    // Reduce and normalize
-    nk_f64_t ab = nk_reduce_add_f64x2_v128_(ab_f64x2);
-    nk_f64_t a2 = nk_reduce_add_f64x2_v128_(a2_f64x2);
-    nk_f64_t b2 = nk_reduce_add_f64x2_v128_(b2_f64x2);
+    nk_f64_t ab = nk_dot_stable_sum_f64x2_v128_(ab_f64x2, ab_compensation_f64x2);
+    nk_f64_t a2 = nk_dot_stable_sum_f64x2_v128_(a2_f64x2, a2_compensation_f64x2);
+    nk_f64_t b2 = nk_dot_stable_sum_f64x2_v128_(b2_f64x2, b2_compensation_f64x2);
     *result = nk_angular_normalize_f64_v128_(ab, a2, b2);
     return nk_success_k;
 }

@@ -460,20 +460,17 @@ NUMKONG_API nk_status_t nk_angular_f32_loongsonasx(nk_f32_t const *a, nk_f32_t c
 
 NUMKONG_INLINE void nk_squared_distance_f64_loongsonasx_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                          nk_f64_t *result) {
-    __m256d sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0), compensation_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d a_f64x4 = (__m256d)__lasx_xvld(a + i, 0);
         __m256d b_f64x4 = (__m256d)__lasx_xvld(b + i, 0);
         __m256d diff_f64x4 = __lasx_xvfsub_d(a_f64x4, b_f64x4);
-        sum_f64x4 = __lasx_xvfmadd_d(diff_f64x4, diff_f64x4, sum_f64x4);
+        nk_dot2_f64x4_loongsonasx_(&sum_f64x4, &compensation_f64x4, diff_f64x4, diff_f64x4);
     }
-    nk_f64_t sum = nk_reduce_add_f64x4_loongsonasx_(sum_f64x4);
-    for (; i < n; ++i) {
-        nk_f64_t diff = a[i] - b[i];
-        sum += diff * diff;
-    }
-    *result = sum;
+    nk_f64_t sum = nk_dot_stable_sum_f64x4_loongsonasx_(sum_f64x4, compensation_f64x4), compensation = 0;
+    for (; i < n; ++i) nk_f64_dot2_(&sum, &compensation, a[i] - b[i], a[i] - b[i]);
+    *result = sum + compensation;
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
@@ -494,42 +491,28 @@ NUMKONG_API nk_status_t nk_euclidean_f64_loongsonasx(nk_f64_t const *a, nk_f64_t
 NUMKONG_API nk_status_t nk_angular_f64_loongsonasx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                    void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    __m256d dot_sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d dot_compensation_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d a_norm_sq_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    __m256d b_norm_sq_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
+    __m256d dot_sum_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0), dot_compensation_f64x4 = dot_sum_f64x4;
+    __m256d a_norm_sq_f64x4 = dot_sum_f64x4, a_compensation_f64x4 = dot_sum_f64x4;
+    __m256d b_norm_sq_f64x4 = dot_sum_f64x4, b_compensation_f64x4 = dot_sum_f64x4;
     nk_size_t i = 0;
     for (; i + 4 <= n; i += 4) {
         __m256d a_f64x4 = (__m256d)__lasx_xvld(a + i, 0);
         __m256d b_f64x4 = (__m256d)__lasx_xvld(b + i, 0);
-
-        __m256d product_f64x4 = __lasx_xvfmul_d(a_f64x4, b_f64x4);
-        __m256d product_error_f64x4 = __lasx_xvfmsub_d(a_f64x4, b_f64x4, product_f64x4);
-
-        __m256d tentative_sum_f64x4 = __lasx_xvfadd_d(dot_sum_f64x4, product_f64x4);
-        __m256d virtual_addend_f64x4 = __lasx_xvfsub_d(tentative_sum_f64x4, dot_sum_f64x4);
-        __m256d sum_error_f64x4 = __lasx_xvfadd_d(
-            __lasx_xvfsub_d(dot_sum_f64x4, __lasx_xvfsub_d(tentative_sum_f64x4, virtual_addend_f64x4)),
-            __lasx_xvfsub_d(product_f64x4, virtual_addend_f64x4));
-
-        dot_sum_f64x4 = tentative_sum_f64x4;
-        dot_compensation_f64x4 = __lasx_xvfadd_d(dot_compensation_f64x4,
-                                                 __lasx_xvfadd_d(sum_error_f64x4, product_error_f64x4));
-
-        a_norm_sq_f64x4 = __lasx_xvfmadd_d(a_f64x4, a_f64x4, a_norm_sq_f64x4);
-        b_norm_sq_f64x4 = __lasx_xvfmadd_d(b_f64x4, b_f64x4, b_norm_sq_f64x4);
+        nk_dot2_f64x4_loongsonasx_(&dot_sum_f64x4, &dot_compensation_f64x4, a_f64x4, b_f64x4);
+        nk_dot2_f64x4_loongsonasx_(&a_norm_sq_f64x4, &a_compensation_f64x4, a_f64x4, a_f64x4);
+        nk_dot2_f64x4_loongsonasx_(&b_norm_sq_f64x4, &b_compensation_f64x4, b_f64x4, b_f64x4);
     }
 
-    nk_f64_t dot = nk_dot_stable_sum_f64x4_loongsonasx_(dot_sum_f64x4, dot_compensation_f64x4);
-    nk_f64_t a_sq = nk_reduce_add_f64x4_loongsonasx_(a_norm_sq_f64x4);
-    nk_f64_t b_sq = nk_reduce_add_f64x4_loongsonasx_(b_norm_sq_f64x4);
+    nk_f64_t dot = nk_dot_stable_sum_f64x4_loongsonasx_(dot_sum_f64x4, dot_compensation_f64x4), dot_compensation = 0;
+    nk_f64_t a_sq = nk_dot_stable_sum_f64x4_loongsonasx_(a_norm_sq_f64x4, a_compensation_f64x4), a_compensation = 0;
+    nk_f64_t b_sq = nk_dot_stable_sum_f64x4_loongsonasx_(b_norm_sq_f64x4, b_compensation_f64x4), b_compensation = 0;
     for (; i < n; ++i) {
-        nk_f64_t a_val = a[i], b_val = b[i];
-        dot += a_val * b_val;
-        a_sq += a_val * a_val;
-        b_sq += b_val * b_val;
+        nk_f64_dot2_(&dot, &dot_compensation, a[i], b[i]);
+        nk_f64_dot2_(&a_sq, &a_compensation, a[i], a[i]);
+        nk_f64_dot2_(&b_sq, &b_compensation, b[i], b[i]);
     }
-    *result = nk_angular_normalize_f64_loongsonasx_(dot, a_sq, b_sq);
+    *result = nk_angular_normalize_f64_loongsonasx_(dot + dot_compensation, a_sq + a_compensation,
+                                                    b_sq + b_compensation);
     return nk_success_k;
 }
 

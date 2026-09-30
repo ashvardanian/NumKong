@@ -33,9 +33,11 @@
  *
  *  @section spatial_numerical_stability Numerical Stability
  *
- *  Serial kernels use compensated summation for dot, a_norm_sq, b_norm_sq, giving O(1) error growth
- *  regardless of vector dimension. @c f32 public outputs widen to @c f64, so widened paths use
- *  @c f64 arithmetic and @c sqrt64. Angular finalization uses rsqrt via magic constant plus 3
+ *  Every capability follows the precision tiers of the dot products. @c f16, @c bf16 and the
+ *  mini-floats multiply and sum in @c f32. @c f32 inputs widen first, so their products are exact
+ *  in @c f64 and sum there, and their public outputs are @c f64. @c f64 inputs sum in Dot2, TwoProd
+ *  and TwoSum, for the dot product, both norms and the squared differences alike, giving O(1) error
+ *  growth regardless of vector dimension. Angular finalization uses rsqrt via magic constant plus 3
  *  Newton-Raphson iterations for ~34.9 correct bits in f32, or 4 iterations for ~69.3 bits in f64,
  *  then clamps the result to ≥ 0. L2 clamps @c dist_sq to zero before the square root, avoiding NaN
  *  from rounding error. Integer types, i8/u8/i4/u4, accumulate squared differences in i32,
@@ -1447,6 +1449,12 @@ NUMKONG_INLINE nk_f64_t nk_euclidean_error_bound(nk_dtype_t dtype) {
  *  output. */
 NUMKONG_INLINE nk_f64_t nk_angular_error_bound(nk_dtype_t dtype) {
     return nk_accumulation_error_bound(nk_angular_output_dtype(dtype));
+}
+
+/** Returns the error bound each term adds to the sums of a distance: none for F64 inputs, whose
+ *  sums are compensated, and that of the terms themselves for the rest. */
+NUMKONG_INLINE nk_f64_t nk_spatial_sum_error_bound(nk_dtype_t dtype) {
+    return dtype == nk_f64_k ? 0 : nk_euclidean_error_bound(dtype);
 }
 
 /**

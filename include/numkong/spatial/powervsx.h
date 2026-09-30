@@ -223,7 +223,7 @@ nk_angular_f32_powervsx_cycle:
 
 NUMKONG_INLINE void nk_squared_distance_f64_powervsx_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
                                                       nk_f64_t *result) {
-    nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf64x2_t sum_f64x2 = vec_splats((nk_f64_t)0), compensation_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t a_f64x2, b_f64x2;
     nk_size_t tail_bytes;
 
@@ -240,10 +240,10 @@ nk_sqeuclidean_f64_powervsx_cycle:
         a += 2, b += 2, n -= 2;
     }
     nk_vf64x2_t diff_f64x2 = vec_sub(a_f64x2, b_f64x2);
-    sum_f64x2 = vec_madd(diff_f64x2, diff_f64x2, sum_f64x2);
+    nk_dot2_f64x2_powervsx_(&sum_f64x2, &compensation_f64x2, diff_f64x2, diff_f64x2);
     if (n) goto nk_sqeuclidean_f64_powervsx_cycle;
 
-    *result = nk_hsum_f64x2_powervsx_(sum_f64x2);
+    *result = nk_dot_stable_sum_f64x2_powervsx_(sum_f64x2, compensation_f64x2);
 }
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
@@ -264,12 +264,9 @@ NUMKONG_API nk_status_t nk_euclidean_f64_powervsx(nk_f64_t const *a, nk_f64_t co
 NUMKONG_API nk_status_t nk_angular_f64_powervsx(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    // Dot2 (Ogita-Rump-Oishi) for cross-product ab (may have cancellation),
-    // simple FMA for self-products a2/b2 (all positive, no cancellation)
-    nk_vf64x2_t ab_sum_f64x2 = vec_splats((nk_f64_t)0);
-    nk_vf64x2_t ab_compensation_f64x2 = vec_splats((nk_f64_t)0);
-    nk_vf64x2_t a2_f64x2 = vec_splats((nk_f64_t)0);
-    nk_vf64x2_t b2_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf64x2_t ab_sum_f64x2 = vec_splats((nk_f64_t)0), ab_compensation_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf64x2_t a2_sum_f64x2 = vec_splats((nk_f64_t)0), a2_compensation_f64x2 = vec_splats((nk_f64_t)0);
+    nk_vf64x2_t b2_sum_f64x2 = vec_splats((nk_f64_t)0), b2_compensation_f64x2 = vec_splats((nk_f64_t)0);
     nk_vf64x2_t a_f64x2, b_f64x2;
     nk_size_t tail_bytes;
 
@@ -285,23 +282,15 @@ nk_angular_f64_powervsx_cycle:
         b_f64x2 = vec_xl(0, b);
         a += 2, b += 2, n -= 2;
     }
-    // TwoProd for ab: product = a × b, error = msub(a, b, product) captures rounding error
-    nk_vf64x2_t product_f64x2 = vec_mul(a_f64x2, b_f64x2);
-    nk_vf64x2_t product_error_f64x2 = vec_msub(a_f64x2, b_f64x2, product_f64x2);
-    // TwoSum: (t, q) = TwoSum(sum, product) where t = sum + product rounded, q = error
-    nk_vf64x2_t tentative_sum_f64x2 = vec_add(ab_sum_f64x2, product_f64x2);
-    nk_vf64x2_t virtual_addend_f64x2 = vec_sub(tentative_sum_f64x2, ab_sum_f64x2);
-    nk_vf64x2_t sum_error_f64x2 = vec_add(vec_sub(ab_sum_f64x2, vec_sub(tentative_sum_f64x2, virtual_addend_f64x2)),
-                                          vec_sub(product_f64x2, virtual_addend_f64x2));
-    ab_sum_f64x2 = tentative_sum_f64x2;
-    ab_compensation_f64x2 = vec_add(ab_compensation_f64x2, vec_add(sum_error_f64x2, product_error_f64x2));
-    // Simple FMA for self-products (no cancellation)
-    a2_f64x2 = vec_madd(a_f64x2, a_f64x2, a2_f64x2);
-    b2_f64x2 = vec_madd(b_f64x2, b_f64x2, b2_f64x2);
+    nk_dot2_f64x2_powervsx_(&ab_sum_f64x2, &ab_compensation_f64x2, a_f64x2, b_f64x2);
+    nk_dot2_f64x2_powervsx_(&a2_sum_f64x2, &a2_compensation_f64x2, a_f64x2, a_f64x2);
+    nk_dot2_f64x2_powervsx_(&b2_sum_f64x2, &b2_compensation_f64x2, b_f64x2, b_f64x2);
     if (n) goto nk_angular_f64_powervsx_cycle;
 
-    *result = nk_angular_normalize_f64_powervsx_(nk_dot_stable_sum_f64x2_powervsx_(ab_sum_f64x2, ab_compensation_f64x2),
-                                                 nk_hsum_f64x2_powervsx_(a2_f64x2), nk_hsum_f64x2_powervsx_(b2_f64x2));
+    *result = nk_angular_normalize_f64_powervsx_(
+        nk_dot_stable_sum_f64x2_powervsx_(ab_sum_f64x2, ab_compensation_f64x2),
+        nk_dot_stable_sum_f64x2_powervsx_(a2_sum_f64x2, a2_compensation_f64x2),
+        nk_dot_stable_sum_f64x2_powervsx_(b2_sum_f64x2, b2_compensation_f64x2));
     return nk_success_k;
 }
 

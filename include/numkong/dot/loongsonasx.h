@@ -104,6 +104,20 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_f64x4, 
     return tentative_sum + (error_low + error_high + rounding_error);
 }
 
+/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_: TwoProd through FMA, then TwoSum. */
+NUMKONG_INLINE void nk_dot2_f64x4_loongsonasx_(__m256d *sum_f64x4, __m256d *compensation_f64x4, __m256d a_f64x4,
+                                               __m256d b_f64x4) {
+    __m256d product_f64x4 = __lasx_xvfmul_d(a_f64x4, b_f64x4);
+    __m256d product_error_f64x4 = __lasx_xvfmsub_d(a_f64x4, b_f64x4, product_f64x4);
+    __m256d tentative_sum_f64x4 = __lasx_xvfadd_d(*sum_f64x4, product_f64x4);
+    __m256d virtual_addend_f64x4 = __lasx_xvfsub_d(tentative_sum_f64x4, *sum_f64x4);
+    __m256d sum_error_f64x4 = __lasx_xvfadd_d(
+        __lasx_xvfsub_d(*sum_f64x4, __lasx_xvfsub_d(tentative_sum_f64x4, virtual_addend_f64x4)),
+        __lasx_xvfsub_d(product_f64x4, virtual_addend_f64x4));
+    *sum_f64x4 = tentative_sum_f64x4;
+    *compensation_f64x4 = __lasx_xvfadd_d(*compensation_f64x4, __lasx_xvfadd_d(sum_error_f64x4, product_error_f64x4));
+}
+
 #pragma endregion Horizontal Reduction Helpers
 
 #pragma region F32 and F64 Floats
