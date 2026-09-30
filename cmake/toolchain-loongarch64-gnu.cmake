@@ -1,4 +1,4 @@
-# LoongArch 64 GNU toolchain for NumKong.
+# LoongArch 64 GNU toolchain for NumKong, driving GCC.
 #
 # Two toolchain layouts are supported, selected by whether `LOONGARCH_TOOLCHAIN_PATH` is given.
 #
@@ -16,10 +16,12 @@
 #   -D LOONGARCH_COMPILER_SUFFIX=-14             # selects `loongarch64-linux-gnu-gcc-14`
 #   -D LOONGARCH_SYSROOT=/opt/loongarch64/sysroot
 #   -D LOONGARCH_QEMU_LD_PREFIX=/usr/loongarch64-linux-gnu
-#   -D LOONGARCH_QEMU_CPU=max
+#   -D LOONGARCH_QEMU_CPU=la464
 #
 # Testing with QEMU:
-#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR
+#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `la464` by
+#   default, which runs the LASX kit, or on the baseline with
+#   `-D LOONGARCH_QEMU_CPU=la464,lsx=off,lasx=off`.
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR loongarch64)
@@ -85,12 +87,12 @@ endif ()
 set(LOONGARCH_QEMU_LD_PREFIX "${LOONGARCH_QEMU_LD_PREFIX}" CACHE PATH "Guest loader prefix for `qemu-loongarch64 -L`")
 set(ENV{LOONGARCH_QEMU_LD_PREFIX} "${LOONGARCH_QEMU_LD_PREFIX}")
 
-# `max` enables every extension QEMU implements for this target.
+# `la464` carries LSX and LASX, every extension NumKong has a kit for on this target.
 if (NOT DEFINED LOONGARCH_QEMU_CPU)
     if (DEFINED ENV{LOONGARCH_QEMU_CPU})
         set(LOONGARCH_QEMU_CPU "$ENV{LOONGARCH_QEMU_CPU}")
     else ()
-        set(LOONGARCH_QEMU_CPU "max")
+        set(LOONGARCH_QEMU_CPU "la464")
     endif ()
 endif ()
 set(LOONGARCH_QEMU_CPU "${LOONGARCH_QEMU_CPU}" CACHE STRING "CPU model for `qemu-loongarch64 -cpu`")
@@ -112,8 +114,9 @@ endif ()
 set(CMAKE_C_COMPILER "${_NUMKONG_LOONGARCH_PREFIX}gcc${LOONGARCH_COMPILER_SUFFIX}")
 set(CMAKE_CXX_COMPILER "${_NUMKONG_LOONGARCH_PREFIX}g++${LOONGARCH_COMPILER_SUFFIX}")
 
-# No `-march`/`-mlasx` here: `CMakeLists.txt` sets them with
-# `add_compile_options(-march=loongarch64 -mlasx)`, which lands after `CMAKE_C_FLAGS` and wins.
+# No `-march` here: `CMakeLists.txt` pins the dispatch floor with
+# `add_compile_options(-march=loongarch64)`, which lands after `CMAKE_C_FLAGS` and wins, and gives
+# `-mlasx` to the LASX unit alone.
 
 if (DEFINED LOONGARCH_SYSROOT)
     set(CMAKE_SYSROOT "${LOONGARCH_SYSROOT}")

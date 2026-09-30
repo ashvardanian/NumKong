@@ -425,8 +425,7 @@ jobs:
             gcc-riscv64-linux-gnu libc6-dev-riscv64-cross
       - name: Build Shared Library
         run: |
-          cmake --preset linux_riscv64_llvm -D LLVM_ROOT=/usr/lib/llvm-23 -D RISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb \
-            -D NUMKONG_BUILD_TEST=OFF
+          cmake --preset linux_riscv64_llvm -D LLVM_ROOT=/usr/lib/llvm-23 -D NUMKONG_BUILD_TEST=OFF
           cmake --build --preset linux_riscv64_llvm
           cp build_linux_riscv64_llvm/libnumkong_shared.so \
             "numkong_linux_riscv64_${{ steps.set_version.outputs.version }}.so"

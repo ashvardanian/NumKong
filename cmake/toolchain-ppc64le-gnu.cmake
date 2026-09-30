@@ -1,4 +1,4 @@
-# Power ppc64le GNU toolchain for NumKong.
+# Power ppc64le GNU toolchain for NumKong, driving GCC.
 #
 # Two toolchain layouts are supported, selected by whether `PPC_TOOLCHAIN_PATH` is given.
 #
@@ -19,7 +19,8 @@
 #   -D PPC_QEMU_CPU=power10
 #
 # Testing with QEMU:
-#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR
+#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `power10` by
+#   default, which runs the POWER9 kit, or on the POWER8 baseline with `-D PPC_QEMU_CPU=power8`.
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR ppc64le)
@@ -112,8 +113,8 @@ set(CMAKE_C_COMPILER "${_NUMKONG_PPC_PREFIX}gcc${PPC_COMPILER_SUFFIX}")
 set(CMAKE_CXX_COMPILER "${_NUMKONG_PPC_PREFIX}g++${PPC_COMPILER_SUFFIX}")
 
 # No `-mcpu` here: `CMakeLists.txt` pins the dispatch floor with `add_compile_options(-mcpu=power8)`,
-# which lands after `CMAKE_C_FLAGS` and wins, and `nk_power_isa_probes.cmake` gates the POWER9
-# kernels per translation unit. Raising the floor here would SIGILL on POWER8.
+# which lands after `CMAKE_C_FLAGS` and wins, and gives `-mcpu=power9` to the POWER9 unit alone.
+# Raising the floor here would SIGILL on POWER8.
 
 if (DEFINED PPC_SYSROOT)
     set(CMAKE_SYSROOT "${PPC_SYSROOT}")

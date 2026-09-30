@@ -269,7 +269,7 @@ jobs:
         run: cargo build --target armv7-unknown-linux-gnueabihf --release
 
   test_riscv_llvm23:
-    name: Test RISC-V LLVM 23 under QEMU, ${{ matrix.march }}
+    name: Test RISC-V LLVM 23 under QEMU, ${{ matrix.qemu_cpu }}
     runs-on: ubuntu-26.04
     # Noble's qemu-user is 8.2, which predates `Zvbb`/`Zvfh` in `riscv_hwprobe`,
     # so RVV would never dispatch and this job would pass on serial fallbacks.
@@ -280,8 +280,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Second entry is what `release-c.yml` ships; CI must run what we publish.
-        march: [rv64gcv, rv64gcv_zvfh_zvfbfwma_zvbb]
+        # The same library on a core with the base V extension alone, and on one with every RVV kit.
+        qemu_cpu: ["rv64,v=true", max]
 
     steps:
       # `git` must precede `actions/checkout`, or it falls back to the tarball API.
@@ -300,11 +300,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Configure for ${{ matrix.march }}
+      - name: Configure for ${{ matrix.qemu_cpu }}
         shell: bash
         run: |
           set -euo pipefail
-          cmake --preset linux_riscv64_llvm -D LLVM_ROOT=/usr/lib/llvm-23 -D RISCV_MARCH=${{ matrix.march }}
+          cmake --preset linux_riscv64_llvm -D LLVM_ROOT=/usr/lib/llvm-23 -D RISCV_QEMU_CPU=${{ matrix.qemu_cpu }}
 
       - name: Build
         run: cmake --build --preset linux_riscv64_llvm

@@ -1,4 +1,5 @@
-# RISC-V 64 LLVM Clang toolchain for NumKong.
+# RISC-V 64 LLVM toolchain for NumKong, driving Clang.
+# The RVV kernels need Clang 21 or newer; with an older compiler those kits probe as 0.
 #
 # Usage:
 #   sudo apt install clang lld gcc-riscv64-linux-gnu g++-riscv64-linux-gnu libc6-dev-riscv64-cross qemu-user
@@ -8,9 +9,13 @@
 #   -D LLVM_ROOT=/path/to/llvm
 #   -D RISCV_SYSROOT=/path/to/riscv64/sysroot
 #   -D RISCV_QEMU_LD_PREFIX=/usr/riscv64-linux-gnu
+#   -D RISCV_QEMU_CPU=max
 #   -D RISCV_TARGET=riscv64-linux-gnu
-#   -D RISCV_MARCH=rv64gcv_zvfh_zvfbfwma_zvbb
 #   -D RISCV_MABI=lp64d
+#
+# Testing with QEMU:
+#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `max` by default,
+#   which runs every kit, or on the RV64GC baseline with `-D RISCV_QEMU_CPU=rv64`.
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR riscv64)
@@ -37,6 +42,14 @@ if (NOT DEFINED RISCV_QEMU_LD_PREFIX)
 endif ()
 set(RISCV_QEMU_LD_PREFIX "${RISCV_QEMU_LD_PREFIX}" CACHE PATH "Guest loader prefix for `qemu-riscv64 -L`")
 
+# `max` enables every extension QEMU implements for this target.
+if (DEFINED ENV{RISCV_QEMU_CPU})
+    set(RISCV_QEMU_CPU "$ENV{RISCV_QEMU_CPU}" CACHE STRING "CPU model for `qemu-riscv64 -cpu`")
+else ()
+    set(RISCV_QEMU_CPU "max" CACHE STRING "CPU model for `qemu-riscv64 -cpu`")
+endif ()
+set(ENV{RISCV_QEMU_CPU} "${RISCV_QEMU_CPU}")
+
 if (NOT DEFINED RISCV_TARGET)
     if (DEFINED ENV{RISCV_TARGET})
         set(RISCV_TARGET "$ENV{RISCV_TARGET}")
@@ -46,16 +59,6 @@ if (NOT DEFINED RISCV_TARGET)
 endif ()
 set(RISCV_TARGET "${RISCV_TARGET}" CACHE STRING "RISC-V target triple for LLVM cross-compilation")
 set(ENV{RISCV_TARGET} "${RISCV_TARGET}")
-
-if (NOT DEFINED RISCV_MARCH)
-    if (DEFINED ENV{RISCV_MARCH})
-        set(RISCV_MARCH "$ENV{RISCV_MARCH}")
-    else ()
-        set(RISCV_MARCH "rv64gcv_zvfh_zvfbfwma_zvbb")
-    endif ()
-endif ()
-set(RISCV_MARCH "${RISCV_MARCH}" CACHE STRING "RISC-V ISA string for LLVM cross-compilation")
-set(ENV{RISCV_MARCH} "${RISCV_MARCH}")
 
 if (NOT DEFINED RISCV_MABI)
     if (DEFINED ENV{RISCV_MABI})
@@ -83,8 +86,8 @@ endif ()
 
 # `check_ipo_supported()` uses try_compile's whole-project signature, which ignores
 # `CMAKE_TRY_COMPILE_PLATFORM_VARIABLES` — hence the duplicate `set(ENV{...})` above.
-list(APPEND CMAKE_TRY_COMPILE_PLATFORM_VARIABLES LLVM_ROOT RISCV_SYSROOT RISCV_QEMU_LD_PREFIX RISCV_TARGET RISCV_MARCH
-     RISCV_MABI
+set(CMAKE_TRY_COMPILE_PLATFORM_VARIABLES LLVM_ROOT RISCV_SYSROOT RISCV_QEMU_LD_PREFIX RISCV_QEMU_CPU RISCV_TARGET
+                                         RISCV_MABI
 )
 
 if (DEFINED LLVM_ROOT)
@@ -110,13 +113,15 @@ endif ()
 set(CMAKE_C_COMPILER_TARGET "${RISCV_TARGET}")
 set(CMAKE_CXX_COMPILER_TARGET "${RISCV_TARGET}")
 
-set(_NUMKONG_RISCV_FLAGS "-march=${RISCV_MARCH} -mabi=${RISCV_MABI}")
-set(CMAKE_C_FLAGS_INIT "${_NUMKONG_RISCV_FLAGS}")
-set(CMAKE_CXX_FLAGS_INIT "${_NUMKONG_RISCV_FLAGS}")
+# No `-march` here: `CMakeLists.txt` pins the dispatch floor with
+# `add_compile_options(-march=rv64gc)`, which lands after `CMAKE_C_FLAGS` and wins. `-mabi` is the
+# one flag nothing else sets.
+set(CMAKE_C_FLAGS_INIT "-mabi=${RISCV_MABI}")
+set(CMAKE_CXX_FLAGS_INIT "-mabi=${RISCV_MABI}")
 
 find_program(_NUMKONG_QEMU_RISCV64 qemu-riscv64)
 if (_NUMKONG_QEMU_RISCV64)
-    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NUMKONG_QEMU_RISCV64};-L;${RISCV_QEMU_LD_PREFIX};-cpu;max")
+    set(CMAKE_CROSSCOMPILING_EMULATOR "${_NUMKONG_QEMU_RISCV64};-L;${RISCV_QEMU_LD_PREFIX};-cpu;${RISCV_QEMU_CPU}")
 endif ()
 
 if (DEFINED RISCV_SYSROOT)

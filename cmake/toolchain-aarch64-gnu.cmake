@@ -1,4 +1,4 @@
-# AArch64 GNU toolchain for NumKong.
+# AArch64 GNU toolchain for NumKong, driving GCC.
 #
 # Two toolchain layouts are supported, selected by whether `AARCH64_TOOLCHAIN_PATH` is given.
 #
@@ -22,7 +22,8 @@
 #   -D AARCH64_QEMU_CPU=max
 #
 # Testing with QEMU:
-#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR
+#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `max` by default,
+#   which runs every kit, or on the ARMv8.0-A baseline with `-D AARCH64_QEMU_CPU=cortex-a53`.
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
@@ -116,8 +117,8 @@ set(CMAKE_C_COMPILER "${_NUMKONG_AARCH64_PREFIX}gcc${AARCH64_COMPILER_SUFFIX}")
 set(CMAKE_CXX_COMPILER "${_NUMKONG_AARCH64_PREFIX}g++${AARCH64_COMPILER_SUFFIX}")
 
 # No `-march` here: `CMakeLists.txt` pins the dispatch floor with
-# `add_compile_options(-march=armv8-a)`, which lands after `CMAKE_C_FLAGS` and wins, and the
-# per-ISA kernels are gated by `nk_arm_isa_probes.cmake` per translation unit.
+# `add_compile_options(-march=armv8-a)`, which lands after `CMAKE_C_FLAGS` and wins, and each
+# kit's kernels carry their own target per function.
 
 if (DEFINED AARCH64_SYSROOT)
     set(CMAKE_SYSROOT "${AARCH64_SYSROOT}")

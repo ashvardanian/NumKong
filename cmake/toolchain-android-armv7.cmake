@@ -1,4 +1,4 @@
-# Android ARMv7 toolchain for NumKong.
+# Android ARMv7 toolchain for NumKong, driving the NDK's Clang.
 #
 # Usage:
 #   export ANDROID_NDK_ROOT=/path/to/android-ndk-r29

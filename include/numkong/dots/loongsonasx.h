@@ -24,6 +24,13 @@
 extern "C" {
 #endif
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("lasx"))), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC target("lasx")
+#endif
+
 /*  F32 GEMM: depth_simd_dimensions = 8, as 8 f32s span a 256-bit input, accumulated in f64 through
  *  low and high widening. */
 nk_define_cross_pack_size_(dots, f32, loongsonasx, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/8,
@@ -175,6 +182,12 @@ nk_define_cross_packed_(dots, f16, loongsonasx, f16, f32, f32, nk_b256_vec_t, nk
                         nk_dot_through_f32_finalize_loongsonasx_, nk_store_b128_loongsonasx_,
                         nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

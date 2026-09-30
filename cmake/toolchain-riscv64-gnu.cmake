@@ -1,4 +1,4 @@
-# RISC-V 64 GNU toolchain for NumKong.
+# RISC-V 64 GNU toolchain for NumKong, driving GCC.
 #
 # Two toolchain layouts are supported, selected by whether `RISCV_TOOLCHAIN_PATH` is given.
 #
@@ -24,7 +24,8 @@
 # intrinsics it was meant to enable. Use `toolchain-riscv64-llvm.cmake` for older toolchains.
 #
 # Testing with QEMU:
-#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR
+#   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `max` by default,
+#   which runs every kit, or on the RV64GC baseline with `-D RISCV_QEMU_CPU=rv64`.
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR riscv64)

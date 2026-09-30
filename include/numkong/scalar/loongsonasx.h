@@ -22,6 +22,13 @@
 extern "C" {
 #endif
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("lasx"))), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC target("lasx")
+#endif
+
 /** Broadcast f32 scalar into all 4 lanes of a 128-bit register (GCC/Clang portable). */
 NUMKONG_INLINE __m128 nk_xvreplgr2vr_s_128_(float x) {
     nk_fui32_t c;
@@ -68,6 +75,12 @@ NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x > 0 ? x * nk
 NUMKONG_API nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) { return nk_f64_sqrt_lane_loongsonasx_(x); }
 
 NUMKONG_API nk_f64_t nk_f64_rsqrt_loongsonasx(nk_f64_t x) { return 1.0 / nk_f64_sqrt_lane_loongsonasx_(x); }
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

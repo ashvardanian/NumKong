@@ -33,6 +33,13 @@
 extern "C" {
 #endif
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("lasx"))), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC target("lasx")
+#endif
+
 #pragma region Angular Normalize Helpers
 
 NUMKONG_INLINE nk_f64_t nk_angular_normalize_f64_loongsonasx_(nk_f64_t ab, nk_f64_t a2, nk_f64_t b2) {
@@ -691,6 +698,12 @@ NUMKONG_API nk_status_t nk_angular_f16_loongsonasx(nk_f16_t const *a, nk_f16_t c
 }
 
 #pragma endregion F16 and BF16 Floats
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

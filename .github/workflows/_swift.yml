@@ -65,7 +65,7 @@ jobs:
       - name: Build Every Apple Slice
         run: |
           set -euo pipefail
-          no_sme="-D nk_target_sme_compiles=0 -D nk_target_smef64_compiles=0 -D nk_target_smebi32_compiles=0"
+          no_sme="-D NUMKONG_TARGET_SME=0 -D NUMKONG_TARGET_SMEF64=0 -D NUMKONG_TARGET_SMEBI32=0"
           slice() {
             local name=$1
             shift
@@ -204,7 +204,7 @@ jobs:
           }
           abi arm64-v8a aarch64
           abi armeabi-v7a armv7
-          abi x86_64 x86_64 -D nk_target_diamondamx_compiles=0
+          abi x86_64 x86_64 -D NUMKONG_TARGET_DIAMONDAMX=0
       - name: Upload Artifact Bundle
         uses: actions/upload-artifact@v7
         with:

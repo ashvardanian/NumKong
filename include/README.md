@@ -625,7 +625,7 @@ Linking the library is the default, and the way to ship one binary across many C
 Every query writes its answer through a pointer and returns an `nk_status_t`.
 CPU capabilities are reported along two independent axes, plus the mask to dispatch with:
 
-- `nk_cpu_capabilities_detected` is what this CPU can execute, from CPUID or HWCAP.
+- `nk_cpu_capabilities_detected` is what this CPU can execute, from CPUID or the OS, or where the OS cannot be asked, from what the compiler flags guarantee.
 - `nk_cpu_capabilities_compiled` is what this binary contains, from the ISA probes at build time.
 - `nk_cpu_capabilities_enabled` is both axes at once, the mask to pass every CPU call, and always holds `nk_cap_serial_k`.
 
@@ -713,6 +713,8 @@ When executors ship in your toolchain, replacing the `parallel_for` lambda above
 The build enforces C99 for the C layer and C++20 for the C++ layer.
 [CONTRIBUTING.md](../CONTRIBUTING.md#building) lists the CMake presets and options, and [its cross-compilation section](../CONTRIBUTING.md#cross-compilation) the toolchain files in `cmake/` with a recipe for each target.
 A translation unit linking `numkong::static` or `numkong::shared` sees declarations only, while `numkong::header` defines `NUMKONG_HEADER_ONLY=1` and compiles the kernels inline.
+The library compiles every kit whose probe in `probes/` compiles, each scoped to its kernels by target pragmas, or for LASX and POWER9 to its own unit by `-mlasx` or `-mcpu=power9`, and dispatches between them by runtime detection.
+Header-only units get the kits their own flags enable, LASX and POWER9 only under those two flags, as their intrinsics headers hide their contents without them.
 
 ## Threading Model
 

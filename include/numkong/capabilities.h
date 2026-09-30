@@ -748,6 +748,25 @@ typedef nk_status_t (*nk_kernel_cast_block_scaled_punned_t)(                    
 /** Any kernel, cast back to its kind's signature before the call. */
 typedef void (*nk_kernel_punned_t)(void);
 
+/** What the compiler's own flags guarantee of every CPU running this binary, for platforms whose OS
+ *  cannot be asked. The compiled mask would name kits that the CPU may lack. */
+NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_implied_(void) {
+    nk_capability_t capabilities = nk_cap_serial_k;
+#if defined(__ARM_NEON) && defined(__aarch64__)
+    capabilities |= nk_cap_neon_k;
+#endif
+#if defined(__riscv_v) && (__riscv_v >= 1000000)
+    capabilities |= nk_cap_rvv_k;
+#endif
+#if defined(__loongarch_asx)
+    capabilities |= nk_cap_loongsonasx_k;
+#endif
+#if defined(__POWER9_VECTOR__)
+    capabilities |= nk_cap_powervsx_k;
+#endif
+    return capabilities;
+}
+
 #if NUMKONG_ARCH_X8664_
 
 NUMKONG_INLINE nk_status_t nk_cpu_configure_thread_x86_(nk_capability_t capabilities) {
@@ -968,7 +987,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
     elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
 #endif
     // HWCAP_CPUID, bit 11: the kernel emulates EL0 reads of the ID registers, which trap otherwise.
-    if (!(hwcap & (1UL << 11))) return (nk_capability_t)(nk_cap_neon_k | nk_cap_serial_k);
+    if (!(hwcap & (1UL << 11))) return nk_cpu_capabilities_implied_();
 
     unsigned long id_aa64isar0_el1 = 0, id_aa64isar1_el1 = 0, id_aa64pfr0_el1 = 0, id_aa64zfr0_el1 = 0,
                   id_aa64fpfr0_el1 = 0;
@@ -1034,7 +1053,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_arm64_(void) {
                              (nk_cap_serial_k));
 
 #else
-    return (nk_capability_t)(nk_cap_neon_k | nk_cap_serial_k);
+    return nk_cpu_capabilities_implied_();
 #endif
 }
 
@@ -1070,7 +1089,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_riscv64_(void) {
     }
     return caps;
 #else
-    return nk_cap_serial_k;
+    return nk_cpu_capabilities_implied_();
 #endif
 }
 
@@ -1086,7 +1105,7 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_loongarch64_(void) {
     if (hwcap & (1UL << 5)) caps |= nk_cap_loongsonasx_k;
     return caps;
 #else
-    return nk_cap_serial_k;
+    return nk_cpu_capabilities_implied_();
 #endif
 }
 
@@ -1099,12 +1118,11 @@ NUMKONG_INLINE nk_capability_t nk_cpu_capabilities_detected_power64_(void) {
     unsigned long hwcap = getauxval(AT_HWCAP);
     unsigned long hwcap2 = getauxval(AT_HWCAP2);
     nk_capability_t caps = nk_cap_serial_k;
-    nk_unused_(hwcap2);
-    // PPC_FEATURE_HAS_VSX = 0x00000080
-    if (hwcap & 0x00000080) caps |= nk_cap_powervsx_k;
+    // PPC_FEATURE_HAS_VSX = 0x00000080, and PPC_FEATURE2_ARCH_3_00 = 0x00800000 for POWER9
+    if ((hwcap & 0x00000080) && (hwcap2 & 0x00800000)) caps |= nk_cap_powervsx_k;
     return caps;
 #else
-    return nk_cap_serial_k;
+    return nk_cpu_capabilities_implied_();
 #endif
 }
 
@@ -1223,7 +1241,8 @@ NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
 
 /*  CPU capabilities, reported along two independent axes and the mask dispatch uses by default:
  *
- *  - @b nk_cpu_capabilities_detected() — what this CPU can execute, from CPUID or HWCAP.
+ *  - @b nk_cpu_capabilities_detected() — what this CPU can execute, from CPUID or the OS, or from
+ *    what the compiler flags guarantee where the OS cannot be asked.
  *  - @b nk_cpu_capabilities_compiled() — what this binary contains, from the `NUMKONG_TARGET_*`
  *    macros the ISA probes set at build time.
  *  - @b nk_cpu_capabilities_enabled() — both axes at once: the mask to pass every dispatch point on

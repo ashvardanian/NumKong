@@ -8,7 +8,7 @@ To keep the quality of the code high, we follow the [coding style and convention
 include/numkong/          C and C++ headers — one .h per kernel family with its dispatch points, one .hpp per C++ API
 include/numkong/*/        Kernels, one file per CPU or GPU capability — serial, haswell, neon, sme, rvv, ampere, etc.
 c/                        Library units — per-capability kernels, per-family dispatch points, binding thread pools
-probes/                   ISA probe sources, which CMake compiles for every binding
+probes/                   One compile probe per kit, `<kit>.c`, which CMake runs for every binding
 test/                     C++ precision tests — see test/README.md
 bench/                    C++ Google Benchmark suite and JS bench runner — see bench/README.md
 python/                   CPython extension, no SWIG or PyBind11
@@ -16,7 +16,7 @@ javascript/               Node.js native addon + Emscripten WASM + TypeScript AP
 rust/                     Rust FFI bindings
 swift/                    Swift Package Manager bindings
 golang/                   Go cgo bindings
-cmake/                    ISA probe modules, the package config, and cross-compilation toolchain files
+cmake/                    The ISA probe module, the package config, and cross-compilation toolchain files
 ```
 
 ## C and C++
@@ -57,8 +57,12 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 | `NUMKONG_COMPARE_TO_CUDNN`    | `OFF`                           | Include cuDNN attention into CUDA benchmarks, from `NUMKONG_CUDNN_ROOT`       |
 | `NUMKONG_COMPARE_TO_CUVS`     | `OFF`                           | Include cuVS distances into CUDA benchmarks, from `NUMKONG_CUVS_ROOTS`        |
 | `NUMKONG_TARGET_ARCH`         | `$NUMKONG_TARGET_ARCH`          | Tune for a CPU, like the host with `native`, or pick a WASM `v128relaxed`     |
+| `NUMKONG_TARGET_<KIT>`        | whether `probes/<kit>.c` builds | `0` drops a kit, and `1` keeps one only where its probe compiles              |
 
-Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which ISA capabilities the compiler supports.
+Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which kits the toolchain builds.
+Each kit's probe, `probes/<kit>.c`, calls one of its kernels, compiled header-only at the baseline flags as the library compiles it.
+Kits are scoped per function by target pragmas on every platform, except LASX and POWER9, which compile file-wide with `-mlasx` and `-mcpu=power9` in their own unit, probe, and header-only test alone.
+The library compiles every kit the toolchain builds and dispatches between them by runtime detection, and `-D NUMKONG_TARGET_<KIT>=0` or `=1` overrides a probe.
 Each binding hands CMake its options its own way:
 
 | Binding | Builds                                            | Passing another option                                                  |
@@ -85,19 +89,19 @@ The [test README](test/README.md#environment-variables) lists every variable.
 `CMakeLists.txt`, which every binding builds through, pins the TU-level baseline to each architecture's ABI floor so distributable artifacts run on any CPU matching the ABI, not just the build host.
 SIMD kernels live inside `#pragma GCC target(...)` regions and run only when the capability mask holds their capability — see the README's [Dispatch Points & Capability Masks](README.md#dispatch-points--capability-masks) section.
 
-| Target arch   | GCC/Clang baseline          | MSVC baseline   | Notes                                                       |
-| :------------ | :-------------------------- | :-------------- | :---------------------------------------------------------- |
-| `x86_64`      | `-march=x86-64`             | `/arch:SSE2`    | System V psABI / Microsoft x64 ABI floor; SSE2 is mandatory |
-| `aarch64`     | `-march=armv8-a`            | `/arch:armv8.0` | ARMv8-A ABI floor; NEON is mandatory                        |
-| `riscv64`     | `-march=rv64gc`             | …               | V extension is runtime-probed and dispatched                |
-| `powerpc64le` | `-mcpu=power8`              | …               | ELFv2 ABI floor (VSX is mandatory)                          |
-| `loongarch64` | `-march=loongarch64 -mlasx` | …               | LASX baked into the baseline — see LoongArch note below     |
+| Target arch   | GCC/Clang baseline   | MSVC baseline   | Notes                                                       |
+| :------------ | :------------------- | :-------------- | :---------------------------------------------------------- |
+| `x86_64`      | `-march=x86-64`      | `/arch:SSE2`    | System V psABI / Microsoft x64 ABI floor; SSE2 is mandatory |
+| `aarch64`     | `-march=armv8-a`     | `/arch:armv8.0` | ARMv8-A ABI floor; NEON is mandatory                        |
+| `riscv64`     | `-march=rv64gc`      | …               | V extension is runtime-probed and dispatched                |
+| `powerpc64le` | `-mcpu=power8`       | …               | ELFv2 ABI floor (VSX is mandatory); POWER9 is dispatched    |
+| `loongarch64` | `-march=loongarch64` | …               | LASX is runtime-probed and dispatched                       |
 
 GCC/Clang builds also pass `-fno-tree-vectorize -fno-tree-slp-vectorize` so the auto-vectorizer cannot promote serial fallbacks to baseline SIMD (NEON, SSE2, VSX, …).
 That keeps the capability dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
 MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `include/numkong/types.h`).
-LoongArch is the one arch that can't honor the per-function-pragma model: `__attribute__((target("lasx")))` and `#pragma GCC target("lasx")` only landed in GCC 15.1 (Feb 2025) and Clang 22.1 (May 2025), and the bundled `lasxintrin.h` gates every wrapper on the `__loongarch_asx` macro that those older toolchains only set via TU-level `-mlasx`.
-Until NumKong's minimum supported toolchain catches up, LoongArch artifacts require LASX-capable hardware (LA464+, c. 2021).
+LASX and POWER9 are the two kits compiled file-wide, because Clang's `lasxintrin.h` and `altivec.h` hide their contents without `-mlasx` or `-mcpu=power9`.
+CMake gives that flag to `c/cpu/loongsonasx.c` or `c/cpu/powervsx.c`, to the kit's probe, and to `test/cross_loongarch64.cpp` or `test/cross_ppc64.cpp` in the header-only test alone, so every other unit stays at the baseline and runs on LASX-less and POWER8 hosts.
 
 For host-tuned local builds, set `NUMKONG_TARGET_ARCH=native`, either as the CMake option `-DNUMKONG_TARGET_ARCH=native` or as an environment variable.
 `pip install` reads the variable on every build, while `cargo build` and `npm run build-native` read it when they first configure their build directory.
@@ -130,20 +134,23 @@ NumKong ships 12 toolchain files in `cmake/`, each named `toolchain-<name>.cmake
 Tests and benchmarks run transparently under QEMU via `CMAKE_CROSSCOMPILING_EMULATOR`.
 Targets with a `qemu-*` emulator additionally require `qemu-user`.
 
-| Target                  | Toolchain             | Emulator                    | Prerequisites                                     |
-| :---------------------- | :-------------------- | :-------------------------- | :------------------------------------------------ |
-| ARM64 Linux             | `aarch64-gnu`         | `qemu-aarch64 -cpu max`     | `gcc-aarch64-linux-gnu`                           |
-| RISC-V 64 LLVM          | `riscv64-llvm`        | `qemu-riscv64 -cpu max`     | Clang 17+, `gcc-riscv64-linux-gnu`                |
-| RISC-V 64 GCC           | `riscv64-gnu`         | `qemu-riscv64 -cpu max`     | GCC 16+, `gcc-riscv64-linux-gnu`                  |
-| ppc64le Linux           | `ppc64le-gnu`         | `qemu-ppc64le -cpu power10` | `gcc-powerpc64le-linux-gnu`                       |
-| LoongArch 64            | `loongarch64-gnu`     | `qemu-loongarch64 -cpu max` | `gcc-loongarch64-linux-gnu`                       |
-| Android ARM64           | `android-arm64`       | …                           | `ANDROID_NDK_ROOT`                                |
-| Android ARMv7           | `android-armv7`       | …                           | `ANDROID_NDK_ROOT`                                |
-| x86_64 on Apple Silicon | `x86_64-llvm`         | `arch -x86_64`              | Homebrew LLVM                                     |
-| WASM32 Emscripten       | `wasm32-emscripten`   | Node.js                     | Emscripten 3.1.27+, `v128` by default             |
-| WASM64 Emscripten       | `wasm64-emscripten`   | Node.js 24+                 | Emscripten 3.1.35+, `v128relaxed` by default      |
-| WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer           | WASI SDK 24+, `v128` by default                   |
-| WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads       | WASI SDK 24+, `v128relaxed` by default            |
+| Target                  | Toolchain             | Emulator                      | Prerequisites                                   |
+| :---------------------- | :-------------------- | :---------------------------- | :---------------------------------------------- |
+| ARM64 Linux             | `aarch64-gnu`         | `qemu-aarch64 -cpu max`       | `gcc-aarch64-linux-gnu`                         |
+| RISC-V 64 LLVM          | `riscv64-llvm`        | `qemu-riscv64 -cpu max`       | Clang 21+, `gcc-riscv64-linux-gnu`              |
+| RISC-V 64 GCC           | `riscv64-gnu`         | `qemu-riscv64 -cpu max`       | GCC 16+, `gcc-riscv64-linux-gnu`                |
+| ppc64le Linux           | `ppc64le-gnu`         | `qemu-ppc64le -cpu power10`   | `gcc-powerpc64le-linux-gnu`                     |
+| LoongArch 64            | `loongarch64-gnu`     | `qemu-loongarch64 -cpu la464` | `gcc-loongarch64-linux-gnu`                     |
+| Android ARM64           | `android-arm64`       | …                             | `ANDROID_NDK_ROOT`                              |
+| Android ARMv7           | `android-armv7`       | …                             | `ANDROID_NDK_ROOT`                              |
+| x86_64 on Apple Silicon | `x86_64-llvm`         | `arch -x86_64`                | Homebrew LLVM                                   |
+| WASM32 Emscripten       | `wasm32-emscripten`   | Node.js                       | Emscripten 3.1.27+, `v128` by default           |
+| WASM64 Emscripten       | `wasm64-emscripten`   | Node.js 24+                   | Emscripten 3.1.35+, `v128relaxed` by default    |
+| WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer             | WASI SDK 24+, `v128` by default                 |
+| WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads         | WASI SDK 24+, `v128relaxed` by default          |
+
+Each QEMU toolchain names its emulated core in `<ARCH>_QEMU_CPU`, the richest by default so the tests run every compiled kit.
+A baseline leg passes the baseline core instead, which runs the library without any kit: `-D AARCH64_QEMU_CPU=cortex-a53`, `-D RISCV_QEMU_CPU=rv64`, `-D PPC_QEMU_CPU=power8`, or `-D LOONGARCH_QEMU_CPU=la464,lsx=off,lasx=off`.
 
 A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, and `NUMKONG_TARGET_ARCH` selects it for every toolchain and binding.
 Each toolchain file sets its default, and `CMakeLists.txt` turns the choice into `-msimd128` and `-mrelaxed-simd` for every unit, whatever flags a binding passes.
@@ -160,7 +167,7 @@ cmake --build build_arm64 --parallel
 NUMKONG_IN_QEMU=1 ctest --test-dir build_arm64 # runs under qemu-aarch64 -cpu max
 ```
 
-The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `cmake/`.
+The ISA floor is `armv8-a`; individual kernels are gated by the compile probes in `probes/`.
 GCC 14 builds and links the SME kernels, since `dots/sme.h` carries weak `__arm_tpidr2_save` and `__arm_tpidr2_restore` stubs.
 
 __RISC-V 64 with GCC__
@@ -171,7 +178,7 @@ cmake --build build_riscv --parallel
 NUMKONG_IN_QEMU=1 ctest --test-dir build_riscv # runs under qemu-riscv64 -cpu max
 ```
 
-Default arch: `rv64gcv_zvfh_zvfbfwma_zvbb`.
+The ISA floor is `rv64gc`, and the RVV kits dispatch at runtime.
 Needs GCC 16 or newer: the RVV kernels gate on `#pragma GCC target("arch=+v")`, which GCC implements for RISC-V only from 16, and 14 and 15 ignore it and then fail on the intrinsics.
 GCC 16 is not in Debian stable yet, so this currently needs it from `sid`.
 
@@ -430,8 +437,8 @@ Each build adds its target to the artifact in `NUMKONG_SWIFT_DIRECTORY`, which d
 ```sh
 cmake --preset swift -B build_swift_iossim -D NUMKONG_SWIFT_DIRECTORY=$PWD/build_swift \
     -D CMAKE_SYSTEM_NAME=iOS -D CMAKE_OSX_SYSROOT=iphonesimulator -D CMAKE_OSX_ARCHITECTURES=arm64 \
-    -D CMAKE_OSX_DEPLOYMENT_TARGET=15.0 -D nk_target_sme_compiles=0 -D nk_target_smef64_compiles=0 \
-    -D nk_target_smebi32_compiles=0
+    -D CMAKE_OSX_DEPLOYMENT_TARGET=15.0 -D NUMKONG_TARGET_SME=0 -D NUMKONG_TARGET_SMEF64=0 \
+    -D NUMKONG_TARGET_SMEBI32=0
 cmake --build build_swift_iossim
 ```
 

@@ -34,6 +34,13 @@
 extern "C" {
 #endif
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("lasx"))), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC target("lasx")
+#endif
+
 #pragma region Type Punned Loads and Stores
 
 /** LSX and LASX share the same physical register file, so widening __m128i → __m256i and extracting
@@ -90,6 +97,12 @@ NUMKONG_INLINE void nk_partial_load_f16x8_to_f32x8_loongsonasx_(nk_f16_t const *
 }
 
 #pragma endregion Type Punned Loads and Stores
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

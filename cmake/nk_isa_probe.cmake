@@ -1,92 +1,67 @@
-# cmake/nk_isa_probe.cmake — shared ISA probe infrastructure
+# cmake/nk_isa_probe.cmake — which kits of the target architecture the toolchain builds
 #
-# `nk_instruction_set_probe_()` compiles one probe source per kit twice: with the kit's own flags
-# for `nk_target_<kit>_compiles`, and as this machine would execute it for `nk_target_<kit>_runs`.
-# `nk_build_instruction_set_definitions_()` folds those verdicts into `NUMKONG_TARGET_<KIT>=0/1` entries
-# appended per architecture to the cached `nk_compile_definitions_` and `nk_run_definitions_` lists.
-#
-# Each architecture file sets `nk_native_flags_` before including this file, then calls the two.
-# Both verdicts are CMake check caches, so a preset `-D nk_target_<kit>_compiles=0` or `_runs=0`
-# skips that probe and every reader follows it.
+# Probes `probes/<kit>.c` for every kit of the architecture and folds the verdicts into
+# `nk_compile_definitions_`, a list of `NUMKONG_TARGET_<KIT>=0/1`, and into
+# `nk_header_only_definitions_`, the same without the file-wide kits. `-D NUMKONG_TARGET_<KIT>=0`
+# drops a kit, and `=1` keeps one only where its probe compiles.
 
 include_guard(GLOBAL)
 
-include(CheckSourceCompiles)
-include(CheckSourceRuns)
+# Whether the toolchain builds one kit's kernels: the probe calls one of them, compiled header-only
+# at the baseline flags and the kit's own flags in `ARGN`, as the library compiles it. `try_compile`
+# reruns even with its verdict cached, hence the guard.
+function (nk_instruction_set_probe_ kit_)
+    string(TOLOWER "${kit_}" kit_lowercase_)
+    if (NOT DEFINED nk_target_${kit_lowercase_}_compiles)
+        set(CMAKE_TRY_COMPILE_CONFIGURATION "Release")
+        try_compile(
+            nk_target_${kit_lowercase_}_compiles ${CMAKE_BINARY_DIR}/nk_probes
+            ${PROJECT_SOURCE_DIR}/probes/${kit_lowercase_}.c
+            CMAKE_FLAGS "-DINCLUDE_DIRECTORIES=${PROJECT_SOURCE_DIR}/include" C_STANDARD 99 COMPILE_DEFINITIONS ${ARGN}
+        )
+    endif ()
+    message(STATUS "Performing ISA probe ${kit_} - compiles: ${nk_target_${kit_lowercase_}_compiles}")
+endfunction ()
 
-set(nk_compile_definitions_ "" CACHE INTERNAL "")
-set(nk_run_definitions_ "" CACHE INTERNAL "")
+# LASX and POWER9 compile file-wide, as Clang's `lasxintrin.h` and `altivec.h` hide their contents
+# without the flag; `CMakeLists.txt` gives it to the kit's unit and header-only test alone.
+set(nk_kit_flags_LOONGSONASX -mlasx)
+set(nk_kit_flags_POWERVSX -mcpu=power9)
 
-# `check_source_runs` caches success, so results probed under one emulated CPU would
-# survive a reconfigure with another (e.g. `sve-max-vq=2` → `sve=off`). Drop them.
-if (NOT "$CACHE{nk_probe_emulator_}" STREQUAL "${CMAKE_CROSSCOMPILING_EMULATOR}")
-    get_cmake_property(nk_cache_vars_ CACHE_VARIABLES)
-    foreach (nk_cache_var_ IN LISTS nk_cache_vars_)
-        if (nk_cache_var_ MATCHES "^nk_target_.*_runs$")
-            unset(${nk_cache_var_} CACHE)
-        endif ()
-    endforeach ()
-    set(nk_probe_emulator_ "${CMAKE_CROSSCOMPILING_EMULATOR}" CACHE INTERNAL
-                                                                    "Emulator the ISA run probes last ran under"
-    )
+if (NUMKONG_ARCH_X8664_)
+    set(nk_kits_ HASWELL SKYLAKE ICELAKE GENOA SAPPHIRE SAPPHIREAMX GRANITEAMX DIAMOND DIAMONDAMX TURIN ALDER SIERRA)
+elseif (NUMKONG_ARCH_ARM64_)
+    set(nk_kits_ NEON NEONHALF NEONSDOT NEONBFDOT NEONFHM SVE SVEHALF SVEBFDOT SVESDOT SVE2 NEONFP8 SME SMEF64 SMEBI32)
+elseif (NUMKONG_ARCH_RISCV64_)
+    set(nk_kits_ RVV RVVHALF RVVBF16 RVVBB)
+elseif (NUMKONG_ARCH_LOONGARCH64_)
+    set(nk_kits_ LOONGSONASX)
+elseif (NUMKONG_ARCH_PPC64_)
+    set(nk_kits_ POWERVSX)
+else ()
+    set(nk_kits_)
 endif ()
 
-# Two-pass probe: the kit's own flags say whether the toolchain builds it, then the native flags,
-# an MSVC run, or an emulator run say whether this machine executes it. Function scope keeps the
-# `CMAKE_REQUIRED_FLAGS` and try_compile settings local; Release keeps sanitizer runtimes out.
-function (nk_instruction_set_probe_ variable_ msvc_flags_ gnu_flags_ probe_file_)
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/${probe_file_}" probe_source_)
-    set(CMAKE_TRY_COMPILE_CONFIGURATION "Release")
-    if (MSVC)
-        set(CMAKE_REQUIRED_FLAGS "${msvc_flags_}")
-    else ()
-        set(CMAKE_REQUIRED_FLAGS "${gnu_flags_}")
+# Header-only units leave the file-wide kits to their own flags, which `types.h` reads.
+set(nk_compile_definitions_)
+set(nk_header_only_definitions_)
+foreach (nk_kit_ IN LISTS nk_kits_)
+    nk_instruction_set_probe_(${nk_kit_} ${nk_kit_flags_${nk_kit_}})
+    string(TOLOWER "${nk_kit_}" nk_kit_lowercase_)
+    set(nk_verdict_ 0)
+    if (nk_target_${nk_kit_lowercase_}_compiles)
+        set(nk_verdict_ 1)
     endif ()
-    check_source_compiles(C "${probe_source_}" ${variable_}_compiles)
-    # The flags the verdict was reached with, for a consumer composing one unit out of several kits.
-    set(${variable_}_flags "${CMAKE_REQUIRED_FLAGS}" CACHE INTERNAL "")
-    if (NOT CMAKE_CROSSCOMPILING AND NOT MSVC AND NOT "${nk_native_flags_}" STREQUAL "")
-        set(CMAKE_REQUIRED_FLAGS "${nk_native_flags_}")
-        check_source_compiles(C "${probe_source_}" ${variable_}_runs)
-    elseif (NOT CMAKE_CROSSCOMPILING AND MSVC AND ${variable_}_compiles)
-        # MSVC has no `-march=native`, so run the probe: a CPU lacking the kit crashes it.
-        set(CMAKE_REQUIRED_FLAGS "${msvc_flags_}")
-        check_source_runs(C "${probe_source_}" ${variable_}_runs)
-    elseif (CMAKE_CROSSCOMPILING_EMULATOR AND ${variable_}_compiles)
-        # The emulator carries the exact CPU under test, so run the probe through it: a leg
-        # like `-cpu max,sve=off` then rejects SVE kernels just as NEON-only hardware would.
-        set(CMAKE_REQUIRED_FLAGS "${gnu_flags_}")
-        set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
-        check_source_runs(C "${probe_source_}" ${variable_}_runs)
-    else ()
-        # Cross-compiling with no emulator: nothing can execute the probe, so this records what
-        # the compiler can emit, not what the target runs. Such binaries need `numkong_shared`.
-        set(${variable_}_runs "${${variable_}_compiles}" CACHE INTERNAL "")
+    if (DEFINED NUMKONG_TARGET_${nk_kit_})
+        message(STATUS "NUMKONG_TARGET_${nk_kit_} override in effect: ${NUMKONG_TARGET_${nk_kit_}}")
+        if (NOT NUMKONG_TARGET_${nk_kit_})
+            set(nk_verdict_ 0)
+        elseif (NOT nk_verdict_)
+            message(WARNING "NUMKONG_TARGET_${nk_kit_}=1 requested, but its probe does not compile here; ignoring")
+        endif ()
     endif ()
-endfunction ()
-
-# Appends `NUMKONG_TARGET_<KIT>=0/1` per kit to the cached `nk_compile_definitions_` (what the toolchain
-# builds) and `nk_run_definitions_` (what this machine runs).
-function (nk_build_instruction_set_definitions_ architecture_name_ instruction_set_names_)
-    set(compile_definitions_ "${nk_compile_definitions_}")
-    set(run_definitions_ "${nk_run_definitions_}")
-    foreach (instruction_set_ IN LISTS instruction_set_names_)
-        string(TOLOWER "${instruction_set_}" instruction_set_lowercase_)
-        if (nk_target_${instruction_set_lowercase_}_compiles)
-            list(APPEND compile_definitions_ "NUMKONG_TARGET_${instruction_set_}=1")
-        else ()
-            list(APPEND compile_definitions_ "NUMKONG_TARGET_${instruction_set_}=0")
-        endif ()
-        if (nk_target_${instruction_set_lowercase_}_runs)
-            list(APPEND run_definitions_ "NUMKONG_TARGET_${instruction_set_}=1")
-        else ()
-            list(APPEND run_definitions_ "NUMKONG_TARGET_${instruction_set_}=0")
-        endif ()
-    endforeach ()
-    list(JOIN compile_definitions_ " " compile_summary_)
-    list(JOIN run_definitions_ " " run_summary_)
-    message(STATUS "${architecture_name_} compile verdicts: ${compile_summary_}")
-    message(STATUS "${architecture_name_} run verdicts: ${run_summary_}")
-    set(nk_compile_definitions_ "${compile_definitions_}" CACHE INTERNAL "")
-    set(nk_run_definitions_ "${run_definitions_}" CACHE INTERNAL "")
-endfunction ()
+    list(APPEND nk_compile_definitions_ "NUMKONG_TARGET_${nk_kit_}=${nk_verdict_}")
+    if (NOT DEFINED nk_kit_flags_${nk_kit_})
+        list(APPEND nk_header_only_definitions_ "NUMKONG_TARGET_${nk_kit_}=${nk_verdict_}")
+    endif ()
+endforeach ()

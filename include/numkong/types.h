@@ -369,7 +369,8 @@
 
 /*  Compiling for LoongArch LASX, 256-bit SIMD, NUMKONG_TARGET_LOONGSONASX:
  *  LASX provides 32 × 256-bit vector registers, widening integer multiply-accumulate, and
- *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. */
+ *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. Its units compile with
+ *  `-mlasx`, as `lasxintrin.h` hides its contents without the flag. */
 #if !defined(NUMKONG_TARGET_LOONGSONASX) || (NUMKONG_TARGET_LOONGSONASX && !NUMKONG_ARCH_LOONGARCH64_)
 #if defined(__loongarch_asx)
 #define NUMKONG_TARGET_LOONGSONASX 1
@@ -382,7 +383,8 @@
 /*  Compiling for Power VSX, 128-bit SIMD, POWER9+ baseline, NUMKONG_TARGET_POWERVSX:
  *  VSX provides 64 × 128-bit registers, FMA via vec_madd, vec_msum for multiply-sum, hardware f16
  *  conversion via vec_extract_fp32_from_shorth/l, length-limited loads via vec_xl_len, per-byte
- *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. */
+ *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. Its units compile
+ *  with `-mcpu=power9`, as `altivec.h` hides the POWER9 API without the flag. */
 #if !defined(NUMKONG_TARGET_POWERVSX) || (NUMKONG_TARGET_POWERVSX && !NUMKONG_ARCH_PPC64_)
 #if defined(__VSX__) && defined(__POWER9_VECTOR__)
 #define NUMKONG_TARGET_POWERVSX 1
@@ -821,11 +823,11 @@
 #if NUMKONG_ARCH_RISCV64_RVV_
 #include <riscv_vector.h>
 #endif
-#if NUMKONG_TARGET_LOONGSONASX
+#if defined(__loongarch_asx)
 #include <lsxintrin.h>  // `__m128i` for LSX SIMD
 #include <lasxintrin.h> // `__m256i` for LASX SIMD
 #endif
-#if NUMKONG_TARGET_POWERVSX
+#if defined(__POWER9_VECTOR__)
 #include <altivec.h>
 #endif
 #if NUMKONG_ARCH_WASM_V128_
@@ -897,7 +899,7 @@
 
 /*  AltiVec defines @c bool, @c vector, and @c pixel as macros, which conflict with C++. We use
  *  @c __vector directly in our code, so undef the problematic macros. */
-#if NUMKONG_TARGET_POWERVSX
+#if defined(__POWER9_VECTOR__)
 #ifdef __cplusplus
 #undef bool
 #undef vector
@@ -913,7 +915,7 @@ typedef __vector signed int nk_vi32x4_t;
 typedef __vector signed long long nk_vi64x2_t;
 typedef __vector float nk_vf32x4_t;
 typedef __vector double nk_vf64x2_t;
-#endif // NUMKONG_TARGET_POWERVSX
+#endif // defined(__POWER9_VECTOR__)
 
 /** Copy 16 bits (2 bytes) from source to destination */
 #if defined(__GNUC__) || defined(__clang__)
@@ -2007,7 +2009,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b64_vec_t {
 
 /** Small 16-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_X8664_HASWELL_ || defined(__loongarch_asx)
     __m128i xmm;
     __m128d xmm_pd;
     __m128 xmm_ps;
@@ -2032,7 +2034,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
 #if NUMKONG_ARCH_ARM64_NEON_
     float16x8_t f16x8;
 #endif
-#if NUMKONG_TARGET_POWERVSX
+#if defined(__POWER9_VECTOR__)
     nk_vu8x16_t vu8x16;
     nk_vu16x8_t vu16x8;
     nk_vu32x4_t vu32x4;
@@ -2065,7 +2067,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
 
 /** Small 32-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_TARGET_LOONGSONASX
+#if NUMKONG_ARCH_X8664_HASWELL_ || defined(__loongarch_asx)
     __m256i ymm;
     __m256d ymm_pd;
     __m256 ymm_ps;
@@ -2088,7 +2090,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
 #if NUMKONG_ARCH_ARM64_NEON_ && NUMKONG_ARCH_ARM64_ // double-precision NEON requires AArch64
     float64x2_t f64x2s[2];
 #endif
-#if NUMKONG_TARGET_POWERVSX
+#if defined(__POWER9_VECTOR__)
     nk_vu8x16_t vu8x16s[2];
     nk_vu16x8_t vu16x8s[2];
     nk_vu32x4_t vu32x4s[2];

@@ -367,6 +367,7 @@ nk_dots_symmetric_bf16_best(vectors_on_gpu, count, depth, stride, gram_on_gpu, g
 Narrowing the mask narrows the choice: `cpu & ~nk_cap_sapphireamx_k` skips AMX, and `nk_cap_serial_k` alone runs the reference kernel.
 Header-only builds, with `NUMKONG_HEADER_ONLY=1`, inline the capability kernels their compiler flags enable, and their dispatch points report `nk_missing_library_k`.
 Library builds, the default, compile every capability the toolchain builds into one binary and export the dispatch points, so a single binary runs everywhere — the model of DBMS products (ClickHouse), web browsers (Chromium), and other projects that ship to heterogeneous fleets.
+A compile probe per capability, `probes/<kit>.c`, decides what the toolchain builds, and `-D NUMKONG_TARGET_<KIT>=0` leaves a capability out.
 Distributed artifacts (Rust crate, Python wheels, JS native modules, shared libs from the default CMake build) pin the translation-unit baseline to each architecture's ABI floor so the library runs on any CPU matching the ABI, not just the build host — see [CONTRIBUTING.md](CONTRIBUTING.md#target-baseline-policy) for the per-arch table and the `NUMKONG_TARGET_ARCH` override used for host-tuned local builds.
 
 To resolve a kernel once and call it many times, library builds provide `nk_find_kernel_punned` over a kernel kind, an input type, and a mask:

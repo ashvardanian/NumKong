@@ -45,6 +45,13 @@
 extern "C" {
 #endif
 
+#if defined(__clang__)
+#pragma clang attribute push(__attribute__((target("lasx"))), apply_to = function)
+#elif defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC target("lasx")
+#endif
+
 #pragma region Reduction Helpers
 
 /** Horizontal sum of 4 u64 lanes in a 256-bit LASX register. */
@@ -172,6 +179,12 @@ NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *
 }
 
 #pragma endregion Batched Finalizers
+
+#if defined(__clang__)
+#pragma clang attribute pop
+#elif defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 #if defined(__cplusplus)
 } // extern "C"

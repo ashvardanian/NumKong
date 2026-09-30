@@ -27,6 +27,7 @@
 #   -D NUMKONG_TARGET_ARCH=<arch>            (default: the NUMKONG_TARGET_ARCH environment variable, empty for the
 #                                            portable ABI floor, `native`, or under the WebAssembly toolchains the
 #                                            module's one SIMD capability, `serial`, `v128` or `v128relaxed`)
+#   -D NUMKONG_TARGET_<KIT>=<0|1>            (default: whether `probes/<kit>.c` compiles, and 1 only where it does)
 #
 # Different SIMD ISA extensions require different compiler versions:
 #
@@ -333,8 +334,7 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang|IntelLLVM)$")
     elseif (NUMKONG_ARCH_PPC64_)
         add_compile_options(-mcpu=power8)
     elseif (NUMKONG_ARCH_LOONGARCH64_)
-        # LASX needs TU-level `-mlasx` until GCC >= 15 / Clang >= 22 ship per-function support.
-        add_compile_options(-march=loongarch64 -mlasx)
+        add_compile_options(-march=loongarch64)
     elseif (NUMKONG_ARCH_WASM_)
         # An engine validates a module whole, so every unit carries the module's one SIMD capability,
         # whatever `CMAKE_C_FLAGS` a binding passes; `types.h` reads it back from the flags.
@@ -411,18 +411,23 @@ endif ()
 # One compile probe per kit under `probes/`, `NUMKONG_TARGET_<KIT>=0/1`: the verdicts reach the units that
 # admit kits at runtime, never `numkong_header`, whose consumers derive each kit from their own flags
 # in `types.h`.
-if (NUMKONG_ARCH_X8664_)
-    include(cmake/nk_x86_isa_probes.cmake)
-elseif (NUMKONG_ARCH_ARM64_)
-    include(cmake/nk_arm_isa_probes.cmake)
-elseif (NUMKONG_ARCH_LOONGARCH64_)
-    include(cmake/nk_loongarch_isa_probes.cmake)
-elseif (NUMKONG_ARCH_PPC64_)
-    include(cmake/nk_power_isa_probes.cmake)
-elseif (NUMKONG_ARCH_RISCV64_)
-    include(cmake/nk_riscv_isa_probes.cmake)
-else ()
-    include(cmake/nk_isa_probe.cmake)
+include(cmake/nk_isa_probe.cmake)
+
+# LASX and POWER9 compile file-wide, so only the kit's own unit and its header-only test take the
+# flag; every other header-only unit follows its own flags in `types.h`, which leave those kits off.
+set(NUMKONG_IN_HEADER_ONLY_TEST_ "$<STREQUAL:$<TARGET_PROPERTY:NAME>,numkong_cpu_header_test>")
+if ("NUMKONG_TARGET_LOONGSONASX=1" IN_LIST nk_compile_definitions_)
+    set_source_files_properties(c/cpu/loongsonasx.c PROPERTIES COMPILE_OPTIONS ${nk_kit_flags_LOONGSONASX})
+    set_source_files_properties(
+        test/cross_loongarch64.cpp PROPERTIES COMPILE_OPTIONS
+                                              "$<${NUMKONG_IN_HEADER_ONLY_TEST_}:${nk_kit_flags_LOONGSONASX}>"
+    )
+endif ()
+if ("NUMKONG_TARGET_POWERVSX=1" IN_LIST nk_compile_definitions_)
+    set_source_files_properties(c/cpu/powervsx.c PROPERTIES COMPILE_OPTIONS ${nk_kit_flags_POWERVSX})
+    set_source_files_properties(
+        test/cross_ppc64.cpp PROPERTIES COMPILE_OPTIONS "$<${NUMKONG_IN_HEADER_ONLY_TEST_}:${nk_kit_flags_POWERVSX}>"
+    )
 endif ()
 
 # Every probed kit switched off, for units that must stay at the platform baseline.
@@ -758,10 +763,10 @@ if (NUMKONG_BUILD_TEST)
 
     add_test(NAME numkong_cpu_test COMMAND numkong_cpu_test)
 
-    # The same suites compiling every kernel inline, only the kits this machine runs, with stubbed dispatch points.
+    # The same suites compiling every kernel inline, with stubbed dispatch points, skipping the kits this CPU lacks.
     add_executable(numkong_cpu_header_test ${NUMKONG_TEST_SOURCES_})
     target_link_libraries(numkong_cpu_header_test numkong_header fmt::fmt ${NUMKONG_CXX_MATH_LIB_})
-    target_compile_definitions(numkong_cpu_header_test PRIVATE ${nk_run_definitions_})
+    target_compile_definitions(numkong_cpu_header_test PRIVATE ${nk_header_only_definitions_})
     add_test(NAME numkong_cpu_header_test COMMAND numkong_cpu_header_test)
 endif ()
 
@@ -1272,7 +1277,7 @@ if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_CUDA)
     add_executable(numkong_cuda_header_test test/main_cuda.cu test/cross_cuda.cu)
     numkong_cuda_test_target_(numkong_cuda_header_test "${NUMKONG_CUDA_ARCHITECTURES}")
     # Header-only, so its dispatch scenario checks the stubs.
-    target_compile_definitions(numkong_cuda_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_run_definitions_})
+    target_compile_definitions(numkong_cuda_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_header_only_definitions_})
     add_test(NAME numkong_cuda_header_test COMMAND numkong_cuda_header_test)
 
     if (NUMKONG_BUILD_SHARED)
@@ -1302,7 +1307,7 @@ if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_ROCM)
     add_executable(numkong_rocm_header_test test/main_rocm.hip test/cross_rocm.hip)
     numkong_rocm_test_target_(numkong_rocm_header_test "${NUMKONG_ROCM_ARCHITECTURES}")
     # Header-only, so its dispatch scenario checks the stubs.
-    target_compile_definitions(numkong_rocm_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_run_definitions_})
+    target_compile_definitions(numkong_rocm_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_header_only_definitions_})
     add_test(NAME numkong_rocm_header_test COMMAND numkong_rocm_header_test)
 
     if (NUMKONG_BUILD_SHARED)
@@ -1323,7 +1328,7 @@ if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_METAL)
         numkong_metal_header_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO
     )
     target_compile_definitions(
-        numkong_metal_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_run_definitions_}
+        numkong_metal_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_header_only_definitions_}
                                           ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
     )
     target_link_libraries(numkong_metal_header_test PRIVATE fmt::fmt "-framework Metal" "-framework Foundation")
