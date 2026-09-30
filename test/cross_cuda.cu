@@ -39,7 +39,7 @@ static error_stats_t test_angulars_packed_nan_e4m3() {
 }
 
 void test_cross_cuda() {
-    error_stats_section_t check(simt_capabilities());
+    error_stats_section_t check(device_capabilities<cuda_runtime_t>());
     check.section("Cross CUDA", nk_cap_cuda_k);
     check("dots_packed_f64_cuda", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_cuda,
           nk_dots_pack_f64_cuda, nk_dots_packed_f64_cuda);
@@ -842,4 +842,6 @@ void test_cross_cuda() {
           nk_attention_pack_size_e4m3_blackwellrtx, nk_attention_pack_e4m3_blackwellrtx,
           nk_attention_causal_packed_e4m3_blackwellrtx);
 #endif // NUMKONG_TARGET_BLACKWELLRTX
+
+    test_cross_dispatch<cuda_backend_t>();
 }

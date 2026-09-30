@@ -1671,6 +1671,90 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const
                                              void *stream);
 #endif // NUMKONG_TARGET_RVV
 
+/*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
+ *  every operand is device memory of the vendor their capability names. */
+#if NUMKONG_ARCH_CUDA_
+/** @copydoc nk_each_sum_f32_best */
+NUMKONG_API nk_status_t nk_each_sum_f32_cuda(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_f16_best */
+NUMKONG_API nk_status_t nk_each_sum_f16_cuda(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_bf16_best */
+NUMKONG_API nk_status_t nk_each_sum_bf16_cuda(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
+                                              void *stream);
+/** @copydoc nk_each_swiglu_f32_best */
+NUMKONG_API nk_status_t nk_each_swiglu_f32_cuda(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
+                                                nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes,
+                                                nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_swiglu_bf16_best */
+NUMKONG_API nk_status_t nk_each_swiglu_bf16_cuda(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
+                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
+                                                 nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
+                                                 nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_swiglu_e4m3_best */
+NUMKONG_API nk_status_t nk_each_swiglu_e4m3_cuda(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
+                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
+                                                 nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
+                                                 nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_f32_cuda(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t cols, nk_size_t x_stride_bytes,
+                                                 nk_size_t y_stride_bytes, nk_f32_t eps, nk_f32_t input_scale,
+                                                 void *stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_cuda(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
+                                                  nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_cuda(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
+                                                  nk_f32_t input_scale, void *stream);
+#endif // NUMKONG_ARCH_CUDA_
+
+#if NUMKONG_ARCH_ROCM_
+/** @copydoc nk_each_sum_f32_best */
+NUMKONG_API nk_status_t nk_each_sum_f32_rocm(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_f16_best */
+NUMKONG_API nk_status_t nk_each_sum_f16_rocm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_bf16_best */
+NUMKONG_API nk_status_t nk_each_sum_bf16_rocm(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
+                                              void *stream);
+/** @copydoc nk_each_swiglu_f32_best */
+NUMKONG_API nk_status_t nk_each_swiglu_f32_rocm(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
+                                                nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes,
+                                                nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_swiglu_bf16_best */
+NUMKONG_API nk_status_t nk_each_swiglu_bf16_rocm(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
+                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
+                                                 nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
+                                                 nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_swiglu_e4m3_best */
+NUMKONG_API nk_status_t nk_each_swiglu_e4m3_rocm(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
+                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
+                                                 nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
+                                                 nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_f32_rocm(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t cols, nk_size_t x_stride_bytes,
+                                                 nk_size_t y_stride_bytes, nk_f32_t eps, nk_f32_t input_scale,
+                                                 void *stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_rocm(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
+                                                  nk_f32_t input_scale, void *stream);
+/** @copydoc nk_each_rmsnorm_f32_best */
+NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_rocm(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t cols,
+                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
+                                                  nk_f32_t input_scale, void *stream);
+#endif // NUMKONG_ARCH_ROCM_
+
 /** Returns the scalar parameter dtype for elementwise scale/blend/fma operations. */
 NUMKONG_INLINE nk_dtype_t nk_each_scale_input_dtype(nk_dtype_t dtype) {
     switch (dtype) {
@@ -1713,6 +1797,11 @@ NUMKONG_INLINE nk_f64_t nk_each_rmsnorm_error_bound(nk_dtype_t dtype) {
     return 6 * nk_accumulation_error_bound(nk_f32_k);
 }
 
+/** Returns the error bound of SwiGLU outputs before they round into @p dtype: 5 roundings, through
+ *  both descales, the exponent, the division and the product with the up value, each per
+ *  @c nk_each_error_bound. */
+NUMKONG_INLINE nk_f64_t nk_each_swiglu_error_bound(nk_dtype_t dtype) { return 5 * nk_each_error_bound(dtype); }
+
 /**
  *  @brief Finds the each kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
@@ -1740,6 +1829,7 @@ NUMKONG_API nk_status_t nk_each_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/each/rvv.h"
 #include "numkong/each/v128.h"
 #include "numkong/each/v128relaxed.h"
+#include "numkong/each/simt.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

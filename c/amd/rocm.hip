@@ -9,6 +9,7 @@
 #include "numkong/dots/simt.cuh"
 #include "numkong/spatials/simt.cuh"
 #include "numkong/attention/simt.cuh"
+#include "numkong/each/simt.cuh"
 
 extern "C" NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
     *count = nk_rocm_count_devices_();

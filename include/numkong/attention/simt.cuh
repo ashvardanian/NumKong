@@ -21,7 +21,7 @@
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
 #include "numkong/attention/serial.h" // `nk_attention_packed_header_t`, `nk_attention_pack_directory_size_`
-#include "numkong/dots/simt.cuh"      // `nk_launch_`, `nk_read_`, `nk_shuffle_xor_f32_`
+#include "numkong/dots/simt.cuh"      // `nk_device_launch_`, `nk_device_read_`, `nk_shuffle_xor_f32_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -577,8 +577,8 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_(void const *payload_kernel,
                                         (void *)&row_bytes,
                                         (void *)&directory_bytes,
                                         (void *)&capability};
-        nk_status_t const status = nk_launch_((void const *)nk_attention_pack_directory_kernel_, 1,
-                                              nk_attention_threads_k, directory_arguments, 0, stream);
+        nk_status_t const status = nk_device_launch_((void const *)nk_attention_pack_directory_kernel_, 1,
+                                                     nk_attention_threads_k, directory_arguments, 0, stream);
         if (status != nk_success_k) return status;
     }
     nk_size_t const total_tasks = segment_count * key_value_head_count;
@@ -587,8 +587,8 @@ NUMKONG_INLINE nk_status_t nk_attention_pack_launch_(void const *payload_kernel,
     void *payload_arguments[12] = {(void *)&keys,    (void *)&values,  &key_value_head_count, &depth,
                                    &segment_offsets, &segment_lengths, &segment_count,        &key_stride,
                                    &value_stride,    &packed,          &task_begin,           (void *)&end};
-    return nk_launch_(payload_kernel, end - task_begin < 65535 ? end - task_begin : 65535, nk_attention_pack_threads_k,
-                      payload_arguments, 0, stream);
+    return nk_device_launch_(payload_kernel, end - task_begin < 65535 ? end - task_begin : 65535,
+                             nk_attention_pack_threads_k, payload_arguments, 0, stream);
 }
 
 #pragma endregion Pack
@@ -632,7 +632,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
     nk_attention_arguments_t arguments = nk_attention_arguments_init_(
         queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
         scale, 1, 1, mask, diagonal_offset, window, task_start, task_count);
-    return nk_launch_resident_(kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments, stream);
+    return nk_device_launch_resident_(kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments, stream);
 }
 
 #pragma endregion Launch
@@ -654,7 +654,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
     NUMKONG_API nk_status_t nk_attention_packed_shape_##input_type_name##_##isa_suffix(                        \
         void const *key_value_packed, nk_size_t *heads, nk_size_t *depth, nk_size_t *segments, void *stream) { \
         nk_attention_packed_header_t header;                                                                   \
-        nk_status_t const status = nk_read_(&header, key_value_packed, sizeof(header), stream);                \
+        nk_status_t const status = nk_device_read_(&header, key_value_packed, sizeof(header), stream);         \
         if (status != nk_success_k) return status;                                                             \
         if (header.capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;                           \
         *heads = header.heads, *depth = header.depth, *segments = header.segments;                             \

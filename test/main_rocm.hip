@@ -12,6 +12,8 @@
 #include <cstring> // `std::strncmp`
 
 #include "harness.hpp" // `error_stats_section_t`
+#include "harness.cuh" // `rocm_backend_t`, `device_capabilities`
+#include "each.hpp"    // `test_sum`, `test_rmsnorm`, `test_swiglu`
 
 using namespace ashvardanian::numkong::test;
 
@@ -21,8 +23,20 @@ char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 /** Every ROCm capability this build compiled, from @c test/cross_rocm.hip. */
 void test_cross_rocm();
 
-/** The dispatching entry points, from @c test/cross_simt.cuh. */
-void test_cross_dispatch();
+/** Element-wise operations on the ROCm baseline, over @c test/each.hpp. */
+static void test_each_rocm() {
+    error_stats_section_t check(device_capabilities<rocm_runtime_t>());
+    check.section("Elementwise Operations ROCm", nk_cap_rocm_k);
+    check("each_swiglu_f32_rocm", test_swiglu<f32_t, rocm_backend_t>, nk_each_swiglu_f32_rocm);
+    check("each_swiglu_bf16_rocm", test_swiglu<bf16_t, rocm_backend_t>, nk_each_swiglu_bf16_rocm);
+    check("each_swiglu_e4m3_rocm", test_swiglu<e4m3_t, rocm_backend_t>, nk_each_swiglu_e4m3_rocm);
+    check("each_sum_f32_rocm", test_sum<f32_t, rocm_backend_t>, nk_each_sum_f32_rocm);
+    check("each_sum_f16_rocm", test_sum<f16_t, rocm_backend_t>, nk_each_sum_f16_rocm);
+    check("each_sum_bf16_rocm", test_sum<bf16_t, rocm_backend_t>, nk_each_sum_bf16_rocm);
+    check("each_rmsnorm_f32_rocm", test_rmsnorm<f32_t, rocm_backend_t>, nk_each_rmsnorm_f32_rocm);
+    check("each_rmsnorm_bf16_rocm", test_rmsnorm<bf16_t, rocm_backend_t>, nk_each_rmsnorm_bf16_rocm);
+    check("each_rmsnorm_e4m3_rocm", test_rmsnorm<e4m3_t, rocm_backend_t>, nk_each_rmsnorm_e4m3_rocm);
+}
 
 /** @c nk_rocm_capabilities_detected reports the ROCm baseline on every device, and the matrix-core
  *  capabilities the device's architecture runs. */
@@ -62,8 +76,8 @@ int main(int, char **argv) {
     check.section("ROCm capabilities", nk_cap_rocm_k);
     check("gpu_capabilities_rocm", test_rocm_capabilities, 0);
 
+    test_each_rocm();
     test_cross_rocm();
-    test_cross_dispatch();
 
     int const passed = static_cast<int>(global_config.kernel_count - global_config.failure_count);
     int const failed = static_cast<int>(global_config.failure_count);

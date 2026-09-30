@@ -221,7 +221,9 @@ NUMKONG_DEVICE void nk_b8x32_to_b6x32_cdna4_(nk_u32_t const codes[8], nk_u32_t p
 NUMKONG_DEVICE void nk_e5m2_norm_update_cdna4_(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned byte = 0; byte < 16; ++byte) {
-        nk_f32_t const value = nk_e5m2_code_to_f32_((words[byte / 4] >> (byte % 4 * 8)) & 0xFFu);
+        nk_e5m2_t const code = (nk_e5m2_t)(words[byte / 4] >> (byte % 4 * 8));
+        nk_f32_t value;
+        nk_e5m2_to_f32_simt_(&code, &value);
         *real_sum = __fmaf_rn(value, value, *real_sum);
     }
 }

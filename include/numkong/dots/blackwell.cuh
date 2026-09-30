@@ -598,8 +598,8 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, void c
     nk_size_t const row_tile_bytes = nk_cross_rows_blackwell_k * (depth_bytes ? depth_bytes : 1);
     nk_size_t const group_rows = (nk_size_t)l2_bytes / 2 / row_tile_bytes;
     arguments.group_rows = group_rows < 1 ? 1 : group_rows > 16 ? 16 : group_rows;
-    return nk_launch_resident_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
-                               nk_cross_shared_bytes_blackwell_k, tiles, &arguments, stream);
+    return nk_device_launch_resident_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
+                                      nk_cross_shared_bytes_blackwell_k, tiles, &arguments, stream);
 }
 
 #pragma endregion Tile

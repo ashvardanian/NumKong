@@ -25,6 +25,7 @@
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
 #include "numkong/dots/serial.h"
+#include "numkong/cast/simt.cuh" // `nk_e4m3_to_f32_simt_`, `nk_f32_to_f16_simt_`
 
 /*  AMD dot instructions per device pass: `dot1-insts` multiply signed codes, `dot7-insts` unsigned
  *  ones, `dot8-insts` either, and `dot10-insts` F16 pairs into F32; other targets fold portably. */
@@ -230,102 +231,6 @@ typedef void (*nk_cross_widen_t)(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high);
 
 #pragma endregion Configuration
 
-#pragma region Runtime
-
-/** The runtime's current device ordinal. */
-NUMKONG_INLINE nk_status_t nk_device_current_(int *device) {
-#if NUMKONG_ARCH_ROCM_
-    return hipGetDevice(device) == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    return cudaGetDevice(device) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#endif
-}
-
-/** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
- *  address. The vendor's own error stays readable through @c cudaGetLastError or
- *  @c hipGetLastError. */
-NUMKONG_INLINE nk_status_t nk_launch_(void const *kernel, nk_size_t blocks, unsigned threads, void **arguments,
-                                      nk_size_t shared_bytes, void *stream) {
-    dim3 grid, block;
-    grid.x = (unsigned)blocks, grid.y = 1, grid.z = 1;
-    block.x = threads, block.y = 1, block.z = 1;
-#if NUMKONG_ARCH_ROCM_
-    hipError_t const status = hipLaunchKernel(kernel, grid, block, arguments, shared_bytes, (hipStream_t)stream);
-    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    cudaError_t const status = cudaLaunchKernel(kernel, grid, block, arguments, shared_bytes, (cudaStream_t)stream);
-    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#endif
-}
-
-/**
- *  @brief Launches as many blocks of @p kernel as stay resident across the current device, at most
- *      @p blocks_wanted, passing the one argument struct at @p arguments by value.
- *  @param[in] shared_bytes Dynamic shared memory of this launch.
- *  @param[in] shared_ceiling Dynamic shared memory the kernel may take at any depth, or zero for
- *      the runtime's default ceiling.
- */
-NUMKONG_INLINE nk_status_t nk_launch_resident_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
-                                               nk_size_t shared_ceiling, nk_size_t blocks_wanted, void *arguments,
-                                               void *stream) {
-    int device = 0, multiprocessors = 0, per_multiprocessor = 0;
-    nk_status_t const status = nk_device_current_(&device);
-    if (status != nk_success_k) return status;
-#if NUMKONG_ARCH_ROCM_
-    if ((shared_ceiling &&
-         hipFuncSetAttribute(kernel, hipFuncAttributeMaxDynamicSharedMemorySize, (int)shared_ceiling) != hipSuccess) ||
-        hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device) != hipSuccess ||
-        hipOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
-            hipSuccess)
-        return nk_device_code_mismatch_k;
-#else
-    if ((shared_ceiling && cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                                                (int)shared_ceiling) != cudaSuccess) ||
-        cudaDeviceGetAttribute(&multiprocessors, cudaDevAttrMultiProcessorCount, device) != cudaSuccess ||
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
-            cudaSuccess)
-        return nk_device_code_mismatch_k;
-#endif
-    nk_size_t const blocks = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
-    if (blocks == 0) return nk_device_code_mismatch_k;
-    void *launch_arguments[1];
-    launch_arguments[0] = arguments;
-    return nk_launch_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads, launch_arguments, shared_bytes,
-                      stream);
-}
-
-/** Reads @p attribute, a @c cudaDeviceAttr or @c hipDeviceAttribute_t, of the current device into
- *  @p value. */
-NUMKONG_INLINE nk_status_t nk_device_attribute_(int attribute, int *value) {
-    int device = 0;
-    nk_status_t const status = nk_device_current_(&device);
-    if (status != nk_success_k) return status;
-#if NUMKONG_ARCH_ROCM_
-    return hipDeviceGetAttribute(value, (hipDeviceAttribute_t)attribute, device) == hipSuccess
-               ? nk_success_k
-               : nk_device_code_mismatch_k;
-#else
-    return cudaDeviceGetAttribute(value, (enum cudaDeviceAttr)attribute, device) == cudaSuccess
-               ? nk_success_k
-               : nk_device_code_mismatch_k;
-#endif
-}
-
-/** Copies @p bytes from the device back to @p host once everything queued on @p stream is done. */
-NUMKONG_INLINE nk_status_t nk_read_(void *host, void const *device, nk_size_t bytes, void *stream) {
-#if NUMKONG_ARCH_ROCM_
-    hipError_t status = hipMemcpyAsync(host, device, bytes, hipMemcpyDeviceToHost, (hipStream_t)stream);
-    if (status == hipSuccess) status = hipStreamSynchronize((hipStream_t)stream);
-    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    cudaError_t status = cudaMemcpyAsync(host, device, bytes, cudaMemcpyDeviceToHost, (cudaStream_t)stream);
-    if (status == cudaSuccess) status = cudaStreamSynchronize((cudaStream_t)stream);
-    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#endif
-}
-
-#pragma endregion Runtime
-
 #pragma region Launchers
 
 /** Storage values in one packed GPU row: @c nk_cross_padded_values_ without its power-of-two
@@ -358,7 +263,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_(void const *kernel, unsigned tile, u
     arguments.c_stride = c_stride, arguments.column_tiles = column_tiles, arguments.tiles = tiles;
     arguments.depth_slabs = nk_size_divide_round_up_(depth_bytes, 64);
     arguments.b_norms = b_norms;
-    return nk_launch_resident_(kernel, threads, 0, 0, tiles, &arguments, stream);
+    return nk_device_launch_resident_(kernel, threads, 0, 0, tiles, &arguments, stream);
 }
 
 /** Launches @p kernel with one 32-lane group per packed column, walked with a grid stride, which
@@ -375,7 +280,7 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_(void const *kernel, void const 
     arguments[0] = &b, arguments[1] = &column_count, arguments[2] = &depth, arguments[3] = &depth_bytes;
     arguments[4] = &b_stride, arguments[5] = &b_packed, arguments[6] = &columns_begin, arguments[7] = &columns_end;
     arguments[8] = &depth_values_padded, arguments[9] = &capability;
-    return nk_launch_(kernel, blocks, nk_cross_pack_groups_k * 32, arguments, 0, stream);
+    return nk_device_launch_(kernel, blocks, nk_cross_pack_groups_k * 32, arguments, 0, stream);
 }
 
 #pragma endregion Launchers
@@ -579,24 +484,9 @@ NUMKONG_DEVICE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_(nk_u32_t codes) {
     return significand + (significand & doubled_mask) + ((significand << 1) & quadrupled_mask);
 }
 
-/** One E5M2 code, exactly. */
-NUMKONG_DEVICE nk_f32_t nk_e5m2_code_to_f32_(nk_u32_t code) {
-    return __half2float(__ushort_as_half((unsigned short)(code << 8)));
-}
-
-/** One E4M3 code over 256, its NaN code read as 480. */
-NUMKONG_DEVICE nk_f32_t nk_e4m3_to_scaled_f32_(nk_u32_t code) {
-    return __half2float(__ushort_as_half((unsigned short)(((code & 0x7Fu) << 7) | ((code & 0x80u) << 8))));
-}
-
 /** One E3M2 code over 4096. */
 NUMKONG_DEVICE nk_f32_t nk_e3m2_to_scaled_f32_(nk_u32_t code) {
     return __half2float(__ushort_as_half((unsigned short)(((code & 0x1Fu) << 8) | ((code & 0x20u) << 10))));
-}
-
-/** An exact F16-representable F32 as its F16 bits. */
-NUMKONG_DEVICE nk_u32_t nk_f32_to_f16_bits_(nk_f32_t value) {
-    return (nk_u32_t)__half_as_ushort(__float2half_rn(value));
 }
 
 /** Keeps a packed byte as it is. */
@@ -619,13 +509,15 @@ NUMKONG_DEVICE nk_f32_t nk_f16_load_f32_(unsigned char const *row, nk_size_t ind
 }
 
 NUMKONG_DEVICE nk_f32_t nk_e5m2_load_f32_(unsigned char const *row, nk_size_t index) {
-    return nk_e5m2_code_to_f32_(row[index]);
+    nk_f32_t value;
+    nk_e5m2_to_f32_simt_(row + index, &value);
+    return value;
 }
 
 NUMKONG_DEVICE nk_f32_t nk_e4m3_load_f32_(unsigned char const *row, nk_size_t index) {
-    unsigned const code = row[index];
-    if ((code & 0x7Fu) == 0x7Fu) return __uint_as_float(0x7FC00000u);
-    return nk_e4m3_to_scaled_f32_(code) * 256.0f;
+    nk_f32_t value;
+    nk_e4m3_to_f32_simt_(row + index, &value);
+    return value;
 }
 
 NUMKONG_DEVICE nk_f32_t nk_e3m2_load_f32_(unsigned char const *row, nk_size_t index) {
@@ -911,10 +803,16 @@ NUMKONG_DEVICE nk_u32_t nk_cross_stage_b32_(nk_cross_accumulation_t accumulation
     nk_u32_t bits = 0;
     switch (accumulation) {
     case nk_cross_accumulation_f32_k: return __float_as_uint(nk_cross_load_f32_(dtype, row, first));
-    case nk_cross_accumulation_f16x2_k:
-        bits = nk_f32_to_f16_bits_(nk_cross_load_f32_(dtype, row, first));
-        if (first + 1 < depth) bits |= nk_f32_to_f16_bits_(nk_cross_load_f32_(dtype, row, first + 1)) << 16;
-        return bits;
+    case nk_cross_accumulation_f16x2_k: {
+        unsigned short halves[2] = {0, 0};
+        nk_f32_t value = nk_cross_load_f32_(dtype, row, first);
+        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
+        if (first + 1 < depth) {
+            value = nk_cross_load_f32_(dtype, row, first + 1);
+            nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
+        }
+        return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
+    }
     case nk_cross_accumulation_i8x4_k:
     case nk_cross_accumulation_u8x4_k:
         if (first + 4 <= depth) return *(nk_u32_t const *)(row + first);
@@ -1278,16 +1176,16 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
  *  @brief Generates a packed-shape accessor copying a device-resident packed buffer's header back.
  *  @sa nk_define_cross_packed_shape_ for the host-resident original.
  */
-#define nk_define_device_cross_packed_shape_(input_type_name, isa_suffix)               \
-    NUMKONG_API nk_status_t nk_dots_packed_shape_##input_type_name##_##isa_suffix(      \
-        void const *b_packed, nk_size_t *width, nk_size_t *depth, void *stream) {       \
-        if ((nk_size_t)b_packed & 15) return nk_misaligned_k;                           \
-        nk_cross_packed_buffer_header_t header;                                         \
-        nk_status_t const status = nk_read_(&header, b_packed, sizeof(header), stream); \
-        if (status != nk_success_k) return status;                                      \
-        if (header.capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;    \
-        *width = header.column_count, *depth = header.depth_dimensions;                 \
-        return nk_success_k;                                                            \
+#define nk_define_device_cross_packed_shape_(input_type_name, isa_suffix)                      \
+    NUMKONG_API nk_status_t nk_dots_packed_shape_##input_type_name##_##isa_suffix(             \
+        void const *b_packed, nk_size_t *width, nk_size_t *depth, void *stream) {              \
+        if ((nk_size_t)b_packed & 15) return nk_misaligned_k;                                  \
+        nk_cross_packed_buffer_header_t header;                                                \
+        nk_status_t const status = nk_device_read_(&header, b_packed, sizeof(header), stream); \
+        if (status != nk_success_k) return status;                                             \
+        if (header.capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;           \
+        *width = header.column_count, *depth = header.depth_dimensions;                        \
+        return nk_success_k;                                                                   \
     }
 
 /**

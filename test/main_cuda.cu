@@ -24,6 +24,8 @@
 #include <vector> // `std::vector`
 
 #include "harness.hpp" // `error_stats_section_t`
+#include "harness.cuh" // `cuda_backend_t`, `device_capabilities`
+#include "each.hpp"    // `test_sum`, `test_rmsnorm`, `test_swiglu`
 
 #include <cuda_bf16.h>
 #include <cuda_fp16.h>
@@ -38,9 +40,6 @@ char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
 /** Every CUDA capability this build compiled, from @c test/cross_cuda.cu. */
 void test_cross_cuda();
-
-/** The dispatching entry points, from @c test/cross_simt.cuh. */
-void test_cross_dispatch();
 
 #pragma region CUDA Error Handling
 
@@ -632,6 +631,21 @@ static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_
 
 #pragma region CUDA Capabilities
 
+/** Element-wise operations on the CUDA baseline, over @c test/each.hpp. */
+static void test_each_cuda() {
+    error_stats_section_t check(device_capabilities<cuda_runtime_t>());
+    check.section("Elementwise Operations CUDA", nk_cap_cuda_k);
+    check("each_swiglu_f32_cuda", test_swiglu<f32_t, cuda_backend_t>, nk_each_swiglu_f32_cuda);
+    check("each_swiglu_bf16_cuda", test_swiglu<bf16_t, cuda_backend_t>, nk_each_swiglu_bf16_cuda);
+    check("each_swiglu_e4m3_cuda", test_swiglu<e4m3_t, cuda_backend_t>, nk_each_swiglu_e4m3_cuda);
+    check("each_sum_f32_cuda", test_sum<f32_t, cuda_backend_t>, nk_each_sum_f32_cuda);
+    check("each_sum_f16_cuda", test_sum<f16_t, cuda_backend_t>, nk_each_sum_f16_cuda);
+    check("each_sum_bf16_cuda", test_sum<bf16_t, cuda_backend_t>, nk_each_sum_bf16_cuda);
+    check("each_rmsnorm_f32_cuda", test_rmsnorm<f32_t, cuda_backend_t>, nk_each_rmsnorm_f32_cuda);
+    check("each_rmsnorm_bf16_cuda", test_rmsnorm<bf16_t, cuda_backend_t>, nk_each_rmsnorm_bf16_cuda);
+    check("each_rmsnorm_e4m3_cuda", test_rmsnorm<e4m3_t, cuda_backend_t>, nk_each_rmsnorm_e4m3_cuda);
+}
+
 /** @c nk_cuda_capabilities_detected reports the CUDA baseline on every device, and the tensor-core
  *  capabilities the device's compute capability runs. */
 static error_stats_t test_cuda_capabilities(int device) {
@@ -901,8 +915,8 @@ int main(int, char **argv) {
                  bf16_bits_equal_tolerant_nan_));
     }
 
+    test_each_cuda();
     test_cross_cuda();
-    test_cross_dispatch();
 
     passed += static_cast<int>(global_config.kernel_count - global_config.failure_count);
     failed += static_cast<int>(global_config.failure_count);

@@ -6,7 +6,7 @@
  */
 
 #include "harness.hpp"
-#include "each.hpp"                 // `test_rmsnorm`
+#include "each.hpp"                 // `test_sum`, `test_rmsnorm`
 #include "numkong/each.hpp"         // `nk::add`, `nk::scale`, `nk::blend`, `nk::fma`
 #include "numkong/trigonometry.hpp" // `nk::sin`, `nk::cos`, `nk::atan` wrappers
 
@@ -26,33 +26,6 @@ typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
         std::uniform_real_distribution<scale_t> dist(scale_t(-2), scale_t(2));
         return dist(gen);
     }
-}
-
-/** Unified test for elementwise sum: result[i] = a[i] + b[i]. */
-template <typename scalar_type_>
-error_stats_t test_sum(typename scalar_type_::sum_kernel_t kernel) {
-    using scalar_t = scalar_type_;
-
-    error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
-                                                          : comparison_family_t::approximate_k);
-    std::mt19937 generator(global_config.seed);
-    auto a = make_vector<scalar_t>(global_config.dense_dimensions),
-         b = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto result = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
-
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
-
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions,
-                            result.raw_values_data(), nullptr));
-        stats.expect(nk::add<scalar_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
-                                       reference.values_data(), no_tiers_k));
-
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) stats.accumulate(result[i], reference[i]);
-    }
-    return stats;
 }
 
 /** Unified test for scale: result[i] = alpha * x[i] + beta. */

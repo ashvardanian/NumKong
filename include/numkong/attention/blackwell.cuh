@@ -495,7 +495,8 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_blackwell_(
         queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
         scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
     if (depth > nk_attention_wide_depth_blackwell_k)
-        return nk_launch_resident_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments, stream);
+        return nk_device_launch_resident_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
+                                          stream);
     nk_attention_width_t const width = depth <= nk_attention_narrow_depth_blackwell_k ? nk_attention_width_128_k
                                                                                       : nk_attention_width_256_k;
     // Blocks take one tensor-memory column per depth of their width, and a multiprocessor has 512.
@@ -504,10 +505,10 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_blackwell_(
     int multiprocessors = 0;
     nk_status_t const status = nk_device_attribute_(cudaDevAttrMultiProcessorCount, &multiprocessors);
     if (status != nk_success_k) return status;
-    return nk_launch_resident_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel, nk_attention_threads_k,
-                               nk_attention_shared_bytes_blackwell_(depth),
-                               nk_attention_shared_bytes_blackwell_(columns),
-                               (nk_size_t)multiprocessors * (512 / columns), &arguments, stream);
+    return nk_device_launch_resident_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel,
+                                      nk_attention_threads_k, nk_attention_shared_bytes_blackwell_(depth),
+                                      nk_attention_shared_bytes_blackwell_(columns),
+                                      (nk_size_t)multiprocessors * (512 / columns), &arguments, stream);
 }
 
 #pragma endregion Launch

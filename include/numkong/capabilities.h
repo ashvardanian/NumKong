@@ -1369,6 +1369,103 @@ NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t device, nk_c
     return nk_success_k;
 }
 
+/*  Launches and copies for the kernel units, answered by the vendor compiler building the unit. */
+#if (NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)) || (NUMKONG_ARCH_ROCM_ && defined(__HIP__))
+
+/** The runtime's current device ordinal. */
+NUMKONG_INLINE nk_status_t nk_device_current_(int *device) {
+#if defined(__HIP__)
+    return hipGetDevice(device) == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#else
+    return cudaGetDevice(device) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#endif
+}
+
+/** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
+ *  address. The vendor's own error stays readable through @c cudaGetLastError or
+ *  @c hipGetLastError. */
+NUMKONG_INLINE nk_status_t nk_device_launch_(void const *kernel, nk_size_t blocks, unsigned threads, void **arguments,
+                                             nk_size_t shared_bytes, void *stream) {
+    dim3 grid, block;
+    grid.x = (unsigned)blocks, grid.y = 1, grid.z = 1;
+    block.x = threads, block.y = 1, block.z = 1;
+#if defined(__HIP__)
+    hipError_t const status = hipLaunchKernel(kernel, grid, block, arguments, shared_bytes, (hipStream_t)stream);
+    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#else
+    cudaError_t const status = cudaLaunchKernel(kernel, grid, block, arguments, shared_bytes, (cudaStream_t)stream);
+    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#endif
+}
+
+/**
+ *  @brief Launches as many blocks of @p kernel as stay resident across the current device, at most
+ *      @p blocks_wanted, passing the one argument struct at @p arguments by value.
+ *  @param[in] shared_bytes Dynamic shared memory of this launch.
+ *  @param[in] shared_ceiling Dynamic shared memory the kernel may take at any depth, or zero for
+ *      the runtime's default ceiling.
+ */
+NUMKONG_INLINE nk_status_t nk_device_launch_resident_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
+                                                      nk_size_t shared_ceiling, nk_size_t blocks_wanted,
+                                                      void *arguments, void *stream) {
+    int device = 0, multiprocessors = 0, per_multiprocessor = 0;
+    nk_status_t const status = nk_device_current_(&device);
+    if (status != nk_success_k) return status;
+#if defined(__HIP__)
+    if ((shared_ceiling &&
+         hipFuncSetAttribute(kernel, hipFuncAttributeMaxDynamicSharedMemorySize, (int)shared_ceiling) != hipSuccess) ||
+        hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device) != hipSuccess ||
+        hipOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
+            hipSuccess)
+        return nk_device_code_mismatch_k;
+#else
+    if ((shared_ceiling && cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+                                                (int)shared_ceiling) != cudaSuccess) ||
+        cudaDeviceGetAttribute(&multiprocessors, cudaDevAttrMultiProcessorCount, device) != cudaSuccess ||
+        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
+            cudaSuccess)
+        return nk_device_code_mismatch_k;
+#endif
+    nk_size_t const blocks = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
+    if (blocks == 0) return nk_device_code_mismatch_k;
+    void *launch_arguments[1];
+    launch_arguments[0] = arguments;
+    return nk_device_launch_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads, launch_arguments,
+                             shared_bytes, stream);
+}
+
+/** Reads @p attribute, a @c cudaDeviceAttr or @c hipDeviceAttribute_t, of the current device into
+ *  @p value. */
+NUMKONG_INLINE nk_status_t nk_device_attribute_(int attribute, int *value) {
+    int device = 0;
+    nk_status_t const status = nk_device_current_(&device);
+    if (status != nk_success_k) return status;
+#if defined(__HIP__)
+    return hipDeviceGetAttribute(value, (hipDeviceAttribute_t)attribute, device) == hipSuccess
+               ? nk_success_k
+               : nk_device_code_mismatch_k;
+#else
+    return cudaDeviceGetAttribute(value, (enum cudaDeviceAttr)attribute, device) == cudaSuccess
+               ? nk_success_k
+               : nk_device_code_mismatch_k;
+#endif
+}
+
+/** Copies @p bytes from the device back to @p host once everything queued on @p stream is done. */
+NUMKONG_INLINE nk_status_t nk_device_read_(void *host, void const *device, nk_size_t bytes, void *stream) {
+#if defined(__HIP__)
+    hipError_t status = hipMemcpyAsync(host, device, bytes, hipMemcpyDeviceToHost, (hipStream_t)stream);
+    if (status == hipSuccess) status = hipStreamSynchronize((hipStream_t)stream);
+    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#else
+    cudaError_t status = cudaMemcpyAsync(host, device, bytes, cudaMemcpyDeviceToHost, (cudaStream_t)stream);
+    if (status == cudaSuccess) status = cudaStreamSynchronize((cudaStream_t)stream);
+    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#endif
+}
+
+#endif // (NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)) || (NUMKONG_ARCH_ROCM_ && defined(__HIP__))
+
 /** How many Metal devices the system lists, or zero. */
 NUMKONG_INLINE nk_size_t nk_metal_count_devices_(void) {
 #if NUMKONG_WITH_METAL

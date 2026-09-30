@@ -143,6 +143,9 @@ StatementMacros:
   - nk_define_device_cross_tma_
   - nk_define_device_cross_msl_
   - nk_define_device_lane_sumsq_
+  - nk_define_device_each_sum_
+  - nk_define_device_each_rmsnorm_
+  - nk_define_device_each_swiglu_
   - nk_define_device_attention_pack_size_
   - nk_define_device_attention_packed_shape_
   - nk_define_device_attention_pack_

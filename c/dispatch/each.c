@@ -695,13 +695,33 @@ static nk_capability_kernels_t const *nk_each_sum_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_sum_f32_v128,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_sum_f32_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_sum_f32_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -734,13 +754,33 @@ static nk_capability_kernels_t const *nk_each_sum_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_sum_f16_v128relaxed,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_sum_f16_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_sum_f16_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonhalf_k * NUMKONG_TARGET_NEONHALF | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -773,13 +813,33 @@ static nk_capability_kernels_t const *nk_each_sum_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_sum_bf16_v128,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_sum_bf16_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_sum_bf16_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2425,10 +2485,30 @@ static nk_capability_kernels_t const *nk_each_swiglu_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_swiglu_f32_skylake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_swiglu_f32_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_swiglu_f32_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2456,10 +2536,30 @@ static nk_capability_kernels_t const *nk_each_swiglu_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_swiglu_bf16_skylake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_swiglu_bf16_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_swiglu_bf16_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2487,10 +2587,30 @@ static nk_capability_kernels_t const *nk_each_swiglu_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_swiglu_e4m3_skylake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_swiglu_e4m3_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_swiglu_e4m3_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2518,10 +2638,30 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmsnorm_f32_skylake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_rmsnorm_f32_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_rmsnorm_f32_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2551,12 +2691,32 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_genoa,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
          cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2586,12 +2746,32 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_genoa,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_cuda,
+    };
+#endif
+#if NUMKONG_ARCH_ROCM_
+    static nk_kernel_punned_t const amd[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_rocm,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
          cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
+#if NUMKONG_ARCH_ROCM_
+        {nk_cap_rocm_k, amd},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
     };
     return lists;

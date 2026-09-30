@@ -158,16 +158,17 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_cdna4_(
         queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
         scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
     if (depth > nk_attention_wide_depth_cdna4_k)
-        return nk_launch_resident_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments, stream);
+        return nk_device_launch_resident_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
+                                          stream);
     nk_attention_width_t const width = depth <= nk_attention_narrow_depth_cdna4_k ? nk_attention_width_128_k
                                                                                   : nk_attention_width_256_k;
     nk_size_t const width_depth = width == nk_attention_width_128_k ? nk_attention_narrow_depth_cdna4_k
                                                                     : nk_attention_wide_depth_cdna4_k;
     // The attribute takes the width's largest size, so no depth's size races a concurrent launch.
-    return nk_launch_resident_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel, nk_attention_threads_k,
-                               nk_attention_shared_bytes_cdna4_(dtype, depth),
-                               nk_attention_shared_bytes_cdna4_(dtype, width_depth), NUMKONG_SIZE_MAX, &arguments,
-                               stream);
+    return nk_device_launch_resident_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel,
+                                      nk_attention_threads_k, nk_attention_shared_bytes_cdna4_(dtype, depth),
+                                      nk_attention_shared_bytes_cdna4_(dtype, width_depth), NUMKONG_SIZE_MAX,
+                                      &arguments, stream);
 }
 
 #pragma endregion Launch
