@@ -7,10 +7,9 @@
 #include "harness.hpp"
 #include "cross.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
-void test_cross_serial() {
-    error_stats_section_t check;
+void test_cross_serial(error_stats_section_t &check) {
     check.section("Cross Serial", nk_cap_serial_k);
     check("dots_packed_f64_serial", test_dots_packed<f64_t>, nk_dots_pack_size_f64_serial, nk_dots_pack_f64_serial,
           nk_dots_packed_f64_serial);
@@ -385,3 +384,5 @@ void test_cross_serial() {
     check("euclideans_symmetric_u4", test_euclideans_symmetric<u4x2_t>, cpu_best<nk_euclideans_symmetric_u4_best>);
 #endif
 }
+
+} // namespace ashvardanian::numkong::test

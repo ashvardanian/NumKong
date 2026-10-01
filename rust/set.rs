@@ -9,12 +9,13 @@
 //! File: rust/set.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::{ffi::c_void, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{check_len, TensorError};
-use crate::types::{u1x8, StorageElement};
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{check_len, TensorError},
+    types::{u1x8, StorageElement},
+};
 
 #[link(name = "numkong")]
 extern "C" {

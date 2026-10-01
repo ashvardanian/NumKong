@@ -5,16 +5,15 @@
  *  @brief Batch operation benchmarks for the Metal kernels, the twin of `cross_cuda.cu`.
  *
  *  Runs the drivers of `cross.hpp` through a @c metal_backend_t, each run on a queue of its own,
- *  over that queue's shared memory. Metal has no C-level events, so a timed window is wall time
- *  from its first commit to the synchronization after its last; calls commit as they are encoded,
- *  so the host's encoding overlaps the device's work and large shapes measure the device. Input
- *  sets rotate until their footprint is at least twice the system-level cache.
+ *  over that queue's shared memory. Metal has no C-level events, so every window of launches is
+ *  timed by wall clock through the synchronization after it. Input sets rotate until their
+ *  footprint is at least twice the system-level cache.
  */
 #include <cstddef> // `std::size_t`, `std::ptrdiff_t`
 #include <cstring> // `std::memcpy`, `std::memset`
 
-#include <algorithm>   // `std::clamp`, `std::max`
-#include <bit>         // `std::bit_ceil`, `std::bit_floor`
+#include <algorithm>   // `std::max`, `std::min`
+#include <bit>         // `std::bit_ceil`
 #include <chrono>      // `std::chrono::steady_clock`
 #include <type_traits> // `std::true_type`, `std::false_type`
 
@@ -62,8 +61,8 @@ struct metal_shared_allocator {
     }
 };
 
-/** Runs the Metal kernels on @c queue over its shared memory, timing windows of calls by wall
- *  clock around a synchronization. */
+/** Runs the Metal kernels on @c queue over its shared memory, timing windows of calls by wall clock
+ *  through their synchronization. */
 struct metal_backend_t {
 
     /** The allocator every kernel operand comes from, readable by the host once the queue is
@@ -72,7 +71,7 @@ struct metal_backend_t {
     using allocator = metal_shared_allocator<value_type_>;
 
     /** Where every call encodes and every operand is recorded. Each copy opens its own on first use
-     *  and closes it with itself, so a registered benchmark holds no device resources. */
+     *  and closes it with itself. */
     mutable nk_metal_queue_t queue {};
 
     /** The first failure since the last synchronization. */
@@ -94,14 +93,13 @@ struct metal_backend_t {
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
 
-    /** Rotation sets of @p bytes_per_set each: enough to cover twice a 32 MB system-level cache,
-     *  rounded to a power of two within the budget. */
-    std::size_t input_sets(std::size_t bytes_per_set) const noexcept {
+    /** Rotation sets of @p per_set each: enough to cover twice a 32 MB system-level cache,
+     *  at most @c input_sets_count. */
+    std::size_t input_sets(bytes_t per_set) const noexcept {
         std::size_t const cache_bytes = std::size_t(32) << 20;
-        std::size_t const set_bytes = std::max(bytes_per_set, std::size_t(1));
+        std::size_t const set_bytes = std::max(per_set.value, std::size_t(1));
         std::size_t const wanted = std::max(nk::divide_round_up(2 * cache_bytes, set_bytes), std::size_t(1));
-        std::size_t const affordable = std::max(bench_config.budget_bytes / set_bytes, std::size_t(1));
-        return std::bit_floor(std::clamp(std::bit_ceil(wanted), std::size_t(1), affordable));
+        return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
     }
 
     /** Copies @p bytes once every queued call has finished with them. */
@@ -122,27 +120,23 @@ struct metal_backend_t {
         keep(kernel(arguments..., static_cast<void *>(&opened())));
     }
 
-    /** Times batches of @p launch lasting at least a millisecond each, returning the call count. */
+    /** Times windows of @p launch calls through their synchronization, doubling a window until it
+     *  spans a millisecond. */
     template <typename launch_type_>
-    std::size_t time(bm::State &state, std::size_t sets_count, launch_type_ &launch) {
-        using clock_t = std::chrono::steady_clock;
-        auto const calibration_start = clock_t::now();
-        for (std::size_t index = 0; index != sets_count; ++index) launch(index);
-        keep(nk_metal_synchronize(&opened()));
-        double const calibration_seconds = std::chrono::duration<double>(clock_t::now() - calibration_start).count();
-        double const per_call_seconds = std::max(calibration_seconds / double(sets_count), 1e-7);
-        std::size_t const batch = std::clamp<std::size_t>(std::size_t(1e-3 / per_call_seconds) + 1, 1, 1 << 16);
-
-        std::size_t calls = 0;
-        for (auto _ : state) {
-            auto const window_start = clock_t::now();
-            for (std::size_t index = 0; index != batch && status == nk_success_k; ++index, ++calls)
-                launch(calls & (sets_count - 1));
+    void time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
+        using steady_clock_t = std::chrono::steady_clock;
+        std::size_t calls = 0, window = 1;
+        for ([[maybe_unused]] std::size_t call : loop) {
+            auto const start = steady_clock_t::now();
+            for (std::size_t index = 0; index != window; ++index) launch((calls + index) & (sets_count - 1));
             keep(nk_metal_synchronize(&opened()));
             if (status != nk_success_k) break;
-            state.SetIterationTime(std::chrono::duration<double>(clock_t::now() - window_start).count());
+            auto const elapsed = steady_clock_t::now() - start;
+            loop.add_window(elapsed, window);
+            calls += window;
+            // Encoding overlaps the device only across a window of calls
+            if (elapsed < std::chrono::milliseconds(1)) window *= 2;
         }
-        return calls;
     }
 
     /** Waits for the queue, returning the name of the first failure since the last call, or
@@ -158,9 +152,6 @@ struct metal_backend_t {
     void keep(nk_status_t result) noexcept {
         if (status == nk_success_k) status = result;
     }
-
-    /** Reports the timed windows instead of the loop's own wall time. */
-    static void configure(bm::internal::Benchmark *benchmark) { benchmark->UseManualTime(); }
 };
 
 /** Blocks recorded on @p backend's own queue. */
@@ -171,13 +162,13 @@ metal_shared_allocator<value_type_> allocator_of(metal_backend_t const &backend)
 
 } // namespace ashvardanian::numkong::bench
 
-using namespace ashvardanian::numkong::bench;
-
 #endif // NUMKONG_WITH_METAL
+
+namespace ashvardanian::numkong::bench {
 
 /** Every Metal baseline entry point beside every Apple9 and Apple10 one, so the matrix units'
  *  speedup shows, on devices whose families include each. */
-void bench_cross_metal() {
+void bench_cross_metal([[maybe_unused]] environment_t const &env) {
 #if NUMKONG_WITH_METAL
     nk_capability_t detected = 0, enabled = 0;
     if (nk_metal_capabilities_detected(0, &detected) != nk_success_k || !detected)
@@ -189,77 +180,79 @@ void bench_cross_metal() {
     if (nk_metal_capabilities_enabled(0, &enabled) != nk_success_k) enabled = 0;
     metal_backend_t const backend;
     if (enabled & nk_cap_metal_k) {
-        run_dots_packed<nk_bf16_k>("dots_packed_bf16_metal", nk_dots_pack_size_bf16_metal, nk_dots_pack_bf16_metal,
+        run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_metal", nk_dots_pack_size_bf16_metal, nk_dots_pack_bf16_metal,
                                    nk_dots_packed_bf16_metal, backend);
-        run_dots_packed<nk_f16_k>("dots_packed_f16_metal", nk_dots_pack_size_f16_metal, nk_dots_pack_f16_metal,
+        run_dots_packed<nk_f16_k>(env, "dots_packed_f16_metal", nk_dots_pack_size_f16_metal, nk_dots_pack_f16_metal,
                                   nk_dots_packed_f16_metal, backend);
-        run_dots_packed<nk_e5m2_k>("dots_packed_e5m2_metal", nk_dots_pack_size_e5m2_metal, nk_dots_pack_e5m2_metal,
+        run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_metal", nk_dots_pack_size_e5m2_metal, nk_dots_pack_e5m2_metal,
                                    nk_dots_packed_e5m2_metal, backend);
-        run_dots_packed<nk_e4m3_k>("dots_packed_e4m3_metal", nk_dots_pack_size_e4m3_metal, nk_dots_pack_e4m3_metal,
+        run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_metal", nk_dots_pack_size_e4m3_metal, nk_dots_pack_e4m3_metal,
                                    nk_dots_packed_e4m3_metal, backend);
-        run_dots_packed<nk_e3m2_k>("dots_packed_e3m2_metal", nk_dots_pack_size_e3m2_metal, nk_dots_pack_e3m2_metal,
+        run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_metal", nk_dots_pack_size_e3m2_metal, nk_dots_pack_e3m2_metal,
                                    nk_dots_packed_e3m2_metal, backend);
-        run_dots_packed<nk_e2m3_k>("dots_packed_e2m3_metal", nk_dots_pack_size_e2m3_metal, nk_dots_pack_e2m3_metal,
+        run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_metal", nk_dots_pack_size_e2m3_metal, nk_dots_pack_e2m3_metal,
                                    nk_dots_packed_e2m3_metal, backend);
-        run_dots_packed<nk_e2m1_k>("dots_packed_e2m1_metal", nk_dots_pack_size_e2m1_metal, nk_dots_pack_e2m1_metal,
+        run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_metal", nk_dots_pack_size_e2m1_metal, nk_dots_pack_e2m1_metal,
                                    nk_dots_packed_e2m1_metal, backend);
-        run_dots_packed<nk_i8_k>("dots_packed_i8_metal", nk_dots_pack_size_i8_metal, nk_dots_pack_i8_metal,
+        run_dots_packed<nk_i8_k>(env, "dots_packed_i8_metal", nk_dots_pack_size_i8_metal, nk_dots_pack_i8_metal,
                                  nk_dots_packed_i8_metal, backend);
-        run_dots_packed<nk_u8_k>("dots_packed_u8_metal", nk_dots_pack_size_u8_metal, nk_dots_pack_u8_metal,
+        run_dots_packed<nk_u8_k>(env, "dots_packed_u8_metal", nk_dots_pack_size_u8_metal, nk_dots_pack_u8_metal,
                                  nk_dots_packed_u8_metal, backend);
 
-        run_dots_symmetric<nk_bf16_k>("dots_symmetric_bf16_metal", nk_dots_symmetric_bf16_metal, backend);
-        run_dots_symmetric<nk_f16_k>("dots_symmetric_f16_metal", nk_dots_symmetric_f16_metal, backend);
-        run_dots_symmetric<nk_e4m3_k>("dots_symmetric_e4m3_metal", nk_dots_symmetric_e4m3_metal, backend);
-        run_dots_symmetric<nk_i8_k>("dots_symmetric_i8_metal", nk_dots_symmetric_i8_metal, backend);
+        run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_metal", nk_dots_symmetric_bf16_metal, backend);
+        run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_metal", nk_dots_symmetric_f16_metal, backend);
+        run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_metal", nk_dots_symmetric_e4m3_metal, backend);
+        run_dots_symmetric<nk_i8_k>(env, "dots_symmetric_i8_metal", nk_dots_symmetric_i8_metal, backend);
     }
 #if NUMKONG_TARGET_APPLE9
     if (enabled & nk_cap_apple9_k) {
-        run_dots_packed<nk_bf16_k>("dots_packed_bf16_apple9", nk_dots_pack_size_bf16_apple9, nk_dots_pack_bf16_apple9,
-                                   nk_dots_packed_bf16_apple9, backend);
-        run_dots_packed<nk_f16_k>("dots_packed_f16_apple9", nk_dots_pack_size_f16_apple9, nk_dots_pack_f16_apple9,
+        run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_apple9", nk_dots_pack_size_bf16_apple9,
+                                   nk_dots_pack_bf16_apple9, nk_dots_packed_bf16_apple9, backend);
+        run_dots_packed<nk_f16_k>(env, "dots_packed_f16_apple9", nk_dots_pack_size_f16_apple9, nk_dots_pack_f16_apple9,
                                   nk_dots_packed_f16_apple9, backend);
-        run_dots_packed<nk_e5m2_k>("dots_packed_e5m2_apple9", nk_dots_pack_size_e5m2_apple9, nk_dots_pack_e5m2_apple9,
-                                   nk_dots_packed_e5m2_apple9, backend);
-        run_dots_packed<nk_e4m3_k>("dots_packed_e4m3_apple9", nk_dots_pack_size_e4m3_apple9, nk_dots_pack_e4m3_apple9,
-                                   nk_dots_packed_e4m3_apple9, backend);
-        run_dots_packed<nk_e3m2_k>("dots_packed_e3m2_apple9", nk_dots_pack_size_e3m2_apple9, nk_dots_pack_e3m2_apple9,
-                                   nk_dots_packed_e3m2_apple9, backend);
-        run_dots_packed<nk_e2m3_k>("dots_packed_e2m3_apple9", nk_dots_pack_size_e2m3_apple9, nk_dots_pack_e2m3_apple9,
-                                   nk_dots_packed_e2m3_apple9, backend);
-        run_dots_packed<nk_e2m1_k>("dots_packed_e2m1_apple9", nk_dots_pack_size_e2m1_apple9, nk_dots_pack_e2m1_apple9,
-                                   nk_dots_packed_e2m1_apple9, backend);
+        run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_apple9", nk_dots_pack_size_e5m2_apple9,
+                                   nk_dots_pack_e5m2_apple9, nk_dots_packed_e5m2_apple9, backend);
+        run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_apple9", nk_dots_pack_size_e4m3_apple9,
+                                   nk_dots_pack_e4m3_apple9, nk_dots_packed_e4m3_apple9, backend);
+        run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_apple9", nk_dots_pack_size_e3m2_apple9,
+                                   nk_dots_pack_e3m2_apple9, nk_dots_packed_e3m2_apple9, backend);
+        run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_apple9", nk_dots_pack_size_e2m3_apple9,
+                                   nk_dots_pack_e2m3_apple9, nk_dots_packed_e2m3_apple9, backend);
+        run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_apple9", nk_dots_pack_size_e2m1_apple9,
+                                   nk_dots_pack_e2m1_apple9, nk_dots_packed_e2m1_apple9, backend);
 
-        run_dots_symmetric<nk_bf16_k>("dots_symmetric_bf16_apple9", nk_dots_symmetric_bf16_apple9, backend);
-        run_dots_symmetric<nk_f16_k>("dots_symmetric_f16_apple9", nk_dots_symmetric_f16_apple9, backend);
-        run_dots_symmetric<nk_e4m3_k>("dots_symmetric_e4m3_apple9", nk_dots_symmetric_e4m3_apple9, backend);
+        run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_apple9", nk_dots_symmetric_bf16_apple9, backend);
+        run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_apple9", nk_dots_symmetric_f16_apple9, backend);
+        run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_apple9", nk_dots_symmetric_e4m3_apple9, backend);
     }
 #endif
 #if NUMKONG_TARGET_APPLE10
     if (!(enabled & nk_cap_apple10_k)) return;
-    run_dots_packed<nk_bf16_k>("dots_packed_bf16_apple10", nk_dots_pack_size_bf16_apple10, nk_dots_pack_bf16_apple10,
-                               nk_dots_packed_bf16_apple10, backend);
-    run_dots_packed<nk_f16_k>("dots_packed_f16_apple10", nk_dots_pack_size_f16_apple10, nk_dots_pack_f16_apple10,
+    run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_apple10", nk_dots_pack_size_bf16_apple10,
+                               nk_dots_pack_bf16_apple10, nk_dots_packed_bf16_apple10, backend);
+    run_dots_packed<nk_f16_k>(env, "dots_packed_f16_apple10", nk_dots_pack_size_f16_apple10, nk_dots_pack_f16_apple10,
                               nk_dots_packed_f16_apple10, backend);
-    run_dots_packed<nk_e5m2_k>("dots_packed_e5m2_apple10", nk_dots_pack_size_e5m2_apple10, nk_dots_pack_e5m2_apple10,
-                               nk_dots_packed_e5m2_apple10, backend);
-    run_dots_packed<nk_e4m3_k>("dots_packed_e4m3_apple10", nk_dots_pack_size_e4m3_apple10, nk_dots_pack_e4m3_apple10,
-                               nk_dots_packed_e4m3_apple10, backend);
-    run_dots_packed<nk_e3m2_k>("dots_packed_e3m2_apple10", nk_dots_pack_size_e3m2_apple10, nk_dots_pack_e3m2_apple10,
-                               nk_dots_packed_e3m2_apple10, backend);
-    run_dots_packed<nk_e2m3_k>("dots_packed_e2m3_apple10", nk_dots_pack_size_e2m3_apple10, nk_dots_pack_e2m3_apple10,
-                               nk_dots_packed_e2m3_apple10, backend);
-    run_dots_packed<nk_e2m1_k>("dots_packed_e2m1_apple10", nk_dots_pack_size_e2m1_apple10, nk_dots_pack_e2m1_apple10,
-                               nk_dots_packed_e2m1_apple10, backend);
-    run_dots_packed<nk_i8_k>("dots_packed_i8_apple10", nk_dots_pack_size_i8_apple10, nk_dots_pack_i8_apple10,
+    run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_apple10", nk_dots_pack_size_e5m2_apple10,
+                               nk_dots_pack_e5m2_apple10, nk_dots_packed_e5m2_apple10, backend);
+    run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_apple10", nk_dots_pack_size_e4m3_apple10,
+                               nk_dots_pack_e4m3_apple10, nk_dots_packed_e4m3_apple10, backend);
+    run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_apple10", nk_dots_pack_size_e3m2_apple10,
+                               nk_dots_pack_e3m2_apple10, nk_dots_packed_e3m2_apple10, backend);
+    run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_apple10", nk_dots_pack_size_e2m3_apple10,
+                               nk_dots_pack_e2m3_apple10, nk_dots_packed_e2m3_apple10, backend);
+    run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_apple10", nk_dots_pack_size_e2m1_apple10,
+                               nk_dots_pack_e2m1_apple10, nk_dots_packed_e2m1_apple10, backend);
+    run_dots_packed<nk_i8_k>(env, "dots_packed_i8_apple10", nk_dots_pack_size_i8_apple10, nk_dots_pack_i8_apple10,
                              nk_dots_packed_i8_apple10, backend);
-    run_dots_packed<nk_u8_k>("dots_packed_u8_apple10", nk_dots_pack_size_u8_apple10, nk_dots_pack_u8_apple10,
+    run_dots_packed<nk_u8_k>(env, "dots_packed_u8_apple10", nk_dots_pack_size_u8_apple10, nk_dots_pack_u8_apple10,
                              nk_dots_packed_u8_apple10, backend);
 
-    run_dots_symmetric<nk_bf16_k>("dots_symmetric_bf16_apple10", nk_dots_symmetric_bf16_apple10, backend);
-    run_dots_symmetric<nk_f16_k>("dots_symmetric_f16_apple10", nk_dots_symmetric_f16_apple10, backend);
-    run_dots_symmetric<nk_e4m3_k>("dots_symmetric_e4m3_apple10", nk_dots_symmetric_e4m3_apple10, backend);
-    run_dots_symmetric<nk_i8_k>("dots_symmetric_i8_apple10", nk_dots_symmetric_i8_apple10, backend);
+    run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_apple10", nk_dots_symmetric_bf16_apple10, backend);
+    run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_apple10", nk_dots_symmetric_f16_apple10, backend);
+    run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_apple10", nk_dots_symmetric_e4m3_apple10, backend);
+    run_dots_symmetric<nk_i8_k>(env, "dots_symmetric_i8_apple10", nk_dots_symmetric_i8_apple10, backend);
 #endif
 #endif // NUMKONG_WITH_METAL
 }
+
+} // namespace ashvardanian::numkong::bench

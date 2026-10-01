@@ -8,7 +8,7 @@
 #include "harness.hpp"
 #include "numkong/trigonometry.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** F16 kernels round an F32 result, which can land on the far side of an F16 tie from the exact
  *  value, so each F16 result may sit one F16 ULP from the rounded reference; wider types are held
@@ -18,28 +18,28 @@ constexpr bool trigonometry_bounded = std::is_same_v<scalar_type_, f16_t>;
 
 /** Test sine approximation kernel against the `nk::sin<scalar_t, f118_t>` template. */
 template <typename scalar_type_>
-error_stats_t test_sin(typename scalar_type_::trigonometry_kernel_t kernel) {
+error_stats_t test_sin(settings_t const &settings, typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(trigonometry_bounded<scalar_t> ? comparison_family_t::bounded_k
                                                        : comparison_family_t::approximate_k);
-    std::mt19937 generator(global_config.seed);
-    auto inputs = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto outputs = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto inputs = make_vector<scalar_t>(settings.dense_dimensions);
+    auto outputs = make_vector<scalar_t>(settings.dense_dimensions),
+         reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
                          scalar_t::two_pi_k());
 
-        stats.expect(
-            kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data(), nullptr));
-        stats.expect(nk::sin<scalar_t, reference_t>(inputs.values_data(), global_config.dense_dimensions,
+        stats.expect(kernel(inputs.raw_values_data(), settings.dense_dimensions, outputs.raw_values_data(), nullptr));
+        stats.expect(nk::sin<scalar_t, reference_t>(inputs.values_data(), settings.dense_dimensions,
                                                     reference.values_data(), no_tiers_k));
 
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
+        for (std::size_t i = 0; i < settings.dense_dimensions; i++)
             if constexpr (trigonometry_bounded<scalar_t>)
                 stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(reference[i]));
             else stats.accumulate(outputs[i], reference[i]);
@@ -49,28 +49,28 @@ error_stats_t test_sin(typename scalar_type_::trigonometry_kernel_t kernel) {
 
 /** Test cosine approximation kernel against the `nk::cos<scalar_t, f118_t>` template. */
 template <typename scalar_type_>
-error_stats_t test_cos(typename scalar_type_::trigonometry_kernel_t kernel) {
+error_stats_t test_cos(settings_t const &settings, typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(trigonometry_bounded<scalar_t> ? comparison_family_t::bounded_k
                                                        : comparison_family_t::approximate_k);
-    std::mt19937 generator(global_config.seed);
-    auto inputs = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto outputs = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto inputs = make_vector<scalar_t>(settings.dense_dimensions);
+    auto outputs = make_vector<scalar_t>(settings.dense_dimensions),
+         reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), -scalar_t::two_pi_k(),
                          scalar_t::two_pi_k());
 
-        stats.expect(
-            kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data(), nullptr));
-        stats.expect(nk::cos<scalar_t, reference_t>(inputs.values_data(), global_config.dense_dimensions,
+        stats.expect(kernel(inputs.raw_values_data(), settings.dense_dimensions, outputs.raw_values_data(), nullptr));
+        stats.expect(nk::cos<scalar_t, reference_t>(inputs.values_data(), settings.dense_dimensions,
                                                     reference.values_data(), no_tiers_k));
 
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
+        for (std::size_t i = 0; i < settings.dense_dimensions; i++)
             if constexpr (trigonometry_bounded<scalar_t>)
                 stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(reference[i]));
             else stats.accumulate(outputs[i], reference[i]);
@@ -80,27 +80,27 @@ error_stats_t test_cos(typename scalar_type_::trigonometry_kernel_t kernel) {
 
 /** Test atan approximation kernel against the `nk::atan<scalar_t, f118_t>` template. */
 template <typename scalar_type_>
-error_stats_t test_atan(typename scalar_type_::trigonometry_kernel_t kernel) {
+error_stats_t test_atan(settings_t const &settings, typename scalar_type_::trigonometry_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(trigonometry_bounded<scalar_t> ? comparison_family_t::bounded_k
                                                        : comparison_family_t::approximate_k);
-    std::mt19937 generator(global_config.seed);
-    auto inputs = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto outputs = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto inputs = make_vector<scalar_t>(settings.dense_dimensions);
+    auto outputs = make_vector<scalar_t>(settings.dense_dimensions),
+         reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         nk::fill_uniform(generator, inputs.values_data(), inputs.size_values(), scalar_t(-10.0), scalar_t(10.0));
 
-        stats.expect(
-            kernel(inputs.raw_values_data(), global_config.dense_dimensions, outputs.raw_values_data(), nullptr));
-        stats.expect(nk::atan<scalar_t, reference_t>(inputs.values_data(), global_config.dense_dimensions,
+        stats.expect(kernel(inputs.raw_values_data(), settings.dense_dimensions, outputs.raw_values_data(), nullptr));
+        stats.expect(nk::atan<scalar_t, reference_t>(inputs.values_data(), settings.dense_dimensions,
                                                      reference.values_data(), no_tiers_k));
 
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
+        for (std::size_t i = 0; i < settings.dense_dimensions; i++)
             if constexpr (trigonometry_bounded<scalar_t>)
                 stats.accumulate_bounded(outputs[i], reference[i], half_ulp<scalar_t>(reference[i]));
             else stats.accumulate(outputs[i], reference[i]);
@@ -108,8 +108,7 @@ error_stats_t test_atan(typename scalar_type_::trigonometry_kernel_t kernel) {
     return stats;
 }
 
-void test_trigonometry() {
-    error_stats_section_t check;
+void test_trigonometry(error_stats_section_t &check) {
 
     check.section("Trigonometry Serial", nk_cap_serial_k);
     check("trig_sin_f32_serial", test_sin<f32_t>, nk_trig_sin_f32_serial);
@@ -196,3 +195,5 @@ void test_trigonometry() {
     check("trig_atan_f64_v128relaxed", test_atan<f64_t>, nk_trig_atan_f64_v128relaxed);
 #endif // NUMKONG_TARGET_V128RELAXED
 }
+
+} // namespace ashvardanian::numkong::test

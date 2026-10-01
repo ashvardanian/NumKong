@@ -47,12 +47,13 @@
 //! File: rust/each.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::{ffi::c_void, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef};
-use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef},
+    types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement},
+};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -4918,6 +4919,7 @@ impl EachRmsNorm for e4m3 {
 mod tests {
     use super::*;
     use crate::types::{assert_close, bf16, e2m3, e3m2, e4m3, e5m2, f16, FloatLike, NumberLike, TestableType};
+
     /// Test a binary elementwise op: convert inputs, apply `op`, compare element-wise.
     pub(crate) fn check_each_binary<Scalar, F>(
         a_vals: &[f32],
@@ -5137,6 +5139,7 @@ mod tests {
     #[test]
     fn tensor_add_tensor_via_sum_ops() {
         use crate::tensor::{SliceRange, Tensor};
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let left = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let right = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
@@ -5155,8 +5158,8 @@ mod tests {
 
     #[test]
     fn tensor_add_tensor_into_owning_destination() {
-        use crate::tensor::Tensor;
-        use crate::SumOps;
+        use crate::{tensor::Tensor, SumOps};
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let left = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let right = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
@@ -5170,6 +5173,7 @@ mod tests {
     #[test]
     fn tensor_mul_scalar_via_scale_ops() {
         use crate::tensor::{SliceRange, Tensor};
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let even = source
@@ -5182,6 +5186,7 @@ mod tests {
     #[test]
     fn tensor_add_scalar_inplace_via_scale_ops() {
         use crate::tensor::Tensor;
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let mut tensor = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         tensor.add_scalar_inplace(1.0).unwrap();
@@ -5192,6 +5197,7 @@ mod tests {
     #[test]
     fn tensor_sin_into_via_trig_sin_ops() {
         use crate::tensor::{SliceRange, Tensor};
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let even = source
@@ -5214,6 +5220,7 @@ mod tests {
     #[test]
     fn inplace_scale_matches_out_of_place() {
         use crate::tensor::Tensor;
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
@@ -5225,6 +5232,7 @@ mod tests {
     #[test]
     fn inplace_scale_matches_out_of_place_f64() {
         use crate::tensor::Tensor;
+
         let data: Vec<f64> = (0..12).map(|i| i as f64).collect();
         let mut inplace = Tensor::<f64>::from_slice(&data, &[3, 4]).unwrap();
         let source = Tensor::<f64>::from_slice(&data, &[3, 4]).unwrap();
@@ -5236,6 +5244,7 @@ mod tests {
     #[test]
     fn inplace_add_scalar_matches_out_of_place() {
         use crate::tensor::Tensor;
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
@@ -5247,6 +5256,7 @@ mod tests {
     #[test]
     fn inplace_sin_matches_out_of_place() {
         use crate::tensor::Tensor;
+
         let data: Vec<f32> = (0..12).map(|i| i as f32 * 0.25).collect();
         let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
@@ -5258,6 +5268,7 @@ mod tests {
     #[test]
     fn inplace_add_tensor_matches_out_of_place() {
         use crate::tensor::Tensor;
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let other = Tensor::<f32>::full(&[3, 4], 2.0).unwrap();
         let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
@@ -5270,6 +5281,7 @@ mod tests {
     #[test]
     fn inplace_sub_tensor_matches_out_of_place() {
         use crate::tensor::Tensor;
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let other = Tensor::<f32>::full(&[3, 4], 3.0).unwrap();
         let mut inplace = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
@@ -5282,6 +5294,7 @@ mod tests {
     #[test]
     fn inplace_mul_tensor_matches_out_of_place() {
         use crate::tensor::Tensor;
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let other_data: Vec<f32> = (0..12).map(|i| (i as f32) * 0.5 + 1.0).collect();
         let other = Tensor::<f32>::from_slice(&other_data, &[3, 4]).unwrap();
@@ -5339,6 +5352,7 @@ mod tests {
     #[test]
     fn swiglu_gate_up_halves() {
         use crate::tensor::{SliceRange, Tensor};
+
         // gate|up are the two strided column halves of one `[rows, 2*cols]` buffer with row stride 2*cols.
         let rows = 3;
         let cols = 8;

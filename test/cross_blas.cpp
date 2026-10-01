@@ -9,7 +9,7 @@
 #include "harness.hpp"
 #include "cross.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
@@ -26,16 +26,16 @@ using namespace ashvardanian::numkong::test;
  *  @param[in] term_error_bound What each term may add in the precision the routine sums in
  */
 template <typename scalar_type_, typename accumulator_type_, typename kernel_type_>
-error_stats_t test_dots_unpacked(kernel_type_ dots_fn, nk_f64_t term_error_bound) {
+error_stats_t test_dots_unpacked(settings_t const &settings, kernel_type_ dots_fn, nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = accumulator_type_;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    std::size_t m = global_config.matrix_height, n = global_config.matrix_width, k = global_config.matrix_depth;
+    std::size_t m = settings.matrix_height, n = settings.matrix_width, k = settings.matrix_depth;
     std::size_t a_stride = k * sizeof(raw_t);
     std::size_t b_stride = k * sizeof(raw_t);
     std::size_t c_stride = n * sizeof(typename result_t::raw_t);
@@ -43,9 +43,10 @@ error_stats_t test_dots_unpacked(kernel_type_ dots_fn, nk_f64_t term_error_bound
     auto a_buf = make_vector<scalar_t>(m * k), b_buf = make_vector<scalar_t>(n * k);
     auto c = make_vector<result_t>(m * n);
     std::vector<reference_t> c_ref(m * n);
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a_buf);
-        fill_random(generator, b_buf);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a_buf);
+        fill_random(settings, generator, b_buf);
 
         nk::dots_unpacked<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m, n, k,
                                                  a_stride, b_stride, n * sizeof(reference_t));
@@ -63,16 +64,17 @@ error_stats_t test_dots_unpacked(kernel_type_ dots_fn, nk_f64_t term_error_bound
  *  reference must also conjugate B to match.
  */
 template <typename scalar_type_, typename accumulator_type_, typename kernel_type_>
-error_stats_t test_dots_unpacked_conjugated(kernel_type_ dots_fn, nk_f64_t term_error_bound) {
+error_stats_t test_dots_unpacked_conjugated(settings_t const &settings, kernel_type_ dots_fn,
+                                            nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = accumulator_type_;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    std::size_t m = global_config.matrix_height, n = global_config.matrix_width, k = global_config.matrix_depth;
+    std::size_t m = settings.matrix_height, n = settings.matrix_width, k = settings.matrix_depth;
     std::size_t a_stride = k * sizeof(raw_t);
     std::size_t b_stride = k * sizeof(raw_t);
     std::size_t c_stride = n * sizeof(typename result_t::raw_t);
@@ -80,9 +82,10 @@ error_stats_t test_dots_unpacked_conjugated(kernel_type_ dots_fn, nk_f64_t term_
     auto a_buf = make_vector<scalar_t>(m * k), b_buf = make_vector<scalar_t>(n * k);
     auto c = make_vector<result_t>(m * n);
     std::vector<reference_t> c_ref(m * n);
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a_buf);
-        fill_random(generator, b_buf);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a_buf);
+        fill_random(settings, generator, b_buf);
 
         nk::dots_unpacked_conjugated<scalar_t, reference_t>(a_buf.values_data(), b_buf.values_data(), c_ref.data(), m,
                                                             n, k, a_stride, b_stride, n * sizeof(reference_t));
@@ -266,26 +269,27 @@ void dots_i16_with_mkl(i16_t const *a, i16_t const *b, i32_t *c, nk_size_t m, nk
 /** Single dot product test for BLAS, each term adding up to @p term_error_bound in the precision
  *  the routine sums in. */
 template <typename scalar_type_>
-error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel, nk_f64_t term_error_bound) {
+error_stats_t test_dot_blas(settings_t const &settings, typename scalar_type_::dot_kernel_t kernel,
+                            nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::dot_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(global_config.seed);
-    auto a = make_vector<scalar_t>(global_config.dense_dimensions),
-         b = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
 
         result_t result;
         stats.expect(
-            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
+            kernel(a.raw_values_data(), b.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+        stats.expect(nk::dot<scalar_t, reference_t>(a.values_data(), b.values_data(), settings.dense_dimensions,
                                                     &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
@@ -295,26 +299,27 @@ error_stats_t test_dot_blas(typename scalar_type_::dot_kernel_t kernel, nk_f64_t
 
 /** Conjugate dot product test for BLAS (vdot = conj(a) * b). */
 template <typename scalar_type_>
-error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel, nk_f64_t term_error_bound) {
+error_stats_t test_vdot_blas(settings_t const &settings, typename scalar_type_::vdot_kernel_t kernel,
+                             nk_f64_t term_error_bound) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::vdot_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(term_error_bound);
-    std::mt19937 generator(global_config.seed);
-    auto a = make_vector<scalar_t>(global_config.dense_dimensions),
-         b = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
 
         result_t result;
         stats.expect(
-            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
+            kernel(a.raw_values_data(), b.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::vdot<scalar_t, reference_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+        stats.expect(nk::vdot<scalar_t, reference_t>(a.values_data(), b.values_data(), settings.dense_dimensions,
                                                      &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
@@ -322,9 +327,8 @@ error_stats_t test_vdot_blas(typename scalar_type_::vdot_kernel_t kernel, nk_f64
     return stats;
 }
 
-void test_cross_blas() {
+void test_cross_blas(error_stats_section_t &check) {
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
-    error_stats_section_t check;
     check.section("Cross External Baselines", nk_cap_serial_k);
 
     // Each routine is held to the precision it sums in, which for `dsdot` is F64 over F32 inputs
@@ -347,10 +351,12 @@ void test_cross_blas() {
           dots_f64c_with_blas, in_f64);
 
     // BLAS SYRK precision comparison (symmetric A x A^T)
-    check("dots_symmetric_with_blas_f64",
-          [&] { return test_dots_symmetric<f64_t>(dots_symmetric_with_blas<nk_f64_t>, in_f64); });
-    check("dots_symmetric_with_blas_f32",
-          [&] { return test_dots_symmetric<f32_t>(dots_symmetric_with_blas<nk_f32_t>, in_f32); });
+    check("dots_symmetric_with_blas_f64", [&](settings_t const &settings) {
+        return test_dots_symmetric<f64_t>(settings, dots_symmetric_with_blas<nk_f64_t>, in_f64);
+    });
+    check("dots_symmetric_with_blas_f32", [&](settings_t const &settings) {
+        return test_dots_symmetric<f32_t>(settings, dots_symmetric_with_blas<nk_f32_t>, in_f32);
+    });
 #endif
 
 #if NUMKONG_COMPARE_TO_MKL
@@ -363,3 +369,5 @@ void test_cross_blas() {
           nk_accumulation_error_bound(nk_i32_k));
 #endif
 }
+
+} // namespace ashvardanian::numkong::test

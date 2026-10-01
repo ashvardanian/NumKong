@@ -50,13 +50,12 @@
 //! File: rust/vector.rs
 //! Author: Ash Vardanian
 
-use core::marker::PhantomData;
-use core::ptr::NonNull;
+use core::{marker::PhantomData, ptr::NonNull};
 
-use crate::tensor::{
-    alloc_block, alloc_filled, layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError, GLOBAL,
+use crate::{
+    tensor::{alloc_block, alloc_filled, layout_for, Allocator, CopyFrom, Fill, Global, Tensor, TensorError, GLOBAL},
+    types::{DimMut, DimRef, FloatConvertible, NumberLike, StorageElement},
 };
-use crate::types::{DimMut, DimRef, FloatConvertible, NumberLike, StorageElement};
 
 // region: VectorIndex — Signed Indexing
 
@@ -1199,8 +1198,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
 
 // region: Bit Reductions on u1x8 vectors
 
-use crate::reduce::ReduceMoments;
-use crate::types::u1x8;
+use crate::{reduce::ReduceMoments, types::u1x8};
 
 /// Population count of a contiguous packed-bit storage slice.
 ///
@@ -2078,6 +2076,7 @@ mod tests {
     fn fill_zeros_and_fill_on_vector_and_span() {
         // Vector: Fill trait gives fill_zeros + fill methods.
         use crate::tensor::Fill;
+
         let mut v = Vector::<f32>::full(8, 3.5).unwrap();
         v.fill_zeros();
         assert!(v.as_slice().iter().all(|&value| value == 0.0));
@@ -2095,6 +2094,7 @@ mod tests {
     #[test]
     fn copy_from_round_trips_vector_and_span() {
         use crate::tensor::CopyFrom;
+
         // Vector: CopyFrom<&[Scalar]>.
         let mut destination = Vector::<f32>::zeros(4).unwrap();
         let source = [1.0f32, 2.0, 3.0, 4.0];
@@ -2121,6 +2121,7 @@ mod tests {
     #[test]
     fn bit_reductions_on_u1x8_vector_match_method_names() {
         use crate::types::u1x8;
+
         let mut bits_vector = Vector::<u1x8>::zeros(32).unwrap();
         // Set all 32 bits.
         for slot in bits_vector.as_mut_slice().iter_mut() {

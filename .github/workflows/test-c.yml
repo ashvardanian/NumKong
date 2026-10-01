@@ -113,7 +113,7 @@ jobs:
               -- build_release/numkong_cpu_test
         env:
           NUMKONG_FILTER: __nk_impossible_filter__
-          NUMKONG_BUDGET_SECS: 0.05
+          NUMKONG_TIME_LIMIT: 50ms
 
       - name: Test
         run: ctest --preset release
@@ -403,7 +403,7 @@ jobs:
       - name: Test Under Granite Rapids Emulation
         run: "$SDE_PATH/sde64 -gnr -- build_release/numkong_cpu_test"
         env:
-          NUMKONG_BUDGET_SECS: 0
+          NUMKONG_TIME_LIMIT: 1s
 
   # No hosted runner has a GPU, so the three backends are compile checks; the Metal suite also runs on the paravirtual GPU.
   build_cuda:

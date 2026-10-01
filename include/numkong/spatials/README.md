@@ -1,6 +1,7 @@
 # Batched Distance Matrices in NumKong
 
-NumKong implements batched distance matrix computation via pre-packed dot products plus normalization. Angular distance and Euclidean distance are computed from the packed dot product output without materializing an intermediate C matrix.
+NumKong implements batched distance matrix computation via pre-packed dot products plus normalization.
+Angular distance and Euclidean distance are computed from the packed dot product output without materializing an intermediate C matrix.
 
 Angular distance from pre-packed dot products:
 

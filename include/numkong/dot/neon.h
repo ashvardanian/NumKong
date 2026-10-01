@@ -181,7 +181,7 @@ NUMKONG_API nk_status_t nk_dot_f32c_neon(nk_f32c_t const *a_pairs, nk_f32c_t con
     // deinterleave+4FMA pattern below. FCMLA processes only 2 complex pairs per iteration
     // (interleaved 128-bit operands, 2x `vcmlaq`), while `vld2_f32` deinterleaves 2 pairs
     // with 4 independent FMA instructions that fully utilize M4's 4 SIMD pipes. Result on
-    // Apple M4 at n=4096: manual f32 39.7 GiB/s, FCMLA 17.1 GiB/s (2.3x slower).
+    // Apple M4 at n=4096: manual f32 39.7 GB/s, FCMLA 17.1 GB/s (2.3x slower).
     // The f64 upcast here trades throughput for precision — FCMLA offers neither advantage.
     for (; idx_pairs + 2 <= count_pairs; idx_pairs += 2) {
         // Unpack 2 complex pairs into real and imaginary parts:

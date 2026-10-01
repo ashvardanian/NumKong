@@ -110,7 +110,7 @@ Experimental SVE mesh kernels (`sve.h`, `svehalf.h`, 112 lines total) were remov
 ## Performance
 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
-The input size is controlled by the `NUMWARS_MESH_POINTS` environment variable and set to 256, 1024, and 4096 points.
+The input size is controlled by the `NUMKONG_MESH_POINTS` environment variable and set to 256, 1024, and 4096 points.
 Each alignment computes centroids, covariance, and a 3×3 SVD over $N$ point pairs, so cost is $O(N)$ per alignment with a large constant.
 The throughput is measured in mp/s as millions of 3D points aligned per second.
 

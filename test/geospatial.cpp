@@ -8,39 +8,39 @@
 #include "harness.hpp"
 #include "numkong/geospatial.hpp" // `nk::haversine`
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** Test Haversine distance against the @c nk::haversine template in a wider type. */
 template <typename scalar_type_>
-error_stats_t test_haversine(typename scalar_type_::geospatial_kernel_t kernel) {
+error_stats_t test_haversine(settings_t const &settings, typename scalar_type_::geospatial_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(nk_haversine_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
-    auto a_lats = make_vector<scalar_t>(global_config.dense_dimensions),
-         a_lons = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto b_lats = make_vector<scalar_t>(global_config.dense_dimensions),
-         b_lons = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto results = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto a_lats = make_vector<scalar_t>(settings.dense_dimensions),
+         a_lons = make_vector<scalar_t>(settings.dense_dimensions);
+    auto b_lats = make_vector<scalar_t>(settings.dense_dimensions),
+         b_lons = make_vector<scalar_t>(settings.dense_dimensions);
+    auto results = make_vector<scalar_t>(settings.dense_dimensions),
+         reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    double const max_separation_rad = double(global_config.max_coord_angle) * 3.14159265358979323846 / 180.0;
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        nk::fill_coordinates(generator, a_lats.values_data(), a_lons.values_data(), global_config.dense_dimensions);
+    double const max_separation_rad = double(settings.max_coord_angle_degrees) * 3.14159265358979323846 / 180.0;
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        nk::fill_coordinates(generator, a_lats.values_data(), a_lons.values_data(), settings.dense_dimensions);
         nk::fill_nearby_coordinates(generator, a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
-                                    b_lons.values_data(), global_config.dense_dimensions, max_separation_rad);
+                                    b_lons.values_data(), settings.dense_dimensions, max_separation_rad);
 
         stats.expect(kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(),
-                            b_lons.raw_values_data(), global_config.dense_dimensions, results.raw_values_data(),
-                            nullptr));
+                            b_lons.raw_values_data(), settings.dense_dimensions, results.raw_values_data(), nullptr));
         stats.expect(nk::haversine<scalar_t, reference_t>(
             a_lats.values_data(), a_lons.values_data(), b_lats.values_data(), b_lons.values_data(),
-            global_config.dense_dimensions, reference.values_data(), no_tiers_k));
+            settings.dense_dimensions, reference.values_data(), no_tiers_k));
 
         // The central angle 2 · atan2(√a, √(1 − a)) amplifies the term's error by tan(angle / 2),
         // without bound towards antipodal points, where 1 − a cancels
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++) {
+        for (std::size_t i = 0; i < settings.dense_dimensions; i++) {
             double const expected = static_cast<double>(reference[i]);
             double const angle = expected / NUMKONG_EARTH_MEDIATORIAL_RADIUS;
             stats.accumulate_bounded(
@@ -53,41 +53,40 @@ error_stats_t test_haversine(typename scalar_type_::geospatial_kernel_t kernel) 
 
 /** Test Vincenty distance against the @c nk::vincenty template in a wider type. */
 template <typename scalar_type_>
-error_stats_t test_vincenty(typename scalar_type_::geospatial_kernel_t kernel) {
+error_stats_t test_vincenty(settings_t const &settings, typename scalar_type_::geospatial_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(nk_vincenty_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
-    auto a_lats = make_vector<scalar_t>(global_config.dense_dimensions),
-         a_lons = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto b_lats = make_vector<scalar_t>(global_config.dense_dimensions),
-         b_lons = make_vector<scalar_t>(global_config.dense_dimensions);
-    auto results = make_vector<scalar_t>(global_config.dense_dimensions),
-         reference = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto a_lats = make_vector<scalar_t>(settings.dense_dimensions),
+         a_lons = make_vector<scalar_t>(settings.dense_dimensions);
+    auto b_lats = make_vector<scalar_t>(settings.dense_dimensions),
+         b_lons = make_vector<scalar_t>(settings.dense_dimensions);
+    auto results = make_vector<scalar_t>(settings.dense_dimensions),
+         reference = make_vector<scalar_t>(settings.dense_dimensions);
 
-    double const max_separation_rad = double(global_config.max_coord_angle) * 3.14159265358979323846 / 180.0;
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        nk::fill_coordinates(generator, a_lats.values_data(), a_lons.values_data(), global_config.dense_dimensions);
+    double const max_separation_rad = double(settings.max_coord_angle_degrees) * 3.14159265358979323846 / 180.0;
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        nk::fill_coordinates(generator, a_lats.values_data(), a_lons.values_data(), settings.dense_dimensions);
         nk::fill_nearby_coordinates(generator, a_lats.values_data(), a_lons.values_data(), b_lats.values_data(),
-                                    b_lons.values_data(), global_config.dense_dimensions, max_separation_rad);
+                                    b_lons.values_data(), settings.dense_dimensions, max_separation_rad);
 
         stats.expect(kernel(a_lats.raw_values_data(), a_lons.raw_values_data(), b_lats.raw_values_data(),
-                            b_lons.raw_values_data(), global_config.dense_dimensions, results.raw_values_data(),
-                            nullptr));
+                            b_lons.raw_values_data(), settings.dense_dimensions, results.raw_values_data(), nullptr));
         stats.expect(nk::vincenty<scalar_t, reference_t>(
             a_lats.values_data(), a_lons.values_data(), b_lats.values_data(), b_lons.values_data(),
-            global_config.dense_dimensions, reference.values_data(), no_tiers_k));
+            settings.dense_dimensions, reference.values_data(), no_tiers_k));
 
-        for (std::size_t i = 0; i < global_config.dense_dimensions; i++)
+        for (std::size_t i = 0; i < settings.dense_dimensions; i++)
             stats.accumulate_bounded(results[i], static_cast<double>(reference[i]),
                                      stats.term_error_bound * NUMKONG_EARTH_ELLIPSOID_EQUATORIAL_RADIUS);
     }
     return stats;
 }
 
-void test_geospatial() {
-    error_stats_section_t check;
+void test_geospatial(error_stats_section_t &check) {
 
     check.section("Geospatial Functions Serial", nk_cap_serial_k);
     check("haversine_f64_serial", test_haversine<f64_t>, nk_haversine_f64_serial);
@@ -143,3 +142,5 @@ void test_geospatial() {
     check("vincenty_f32_v128relaxed", test_vincenty<f32_t>, nk_vincenty_f32_v128relaxed);
 #endif // NUMKONG_TARGET_V128RELAXED
 }
+
+} // namespace ashvardanian::numkong::test

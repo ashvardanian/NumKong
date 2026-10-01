@@ -457,7 +457,8 @@ for (auto it = v.begin(); it != v.end(); ++it)
 Since `tensor.hpp` includes `vector.hpp`, `enumerate()` works on tensor row views too.
 
 Tensors also support range-for over all logical scalar elements, yielding `(position, value)` pairs.
-For sub-byte types each dimension is a logical scalar. Use `.dims()` to iterate values without positions.
+For sub-byte types each dimension is a logical scalar.
+Use `.dims()` to iterate values without positions.
 
 ```cpp
 for (auto [pos, val] : matrix)          { /* pos is std::array<size_t, R> */ }

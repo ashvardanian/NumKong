@@ -50,29 +50,32 @@ Adding `-D NUMKONG_COMPARE_TO_CUVS=ON -D NUMKONG_CUVS_ROOTS=<dir;dir>` also time
 
 ```sh
 build_release/numkong_bench                                    # run all benchmarks
-build_release/numkong_bench --benchmark_filter=dot             # filter by name
-build_release/numkong_bench --benchmark_min_time=10s           # longer runs for stable results
-build_release/numkong_bench --filter=dot                       # shorthand for --benchmark_filter
+NUMWARS_FILTER=dot build_release/numkong_bench                 # filter by name
+NUMWARS_TIME_LIMIT=30s build_release/numkong_bench             # longer runs for stable results
 ```
+
+The binary takes no arguments; the environment configures it.
+Each benchmark prints one line: its name, calls per second, and its counters.
 
 ### Environment Variables
 
-| Variable                       | Default | Description                                               |
-| :----------------------------- | ------: | :-------------------------------------------------------- |
-| `NUMWARS_FILTER`               |    `.*` | Regex to filter benchmarks by name                        |
-| `NUMKONG_SEED`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one |
-| `NUMWARS_PROFILE_SECONDS`      |    `10` | Minimum time per benchmark in seconds                     |
-| `NUMKONG_BUDGET_MB`            |  `1024` | Memory budget for pre-allocated inputs, `32` under WASI   |
-| `NUMWARS_DIMS`                 |  `1536` | Vector dimension for dot/spatial benchmarks               |
-| `NUMKONG_CURVED_DIMENSIONS`    |    `64` | Vector dimension for curved / bilinear form benchmarks    |
-| `NUMWARS_MESH_POINTS`          |  `1000` | Point count for mesh / RMSD / Kabsch benchmarks           |
-| `NUMWARS_DIMS_HEIGHT`          |  `1024` | GEMM M dimension, dataset size in kNN                     |
-| `NUMWARS_DIMS_WIDTH`           |   `128` | GEMM N dimension, query count in kNN                      |
-| `NUMWARS_DIMS_DEPTH`           |  `1536` | GEMM K dimension, vector dimension in kNN                 |
-| `NUMKONG_SPARSE_FIRST_LENGTH`  |  `1024` | First set size for sparse benchmarks                      |
-| `NUMKONG_SPARSE_SECOND_LENGTH` |  `8192` | Second set size for sparse benchmarks                     |
-| `NUMKONG_SPARSE_INTERSECTION`  |   `0.5` | Intersection share [0.0, 1.0] for sparse benchmarks       |
-| `NUMKONG_MAX_COORD_ANGLE`      |   `180` | Maximum angle in degrees for geospatial benchmarks        |
+| Variable                       | Default | Description                                                                         |
+| :----------------------------- | ------: | :---------------------------------------------------------------------------------- |
+| `NUMWARS_FILTER`               |   unset | ECMAScript regex searched in benchmark names; an invalid one matches as a substring |
+| `NUMWARS_SEED`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one                           |
+| `NUMWARS_WARMUP`               |    `1s` | Untimed run per benchmark, `<int>ms` or `<int>s`                                    |
+| `NUMWARS_TIME_LIMIT`           |   `10s` | Timed run per benchmark, `<int>ms` or `<int>s`                                      |
+| `NUMWARS_BATCH_PER_CORE`       |  `2048` | Elements, pairs or points per call for each, cast, reduce, trigonometry, geospatial |
+| `NUMWARS_DIMS`                 |  `1536` | Vector dimension for dot/spatial benchmarks                                         |
+| `NUMWARS_DIMS_HEIGHT`          |  `1024` | GEMM M dimension, dataset size in kNN                                               |
+| `NUMWARS_DIMS_WIDTH`           |   `128` | GEMM N dimension, query count in kNN                                                |
+| `NUMWARS_DIMS_DEPTH`           |  `1536` | GEMM K dimension, vector dimension in kNN                                           |
+| `NUMKONG_CURVED_DIMS`          |    `64` | Vector dimension for curved / bilinear form benchmarks                              |
+| `NUMKONG_MESH_POINTS`          |  `1000` | Point count for mesh / RMSD / Kabsch benchmarks                                     |
+| `NUMKONG_SPARSE_FIRST_LENGTH`  |  `1024` | First set size for sparse benchmarks                                                |
+| `NUMKONG_SPARSE_SECOND_LENGTH` |  `8192` | Second set size for sparse benchmarks                                               |
+| `NUMKONG_SPARSE_INTERSECTION`  |   `0.5` | Intersection share in (0, 1] for sparse benchmarks                                  |
+| `NUMKONG_MAX_COORD_ANGLE`      |   `180` | Maximum angle in degrees for geospatial benchmarks                                  |
 
 The seed in use opens the output as `- Seed: <n>`, so a `random` draw replays.
 
@@ -87,11 +90,14 @@ export BLIS_NUM_THREADS=1        # for BLIS
 
 ### Reported Units
 
-| Benchmark Type                          | Counter        | Meaning                                                         |
-| :-------------------------------------- | :------------- | :-------------------------------------------------------------- |
-| Vector kernels — dot, spatial, set, ... | `bytes/s`      | Bytes of input consumed per second, both input vectors combined |
-| GEMM, symmetric, batch                  | `scalar-ops/s` | Scalar multiply-accumulate operations per second / FLOPS        |
-| Reductions, casts, trigonometry         | `bytes/s`      | Bytes of input consumed per second, single input vector         |
+| Benchmark Type                          | Counter      | Meaning                                                         |
+| :-------------------------------------- | :----------- | :-------------------------------------------------------------- |
+| Vector kernels — dot, spatial, set, ... | `bytes`      | Bytes of input consumed per second, both input vectors combined |
+| GEMM, symmetric, batch                  | `scalar-ops` | Scalar multiply-accumulate operations per second / FLOPS        |
+| Reductions, casts, trigonometry         | `bytes`      | Bytes of input consumed per second, single input vector         |
+
+Byte rates print in binary units, like `GB/s`, and every other rate in decimal ones, like `G/s`.
+Rates keep four significant digits, so a slow row reads `47.6/s` rather than rounding to zero.
 
 __bytes__: total bytes across all input vectors read per call.
 For a pair of 1536-dimensional `f32` vectors: `2 * 1536 * 4 = 12288` bytes per call.
@@ -122,7 +128,7 @@ NUMWARS_DIMS=768 NUMWARS_FILTER="dot" npm run bench:native    # custom config
 | `NUMKONG_ITERATIONS` |   `1000` | Number of benchmark iterations                             |
 | `NUMWARS_FILTER`     |     `.*` | Regex to filter benchmarks                                 |
 | `NUMKONG_RUNTIME`    | `native` | Runtime: `native`, `emscripten`, `wasi`                    |
-| `NUMKONG_SEED`       |     `42` | Random seed for reproducible data, or `random` to draw one |
+| `NUMWARS_SEED`       |     `42` | Random seed for reproducible data, or `random` to draw one |
 
 ### Output
 
@@ -207,10 +213,10 @@ This means AMX/SME benchmarks that interleave with non-AMX/SME work will show mi
 
 Mitigations:
 
-- Use `--benchmark_min_time=10s` or higher to amortize warm-up over a longer measurement window.
+- Use `NUMWARS_WARMUP=5s` or `NUMWARS_TIME_LIMIT=30s` to settle the frequency before and across the measurement window.
 - Disable turbo boost with `echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo` on Linux.
 - Run AMX/SME benchmarks in isolation — do not mix them with non-AMX/SME benchmarks in the same invocation.
-- Filter with `--benchmark_filter=amx` or `--benchmark_filter=sme` for dedicated runs.
+- Filter with `NUMWARS_FILTER=amx` or `NUMWARS_FILTER=sme` for dedicated runs.
 
 ## Pinning to Performance Cores
 

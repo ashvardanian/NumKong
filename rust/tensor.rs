@@ -74,18 +74,19 @@ extern crate alloc;
 
 pub use core::alloc::{AllocError, Allocator};
 
-use core::marker::PhantomData;
-use core::ptr::NonNull;
+use core::{marker::PhantomData, ptr::NonNull};
 
-use crate::capabilities::Status;
-use crate::cast::{cast, CastDType};
-use crate::dot::Dot;
-use crate::each::{EachBlend, EachFma, EachScale, EachSum};
-use crate::reduce::{ReduceMinMax, ReduceMoments, SumSqToF64};
-use crate::scalar::Roots;
-use crate::trigonometry::{TrigAtan, TrigCos, TrigSin};
-use crate::types::{DimMut, DimRef, FloatConvertible, StorageElement};
-use crate::vector::{Vector, VectorIndex};
+use crate::{
+    capabilities::Status,
+    cast::{cast, CastDType},
+    dot::Dot,
+    each::{EachBlend, EachFma, EachScale, EachSum},
+    reduce::{ReduceMinMax, ReduceMoments, SumSqToF64},
+    scalar::Roots,
+    trigonometry::{TrigAtan, TrigCos, TrigSin},
+    types::{DimMut, DimRef, FloatConvertible, StorageElement},
+    vector::{Vector, VectorIndex},
+};
 
 // region: Constants and Allocator
 
@@ -6719,11 +6720,13 @@ impl<'a, F: BlockScaledFormat, A: Allocator> ScaledTensorSpan<'a, F, A> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cast::{CastOps, DenseToScaledOps};
-    use crate::each::{AllCloseOps, ScaleOps, SumOps};
-    use crate::reduce::MomentsOps;
-    use crate::trigonometry::TrigSinOps;
-    use crate::types::{bf16c, f16, f16c, f32c};
+    use crate::{
+        cast::{CastOps, DenseToScaledOps},
+        each::{AllCloseOps, ScaleOps, SumOps},
+        reduce::MomentsOps,
+        trigonometry::TrigSinOps,
+        types::{bf16c, f16, f16c, f32c},
+    };
 
     /// Property test: a materialized random slice of a random iota tensor holds exactly the source
     /// elements its strides address, exercising stride, offset, and slice math on random shapes.
@@ -6868,8 +6871,10 @@ mod tests {
 
     #[test]
     fn allocators_are_honored_by_reference_and_across_growth() {
-        use core::alloc::AllocError;
-        use core::sync::atomic::{AtomicUsize, Ordering};
+        use core::{
+            alloc::AllocError,
+            sync::atomic::{AtomicUsize, Ordering},
+        };
 
         // Deliberately not `Clone`, so it can only reach a container by reference — the case the
         // in-house trait could not express, because a blanket bridge forecloses `impl for &A`.
@@ -6909,8 +6914,10 @@ mod tests {
 
     #[test]
     fn operations_on_views_allocate_through_the_owners_allocator() {
-        use core::alloc::AllocError;
-        use core::sync::atomic::{AtomicUsize, Ordering};
+        use core::{
+            alloc::AllocError,
+            sync::atomic::{AtomicUsize, Ordering},
+        };
 
         struct Counting {
             allocations: AtomicUsize,
@@ -7528,6 +7535,7 @@ mod tests {
     #[test]
     fn tensor_view_iter_logical_scalars() {
         use crate::types::i4x2;
+
         // Shape [6] logical → 3 i4x2 storage values
         let mut t = Tensor::<i4x2>::zeros(&[6]).unwrap();
         // Set nibbles: storage[0] has dims 0,1; storage[1] has dims 2,3; etc.
@@ -7554,6 +7562,7 @@ mod tests {
     #[test]
     fn tensor_span_iter_mut_i4x2() {
         use crate::types::i4x2;
+
         let mut t = Tensor::<i4x2>::zeros(&[6]).unwrap();
         for (pos, mut value) in &mut t {
             *value = pos[0] as i8;

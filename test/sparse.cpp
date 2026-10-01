@@ -8,19 +8,20 @@
 #include "harness.hpp"
 #include "numkong/sparse.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** Test set intersection, a unified template for u16/u32 index types. */
 template <typename index_type_>
-error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t kernel) {
+error_stats_t test_intersect(settings_t const &settings, typename index_type_::sparse_intersect_kernel_t kernel) {
     using index_t = index_type_;
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
-    std::size_t dim = global_config.sparse_dimensions;
+    std::mt19937 generator(settings.seed.value);
+    std::size_t dim = settings.sparse_dimensions;
     auto a = make_vector<index_t>(dim), b = make_vector<index_t>(dim);
     auto matched = make_vector<index_t>(dim), expected = make_vector<index_t>(dim);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         // Every 8th case crosses the 64:1 ratio where the serial kernel switches to galloping
         // search, and `a`'s wider range makes it overshoot `b`'s last element.
         std::size_t b_length = 1 + generator() % dim;
@@ -53,22 +54,23 @@ error_stats_t test_intersect(typename index_type_::sparse_intersect_kernel_t ker
  *  - f32_t weights → u32_t indices
  */
 template <typename weight_type_>
-error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel) {
+error_stats_t test_sparse_dot(settings_t const &settings, typename weight_type_::sparse_dot_kernel_t kernel) {
     using weight_t = weight_type_;
     using index_t = typename weight_t::sparse_dot_index_t;
     using reference_t = tracked<reference_for<weight_t>>;
 
     error_stats_t stats(nk_sparse_dot_error_bound(weight_t::dtype()));
-    std::mt19937 generator(global_config.seed);
-    std::size_t dim = global_config.sparse_dimensions;
+    std::mt19937 generator(settings.seed.value);
+    std::size_t dim = settings.sparse_dimensions;
     auto a_idx = make_vector<index_t>(dim), b_idx = make_vector<index_t>(dim);
     auto a_weights = make_vector<weight_t>(dim), b_weights = make_vector<weight_t>(dim);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         nk::fill_sorted_unique(generator, a_idx.values_data(), a_idx.size_values(), index_t(dim * 4));
         nk::fill_sorted_unique(generator, b_idx.values_data(), b_idx.size_values(), index_t(dim * 4));
-        fill_random(generator, a_weights);
-        fill_random(generator, b_weights);
+        fill_random(settings, generator, a_weights);
+        fill_random(settings, generator, b_weights);
 
         typename weight_t::dot_result_t result;
         stats.expect(kernel(a_idx.raw_values_data(), b_idx.raw_values_data(), a_weights.raw_values_data(),
@@ -83,8 +85,7 @@ error_stats_t test_sparse_dot(typename weight_type_::sparse_dot_kernel_t kernel)
     return stats;
 }
 
-void test_sparse() {
-    error_stats_section_t check;
+void test_sparse(error_stats_section_t &check) {
 
     check.section("Sparse Operations Serial", nk_cap_serial_k);
     check("sparse_intersect_u16_serial", test_intersect<u16_t>, nk_sparse_intersect_u16_serial);
@@ -140,3 +141,5 @@ void test_sparse() {
     check("sparse_dot_u16bf16_turin", test_sparse_dot<bf16_t>, nk_sparse_dot_u16bf16_turin);
 #endif // NUMKONG_TARGET_TURIN
 }
+
+} // namespace ashvardanian::numkong::test

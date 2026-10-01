@@ -11,6 +11,8 @@ Author: Ash Vardanian
 Date: December 22, 2025
 """
 
+from __future__ import annotations
+
 import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -29,18 +31,15 @@ except Exception:
     numpy_available = False
 
 from base import (
+    SETTINGS,
     assert_allclose,
     collect_errors,
     create_stats,
-    dense_dimensions,
     keep_one_capability,
-    max_coord_angle,
     numpy_available,
     possible_capabilities,
     print_stats_report,
-    profile,
-    randomized_repetitions_count,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    timed_call,
 )
 
 import numkong as nk
@@ -49,7 +48,7 @@ import numkong as nk
 stats = create_stats()
 atexit.register(print_stats_report, stats)
 
-_max_angle_rad = np.radians(max_coord_angle) if numpy_available else None
+_max_angle_rad = np.radians(SETTINGS.max_coord_angle_degrees) if numpy_available else None
 
 earth_radius_meters = 6335439.0
 
@@ -145,32 +144,32 @@ KERNELS_GEOSPATIAL: dict[str, tuple[Callable, Callable, None]] = {
 }
 
 
-def _check_geospatial_accuracy(metric, ndim, dtype, coord_scale, atol, rtol):
+def _check_geospatial_accuracy(generator: np.random.Generator, metric, ndim, dtype, coord_scale, atol, rtol):
     """Shared accuracy check for geospatial kernels."""
     baseline_kernel, simd_kernel, _ = KERNELS_GEOSPATIAL[metric]
 
     lat_scale = min(_max_angle_rad, np.pi) / 2
     lon_scale = min(_max_angle_rad, np.pi)
-    first_latitudes = ((np.random.rand(ndim) - 0.5) * 2 * lat_scale * coord_scale).astype(dtype)
-    first_longitudes = ((np.random.rand(ndim) - 0.5) * 2 * lon_scale * coord_scale).astype(dtype)
-    second_latitudes = ((np.random.rand(ndim) - 0.5) * 2 * lat_scale * coord_scale).astype(dtype)
-    second_longitudes = ((np.random.rand(ndim) - 0.5) * 2 * lon_scale * coord_scale).astype(dtype)
+    first_latitudes = ((generator.random(ndim) - 0.5) * 2 * lat_scale * coord_scale).astype(dtype)
+    first_longitudes = ((generator.random(ndim) - 0.5) * 2 * lon_scale * coord_scale).astype(dtype)
+    second_latitudes = ((generator.random(ndim) - 0.5) * 2 * lat_scale * coord_scale).astype(dtype)
+    second_longitudes = ((generator.random(ndim) - 0.5) * 2 * lon_scale * coord_scale).astype(dtype)
 
     def _baseline_loop(lat1, lon1, lat2, lon2):
         return np.array([baseline_kernel(lat1[i], lon1[i], lat2[i], lon2[i]) for i in range(len(lat1))])
 
-    accurate_dt, accurate = profile(
+    accurate_ns, accurate = timed_call(
         _baseline_loop,
         first_latitudes.astype(np.float64),
         first_longitudes.astype(np.float64),
         second_latitudes.astype(np.float64),
         second_longitudes.astype(np.float64),
     )
-    expected_dt, expected = profile(
+    expected_ns, expected = timed_call(
         _baseline_loop, first_latitudes, first_longitudes, second_latitudes, second_longitudes
     )
 
-    result_dt, result = profile(simd_kernel, first_latitudes, first_longitudes, second_latitudes, second_longitudes)
+    result_ns, result = timed_call(simd_kernel, first_latitudes, first_longitudes, second_latitudes, second_longitudes)
     result = np.asarray(result)
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
@@ -181,30 +180,30 @@ def _check_geospatial_accuracy(metric, ndim, dtype, coord_scale, atol, rtol):
     assert ret is None
     assert_allclose(np.asarray(out_nk), result, atol=1e-10, rtol=1e-10)
 
-    collect_errors(metric, ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(metric, ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_haversine_random_accuracy(ndim: int, dtype: str, capability: str):
+def test_haversine_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Haversine great-circle distance against baseline for random coordinates."""
     keep_one_capability(capability)
-    _check_geospatial_accuracy("haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2)
+    _check_geospatial_accuracy(np_rng, "haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_vincenty_random_accuracy(ndim: int, dtype: str, capability: str):
+def test_vincenty_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Vincenty ellipsoidal geodesic distance against baseline for random coordinates."""
     keep_one_capability(capability)
     rtol = 1.0 if dtype == "float32" else 1e-2
-    _check_geospatial_accuracy("vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol)
+    _check_geospatial_accuracy(np_rng, "vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")

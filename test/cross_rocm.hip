@@ -8,10 +8,9 @@
  */
 #include "cross_simt.cuh" // `rocm_backend_t`, `test_cross_dispatch`
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
-void test_cross_rocm() {
-    error_stats_section_t check(device_capabilities<rocm_runtime_t>());
+void test_cross_rocm(error_stats_section_t &check) {
     check.section("Cross ROCm", nk_cap_rocm_k);
     check("dots_packed_f64_rocm", test_dots_packed<f64_t, rocm_backend_t>, nk_dots_pack_size_f64_rocm,
           nk_dots_pack_f64_rocm, nk_dots_packed_f64_rocm);
@@ -609,5 +608,7 @@ void test_cross_rocm() {
           nk_attention_pack_size_i8_cdna5, nk_attention_pack_i8_cdna5, nk_attention_causal_packed_i8_cdna5);
 #endif // NUMKONG_TARGET_CDNA5
 
-    test_cross_dispatch<rocm_backend_t>();
+    test_cross_dispatch<rocm_backend_t>(check);
 }
+
+} // namespace ashvardanian::numkong::test

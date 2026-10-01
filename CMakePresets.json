@@ -187,13 +187,13 @@
       "hidden": true,
       "output": { "outputOnFailure": true },
       "execution": { "noTestsAction": "error" },
-      "environment": { "NUMKONG_BUDGET_SECS": "0.2" }
+      "environment": { "NUMKONG_TIME_LIMIT": "200ms" }
     },
     {
       "name": "emulated",
       "hidden": true,
       "inherits": "base",
-      "environment": { "NUMKONG_IN_QEMU": "1", "NUMKONG_BUDGET_SECS": "0.1" }
+      "environment": { "NUMKONG_IN_QEMU": "1", "NUMKONG_TIME_LIMIT": "100ms" }
     },
     {
       "name": "debug",
@@ -201,11 +201,11 @@
       "configurePreset": "debug",
       "description": "Unoptimized kernels under ASan take hours at the default shapes, and small ones reach every assert.",
       "environment": {
-        "NUMKONG_BUDGET_SECS": "0.05",
-        "NUMKONG_DENSE_DIMENSIONS": "256",
-        "NUMKONG_MATRIX_HEIGHT": "64",
-        "NUMKONG_MATRIX_WIDTH": "32",
-        "NUMKONG_MATRIX_DEPTH": "128"
+        "NUMKONG_TIME_LIMIT": "50ms",
+        "NUMKONG_DIMS": "256",
+        "NUMKONG_DIMS_HEIGHT": "64",
+        "NUMKONG_DIMS_WIDTH": "32",
+        "NUMKONG_DIMS_DEPTH": "128"
       }
     },
     { "name": "release", "inherits": "base", "configurePreset": "release" },

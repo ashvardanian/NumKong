@@ -9,16 +9,16 @@
 
 #include "harness.hpp"
 
-using namespace ashvardanian::numkong::bench;
+namespace ashvardanian::numkong::bench {
 
 /**
- *  @brief Measures a @b mesh kernel, RMSD, Kabsch or Umeyama, using Google Benchmark.
- *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @brief Measures a @b mesh kernel, RMSD, Kabsch or Umeyama.
+ *  @param[inout] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] points_count The number of 3D points in each point cloud.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_mesh(bm::State &state, kernel_type_ kernel, std::size_t points_count) {
+void measure_mesh(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t points_count) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using transform_t = typename input_t::mesh_transform_t;
@@ -28,9 +28,9 @@ void measure_mesh(bm::State &state, kernel_type_ kernel, std::size_t points_coun
     using input_vector_t = nk::vector<input_t>;
 
     // Preallocate point clouds: each contains points_count 3D points stored as [x0,y0,z0,x1,y1,z1,...]
-    constexpr std::size_t clouds_count = 1024;
+    std::size_t const clouds_count = input_sets_count(dtype_bytes(input_dtype_, 6 * points_count));
     std::vector<input_vector_t> first_clouds(clouds_count), second_clouds(clouds_count);
-    auto generator = make_random_engine();
+    std::mt19937 generator(env.settings.seed.value);
     for (std::size_t index = 0; index != clouds_count; ++index) {
         first_clouds[index] = make_vector<input_t>(points_count * 3);
         second_clouds[index] = make_vector<input_t>(points_count * 3);
@@ -39,126 +39,141 @@ void measure_mesh(bm::State &state, kernel_type_ kernel, std::size_t points_coun
     }
 
     // Benchmark loop
-    std::size_t iterations = 0;
-    for (auto _ : state) {
+    for (std::size_t call : loop) {
         metric_t result;
         transform_t scale;
         raw_transform_t first_centroid[3], second_centroid[3], rotation[9];
-        std::size_t const index = iterations & (clouds_count - 1);
-        if (!succeeded(state, kernel(first_clouds[index].raw_values_data(), second_clouds[index].raw_values_data(),
-                                     points_count, first_centroid, second_centroid, rotation, &scale.raw_, &result.raw_,
-                                     nullptr)))
+        std::size_t const index = call & (clouds_count - 1);
+        if (!succeeded(loop, kernel(first_clouds[index].raw_values_data(), second_clouds[index].raw_values_data(),
+                                    points_count, first_centroid, second_centroid, rotation, &scale.raw_, &result.raw_,
+                                    nullptr)))
             break;
-        bm::DoNotOptimize(result);
-        iterations++;
+        do_not_optimize(result);
     }
 
-    state.counters["points"] = bm::Counter(1.0 * iterations * points_count, bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+    loop.rate("points", points_count);
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_mesh(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.mesh_points) + "pts>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_mesh<input_dtype_, kernel_type_ *>, kernel,
-                          bench_config.mesh_points);
+void run_mesh(environment_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.settings.mesh_points) + "pts>";
+    run_benchmark(env, bench_name, measure_mesh<input_dtype_, kernel_type_ *>, kernel, env.settings.mesh_points);
 }
 
-void bench_mesh() {
+void bench_mesh(environment_t const &env) {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;
     constexpr nk_dtype_t bf16_k = nk_bf16_k;
 
 #if NUMKONG_TARGET_NEON
-    run_mesh<f32_k>("rmsd_f32_neon", nk_rmsd_f32_neon);
-    run_mesh<f32_k>("kabsch_f32_neon", nk_kabsch_f32_neon);
-    run_mesh<f32_k>("umeyama_f32_neon", nk_umeyama_f32_neon);
-    run_mesh<f64_k>("rmsd_f64_neon", nk_rmsd_f64_neon);
-    run_mesh<f64_k>("kabsch_f64_neon", nk_kabsch_f64_neon);
-    run_mesh<f64_k>("umeyama_f64_neon", nk_umeyama_f64_neon);
-    run_mesh<f16_k>("rmsd_f16_neon", nk_rmsd_f16_neon);
-    run_mesh<f16_k>("kabsch_f16_neon", nk_kabsch_f16_neon);
-    run_mesh<f16_k>("umeyama_f16_neon", nk_umeyama_f16_neon);
+    if (section(env, "Mesh Operations NEON", nk_cap_neon_k)) {
+        run_mesh<f32_k>(env, "rmsd_f32_neon", nk_rmsd_f32_neon);
+        run_mesh<f32_k>(env, "kabsch_f32_neon", nk_kabsch_f32_neon);
+        run_mesh<f32_k>(env, "umeyama_f32_neon", nk_umeyama_f32_neon);
+        run_mesh<f64_k>(env, "rmsd_f64_neon", nk_rmsd_f64_neon);
+        run_mesh<f64_k>(env, "kabsch_f64_neon", nk_kabsch_f64_neon);
+        run_mesh<f64_k>(env, "umeyama_f64_neon", nk_umeyama_f64_neon);
+        run_mesh<f16_k>(env, "rmsd_f16_neon", nk_rmsd_f16_neon);
+        run_mesh<f16_k>(env, "kabsch_f16_neon", nk_kabsch_f16_neon);
+        run_mesh<f16_k>(env, "umeyama_f16_neon", nk_umeyama_f16_neon);
+    }
 #endif
 
 #if NUMKONG_TARGET_NEONBFDOT
-    run_mesh<bf16_k>("rmsd_bf16_neonbfdot", nk_rmsd_bf16_neonbfdot);
-    run_mesh<bf16_k>("kabsch_bf16_neonbfdot", nk_kabsch_bf16_neonbfdot);
-    run_mesh<bf16_k>("umeyama_bf16_neonbfdot", nk_umeyama_bf16_neonbfdot);
+    if (section(env, "Mesh Operations NEON BF16", nk_cap_neonbfdot_k)) {
+        run_mesh<bf16_k>(env, "rmsd_bf16_neonbfdot", nk_rmsd_bf16_neonbfdot);
+        run_mesh<bf16_k>(env, "kabsch_bf16_neonbfdot", nk_kabsch_bf16_neonbfdot);
+        run_mesh<bf16_k>(env, "umeyama_bf16_neonbfdot", nk_umeyama_bf16_neonbfdot);
+    }
 #endif
 
 #if NUMKONG_TARGET_NEONFHM
-    run_mesh<f16_k>("rmsd_f16_neonfhm", nk_rmsd_f16_neonfhm);
-    run_mesh<f16_k>("kabsch_f16_neonfhm", nk_kabsch_f16_neonfhm);
-    run_mesh<f16_k>("umeyama_f16_neonfhm", nk_umeyama_f16_neonfhm);
+    if (section(env, "Mesh Operations NEON FHM", nk_cap_neonfhm_k)) {
+        run_mesh<f16_k>(env, "rmsd_f16_neonfhm", nk_rmsd_f16_neonfhm);
+        run_mesh<f16_k>(env, "kabsch_f16_neonfhm", nk_kabsch_f16_neonfhm);
+        run_mesh<f16_k>(env, "umeyama_f16_neonfhm", nk_umeyama_f16_neonfhm);
+    }
 #endif
 
 #if NUMKONG_TARGET_HASWELL
-    run_mesh<f32_k>("rmsd_f32_haswell", nk_rmsd_f32_haswell);
-    run_mesh<f32_k>("kabsch_f32_haswell", nk_kabsch_f32_haswell);
-    run_mesh<f32_k>("umeyama_f32_haswell", nk_umeyama_f32_haswell);
-    run_mesh<f64_k>("rmsd_f64_haswell", nk_rmsd_f64_haswell);
-    run_mesh<f64_k>("kabsch_f64_haswell", nk_kabsch_f64_haswell);
-    run_mesh<f64_k>("umeyama_f64_haswell", nk_umeyama_f64_haswell);
-    run_mesh<f16_k>("rmsd_f16_haswell", nk_rmsd_f16_haswell);
-    run_mesh<f16_k>("kabsch_f16_haswell", nk_kabsch_f16_haswell);
-    run_mesh<f16_k>("umeyama_f16_haswell", nk_umeyama_f16_haswell);
-    run_mesh<bf16_k>("rmsd_bf16_haswell", nk_rmsd_bf16_haswell);
-    run_mesh<bf16_k>("kabsch_bf16_haswell", nk_kabsch_bf16_haswell);
-    run_mesh<bf16_k>("umeyama_bf16_haswell", nk_umeyama_bf16_haswell);
+    if (section(env, "Mesh Operations Haswell", nk_cap_haswell_k)) {
+        run_mesh<f32_k>(env, "rmsd_f32_haswell", nk_rmsd_f32_haswell);
+        run_mesh<f32_k>(env, "kabsch_f32_haswell", nk_kabsch_f32_haswell);
+        run_mesh<f32_k>(env, "umeyama_f32_haswell", nk_umeyama_f32_haswell);
+        run_mesh<f64_k>(env, "rmsd_f64_haswell", nk_rmsd_f64_haswell);
+        run_mesh<f64_k>(env, "kabsch_f64_haswell", nk_kabsch_f64_haswell);
+        run_mesh<f64_k>(env, "umeyama_f64_haswell", nk_umeyama_f64_haswell);
+        run_mesh<f16_k>(env, "rmsd_f16_haswell", nk_rmsd_f16_haswell);
+        run_mesh<f16_k>(env, "kabsch_f16_haswell", nk_kabsch_f16_haswell);
+        run_mesh<f16_k>(env, "umeyama_f16_haswell", nk_umeyama_f16_haswell);
+        run_mesh<bf16_k>(env, "rmsd_bf16_haswell", nk_rmsd_bf16_haswell);
+        run_mesh<bf16_k>(env, "kabsch_bf16_haswell", nk_kabsch_bf16_haswell);
+        run_mesh<bf16_k>(env, "umeyama_bf16_haswell", nk_umeyama_bf16_haswell);
+    }
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
-    run_mesh<f32_k>("rmsd_f32_skylake", nk_rmsd_f32_skylake);
-    run_mesh<f32_k>("kabsch_f32_skylake", nk_kabsch_f32_skylake);
-    run_mesh<f32_k>("umeyama_f32_skylake", nk_umeyama_f32_skylake);
-    run_mesh<f64_k>("rmsd_f64_skylake", nk_rmsd_f64_skylake);
-    run_mesh<f64_k>("kabsch_f64_skylake", nk_kabsch_f64_skylake);
-    run_mesh<f64_k>("umeyama_f64_skylake", nk_umeyama_f64_skylake);
-    run_mesh<f16_k>("rmsd_f16_skylake", nk_rmsd_f16_skylake);
-    run_mesh<bf16_k>("rmsd_bf16_skylake", nk_rmsd_bf16_skylake);
-    run_mesh<f16_k>("kabsch_f16_skylake", nk_kabsch_f16_skylake);
-    run_mesh<bf16_k>("kabsch_bf16_skylake", nk_kabsch_bf16_skylake);
-    run_mesh<f16_k>("umeyama_f16_skylake", nk_umeyama_f16_skylake);
-    run_mesh<bf16_k>("umeyama_bf16_skylake", nk_umeyama_bf16_skylake);
+    if (section(env, "Mesh Operations Skylake", nk_cap_skylake_k)) {
+        run_mesh<f32_k>(env, "rmsd_f32_skylake", nk_rmsd_f32_skylake);
+        run_mesh<f32_k>(env, "kabsch_f32_skylake", nk_kabsch_f32_skylake);
+        run_mesh<f32_k>(env, "umeyama_f32_skylake", nk_umeyama_f32_skylake);
+        run_mesh<f64_k>(env, "rmsd_f64_skylake", nk_rmsd_f64_skylake);
+        run_mesh<f64_k>(env, "kabsch_f64_skylake", nk_kabsch_f64_skylake);
+        run_mesh<f64_k>(env, "umeyama_f64_skylake", nk_umeyama_f64_skylake);
+        run_mesh<f16_k>(env, "rmsd_f16_skylake", nk_rmsd_f16_skylake);
+        run_mesh<bf16_k>(env, "rmsd_bf16_skylake", nk_rmsd_bf16_skylake);
+        run_mesh<f16_k>(env, "kabsch_f16_skylake", nk_kabsch_f16_skylake);
+        run_mesh<bf16_k>(env, "kabsch_bf16_skylake", nk_kabsch_bf16_skylake);
+        run_mesh<f16_k>(env, "umeyama_f16_skylake", nk_umeyama_f16_skylake);
+        run_mesh<bf16_k>(env, "umeyama_bf16_skylake", nk_umeyama_bf16_skylake);
+    }
 #endif
 
 #if NUMKONG_TARGET_GENOA
-    run_mesh<bf16_k>("rmsd_bf16_genoa", nk_rmsd_bf16_genoa);
-    run_mesh<bf16_k>("kabsch_bf16_genoa", nk_kabsch_bf16_genoa);
-    run_mesh<bf16_k>("umeyama_bf16_genoa", nk_umeyama_bf16_genoa);
+    if (section(env, "Mesh Operations Genoa", nk_cap_genoa_k)) {
+        run_mesh<bf16_k>(env, "rmsd_bf16_genoa", nk_rmsd_bf16_genoa);
+        run_mesh<bf16_k>(env, "kabsch_bf16_genoa", nk_kabsch_bf16_genoa);
+        run_mesh<bf16_k>(env, "umeyama_bf16_genoa", nk_umeyama_bf16_genoa);
+    }
 #endif
 
 #if NUMKONG_TARGET_RVV
-    run_mesh<f32_k>("rmsd_f32_rvv", nk_rmsd_f32_rvv);
-    run_mesh<f32_k>("kabsch_f32_rvv", nk_kabsch_f32_rvv);
-    run_mesh<f32_k>("umeyama_f32_rvv", nk_umeyama_f32_rvv);
-    run_mesh<f64_k>("rmsd_f64_rvv", nk_rmsd_f64_rvv);
-    run_mesh<f64_k>("kabsch_f64_rvv", nk_kabsch_f64_rvv);
-    run_mesh<f64_k>("umeyama_f64_rvv", nk_umeyama_f64_rvv);
-    run_mesh<f16_k>("rmsd_f16_rvv", nk_rmsd_f16_rvv);
-    run_mesh<f16_k>("kabsch_f16_rvv", nk_kabsch_f16_rvv);
-    run_mesh<f16_k>("umeyama_f16_rvv", nk_umeyama_f16_rvv);
-    run_mesh<bf16_k>("rmsd_bf16_rvv", nk_rmsd_bf16_rvv);
-    run_mesh<bf16_k>("kabsch_bf16_rvv", nk_kabsch_bf16_rvv);
-    run_mesh<bf16_k>("umeyama_bf16_rvv", nk_umeyama_bf16_rvv);
+    if (section(env, "Mesh Operations RVV", nk_cap_rvv_k)) {
+        run_mesh<f32_k>(env, "rmsd_f32_rvv", nk_rmsd_f32_rvv);
+        run_mesh<f32_k>(env, "kabsch_f32_rvv", nk_kabsch_f32_rvv);
+        run_mesh<f32_k>(env, "umeyama_f32_rvv", nk_umeyama_f32_rvv);
+        run_mesh<f64_k>(env, "rmsd_f64_rvv", nk_rmsd_f64_rvv);
+        run_mesh<f64_k>(env, "kabsch_f64_rvv", nk_kabsch_f64_rvv);
+        run_mesh<f64_k>(env, "umeyama_f64_rvv", nk_umeyama_f64_rvv);
+        run_mesh<f16_k>(env, "rmsd_f16_rvv", nk_rmsd_f16_rvv);
+        run_mesh<f16_k>(env, "kabsch_f16_rvv", nk_kabsch_f16_rvv);
+        run_mesh<f16_k>(env, "umeyama_f16_rvv", nk_umeyama_f16_rvv);
+        run_mesh<bf16_k>(env, "rmsd_bf16_rvv", nk_rmsd_bf16_rvv);
+        run_mesh<bf16_k>(env, "kabsch_bf16_rvv", nk_kabsch_bf16_rvv);
+        run_mesh<bf16_k>(env, "umeyama_bf16_rvv", nk_umeyama_bf16_rvv);
+    }
 #endif
 
 #if NUMKONG_TARGET_V128RELAXED
-    run_mesh<f32_k>("rmsd_f32_v128relaxed", nk_rmsd_f32_v128relaxed);
-    run_mesh<f32_k>("kabsch_f32_v128relaxed", nk_kabsch_f32_v128relaxed);
-    run_mesh<f32_k>("umeyama_f32_v128relaxed", nk_umeyama_f32_v128relaxed);
-    run_mesh<f64_k>("rmsd_f64_v128relaxed", nk_rmsd_f64_v128relaxed);
-    run_mesh<f64_k>("kabsch_f64_v128relaxed", nk_kabsch_f64_v128relaxed);
-    run_mesh<f64_k>("umeyama_f64_v128relaxed", nk_umeyama_f64_v128relaxed);
+    if (section(env, "Mesh Operations V128 Relaxed", nk_cap_v128relaxed_k)) {
+        run_mesh<f32_k>(env, "rmsd_f32_v128relaxed", nk_rmsd_f32_v128relaxed);
+        run_mesh<f32_k>(env, "kabsch_f32_v128relaxed", nk_kabsch_f32_v128relaxed);
+        run_mesh<f32_k>(env, "umeyama_f32_v128relaxed", nk_umeyama_f32_v128relaxed);
+        run_mesh<f64_k>(env, "rmsd_f64_v128relaxed", nk_rmsd_f64_v128relaxed);
+        run_mesh<f64_k>(env, "kabsch_f64_v128relaxed", nk_kabsch_f64_v128relaxed);
+        run_mesh<f64_k>(env, "umeyama_f64_v128relaxed", nk_umeyama_f64_v128relaxed);
+    }
 #endif
 
     // Serial fallbacks
-    run_mesh<f32_k>("rmsd_f32_serial", nk_rmsd_f32_serial);
-    run_mesh<f32_k>("kabsch_f32_serial", nk_kabsch_f32_serial);
-    run_mesh<f32_k>("umeyama_f32_serial", nk_umeyama_f32_serial);
-    run_mesh<f64_k>("rmsd_f64_serial", nk_rmsd_f64_serial);
-    run_mesh<f64_k>("kabsch_f64_serial", nk_kabsch_f64_serial);
-    run_mesh<f64_k>("umeyama_f64_serial", nk_umeyama_f64_serial);
+    section(env, "Mesh Operations Serial", nk_cap_serial_k);
+    run_mesh<f32_k>(env, "rmsd_f32_serial", nk_rmsd_f32_serial);
+    run_mesh<f32_k>(env, "kabsch_f32_serial", nk_kabsch_f32_serial);
+    run_mesh<f32_k>(env, "umeyama_f32_serial", nk_umeyama_f32_serial);
+    run_mesh<f64_k>(env, "rmsd_f64_serial", nk_rmsd_f64_serial);
+    run_mesh<f64_k>(env, "kabsch_f64_serial", nk_kabsch_f64_serial);
+    run_mesh<f64_k>(env, "umeyama_f64_serial", nk_umeyama_f64_serial);
 }
+
+} // namespace ashvardanian::numkong::bench

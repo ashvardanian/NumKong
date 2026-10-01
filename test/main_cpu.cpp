@@ -28,7 +28,6 @@
 
 using namespace ashvardanian::numkong::test;
 
-test_config_t nk::test::global_config;
 char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
 /*  Explicit instantiations verify that `random.hpp` compiles for every code path: f64_t for the
@@ -101,7 +100,7 @@ static nk_capability_t runnable_capabilities() noexcept {
 
 /** @c nk_dot_f32_best over each runnable capability alone runs that capability's kernel, and a GPU
  *  mask finds no kernel at all. */
-static error_stats_t test_best_dot_f32() {
+static error_stats_t test_best_dot_f32(settings_t const &settings) {
     capability_kernel<f32_t::dot_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_dot_f32_serial},
 #if NUMKONG_TARGET_NEON
@@ -130,10 +129,10 @@ static error_stats_t test_best_dot_f32() {
 #endif
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
-    std::size_t const n = global_config.dense_dimensions;
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const n = settings.dense_dimensions;
     auto a = make_vector<f32_t>(n), b = make_vector<f32_t>(n);
-    fill_random(generator, a), fill_random(generator, b);
+    fill_random(settings, generator, a), fill_random(settings, generator, b);
     for (auto const &[capability, kernel] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         nk_f64_t expected = 0, dispatched = 0;
@@ -150,7 +149,7 @@ static error_stats_t test_best_dot_f32() {
 
 /** @c nk_dots_pack_bf16_best and @c nk_dots_packed_bf16_best over each runnable capability alone
  *  pack and multiply as its own kernels do, and a GPU mask finds none in a binary without one. */
-static error_stats_t test_best_dots_packed_bf16() {
+static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
     struct capability_kernels_t {
         nk_capability_t capability;
         bf16_t::dots_pack_size_kernel_t pack_size;
@@ -201,12 +200,12 @@ static error_stats_t test_best_dots_packed_bf16() {
 #endif
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
     std::size_t const height = 17, width = 33, depth = 70, row_bytes = depth * sizeof(bf16_t);
     std::size_t const c_stride = width * sizeof(nk_f32_t);
     auto a = make_vector<bf16_t>(height * depth), b = make_vector<bf16_t>(width * depth);
     auto expected = make_vector<f32_t>(height * width), dispatched = make_vector<f32_t>(height * width);
-    fill_random(generator, a), fill_random(generator, b);
+    fill_random(settings, generator, a), fill_random(settings, generator, b);
     for (auto const &[capability, pack_size, pack, packed] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         nk_size_t expected_bytes = 0, dispatched_bytes = 0;
@@ -237,7 +236,7 @@ static error_stats_t test_best_dots_packed_bf16() {
 }
 
 /** @c nk_reduce_moments_f32_best over each runnable capability alone runs its own kernel. */
-static error_stats_t test_best_reduce_moments_f32() {
+static error_stats_t test_best_reduce_moments_f32(settings_t const &settings) {
     capability_kernel<f32_t::reduce_moments_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_reduce_moments_f32_serial},
 #if NUMKONG_TARGET_NEON
@@ -257,10 +256,10 @@ static error_stats_t test_best_reduce_moments_f32() {
 #endif
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
-    std::size_t const n = global_config.dense_dimensions;
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const n = settings.dense_dimensions;
     auto data = make_vector<f32_t>(n);
-    fill_random(generator, data);
+    fill_random(settings, generator, data);
     for (auto const &[capability, kernel] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         nk_f64_t expected[2] = {0, 0}, dispatched[2] = {0, 0};
@@ -274,7 +273,7 @@ static error_stats_t test_best_reduce_moments_f32() {
 }
 
 /** @c nk_cast_best over each runnable capability alone runs that capability's kernel. */
-static error_stats_t test_best_cast() {
+static error_stats_t test_best_cast(settings_t const &settings) {
     using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t, void *);
     capability_kernel<cast_kernel_t> const capabilities[] = {
         {nk_cap_serial_k, nk_cast_serial},
@@ -304,11 +303,11 @@ static error_stats_t test_best_cast() {
 #endif
     };
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
-    std::size_t const n = global_config.dense_dimensions;
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const n = settings.dense_dimensions;
     auto source = make_vector<f32_t>(n);
     auto expected = make_vector<f16_t>(n), dispatched = make_vector<f16_t>(n);
-    fill_random(generator, source);
+    fill_random(settings, generator, source);
     for (auto const &[capability, kernel] : capabilities) {
         if (!(capability & runnable_capabilities())) continue;
         stats.expect(kernel(source.raw_values_data(), nk_f32_k, n, expected.raw_values_data(), nk_f16_k, nullptr));
@@ -324,7 +323,7 @@ static error_stats_t test_best_cast() {
 
 /** @c nk_f32_sqrt_best over each runnable capability alone runs that capability's function, or
  *  serial in a header-only build, and keeps serial for a mask of no CPU capability. */
-static error_stats_t test_best_f32_sqrt() {
+static error_stats_t test_best_f32_sqrt(settings_t const &) {
     capability_kernel<nk_f32_t (*)(nk_f32_t)> const capabilities[] = {
         {nk_cap_serial_k, nk_f32_sqrt_serial},
 #if NUMKONG_TARGET_NEON
@@ -364,7 +363,7 @@ static error_stats_t test_best_f32_sqrt() {
 
 /** For every kind and dtype, a mask of the runnable capabilities up to each one finds a kernel of
  *  that capability or a lower one, or reports none with null outputs. */
-static error_stats_t test_find_kernel() {
+static error_stats_t test_find_kernel(settings_t const &) {
     nk_kernel_kind_t const kinds[] = {
         nk_kernel_dot_k,
         nk_kernel_vdot_k,
@@ -451,7 +450,7 @@ static error_stats_t test_find_kernel() {
 #else
 
 /** The header-only finder is a stub, reporting the missing library with null outputs. */
-static error_stats_t test_find_kernel() {
+static error_stats_t test_find_kernel(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     nk_kernel_punned_t kernel = nullptr;
     nk_capability_t capability = nk_cap_any_k;
@@ -464,7 +463,7 @@ static error_stats_t test_find_kernel() {
 
 /** The CPU device answers as the C queries do, with one ordinal, and every kind refuses the ordinal
  *  past its last device. */
-static error_stats_t test_device_capabilities() {
+static error_stats_t test_device_capabilities(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     nk::device_t const cpu = nk::device_t::cpu();
     auto const detected = cpu.capabilities_detected();
@@ -491,18 +490,22 @@ static error_stats_t test_device_capabilities() {
     return stats;
 }
 
-static void test_dispatch_points() {
-    error_stats_section_t check;
+static void test_dispatch_points(error_stats_section_t &check) {
     check.section("Dispatch Points", nk_cap_serial_k);
 #if NUMKONG_HEADER_ONLY
-    check("best_dot_f32", [] { return test_missing_library<nk_dot_f32_best>(nullptr, nullptr, 0, nullptr, nullptr); });
-    check("best_dots_packed_bf16", [] {
-        return test_missing_library<nk_dots_packed_bf16_best>(nullptr, nullptr, nullptr, 0, 0, 0, 0, 0, nullptr);
+    check("best_dot_f32", [](settings_t const &settings) {
+        return test_missing_library<nk_dot_f32_best>(settings, nullptr, nullptr, 0, nullptr, nullptr);
     });
-    check("best_reduce_moments_f32",
-          [] { return test_missing_library<nk_reduce_moments_f32_best>(nullptr, 0, 0, nullptr, nullptr, nullptr); });
-    check("best_cast",
-          [] { return test_missing_library<nk_cast_best>(nullptr, nk_f32_k, 0, nullptr, nk_f16_k, nullptr); });
+    check("best_dots_packed_bf16", [](settings_t const &settings) {
+        return test_missing_library<nk_dots_packed_bf16_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
+                                                              nullptr);
+    });
+    check("best_reduce_moments_f32", [](settings_t const &settings) {
+        return test_missing_library<nk_reduce_moments_f32_best>(settings, nullptr, 0, 0, nullptr, nullptr, nullptr);
+    });
+    check("best_cast", [](settings_t const &settings) {
+        return test_missing_library<nk_cast_best>(settings, nullptr, nk_f32_k, 0, nullptr, nk_f16_k, nullptr);
+    });
 #else
     check("best_dot_f32", test_best_dot_f32);
     check("best_dots_packed_bf16", test_best_dots_packed_bf16);
@@ -516,7 +519,8 @@ static void test_dispatch_points() {
 
 #pragma endregion Dispatch Points
 
-int main(int argc, char **argv) {
+int main(int, char **argv) {
+    environment_t const env {read_settings(argv[0]), probe_machine()};
 
 #if NUMKONG_HAS_SIGNAL_
     std::signal(SIGILL, crash_handler);
@@ -528,135 +532,48 @@ int main(int argc, char **argv) {
     std::signal(SIGABRT, crash_handler);
 #endif // NUMKONG_HAS_SIGNAL_
 
-    // The environment first, so the command line overrides it
-    global_config.load_environment();
-    global_config.program = argv[0];
-    for (int i = 1; i < argc; ++i) {
-        if (std::strncmp(argv[i], "--filter=", 9) == 0) { global_config.set_filter(argv[i] + 9); }
-        else if (std::strcmp(argv[i], "--filter") == 0 && i + 1 < argc) { global_config.set_filter(argv[++i]); }
-        else if (std::strcmp(argv[i], "--assert") == 0) { global_config.assert_on_failure = true; }
-        else if (std::strcmp(argv[i], "--verbose") == 0) { global_config.verbose = true; }
-        else if (std::strncmp(argv[i], "--budget-secs=", 14) == 0) {
-            global_config.budget_seconds = std::atof(argv[i] + 14);
-        }
-        else if (std::strcmp(argv[i], "--budget-secs") == 0 && i + 1 < argc) {
-            global_config.budget_seconds = std::atof(argv[++i]);
-        }
-        // Foreign flags from GTest
-        else if (std::strncmp(argv[i], "--gtest_filter=", 15) == 0) {
-            global_config.set_filter(argv[i] + 15);
-            fmt::println(stderr, "Note: Mapped --gtest_filter to --filter. Prefer: --filter='{}'",
-                         global_config.filter);
-        }
-        else if (std::strncmp(argv[i], "--gtest_", 8) == 0) {
-            fmt::println(stderr, "Note: GTest flag '{}' is not supported in numkong_cpu_test. Ignoring.", argv[i]);
-        }
-        // Foreign flags from Google Benchmark
-        else if (std::strncmp(argv[i], "--benchmark_filter=", 19) == 0) {
-            global_config.set_filter(argv[i] + 19);
-            fmt::println(stderr, "Note: Mapped --benchmark_filter to --filter. Prefer: --filter='{}'",
-                         global_config.filter);
-        }
-        else if (std::strncmp(argv[i], "--benchmark_min_time=", 21) == 0) {
-            // `std::atof` stops at a trailing 's', so "10s" reads as 10 seconds
-            global_config.budget_seconds = std::atof(argv[i] + 21);
-            fmt::println(stderr, "Note: Mapped --benchmark_min_time to --budget-secs. Prefer: --budget-secs={}",
-                         global_config.budget_seconds);
-        }
-        else if (std::strncmp(argv[i], "--benchmark_", 12) == 0) {
-            fmt::println(stderr, "Note: Google Benchmark flag '{}' is not supported in numkong_cpu_test. Ignoring.",
-                         argv[i]);
-        }
-        else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
-            fmt::print(                                                                                  //
-                "Usage: numkong_cpu_test [--filter=<regex>] [--budget-secs=<seconds>] "                  //
-                "[--assert] [--verbose] [--help]\n"                                                      //
-                "\n"                                                                                     //
-                "Arguments:\n"                                                                           //
-                "  --filter=<regex>          Filter tests by name (regex or substring)\n"                //
-                "  --budget-secs=<seconds>   Time budget per kernel in seconds (default: 1)\n"           //
-                "  --assert                  Exit 1 when any kernel fails its accuracy check\n"          //
-                "  --verbose                 Verbose output\n"                                           //
-                "\n"                                                                                     //
-                "Environment Variables:\n"                                                               //
-                "  NUMKONG_FILTER=<regex>          Same as --filter\n"                                   //
-                "  NUMKONG_BUDGET_SECS=<seconds>   Same as --budget-secs\n"                              //
-                "  NUMKONG_SEED=<int|random>       Random seed (default: 42)\n"                          //
-                "  NUMKONG_IN_QEMU=1               Shrink dimensions for emulated runs\n"                //
-                "  NUMKONG_ASSERT=1                Same as --assert\n"                                   //
-                "  NUMKONG_VERBOSE=1               Same as --verbose\n"                                  //
-                "  NUMKONG_ULP_THRESHOLD_F32=N     ULP tolerance for f32\n"                              //
-                "  NUMKONG_SCALE_THRESHOLD=X       Max abs error over reference scale (attention)\n"     //
-                "  NUMKONG_ULP_THRESHOLD_F16=N     ULP tolerance for f16\n"                              //
-                "  NUMKONG_ULP_THRESHOLD_BF16=N    ULP tolerance for bf16\n"                             //
-                "  NUMKONG_RANDOM_DISTRIBUTION=X   uniform_k, cauchy_k, lognormal_k\n"                   //
-                "  NUMKONG_DENSE_DIMENSIONS=N      Override dense vector dimensions\n"                   //
-                "  NUMKONG_CURVED_DIMENSIONS=N     Override curved vector dimensions\n"                  //
-                "  NUMKONG_SPARSE_DIMENSIONS=N     Override sparse vector dimensions\n"                  //
-                "  NUMKONG_MAX_COORD_ANGLE=N       Max angular separation in degrees (default: 180)\n"); //
-            return 0;
-        }
-        else {
-            fmt::println(stderr, "Error: unrecognized argument '{}'. Try --help.", argv[i]);
-            return 1;
-        }
-    }
-
-    // Breadcrumbs for crash_handler: if SIGILL fires here, the log shows which call faulted.
-    nk_test_current_kernel_ = "nk_cpu_capabilities_detected()";
-    nk_capability_t runtime_caps = cpu_capabilities_detected();
+    // Breadcrumb for crash_handler: if SIGILL fires here, the log shows which call faulted.
     nk_test_current_kernel_ = "nk_cpu_configure_thread()";
-    [[maybe_unused]] nk_status_t const configured = nk_cpu_configure_thread(runtime_caps); // Also enables AMX
+    [[maybe_unused]] nk_status_t const configured = nk_cpu_configure_thread(env.machine.detected); // Also enables AMX
     nk_test_current_kernel_ = nullptr;
 
-    log_environment();
-    fmt::println("- Seed: {}", global_config.seed);
-    fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", global_config.seed, argv[0]);
-    fmt::println("  Dimensions: dense={}  curved={}  sparse={}  mesh={}  matrix={}x{}x{}",
-                 global_config.dense_dimensions, global_config.curved_dimensions, global_config.sparse_dimensions,
-                 global_config.mesh_points, global_config.matrix_height, global_config.matrix_width,
-                 global_config.matrix_depth);
-    fmt::println("  ULP: f32 \xe2\x89\xa4 {}  f16 \xe2\x89\xa4 {}  bf16 \xe2\x89\xa4 {}",
-                 global_config.ulp_threshold_f32, global_config.ulp_threshold_f16, global_config.ulp_threshold_bf16);
-    fmt::println("  Test: budget={}s  distribution={}  assert={}  qemu={}  native_f16={}  native_bf16={}  mkl={}\n",
-                 global_config.budget_seconds, global_config.distribution_name(),
-                 global_config.assert_on_failure ? "on" : "off", global_config.running_in_qemu ? "yes" : "no",
-                 NUMKONG_NATIVE_F16 ? "yes" : "no", NUMKONG_NATIVE_BF16 ? "yes" : "no",
-                 NUMKONG_COMPARE_TO_MKL ? "yes" : "no");
+    print(env.machine);
+    print(env.settings);
 
-    test_vector_types();
-    test_tensor_ops();
-    test_dispatch_points();
+    error_stats_section_t check(env.settings, env.machine.detected);
+    test_vector_types(check);
+    test_tensor_ops(check);
+    test_dispatch_points(check);
 
-    test_casts();
+    test_casts(check);
 
     // Core operation tests
-    test_dot();
-    test_spatial();
-    test_curved();
-    test_probability();
-    test_set();
-    test_each();
-    test_trigonometry();
-    test_reduce();
-    test_geospatial();
-    test_mesh();
-    test_sparse();
-    test_maxsim();
+    test_dot(check);
+    test_spatial(check);
+    test_curved(check);
+    test_probability(check);
+    test_set(check);
+    test_each(check);
+    test_trigonometry(check);
+    test_reduce(check);
+    test_geospatial(check);
+    test_mesh(check);
+    test_sparse(check);
+    test_maxsim(check);
 
     // Cross/batch tests (ISA-family files for parallel compilation); each prints its own section
-    test_cross_serial();
-    test_cross_x8664();
-    test_cross_arm64();
-    test_cross_blas();
-    test_cross_riscv64();
-    test_cross_ppc64();
-    test_cross_loongarch64();
-    test_cross_wasm();
+    test_cross_serial(check);
+    test_cross_x8664(check);
+    test_cross_arm64(check);
+    test_cross_blas(check);
+    test_cross_riscv64(check);
+    test_cross_ppc64(check);
+    test_cross_loongarch64(check);
+    test_cross_wasm(check);
 
-    if (global_config.failure_count > 0) {
-        fmt::println("\n{} kernel(s) failed accuracy checks.", global_config.failure_count);
-        return global_config.assert_on_failure;
+    if (check.failure_count > 0) {
+        fmt::println("\n{} kernel(s) failed accuracy checks.", check.failure_count);
+        return env.settings.on_failure == on_failure_t::exit_k ? 1 : 0;
     }
     fmt::println("\nAll tests passed.");
     return 0;

@@ -1,6 +1,7 @@
 # Batched Set Distances in NumKong
 
-NumKong implements batched M×N Hamming and Jaccard distance matrices for binary vectors. The module reuses the dots u1 packing and GEMM infrastructure, converting popcount-of-AND dot products to set distances via precomputed norms.
+NumKong implements batched M×N Hamming and Jaccard distance matrices for binary vectors.
+The module reuses the dots u1 packing and GEMM infrastructure, converting popcount-of-AND dot products to set distances via precomputed norms.
 
 Hamming distance from batched dot products:
 

@@ -10,7 +10,7 @@ include/numkong/*/        Kernels, one file per CPU or GPU capability — serial
 c/                        Library units — per-capability kernels, per-family dispatch points, binding thread pools
 probes/                   One compile probe per kit, `<kit>.c`, which CMake runs for every binding
 test/                     C++ precision tests — see test/README.md
-bench/                    C++ Google Benchmark suite and JS bench runner — see bench/README.md
+bench/                    C++ benchmark suite and JS bench runner — see bench/README.md
 python/                   CPython extension, no SWIG or PyBind11
 javascript/               Node.js native addon + Emscripten WASM + TypeScript API
 rust/                     Rust FFI bindings
@@ -81,7 +81,7 @@ A GPU build adds the runtime it compiled against, `cudart` or `amdhip64`, which 
 
 The test suites seed from 42, or from a fresh draw under `NUMKONG_SEED=random`, and print the seed they use.
 `NUMKONG_FILTER` is a regex over kernel names, and each failing kernel prints a `rerun:` line with its seed and a filter selecting it alone.
-Failures are always counted, and `NUMKONG_ASSERT=1` turns them into exit code 1.
+Failures are always counted and exit 1, unless `NUMKONG_ASSERT=0` turns them into a report only.
 The [test README](test/README.md#environment-variables) lists every variable.
 
 ### Target Baseline Policy
@@ -315,10 +315,9 @@ Still, you need a virtual environment.
 If you already have one:
 
 ```sh
-pip install -e .                                    # build locally from source
-pip install pytest pytest-repeat pytest-randomly    # testing dependencies
-pip install numpy scipy ml_dtypes tabulate          # optional reference libraries
-pytest test/ -s -x -Wd                              # to run tests
+pip install -e . --group test                       # build locally from source, with the test dependencies
+pip install --group test-oracles                    # optional reference libraries
+python -X faulthandler -m pytest -x                 # to run tests
 
 # to check supported SIMD instructions:
 python -c "import numkong; print(repr(numkong.Device.cpu().capabilities_enabled()))"
@@ -332,13 +331,12 @@ source .venv/bin/activate       # activate the environment
 uv pip install -e .             # build locally from source
 
 # to run GIL-related tests in a free-threaded environment:
-uv pip install pytest pytest-repeat pytest-randomly numpy scipy ml_dtypes tabulate
-PYTHON_GIL=0 python -m pytest test/ -s -x -Wd -k gil
+uv pip install --group test --group test-oracles
+PYTHON_GIL=0 python -m pytest -x -k gil
 ```
 
-Here, `-s` will output the logs.
-The `-x` will stop on the first failure.
-The `-Wd` will silence overflows and runtime warnings.
+Here, `-x` will stop on the first failure.
+Warnings are errors, as `pyproject.toml` configures, and the header prints every `NUMKONG_*` setting the run uses.
 
 When building on macOS, same as with C/C++, use non-Apple Clang version:
 
@@ -386,7 +384,8 @@ ruff check .   # lint (docstrings, imports, bugbears — see pyproject [tool.ruf
 ruff format .  # format (replaces Black; same 120-column width)
 ```
 
-Configuring the CMake build (`cmake -B build ...`) arms the repo's Git hooks (`core.hooksPath -> .githooks`), which re-run these formatters plus `clang-format` / `cmake-format` on staged changes and enforce the `<Verb>: <Summary>` commit message. Bypass knowingly with `git commit --no-verify`.
+Configuring the CMake build (`cmake -B build ...`) arms the repo's Git hooks (`core.hooksPath` → `.githooks`), which re-run these formatters plus `clang-format` / `cmake-format` on staged changes and enforce the `<Verb>: <Summary>` commit message.
+Bypass knowingly with `git commit --no-verify`.
 
 ## Rust
 
@@ -501,7 +500,7 @@ To add a new operation family, for example `foo`:
    Include each capability header from its unit, like `c/cpu/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `c/numkong.c`.
 4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API, ending in the dispatch point's mask and stream.
 5. __Test__: create `test/foo.cpp` with precision validation against `f118_t` references.
-6. __Benchmark__: create `bench/foo.cpp` with Google Benchmark harness.
+6. __Benchmark__: create `bench/foo.cpp` over the `bench/harness.hpp` timing loop.
 7. __Cross-platform tests__: add a scenario to `test/cross.hpp`, then register it in the relevant `test/cross_*` files, `test/cross_cuda.cu` and `test/cross_rocm.hip` included.
 8. __CMakeLists.txt__: wire the new source files into the `numkong_cpu_test` and `numkong_bench` targets.
 9. __Language bindings__: update `python/numkong.c`, `javascript/numkong.c`, `rust/numkong.rs`, etc. as needed.

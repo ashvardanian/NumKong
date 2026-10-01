@@ -16,13 +16,14 @@
 //! File: rust/reduce.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::{ffi::c_void, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorError, TensorMut, TensorRef};
-use crate::types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement};
-use crate::vector::VectorIndex;
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorError, TensorMut, TensorRef},
+    types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement},
+    vector::VectorIndex,
+};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -1500,6 +1501,7 @@ mod tests {
     #[test]
     fn bitwise_popcount_across_tensor_shapes() {
         use crate::tensor::Tensor;
+
         // 16 bytes × 8 bits = 128 bits total. Alternating fully-set/zero bytes → popcount = 64.
         let bits_storage: Vec<u1x8> = (0..16u8)
             .map(|byte_index| {
@@ -1549,6 +1551,7 @@ mod tests {
     #[test]
     fn bitwise_reductions_on_vector_containers() {
         use crate::vector::{Vector, VectorSpan, VectorView};
+
         // Three set bytes — 24 bits — one zero byte → popcount = 24.
         let mut storage = [u1x8(0xFFu8), u1x8(0xFFu8), u1x8(0x00u8), u1x8(0xFFu8)];
         let mut vector = Vector::<u1x8>::zeros(32).unwrap();
@@ -1579,6 +1582,7 @@ mod tests {
     #[test]
     fn reductions_axis_and_strided_views() {
         use crate::tensor::{MinMaxResult, SliceRange, Tensor};
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let a = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let a_even = a.slice(&[SliceRange::full(), SliceRange::range_step(0, 4, 2)]).unwrap();

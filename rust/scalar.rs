@@ -10,8 +10,10 @@
 //! File: rust/scalar.rs
 //! Author: Ash Vardanian
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t};
-use crate::types::f16;
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t},
+    types::f16,
+};
 
 #[link(name = "numkong")]
 extern "C" {

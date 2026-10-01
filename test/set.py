@@ -10,6 +10,8 @@ Author: Ash Vardanian
 Date: February 22, 2024
 """
 
+from __future__ import annotations
+
 import array
 import atexit
 from collections.abc import Callable
@@ -32,19 +34,17 @@ from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
     PACKING_GRANULARITY,
+    SETTINGS,
     assert_allclose,
     collect_errors,
     create_stats,
-    dense_dimensions,
     keep_one_capability,
     numpy_available,
     possible_capabilities,
     print_stats_report,
-    profile,
-    randomized_repetitions_count,
     round_up_to,
     scipy_available,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    timed_call,
 )
 
 import numkong as nk
@@ -82,32 +82,32 @@ KERNELS_SET: dict[str, tuple[Callable, Callable, None]] = {
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("metric", ["jaccard", "hamming"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_hamming_jaccard_random_accuracy(ndim: int, metric: str, capability: str):
+def test_hamming_jaccard_random_accuracy(ndim: int, metric: str, capability: str, np_rng: np.random.Generator):
     """Hamming and Jaccard distances for dense bit arrays against SciPy baselines."""
     ndim = round_up_to(ndim, PACKING_GRANULARITY["uint1"])
-    a_bits = np.random.randint(2, size=ndim).astype(np.uint8)
-    b_bits = np.random.randint(2, size=ndim).astype(np.uint8)
+    a_bits = np_rng.integers(2, size=ndim).astype(np.uint8)
+    b_bits = np_rng.integers(2, size=ndim).astype(np.uint8)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_SET[metric]
-    accurate_dt, accurate = profile(baseline_kernel, a_bits.astype(np.uint64), b_bits.astype(np.uint64))
-    expected_dt, expected = profile(baseline_kernel, a_bits, b_bits)
-    result_dt, result = profile(simd_kernel, np.packbits(a_bits), np.packbits(b_bits), "uint1")
+    accurate_ns, accurate = timed_call(baseline_kernel, a_bits.astype(np.uint64), b_bits.astype(np.uint64))
+    expected_ns, expected = timed_call(baseline_kernel, a_bits, b_bits)
+    result_ns, result = timed_call(simd_kernel, np.packbits(a_bits), np.packbits(b_bits), "uint1")
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
-    collect_errors(metric, ndim, "uint1", accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(metric, ndim, "uint1", accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
     # Also verify with boolean view
-    result_dt, result = profile(simd_kernel, np.packbits(a_bits).view(np.bool_), np.packbits(b_bits).view(np.bool_))
+    result_ns, result = timed_call(simd_kernel, np.packbits(a_bits).view(np.bool_), np.packbits(b_bits).view(np.bool_))
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
-    collect_errors(metric, ndim, "uint1", accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(metric, ndim, "uint1", accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)

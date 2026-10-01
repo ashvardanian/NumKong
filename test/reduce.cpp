@@ -9,25 +9,26 @@
 #include "numkong/reduce.hpp"
 #include "numkong/reduce/serial.h"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 constexpr std::size_t max_stride_k = 50;
 
 template <typename input_type_>
-error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t kernel) {
+error_stats_t test_reduce_moments(settings_t const &settings, typename input_type_::reduce_moments_kernel_t kernel) {
     using sum_t = typename input_type_::reduce_moments_sum_t;
     using sumsq_t = typename input_type_::reduce_moments_sumsq_t;
     using sum_reference_t = bounded_reference_for<input_type_, sum_t>;
     using sumsq_reference_t = bounded_reference_for<input_type_, sumsq_t>;
     error_stats_t stats(nk_reduce_moments_error_bound(input_type_::dtype()));
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
     std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
-    std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
+    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = make_vector<input_type_>(n * (max_stride_k + sizeof(input_type_)));
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         std::size_t stride_bytes = stride_bytes_distribution(generator);
-        fill_random(generator, buffer);
+        fill_random(settings, generator, buffer);
         typename sum_t::raw_t sum;
         typename sumsq_t::raw_t sumsq;
         stats.expect(kernel(buffer.raw_values_data(), n, stride_bytes, &sum, &sumsq, nullptr));
@@ -42,13 +43,13 @@ error_stats_t test_reduce_moments(typename input_type_::reduce_moments_kernel_t 
 }
 
 template <typename input_type_>
-error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t kernel) {
+error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type_::reduce_minmax_kernel_t kernel) {
     using output_t = typename input_type_::reduce_minmax_value_t;
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
     std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
-    std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
+    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = make_vector<input_type_>(n * (max_stride_k + sizeof(input_type_)));
     auto compare = [&](std::size_t stride_bytes) {
         typename output_t::raw_t min_val, max_val;
@@ -72,16 +73,17 @@ error_stats_t test_reduce_minmax(typename input_type_::reduce_minmax_kernel_t ke
         std::fill_n(buffer.values_data(), buffer.size_values(), input_type_::quiet_nan());
         compare(sizeof(input_type_));
     }
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         std::size_t stride_bytes = stride_bytes_distribution(generator);
-        fill_random(generator, buffer);
+        fill_random(settings, generator, buffer);
         compare(stride_bytes);
     }
     return stats;
 }
 
 /** Known-value test for the vector-shaped reduction wrappers. */
-inline error_stats_t test_vector_reductions() {
+inline error_stats_t test_vector_reductions(settings_t const &) {
     // Known values, not `assert` — Release defines `NDEBUG`, which would delete the checks.
     error_stats_t stats(comparison_family_t::exact_k);
     nk::f32_t data[] = {nk::f32_t(1), nk::f32_t(2), nk::f32_t(3), nk::f32_t(4), nk::f32_t(5)};
@@ -99,8 +101,7 @@ inline error_stats_t test_vector_reductions() {
     return stats;
 }
 
-void test_reduce() {
-    error_stats_section_t check;
+void test_reduce(error_stats_section_t &check) {
 
     check.section("Reductions Serial", nk_cap_serial_k);
     check("vector_reductions", test_vector_reductions);
@@ -423,3 +424,5 @@ void test_reduce() {
     check("reduce_moments_u32_v128", test_reduce_moments<u32_t>, nk_reduce_moments_u32_v128);
 #endif // NUMKONG_TARGET_V128
 }
+
+} // namespace ashvardanian::numkong::test

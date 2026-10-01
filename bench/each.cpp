@@ -12,7 +12,7 @@
 
 #include "harness.hpp"
 
-using namespace ashvardanian::numkong::bench;
+namespace ashvardanian::numkong::bench {
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
@@ -51,13 +51,13 @@ nk_status_t blend_f64_with_blas(nk_f64_t const *a, nk_f64_t const *b, nk_size_t 
 #endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 /**
- *  @brief Measures elementwise operations, sum, blend, fma and scale, using Google Benchmark.
- *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @brief Measures elementwise operations, sum, blend, fma and scale.
+ *  @param[inout] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, nk_kernel_kind_t kernel_kind_, nk_dtype_t alpha_dtype_, typename kernel_type_ = void>
-void measure_each(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+void measure_each(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using alpha_t = typename nk::type_for<alpha_dtype_>::type;
@@ -72,11 +72,10 @@ void measure_each(bm::State &state, kernel_type_ kernel, std::size_t dimensions)
     // - blend: input_a, input_c + alpha, beta → output
     // - fma: input_a, input_b, input_c + alpha, beta → output
     // - scale: input_a + alpha, beta → output
-    std::size_t bytes_per_set = bench_dtype_bytes(input_dtype_, 4 * dimensions);
-    std::size_t const vectors_count = bench_input_count(bytes_per_set);
+    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, 4 * dimensions));
     std::vector<input_vector_t> input_a(vectors_count), input_b(vectors_count);
     std::vector<input_vector_t> input_c(vectors_count), output(vectors_count);
-    auto generator = make_random_engine();
+    std::mt19937 generator(env.settings.seed.value);
     for (std::size_t index = 0; index != vectors_count; ++index) {
         input_a[index] = make_vector<input_t>(dimensions);
         input_b[index] = make_vector<input_t>(dimensions);
@@ -89,32 +88,30 @@ void measure_each(bm::State &state, kernel_type_ kernel, std::size_t dimensions)
     }
 
     // Benchmark loop with kernel dispatch
-    std::size_t iterations = 0;
-    for (auto _ : state) {
-        std::size_t const index = iterations & (vectors_count - 1);
+    for (std::size_t call : loop) {
+        std::size_t const index = call & (vectors_count - 1);
         if constexpr (kernel_kind_ == nk_kernel_each_blend_k) {
-            if (!succeeded(state, kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions,
-                                         &alpha.raw_, &beta.raw_, output[index].raw_values_data(), nullptr)))
+            if (!succeeded(loop, kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions,
+                                        &alpha.raw_, &beta.raw_, output[index].raw_values_data(), nullptr)))
                 break;
         }
         else if constexpr (kernel_kind_ == nk_kernel_each_fma_k) {
-            if (!succeeded(state, kernel(input_a[index].raw_values_data(), input_b[index].raw_values_data(),
-                                         input_c[index].raw_values_data(), dimensions, &alpha.raw_, &beta.raw_,
-                                         output[index].raw_values_data(), nullptr)))
+            if (!succeeded(loop, kernel(input_a[index].raw_values_data(), input_b[index].raw_values_data(),
+                                        input_c[index].raw_values_data(), dimensions, &alpha.raw_, &beta.raw_,
+                                        output[index].raw_values_data(), nullptr)))
                 break;
         }
         else if constexpr (kernel_kind_ == nk_kernel_each_sum_k) {
-            if (!succeeded(state, kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions,
-                                         output[index].raw_values_data(), nullptr)))
+            if (!succeeded(loop, kernel(input_a[index].raw_values_data(), input_c[index].raw_values_data(), dimensions,
+                                        output[index].raw_values_data(), nullptr)))
                 break;
         }
         else if constexpr (kernel_kind_ == nk_kernel_each_scale_k) {
-            if (!succeeded(state, kernel(input_a[index].raw_values_data(), dimensions, &alpha.raw_, &beta.raw_,
-                                         output[index].raw_values_data(), nullptr)))
+            if (!succeeded(loop, kernel(input_a[index].raw_values_data(), dimensions, &alpha.raw_, &beta.raw_,
+                                        output[index].raw_values_data(), nullptr)))
                 break;
         }
-        bm::ClobberMemory();
-        iterations++;
+        do_not_optimize(output[index].raw_values_data());
     }
 
     std::size_t bytes_per_call = input_a[0].size_bytes();
@@ -123,25 +120,24 @@ void measure_each(bm::State &state, kernel_type_ kernel, std::size_t dimensions)
     else if constexpr (kernel_kind_ == nk_kernel_each_sum_k) bytes_per_call *= 2;
     else if constexpr (kernel_kind_ == nk_kernel_each_scale_k) bytes_per_call *= 1;
 
-    state.counters["bytes"] = bm::Counter(1.0 * iterations * bytes_per_call, bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+    loop.byte_rate(bytes_per_call);
 }
 
 template <nk_dtype_t input_dtype_, nk_kernel_kind_t kernel_kind_ = nk_kernel_unknown_k,
           nk_dtype_t alpha_dtype_ = nk_dtype_unknown_k, typename kernel_type_ = void>
-void run_each(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_each<input_dtype_, kernel_kind_, alpha_dtype_, kernel_type_ *>,
-                          kernel, bench_config.dense_dimensions);
+void run_each(environment_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_each<input_dtype_, kernel_kind_, alpha_dtype_, kernel_type_ *>, kernel,
+                  env.settings.batch_per_core);
 }
 
 /** Measures a fused SwiGLU kernel, single row, gate ⊙ up. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_swiglu(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+void measure_swiglu(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;
-    std::size_t const vectors_count = bench_input_count(bench_dtype_bytes(input_dtype_, 3 * dimensions));
+    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, 3 * dimensions));
     std::vector<nk::vector<input_t>> gate(vectors_count), up(vectors_count), output(vectors_count);
-    auto generator = make_random_engine();
+    std::mt19937 generator(env.settings.seed.value);
     for (std::size_t i = 0; i < vectors_count; ++i) {
         gate[i] = make_vector<input_t>(dimensions);
         up[i] = make_vector<input_t>(dimensions);
@@ -151,35 +147,31 @@ void measure_swiglu(bm::State &state, kernel_type_ kernel, std::size_t dimension
     }
     std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
 
-    std::size_t iterations = 0;
-    for (auto _ : state) {
-        std::size_t const index = iterations & (vectors_count - 1);
-        if (!succeeded(state,
+    for (std::size_t call : loop) {
+        std::size_t const index = call & (vectors_count - 1);
+        if (!succeeded(loop,
                        kernel(gate[index].raw_values_data(), up[index].raw_values_data(),
                               output[index].raw_values_data(), 1, dimensions, stride, stride, stride, 1.0f, nullptr)))
             break;
-        bm::ClobberMemory();
-        ++iterations;
+        do_not_optimize(output[index].raw_values_data());
     }
-    state.counters["bytes"] = bm::Counter(2.0 * iterations * gate[0].size_bytes(), bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+    loop.byte_rate(2.0 * gate[0].size_bytes());
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_swiglu(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_swiglu<input_dtype_, kernel_type_ *>, kernel,
-                          bench_config.dense_dimensions);
+void run_swiglu(environment_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_swiglu<input_dtype_, kernel_type_ *>, kernel, env.settings.batch_per_core);
 }
 
 /** Measures the performance of a grouped RMSNorm kernel, single row, single group. */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_rmsnorm(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+void measure_rmsnorm(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     // Each set holds an input and an output, so the ring is sized against twice the vector bytes.
-    std::size_t const vectors_count = bench_input_count(bench_dtype_bytes(input_dtype_, 2 * dimensions));
+    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, 2 * dimensions));
     std::vector<nk::vector<input_t>> inputs(vectors_count), outputs(vectors_count);
-    auto generator = make_random_engine();
+    std::mt19937 generator(env.settings.seed.value);
     for (std::size_t i = 0; i < vectors_count; ++i) {
         inputs[i] = make_vector<input_t>(dimensions);
         outputs[i] = make_vector<input_t>(dimensions);
@@ -188,27 +180,23 @@ void measure_rmsnorm(bm::State &state, kernel_type_ kernel, std::size_t dimensio
     std::vector<nk_f32_t> gamma(dimensions, 1.0f);
     std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
 
-    std::size_t iterations = 0;
-    for (auto _ : state) {
-        std::size_t const index = iterations & (vectors_count - 1);
-        if (!succeeded(state, kernel(inputs[index].raw_values_data(), gamma.data(), outputs[index].raw_values_data(), 1,
-                                     1, dimensions, stride, stride, 1e-6f, 1.0f, nullptr)))
+    for (std::size_t call : loop) {
+        std::size_t const index = call & (vectors_count - 1);
+        if (!succeeded(loop, kernel(inputs[index].raw_values_data(), gamma.data(), outputs[index].raw_values_data(), 1,
+                                    1, dimensions, stride, stride, 1e-6f, 1.0f, nullptr)))
             break;
-        bm::ClobberMemory();
-        ++iterations;
+        do_not_optimize(outputs[index].raw_values_data());
     }
-    state.counters["bytes"] = bm::Counter(1.0 * iterations * inputs[0].size_bytes(), bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+    loop.byte_rate(inputs[0].size_bytes());
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_rmsnorm(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_rmsnorm<input_dtype_, kernel_type_ *>, kernel,
-                          bench_config.dense_dimensions);
+void run_rmsnorm(environment_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_rmsnorm<input_dtype_, kernel_type_ *>, kernel, env.settings.batch_per_core);
 }
 
-void bench_each() {
+void bench_each(environment_t const &env) {
     constexpr nk_dtype_t i8_k = nk_i8_k;
     constexpr nk_dtype_t u8_k = nk_u8_k;
     constexpr nk_dtype_t i16_k = nk_i16_k;
@@ -234,375 +222,401 @@ void bench_each() {
     constexpr nk_kernel_kind_t scale_k = nk_kernel_each_scale_k;
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
-    run_each<f32_k, sum_k, f32_k>("sum_f32_with_blas", sum_f32_with_blas);
-    run_each<f32_k, blend_k, f32_k>("each_blend_f32_with_blas", blend_f32_with_blas);
-    run_each<f64_k, sum_k, f64_k>("sum_f64_with_blas", sum_f64_with_blas);
-    run_each<f64_k, blend_k, f64_k>("each_blend_f64_with_blas", blend_f64_with_blas);
+    section(env, "Elementwise Operations External Baselines", nk_cap_serial_k);
+    run_each<f32_k, sum_k, f32_k>(env, "sum_f32_with_blas", sum_f32_with_blas);
+    run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_with_blas", blend_f32_with_blas);
+    run_each<f64_k, sum_k, f64_k>(env, "sum_f64_with_blas", sum_f64_with_blas);
+    run_each<f64_k, blend_k, f64_k>(env, "each_blend_f64_with_blas", blend_f64_with_blas);
 #endif
 
 #if NUMKONG_TARGET_NEON
-    // f64
-    run_each<f64_k, sum_k, f64_k>("each_sum_f64_neon", nk_each_sum_f64_neon);
-    run_each<f64_k, scale_k, f64_k>("each_scale_f64_neon", nk_each_scale_f64_neon);
-    run_each<f64_k, blend_k, f64_k>("each_blend_f64_neon", nk_each_blend_f64_neon);
-    run_each<f64_k, fma_k, f64_k>("each_fma_f64_neon", nk_each_fma_f64_neon);
-    // f32
-    run_each<f32_k, sum_k, f32_k>("each_sum_f32_neon", nk_each_sum_f32_neon);
-    run_each<f32_k, scale_k, f32_k>("each_scale_f32_neon", nk_each_scale_f32_neon);
-    run_each<f32_k, blend_k, f32_k>("each_blend_f32_neon", nk_each_blend_f32_neon);
-    run_each<f32_k, fma_k, f32_k>("each_fma_f32_neon", nk_each_fma_f32_neon);
-    // f16
-    run_each<f16_k, scale_k, f32_k>("each_scale_f16_neon", nk_each_scale_f16_neon);
-    run_each<f16_k, blend_k, f32_k>("each_blend_f16_neon", nk_each_blend_f16_neon);
-    run_each<f16_k, fma_k, f32_k>("each_fma_f16_neon", nk_each_fma_f16_neon);
-    // e4m3
-    run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_neon", nk_each_sum_e4m3_neon);
-    run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_neon", nk_each_scale_e4m3_neon);
-    run_each<e4m3_k, blend_k, f32_k>("each_blend_e4m3_neon", nk_each_blend_e4m3_neon);
-    run_each<e4m3_k, fma_k, f32_k>("each_fma_e4m3_neon", nk_each_fma_e4m3_neon);
-    // e5m2
-    run_each<e5m2_k, sum_k, f32_k>("each_sum_e5m2_neon", nk_each_sum_e5m2_neon);
-    run_each<e5m2_k, scale_k, f32_k>("each_scale_e5m2_neon", nk_each_scale_e5m2_neon);
-    run_each<e5m2_k, blend_k, f32_k>("each_blend_e5m2_neon", nk_each_blend_e5m2_neon);
-    run_each<e5m2_k, fma_k, f32_k>("each_fma_e5m2_neon", nk_each_fma_e5m2_neon);
-    // u8, i8
-    run_each<u8_k, sum_k, f32_k>("each_sum_u8_neon", nk_each_sum_u8_neon);
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_neon", nk_each_scale_u8_neon);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_neon", nk_each_blend_u8_neon);
-    run_each<i8_k, sum_k, f32_k>("each_sum_i8_neon", nk_each_sum_i8_neon);
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_neon", nk_each_scale_i8_neon);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_neon", nk_each_blend_i8_neon);
-    // i16, u16
-    run_each<i16_k, sum_k, f32_k>("each_sum_i16_neon", nk_each_sum_i16_neon);
-    run_each<i16_k, scale_k, f32_k>("each_scale_i16_neon", nk_each_scale_i16_neon);
-    run_each<i16_k, fma_k, f32_k>("each_fma_i16_neon", nk_each_fma_i16_neon);
-    run_each<u16_k, sum_k, f32_k>("each_sum_u16_neon", nk_each_sum_u16_neon);
-    run_each<u16_k, scale_k, f32_k>("each_scale_u16_neon", nk_each_scale_u16_neon);
-    run_each<u16_k, fma_k, f32_k>("each_fma_u16_neon", nk_each_fma_u16_neon);
-    // i32, u32
-    run_each<i32_k, sum_k, f64_k>("each_sum_i32_neon", nk_each_sum_i32_neon);
-    run_each<i32_k, scale_k, f64_k>("each_scale_i32_neon", nk_each_scale_i32_neon);
-    run_each<i32_k, fma_k, f64_k>("each_fma_i32_neon", nk_each_fma_i32_neon);
-    run_each<u32_k, sum_k, f64_k>("each_sum_u32_neon", nk_each_sum_u32_neon);
-    run_each<u32_k, scale_k, f64_k>("each_scale_u32_neon", nk_each_scale_u32_neon);
-    run_each<u32_k, fma_k, f64_k>("each_fma_u32_neon", nk_each_fma_u32_neon);
-    // i64, u64
-    run_each<i64_k, sum_k, f64_k>("each_sum_i64_neon", nk_each_sum_i64_neon);
-    run_each<i64_k, scale_k, f64_k>("each_scale_i64_neon", nk_each_scale_i64_neon);
-    run_each<i64_k, fma_k, f64_k>("each_fma_i64_neon", nk_each_fma_i64_neon);
-    run_each<u64_k, sum_k, f64_k>("each_sum_u64_neon", nk_each_sum_u64_neon);
-    run_each<u64_k, scale_k, f64_k>("each_scale_u64_neon", nk_each_scale_u64_neon);
-    run_each<u64_k, fma_k, f64_k>("each_fma_u64_neon", nk_each_fma_u64_neon);
-    // complex
-    run_each<f32c_k, scale_k, f32c_k>("each_scale_f32c_neon", nk_each_scale_f32c_neon);
-    run_each<f32c_k, blend_k, f32c_k>("each_blend_f32c_neon", nk_each_blend_f32c_neon);
-    run_each<f32c_k, fma_k, f32c_k>("each_fma_f32c_neon", nk_each_fma_f32c_neon);
-    run_each<f64c_k, scale_k, f64c_k>("each_scale_f64c_neon", nk_each_scale_f64c_neon);
-    run_each<f64c_k, blend_k, f64c_k>("each_blend_f64c_neon", nk_each_blend_f64c_neon);
-    run_each<f64c_k, fma_k, f64c_k>("each_fma_f64c_neon", nk_each_fma_f64c_neon);
+    if (section(env, "Elementwise Operations NEON", nk_cap_neon_k)) {
+        // f64
+        run_each<f64_k, sum_k, f64_k>(env, "each_sum_f64_neon", nk_each_sum_f64_neon);
+        run_each<f64_k, scale_k, f64_k>(env, "each_scale_f64_neon", nk_each_scale_f64_neon);
+        run_each<f64_k, blend_k, f64_k>(env, "each_blend_f64_neon", nk_each_blend_f64_neon);
+        run_each<f64_k, fma_k, f64_k>(env, "each_fma_f64_neon", nk_each_fma_f64_neon);
+        // f32
+        run_each<f32_k, sum_k, f32_k>(env, "each_sum_f32_neon", nk_each_sum_f32_neon);
+        run_each<f32_k, scale_k, f32_k>(env, "each_scale_f32_neon", nk_each_scale_f32_neon);
+        run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_neon", nk_each_blend_f32_neon);
+        run_each<f32_k, fma_k, f32_k>(env, "each_fma_f32_neon", nk_each_fma_f32_neon);
+        // f16
+        run_each<f16_k, scale_k, f32_k>(env, "each_scale_f16_neon", nk_each_scale_f16_neon);
+        run_each<f16_k, blend_k, f32_k>(env, "each_blend_f16_neon", nk_each_blend_f16_neon);
+        run_each<f16_k, fma_k, f32_k>(env, "each_fma_f16_neon", nk_each_fma_f16_neon);
+        // e4m3
+        run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_neon", nk_each_sum_e4m3_neon);
+        run_each<e4m3_k, scale_k, f32_k>(env, "each_scale_e4m3_neon", nk_each_scale_e4m3_neon);
+        run_each<e4m3_k, blend_k, f32_k>(env, "each_blend_e4m3_neon", nk_each_blend_e4m3_neon);
+        run_each<e4m3_k, fma_k, f32_k>(env, "each_fma_e4m3_neon", nk_each_fma_e4m3_neon);
+        // e5m2
+        run_each<e5m2_k, sum_k, f32_k>(env, "each_sum_e5m2_neon", nk_each_sum_e5m2_neon);
+        run_each<e5m2_k, scale_k, f32_k>(env, "each_scale_e5m2_neon", nk_each_scale_e5m2_neon);
+        run_each<e5m2_k, blend_k, f32_k>(env, "each_blend_e5m2_neon", nk_each_blend_e5m2_neon);
+        run_each<e5m2_k, fma_k, f32_k>(env, "each_fma_e5m2_neon", nk_each_fma_e5m2_neon);
+        // u8, i8
+        run_each<u8_k, sum_k, f32_k>(env, "each_sum_u8_neon", nk_each_sum_u8_neon);
+        run_each<u8_k, scale_k, f32_k>(env, "each_scale_u8_neon", nk_each_scale_u8_neon);
+        run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_neon", nk_each_blend_u8_neon);
+        run_each<i8_k, sum_k, f32_k>(env, "each_sum_i8_neon", nk_each_sum_i8_neon);
+        run_each<i8_k, scale_k, f32_k>(env, "each_scale_i8_neon", nk_each_scale_i8_neon);
+        run_each<i8_k, blend_k, f32_k>(env, "each_blend_i8_neon", nk_each_blend_i8_neon);
+        // i16, u16
+        run_each<i16_k, sum_k, f32_k>(env, "each_sum_i16_neon", nk_each_sum_i16_neon);
+        run_each<i16_k, scale_k, f32_k>(env, "each_scale_i16_neon", nk_each_scale_i16_neon);
+        run_each<i16_k, fma_k, f32_k>(env, "each_fma_i16_neon", nk_each_fma_i16_neon);
+        run_each<u16_k, sum_k, f32_k>(env, "each_sum_u16_neon", nk_each_sum_u16_neon);
+        run_each<u16_k, scale_k, f32_k>(env, "each_scale_u16_neon", nk_each_scale_u16_neon);
+        run_each<u16_k, fma_k, f32_k>(env, "each_fma_u16_neon", nk_each_fma_u16_neon);
+        // i32, u32
+        run_each<i32_k, sum_k, f64_k>(env, "each_sum_i32_neon", nk_each_sum_i32_neon);
+        run_each<i32_k, scale_k, f64_k>(env, "each_scale_i32_neon", nk_each_scale_i32_neon);
+        run_each<i32_k, fma_k, f64_k>(env, "each_fma_i32_neon", nk_each_fma_i32_neon);
+        run_each<u32_k, sum_k, f64_k>(env, "each_sum_u32_neon", nk_each_sum_u32_neon);
+        run_each<u32_k, scale_k, f64_k>(env, "each_scale_u32_neon", nk_each_scale_u32_neon);
+        run_each<u32_k, fma_k, f64_k>(env, "each_fma_u32_neon", nk_each_fma_u32_neon);
+        // i64, u64
+        run_each<i64_k, sum_k, f64_k>(env, "each_sum_i64_neon", nk_each_sum_i64_neon);
+        run_each<i64_k, scale_k, f64_k>(env, "each_scale_i64_neon", nk_each_scale_i64_neon);
+        run_each<i64_k, fma_k, f64_k>(env, "each_fma_i64_neon", nk_each_fma_i64_neon);
+        run_each<u64_k, sum_k, f64_k>(env, "each_sum_u64_neon", nk_each_sum_u64_neon);
+        run_each<u64_k, scale_k, f64_k>(env, "each_scale_u64_neon", nk_each_scale_u64_neon);
+        run_each<u64_k, fma_k, f64_k>(env, "each_fma_u64_neon", nk_each_fma_u64_neon);
+        // complex
+        run_each<f32c_k, scale_k, f32c_k>(env, "each_scale_f32c_neon", nk_each_scale_f32c_neon);
+        run_each<f32c_k, blend_k, f32c_k>(env, "each_blend_f32c_neon", nk_each_blend_f32c_neon);
+        run_each<f32c_k, fma_k, f32c_k>(env, "each_fma_f32c_neon", nk_each_fma_f32c_neon);
+        run_each<f64c_k, scale_k, f64c_k>(env, "each_scale_f64c_neon", nk_each_scale_f64c_neon);
+        run_each<f64c_k, blend_k, f64c_k>(env, "each_blend_f64c_neon", nk_each_blend_f64c_neon);
+        run_each<f64c_k, fma_k, f64c_k>(env, "each_fma_f64c_neon", nk_each_fma_f64c_neon);
+    }
 #endif
 
 #if NUMKONG_TARGET_NEONHALF
-    run_each<f16_k, sum_k, f32_k>("each_sum_f16_neonhalf", nk_each_sum_f16_neonhalf);
+    if (section(env, "Elementwise Operations NEON HALF", nk_cap_neonhalf_k)) {
+        run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_neonhalf", nk_each_sum_f16_neonhalf);
+    }
 #endif
 
 #if NUMKONG_TARGET_NEONBFDOT
-    run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_neonbfdot", nk_each_sum_bf16_neonbfdot);
-    run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_neonbfdot", nk_each_scale_bf16_neonbfdot);
-    run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_neonbfdot", nk_each_blend_bf16_neonbfdot);
-    run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_neonbfdot", nk_each_fma_bf16_neonbfdot);
+    if (section(env, "Elementwise Operations NEON BF16", nk_cap_neonbfdot_k)) {
+        run_each<bf16_k, sum_k, f32_k>(env, "each_sum_bf16_neonbfdot", nk_each_sum_bf16_neonbfdot);
+        run_each<bf16_k, scale_k, f32_k>(env, "each_scale_bf16_neonbfdot", nk_each_scale_bf16_neonbfdot);
+        run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_neonbfdot", nk_each_blend_bf16_neonbfdot);
+        run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_neonbfdot", nk_each_fma_bf16_neonbfdot);
+    }
 #endif
 
 #if NUMKONG_TARGET_HASWELL
-    // f64
-    run_each<f64_k, sum_k, f64_k>("each_sum_f64_haswell", nk_each_sum_f64_haswell);
-    run_each<f64_k, scale_k, f64_k>("each_scale_f64_haswell", nk_each_scale_f64_haswell);
-    run_each<f64_k, blend_k, f64_k>("each_blend_f64_haswell", nk_each_blend_f64_haswell);
-    run_each<f64_k, fma_k, f64_k>("each_fma_f64_haswell", nk_each_fma_f64_haswell);
-    // f32
-    run_each<f32_k, sum_k, f32_k>("each_sum_f32_haswell", nk_each_sum_f32_haswell);
-    run_each<f32_k, scale_k, f32_k>("each_scale_f32_haswell", nk_each_scale_f32_haswell);
-    run_each<f32_k, blend_k, f32_k>("each_blend_f32_haswell", nk_each_blend_f32_haswell);
-    run_each<f32_k, fma_k, f32_k>("each_fma_f32_haswell", nk_each_fma_f32_haswell);
-    // f16
-    run_each<f16_k, sum_k, f32_k>("each_sum_f16_haswell", nk_each_sum_f16_haswell);
-    run_each<f16_k, scale_k, f32_k>("each_scale_f16_haswell", nk_each_scale_f16_haswell);
-    run_each<f16_k, blend_k, f32_k>("each_blend_f16_haswell", nk_each_blend_f16_haswell);
-    run_each<f16_k, fma_k, f32_k>("each_fma_f16_haswell", nk_each_fma_f16_haswell);
-    // bf16
-    run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_haswell", nk_each_sum_bf16_haswell);
-    run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_haswell", nk_each_scale_bf16_haswell);
-    run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_haswell", nk_each_blend_bf16_haswell);
-    run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_haswell", nk_each_fma_bf16_haswell);
-    run_swiglu<f32_k>("each_swiglu_f32_haswell", nk_each_swiglu_f32_haswell);
-    run_swiglu<bf16_k>("each_swiglu_bf16_haswell", nk_each_swiglu_bf16_haswell);
-    run_swiglu<e4m3_k>("each_swiglu_e4m3_haswell", nk_each_swiglu_e4m3_haswell);
-    run_rmsnorm<f32_k>("each_rmsnorm_f32_haswell", nk_each_rmsnorm_f32_haswell);
-    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_haswell", nk_each_rmsnorm_bf16_haswell);
-    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_haswell", nk_each_rmsnorm_e4m3_haswell);
-    // e4m3
-    run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_haswell", nk_each_sum_e4m3_haswell);
-    run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_haswell", nk_each_scale_e4m3_haswell);
-    run_each<e4m3_k, blend_k, f32_k>("each_blend_e4m3_haswell", nk_each_blend_e4m3_haswell);
-    run_each<e4m3_k, fma_k, f32_k>("each_fma_e4m3_haswell", nk_each_fma_e4m3_haswell);
-    // e5m2
-    run_each<e5m2_k, sum_k, f32_k>("each_sum_e5m2_haswell", nk_each_sum_e5m2_haswell);
-    run_each<e5m2_k, scale_k, f32_k>("each_scale_e5m2_haswell", nk_each_scale_e5m2_haswell);
-    run_each<e5m2_k, blend_k, f32_k>("each_blend_e5m2_haswell", nk_each_blend_e5m2_haswell);
-    run_each<e5m2_k, fma_k, f32_k>("each_fma_e5m2_haswell", nk_each_fma_e5m2_haswell);
-    // i8, u8
-    run_each<i8_k, sum_k, f32_k>("each_sum_i8_haswell", nk_each_sum_i8_haswell);
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_haswell", nk_each_scale_i8_haswell);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_haswell", nk_each_blend_i8_haswell);
-    run_each<i8_k, fma_k, f32_k>("each_fma_i8_haswell", nk_each_fma_i8_haswell);
-    run_each<u8_k, sum_k, f32_k>("each_sum_u8_haswell", nk_each_sum_u8_haswell);
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_haswell", nk_each_scale_u8_haswell);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_haswell", nk_each_blend_u8_haswell);
-    run_each<u8_k, fma_k, f32_k>("each_fma_u8_haswell", nk_each_fma_u8_haswell);
-    // i16, u16
-    run_each<i16_k, sum_k, f32_k>("each_sum_i16_haswell", nk_each_sum_i16_haswell);
-    run_each<i16_k, scale_k, f32_k>("each_scale_i16_haswell", nk_each_scale_i16_haswell);
-    run_each<i16_k, fma_k, f32_k>("each_fma_i16_haswell", nk_each_fma_i16_haswell);
-    run_each<u16_k, sum_k, f32_k>("each_sum_u16_haswell", nk_each_sum_u16_haswell);
-    run_each<u16_k, scale_k, f32_k>("each_scale_u16_haswell", nk_each_scale_u16_haswell);
-    run_each<u16_k, fma_k, f32_k>("each_fma_u16_haswell", nk_each_fma_u16_haswell);
-    // i32, u32
-    run_each<i32_k, sum_k, f64_k>("each_sum_i32_haswell", nk_each_sum_i32_haswell);
-    run_each<i32_k, scale_k, f64_k>("each_scale_i32_haswell", nk_each_scale_i32_haswell);
-    run_each<i32_k, fma_k, f64_k>("each_fma_i32_haswell", nk_each_fma_i32_haswell);
-    run_each<u32_k, sum_k, f64_k>("each_sum_u32_haswell", nk_each_sum_u32_haswell);
-    run_each<u32_k, scale_k, f64_k>("each_scale_u32_haswell", nk_each_scale_u32_haswell);
-    run_each<u32_k, fma_k, f64_k>("each_fma_u32_haswell", nk_each_fma_u32_haswell);
-    // complex
-    run_each<f32c_k, scale_k, f32c_k>("each_scale_f32c_haswell", nk_each_scale_f32c_haswell);
-    run_each<f32c_k, blend_k, f32c_k>("each_blend_f32c_haswell", nk_each_blend_f32c_haswell);
-    run_each<f32c_k, fma_k, f32c_k>("each_fma_f32c_haswell", nk_each_fma_f32c_haswell);
-    run_each<f64c_k, scale_k, f64c_k>("each_scale_f64c_haswell", nk_each_scale_f64c_haswell);
-    run_each<f64c_k, blend_k, f64c_k>("each_blend_f64c_haswell", nk_each_blend_f64c_haswell);
-    run_each<f64c_k, fma_k, f64c_k>("each_fma_f64c_haswell", nk_each_fma_f64c_haswell);
+    if (section(env, "Elementwise Operations Haswell", nk_cap_haswell_k)) {
+        // f64
+        run_each<f64_k, sum_k, f64_k>(env, "each_sum_f64_haswell", nk_each_sum_f64_haswell);
+        run_each<f64_k, scale_k, f64_k>(env, "each_scale_f64_haswell", nk_each_scale_f64_haswell);
+        run_each<f64_k, blend_k, f64_k>(env, "each_blend_f64_haswell", nk_each_blend_f64_haswell);
+        run_each<f64_k, fma_k, f64_k>(env, "each_fma_f64_haswell", nk_each_fma_f64_haswell);
+        // f32
+        run_each<f32_k, sum_k, f32_k>(env, "each_sum_f32_haswell", nk_each_sum_f32_haswell);
+        run_each<f32_k, scale_k, f32_k>(env, "each_scale_f32_haswell", nk_each_scale_f32_haswell);
+        run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_haswell", nk_each_blend_f32_haswell);
+        run_each<f32_k, fma_k, f32_k>(env, "each_fma_f32_haswell", nk_each_fma_f32_haswell);
+        // f16
+        run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_haswell", nk_each_sum_f16_haswell);
+        run_each<f16_k, scale_k, f32_k>(env, "each_scale_f16_haswell", nk_each_scale_f16_haswell);
+        run_each<f16_k, blend_k, f32_k>(env, "each_blend_f16_haswell", nk_each_blend_f16_haswell);
+        run_each<f16_k, fma_k, f32_k>(env, "each_fma_f16_haswell", nk_each_fma_f16_haswell);
+        // bf16
+        run_each<bf16_k, sum_k, f32_k>(env, "each_sum_bf16_haswell", nk_each_sum_bf16_haswell);
+        run_each<bf16_k, scale_k, f32_k>(env, "each_scale_bf16_haswell", nk_each_scale_bf16_haswell);
+        run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_haswell", nk_each_blend_bf16_haswell);
+        run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_haswell", nk_each_fma_bf16_haswell);
+        run_swiglu<f32_k>(env, "each_swiglu_f32_haswell", nk_each_swiglu_f32_haswell);
+        run_swiglu<bf16_k>(env, "each_swiglu_bf16_haswell", nk_each_swiglu_bf16_haswell);
+        run_swiglu<e4m3_k>(env, "each_swiglu_e4m3_haswell", nk_each_swiglu_e4m3_haswell);
+        run_rmsnorm<f32_k>(env, "each_rmsnorm_f32_haswell", nk_each_rmsnorm_f32_haswell);
+        run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_haswell", nk_each_rmsnorm_bf16_haswell);
+        run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_haswell", nk_each_rmsnorm_e4m3_haswell);
+        // e4m3
+        run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_haswell", nk_each_sum_e4m3_haswell);
+        run_each<e4m3_k, scale_k, f32_k>(env, "each_scale_e4m3_haswell", nk_each_scale_e4m3_haswell);
+        run_each<e4m3_k, blend_k, f32_k>(env, "each_blend_e4m3_haswell", nk_each_blend_e4m3_haswell);
+        run_each<e4m3_k, fma_k, f32_k>(env, "each_fma_e4m3_haswell", nk_each_fma_e4m3_haswell);
+        // e5m2
+        run_each<e5m2_k, sum_k, f32_k>(env, "each_sum_e5m2_haswell", nk_each_sum_e5m2_haswell);
+        run_each<e5m2_k, scale_k, f32_k>(env, "each_scale_e5m2_haswell", nk_each_scale_e5m2_haswell);
+        run_each<e5m2_k, blend_k, f32_k>(env, "each_blend_e5m2_haswell", nk_each_blend_e5m2_haswell);
+        run_each<e5m2_k, fma_k, f32_k>(env, "each_fma_e5m2_haswell", nk_each_fma_e5m2_haswell);
+        // i8, u8
+        run_each<i8_k, sum_k, f32_k>(env, "each_sum_i8_haswell", nk_each_sum_i8_haswell);
+        run_each<i8_k, scale_k, f32_k>(env, "each_scale_i8_haswell", nk_each_scale_i8_haswell);
+        run_each<i8_k, blend_k, f32_k>(env, "each_blend_i8_haswell", nk_each_blend_i8_haswell);
+        run_each<i8_k, fma_k, f32_k>(env, "each_fma_i8_haswell", nk_each_fma_i8_haswell);
+        run_each<u8_k, sum_k, f32_k>(env, "each_sum_u8_haswell", nk_each_sum_u8_haswell);
+        run_each<u8_k, scale_k, f32_k>(env, "each_scale_u8_haswell", nk_each_scale_u8_haswell);
+        run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_haswell", nk_each_blend_u8_haswell);
+        run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_haswell", nk_each_fma_u8_haswell);
+        // i16, u16
+        run_each<i16_k, sum_k, f32_k>(env, "each_sum_i16_haswell", nk_each_sum_i16_haswell);
+        run_each<i16_k, scale_k, f32_k>(env, "each_scale_i16_haswell", nk_each_scale_i16_haswell);
+        run_each<i16_k, fma_k, f32_k>(env, "each_fma_i16_haswell", nk_each_fma_i16_haswell);
+        run_each<u16_k, sum_k, f32_k>(env, "each_sum_u16_haswell", nk_each_sum_u16_haswell);
+        run_each<u16_k, scale_k, f32_k>(env, "each_scale_u16_haswell", nk_each_scale_u16_haswell);
+        run_each<u16_k, fma_k, f32_k>(env, "each_fma_u16_haswell", nk_each_fma_u16_haswell);
+        // i32, u32
+        run_each<i32_k, sum_k, f64_k>(env, "each_sum_i32_haswell", nk_each_sum_i32_haswell);
+        run_each<i32_k, scale_k, f64_k>(env, "each_scale_i32_haswell", nk_each_scale_i32_haswell);
+        run_each<i32_k, fma_k, f64_k>(env, "each_fma_i32_haswell", nk_each_fma_i32_haswell);
+        run_each<u32_k, sum_k, f64_k>(env, "each_sum_u32_haswell", nk_each_sum_u32_haswell);
+        run_each<u32_k, scale_k, f64_k>(env, "each_scale_u32_haswell", nk_each_scale_u32_haswell);
+        run_each<u32_k, fma_k, f64_k>(env, "each_fma_u32_haswell", nk_each_fma_u32_haswell);
+        // complex
+        run_each<f32c_k, scale_k, f32c_k>(env, "each_scale_f32c_haswell", nk_each_scale_f32c_haswell);
+        run_each<f32c_k, blend_k, f32c_k>(env, "each_blend_f32c_haswell", nk_each_blend_f32c_haswell);
+        run_each<f32c_k, fma_k, f32c_k>(env, "each_fma_f32c_haswell", nk_each_fma_f32c_haswell);
+        run_each<f64c_k, scale_k, f64c_k>(env, "each_scale_f64c_haswell", nk_each_scale_f64c_haswell);
+        run_each<f64c_k, blend_k, f64c_k>(env, "each_blend_f64c_haswell", nk_each_blend_f64c_haswell);
+        run_each<f64c_k, fma_k, f64c_k>(env, "each_fma_f64c_haswell", nk_each_fma_f64c_haswell);
+    }
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
-    // f64
-    run_each<f64_k, sum_k, f64_k>("each_sum_f64_skylake", nk_each_sum_f64_skylake);
-    run_each<f64_k, scale_k, f64_k>("each_scale_f64_skylake", nk_each_scale_f64_skylake);
-    run_each<f64_k, blend_k, f64_k>("each_blend_f64_skylake", nk_each_blend_f64_skylake);
-    run_each<f64_k, fma_k, f64_k>("each_fma_f64_skylake", nk_each_fma_f64_skylake);
-    // f32
-    run_each<f32_k, sum_k, f32_k>("each_sum_f32_skylake", nk_each_sum_f32_skylake);
-    run_each<f32_k, scale_k, f32_k>("each_scale_f32_skylake", nk_each_scale_f32_skylake);
-    run_each<f32_k, blend_k, f32_k>("each_blend_f32_skylake", nk_each_blend_f32_skylake);
-    run_each<f32_k, fma_k, f32_k>("each_fma_f32_skylake", nk_each_fma_f32_skylake);
-    // f16
-    run_each<f16_k, scale_k, f32_k>("each_scale_f16_skylake", nk_each_scale_f16_skylake);
-    run_each<f16_k, blend_k, f32_k>("each_blend_f16_skylake", nk_each_blend_f16_skylake);
-    run_each<f16_k, fma_k, f32_k>("each_fma_f16_skylake", nk_each_fma_f16_skylake);
-    // bf16
-    run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_skylake", nk_each_sum_bf16_skylake);
-    run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_skylake", nk_each_scale_bf16_skylake);
-    run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_skylake", nk_each_blend_bf16_skylake);
-    run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_skylake", nk_each_fma_bf16_skylake);
-    run_swiglu<f32_k>("each_swiglu_f32_skylake", nk_each_swiglu_f32_skylake);
-    run_swiglu<bf16_k>("each_swiglu_bf16_skylake", nk_each_swiglu_bf16_skylake);
-    run_swiglu<e4m3_k>("each_swiglu_e4m3_skylake", nk_each_swiglu_e4m3_skylake);
-    run_rmsnorm<f32_k>("each_rmsnorm_f32_skylake", nk_each_rmsnorm_f32_skylake);
-    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_skylake", nk_each_rmsnorm_bf16_skylake);
-    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_skylake", nk_each_rmsnorm_e4m3_skylake);
-    // e4m3
-    run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_skylake", nk_each_sum_e4m3_skylake);
-    run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_skylake", nk_each_scale_e4m3_skylake);
-    run_each<e4m3_k, blend_k, f32_k>("each_blend_e4m3_skylake", nk_each_blend_e4m3_skylake);
-    run_each<e4m3_k, fma_k, f32_k>("each_fma_e4m3_skylake", nk_each_fma_e4m3_skylake);
-    // e5m2
-    run_each<e5m2_k, sum_k, f32_k>("each_sum_e5m2_skylake", nk_each_sum_e5m2_skylake);
-    run_each<e5m2_k, scale_k, f32_k>("each_scale_e5m2_skylake", nk_each_scale_e5m2_skylake);
-    run_each<e5m2_k, blend_k, f32_k>("each_blend_e5m2_skylake", nk_each_blend_e5m2_skylake);
-    run_each<e5m2_k, fma_k, f32_k>("each_fma_e5m2_skylake", nk_each_fma_e5m2_skylake);
-    // i8, u8
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_skylake", nk_each_scale_i8_skylake);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_skylake", nk_each_blend_i8_skylake);
-    run_each<i8_k, fma_k, f32_k>("each_fma_i8_skylake", nk_each_fma_i8_skylake);
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_skylake", nk_each_scale_u8_skylake);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_skylake", nk_each_blend_u8_skylake);
-    run_each<u8_k, fma_k, f32_k>("each_fma_u8_skylake", nk_each_fma_u8_skylake);
-    // i16, u16
-    run_each<i16_k, scale_k, f32_k>("each_scale_i16_skylake", nk_each_scale_i16_skylake);
-    run_each<i16_k, fma_k, f32_k>("each_fma_i16_skylake", nk_each_fma_i16_skylake);
-    run_each<u16_k, scale_k, f32_k>("each_scale_u16_skylake", nk_each_scale_u16_skylake);
-    run_each<u16_k, fma_k, f32_k>("each_fma_u16_skylake", nk_each_fma_u16_skylake);
-    // i32, u32
-    run_each<i32_k, scale_k, f64_k>("each_scale_i32_skylake", nk_each_scale_i32_skylake);
-    run_each<i32_k, fma_k, f64_k>("each_fma_i32_skylake", nk_each_fma_i32_skylake);
-    run_each<u32_k, scale_k, f64_k>("each_scale_u32_skylake", nk_each_scale_u32_skylake);
-    run_each<u32_k, fma_k, f64_k>("each_fma_u32_skylake", nk_each_fma_u32_skylake);
-    // i64, u64
-    run_each<i64_k, scale_k, f64_k>("each_scale_i64_skylake", nk_each_scale_i64_skylake);
-    run_each<i64_k, fma_k, f64_k>("each_fma_i64_skylake", nk_each_fma_i64_skylake);
-    run_each<u64_k, scale_k, f64_k>("each_scale_u64_skylake", nk_each_scale_u64_skylake);
-    run_each<u64_k, fma_k, f64_k>("each_fma_u64_skylake", nk_each_fma_u64_skylake);
-    // complex
-    run_each<f32c_k, scale_k, f32c_k>("each_scale_f32c_skylake", nk_each_scale_f32c_skylake);
-    run_each<f32c_k, blend_k, f32c_k>("each_blend_f32c_skylake", nk_each_blend_f32c_skylake);
-    run_each<f32c_k, fma_k, f32c_k>("each_fma_f32c_skylake", nk_each_fma_f32c_skylake);
-    run_each<f64c_k, scale_k, f64c_k>("each_scale_f64c_skylake", nk_each_scale_f64c_skylake);
-    run_each<f64c_k, blend_k, f64c_k>("each_blend_f64c_skylake", nk_each_blend_f64c_skylake);
-    run_each<f64c_k, fma_k, f64c_k>("each_fma_f64c_skylake", nk_each_fma_f64c_skylake);
+    if (section(env, "Elementwise Operations Skylake", nk_cap_skylake_k)) {
+        // f64
+        run_each<f64_k, sum_k, f64_k>(env, "each_sum_f64_skylake", nk_each_sum_f64_skylake);
+        run_each<f64_k, scale_k, f64_k>(env, "each_scale_f64_skylake", nk_each_scale_f64_skylake);
+        run_each<f64_k, blend_k, f64_k>(env, "each_blend_f64_skylake", nk_each_blend_f64_skylake);
+        run_each<f64_k, fma_k, f64_k>(env, "each_fma_f64_skylake", nk_each_fma_f64_skylake);
+        // f32
+        run_each<f32_k, sum_k, f32_k>(env, "each_sum_f32_skylake", nk_each_sum_f32_skylake);
+        run_each<f32_k, scale_k, f32_k>(env, "each_scale_f32_skylake", nk_each_scale_f32_skylake);
+        run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_skylake", nk_each_blend_f32_skylake);
+        run_each<f32_k, fma_k, f32_k>(env, "each_fma_f32_skylake", nk_each_fma_f32_skylake);
+        // f16
+        run_each<f16_k, scale_k, f32_k>(env, "each_scale_f16_skylake", nk_each_scale_f16_skylake);
+        run_each<f16_k, blend_k, f32_k>(env, "each_blend_f16_skylake", nk_each_blend_f16_skylake);
+        run_each<f16_k, fma_k, f32_k>(env, "each_fma_f16_skylake", nk_each_fma_f16_skylake);
+        // bf16
+        run_each<bf16_k, sum_k, f32_k>(env, "each_sum_bf16_skylake", nk_each_sum_bf16_skylake);
+        run_each<bf16_k, scale_k, f32_k>(env, "each_scale_bf16_skylake", nk_each_scale_bf16_skylake);
+        run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_skylake", nk_each_blend_bf16_skylake);
+        run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_skylake", nk_each_fma_bf16_skylake);
+        run_swiglu<f32_k>(env, "each_swiglu_f32_skylake", nk_each_swiglu_f32_skylake);
+        run_swiglu<bf16_k>(env, "each_swiglu_bf16_skylake", nk_each_swiglu_bf16_skylake);
+        run_swiglu<e4m3_k>(env, "each_swiglu_e4m3_skylake", nk_each_swiglu_e4m3_skylake);
+        run_rmsnorm<f32_k>(env, "each_rmsnorm_f32_skylake", nk_each_rmsnorm_f32_skylake);
+        run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_skylake", nk_each_rmsnorm_bf16_skylake);
+        run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_skylake", nk_each_rmsnorm_e4m3_skylake);
+        // e4m3
+        run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_skylake", nk_each_sum_e4m3_skylake);
+        run_each<e4m3_k, scale_k, f32_k>(env, "each_scale_e4m3_skylake", nk_each_scale_e4m3_skylake);
+        run_each<e4m3_k, blend_k, f32_k>(env, "each_blend_e4m3_skylake", nk_each_blend_e4m3_skylake);
+        run_each<e4m3_k, fma_k, f32_k>(env, "each_fma_e4m3_skylake", nk_each_fma_e4m3_skylake);
+        // e5m2
+        run_each<e5m2_k, sum_k, f32_k>(env, "each_sum_e5m2_skylake", nk_each_sum_e5m2_skylake);
+        run_each<e5m2_k, scale_k, f32_k>(env, "each_scale_e5m2_skylake", nk_each_scale_e5m2_skylake);
+        run_each<e5m2_k, blend_k, f32_k>(env, "each_blend_e5m2_skylake", nk_each_blend_e5m2_skylake);
+        run_each<e5m2_k, fma_k, f32_k>(env, "each_fma_e5m2_skylake", nk_each_fma_e5m2_skylake);
+        // i8, u8
+        run_each<i8_k, scale_k, f32_k>(env, "each_scale_i8_skylake", nk_each_scale_i8_skylake);
+        run_each<i8_k, blend_k, f32_k>(env, "each_blend_i8_skylake", nk_each_blend_i8_skylake);
+        run_each<i8_k, fma_k, f32_k>(env, "each_fma_i8_skylake", nk_each_fma_i8_skylake);
+        run_each<u8_k, scale_k, f32_k>(env, "each_scale_u8_skylake", nk_each_scale_u8_skylake);
+        run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_skylake", nk_each_blend_u8_skylake);
+        run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_skylake", nk_each_fma_u8_skylake);
+        // i16, u16
+        run_each<i16_k, scale_k, f32_k>(env, "each_scale_i16_skylake", nk_each_scale_i16_skylake);
+        run_each<i16_k, fma_k, f32_k>(env, "each_fma_i16_skylake", nk_each_fma_i16_skylake);
+        run_each<u16_k, scale_k, f32_k>(env, "each_scale_u16_skylake", nk_each_scale_u16_skylake);
+        run_each<u16_k, fma_k, f32_k>(env, "each_fma_u16_skylake", nk_each_fma_u16_skylake);
+        // i32, u32
+        run_each<i32_k, scale_k, f64_k>(env, "each_scale_i32_skylake", nk_each_scale_i32_skylake);
+        run_each<i32_k, fma_k, f64_k>(env, "each_fma_i32_skylake", nk_each_fma_i32_skylake);
+        run_each<u32_k, scale_k, f64_k>(env, "each_scale_u32_skylake", nk_each_scale_u32_skylake);
+        run_each<u32_k, fma_k, f64_k>(env, "each_fma_u32_skylake", nk_each_fma_u32_skylake);
+        // i64, u64
+        run_each<i64_k, scale_k, f64_k>(env, "each_scale_i64_skylake", nk_each_scale_i64_skylake);
+        run_each<i64_k, fma_k, f64_k>(env, "each_fma_i64_skylake", nk_each_fma_i64_skylake);
+        run_each<u64_k, scale_k, f64_k>(env, "each_scale_u64_skylake", nk_each_scale_u64_skylake);
+        run_each<u64_k, fma_k, f64_k>(env, "each_fma_u64_skylake", nk_each_fma_u64_skylake);
+        // complex
+        run_each<f32c_k, scale_k, f32c_k>(env, "each_scale_f32c_skylake", nk_each_scale_f32c_skylake);
+        run_each<f32c_k, blend_k, f32c_k>(env, "each_blend_f32c_skylake", nk_each_blend_f32c_skylake);
+        run_each<f32c_k, fma_k, f32c_k>(env, "each_fma_f32c_skylake", nk_each_fma_f32c_skylake);
+        run_each<f64c_k, scale_k, f64c_k>(env, "each_scale_f64c_skylake", nk_each_scale_f64c_skylake);
+        run_each<f64c_k, blend_k, f64c_k>(env, "each_blend_f64c_skylake", nk_each_blend_f64c_skylake);
+        run_each<f64c_k, fma_k, f64c_k>(env, "each_fma_f64c_skylake", nk_each_fma_f64c_skylake);
+    }
 #endif
 
 #if NUMKONG_TARGET_ICELAKE
-    run_each<i8_k, sum_k, f32_k>("each_sum_i8_icelake", nk_each_sum_i8_icelake);
-    run_each<u8_k, sum_k, f32_k>("each_sum_u8_icelake", nk_each_sum_u8_icelake);
-    run_each<i16_k, sum_k, f32_k>("each_sum_i16_icelake", nk_each_sum_i16_icelake);
-    run_each<u16_k, sum_k, f32_k>("each_sum_u16_icelake", nk_each_sum_u16_icelake);
-    run_each<i32_k, sum_k, f32_k>("each_sum_i32_icelake", nk_each_sum_i32_icelake);
-    run_each<u32_k, sum_k, f32_k>("each_sum_u32_icelake", nk_each_sum_u32_icelake);
-    run_each<i64_k, sum_k, f64_k>("each_sum_i64_icelake", nk_each_sum_i64_icelake);
-    run_each<u64_k, sum_k, f64_k>("each_sum_u64_icelake", nk_each_sum_u64_icelake);
+    if (section(env, "Elementwise Operations Ice Lake", nk_cap_icelake_k)) {
+        run_each<i8_k, sum_k, f32_k>(env, "each_sum_i8_icelake", nk_each_sum_i8_icelake);
+        run_each<u8_k, sum_k, f32_k>(env, "each_sum_u8_icelake", nk_each_sum_u8_icelake);
+        run_each<i16_k, sum_k, f32_k>(env, "each_sum_i16_icelake", nk_each_sum_i16_icelake);
+        run_each<u16_k, sum_k, f32_k>(env, "each_sum_u16_icelake", nk_each_sum_u16_icelake);
+        run_each<i32_k, sum_k, f32_k>(env, "each_sum_i32_icelake", nk_each_sum_i32_icelake);
+        run_each<u32_k, sum_k, f32_k>(env, "each_sum_u32_icelake", nk_each_sum_u32_icelake);
+        run_each<i64_k, sum_k, f64_k>(env, "each_sum_i64_icelake", nk_each_sum_i64_icelake);
+        run_each<u64_k, sum_k, f64_k>(env, "each_sum_u64_icelake", nk_each_sum_u64_icelake);
+    }
 #endif
 
 #if NUMKONG_TARGET_GENOA
-    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_genoa", nk_each_rmsnorm_bf16_genoa);
-    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_genoa", nk_each_rmsnorm_e4m3_genoa);
+    if (section(env, "Elementwise Operations Genoa", nk_cap_genoa_k)) {
+        run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_genoa", nk_each_rmsnorm_bf16_genoa);
+        run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_genoa", nk_each_rmsnorm_e4m3_genoa);
+    }
 #endif
 
 #if NUMKONG_TARGET_SAPPHIRE
-    // f16, e4m3
-    run_each<f16_k, sum_k, f32_k>("each_sum_f16_sapphire", nk_each_sum_f16_sapphire);
-    run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_sapphire", nk_each_sum_e4m3_sapphire);
+    if (section(env, "Elementwise Operations Sapphire", nk_cap_sapphire_k)) {
+        // f16, e4m3
+        run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_sapphire", nk_each_sum_f16_sapphire);
+        run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_sapphire", nk_each_sum_e4m3_sapphire);
+    }
 #endif
 
 #if NUMKONG_TARGET_RVV
-    run_each<f64_k, scale_k, f64_k>("each_scale_f64_rvv", nk_each_scale_f64_rvv);
-    run_each<f64_k, fma_k, f64_k>("each_fma_f64_rvv", nk_each_fma_f64_rvv);
-    run_each<f64_k, blend_k, f64_k>("each_blend_f64_rvv", nk_each_blend_f64_rvv);
-    run_each<f32_k, scale_k, f32_k>("each_scale_f32_rvv", nk_each_scale_f32_rvv);
-    run_each<f32_k, fma_k, f32_k>("each_fma_f32_rvv", nk_each_fma_f32_rvv);
-    run_each<f32_k, blend_k, f32_k>("each_blend_f32_rvv", nk_each_blend_f32_rvv);
-    run_each<f16_k, scale_k, f32_k>("each_scale_f16_rvv", nk_each_scale_f16_rvv);
-    run_each<f16_k, fma_k, f32_k>("each_fma_f16_rvv", nk_each_fma_f16_rvv);
-    run_each<f16_k, blend_k, f32_k>("each_blend_f16_rvv", nk_each_blend_f16_rvv);
-    run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_rvv", nk_each_scale_bf16_rvv);
-    run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_rvv", nk_each_fma_bf16_rvv);
-    run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_rvv", nk_each_blend_bf16_rvv);
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_rvv", nk_each_scale_i8_rvv);
-    run_each<i8_k, fma_k, f32_k>("each_fma_i8_rvv", nk_each_fma_i8_rvv);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_rvv", nk_each_blend_i8_rvv);
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_rvv", nk_each_scale_u8_rvv);
-    run_each<u8_k, fma_k, f32_k>("each_fma_u8_rvv", nk_each_fma_u8_rvv);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_rvv", nk_each_blend_u8_rvv);
+    if (section(env, "Elementwise Operations RVV", nk_cap_rvv_k)) {
+        run_each<f64_k, scale_k, f64_k>(env, "each_scale_f64_rvv", nk_each_scale_f64_rvv);
+        run_each<f64_k, fma_k, f64_k>(env, "each_fma_f64_rvv", nk_each_fma_f64_rvv);
+        run_each<f64_k, blend_k, f64_k>(env, "each_blend_f64_rvv", nk_each_blend_f64_rvv);
+        run_each<f32_k, scale_k, f32_k>(env, "each_scale_f32_rvv", nk_each_scale_f32_rvv);
+        run_each<f32_k, fma_k, f32_k>(env, "each_fma_f32_rvv", nk_each_fma_f32_rvv);
+        run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_rvv", nk_each_blend_f32_rvv);
+        run_each<f16_k, scale_k, f32_k>(env, "each_scale_f16_rvv", nk_each_scale_f16_rvv);
+        run_each<f16_k, fma_k, f32_k>(env, "each_fma_f16_rvv", nk_each_fma_f16_rvv);
+        run_each<f16_k, blend_k, f32_k>(env, "each_blend_f16_rvv", nk_each_blend_f16_rvv);
+        run_each<bf16_k, scale_k, f32_k>(env, "each_scale_bf16_rvv", nk_each_scale_bf16_rvv);
+        run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_rvv", nk_each_fma_bf16_rvv);
+        run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_rvv", nk_each_blend_bf16_rvv);
+        run_each<i8_k, scale_k, f32_k>(env, "each_scale_i8_rvv", nk_each_scale_i8_rvv);
+        run_each<i8_k, fma_k, f32_k>(env, "each_fma_i8_rvv", nk_each_fma_i8_rvv);
+        run_each<i8_k, blend_k, f32_k>(env, "each_blend_i8_rvv", nk_each_blend_i8_rvv);
+        run_each<u8_k, scale_k, f32_k>(env, "each_scale_u8_rvv", nk_each_scale_u8_rvv);
+        run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_rvv", nk_each_fma_u8_rvv);
+        run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_rvv", nk_each_blend_u8_rvv);
+    }
 #endif
 
 #if NUMKONG_TARGET_V128RELAXED
-    run_each<f32_k, scale_k, f32_k>("each_scale_f32_v128relaxed", nk_each_scale_f32_v128relaxed);
-    run_each<f32_k, blend_k, f32_k>("each_blend_f32_v128relaxed", nk_each_blend_f32_v128relaxed);
-    run_each<f32_k, fma_k, f32_k>("each_fma_f32_v128relaxed", nk_each_fma_f32_v128relaxed);
-    run_each<f16_k, sum_k, f32_k>("each_sum_f16_v128relaxed", nk_each_sum_f16_v128relaxed);
-    run_each<f16_k, scale_k, f32_k>("each_scale_f16_v128relaxed", nk_each_scale_f16_v128relaxed);
-    run_each<f16_k, blend_k, f32_k>("each_blend_f16_v128relaxed", nk_each_blend_f16_v128relaxed);
-    run_each<f16_k, fma_k, f32_k>("each_fma_f16_v128relaxed", nk_each_fma_f16_v128relaxed);
-    run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_v128relaxed", nk_each_scale_bf16_v128relaxed);
-    run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_v128relaxed", nk_each_blend_bf16_v128relaxed);
-    run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_v128relaxed", nk_each_fma_bf16_v128relaxed);
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_v128relaxed", nk_each_scale_i8_v128relaxed);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_v128relaxed", nk_each_blend_i8_v128relaxed);
-    run_each<i8_k, fma_k, f32_k>("each_fma_i8_v128relaxed", nk_each_fma_i8_v128relaxed);
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_v128relaxed", nk_each_scale_u8_v128relaxed);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_v128relaxed", nk_each_blend_u8_v128relaxed);
-    run_each<u8_k, fma_k, f32_k>("each_fma_u8_v128relaxed", nk_each_fma_u8_v128relaxed);
+    if (section(env, "Elementwise Operations V128 Relaxed", nk_cap_v128relaxed_k)) {
+        run_each<f32_k, scale_k, f32_k>(env, "each_scale_f32_v128relaxed", nk_each_scale_f32_v128relaxed);
+        run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_v128relaxed", nk_each_blend_f32_v128relaxed);
+        run_each<f32_k, fma_k, f32_k>(env, "each_fma_f32_v128relaxed", nk_each_fma_f32_v128relaxed);
+        run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_v128relaxed", nk_each_sum_f16_v128relaxed);
+        run_each<f16_k, scale_k, f32_k>(env, "each_scale_f16_v128relaxed", nk_each_scale_f16_v128relaxed);
+        run_each<f16_k, blend_k, f32_k>(env, "each_blend_f16_v128relaxed", nk_each_blend_f16_v128relaxed);
+        run_each<f16_k, fma_k, f32_k>(env, "each_fma_f16_v128relaxed", nk_each_fma_f16_v128relaxed);
+        run_each<bf16_k, scale_k, f32_k>(env, "each_scale_bf16_v128relaxed", nk_each_scale_bf16_v128relaxed);
+        run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_v128relaxed", nk_each_blend_bf16_v128relaxed);
+        run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_v128relaxed", nk_each_fma_bf16_v128relaxed);
+        run_each<i8_k, scale_k, f32_k>(env, "each_scale_i8_v128relaxed", nk_each_scale_i8_v128relaxed);
+        run_each<i8_k, blend_k, f32_k>(env, "each_blend_i8_v128relaxed", nk_each_blend_i8_v128relaxed);
+        run_each<i8_k, fma_k, f32_k>(env, "each_fma_i8_v128relaxed", nk_each_fma_i8_v128relaxed);
+        run_each<u8_k, scale_k, f32_k>(env, "each_scale_u8_v128relaxed", nk_each_scale_u8_v128relaxed);
+        run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_v128relaxed", nk_each_blend_u8_v128relaxed);
+        run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_v128relaxed", nk_each_fma_u8_v128relaxed);
+    }
 #endif
 
 #if NUMKONG_TARGET_V128
-    run_each<f32_k, sum_k, f32_k>("each_sum_f32_v128", nk_each_sum_f32_v128);
-    run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_v128", nk_each_sum_bf16_v128);
-    run_each<i8_k, sum_k, f32_k>("each_sum_i8_v128", nk_each_sum_i8_v128);
-    run_each<u8_k, sum_k, f32_k>("each_sum_u8_v128", nk_each_sum_u8_v128);
+    if (section(env, "Elementwise Operations V128", nk_cap_v128_k)) {
+        run_each<f32_k, sum_k, f32_k>(env, "each_sum_f32_v128", nk_each_sum_f32_v128);
+        run_each<bf16_k, sum_k, f32_k>(env, "each_sum_bf16_v128", nk_each_sum_bf16_v128);
+        run_each<i8_k, sum_k, f32_k>(env, "each_sum_i8_v128", nk_each_sum_i8_v128);
+        run_each<u8_k, sum_k, f32_k>(env, "each_sum_u8_v128", nk_each_sum_u8_v128);
+    }
 #endif
 
     // Serial fallbacks — f64
-    run_each<f64_k, sum_k, f64_k>("each_sum_f64_serial", nk_each_sum_f64_serial);
-    run_each<f64_k, scale_k, f64_k>("each_scale_f64_serial", nk_each_scale_f64_serial);
-    run_each<f64_k, blend_k, f64_k>("each_blend_f64_serial", nk_each_blend_f64_serial);
-    run_each<f64_k, fma_k, f64_k>("each_fma_f64_serial", nk_each_fma_f64_serial);
+    section(env, "Elementwise Operations Serial", nk_cap_serial_k);
+    run_each<f64_k, sum_k, f64_k>(env, "each_sum_f64_serial", nk_each_sum_f64_serial);
+    run_each<f64_k, scale_k, f64_k>(env, "each_scale_f64_serial", nk_each_scale_f64_serial);
+    run_each<f64_k, blend_k, f64_k>(env, "each_blend_f64_serial", nk_each_blend_f64_serial);
+    run_each<f64_k, fma_k, f64_k>(env, "each_fma_f64_serial", nk_each_fma_f64_serial);
     // Serial fallbacks — f32
-    run_each<f32_k, sum_k, f32_k>("each_sum_f32_serial", nk_each_sum_f32_serial);
-    run_each<f32_k, scale_k, f32_k>("each_scale_f32_serial", nk_each_scale_f32_serial);
-    run_each<f32_k, blend_k, f32_k>("each_blend_f32_serial", nk_each_blend_f32_serial);
-    run_each<f32_k, fma_k, f32_k>("each_fma_f32_serial", nk_each_fma_f32_serial);
+    run_each<f32_k, sum_k, f32_k>(env, "each_sum_f32_serial", nk_each_sum_f32_serial);
+    run_each<f32_k, scale_k, f32_k>(env, "each_scale_f32_serial", nk_each_scale_f32_serial);
+    run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_serial", nk_each_blend_f32_serial);
+    run_each<f32_k, fma_k, f32_k>(env, "each_fma_f32_serial", nk_each_fma_f32_serial);
     // Serial fallbacks — f16, bf16
-    run_each<f16_k, sum_k, f32_k>("each_sum_f16_serial", nk_each_sum_f16_serial);
-    run_each<f16_k, scale_k, f32_k>("each_scale_f16_serial", nk_each_scale_f16_serial);
-    run_each<f16_k, blend_k, f32_k>("each_blend_f16_serial", nk_each_blend_f16_serial);
-    run_each<f16_k, fma_k, f32_k>("each_fma_f16_serial", nk_each_fma_f16_serial);
-    run_each<bf16_k, sum_k, f32_k>("each_sum_bf16_serial", nk_each_sum_bf16_serial);
-    run_each<bf16_k, scale_k, f32_k>("each_scale_bf16_serial", nk_each_scale_bf16_serial);
-    run_each<bf16_k, blend_k, f32_k>("each_blend_bf16_serial", nk_each_blend_bf16_serial);
-    run_each<bf16_k, fma_k, f32_k>("each_fma_bf16_serial", nk_each_fma_bf16_serial);
-    run_swiglu<f32_k>("each_swiglu_f32_serial", nk_each_swiglu_f32_serial);
-    run_swiglu<bf16_k>("each_swiglu_bf16_serial", nk_each_swiglu_bf16_serial);
-    run_swiglu<e4m3_k>("each_swiglu_e4m3_serial", nk_each_swiglu_e4m3_serial);
-    run_rmsnorm<f32_k>("each_rmsnorm_f32_serial", nk_each_rmsnorm_f32_serial);
-    run_rmsnorm<bf16_k>("each_rmsnorm_bf16_serial", nk_each_rmsnorm_bf16_serial);
-    run_rmsnorm<e4m3_k>("each_rmsnorm_e4m3_serial", nk_each_rmsnorm_e4m3_serial);
+    run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_serial", nk_each_sum_f16_serial);
+    run_each<f16_k, scale_k, f32_k>(env, "each_scale_f16_serial", nk_each_scale_f16_serial);
+    run_each<f16_k, blend_k, f32_k>(env, "each_blend_f16_serial", nk_each_blend_f16_serial);
+    run_each<f16_k, fma_k, f32_k>(env, "each_fma_f16_serial", nk_each_fma_f16_serial);
+    run_each<bf16_k, sum_k, f32_k>(env, "each_sum_bf16_serial", nk_each_sum_bf16_serial);
+    run_each<bf16_k, scale_k, f32_k>(env, "each_scale_bf16_serial", nk_each_scale_bf16_serial);
+    run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_serial", nk_each_blend_bf16_serial);
+    run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_serial", nk_each_fma_bf16_serial);
+    run_swiglu<f32_k>(env, "each_swiglu_f32_serial", nk_each_swiglu_f32_serial);
+    run_swiglu<bf16_k>(env, "each_swiglu_bf16_serial", nk_each_swiglu_bf16_serial);
+    run_swiglu<e4m3_k>(env, "each_swiglu_e4m3_serial", nk_each_swiglu_e4m3_serial);
+    run_rmsnorm<f32_k>(env, "each_rmsnorm_f32_serial", nk_each_rmsnorm_f32_serial);
+    run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_serial", nk_each_rmsnorm_bf16_serial);
+    run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_serial", nk_each_rmsnorm_e4m3_serial);
     // Serial fallbacks — e4m3, e5m2, e2m3, e3m2
-    run_each<e4m3_k, sum_k, f32_k>("each_sum_e4m3_serial", nk_each_sum_e4m3_serial);
-    run_each<e4m3_k, scale_k, f32_k>("each_scale_e4m3_serial", nk_each_scale_e4m3_serial);
-    run_each<e4m3_k, blend_k, f32_k>("each_blend_e4m3_serial", nk_each_blend_e4m3_serial);
-    run_each<e4m3_k, fma_k, f32_k>("each_fma_e4m3_serial", nk_each_fma_e4m3_serial);
-    run_each<e5m2_k, sum_k, f32_k>("each_sum_e5m2_serial", nk_each_sum_e5m2_serial);
-    run_each<e5m2_k, scale_k, f32_k>("each_scale_e5m2_serial", nk_each_scale_e5m2_serial);
-    run_each<e5m2_k, blend_k, f32_k>("each_blend_e5m2_serial", nk_each_blend_e5m2_serial);
-    run_each<e5m2_k, fma_k, f32_k>("each_fma_e5m2_serial", nk_each_fma_e5m2_serial);
-    run_each<e2m3_k, sum_k, f32_k>("each_sum_e2m3_serial", nk_each_sum_e2m3_serial);
-    run_each<e2m3_k, scale_k, f32_k>("each_scale_e2m3_serial", nk_each_scale_e2m3_serial);
-    run_each<e2m3_k, blend_k, f32_k>("each_blend_e2m3_serial", nk_each_blend_e2m3_serial);
-    run_each<e2m3_k, fma_k, f32_k>("each_fma_e2m3_serial", nk_each_fma_e2m3_serial);
-    run_each<e3m2_k, sum_k, f32_k>("each_sum_e3m2_serial", nk_each_sum_e3m2_serial);
-    run_each<e3m2_k, scale_k, f32_k>("each_scale_e3m2_serial", nk_each_scale_e3m2_serial);
-    run_each<e3m2_k, blend_k, f32_k>("each_blend_e3m2_serial", nk_each_blend_e3m2_serial);
-    run_each<e3m2_k, fma_k, f32_k>("each_fma_e3m2_serial", nk_each_fma_e3m2_serial);
+    run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_serial", nk_each_sum_e4m3_serial);
+    run_each<e4m3_k, scale_k, f32_k>(env, "each_scale_e4m3_serial", nk_each_scale_e4m3_serial);
+    run_each<e4m3_k, blend_k, f32_k>(env, "each_blend_e4m3_serial", nk_each_blend_e4m3_serial);
+    run_each<e4m3_k, fma_k, f32_k>(env, "each_fma_e4m3_serial", nk_each_fma_e4m3_serial);
+    run_each<e5m2_k, sum_k, f32_k>(env, "each_sum_e5m2_serial", nk_each_sum_e5m2_serial);
+    run_each<e5m2_k, scale_k, f32_k>(env, "each_scale_e5m2_serial", nk_each_scale_e5m2_serial);
+    run_each<e5m2_k, blend_k, f32_k>(env, "each_blend_e5m2_serial", nk_each_blend_e5m2_serial);
+    run_each<e5m2_k, fma_k, f32_k>(env, "each_fma_e5m2_serial", nk_each_fma_e5m2_serial);
+    run_each<e2m3_k, sum_k, f32_k>(env, "each_sum_e2m3_serial", nk_each_sum_e2m3_serial);
+    run_each<e2m3_k, scale_k, f32_k>(env, "each_scale_e2m3_serial", nk_each_scale_e2m3_serial);
+    run_each<e2m3_k, blend_k, f32_k>(env, "each_blend_e2m3_serial", nk_each_blend_e2m3_serial);
+    run_each<e2m3_k, fma_k, f32_k>(env, "each_fma_e2m3_serial", nk_each_fma_e2m3_serial);
+    run_each<e3m2_k, sum_k, f32_k>(env, "each_sum_e3m2_serial", nk_each_sum_e3m2_serial);
+    run_each<e3m2_k, scale_k, f32_k>(env, "each_scale_e3m2_serial", nk_each_scale_e3m2_serial);
+    run_each<e3m2_k, blend_k, f32_k>(env, "each_blend_e3m2_serial", nk_each_blend_e3m2_serial);
+    run_each<e3m2_k, fma_k, f32_k>(env, "each_fma_e3m2_serial", nk_each_fma_e3m2_serial);
     // Serial fallbacks — i8, u8
-    run_each<i8_k, sum_k, f32_k>("each_sum_i8_serial", nk_each_sum_i8_serial);
-    run_each<i8_k, scale_k, f32_k>("each_scale_i8_serial", nk_each_scale_i8_serial);
-    run_each<i8_k, blend_k, f32_k>("each_blend_i8_serial", nk_each_blend_i8_serial);
-    run_each<i8_k, fma_k, f32_k>("each_fma_i8_serial", nk_each_fma_i8_serial);
-    run_each<u8_k, sum_k, f32_k>("each_sum_u8_serial", nk_each_sum_u8_serial);
-    run_each<u8_k, scale_k, f32_k>("each_scale_u8_serial", nk_each_scale_u8_serial);
-    run_each<u8_k, blend_k, f32_k>("each_blend_u8_serial", nk_each_blend_u8_serial);
-    run_each<u8_k, fma_k, f32_k>("each_fma_u8_serial", nk_each_fma_u8_serial);
+    run_each<i8_k, sum_k, f32_k>(env, "each_sum_i8_serial", nk_each_sum_i8_serial);
+    run_each<i8_k, scale_k, f32_k>(env, "each_scale_i8_serial", nk_each_scale_i8_serial);
+    run_each<i8_k, blend_k, f32_k>(env, "each_blend_i8_serial", nk_each_blend_i8_serial);
+    run_each<i8_k, fma_k, f32_k>(env, "each_fma_i8_serial", nk_each_fma_i8_serial);
+    run_each<u8_k, sum_k, f32_k>(env, "each_sum_u8_serial", nk_each_sum_u8_serial);
+    run_each<u8_k, scale_k, f32_k>(env, "each_scale_u8_serial", nk_each_scale_u8_serial);
+    run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_serial", nk_each_blend_u8_serial);
+    run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_serial", nk_each_fma_u8_serial);
     // Serial fallbacks — i16, u16
-    run_each<i16_k, sum_k, f32_k>("each_sum_i16_serial", nk_each_sum_i16_serial);
-    run_each<i16_k, scale_k, f32_k>("each_scale_i16_serial", nk_each_scale_i16_serial);
-    run_each<i16_k, blend_k, f32_k>("each_blend_i16_serial", nk_each_blend_i16_serial);
-    run_each<i16_k, fma_k, f32_k>("each_fma_i16_serial", nk_each_fma_i16_serial);
-    run_each<u16_k, sum_k, f32_k>("each_sum_u16_serial", nk_each_sum_u16_serial);
-    run_each<u16_k, scale_k, f32_k>("each_scale_u16_serial", nk_each_scale_u16_serial);
-    run_each<u16_k, blend_k, f32_k>("each_blend_u16_serial", nk_each_blend_u16_serial);
-    run_each<u16_k, fma_k, f32_k>("each_fma_u16_serial", nk_each_fma_u16_serial);
+    run_each<i16_k, sum_k, f32_k>(env, "each_sum_i16_serial", nk_each_sum_i16_serial);
+    run_each<i16_k, scale_k, f32_k>(env, "each_scale_i16_serial", nk_each_scale_i16_serial);
+    run_each<i16_k, blend_k, f32_k>(env, "each_blend_i16_serial", nk_each_blend_i16_serial);
+    run_each<i16_k, fma_k, f32_k>(env, "each_fma_i16_serial", nk_each_fma_i16_serial);
+    run_each<u16_k, sum_k, f32_k>(env, "each_sum_u16_serial", nk_each_sum_u16_serial);
+    run_each<u16_k, scale_k, f32_k>(env, "each_scale_u16_serial", nk_each_scale_u16_serial);
+    run_each<u16_k, blend_k, f32_k>(env, "each_blend_u16_serial", nk_each_blend_u16_serial);
+    run_each<u16_k, fma_k, f32_k>(env, "each_fma_u16_serial", nk_each_fma_u16_serial);
     // Serial fallbacks — i32, u32
-    run_each<i32_k, sum_k, f64_k>("each_sum_i32_serial", nk_each_sum_i32_serial);
-    run_each<i32_k, scale_k, f64_k>("each_scale_i32_serial", nk_each_scale_i32_serial);
-    run_each<i32_k, blend_k, f64_k>("each_blend_i32_serial", nk_each_blend_i32_serial);
-    run_each<i32_k, fma_k, f64_k>("each_fma_i32_serial", nk_each_fma_i32_serial);
-    run_each<u32_k, sum_k, f64_k>("each_sum_u32_serial", nk_each_sum_u32_serial);
-    run_each<u32_k, scale_k, f64_k>("each_scale_u32_serial", nk_each_scale_u32_serial);
-    run_each<u32_k, blend_k, f64_k>("each_blend_u32_serial", nk_each_blend_u32_serial);
-    run_each<u32_k, fma_k, f64_k>("each_fma_u32_serial", nk_each_fma_u32_serial);
+    run_each<i32_k, sum_k, f64_k>(env, "each_sum_i32_serial", nk_each_sum_i32_serial);
+    run_each<i32_k, scale_k, f64_k>(env, "each_scale_i32_serial", nk_each_scale_i32_serial);
+    run_each<i32_k, blend_k, f64_k>(env, "each_blend_i32_serial", nk_each_blend_i32_serial);
+    run_each<i32_k, fma_k, f64_k>(env, "each_fma_i32_serial", nk_each_fma_i32_serial);
+    run_each<u32_k, sum_k, f64_k>(env, "each_sum_u32_serial", nk_each_sum_u32_serial);
+    run_each<u32_k, scale_k, f64_k>(env, "each_scale_u32_serial", nk_each_scale_u32_serial);
+    run_each<u32_k, blend_k, f64_k>(env, "each_blend_u32_serial", nk_each_blend_u32_serial);
+    run_each<u32_k, fma_k, f64_k>(env, "each_fma_u32_serial", nk_each_fma_u32_serial);
     // Serial fallbacks — i64, u64
-    run_each<i64_k, sum_k, f64_k>("each_sum_i64_serial", nk_each_sum_i64_serial);
-    run_each<i64_k, scale_k, f64_k>("each_scale_i64_serial", nk_each_scale_i64_serial);
-    run_each<i64_k, blend_k, f64_k>("each_blend_i64_serial", nk_each_blend_i64_serial);
-    run_each<i64_k, fma_k, f64_k>("each_fma_i64_serial", nk_each_fma_i64_serial);
-    run_each<u64_k, sum_k, f64_k>("each_sum_u64_serial", nk_each_sum_u64_serial);
-    run_each<u64_k, scale_k, f64_k>("each_scale_u64_serial", nk_each_scale_u64_serial);
-    run_each<u64_k, blend_k, f64_k>("each_blend_u64_serial", nk_each_blend_u64_serial);
-    run_each<u64_k, fma_k, f64_k>("each_fma_u64_serial", nk_each_fma_u64_serial);
+    run_each<i64_k, sum_k, f64_k>(env, "each_sum_i64_serial", nk_each_sum_i64_serial);
+    run_each<i64_k, scale_k, f64_k>(env, "each_scale_i64_serial", nk_each_scale_i64_serial);
+    run_each<i64_k, blend_k, f64_k>(env, "each_blend_i64_serial", nk_each_blend_i64_serial);
+    run_each<i64_k, fma_k, f64_k>(env, "each_fma_i64_serial", nk_each_fma_i64_serial);
+    run_each<u64_k, sum_k, f64_k>(env, "each_sum_u64_serial", nk_each_sum_u64_serial);
+    run_each<u64_k, scale_k, f64_k>(env, "each_scale_u64_serial", nk_each_scale_u64_serial);
+    run_each<u64_k, blend_k, f64_k>(env, "each_blend_u64_serial", nk_each_blend_u64_serial);
+    run_each<u64_k, fma_k, f64_k>(env, "each_fma_u64_serial", nk_each_fma_u64_serial);
     // Serial fallbacks — complex
-    run_each<f32c_k, sum_k, f32c_k>("each_sum_f32c_serial", nk_each_sum_f32c_serial);
-    run_each<f32c_k, scale_k, f32c_k>("each_scale_f32c_serial", nk_each_scale_f32c_serial);
-    run_each<f32c_k, blend_k, f32c_k>("each_blend_f32c_serial", nk_each_blend_f32c_serial);
-    run_each<f32c_k, fma_k, f32c_k>("each_fma_f32c_serial", nk_each_fma_f32c_serial);
-    run_each<f64c_k, sum_k, f64c_k>("each_sum_f64c_serial", nk_each_sum_f64c_serial);
-    run_each<f64c_k, scale_k, f64c_k>("each_scale_f64c_serial", nk_each_scale_f64c_serial);
-    run_each<f64c_k, blend_k, f64c_k>("each_blend_f64c_serial", nk_each_blend_f64c_serial);
-    run_each<f64c_k, fma_k, f64c_k>("each_fma_f64c_serial", nk_each_fma_f64c_serial);
+    run_each<f32c_k, sum_k, f32c_k>(env, "each_sum_f32c_serial", nk_each_sum_f32c_serial);
+    run_each<f32c_k, scale_k, f32c_k>(env, "each_scale_f32c_serial", nk_each_scale_f32c_serial);
+    run_each<f32c_k, blend_k, f32c_k>(env, "each_blend_f32c_serial", nk_each_blend_f32c_serial);
+    run_each<f32c_k, fma_k, f32c_k>(env, "each_fma_f32c_serial", nk_each_fma_f32c_serial);
+    run_each<f64c_k, sum_k, f64c_k>(env, "each_sum_f64c_serial", nk_each_sum_f64c_serial);
+    run_each<f64c_k, scale_k, f64c_k>(env, "each_scale_f64c_serial", nk_each_scale_f64c_serial);
+    run_each<f64c_k, blend_k, f64c_k>(env, "each_blend_f64c_serial", nk_each_blend_f64c_serial);
+    run_each<f64c_k, fma_k, f64c_k>(env, "each_fma_f64c_serial", nk_each_fma_f64c_serial);
 }
+
+} // namespace ashvardanian::numkong::bench

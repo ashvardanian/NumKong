@@ -63,7 +63,7 @@ No native `_mm512_2intersect_epi16` instruction exists in any x86 ISA, so `nk_sp
 `nk_sparse_intersect_u32_turin` uses the `VP2INTERSECT` instruction (Zen5), which produces _two_ 16-bit masks in a single operation — one indicating which elements of A matched any element of B, and vice versa.
 This replaces the entire shuffle-rotate-compare sequence from Ice Lake with a single instruction, eliminating port-5 contention entirely.
 Even on Turin, UInt16 intersection requires zero-extending to UInt32 first — no `VP2INTERSECT` variant operates on 16-bit elements.
-For UInt64, `_mm512_2intersect_epi64` processes 8x8 = 64 pairs per instruction — half the throughput of UInt32 but still far faster than the Ice Lake shuffle approach.
+For UInt64, `_mm512_2intersect_epi64` processes 8 × 8 = 64 pairs per instruction — half the throughput of UInt32 but still far faster than the Ice Lake shuffle approach.
 
 ### SVE2 Set Membership via svmatch and svhistcnt
 
@@ -100,19 +100,19 @@ The throughput is measured in GB/s as the number of input bytes per second.
 | Kernel                            |                       1% |                      50% |                      95% |
 | :-------------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u64__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u64_serial`  |                2.96 gb/s |                3.06 gb/s |                3.27 gb/s |
-| `nk_sparse_intersect_u64_icelake` |                3.64 gb/s |                3.83 gb/s |                3.74 gb/s |
+| `nk_sparse_intersect_u64_serial`  |                2.76 gb/s |                2.85 gb/s |                3.05 gb/s |
+| `nk_sparse_intersect_u64_icelake` |                3.39 gb/s |                3.57 gb/s |                3.48 gb/s |
 | __u32__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u32_serial`  |                1.51 gb/s |                1.55 gb/s |                1.69 gb/s |
-| `nk_sparse_intersect_u32_icelake` |                4.15 gb/s |                4.29 gb/s |                4.25 gb/s |
+| `nk_sparse_intersect_u32_serial`  |                1.41 gb/s |                1.44 gb/s |                1.57 gb/s |
+| `nk_sparse_intersect_u32_icelake` |                3.86 gb/s |                4.00 gb/s |                3.96 gb/s |
 | __u16__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u16_serial`  |               0.747 gb/s |               0.793 gb/s |               0.824 gb/s |
-| `nk_sparse_intersect_u16_icelake` |                3.06 gb/s |                3.09 gb/s |                3.10 gb/s |
+| `nk_sparse_intersect_u16_serial`  |               0.696 gb/s |               0.739 gb/s |               0.767 gb/s |
+| `nk_sparse_intersect_u16_icelake` |                2.85 gb/s |                2.88 gb/s |                2.89 gb/s |
 | __f32__                           | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_dot_u32f32_serial`     |       2.78 gb/s, 6.6 ulp |       2.78 gb/s, 5.9 ulp |       2.79 gb/s, 6.4 ulp |
-| `nk_sparse_dot_u32f32_icelake`    |       7.80 gb/s, 3.8 ulp |         6.46 gb/s, 4 ulp |       5.86 gb/s, 3.8 ulp |
+| `nk_sparse_dot_u32f32_serial`     |       2.59 gb/s, 6.6 ulp |       2.59 gb/s, 5.9 ulp |       2.60 gb/s, 6.4 ulp |
+| `nk_sparse_dot_u32f32_icelake`    |       7.26 gb/s, 3.8 ulp |         6.02 gb/s, 4 ulp |       5.46 gb/s, 3.8 ulp |
 | __bf16__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_dot_u16bf16_serial`    |        0.366 gb/s, 0 ulp |        0.364 gb/s, 0 ulp |        0.366 gb/s, 0 ulp |
+| `nk_sparse_dot_u16bf16_serial`    |        0.341 gb/s, 0 ulp |        0.339 gb/s, 0 ulp |        0.341 gb/s, 0 ulp |
 
 #### WASM
 
@@ -121,15 +121,15 @@ Measured with Wasmtime v42 (Cranelift backend).
 | Kernel                           |                       1% |                      50% |                      95% |
 | :------------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u64__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u64_serial` |                1.74 gb/s |                1.74 gb/s |                1.74 gb/s |
+| `nk_sparse_intersect_u64_serial` |                1.62 gb/s |                1.62 gb/s |                1.62 gb/s |
 | __u32__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u32_serial` |               0.492 gb/s |               0.492 gb/s |               0.492 gb/s |
+| `nk_sparse_intersect_u32_serial` |               0.458 gb/s |               0.458 gb/s |               0.458 gb/s |
 | __u16__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u16_serial` |               0.309 gb/s |               0.309 gb/s |               0.309 gb/s |
+| `nk_sparse_intersect_u16_serial` |               0.288 gb/s |               0.288 gb/s |               0.288 gb/s |
 | __f32__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_dot_u32f32_serial`    |       1.87 gb/s, 9.1 ulp |       1.87 gb/s, 9.1 ulp |       1.87 gb/s, 9.1 ulp |
+| `nk_sparse_dot_u32f32_serial`    |       1.74 gb/s, 9.1 ulp |       1.74 gb/s, 9.1 ulp |       1.74 gb/s, 9.1 ulp |
 | __bf16__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_dot_u16bf16_serial`   |        0.927 gb/s, 0 ulp |        0.927 gb/s, 0 ulp |        0.927 gb/s, 0 ulp |
+| `nk_sparse_dot_u16bf16_serial`   |        0.863 gb/s, 0 ulp |        0.863 gb/s, 0 ulp |        0.863 gb/s, 0 ulp |
 
 ### Apple M4
 
@@ -138,15 +138,15 @@ Measured with Wasmtime v42 (Cranelift backend).
 | Kernel                           |                       1% |                      50% |                      95% |
 | :------------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u64__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u64_serial` |                3.74 gb/s |                3.96 gb/s |                4.17 gb/s |
-| `nk_sparse_intersect_u64_neon`   |                4.91 gb/s |                4.61 gb/s |                4.46 gb/s |
+| `nk_sparse_intersect_u64_serial` |                3.48 gb/s |                3.69 gb/s |                3.88 gb/s |
+| `nk_sparse_intersect_u64_neon`   |                4.57 gb/s |                4.29 gb/s |                4.15 gb/s |
 | __u32__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u32_serial` |                1.88 gb/s |                1.98 gb/s |                2.09 gb/s |
-| `nk_sparse_intersect_u32_neon`   |                2.81 gb/s |                2.60 gb/s |                2.46 gb/s |
+| `nk_sparse_intersect_u32_serial` |                1.75 gb/s |                1.84 gb/s |                1.95 gb/s |
+| `nk_sparse_intersect_u32_neon`   |                2.62 gb/s |                2.42 gb/s |                2.29 gb/s |
 | __u16__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_intersect_u16_serial` |               0.951 gb/s |               0.995 gb/s |                1.05 gb/s |
-| `nk_sparse_intersect_u16_neon`   |                1.86 gb/s |                1.85 gb/s |                1.85 gb/s |
+| `nk_sparse_intersect_u16_serial` |               0.886 gb/s |               0.927 gb/s |               0.978 gb/s |
+| `nk_sparse_intersect_u16_neon`   |                1.73 gb/s |                1.72 gb/s |                1.72 gb/s |
 | __f32__                          | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_dot_u32f32_serial`    |       3.73 gb/s, 7.1 ulp |       3.74 gb/s, 7.1 ulp |       3.79 gb/s, 7.0 ulp |
+| `nk_sparse_dot_u32f32_serial`    |       3.47 gb/s, 7.1 ulp |       3.48 gb/s, 7.1 ulp |       3.53 gb/s, 7.0 ulp |
 | __bf16__                         | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_sparse_dot_u16bf16_serial`   |         1.73 gb/s, 0 ulp |         1.72 gb/s, 0 ulp |         1.72 gb/s, 0 ulp |
+| `nk_sparse_dot_u16bf16_serial`   |         1.61 gb/s, 0 ulp |         1.60 gb/s, 0 ulp |         1.60 gb/s, 0 ulp |

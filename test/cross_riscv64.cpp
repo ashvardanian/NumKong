@@ -7,10 +7,9 @@
 #include "harness.hpp"
 #include "cross.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
-void test_cross_riscv64() {
-    [[maybe_unused]] error_stats_section_t check;
+void test_cross_riscv64([[maybe_unused]] error_stats_section_t &check) {
 
 #if NUMKONG_TARGET_RVV
     check.section("Cross RVV", nk_cap_rvv_k);
@@ -155,3 +154,5 @@ void test_cross_riscv64() {
           nk_attention_pack_i8_rvv, nk_attention_causal_packed_i8_rvv);
 #endif // NUMKONG_TARGET_RVV
 }
+
+} // namespace ashvardanian::numkong::test

@@ -11,15 +11,16 @@
 //!
 //! File: rust/sets.rs
 //! Author: Ash Vardanian
-use core::ffi::c_void;
-use core::ptr::null_mut;
-
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{Allocator, Tensor, TensorError, TensorMut, TensorRef, TensorView};
-use crate::types::{u1x8, StorageElement};
+use core::{ffi::c_void, ptr::null_mut};
 
 #[cfg(feature = "parallel")]
 use forkunion as fu;
+
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{Allocator, Tensor, TensorError, TensorMut, TensorRef, TensorView},
+    types::{u1x8, StorageElement},
+};
 
 #[cfg(feature = "parallel")]
 use crate::capabilities::WorkerStatus;

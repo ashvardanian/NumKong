@@ -79,7 +79,7 @@ message(STATUS "NumKong WASI: SIMD capability ${NUMKONG_TARGET_ARCH}, single-thr
 message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 
 # The engine CTest runs each test binary through, wasmtime unless the build names another, like
-# `-DCMAKE_CROSSCOMPILING_EMULATOR="wasmer;run;--enable-simd;--enable-relaxed-simd"` or
+# `-DCMAKE_CROSSCOMPILING_EMULATOR="wasmer;run;--enable-simd;--enable-relaxed-simd;--forward-host-env"` or
 # `"node;<source>/test/wasi.mjs"`. Relaxed SIMD lowers differently per engine, so testing more than one matters.
 find_program(NUMKONG_WASMTIME_EXE_ wasmtime PATHS "$ENV{HOME}/.wasmtime/bin")
 set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMTIME_EXE_};run;-W;relaxed-simd=y;-S;inherit-env=y"

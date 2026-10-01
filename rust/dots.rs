@@ -12,16 +12,16 @@
 //!
 //! File: rust/dots.rs
 //! Author: Ash Vardanian
-use core::ffi::c_void;
-use core::marker::PhantomData;
-use core::ptr::null_mut;
-
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef, TensorView};
-use crate::types::{bf16, e2m1x2, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement};
+use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
 #[cfg(feature = "parallel")]
 use forkunion as fu;
+
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef, TensorView},
+    types::{bf16, e2m1x2, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement},
+};
 
 #[cfg(feature = "parallel")]
 use crate::capabilities::WorkerStatus;
@@ -3077,8 +3077,10 @@ impl<Scalar: Dots, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symmetric
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::SIMD_ALIGNMENT;
-    use crate::types::{align_depth, assert_upper_triangle_eq, init_thread, FloatLike, NumberLike, TestableType, DIMS};
+    use crate::{
+        tensor::SIMD_ALIGNMENT,
+        types::{align_depth, assert_upper_triangle_eq, init_thread, FloatLike, NumberLike, TestableType, DIMS},
+    };
 
     fn check_dots_packed<Scalar: TestableType + Dots>()
     where

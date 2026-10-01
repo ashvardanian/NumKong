@@ -10,7 +10,7 @@
 #include "harness.hpp"
 #include "numkong/cast.h"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 using cast_t = nk_status_t (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t, void *);
 
@@ -31,20 +31,21 @@ static auto read_element_(vec_type_ const &v, std::size_t i) {
 /** Tests a cast kernel against the serial kernel; SIMD kernels must match serial output exactly for
  *  every logical element. */
 template <typename from_type_, typename to_type_>
-error_stats_t test_cast(cast_t kernel) {
+error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
     // Align to lcm(dims_per_value) so both buffers land on clean storage boundaries.
     std::size_t const aligned_dims = std::lcm(nk::dimensions_per_value<from_type_>(),
                                               nk::dimensions_per_value<to_type_>());
-    std::size_t const dimensions = (global_config.dense_dimensions / aligned_dims) * aligned_dims;
+    std::size_t const dimensions = (settings.dense_dimensions / aligned_dims) * aligned_dims;
 
     auto source_vec = make_vector<from_type_>(dimensions);
     auto target_vec = make_vector<to_type_>(dimensions);
     auto reference_vec = make_vector<to_type_>(dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
         fill_random_bits(generator, source_vec);
 
         stats.expect(nk_cast_serial(source_vec.raw_values_data(), from_type_::dtype(), dimensions,
@@ -66,14 +67,14 @@ using block_scaled_format_factory_t = nk_block_scaled_format_t (*)(void);
 
 /** Tests a block-scaled cast kernel against the serial reference; direct analog of @c test_cast,
  *  SIMD kernels must match serial output exactly for both encoded elements and per-block scales. */
-error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_format_factory_t factory) {
+error_stats_t test_cast_block_scaled(settings_t const &settings, block_scaled_cast_t kernel,
+                                     block_scaled_format_factory_t factory) {
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
     nk_block_scaled_format_t const target_format = factory();
     nk_block_scaled_format_t const plain_f32_format = nk_plain(nk_f32_k);
-    std::size_t const dimensions = (global_config.dense_dimensions / target_format.block_size) *
-                                   target_format.block_size;
+    std::size_t const dimensions = (settings.dense_dimensions / target_format.block_size) * target_format.block_size;
     bool const has_tensor_scale = (target_format.tensor_scale_dtype == nk_f32_k);
 
     auto source_vec = make_vector<f32_t>(dimensions);
@@ -82,8 +83,9 @@ error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_fo
     auto reference_elements_vec = make_vector<u8_t>(nk_block_scaled_elements_size(dimensions, target_format));
     auto reference_scales_vec = make_vector<u8_t>(nk_block_scaled_scales_size(dimensions, target_format));
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, source_vec);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, source_vec);
 
         // Pre-populated global so both kernels skip the auto-derive calibration path.
         nk_scalar_buffer_t tensor_scale_target = {}, tensor_scale_reference = {};
@@ -112,8 +114,7 @@ error_stats_t test_cast_block_scaled(block_scaled_cast_t kernel, block_scaled_fo
     return stats;
 }
 
-void test_casts() {
-    error_stats_section_t check;
+void test_casts(error_stats_section_t &check) {
 
     check.section("Type Casts Serial", nk_cap_serial_k);
     check("cast_bf16_to_f32_serial", test_cast<bf16_t, f32_t>, nk_cast_serial);
@@ -370,3 +371,5 @@ void test_casts() {
     check("cast_f32_to_u16_powervsx", test_cast<f32_t, u16_t>, nk_cast_powervsx);
 #endif // NUMKONG_TARGET_POWERVSX
 }
+
+} // namespace ashvardanian::numkong::test

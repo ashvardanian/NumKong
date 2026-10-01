@@ -165,4 +165,4 @@ jobs:
       - name: Build Library and Tests
         run: swift build --build-tests --swift-sdk swift-6.4.0-RELEASE_wasm
       - name: Test under Wasmtime
-        run: ~/.wasmtime/bin/wasmtime run --dir / .build/debug/Test-test-runner.wasm --testing-library swift-testing
+        run: ~/.wasmtime/bin/wasmtime run -S inherit-env=y --dir / .build/debug/Test-test-runner.wasm --testing-library swift-testing

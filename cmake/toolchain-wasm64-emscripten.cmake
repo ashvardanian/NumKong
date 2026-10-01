@@ -1,4 +1,4 @@
-# WASM64/Emscripten Memory64 toolchain for NumKong: 64-bit addressing, the only way one module passes 4 GiB.
+# WASM64/Emscripten Memory64 toolchain for NumKong: 64-bit addressing, the only way one module passes 4 GB.
 # Usage: cmake --preset wasm64_emscripten, which builds into `build_wasm64_emscripten`
 #
 # Every engine with Memory64 also has Relaxed SIMD, so the capability defaults to `v128relaxed`; `-DNUMKONG_TARGET_ARCH=v128`

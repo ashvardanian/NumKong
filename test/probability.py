@@ -10,7 +10,10 @@ Author: Ash Vardanian
 Date: February 22, 2024
 """
 
+from __future__ import annotations
+
 import atexit
+import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -30,18 +33,16 @@ except Exception:
 from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
+    SETTINGS,
     assert_allclose,
     collect_errors,
     create_stats,
-    dense_dimensions,
     keep_one_capability,
     make_positive_buffer,
     possible_capabilities,
     precise_decimal,
     print_stats_report,
-    profile,
-    randomized_repetitions_count,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    timed_call,
 )
 
 import numkong as nk
@@ -113,28 +114,28 @@ KERNELS_PROBABILITY: dict[str, tuple[Callable, Callable, Callable]] = {
 
 
 @pytest.mark.skip(reason="Problems inferring the tolerance bounds for numerical errors")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_jensenshannon_random_accuracy(ndim: int, dtype: str, capability: str):
+def test_jensenshannon_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Jensen-Shannon distance of random probability distributions against SciPy baseline."""
-    a_distribution = np.abs(np.random.randn(ndim)).astype(dtype)
-    b_distribution = np.abs(np.random.randn(ndim)).astype(dtype)
+    a_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
+    b_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
     a_distribution /= np.sum(a_distribution)
     b_distribution /= np.sum(b_distribution)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_PROBABILITY["jensenshannon"]
-    accurate_dt, accurate = profile(
+    accurate_ns, accurate = timed_call(
         baseline_kernel, a_distribution.astype(np.float64), b_distribution.astype(np.float64)
     )
-    expected_dt, expected = profile(baseline_kernel, a_distribution, b_distribution)
-    result_dt, result = profile(simd_kernel, a_distribution, b_distribution)
+    expected_ns, expected = timed_call(baseline_kernel, a_distribution, b_distribution)
+    result_ns, result = timed_call(simd_kernel, a_distribution, b_distribution)
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
-    collect_errors("jensenshannon", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("jensenshannon", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -162,11 +163,11 @@ def test_jensenshannon_self_zero(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_jensenshannon_symmetry_nonneg(ndim: int, dtype: str, capability: str):
+def test_jensenshannon_symmetry_nonneg(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Jensen-Shannon should be symmetric and non-negative."""
     keep_one_capability(capability)
-    p = make_positive_buffer(ndim, dtype)
-    q = make_positive_buffer(ndim, dtype)
+    p = make_positive_buffer(rng, ndim, dtype)
+    q = make_positive_buffer(rng, ndim, dtype)
     js_pq = nk.jensenshannon(p, q)
     js_qp = nk.jensenshannon(q, p)
     assert abs(js_pq - js_qp) < NUMKONG_ATOL, f"JS not symmetric: js(p,q)={js_pq}, js(q,p)={js_qp}"

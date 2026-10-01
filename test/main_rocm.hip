@@ -17,15 +17,17 @@
 
 using namespace ashvardanian::numkong::test;
 
-test_config_t nk::test::global_config;
 char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
+namespace ashvardanian::numkong::test {
+
 /** Every ROCm capability this build compiled, from @c test/cross_rocm.hip. */
-void test_cross_rocm();
+void test_cross_rocm(error_stats_section_t &check);
+
+} // namespace ashvardanian::numkong::test
 
 /** Element-wise operations on the ROCm baseline, over @c test/each.hpp. */
-static void test_each_rocm() {
-    error_stats_section_t check(device_capabilities<rocm_runtime_t>());
+static void test_each_rocm(error_stats_section_t &check) {
     check.section("Elementwise Operations ROCm", nk_cap_rocm_k);
     check("each_swiglu_f32_rocm", test_swiglu<f32_t, rocm_backend_t>, nk_each_swiglu_f32_rocm);
     check("each_swiglu_bf16_rocm", test_swiglu<bf16_t, rocm_backend_t>, nk_each_swiglu_bf16_rocm);
@@ -40,7 +42,7 @@ static void test_each_rocm() {
 
 /** @c nk_rocm_capabilities_detected reports the ROCm baseline on every device, and the matrix-core
  *  capabilities the device's architecture runs. */
-static error_stats_t test_rocm_capabilities(int device) {
+static error_stats_t test_rocm_capabilities(settings_t const &, int device) {
     error_stats_t stats(comparison_family_t::exact_k);
     hipDeviceProp_t properties {};
     stats.expect(hipGetDeviceProperties(&properties, device) == hipSuccess, "the device properties were unreadable");
@@ -56,31 +58,28 @@ static error_stats_t test_rocm_capabilities(int device) {
 }
 
 int main(int, char **argv) {
-    global_config.load_environment();
-    global_config.program = argv[0];
-    log_environment();
-    fmt::println("- Seed: {}", global_config.seed);
-    fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", global_config.seed, argv[0]);
+    environment_t const env {read_settings(argv[0]), probe_machine()};
+    print(env.machine);
+    print(env.settings);
     auto const devices = nk::device_t::count(nk::device_kind_t::rocm_k);
     if (!devices) {
         fmt::println("- ROCm: no device");
         return 0;
     }
-    nk_capability_t const capabilities =
-        nk::device_t::make(nk::device_kind_t::rocm_k, 0).value.capabilities_enabled().value;
+    nk_capability_t const capabilities = device_capabilities<rocm_runtime_t>();
     char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
     nk_capabilities_name(capabilities, names, sizeof(names));
     fmt::println("- ROCm: {} devices, the first running {}", devices.value, names);
 
-    error_stats_section_t check(nk_cap_any_k);
-    check.section("ROCm capabilities", nk_cap_rocm_k);
+    error_stats_section_t check(env.settings, capabilities | nk_cap_serial_k);
+    check.section("ROCm capabilities", nk_cap_serial_k); // the report itself is under test, so never gate on it
     check("gpu_capabilities_rocm", test_rocm_capabilities, 0);
 
-    test_each_rocm();
-    test_cross_rocm();
+    test_each_rocm(check);
+    test_cross_rocm(check);
 
-    int const passed = static_cast<int>(global_config.kernel_count - global_config.failure_count);
-    int const failed = static_cast<int>(global_config.failure_count);
+    int const passed = static_cast<int>(check.kernel_count - check.failure_count);
+    int const failed = static_cast<int>(check.failure_count);
     fmt::println("\n{} passed, {} failed", passed, failed);
-    return failed == 0 ? 0 : 1;
+    return failed != 0 && env.settings.on_failure == on_failure_t::exit_k ? 1 : 0;
 }

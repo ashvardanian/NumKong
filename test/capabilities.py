@@ -15,13 +15,14 @@ Date: July 16, 2026
 """
 
 import array
-import os
 import platform
 import sys
 
 import pytest
+from base import SETTINGS
 
 import numkong as nk
+
 
 cpu = nk.Device.cpu()
 
@@ -92,7 +93,7 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     or exotic arch, or a CPU too old for the baseline. Set `NUMKONG_EXPECT_SIMD=0` to skip a
     deliberately scalar build on a SIMD-capable machine.
     """
-    if os.environ.get("NUMKONG_EXPECT_SIMD") == "0":
+    if not SETTINGS.expect_simd:
         pytest.skip("NUMKONG_EXPECT_SIMD=0: this build is deliberately scalar")
 
     baseline = baseline_for_this_machine()

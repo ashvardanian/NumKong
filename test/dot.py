@@ -10,7 +10,10 @@ Author: Ash Vardanian
 Date: September 5, 2024
 """
 
+from __future__ import annotations
+
 import atexit
+import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -31,23 +34,20 @@ from base import (
     NATIVE_COMPUTE_DTYPE,
     NUMKONG_ATOL,
     NUMKONG_RTOL,
+    SETTINGS,
     LazyFormat,
     assert_allclose,
     collect_errors,
     collect_warnings,
     create_stats,
-    dense_dimensions,
     keep_one_capability,
     make_random,
     make_random_buffer,
-    nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
     possible_capabilities,
     precise_decimal,
     print_stats_report,
-    profile,
-    randomized_repetitions_count,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    timed_call,
     tolerances_for_dtype,
 )
 from spatial import baseline_angular, baseline_euclidean, baseline_sqeuclidean
@@ -90,8 +90,8 @@ KERNELS_OVERFLOW: dict[str, tuple[Callable | None, Callable]] = {
 }
 
 
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize(
     "dtype",
     [
@@ -108,72 +108,71 @@ KERNELS_OVERFLOW: dict[str, tuple[Callable | None, Callable]] = {
     ],
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_random_accuracy(ndim: int, dtype: str, capability: str, nk_seed: int):
+def test_inner_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Inner product of random vectors across all numeric dtypes, verified against high-precision Decimal baseline."""
-    a_raw, a_baseline = make_random((ndim,), dtype, seed=nk_seed)
-    b_raw, b_baseline = make_random((ndim,), dtype, seed=nk_seed + 1)
+    a_raw, a_baseline = make_random((ndim,), dtype, np_rng)
+    b_raw, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_DOT["inner"]
 
     # High-precision baseline
-    accurate_dt, accurate = profile(precise_kernel or baseline_kernel, a_baseline, b_baseline, dtype=dtype)
+    accurate_ns, accurate = timed_call(precise_kernel or baseline_kernel, a_baseline, b_baseline, dtype=dtype)
 
     # Baseline at native precision (for error stats)
     if baseline_kernel is not None:
         native_dt = NATIVE_COMPUTE_DTYPE.get(dtype, np.float64)
-        expected_dt, expected = profile(baseline_kernel, a_baseline.astype(native_dt), b_baseline.astype(native_dt))
+        expected_ns, expected = timed_call(baseline_kernel, a_baseline.astype(native_dt), b_baseline.astype(native_dt))
     else:
-        expected_dt, expected = 0, None
+        expected_ns, expected = 0, None
 
     # SIMD result — pass dtype for exotic types so the kernel knows the storage format
-    result_dt, result = profile(simd_kernel, a_raw, b_raw, dtype)
+    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, dtype)
 
     err_msg = LazyFormat(lambda: f"\ninner({dtype}, ndim={ndim}):\n  Accurate:  {accurate}\n  Got:       {result}")
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol, err_msg=err_msg)
-    collect_errors("inner", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("inner", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["complex64", "complex128"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dot_vdot_complex_accuracy(ndim: int, dtype: str, capability: str, nk_seed: int):
+def test_dot_vdot_complex_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Complex dot and vdot products against NumPy for complex64 and complex128 inputs."""
-    a_vector, a_baseline = make_random((ndim,), dtype, seed=nk_seed)
-    b_vector, b_baseline = make_random((ndim,), dtype, seed=nk_seed + 1)
+    a_vector, a_baseline = make_random((ndim,), dtype, np_rng)
+    b_vector, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
     keep_one_capability(capability)
-    accurate_dt, accurate = profile(np.dot, a_baseline, b_baseline)
-    expected_dt, expected = profile(np.dot, a_vector, b_vector)
-    result_dt, result = profile(nk.dot, a_vector, b_vector)
+    accurate_ns, accurate = timed_call(np.dot, a_baseline, b_baseline)
+    expected_ns, expected = timed_call(np.dot, a_vector, b_vector)
+    result_ns, result = timed_call(nk.dot, a_vector, b_vector)
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=atol, rtol=rtol)
-    collect_errors("dot", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("dot", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
-    accurate_dt, accurate = profile(np.vdot, a_baseline, b_baseline)
-    expected_dt, expected = profile(np.vdot, a_vector, b_vector)
-    result_dt, result = profile(nk.vdot, a_vector, b_vector)
+    accurate_ns, accurate = timed_call(np.vdot, a_baseline, b_baseline)
+    expected_ns, expected = timed_call(np.vdot, a_vector, b_vector)
+    result_ns, result = timed_call(nk.vdot, a_vector, b_vector)
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=atol, rtol=rtol)
-    collect_errors("vdot", ndim, dtype + "c", accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("vdot", ndim, dtype + "c", accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dot_vdot_complex_explicit_dtype(ndim: int, capability: str, nk_seed: int):
+def test_dot_vdot_complex_explicit_dtype(ndim: int, capability: str, np_rng: np.random.Generator):
     """Complex dot and vdot with explicit dtype='complex64' passed to float32 storage."""
-    np.random.seed(nk_seed)
-    a_real_parts = np.random.randn(ndim * 2).astype(dtype=np.float32)
-    b_real_parts = np.random.randn(ndim * 2).astype(dtype=np.float32)
+    a_real_parts = np_rng.standard_normal(ndim * 2).astype(dtype=np.float32)
+    b_real_parts = np_rng.standard_normal(ndim * 2).astype(dtype=np.float32)
 
     keep_one_capability(capability)
     expected = np.dot(a_real_parts.view(np.complex64), b_real_parts.view(np.complex64))
@@ -189,19 +188,21 @@ def test_dot_vdot_complex_explicit_dtype(ndim: int, capability: str, nk_seed: in
 
 @pytest.mark.skip(reason="Lacks overflow protection: https://github.com/ashvardanian/NumKong/issues/206")
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 @pytest.mark.parametrize("metric", ["inner", "euclidean", "sqeuclidean", "angular"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_float_overflow_detection(ndim: int, dtype: str, metric: str, capability: str):
+def test_inner_float_overflow_detection(
+    ndim: int, dtype: str, metric: str, capability: str, np_rng: np.random.Generator
+):
     """Tests if the floating-point kernels are capable of detecting overflow yield the same ±inf result."""
 
-    a = np.random.randn(ndim)
-    b = np.random.randn(ndim)
+    a = np_rng.standard_normal(ndim)
+    b = np_rng.standard_normal(ndim)
 
     # Replace scalar at random position with infinity
-    a[np.random.randint(ndim)] = np.inf
+    a[np_rng.integers(ndim)] = np.inf
     a = a.astype(dtype)
     b = b.astype(dtype)
 
@@ -246,11 +247,11 @@ def test_inner_orthogonal(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_symmetry(ndim: int, dtype: str, capability: str):
+def test_inner_symmetry(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Commutativity: inner(a, b) = inner(b, a)."""
     keep_one_capability(capability)
-    a = make_random_buffer(ndim, dtype)
-    b = make_random_buffer(ndim, dtype)
+    a = make_random_buffer(rng, ndim, dtype)
+    b = make_random_buffer(rng, ndim, dtype)
     ab = nk.inner(a, b)
     ba = nk.inner(b, a)
     assert abs(ab - ba) < NUMKONG_ATOL, f"inner(a,b)={ab} != inner(b,a)={ba}"
@@ -259,11 +260,11 @@ def test_inner_symmetry(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str):
+def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Cauchy-Schwarz: |inner(a,b)|^2 <= inner(a,a) * inner(b,b)."""
     keep_one_capability(capability)
-    a = make_random_buffer(ndim, dtype)
-    b = make_random_buffer(ndim, dtype)
+    a = make_random_buffer(rng, ndim, dtype)
+    b = make_random_buffer(rng, ndim, dtype)
     ab = nk.inner(a, b)
     aa = nk.inner(a, a)
     bb = nk.inner(b, b)
@@ -274,7 +275,7 @@ def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.skip(reason="Lacks overflow protection: https://github.com/ashvardanian/NumKong/issues/206")
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
+@pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", [131072, 262144])
 @pytest.mark.parametrize("metric", ["inner", "euclidean", "sqeuclidean", "angular"])
 @pytest.mark.parametrize("capability", possible_capabilities)

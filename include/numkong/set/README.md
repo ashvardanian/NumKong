@@ -68,7 +68,7 @@ The cycles-per-byte measurements in `set.h` put the crossover above 1 KB per vec
 Ice Lake and later expose `VPOPCNTQ` outright, and on Genoa it dual-issues on ports 0-1, so the popcount pressure that CSA trees relieve is largely absent on the hardware that could run them.
 
 AVX2 has no vector population count at all, so `nk_hamming_u1_haswell` and `nk_jaccard_u1_haswell` walk the packed octets 8 bytes at a time and call the scalar `POPCNT` through `_mm_popcnt_u64`.
-`nk_hamming_u1_neon` and `nk_jaccard_u1_neon` use the NEON `CNT` instruction instead, accumulating per-byte counts in a `uint8x16_t` for at most 31 iterations before widening, since 31 x 8 still fits in a byte.
+`nk_hamming_u1_neon` and `nk_jaccard_u1_neon` use the NEON `CNT` instruction instead, accumulating per-byte counts in a `uint8x16_t` for at most 31 iterations before widening, since 31 × 8 still fits in a byte.
 
 ### Native VPOPCNTQ on Ice Lake
 
@@ -100,24 +100,24 @@ Accuracy is reported where applicable as exact distance in the result representa
 | Kernel                   |                      256 |                     1024 |                     4096 |
 | :----------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u1__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u1_serial`   |                2.30 gb/s |                2.62 gb/s |                2.54 gb/s |
-| `nk_jaccard_u1_serial`   |         1.35 gb/s, 0 ulp |         1.46 gb/s, 0 ulp |         1.50 gb/s, 0 ulp |
-| `nk_hamming_u1_haswell`  |                9.63 gb/s |                25.2 gb/s |                56.2 gb/s |
-| `nk_jaccard_u1_haswell`  |         5.24 gb/s, 0 ulp |         15.5 gb/s, 0 ulp |         27.0 gb/s, 0 ulp |
-| `nk_hamming_u1_icelake`  |                11.2 gb/s |                38.2 gb/s |                56.1 gb/s |
-| `nk_jaccard_u1_icelake`  |         6.46 gb/s, 0 ulp |         22.4 gb/s, 0 ulp |         33.3 gb/s, 0 ulp |
+| `nk_hamming_u1_serial`   |                2.14 gb/s |                2.44 gb/s |                2.37 gb/s |
+| `nk_jaccard_u1_serial`   |         1.26 gb/s, 0 ulp |         1.36 gb/s, 0 ulp |         1.40 gb/s, 0 ulp |
+| `nk_hamming_u1_haswell`  |                8.97 gb/s |                23.5 gb/s |                52.3 gb/s |
+| `nk_jaccard_u1_haswell`  |         4.88 gb/s, 0 ulp |         14.4 gb/s, 0 ulp |         25.1 gb/s, 0 ulp |
+| `nk_hamming_u1_icelake`  |                10.4 gb/s |                35.6 gb/s |                52.2 gb/s |
+| `nk_jaccard_u1_icelake`  |         6.02 gb/s, 0 ulp |         20.9 gb/s, 0 ulp |         31.0 gb/s, 0 ulp |
 | __u8__                   | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u8_serial`   |                15.0 gb/s |                14.9 gb/s |                14.8 gb/s |
-| `nk_hamming_u8_haswell`  |                22.4 gb/s |                21.6 gb/s |                17.9 gb/s |
-| `nk_hamming_u8_icelake`  |                55.2 gb/s |                37.7 gb/s |                24.3 gb/s |
+| `nk_hamming_u8_serial`   |                14.0 gb/s |                13.9 gb/s |                13.8 gb/s |
+| `nk_hamming_u8_haswell`  |                20.9 gb/s |                20.1 gb/s |                16.7 gb/s |
+| `nk_hamming_u8_icelake`  |                51.4 gb/s |                35.1 gb/s |                22.6 gb/s |
 | __u16__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u16_serial`  |         27.8 gb/s, 0 ulp |         23.0 gb/s, 0 ulp |         19.2 gb/s, 0 ulp |
-| `nk_jaccard_u16_haswell` |         22.2 gb/s, 0 ulp |         18.4 gb/s, 0 ulp |         13.7 gb/s, 0 ulp |
-| `nk_jaccard_u16_icelake` |         54.2 gb/s, 0 ulp |         24.3 gb/s, 0 ulp |         20.9 gb/s, 0 ulp |
+| `nk_jaccard_u16_serial`  |         25.9 gb/s, 0 ulp |         21.4 gb/s, 0 ulp |         17.9 gb/s, 0 ulp |
+| `nk_jaccard_u16_haswell` |         20.7 gb/s, 0 ulp |         17.1 gb/s, 0 ulp |         12.8 gb/s, 0 ulp |
+| `nk_jaccard_u16_icelake` |         50.5 gb/s, 0 ulp |         22.6 gb/s, 0 ulp |         19.5 gb/s, 0 ulp |
 | __u32__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u32_serial`  |         33.1 gb/s, 0 ulp |         23.5 gb/s, 0 ulp |         18.3 gb/s, 0 ulp |
-| `nk_jaccard_u32_haswell` |         19.0 gb/s, 0 ulp |         16.9 gb/s, 0 ulp |         11.0 gb/s, 0 ulp |
-| `nk_jaccard_u32_icelake` |         33.0 gb/s, 0 ulp |         24.6 gb/s, 0 ulp |         16.3 gb/s, 0 ulp |
+| `nk_jaccard_u32_serial`  |         30.8 gb/s, 0 ulp |         21.9 gb/s, 0 ulp |         17.0 gb/s, 0 ulp |
+| `nk_jaccard_u32_haswell` |         17.7 gb/s, 0 ulp |         15.7 gb/s, 0 ulp |         10.2 gb/s, 0 ulp |
+| `nk_jaccard_u32_icelake` |         30.7 gb/s, 0 ulp |         22.9 gb/s, 0 ulp |         15.2 gb/s, 0 ulp |
 
 #### WASM
 
@@ -126,14 +126,14 @@ Measured with Wasmtime v42 (Cranelift backend).
 | Kernel                |                      256 |                     1024 |                     4096 |
 | :-------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u1__                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u1_v128`  |               0.138 gb/s |               0.149 gb/s |               0.979 gb/s |
-| `nk_jaccard_u1_v128`  |        0.153 gb/s, 0 ulp |        0.352 gb/s, 0 ulp |         2.50 gb/s, 0 ulp |
+| `nk_hamming_u1_v128`  |               0.129 gb/s |               0.139 gb/s |               0.912 gb/s |
+| `nk_jaccard_u1_v128`  |        0.142 gb/s, 0 ulp |        0.328 gb/s, 0 ulp |         2.33 gb/s, 0 ulp |
 | __u8__                | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u8_v128`  |               0.370 gb/s |               0.400 gb/s |                2.19 gb/s |
+| `nk_hamming_u8_v128`  |               0.345 gb/s |               0.373 gb/s |                2.04 gb/s |
 | __u16__               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u16_v128` |         2.30 gb/s, 0 ulp |         2.34 gb/s, 0 ulp |        0.381 gb/s, 0 ulp |
+| `nk_jaccard_u16_v128` |         2.14 gb/s, 0 ulp |         2.18 gb/s, 0 ulp |        0.355 gb/s, 0 ulp |
 | __u32__               | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u32_v128` |        0.430 gb/s, 0 ulp |         2.46 gb/s, 0 ulp |         1.08 gb/s, 0 ulp |
+| `nk_jaccard_u32_v128` |        0.400 gb/s, 0 ulp |         2.29 gb/s, 0 ulp |         1.01 gb/s, 0 ulp |
 
 ### Apple M5
 
@@ -142,19 +142,19 @@ Measured with Wasmtime v42 (Cranelift backend).
 | Kernel                  |                      256 |                     1024 |                     4096 |
 | :---------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u1__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u1_serial`  |                6.79 gb/s |                7.48 gb/s |                6.92 gb/s |
-| `nk_jaccard_u1_serial`  |         4.36 gb/s, 0 ulp |         5.38 gb/s, 0 ulp |         5.45 gb/s, 0 ulp |
-| `nk_hamming_u1_neon`    |                31.6 gb/s |                65.6 gb/s |                90.9 gb/s |
-| `nk_jaccard_u1_neon`    |         28.4 gb/s, 0 ulp |         48.1 gb/s, 0 ulp |         51.0 gb/s, 0 ulp |
+| `nk_hamming_u1_serial`  |                6.32 gb/s |                6.97 gb/s |                6.44 gb/s |
+| `nk_jaccard_u1_serial`  |         4.06 gb/s, 0 ulp |         5.01 gb/s, 0 ulp |         5.08 gb/s, 0 ulp |
+| `nk_hamming_u1_neon`    |                29.4 gb/s |                61.1 gb/s |                84.7 gb/s |
+| `nk_jaccard_u1_neon`    |         26.4 gb/s, 0 ulp |         44.8 gb/s, 0 ulp |         47.5 gb/s, 0 ulp |
 | __u8__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u8_serial`  |                27.8 gb/s |                30.1 gb/s |                31.2 gb/s |
-| `nk_hamming_u8_neon`    |                96.9 gb/s |                79.5 gb/s |                56.3 gb/s |
+| `nk_hamming_u8_serial`  |                25.9 gb/s |                28.0 gb/s |                29.1 gb/s |
+| `nk_hamming_u8_neon`    |                90.2 gb/s |                74.0 gb/s |                52.4 gb/s |
 | __u16__                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u16_serial` |         59.3 gb/s, 0 ulp |         69.4 gb/s, 0 ulp |         66.8 gb/s, 0 ulp |
-| `nk_jaccard_u16_neon`   |         67.8 gb/s, 0 ulp |         61.6 gb/s, 0 ulp |         50.8 gb/s, 0 ulp |
+| `nk_jaccard_u16_serial` |         55.2 gb/s, 0 ulp |         64.6 gb/s, 0 ulp |         62.2 gb/s, 0 ulp |
+| `nk_jaccard_u16_neon`   |         63.1 gb/s, 0 ulp |         57.4 gb/s, 0 ulp |         47.3 gb/s, 0 ulp |
 | __u32__                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u32_serial` |          105 gb/s, 0 ulp |          101 gb/s, 0 ulp |         89.1 gb/s, 0 ulp |
-| `nk_jaccard_u32_neon`   |         89.3 gb/s, 0 ulp |         72.8 gb/s, 0 ulp |         68.2 gb/s, 0 ulp |
+| `nk_jaccard_u32_serial` |         97.8 gb/s, 0 ulp |         94.1 gb/s, 0 ulp |         83.0 gb/s, 0 ulp |
+| `nk_jaccard_u32_neon`   |         83.2 gb/s, 0 ulp |         67.8 gb/s, 0 ulp |         63.5 gb/s, 0 ulp |
 
 #### WASM
 
@@ -163,16 +163,16 @@ Measured with Wasmtime v43 (Cranelift backend).
 | Kernel                  |                      256 |                     1024 |                     4096 |
 | :---------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __u1__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u1_serial`  |                5.18 gb/s |                5.66 gb/s |                6.52 gb/s |
-| `nk_jaccard_u1_serial`  |         1.74 gb/s, 0 ulp |         3.32 gb/s, 0 ulp |         3.61 gb/s, 0 ulp |
-| `nk_hamming_u1_v128`    |                22.6 gb/s |                46.5 gb/s |                67.9 gb/s |
-| `nk_jaccard_u1_v128`    |         16.1 gb/s, 0 ulp |         34.5 gb/s, 0 ulp |         50.8 gb/s, 0 ulp |
+| `nk_hamming_u1_serial`  |                4.82 gb/s |                5.27 gb/s |                6.07 gb/s |
+| `nk_jaccard_u1_serial`  |         1.62 gb/s, 0 ulp |         3.09 gb/s, 0 ulp |         3.36 gb/s, 0 ulp |
+| `nk_hamming_u1_v128`    |                21.0 gb/s |                43.3 gb/s |                63.2 gb/s |
+| `nk_jaccard_u1_v128`    |         15.0 gb/s, 0 ulp |         32.1 gb/s, 0 ulp |         47.3 gb/s, 0 ulp |
 | __u8__                  | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_hamming_u8_serial`  |                8.32 gb/s |                6.09 gb/s |                5.84 gb/s |
-| `nk_hamming_u8_v128`    |                47.7 gb/s |                68.5 gb/s |                72.1 gb/s |
+| `nk_hamming_u8_serial`  |                7.75 gb/s |                5.67 gb/s |                5.44 gb/s |
+| `nk_hamming_u8_v128`    |                44.4 gb/s |                63.8 gb/s |                67.1 gb/s |
 | __u16__                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u16_serial` |         19.2 gb/s, 0 ulp |         12.4 gb/s, 0 ulp |         11.9 gb/s, 0 ulp |
-| `nk_jaccard_u16_v128`   |         89.8 gb/s, 0 ulp |         74.0 gb/s, 0 ulp |         71.3 gb/s, 0 ulp |
+| `nk_jaccard_u16_serial` |         17.9 gb/s, 0 ulp |         11.5 gb/s, 0 ulp |         11.1 gb/s, 0 ulp |
+| `nk_jaccard_u16_v128`   |         83.6 gb/s, 0 ulp |         68.9 gb/s, 0 ulp |         66.4 gb/s, 0 ulp |
 | __u32__                 | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `nk_jaccard_u32_serial` |         91.6 gb/s, 0 ulp |         69.4 gb/s, 0 ulp |         68.4 gb/s, 0 ulp |
-| `nk_jaccard_u32_v128`   |         94.8 gb/s, 0 ulp |         76.2 gb/s, 0 ulp |         68.8 gb/s, 0 ulp |
+| `nk_jaccard_u32_serial` |         85.3 gb/s, 0 ulp |         64.6 gb/s, 0 ulp |         63.7 gb/s, 0 ulp |
+| `nk_jaccard_u32_v128`   |         88.3 gb/s, 0 ulp |         71.0 gb/s, 0 ulp |         64.1 gb/s, 0 ulp |

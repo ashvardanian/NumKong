@@ -23,10 +23,12 @@
 //! File: rust/capabilities.rs
 //! Author: Ash Vardanian
 
-use core::ffi::{c_char, CStr};
-use core::fmt;
-use core::ops::BitOr;
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::{
+    ffi::{c_char, CStr},
+    fmt,
+    ops::BitOr,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use crate::tensor::TensorError;
 

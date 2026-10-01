@@ -8,7 +8,7 @@
 #include "harness.hpp"
 #include "numkong/curved.hpp" // `nk::bilinear`
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /**
  *  @brief Makes a square matrix positive semi-definite via symmetrization and diagonal dominance.
@@ -35,30 +35,30 @@ void make_psd(scalar_type_ *data, nk_size_t n) {
 
 /** Template for bilinear form test: a^T * M * b. */
 template <typename scalar_type_>
-error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
+error_stats_t test_bilinear(settings_t const &settings, typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::curved_result_t;
     using reference_t = tracked<reference_for<scalar_t>>;
 
     error_stats_t stats(nk_bilinear_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    auto a = make_vector<scalar_t>(global_config.curved_dimensions),
-         b = make_vector<scalar_t>(global_config.curved_dimensions);
-    auto m = make_vector<scalar_t>(global_config.curved_dimensions * global_config.curved_dimensions);
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
-        fill_random(generator, m);
+    auto a = make_vector<scalar_t>(settings.curved_dimensions), b = make_vector<scalar_t>(settings.curved_dimensions);
+    auto m = make_vector<scalar_t>(settings.curved_dimensions * settings.curved_dimensions);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
+        fill_random(settings, generator, m);
 
         result_t result;
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(),
-                            global_config.curved_dimensions, &result.raw_, nullptr));
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), settings.curved_dimensions,
+                            &result.raw_, nullptr));
 
         reference_t reference;
         stats.expect(nk::bilinear<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                                         global_config.curved_dimensions, &reference, no_tiers_k));
+                                                         settings.curved_dimensions, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
@@ -68,40 +68,39 @@ error_stats_t test_bilinear(typename scalar_type_::curved_kernel_t kernel) {
 
 /** Template for Mahalanobis distance test: sqrt((a-b)^T * M * (a-b)). */
 template <typename scalar_type_>
-error_stats_t test_mahalanobis(typename scalar_type_::curved_kernel_t kernel) {
+error_stats_t test_mahalanobis(settings_t const &settings, typename scalar_type_::curved_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::curved_result_t;
     using reference_t = tracked<reference_for<scalar_t>>;
 
     error_stats_t stats(nk_mahalanobis_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    auto a = make_vector<scalar_t>(global_config.curved_dimensions),
-         b = make_vector<scalar_t>(global_config.curved_dimensions);
-    auto m = make_vector<scalar_t>(global_config.curved_dimensions * global_config.curved_dimensions);
+    auto a = make_vector<scalar_t>(settings.curved_dimensions), b = make_vector<scalar_t>(settings.curved_dimensions);
+    auto m = make_vector<scalar_t>(settings.curved_dimensions * settings.curved_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
-        fill_random(generator, m);
-        make_psd(m.values_data(), global_config.curved_dimensions);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
+        fill_random(settings, generator, m);
+        make_psd(m.values_data(), settings.curved_dimensions);
 
         result_t result;
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(),
-                            global_config.curved_dimensions, &result.raw_, nullptr));
+        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), m.raw_values_data(), settings.curved_dimensions,
+                            &result.raw_, nullptr));
 
         reference_t reference;
         stats.expect(nk::mahalanobis<scalar_t, reference_t>(a.values_data(), b.values_data(), m.values_data(),
-                                                            global_config.curved_dimensions, &reference, no_tiers_k));
+                                                            settings.curved_dimensions, &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
     }
     return stats;
 }
 
-void test_curved() {
-    error_stats_section_t check;
+void test_curved(error_stats_section_t &check) {
 
     check.section("Curved Kernels Serial", nk_cap_serial_k);
     check("bilinear_f32_serial", test_bilinear<f32_t>, nk_bilinear_f32_serial);
@@ -181,3 +180,5 @@ void test_curved() {
     check("mahalanobis_f64_smef64", test_mahalanobis<f64_t>, nk_mahalanobis_f64_smef64);
 #endif // NUMKONG_TARGET_SMEF64
 }
+
+} // namespace ashvardanian::numkong::test

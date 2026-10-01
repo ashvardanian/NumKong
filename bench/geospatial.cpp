@@ -9,26 +9,26 @@
 
 #include "harness.hpp"
 
-using namespace ashvardanian::numkong::bench;
+namespace ashvardanian::numkong::bench {
 
 /**
- *  @brief Measures geospatial operations, Haversine or Vincenty, using Google Benchmark.
- *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @brief Measures geospatial operations, Haversine or Vincenty.
+ *  @param[inout] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] coordinates_count The number of coordinate pairs to process.
  */
 template <nk_dtype_t dtype_, typename kernel_type_ = void>
-void measure_geospatial(bm::State &state, kernel_type_ kernel, std::size_t coordinates_count) {
+void measure_geospatial(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t coordinates_count) {
 
     using scalar_t = typename nk::type_for<dtype_>::type;
     using vector_t = nk::vector<scalar_t>;
 
     // Preallocate coordinate arrays: latitude1, longitude1, latitude2, longitude2
-    constexpr std::size_t batches_count = 1024;
+    std::size_t const batches_count = input_sets_count(dtype_bytes(dtype_, 4 * coordinates_count));
     std::vector<vector_t> latitudes_first(batches_count), longitudes_first(batches_count);
     std::vector<vector_t> latitudes_second(batches_count), longitudes_second(batches_count);
-    auto generator = make_random_engine();
-    double const max_separation_rad = double(bench_config.max_coord_angle) * 3.14159265358979323846 / 180.0;
+    std::mt19937 generator(env.settings.seed.value);
+    double const max_separation_rad = double(env.settings.max_coord_angle_degrees) * 3.14159265358979323846 / 180.0;
     for (std::size_t index = 0; index != batches_count; ++index) {
         latitudes_first[index] = make_vector<scalar_t>(coordinates_count);
         longitudes_first[index] = make_vector<scalar_t>(coordinates_count);
@@ -45,72 +45,81 @@ void measure_geospatial(bm::State &state, kernel_type_ kernel, std::size_t coord
     vector_t distances = make_vector<scalar_t>(coordinates_count);
 
     // Benchmark loop
-    std::size_t iterations = 0;
-    for (auto _ : state) {
-        std::size_t const index = iterations & (batches_count - 1);
-        if (!succeeded(state,
+    for (std::size_t call : loop) {
+        std::size_t const index = call & (batches_count - 1);
+        if (!succeeded(loop,
                        kernel(latitudes_first[index].raw_values_data(), longitudes_first[index].raw_values_data(),
                               latitudes_second[index].raw_values_data(), longitudes_second[index].raw_values_data(),
                               coordinates_count, distances.raw_values_data(), nullptr)))
             break;
-        bm::ClobberMemory();
-        iterations++;
+        do_not_optimize(distances.raw_values_data());
     }
 
-    state.counters["ops"] = bm::Counter(1.0 * iterations * coordinates_count, bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+    loop.rate("ops", coordinates_count);
 }
 
 template <nk_dtype_t dtype_, typename kernel_type_ = void>
-void run_geospatial(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d," +
-                             std::to_string(static_cast<int>(bench_config.max_coord_angle)) + "°>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_geospatial<dtype_, kernel_type_ *>, kernel,
-                          bench_config.dense_dimensions);
+void run_geospatial(environment_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + "d," +
+                             std::to_string(static_cast<int>(env.settings.max_coord_angle_degrees)) + "°>";
+    run_benchmark(env, bench_name, measure_geospatial<dtype_, kernel_type_ *>, kernel, env.settings.batch_per_core);
 }
 
-void bench_geospatial() {
+void bench_geospatial(environment_t const &env) {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
 
 #if NUMKONG_TARGET_NEON
-    run_geospatial<f32_k>("haversine_f32_neon", nk_haversine_f32_neon);
-    run_geospatial<f64_k>("haversine_f64_neon", nk_haversine_f64_neon);
-    run_geospatial<f32_k>("vincenty_f32_neon", nk_vincenty_f32_neon);
-    run_geospatial<f64_k>("vincenty_f64_neon", nk_vincenty_f64_neon);
+    if (section(env, "Geospatial Functions NEON", nk_cap_neon_k)) {
+        run_geospatial<f32_k>(env, "haversine_f32_neon", nk_haversine_f32_neon);
+        run_geospatial<f64_k>(env, "haversine_f64_neon", nk_haversine_f64_neon);
+        run_geospatial<f32_k>(env, "vincenty_f32_neon", nk_vincenty_f32_neon);
+        run_geospatial<f64_k>(env, "vincenty_f64_neon", nk_vincenty_f64_neon);
+    }
 #endif
 
 #if NUMKONG_TARGET_HASWELL
-    run_geospatial<f32_k>("haversine_f32_haswell", nk_haversine_f32_haswell);
-    run_geospatial<f64_k>("haversine_f64_haswell", nk_haversine_f64_haswell);
-    run_geospatial<f32_k>("vincenty_f32_haswell", nk_vincenty_f32_haswell);
-    run_geospatial<f64_k>("vincenty_f64_haswell", nk_vincenty_f64_haswell);
+    if (section(env, "Geospatial Functions Haswell", nk_cap_haswell_k)) {
+        run_geospatial<f32_k>(env, "haversine_f32_haswell", nk_haversine_f32_haswell);
+        run_geospatial<f64_k>(env, "haversine_f64_haswell", nk_haversine_f64_haswell);
+        run_geospatial<f32_k>(env, "vincenty_f32_haswell", nk_vincenty_f32_haswell);
+        run_geospatial<f64_k>(env, "vincenty_f64_haswell", nk_vincenty_f64_haswell);
+    }
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
-    run_geospatial<f32_k>("haversine_f32_skylake", nk_haversine_f32_skylake);
-    run_geospatial<f64_k>("haversine_f64_skylake", nk_haversine_f64_skylake);
-    run_geospatial<f32_k>("vincenty_f32_skylake", nk_vincenty_f32_skylake);
-    run_geospatial<f64_k>("vincenty_f64_skylake", nk_vincenty_f64_skylake);
+    if (section(env, "Geospatial Functions Skylake", nk_cap_skylake_k)) {
+        run_geospatial<f32_k>(env, "haversine_f32_skylake", nk_haversine_f32_skylake);
+        run_geospatial<f64_k>(env, "haversine_f64_skylake", nk_haversine_f64_skylake);
+        run_geospatial<f32_k>(env, "vincenty_f32_skylake", nk_vincenty_f32_skylake);
+        run_geospatial<f64_k>(env, "vincenty_f64_skylake", nk_vincenty_f64_skylake);
+    }
 #endif
 
 #if NUMKONG_TARGET_RVV
-    run_geospatial<f32_k>("haversine_f32_rvv", nk_haversine_f32_rvv);
-    run_geospatial<f64_k>("haversine_f64_rvv", nk_haversine_f64_rvv);
-    run_geospatial<f32_k>("vincenty_f32_rvv", nk_vincenty_f32_rvv);
-    run_geospatial<f64_k>("vincenty_f64_rvv", nk_vincenty_f64_rvv);
+    if (section(env, "Geospatial Functions RVV", nk_cap_rvv_k)) {
+        run_geospatial<f32_k>(env, "haversine_f32_rvv", nk_haversine_f32_rvv);
+        run_geospatial<f64_k>(env, "haversine_f64_rvv", nk_haversine_f64_rvv);
+        run_geospatial<f32_k>(env, "vincenty_f32_rvv", nk_vincenty_f32_rvv);
+        run_geospatial<f64_k>(env, "vincenty_f64_rvv", nk_vincenty_f64_rvv);
+    }
 #endif
 
 #if NUMKONG_TARGET_V128RELAXED
-    run_geospatial<f32_k>("haversine_f32_v128relaxed", nk_haversine_f32_v128relaxed);
-    run_geospatial<f64_k>("haversine_f64_v128relaxed", nk_haversine_f64_v128relaxed);
-    run_geospatial<f32_k>("vincenty_f32_v128relaxed", nk_vincenty_f32_v128relaxed);
-    run_geospatial<f64_k>("vincenty_f64_v128relaxed", nk_vincenty_f64_v128relaxed);
+    if (section(env, "Geospatial Functions V128 Relaxed", nk_cap_v128relaxed_k)) {
+        run_geospatial<f32_k>(env, "haversine_f32_v128relaxed", nk_haversine_f32_v128relaxed);
+        run_geospatial<f64_k>(env, "haversine_f64_v128relaxed", nk_haversine_f64_v128relaxed);
+        run_geospatial<f32_k>(env, "vincenty_f32_v128relaxed", nk_vincenty_f32_v128relaxed);
+        run_geospatial<f64_k>(env, "vincenty_f64_v128relaxed", nk_vincenty_f64_v128relaxed);
+    }
 #endif
 
     // Serial fallbacks
-    run_geospatial<f32_k>("haversine_f32_serial", nk_haversine_f32_serial);
-    run_geospatial<f64_k>("haversine_f64_serial", nk_haversine_f64_serial);
-    run_geospatial<f32_k>("vincenty_f32_serial", nk_vincenty_f32_serial);
-    run_geospatial<f64_k>("vincenty_f64_serial", nk_vincenty_f64_serial);
+    section(env, "Geospatial Functions Serial", nk_cap_serial_k);
+    run_geospatial<f32_k>(env, "haversine_f32_serial", nk_haversine_f32_serial);
+    run_geospatial<f64_k>(env, "haversine_f64_serial", nk_haversine_f64_serial);
+    run_geospatial<f32_k>(env, "vincenty_f32_serial", nk_vincenty_f32_serial);
+    run_geospatial<f64_k>(env, "vincenty_f64_serial", nk_vincenty_f64_serial);
 }
+
+} // namespace ashvardanian::numkong::bench

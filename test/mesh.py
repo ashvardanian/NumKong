@@ -10,6 +10,8 @@ Author: Ash Vardanian
 Date: February 27, 2026
 """
 
+from __future__ import annotations
+
 import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -28,22 +30,18 @@ except Exception:
     numpy_available = False
 
 from base import (
+    SETTINGS,
     assert_allclose,
     collect_errors,
     create_stats,
-    dense_dimensions,
     downcast_f32_to_dtype,
     keep_one_capability,
     make_nk,
-    mesh_points,
-    nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
     possible_capabilities,
     precise_decimal,
     print_stats_report,
-    profile,
-    reduced_repetitions_count,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    timed_call,
     tolerances_for_dtype,
 )
 
@@ -261,96 +259,98 @@ KERNELS_MESH: dict[str, tuple[Callable | None, Callable, Callable]] = {
 }
 
 
-def _make_point_pair(n_points, dtype):
+def _make_point_pair(generator: np.random.Generator, n_points, dtype):
     """Create two distinct (n_points, 3) point clouds as (raw, baseline) pairs.
 
     Returns (source_raw, source_baseline, target_raw, target_baseline).
     """
-    source_f32 = np.random.randn(n_points, 3).astype(np.float32)
-    target_f32 = np.random.randn(n_points, 3).astype(np.float32)
+    source_f32 = generator.standard_normal((n_points, 3)).astype(np.float32)
+    target_f32 = generator.standard_normal((n_points, 3)).astype(np.float32)
     source_raw, source_baseline = downcast_f32_to_dtype(source_f32, dtype)
     target_raw, target_baseline = downcast_f32_to_dtype(target_f32, dtype)
     return source_raw, source_baseline, target_raw, target_baseline
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(reduced_repetitions_count)
-@pytest.mark.parametrize("n_points", [mesh_points])
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, nk_seed: int):
+def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """RMSD of random point clouds against high-precision baseline."""
     if n_points < 3:
         pytest.skip("RMSD requires at least 3 points")
 
-    source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(n_points, dtype)
+    source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(np_rng, n_points, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["rmsd"]
 
     # High-precision baseline
-    accurate_dt, accurate = profile(precise_kernel or baseline_kernel, source_baseline, target_baseline, dtype=dtype)
+    accurate_ns, accurate = timed_call(precise_kernel or baseline_kernel, source_baseline, target_baseline, dtype=dtype)
 
     # Native-precision baseline
     if baseline_kernel is not None:
-        expected_dt, expected = profile(baseline_kernel, source_baseline, target_baseline, dtype=dtype)
+        expected_ns, expected = timed_call(baseline_kernel, source_baseline, target_baseline, dtype=dtype)
     else:
-        expected_dt, expected = 0, None
+        expected_ns, expected = 0, None
 
     # SIMD result
     source_nk = make_nk(source_raw, dtype)
     target_nk = make_nk(target_raw, dtype)
-    result_dt, result_obj = profile(simd_kernel, source_nk, target_nk)
+    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk)
     result = float(np.array(result_obj.rmsd))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
-    collect_errors("rmsd", n_points, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("rmsd", n_points, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(reduced_repetitions_count)
-@pytest.mark.parametrize("n_points", [mesh_points])
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, nk_seed: int):
+def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Kabsch RMSD of random point clouds against high-precision Jacobi SVD baseline."""
     if n_points < 3:
         pytest.skip("Kabsch requires at least 3 non-degenerate points")
 
-    source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(n_points, dtype)
+    source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(np_rng, n_points, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["kabsch"]
 
     # High-precision baseline → scalar RMSD after optimal rotation
-    accurate_dt, accurate = profile(precise_kernel or baseline_kernel, source_baseline, target_baseline, dtype=dtype)
+    accurate_ns, accurate = timed_call(precise_kernel or baseline_kernel, source_baseline, target_baseline, dtype=dtype)
 
     # SIMD result
     source_nk = make_nk(source_raw, dtype)
     target_nk = make_nk(target_raw, dtype)
-    result_dt, result_obj = profile(simd_kernel, source_nk, target_nk)
+    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk)
     result = float(np.array(result_obj.rmsd))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
-    collect_errors("kabsch", n_points, dtype, accurate, accurate_dt, None, 0, result, result_dt, stats)
+    collect_errors("kabsch", n_points, dtype, accurate, accurate_ns, None, 0, result, result_ns, stats)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(reduced_repetitions_count)
-@pytest.mark.parametrize("n_points", [mesh_points])
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, nk_seed: int):
+def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Umeyama scale of random point clouds against high-precision baseline."""
     if n_points < 3:
         pytest.skip("Umeyama requires at least 3 non-degenerate points")
 
     # Generate source and a scaled+noisy version so the scale is non-trivial
-    source_f32 = np.random.randn(n_points, 3).astype(np.float32)
-    scale_factor = 1.5 + np.random.rand()  # random scale in [1.5, 2.5]
-    target_f32 = (source_f32 * scale_factor + np.random.randn(n_points, 3).astype(np.float32) * 0.01).astype(np.float32)
+    source_f32 = np_rng.standard_normal((n_points, 3)).astype(np.float32)
+    scale_factor = 1.5 + np_rng.random()  # random scale in [1.5, 2.5]
+    target_f32 = (source_f32 * scale_factor + np_rng.standard_normal((n_points, 3)).astype(np.float32) * 0.01).astype(
+        np.float32
+    )
     source_raw, source_baseline = downcast_f32_to_dtype(source_f32, dtype)
     target_raw, target_baseline = downcast_f32_to_dtype(target_f32, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
@@ -359,19 +359,19 @@ def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, nk_seed: i
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["umeyama"]
 
     # High-precision baseline → scalar scale factor
-    accurate_dt, accurate = profile(precise_kernel or baseline_kernel, source_baseline, target_baseline, dtype=dtype)
+    accurate_ns, accurate = timed_call(precise_kernel or baseline_kernel, source_baseline, target_baseline, dtype=dtype)
 
     # SIMD result
     source_nk = make_nk(source_raw, dtype)
     target_nk = make_nk(target_raw, dtype)
-    result_dt, result_obj = profile(simd_kernel, source_nk, target_nk)
+    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk)
     result = float(np.array(result_obj.scale))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
-    collect_errors("umeyama", n_points, dtype, accurate, accurate_dt, None, 0, result, result_dt, stats)
+    collect_errors("umeyama", n_points, dtype, accurate, accurate_ns, None, 0, result, result_ns, stats)
 
 
-@pytest.mark.parametrize("n_points", dense_dimensions)
+@pytest.mark.parametrize("n_points", SETTINGS.dims)
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_rmsd_self_zero(n_points: int, capability: str):
     """rmsd(cloud, cloud).rmsd ~ 0 for identical point clouds."""
@@ -384,14 +384,14 @@ def test_rmsd_self_zero(n_points: int, capability: str):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("n_points", dense_dimensions)
+@pytest.mark.parametrize("n_points", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_kabsch_identity(n_points: int, dtype: str, capability: str):
+def test_kabsch_identity(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Kabsch on identical points: expects RMSD~0 and scale~1."""
     if n_points < 3:
         pytest.skip("Kabsch requires at least 3 non-degenerate points")
-    points_f32 = np.random.randn(n_points, 3).astype(np.float32)
+    points_f32 = np_rng.standard_normal((n_points, 3)).astype(np.float32)
     points_raw, _ = downcast_f32_to_dtype(points_f32, dtype)
     point_cloud = make_nk(points_raw, dtype)
     keep_one_capability(capability)

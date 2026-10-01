@@ -35,21 +35,18 @@ from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
     PACKING_GRANULARITY,
+    SETTINGS,
     assert_allclose,
     create_stats,
-    dense_dimensions,
     keep_one_capability,
     make_random,
     ml_dtypes_available,
-    nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
     possible_capabilities,
     print_stats_report,
-    randomized_repetitions_count,
     round_up_to,
     scipy_available,
     scipy_metric_name,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
 )
 
 import numkong as nk
@@ -80,11 +77,11 @@ def round_and_clip_even(values, out_dtype):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("input_dtype", ["float64", "float32"])
 @pytest.mark.parametrize("metric", ["dot", "angular", "euclidean"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
+def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, np_rng: np.random.Generator):
     """Verify the SIMD batch dispatch for dot, angular, and euclidean.
 
     Sets ``out_dtype`` equal to ``input_dtype`` (float64 or float32) so that the
@@ -92,7 +89,7 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
     is selected instead of the scalar pairwise fallback. Uses asymmetric matrix
     sizes (7 x 11) to exercise the general rectangular case.
 
-    Dimensions are inherited from ``NUMKONG_DENSE_DIMENSIONS``; capabilities from
+    Dimensions are inherited from ``NUMKONG_DIMS``; capabilities from
     platform auto-detection via ``possible_capabilities``. Baseline for ``dot``
     is ``np.dot`` (SciPy has no ``cdist`` metric for inner product); other
     metrics use ``scipy.spatial.distance.cdist``.
@@ -100,8 +97,8 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 7, 11
-    a_matrix, _ = make_random((num_rows_a, ndim), input_dtype, seed=nk_seed)
-    b_matrix, _ = make_random((num_rows_b, ndim), input_dtype, seed=nk_seed + 1)
+    a_matrix, _ = make_random((num_rows_a, ndim), input_dtype, np_rng)
+    b_matrix, _ = make_random((num_rows_b, ndim), input_dtype, np_rng)
 
     # Use native out_dtype to force batch path (float64->float64, float32->float32)
     out_dtype = input_dtype
@@ -120,10 +117,10 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, nk_seed):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("input_dtype", ["float64", "float32"])
 @pytest.mark.parametrize("metric", ["dot", "angular", "euclidean", "sqeuclidean"])
-def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
+def test_cdist_self_distance(ndim, input_dtype, metric, np_rng: np.random.Generator):
     """Verify ``cdist(A, A)`` produces a complete, correct symmetric matrix.
 
     When both operands are the same object the C code takes a symmetric batch
@@ -138,9 +135,9 @@ def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
 
     No ``capability`` parameter: runs on whatever the default backend is (all
     ISA-specific paths are already covered by ``test_cdist_batch_metrics``).
-    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``.
+    Dimensions from ``NUMKONG_DIMS``.
     """
-    a_matrix, _ = make_random((10, ndim), input_dtype, seed=nk_seed)
+    a_matrix, _ = make_random((10, ndim), input_dtype, np_rng)
 
     scipy_metric = scipy_metric_name(metric)
     if metric == "dot":
@@ -172,12 +169,12 @@ def test_cdist_self_distance(ndim, input_dtype, metric, nk_seed):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("input_dtype", ["float64", "float32", "float16"])
 @pytest.mark.parametrize("out_dtype", [None, "float32", "int32"])
 @pytest.mark.parametrize("metric", ["angular", "sqeuclidean", "euclidean", "dot"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, nk_seed):
+def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, np_rng: np.random.Generator):
     """Broad coverage of cdist for standard IEEE float inputs.
 
     Exercises four metrics (angular, sqeuclidean, euclidean, dot) across three
@@ -192,7 +189,7 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
     Skips:
         * ``angular`` at ndim=1 — degenerate (norm is a single element, 0/0).
 
-    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform
+    Dimensions from ``NUMKONG_DIMS``; capabilities from platform
     auto-detection. Integer output uses ``atol=1`` (discrete rounding);
     floats use ``NUMKONG_ATOL / NUMKONG_RTOL``.
     """
@@ -201,8 +198,8 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
-    a_matrix_extended, _ = make_random((num_rows_a, ndim + 1), input_dtype, seed=nk_seed)
-    b_matrix_extended, _ = make_random((num_rows_b, ndim + 3), input_dtype, seed=nk_seed + 1)
+    a_matrix_extended, _ = make_random((num_rows_a, ndim + 1), input_dtype, np_rng)
+    b_matrix_extended, _ = make_random((num_rows_b, ndim + 3), input_dtype, np_rng)
     a_matrix = a_matrix_extended[:, :ndim]
     b_matrix = b_matrix_extended[:, :ndim]
 
@@ -238,12 +235,12 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("input_dtype", ["complex128", "complex64"])
 @pytest.mark.parametrize("out_dtype", [None, "complex128", "complex64"])
 @pytest.mark.parametrize("metric", ["dot", "vdot"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability):
+def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability, np_rng: np.random.Generator):
     """Verify cdist for complex-valued dot and vdot metrics.
 
     Tests three output modes (default complex128, explicit complex128,
@@ -255,16 +252,18 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability):
     * ``out=`` buffer path with strided column slice.
 
     Inputs are strided (sliced from wider allocations). Dimensions from
-    ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
+    ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
-    a_matrix_extended = np.random.randn(num_rows_a, ndim + 1).astype(input_dtype)
-    b_matrix_extended = np.random.randn(num_rows_b, ndim + 3).astype(input_dtype)
+    a_matrix_extended = np_rng.standard_normal((num_rows_a, ndim + 1)).astype(input_dtype)
+    b_matrix_extended = np_rng.standard_normal((num_rows_b, ndim + 3)).astype(input_dtype)
     a_matrix = a_matrix_extended[:, :ndim]
     b_matrix = b_matrix_extended[:, :ndim]
-    c_matrix_extended = np.random.randn(num_rows_a, num_rows_b + 7).astype(out_dtype if out_dtype else np.complex128)
+    c_matrix_extended = np_rng.standard_normal((num_rows_a, num_rows_b + 7)).astype(
+        out_dtype if out_dtype else np.complex128
+    )
     c_matrix = c_matrix_extended[:, :num_rows_b]
 
     expected = np.zeros((num_rows_a, num_rows_b), dtype=out_dtype if out_dtype else np.complex128)
@@ -290,11 +289,11 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("out_dtype", [None, "float32", "float16", "int8"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_hamming(ndim, out_dtype, capability):
+def test_cdist_hamming(ndim, out_dtype, capability, np_rng: np.random.Generator):
     """Verify cdist Hamming distance on packed bit vectors.
 
     Generates random binary matrices, packs them via ``np.packbits``, and passes
@@ -306,15 +305,15 @@ def test_cdist_hamming(ndim, out_dtype, capability):
     output uses standard ``NUMKONG_ATOL / NUMKONG_RTOL`` (Hamming counts are exact for
     integer types but may round for float16).
 
-    Randomised via ``@pytest.mark.repeat(randomized_repetitions_count)`` (env
+    Randomised via ``@pytest.mark.repeat(SETTINGS.repetitions)`` (env
     ``NUMKONG_REPETITIONS``, default 10). Dimensions from
-    ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
+    ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
-    a_bits = np.random.randint(2, size=(num_rows_a, ndim)).astype(np.uint8)
-    b_bits = np.random.randint(2, size=(num_rows_b, ndim)).astype(np.uint8)
+    a_bits = np_rng.integers(2, size=(num_rows_a, ndim)).astype(np.uint8)
+    b_bits = np_rng.integers(2, size=(num_rows_b, ndim)).astype(np.uint8)
     a_packed_bits, b_packed_bits = np.packbits(a_bits, axis=1), np.packbits(b_bits, axis=1)
 
     if out_dtype is None:
@@ -333,11 +332,11 @@ def test_cdist_hamming(ndim, out_dtype, capability):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.repeat(randomized_repetitions_count)
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.repeat(SETTINGS.repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("out_dtype", [None, "float32"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_jaccard(ndim, out_dtype, capability):
+def test_cdist_jaccard(ndim, out_dtype, capability, np_rng: np.random.Generator):
     """Verify cdist Jaccard distance on packed bit vectors.
 
     Same ``np.packbits`` + ``dtype="uint1"`` pattern as the Hamming test, but
@@ -348,13 +347,13 @@ def test_cdist_jaccard(ndim, out_dtype, capability):
     Output dtype coverage: default (float64) and explicit float32.
 
     Randomised via ``@pytest.mark.repeat``; dimensions from
-    ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform auto-detection.
+    ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
-    a_bits = np.random.randint(2, size=(num_rows_a, ndim)).astype(np.uint8)
-    b_bits = np.random.randint(2, size=(num_rows_b, ndim)).astype(np.uint8)
+    a_bits = np_rng.integers(2, size=(num_rows_a, ndim)).astype(np.uint8)
+    b_bits = np_rng.integers(2, size=(num_rows_b, ndim)).astype(np.uint8)
     a_packed_bits, b_packed_bits = np.packbits(a_bits, axis=1), np.packbits(b_bits, axis=1)
 
     if out_dtype is None:
@@ -369,11 +368,11 @@ def test_cdist_jaccard(ndim, out_dtype, capability):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("input_dtype", ["float64", "float32"])
 @pytest.mark.parametrize("metric", ["kld", "jsd"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_probability(ndim, input_dtype, metric, capability):
+def test_cdist_probability(ndim, input_dtype, metric, capability, np_rng: np.random.Generator):
     """Verify cdist for Kullback-Leibler divergence and Jensen-Shannon distance.
 
     Inputs are positive probability vectors (softmax of randn + epsilon) using
@@ -389,15 +388,15 @@ def test_cdist_probability(ndim, input_dtype, metric, capability):
 
     Only float64 and float32 input dtypes are supported. No ``out_dtype``
     variants — probability divergences always produce float64 output.
-    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``; capabilities from platform
+    Dimensions from ``NUMKONG_DIMS``; capabilities from platform
     auto-detection.
     """
     keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 7, 11
     # Positive normalized vectors (softmax of randn)
-    a_raw = np.abs(np.random.randn(num_rows_a, ndim)).astype(input_dtype) + 1e-6
-    b_raw = np.abs(np.random.randn(num_rows_b, ndim)).astype(input_dtype) + 1e-6
+    a_raw = np.abs(np_rng.standard_normal((num_rows_a, ndim))).astype(input_dtype) + 1e-6
+    b_raw = np.abs(np_rng.standard_normal((num_rows_b, ndim))).astype(input_dtype) + 1e-6
     a_matrix = (a_raw / a_raw.sum(axis=1, keepdims=True)).astype(input_dtype)
     b_matrix = (b_raw / b_raw.sum(axis=1, keepdims=True)).astype(input_dtype)
 
@@ -417,13 +416,13 @@ def test_cdist_probability(ndim, input_dtype, metric, capability):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("ndim", dense_dimensions)
+@pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize(
     "input_dtype",
     ["bfloat16", "e5m2", "e4m3", "e3m2", "e2m3", "int8", "int4", "uint8", "uint4"],
 )
 @pytest.mark.parametrize("metric", ["dot", "euclidean"])
-def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
+def test_cdist_exotic_dtypes(ndim, input_dtype, metric, np_rng: np.random.Generator):
     """Verify cdist for sub-byte and non-standard types via pairwise fallback.
 
     Covers bfloat16, e4m3, e5m2, e2m3, e3m2, int8, uint8, int4, and uint4 for
@@ -441,13 +440,13 @@ def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
     kernel sees a whole number of packed bytes per row.
 
     No ``capability`` parameter — only the default backend is tested.
-    Dimensions from ``NUMKONG_DENSE_DIMENSIONS``.
+    Dimensions from ``NUMKONG_DIMS``.
     """
     ndim = round_up_to(ndim, PACKING_GRANULARITY.get(input_dtype, 1))
 
     num_rows_a, num_rows_b = 5, 7
-    a_raw, a_baseline = make_random((num_rows_a, ndim), input_dtype)
-    b_raw, b_baseline = make_random((num_rows_b, ndim), input_dtype)
+    a_raw, a_baseline = make_random((num_rows_a, ndim), input_dtype, np_rng)
+    b_raw, b_baseline = make_random((num_rows_b, ndim), input_dtype, np_rng)
 
     # Baseline: compute from float64 baseline arrays (avoids sub-byte row indexing issues)
     if metric == "dot":
@@ -472,7 +471,7 @@ def test_cdist_exotic_dtypes(ndim, input_dtype, metric):
     "m,n,k",
     [(1, 1, 8), (1, 5, 16), (5, 1, 16), (1, 1, 1), (2, 3, 4096), (13, 17, 97)],
 )
-def test_cdist_shapes(m, n, k, nk_seed):
+def test_cdist_shapes(m, n, k, np_rng: np.random.Generator):
     """Verify cdist output shape and correctness for diverse matrix geometries.
 
     Uses a hardcoded list of ``(m, n, k)`` triples that exercise edge cases
@@ -490,8 +489,8 @@ def test_cdist_shapes(m, n, k, nk_seed):
 
     Not parameterised by capability — shape handling is ISA-independent.
     """
-    a_matrix, _ = make_random((m, k), "float32", seed=nk_seed)
-    b_matrix, _ = make_random((n, k), "float32", seed=nk_seed + 1)
+    a_matrix, _ = make_random((m, k), "float32", np_rng)
+    b_matrix, _ = make_random((n, k), "float32", np_rng)
 
     # euclidean (may use batch path)
     expected_euc = spd.cdist(a_matrix, b_matrix, "euclidean")
@@ -508,7 +507,7 @@ def test_cdist_shapes(m, n, k, nk_seed):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("m", [31, 64, 129])
-def test_cdist_threads(m, nk_seed):
+def test_cdist_threads(m, np_rng: np.random.Generator):
     """Verify OpenMP-parallel cdist matches the serial path across tile boundaries.
 
     Exercises both the symmetric batch path (A vs A) and the packed batch path
@@ -516,8 +515,8 @@ def test_cdist_threads(m, nk_seed):
     chosen to straddle one and two tiles.
     """
     k = 32
-    a_matrix, _ = make_random((m, k), "float32", seed=nk_seed)
-    b_matrix, _ = make_random((m, k), "float32", seed=nk_seed + 1)
+    a_matrix, _ = make_random((m, k), "float32", np_rng)
+    b_matrix, _ = make_random((m, k), "float32", np_rng)
 
     # Symmetric batch path
     serial_symmetric = nk.cdist(a_matrix, a_matrix, "sqeuclidean", threads=1)
@@ -530,7 +529,7 @@ def test_cdist_threads(m, nk_seed):
     assert_allclose(parallel_packed, serial_packed, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
-def test_cdist_edge_cases(nk_seed):
+def test_cdist_edge_cases(np_rng: np.random.Generator):
     """Verify cdist edge cases: scalar return, error handling, and kwarg validation.
 
     Covers four categories:
@@ -547,8 +546,8 @@ def test_cdist_edge_cases(nk_seed):
     Not parameterised — uses fixed 16-element vectors on float32.
     """
     ndim = 16
-    a_vec = nk.hash((ndim,), seed=nk_seed, dtype="float32")
-    b_vec = nk.hash((ndim,), seed=nk_seed + 1, dtype="float32")
+    a_vec, _ = make_random((ndim,), "float32", np_rng)
+    b_vec, _ = make_random((ndim,), "float32", np_rng)
 
     # 1D vectors → scalar float return, not matrix
     result = nk.cdist(a_vec, b_vec, "euclidean")
@@ -577,10 +576,10 @@ def test_cdist_edge_cases(nk_seed):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not ml_dtypes_available, reason="ml_dtypes not installed")
 @pytest.mark.parametrize("ml_dtype", ["bfloat16", "float8_e4m3fn", "float8_e5m2", "float6_e2m3fn", "float6_e3m2fn"])
-def test_cdist_with_ml_dtypes(ml_dtype):
+def test_cdist_with_ml_dtypes(ml_dtype, np_rng: np.random.Generator):
     """Verify cdist accepts ml_dtypes arrays via __array_interface__ fallback."""
     dt = getattr(ml_dtypes, ml_dtype)
-    a = np.random.randn(4, 8).astype(np.float32).clip(-1, 1).astype(dt)
-    b = np.random.randn(4, 8).astype(np.float32).clip(-1, 1).astype(dt)
+    a = np_rng.standard_normal((4, 8)).astype(np.float32).clip(-1, 1).astype(dt)
+    b = np_rng.standard_normal((4, 8)).astype(np.float32).clip(-1, 1).astype(dt)
     result = nk.cdist(a, b, "dot")
     assert result.shape == (4, 4)

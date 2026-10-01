@@ -10,25 +10,25 @@
  *  Environment Variables:
  *
  *  @verbatim
- *  NUMKONG_FILTER=<pattern>           - Filter tests by name RegEx (default: run all)
- *  NUMKONG_SEED=N                     - RNG seed, or random to draw one (default: 42)
- *
- *  NUMKONG_DENSE_DIMENSIONS=N[,...]   - Vector dimension for dot/spatial tests (default: 1536)
- *  NUMKONG_CURVED_DIMENSIONS=N[,...]  - Vector dimension for curved tests (default: 64)
- *  NUMKONG_SPARSE_DIMENSIONS=N[,...]  - Vector dimension for sparse tests (default: 256)
- *  NUMKONG_MESH_POINTS=N              - Point count for mesh tests (default: 1000)
- *  NUMKONG_MATRIX_HEIGHT=N[,...]      - GEMM M dimension (default: 1024)
- *  NUMKONG_MATRIX_WIDTH=N[,...]       - GEMM N dimension (default: 128)
- *  NUMKONG_MATRIX_DEPTH=N[,...]       - GEMM K dimension (default: 1536)
- *
- *  NUMKONG_IN_QEMU=1                  - Shrink shapes for emulated runs; unset, 0 or false keep them
- *  NUMKONG_ASSERT=1                   - Exit 1 when any kernel fails its accuracy check (default: 0)
- *  NUMKONG_VERBOSE=1                  - Show per-dimension ULP breakdown (default: 0)
- *  NUMKONG_ULP_THRESHOLD_F32=N        - Max allowed ULP for f32 (default: 4)
- *  NUMKONG_ULP_THRESHOLD_F16=N        - Max allowed ULP for f16 (default: 32)
- *  NUMKONG_ULP_THRESHOLD_BF16=N       - Max allowed ULP for bf16 (default: 256)
- *  NUMKONG_BUDGET_SECS=<seconds>      - Time budget per kernel in seconds (default: 1)
- *  NUMKONG_RANDOM_DISTRIBUTION=<type> - uniform_k, lognormal_k or cauchy_k (default: lognormal_k)
+ *  Variable                     Default    Meaning
+ *  NUMKONG_FILTER               none       Regex over kernel names, or a substring if not a regex
+ *  NUMKONG_SEED                 42         32-bit seed for random inputs, or random
+ *  NUMKONG_TIME_LIMIT           1s         Randomized trials per kernel, like 200ms or 1s
+ *  NUMKONG_DIMS                 1536       Vector dimension for dot and spatial tests, the first of a list
+ *  NUMKONG_CURVED_DIMS          64         Vector dimension for curved tests, the first of a list
+ *  NUMKONG_SPARSE_DIMS          256        Vector dimension for sparse tests, the first of a list
+ *  NUMKONG_MESH_POINTS          1000       Point count for mesh tests
+ *  NUMKONG_DIMS_HEIGHT          1024       GEMM M dimension, the first of a list
+ *  NUMKONG_DIMS_WIDTH           128        GEMM N dimension, the first of a list
+ *  NUMKONG_DIMS_DEPTH           1536       GEMM K dimension, the first of a list
+ *  NUMKONG_IN_QEMU              0          Shrink shapes for emulated runs: 0, 1, true or false
+ *  NUMKONG_ASSERT               1          Exit 1 on a failed accuracy check; 0 only reports it
+ *  NUMKONG_ULP_THRESHOLD_F32    4          Max allowed ULP for f32
+ *  NUMKONG_ULP_THRESHOLD_F16    32         Max allowed ULP for f16
+ *  NUMKONG_ULP_THRESHOLD_BF16   256        Max allowed ULP for bf16
+ *  NUMKONG_SCALE_THRESHOLD      0.02       Max error over the largest reference, for attention
+ *  NUMKONG_MAX_COORD_ANGLE      180        Max geospatial angular separation in degrees, in [0, 180]
+ *  NUMKONG_RANDOM_DISTRIBUTION  lognormal  uniform, lognormal or cauchy
  *  @endverbatim
  */
 
@@ -36,37 +36,34 @@
 #ifndef NUMKONG_TEST_HARNESS_HPP
 #define NUMKONG_TEST_HARNESS_HPP
 
+#include <cassert> // `assert`
+#include <cctype>  // `std::tolower`
 #include <cmath>   // `std::fabs`, `std::isnan`, `std::ldexp`, `std::ilogb`
 #include <cstddef> // `std::ptrdiff_t`
 #include <cstdint> // `std::uint64_t`, `std::int32_t`, `std::int64_t`
 #include <cstdio>  // `std::fflush`, `stdout`, `stderr`
-#include <cstdlib> // `std::abort`, `std::getenv`, `std::strtod`
-#include <cstring> // `std::memcpy`, `std::strstr`, `std::strcmp`, `std::strcspn`
+#include <cstdlib> // `std::abort`, `std::exit`, `std::getenv`, `std::strtod`
+#include <cstring> // `std::memcpy`, `std::strcmp`
 
 #include <algorithm>    // `std::min`, `std::max`
 #include <array>        // `std::array`
-#include <cassert>      // `assert`
 #include <charconv>     // `std::from_chars`
-#include <chrono>       // `std::chrono::steady_clock`, `std::chrono::duration`
+#include <chrono>       // `std::chrono::steady_clock`, `std::chrono::milliseconds`
 #include <complex>      // `std::complex`
 #include <limits>       // `std::numeric_limits`
 #include <new>          // `std::bad_alloc`
 #include <optional>     // `std::optional`
 #include <random>       // `std::random_device`
+#include <regex>        // `std::regex`, `std::regex_search`
+#include <string>       // `std::string`, `std::to_string`
+#include <string_view>  // `std::string_view`
 #include <system_error> // `std::errc`
 #include <tuple>        // `std::tuple`, `std::get`
 #include <type_traits>  // `std::is_same_v`
-#include <utility>      // `std::index_sequence`
+#include <utility>      // `std::index_sequence`, `std::move`
+#include <vector>       // `std::vector`
 
-#include <fmt/base.h> // `fmt::print`, `fmt::println`
-
-#if __has_include(<regex.h>)
-#include <regex.h>
-#define NUMKONG_HAS_POSIX_REGEX_ 1
-#else
-#include <regex>
-#define NUMKONG_HAS_POSIX_REGEX_ 0
-#endif
+#include <fmt/format.h> // `fmt::print`, `fmt::println`, enums with `format_as`
 
 #ifndef NUMKONG_ALLOW_ISA_REDIRECT
 #define NUMKONG_ALLOW_ISA_REDIRECT 0
@@ -160,29 +157,139 @@ using nk::mxfp8_e5m2_t;
 using nk::mxint8_t;
 using nk::nvfp4_t;
 
-using steady_clock = std::chrono::steady_clock;
-using time_point = steady_clock::time_point;
+using steady_clock_t = std::chrono::steady_clock;
+using time_point_t = steady_clock_t::time_point;
 
-/** Reads @p name from the environment as @p value_type_, or @p fallback when it is unset or empty.
- *  Aborts, naming the variable, when its text does not parse: a typo never passes as a default. */
-template <typename value_type_>
-[[nodiscard]] value_type_ env_variable(char const *name, value_type_ fallback) noexcept {
+/** A 32-bit generator seed, kept apart from counts so neither passes for the other. */
+struct seed_t {
+    std::uint32_t value = 0;
+};
+
+/** A positive thread count: "0" in the environment resolves to every core this process may use. */
+struct threads_t {
+    std::size_t count = 0;
+};
+
+/** A size in bytes, kept apart from element counts. */
+struct bytes_t {
+    std::size_t value = 0;
+};
+
+/** The text of the environment variable @p name, or nothing when it is unset or empty. */
+inline std::optional<std::string_view> env_text(char const *name) noexcept {
     char const *const text = std::getenv(name);
-    if (!text || !*text) return fallback;
-    if constexpr (std::is_same_v<value_type_, char const *>) return text;
-    else if constexpr (std::is_same_v<value_type_, bool>) return std::strcmp(text, "0") && std::strcmp(text, "false");
-    else {
-        value_type_ value {};
-        char *stop = nullptr;
-        if constexpr (std::is_floating_point_v<value_type_>) value = static_cast<value_type_>(std::strtod(text, &stop));
-        else {
-            auto const [end, error] = std::from_chars(text, text + std::strlen(text), value);
-            stop = error == std::errc {} ? const_cast<char *>(end) : const_cast<char *>(text);
-        }
-        if (stop != text && *stop == '\0') return value;
-        fmt::println(stderr, "{}=\"{}\" does not parse", name, text);
-        std::abort();
+    if (!text || !*text) return std::nullopt;
+    return std::string_view(text);
+}
+
+/** Parses the environment variable @p name with @p parse, or returns @p fallback when it is unset
+ *  or empty. Text that does not parse prints `NAME="text" does not parse, expected <expected>` and
+ *  exits with status 1, which leaves crash handlers quiet. */
+template <typename value_type_, typename parse_type_>
+[[nodiscard]] value_type_ env_parsed(char const *name, value_type_ fallback, parse_type_ &&parse,
+                                     char const *expected) noexcept {
+    std::optional<std::string_view> const text = env_text(name);
+    if (!text) return fallback;
+    if (std::optional<value_type_> value = parse(*text)) return *std::move(value);
+    fmt::println(stderr, "{}=\"{}\" does not parse, expected {}", name, *text, expected);
+    std::exit(1);
+}
+
+/** A positive whole number, like "64". */
+inline std::optional<std::size_t> parse_count(std::string_view text) noexcept {
+    std::size_t count = 0;
+    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), count);
+    if (error != std::errc {} || end != text.data() + text.size() || !count) return std::nullopt;
+    return count;
+}
+
+/** A positive duration in whole milliseconds or seconds, like "200ms" or "10s". */
+inline std::optional<std::chrono::milliseconds> parse_duration(std::string_view text) noexcept {
+    std::uint32_t count = 0;
+    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), count);
+    if (error != std::errc {} || !count) return std::nullopt;
+    std::string_view const unit = text.substr(end - text.data());
+    if (unit == "ms") return std::chrono::milliseconds(count);
+    if (unit == "s") return std::chrono::seconds(count);
+    return std::nullopt;
+}
+
+/** A positive size in whole bytes or binary units of any case, like "4096", "64KB" or "1GB". */
+inline std::optional<bytes_t> parse_size(std::string_view text) noexcept {
+    std::size_t bytes = 0;
+    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), bytes);
+    if (error != std::errc {} || !bytes) return std::nullopt;
+    std::string_view const unit = text.substr(end - text.data());
+    auto const same_letter = [](char given, char lower) noexcept {
+        return std::tolower(static_cast<unsigned char>(given)) == lower;
+    };
+    for (std::string_view const known : std::array<std::string_view, 5> {"", "kb", "mb", "gb", "tb"}) {
+        if (std::equal(unit.begin(), unit.end(), known.begin(), known.end(), same_letter)) return bytes_t {bytes};
+        if (bytes > std::numeric_limits<std::size_t>::max() / 1024) return std::nullopt;
+        bytes *= 1024;
     }
+    return std::nullopt;
+}
+
+/** Positive counts separated by commas, like "64,128". */
+inline std::optional<std::vector<std::size_t>> parse_dims(std::string_view text) {
+    std::vector<std::size_t> dims;
+    for (std::size_t start = 0;;) {
+        std::size_t const comma = text.find(',', start);
+        std::optional<std::size_t> const dim = parse_count(text.substr(start, comma - start));
+        if (!dim) return std::nullopt;
+        dims.push_back(*dim);
+        if (comma == std::string_view::npos) return dims;
+        start = comma + 1;
+    }
+}
+
+/** A 32-bit seed, or "random" for a fresh draw from @c std::random_device. */
+inline std::optional<seed_t> parse_seed(std::string_view text) noexcept {
+    if (text == "random") return seed_t {static_cast<std::uint32_t>(std::random_device {}())};
+    std::uint32_t seed = 0;
+    auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), seed);
+    if (error != std::errc {} || end != text.data() + text.size()) return std::nullopt;
+    return seed_t {seed};
+}
+
+inline std::size_t env_count(char const *name, std::size_t fallback) noexcept {
+    return env_parsed(name, fallback, parse_count, "a positive count");
+}
+
+inline std::chrono::milliseconds env_duration(char const *name, std::chrono::milliseconds fallback) noexcept {
+    return env_parsed(name, fallback, parse_duration, "a duration like 200ms or 10s");
+}
+
+inline bytes_t env_size(char const *name, bytes_t fallback) noexcept {
+    return env_parsed(name, fallback, parse_size, "a size like 4096, 64KB or 1GB");
+}
+
+inline bool env_flag(char const *name, bool fallback) noexcept {
+    auto const parse_flag = [](std::string_view text) noexcept -> std::optional<bool> {
+        if (text == "1" || text == "true") return true;
+        if (text == "0" || text == "false") return false;
+        return std::nullopt;
+    };
+    return env_parsed(name, fallback, parse_flag, "0, 1, true or false");
+}
+
+inline seed_t env_seed(char const *name, seed_t fallback) noexcept {
+    return env_parsed(name, fallback, parse_seed, "an unsigned integer or random");
+}
+
+/** Spells @p duration as a user types it: whole seconds as "10s", anything else as "1500ms". */
+inline std::string spell_duration(std::chrono::milliseconds duration) {
+    auto const count = duration.count();
+    return count % 1000 ? std::to_string(count) + "ms" : std::to_string(count / 1000) + "s";
+}
+
+/** Spells @p size as a user types it, in the largest binary unit dividing it, like "256MB". */
+inline std::string spell_size(bytes_t size) {
+    constexpr std::array<char const *, 5> units {"", "KB", "MB", "GB", "TB"};
+    std::size_t bytes = size.value, power = 0;
+    while (power + 1 != units.size() && bytes && bytes % 1024 == 0) bytes /= 1024, ++power;
+    return std::to_string(bytes) + units[power];
 }
 
 /**
@@ -201,7 +308,32 @@ using reference_for = std::conditional_t<
         std::conditional_t<std::is_same_v<input_type_, f32c_t> || std::is_same_v<input_type_, f64c_t>, f118c_t, f64c_t>,
         f64_t>>;
 
-enum class random_distribution_kind_t { uniform_k, lognormal_k, cauchy_k };
+/** The distribution @c fill_random draws test inputs from. */
+enum class distribution_t { uniform_k, lognormal_k, cauchy_k };
+
+/** The name @c NUMKONG_RANDOM_DISTRIBUTION spells @p distribution with. */
+inline std::string_view format_as(distribution_t distribution) noexcept {
+    switch (distribution) {
+    case distribution_t::uniform_k: return "uniform";
+    case distribution_t::lognormal_k: return "lognormal";
+    case distribution_t::cauchy_k: return "cauchy";
+    }
+    return "unknown";
+}
+
+/** The distribution named @p text, like "lognormal". */
+inline std::optional<distribution_t> parse_distribution(std::string_view text) noexcept {
+    for (distribution_t distribution :
+         {distribution_t::uniform_k, distribution_t::lognormal_k, distribution_t::cauchy_k})
+        if (format_as(distribution) == text) return distribution;
+    return std::nullopt;
+}
+
+/** What a kernel failing its accuracy check does to the exit status. */
+enum class on_failure_t : unsigned char { report_k, exit_k };
+
+/** Input shapes: as set, or divided by four for emulated SIMD. */
+enum class emulation_t : unsigned char { native_k, emulated_k };
 enum class comparison_family_t {
     exact_k,
     approximate_k,
@@ -233,169 +365,73 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
     return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
 }
 
-struct test_config_t {
+/** Every test setting, with its default as the initializer, filled once by @c read_settings. */
+struct settings_t {
 
-    /** Exit 1 when any kernel fails its accuracy check. Override: `NUMKONG_ASSERT=1`. */
-    bool assert_on_failure = false;
+    /** Tests to run, by ECMAScript regex or else substring. */
+    std::string_view filter;
+    std::optional<std::regex> filter_regex;
 
-    /** Show per-dimension ULP breakdown. Override: `NUMKONG_VERBOSE=1`. */
-    bool verbose = false;
+    /** Random seed for reproducible tests. */
+    seed_t seed {42};
 
-    /** Shrinks shapes for emulated SIMD. Override: @c NUMKONG_IN_QEMU. */
-    bool running_in_qemu = false;
+    /** How long each kernel's randomized trials run. */
+    std::chrono::milliseconds time_limit_per_kernel = std::chrono::seconds(1);
 
-    /** Max allowed ULP for f32. Override: @c NUMKONG_ULP_THRESHOLD_F32. */
+    /** Random distribution for test inputs. */
+    distribution_t distribution = distribution_t::lognormal_k;
+
+    /** What a failed accuracy check does to the exit status. */
+    on_failure_t on_failure = on_failure_t::exit_k;
+
+    /** Whether to shrink shapes for emulated SIMD. */
+    emulation_t emulation = emulation_t::native_k;
+
+    /** Max allowed ULP for f32. */
     std::uint64_t ulp_threshold_f32 = 4;
 
-    /** Max allowed ULP for f16. Override: @c NUMKONG_ULP_THRESHOLD_F16. */
+    /** Max allowed ULP for f16. */
     std::uint64_t ulp_threshold_f16 = 32;
 
-    /** Max allowed ULP for bf16. Override: @c NUMKONG_ULP_THRESHOLD_BF16. */
+    /** Max allowed ULP for bf16. */
     std::uint64_t ulp_threshold_bf16 = 256;
 
     /** Max absolute error as a fraction of the largest reference magnitude, for the
-     *  normalized-reduction family. Override: @c NUMKONG_SCALE_THRESHOLD. */
+     *  normalized-reduction family. */
     nk_f64_t scale_threshold = 0.02;
 
-    /** Time budget per kernel in seconds. Override: @c NUMKONG_BUDGET_SECS. */
-    double budget_seconds = 1;
-
-    /** The binary's @c argv[0], which closes every rerun line. */
-    char const *program = "";
-
-    /** Random seed for reproducible tests. Override: @c NUMKONG_SEED, where random draws one. */
-    std::uint32_t seed = 42;
-
-    /** Filter tests by name (regex or substring), set through @c set_filter. Override: @c NUMKONG_FILTER. */
-    char const *filter = nullptr;
-#if NUMKONG_HAS_POSIX_REGEX_
-    regex_t filter_regex {};
-    bool filter_compiled = false;
-#else
-    std::optional<std::regex> filter_regex;
-#endif
-
-    /** Random distribution for test inputs. Override: @c NUMKONG_RANDOM_DISTRIBUTION. */
-    random_distribution_kind_t distribution = random_distribution_kind_t::lognormal_k;
-
-    /** For dot products, spatial metrics. Override: @c NUMKONG_DENSE_DIMENSIONS. */
+    /** For dot products, spatial metrics. */
     std::size_t dense_dimensions = 1536;
 
-    /** For curved metrics, quadratic in dimensions. Override: @c NUMKONG_CURVED_DIMENSIONS. */
-    std::size_t curved_dimensions = 64;
-
-    /** For sparse set intersection and sparse dot. Override: @c NUMKONG_SPARSE_DIMENSIONS. */
-    std::size_t sparse_dimensions = 256;
-
-    /** Number of 3D points for RMSD, Kabsch. Override: @c NUMKONG_MESH_POINTS. */
-    std::size_t mesh_points = 1000;
-
-    /** GEMM M dimension. Override: @c NUMKONG_MATRIX_HEIGHT. */
+    /** GEMM M dimension. */
     std::size_t matrix_height = 1024;
 
-    /** GEMM N dimension. Override: @c NUMKONG_MATRIX_WIDTH. */
+    /** GEMM N dimension. */
     std::size_t matrix_width = 128;
 
-    /** GEMM K dimension. Override: @c NUMKONG_MATRIX_DEPTH. */
+    /** GEMM K dimension. */
     std::size_t matrix_depth = 1536;
 
-    /** Max geospatial angular separation, in degrees. Override: @c NUMKONG_MAX_COORD_ANGLE. */
-    float max_coord_angle = 180.0f;
+    /** For curved metrics, quadratic in dimensions. */
+    std::size_t curved_dimensions = 64;
 
-    /** Count of kernels that ran their accuracy checks. */
-    std::size_t kernel_count = 0;
+    /** For sparse set intersection and sparse dot. */
+    std::size_t sparse_dimensions = 256;
 
-    /** Count of kernels that failed the configured accuracy checks. */
-    std::size_t failure_count = 0;
+    /** Number of 3D points for RMSD, Kabsch. */
+    std::size_t mesh_points = 1000;
 
-    /** Compiles @p pattern as an extended regex; an invalid one matches as a substring instead. */
-    void set_filter(char const *pattern) noexcept {
-        filter = pattern;
-#if NUMKONG_HAS_POSIX_REGEX_
-        if (filter_compiled) regfree(&filter_regex);
-        filter_compiled = pattern && regcomp(&filter_regex, pattern, REG_EXTENDED | REG_NOSUB) == 0;
-#else
-        filter_regex.reset();
-        try {
-            if (pattern) filter_regex.emplace(pattern);
-        }
-        catch (std::regex_error const &) {
-        }
-#endif
-    }
+    /** Max geospatial angular separation. */
+    float max_coord_angle_degrees = 180.0f;
 
-    bool should_run(char const *test_name) const noexcept {
-        if (!filter) return true;
-#if NUMKONG_HAS_POSIX_REGEX_
-        if (filter_compiled) return regexec(&filter_regex, test_name, 0, nullptr, 0) == 0;
-#else
-        if (filter_regex) return std::regex_search(test_name, *filter_regex);
-#endif
-        return std::strstr(test_name, filter) != nullptr;
-    }
+    /** The binary's @c argv[0], which closes every rerun line. */
+    std::string_view program;
 
-    /** Applies the `NUMKONG_*` environment overrides, which the command line, parsed afterwards,
-     *  overrides in turn. */
-    void load_environment() noexcept {
-        auto const positive = [](char const *name, auto fallback) noexcept {
-            auto const value = env_variable(name, fallback);
-            if (value > 0) return value;
-            fmt::println(stderr, "{} must be positive", name);
-            std::abort();
-        };
-        // Python and JS take a comma list of dimensions, of which C++ runs the first
-        auto const dimension = [](char const *name, std::size_t fallback) noexcept {
-            char const *const text = env_variable<char const *>(name, nullptr);
-            if (!text) return fallback;
-            char const *const first_end = text + std::strcspn(text, ",");
-            std::size_t value = 0;
-            auto const [end, error] = std::from_chars(text, first_end, value);
-            if (error == std::errc {} && end == first_end && value > 0) return value;
-            fmt::println(stderr, "{}=\"{}\" does not start with a positive count", name, text);
-            std::abort();
-        };
-        running_in_qemu = env_variable("NUMKONG_IN_QEMU", running_in_qemu);
-        assert_on_failure = env_variable("NUMKONG_ASSERT", assert_on_failure);
-        verbose = env_variable("NUMKONG_VERBOSE", verbose);
-        ulp_threshold_f32 = env_variable("NUMKONG_ULP_THRESHOLD_F32", ulp_threshold_f32);
-        ulp_threshold_f16 = env_variable("NUMKONG_ULP_THRESHOLD_F16", ulp_threshold_f16);
-        ulp_threshold_bf16 = env_variable("NUMKONG_ULP_THRESHOLD_BF16", ulp_threshold_bf16);
-        scale_threshold = env_variable("NUMKONG_SCALE_THRESHOLD", scale_threshold);
-        bool const random_seed = std::strcmp(env_variable("NUMKONG_SEED", ""), "random") == 0;
-        seed = random_seed ? std::random_device {}() : env_variable("NUMKONG_SEED", seed);
-        set_filter(env_variable("NUMKONG_FILTER", filter)); // e.g., "dot", "angular", "kld"
-        // A zero or negative budget keeps the default, rather than running no iterations at all
-        if (double const budget = env_variable("NUMKONG_BUDGET_SECS", 0.0); budget > 0) budget_seconds = budget;
-
-        if (char const *const text = env_variable<char const *>("NUMKONG_RANDOM_DISTRIBUTION", nullptr)) {
-            if (std::strcmp(text, "uniform_k") == 0) distribution = random_distribution_kind_t::uniform_k;
-            else if (std::strcmp(text, "cauchy_k") == 0) distribution = random_distribution_kind_t::cauchy_k;
-            else if (std::strcmp(text, "lognormal_k") == 0) distribution = random_distribution_kind_t::lognormal_k;
-            else {
-                fmt::println(stderr, "NUMKONG_RANDOM_DISTRIBUTION=\"{}\" is not uniform_k, lognormal_k or cauchy_k",
-                             text);
-                std::abort();
-            }
-        }
-
-        dense_dimensions = dimension("NUMKONG_DENSE_DIMENSIONS", dense_dimensions);
-        curved_dimensions = dimension("NUMKONG_CURVED_DIMENSIONS", curved_dimensions);
-        sparse_dimensions = dimension("NUMKONG_SPARSE_DIMENSIONS", sparse_dimensions);
-        mesh_points = positive("NUMKONG_MESH_POINTS", mesh_points);
-        matrix_height = dimension("NUMKONG_MATRIX_HEIGHT", matrix_height);
-        matrix_width = dimension("NUMKONG_MATRIX_WIDTH", matrix_width);
-        matrix_depth = dimension("NUMKONG_MATRIX_DEPTH", matrix_depth);
-        max_coord_angle = positive("NUMKONG_MAX_COORD_ANGLE", max_coord_angle);
-
-        // Shrink dimensions for QEMU — divides whatever value is currently stored,
-        // so explicit env-var overrides are proportionally reduced too.
-        if (running_in_qemu) {
-            dense_dimensions = std::max<std::size_t>(1, dense_dimensions / 4);
-            matrix_height = std::max<std::size_t>(1, matrix_height / 4);
-            matrix_width = std::max<std::size_t>(1, matrix_width / 4);
-            matrix_depth = std::max<std::size_t>(1, matrix_depth / 4);
-            mesh_points = std::max<std::size_t>(1, mesh_points / 4);
-        }
+    /** Whether @p name passes the filter. */
+    bool selects(std::string_view name) const {
+        if (filter.empty()) return true;
+        if (filter_regex) return std::regex_search(name.begin(), name.end(), *filter_regex);
+        return name.find(filter) != std::string_view::npos;
     }
 
     std::uint64_t ulp_threshold_for(nk_dtype_t dtype) const noexcept {
@@ -403,18 +439,122 @@ struct test_config_t {
         if (dtype == nk_f16_k) return ulp_threshold_f16;
         return ulp_threshold_f32;
     }
-
-    char const *distribution_name() const noexcept {
-        switch (distribution) {
-        case random_distribution_kind_t::uniform_k: return "uniform";
-        case random_distribution_kind_t::lognormal_k: return "lognormal";
-        case random_distribution_kind_t::cauchy_k: return "cauchy";
-        default: return "unknown";
-        }
-    }
 };
 
-extern test_config_t global_config;
+/** Reads every @c settings_t variable, rejecting a zero count, for the binary named @p program. */
+inline settings_t read_settings(char const *program) noexcept {
+    settings_t settings;
+    settings.program = program;
+    // Python and JS take a comma list of dimensions, of which C++ runs the first
+    auto const first_dim = [](char const *name, std::size_t fallback) noexcept {
+        return env_parsed(name, std::vector {fallback}, parse_dims, "positive counts like 64,128").front();
+    };
+    auto const env_ulps = [](char const *name, std::uint64_t fallback) noexcept {
+        auto const parse = [](std::string_view text) noexcept -> std::optional<std::uint64_t> {
+            std::uint64_t ulps = 0;
+            auto const [end, error] = std::from_chars(text.data(), text.data() + text.size(), ulps);
+            if (error != std::errc {} || end != text.data() + text.size()) return std::nullopt;
+            return ulps;
+        };
+        return env_parsed(name, fallback, parse, "an unsigned integer");
+    };
+    auto const number_within = [](char const *name, double fallback, double low, double high,
+                                  char const *expected) noexcept {
+        auto const parse = [=](std::string_view text) -> std::optional<double> {
+            std::string const terminated(text);
+            char *end = nullptr;
+            double const value = std::strtod(terminated.c_str(), &end);
+            if (end != terminated.c_str() + terminated.size() || !(value >= low && value <= high)) return std::nullopt;
+            return value;
+        };
+        return env_parsed(name, fallback, parse, expected);
+    };
+    settings.filter = env_text("NUMKONG_FILTER").value_or("");
+    if (!settings.filter.empty()) {
+#if defined(__cpp_exceptions) && __cpp_exceptions
+        try {
+            settings.filter_regex.emplace(settings.filter.begin(), settings.filter.end());
+        }
+        catch (std::regex_error const &) {
+        }
+#else
+        settings.filter_regex.emplace(settings.filter.begin(), settings.filter.end());
+#endif
+    }
+    settings.seed = env_seed("NUMKONG_SEED", settings.seed);
+    settings.time_limit_per_kernel = env_duration("NUMKONG_TIME_LIMIT", settings.time_limit_per_kernel);
+    settings.distribution = env_parsed("NUMKONG_RANDOM_DISTRIBUTION", settings.distribution, parse_distribution,
+                                       "uniform, lognormal or cauchy");
+    settings.on_failure = env_flag("NUMKONG_ASSERT", settings.on_failure == on_failure_t::exit_k)
+                              ? on_failure_t::exit_k
+                              : on_failure_t::report_k;
+    settings.emulation = env_flag("NUMKONG_IN_QEMU", settings.emulation == emulation_t::emulated_k)
+                             ? emulation_t::emulated_k
+                             : emulation_t::native_k;
+    settings.ulp_threshold_f32 = env_ulps("NUMKONG_ULP_THRESHOLD_F32", settings.ulp_threshold_f32);
+    settings.ulp_threshold_f16 = env_ulps("NUMKONG_ULP_THRESHOLD_F16", settings.ulp_threshold_f16);
+    settings.ulp_threshold_bf16 = env_ulps("NUMKONG_ULP_THRESHOLD_BF16", settings.ulp_threshold_bf16);
+    settings.scale_threshold = number_within("NUMKONG_SCALE_THRESHOLD", settings.scale_threshold, 0, 1,
+                                             "a number in [0, 1]");
+    settings.dense_dimensions = first_dim("NUMKONG_DIMS", settings.dense_dimensions);
+    settings.matrix_height = first_dim("NUMKONG_DIMS_HEIGHT", settings.matrix_height);
+    settings.matrix_width = first_dim("NUMKONG_DIMS_WIDTH", settings.matrix_width);
+    settings.matrix_depth = first_dim("NUMKONG_DIMS_DEPTH", settings.matrix_depth);
+    settings.curved_dimensions = first_dim("NUMKONG_CURVED_DIMS", settings.curved_dimensions);
+    settings.sparse_dimensions = first_dim("NUMKONG_SPARSE_DIMS", settings.sparse_dimensions);
+    settings.mesh_points = env_count("NUMKONG_MESH_POINTS", settings.mesh_points);
+    settings.max_coord_angle_degrees = static_cast<float>(
+        number_within("NUMKONG_MAX_COORD_ANGLE", settings.max_coord_angle_degrees, 0, 180, "a number in [0, 180]"));
+
+    // Shrink dimensions for QEMU — divides whatever value is currently stored,
+    // so explicit env-var overrides are proportionally reduced too.
+    if (settings.emulation == emulation_t::emulated_k) {
+        settings.dense_dimensions = std::max<std::size_t>(1, settings.dense_dimensions / 4);
+        settings.matrix_height = std::max<std::size_t>(1, settings.matrix_height / 4);
+        settings.matrix_width = std::max<std::size_t>(1, settings.matrix_width / 4);
+        settings.matrix_depth = std::max<std::size_t>(1, settings.matrix_depth / 4);
+        settings.mesh_points = std::max<std::size_t>(1, settings.mesh_points / 4);
+    }
+    return settings;
+}
+
+/** Prints each setting as "- Name: value", in the grammar it parses from, then a rerun template. */
+inline void print(settings_t const &settings) {
+    fmt::println("- Seed: {}", settings.seed.value);
+    fmt::println("- Filter: {}", settings.filter.empty() ? std::string_view("none") : settings.filter);
+    fmt::println("- Time limit: {}", spell_duration(settings.time_limit_per_kernel));
+    fmt::println("- Random distribution: {}", settings.distribution);
+    fmt::println("- Assert: {}", settings.on_failure == on_failure_t::exit_k);
+    fmt::println("- In QEMU: {}", settings.emulation == emulation_t::emulated_k);
+    fmt::println("- ULP threshold f32: {}", settings.ulp_threshold_f32);
+    fmt::println("- ULP threshold f16: {}", settings.ulp_threshold_f16);
+    fmt::println("- ULP threshold bf16: {}", settings.ulp_threshold_bf16);
+    fmt::println("- Scale threshold: {}", settings.scale_threshold);
+    fmt::println("- Dims: {}", settings.dense_dimensions);
+    fmt::println("- Dims height: {}", settings.matrix_height);
+    fmt::println("- Dims width: {}", settings.matrix_width);
+    fmt::println("- Dims depth: {}", settings.matrix_depth);
+    fmt::println("- Curved dims: {}", settings.curved_dimensions);
+    fmt::println("- Sparse dims: {}", settings.sparse_dimensions);
+    fmt::println("- Mesh points: {}", settings.mesh_points);
+    fmt::println("- Max coord angle: {}", settings.max_coord_angle_degrees);
+    fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", settings.seed.value,
+                 settings.program);
+}
+
+/** The facts this binary and this machine report: the library version, and the capabilities
+ *  compiled in and detected. */
+struct machine_t {
+    std::array<unsigned, 3> version {NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH};
+    nk_capability_t compiled = 0;
+    nk_capability_t detected = 0;
+};
+
+/** Everything a test reads, built once in @c main and passed down by reference. */
+struct environment_t {
+    settings_t settings;
+    machine_t machine;
+};
 
 inline void print_stats_header(comparison_family_t family) noexcept {
     comparison_family_spec_t const spec = comparison_family_spec(family);
@@ -423,7 +563,7 @@ inline void print_stats_header(comparison_family_t family) noexcept {
 }
 
 struct error_stats_t;
-bool should_fail(error_stats_t const &stats) noexcept;
+bool should_fail(settings_t const &settings, error_stats_t const &stats) noexcept;
 void print_stats_row(char const *kernel_name, error_stats_t const &stats) noexcept;
 
 /** Names the running kernel for SIGILL diagnostics: set before each kernel call, cleared after, and
@@ -440,6 +580,24 @@ inline nk_capability_t cpu_capabilities_detected() noexcept {
 inline nk_capability_t cpu_capabilities_compiled() noexcept {
     nk_capability_t capabilities = 0;
     return nk_cpu_capabilities_compiled(&capabilities) == nk_success_k ? capabilities : nk_cap_serial_k;
+}
+
+/** Probes the capabilities @c machine_t reports. */
+inline machine_t probe_machine() noexcept {
+    machine_t machine;
+    machine.compiled = cpu_capabilities_compiled();
+    machine.detected = cpu_capabilities_detected();
+    return machine;
+}
+
+/** Prints the version line, then the capabilities as "- Compiled for:" and "- This machine:". */
+inline void print(machine_t const &machine) {
+    char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+    nk_capabilities_name(machine.compiled, compiled, sizeof(compiled));
+    nk_capabilities_name(machine.detected, detected, sizeof(detected));
+    fmt::println("NumKong {}.{}.{}", machine.version[0], machine.version[1], machine.version[2]);
+    fmt::println("- Compiled for: {}", compiled);
+    fmt::println("- This machine: {}", detected);
 }
 
 /** A mask of no capability, so the C++ wrappers run their templates: the references every
@@ -462,65 +620,64 @@ template <auto best_>
 inline constexpr auto cpu_best =
     [](auto... arguments) noexcept { return call_best<best_>(nk::default_capabilities(), arguments...); };
 
+/** Runs each test under the settings, prints its row, and counts the kernels checked and failed:
+ *  one per binary, built in @c main and passed to every test family. */
 struct error_stats_section_t {
+    settings_t const &settings;
+    nk_capability_t available;
     char const *title = nullptr;
     nk_capability_t required = nk_cap_serial_k;
-    nk_capability_t available;
     std::optional<comparison_family_t> last_family = std::nullopt;
-    bool emitted_any = false;
+    std::size_t kernel_count = 0;
+    std::size_t failure_count = 0;
 
     /** Runs only kernels whose family is in @p available: `#if NUMKONG_TARGET_X` says built, this says
      *  runnable. */
-    explicit error_stats_section_t(nk_capability_t available = cpu_capabilities_detected()) noexcept
-        : available(available) {}
+    error_stats_section_t(settings_t const &settings, nk_capability_t available) noexcept
+        : settings(settings), available(available) {}
 
-    /** Restart under a new heading, for kernels needing @p cap. */
+    /** Restart under a new heading, for kernels needing @p cap, or say why they skip. */
     void section(char const *heading, nk_capability_t cap) noexcept {
         title = heading;
         required = cap;
-        emitted_any = false;
         last_family.reset();
+        if (available & required) return;
+        char missing_names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+        nk_capabilities_name(required & ~available, missing_names, sizeof(missing_names));
+        fmt::println("\n{}: skipped, {} not detected", heading, missing_names);
     }
 
     /** Runs @p test_fn over @p kernels, deducing a scenario's kernel types from the kernels
      *  themselves. */
     template <typename stats_type_ = error_stats_t, typename... kernels_types_>
-    void operator()(char const *kernel_name, std::type_identity_t<stats_type_ (*)(kernels_types_...)> test_fn,
+    void operator()(char const *kernel_name,
+                    std::type_identity_t<stats_type_ (*)(settings_t const &, kernels_types_...)> test_fn,
                     kernels_types_... kernels) {
-        (*this)(kernel_name, [&] { return test_fn(kernels...); });
+        (*this)(kernel_name, [&](settings_t const &) { return test_fn(settings, kernels...); });
     }
 
     template <typename test_function_type_, typename... args_types_>
     void operator()(char const *kernel_name, test_function_type_ test_fn, args_types_ &&...args) {
-        if ((available & required) == 0 || !global_config.should_run(kernel_name)) return;
+        if ((available & required) == 0 || !settings.selects(kernel_name)) return;
 
         nk_test_current_kernel_ = kernel_name;
-        auto stats = test_fn(std::forward<args_types_>(args)...);
+        auto stats = test_fn(settings, std::forward<args_types_>(args)...);
         nk_test_current_kernel_ = nullptr;
 
-        if (!emitted_any) {
-            if (title) fmt::println("\n{}:", title);
-            emitted_any = true;
-        }
+        if (!last_family && title) fmt::println("\n{}:", title);
         if (last_family != stats.family) {
             print_stats_header(stats.family);
             last_family = stats.family;
         }
         print_stats_row(kernel_name, stats);
-        ++global_config.kernel_count;
-        if (should_fail(stats)) {
-            ++global_config.failure_count;
-            fmt::println("  rerun: NUMKONG_SEED={} NUMKONG_FILTER='^{}$' {}", global_config.seed, kernel_name,
-                         global_config.program);
+        ++kernel_count;
+        if (should_fail(settings, stats)) {
+            ++failure_count;
+            fmt::println("  rerun: NUMKONG_SEED={} NUMKONG_FILTER='^{}$' {}", settings.seed.value, kernel_name,
+                         settings.program);
         }
     }
 };
-
-inline time_point test_start_time() { return steady_clock::now(); }
-
-inline bool within_time_budget(time_point start) {
-    return std::chrono::duration<double>(steady_clock::now() - start).count() < global_config.budget_seconds;
-}
 
 /**
  *  @brief Compute the ULP, Units in Last Place, distance between two floating-point values.
@@ -878,7 +1035,7 @@ struct error_stats_t {
 /** The header-only stub of @p best_, called with the arguments of its capability kernels, which it
  *  never reads, reports the missing library over every mask. */
 template <auto best_, typename... arguments_types_>
-error_stats_t test_missing_library(arguments_types_... arguments) {
+error_stats_t test_missing_library(settings_t const &, arguments_types_... arguments) {
     error_stats_t stats(comparison_family_t::exact_k);
     stats.expect(call_best<best_>(nk_cap_any_k, arguments...) == nk_missing_library_k,
                  "a header-only dispatch point ran a kernel");
@@ -886,17 +1043,17 @@ error_stats_t test_missing_library(arguments_types_... arguments) {
 }
 #endif
 
-inline bool should_fail(error_stats_t const &stats) noexcept {
+inline bool should_fail(settings_t const &settings, error_stats_t const &stats) noexcept {
     if (stats.failed_expectations) return true;
     comparison_family_spec_t const spec = comparison_family_spec(stats.family);
     switch (spec.failure_mode) {
     case comparison_failure_mode_t::exact_distance_k:
         if (!stats.saw_floating_distance) return stats.max_ulp > 0;
-        return stats.max_ulp > global_config.ulp_threshold_for(stats.result_dtype);
+        return stats.max_ulp > settings.ulp_threshold_for(stats.result_dtype);
     case comparison_failure_mode_t::ulp_threshold_k:
-        return stats.max_ulp > global_config.ulp_threshold_for(stats.result_dtype);
+        return stats.max_ulp > settings.ulp_threshold_for(stats.result_dtype);
     case comparison_failure_mode_t::scale_threshold_k:
-        return stats.max_abs_err > global_config.scale_threshold * stats.max_reference;
+        return stats.max_abs_err > settings.scale_threshold * stats.max_reference;
     case comparison_failure_mode_t::bound_threshold_k: return !(stats.max_bound_ratio <= 1);
     }
     return false;
@@ -928,7 +1085,7 @@ inline void print_stats_row(char const *kernel_name, error_stats_t const &stats)
 template <typename type_>
 [[nodiscard]] nk::vector<type_> make_vector(std::size_t n) {
     auto result = nk::vector<type_>::zeros(n);
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
+#if defined(__cpp_exceptions) && __cpp_exceptions
     if (!result) throw std::bad_alloc();
 #else
     if (!result) std::abort();
@@ -937,23 +1094,18 @@ template <typename type_>
 }
 
 /**
- *  @brief Fill buffer with random values, respecting global distribution setting.
+ *  @brief Fill buffer with random values, respecting the distribution setting.
  *
- *  Dispatches to the matching `nk::fill_*` library function based on `global_config.distribution`.
+ *  Dispatches to the matching `nk::fill_*` library function based on @p settings.
  *  Infers sensible bounds from type's representable range.
  */
 template <typename scalar_type_, typename allocator_type_, typename generator_type_>
-void fill_random(generator_type_ &generator, nk::vector<scalar_type_, allocator_type_> &vector) {
-    switch (global_config.distribution) {
-    case random_distribution_kind_t::uniform_k:
-        nk::fill_uniform(generator, vector.values_data(), vector.size_values());
-        break;
-    case random_distribution_kind_t::lognormal_k:
-        nk::fill_lognormal(generator, vector.values_data(), vector.size_values());
-        break;
-    case random_distribution_kind_t::cauchy_k:
-        nk::fill_cauchy(generator, vector.values_data(), vector.size_values());
-        break;
+void fill_random(settings_t const &settings, generator_type_ &generator,
+                 nk::vector<scalar_type_, allocator_type_> &vector) {
+    switch (settings.distribution) {
+    case distribution_t::uniform_k: nk::fill_uniform(generator, vector.values_data(), vector.size_values()); break;
+    case distribution_t::lognormal_k: nk::fill_lognormal(generator, vector.values_data(), vector.size_values()); break;
+    case distribution_t::cauchy_k: nk::fill_cauchy(generator, vector.values_data(), vector.size_values()); break;
     }
 }
 
@@ -1019,48 +1171,33 @@ typename backend_type_::template allocator<value_type_> allocator_of(backend_typ
 
 #pragma endregion Host Backend
 
-#pragma region Suite Header
-
-/** Prints the library version, the kits compiled in, and the kits this machine offers, once per
- *  binary. */
-inline void log_environment() {
-    char compiled[NUMKONG_CAPABILITIES_NAME_CAPACITY], detected[NUMKONG_CAPABILITIES_NAME_CAPACITY];
-    nk_capabilities_name(cpu_capabilities_compiled(), compiled, sizeof(compiled));
-    nk_capabilities_name(cpu_capabilities_detected(), detected, sizeof(detected));
-    fmt::println("NumKong {}.{}.{}", NUMKONG_VERSION_MAJOR, NUMKONG_VERSION_MINOR, NUMKONG_VERSION_PATCH);
-    fmt::println("- Compiled for: {}", compiled);
-    fmt::println("- This machine: {}", detected);
-}
-
-#pragma endregion Suite Header
-
-} // namespace ashvardanian::numkong::test
-
 /** Forward declarations for test modules. */
-void test_casts();
-void test_reduce();
-void test_dot();
-void test_spatial();
-void test_set();
-void test_curved();
-void test_probability();
-void test_each();
-void test_trigonometry();
-void test_geospatial();
-void test_mesh();
-void test_sparse();
-void test_vector_types();
-void test_tensor_ops();
-void test_maxsim();
+void test_casts(error_stats_section_t &check);
+void test_reduce(error_stats_section_t &check);
+void test_dot(error_stats_section_t &check);
+void test_spatial(error_stats_section_t &check);
+void test_set(error_stats_section_t &check);
+void test_curved(error_stats_section_t &check);
+void test_probability(error_stats_section_t &check);
+void test_each(error_stats_section_t &check);
+void test_trigonometry(error_stats_section_t &check);
+void test_geospatial(error_stats_section_t &check);
+void test_mesh(error_stats_section_t &check);
+void test_sparse(error_stats_section_t &check);
+void test_vector_types(error_stats_section_t &check);
+void test_tensor_ops(error_stats_section_t &check);
+void test_maxsim(error_stats_section_t &check);
 
 /** Forward declarations for cross/batch tests, ISA-family files. */
-void test_cross_serial();
-void test_cross_x8664();
-void test_cross_arm64();
-void test_cross_blas();
-void test_cross_riscv64();
-void test_cross_ppc64();
-void test_cross_loongarch64();
-void test_cross_wasm();
+void test_cross_serial(error_stats_section_t &check);
+void test_cross_x8664(error_stats_section_t &check);
+void test_cross_arm64(error_stats_section_t &check);
+void test_cross_blas(error_stats_section_t &check);
+void test_cross_riscv64(error_stats_section_t &check);
+void test_cross_ppc64(error_stats_section_t &check);
+void test_cross_loongarch64(error_stats_section_t &check);
+void test_cross_wasm(error_stats_section_t &check);
+
+} // namespace ashvardanian::numkong::test
 
 #endif // NUMKONG_TEST_HARNESS_HPP

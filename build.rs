@@ -3,8 +3,10 @@
 //!
 //! File: build.rs
 //! Author: Ash Vardanian
-use std::env;
-use std::path::{Path, PathBuf};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 /// The Cargo features that switch a CMake option, each passed as ON or OFF, never left to the host.
 const FEATURE_OPTIONS: &[(&str, &str)] = &[("CUDA", "NUMKONG_BUILD_CUDA"), ("ROCM", "NUMKONG_BUILD_ROCM")];

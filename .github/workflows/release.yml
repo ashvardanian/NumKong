@@ -35,13 +35,12 @@ jobs:
           pattern: swift-{xcframework,artifactbundle}
           path: ${{ runner.temp }}/swift
           merge-multiple: true
-      - name: Point the Swift Manifest at the Swift Artifacts
+      - name: Write Swift Checksums
         run: |
-          echo "NUMKONG_PREVIOUS_VERSION=$(cat VERSION)" >> "$GITHUB_ENV"
-          apple=$(sha256sum "$RUNNER_TEMP/swift/CNumKong.xcframework.zip" | cut -d ' ' -f 1)
-          portable=$(sha256sum "$RUNNER_TEMP/swift/CNumKong.artifactbundle.zip" | cut -d ' ' -f 1)
-          sed -i -E "s/^(let appleChecksum = )\".*\"/\1\"$apple\"/; s/^(let portableChecksum = )\".*\"/\1\"$portable\"/" Package.swift
-          grep -E "^let (apple|portable)Checksum" Package.swift
+          apple=$(sha256sum "$RUNNER_TEMP"/swift/*.xcframework.zip | cut -c -64)
+          portable=$(sha256sum "$RUNNER_TEMP"/swift/*.artifactbundle.zip | cut -c -64)
+          sed -i "s/^let appleChecksum = .*/let appleChecksum = \"$apple\"/" Package.swift
+          sed -i "s/^let portableChecksum = .*/let portableChecksum = \"$portable\"/" Package.swift
       - name: Run TinySemVer
         uses: ashvardanian/tinysemver@v3
         with:
@@ -65,21 +64,17 @@ jobs:
             package.json:@numkong/win32-arm64": "(\d+\.\d+\.\d+)"
             package.json:@numkong/win32-x64": "(\d+\.\d+\.\d+)"
           update-major-version-in: |
-            include/numkong/capabilities.h:^#define NUMKONG_VERSION_MAJOR (\d+)
+            include/numkong/types.h:^#define NUMKONG_VERSION_MAJOR (\d+)
           update-minor-version-in: |
-            include/numkong/capabilities.h:^#define NUMKONG_VERSION_MINOR (\d+)
+            include/numkong/types.h:^#define NUMKONG_VERSION_MINOR (\d+)
           update-patch-version-in: |
-            include/numkong/capabilities.h:^#define NUMKONG_VERSION_PATCH (\d+)
+            include/numkong/types.h:^#define NUMKONG_VERSION_PATCH (\d+)
           dry-run: "false"
           push: "true"
           create-release: "true"
           github-token: ${{ secrets.SEMANTIC_RELEASE_TOKEN }}
-      - name: Upload Swift Artifacts to the Release
-        run: |
-          version=$(cat VERSION)
-          if [ "$version" != "$NUMKONG_PREVIOUS_VERSION" ]; then
-            gh release upload "v$version" "$RUNNER_TEMP"/swift/*.zip --repo "${{ github.repository }}"
-          fi
+      - name: Upload Swift Artifacts
+        run: git diff --quiet HEAD~1 HEAD -- VERSION || gh release upload "v$(cat VERSION)" "$RUNNER_TEMP"/swift/*.zip
 
   rebase:
     name: Rebase Development Branch

@@ -311,7 +311,7 @@ x86 provides no saturating 32-bit SIMD add ([only byte/word variants](https://ww
 
 __Square roots & special math ops are platform-specific.__
 Angular distance requires $1/\sqrt{\|a\|^2 \cdot \|b\|^2}$ — but the cost of computing this normalization varies dramatically across hardware.
-x86 `VSQRTPS` takes [~12 cycles](https://uops.info/html-lat/SKX/VSQRTPS_XMM_XMM-Measurements.html), followed by `VDIVPS` at ~11 cycles — totalling ~23 cycles for a precise `1/sqrt(x)`.
+x86 `VSQRTPS` takes [~12 cycles](https://uops.info/html-lat/SKX/VSQRTPS_XMM_XMM-Measurements.html), followed by `VDIVPS` at ~11 cycles — totalling ~23 cycles for a precise 1/√x.
 The `VRSQRT14PS` alternative starts with a [14-bit estimate in ~4 cycles](https://www.intel.com/content/www/us/en/developer/articles/code-sample/reference-implementations-for-ia-approximation-instructions-vrcp14-vrsqrt14-vrcp28-vrsqrt28-vexp2.html), then one Newton-Raphson iteration ($y = y \cdot (1.5 - 0.5 x y^2)$, ~4 more cycles) reaches full Float32 precision — roughly 3x faster.
 ARM's `FRSQRTE` provides only [~8 bits](https://github.com/DLTcollab/sse2neon/issues/526), requiring __two__ Newton-Raphson iterations to match.
 NumKong selects the iteration count per platform so the final ULP bound is consistent across ISAs, rather than exposing different precision to different users.
@@ -540,8 +540,8 @@ Doubled, every E2M1 value is an integer in [−12, 12], so dot products take an 
 
 Both signed and unsigned 8-bit and 4-bit integers are supported with __Int32 accumulation__ to prevent overflow.
 A notable optimization is the __VNNI algebraic transform__: on Ice Lake+ with AVX-512 VNNI, the native __DPBUSD__ instruction is asymmetric (unsigned × signed → signed), but NumKong uses it for both Int8×Int8 and UInt8×UInt8.
-For __signed Int8×Int8__, we convert the signed operand to unsigned via XOR with `0x80`, compute `DPBUSD(a⊕0x80, b) = (a+128)×b`, then subtract a correction term `128×sum(b)` to recover the true result.
-For __unsigned UInt8×UInt8__, we XOR the second operand to make it signed, compute `DPBUSD(a, b⊕0x80) = a×(b-128)`, then add correction `128×sum(a)` via the fast SAD instruction.
+For __signed Int8×Int8__, we convert the signed operand to unsigned via XOR with `0x80`, compute `DPBUSD`(a ⊕ `0x80`, b) = (a + 128) × b, then subtract a correction term 128 × ∑b to recover the true result.
+For __unsigned UInt8×UInt8__, we XOR the second operand to make it signed, compute `DPBUSD`(a, b ⊕ `0x80`) = a × (b - 128), then add correction 128 × ∑a via the fast SAD instruction.
 
 __Int4__ values pack two nibbles per byte, requiring bitmask extraction: low nibbles `(byte & 0x0F)` and high nibbles `(byte >> 4)`.
 For signed Int4, the transformation `(nibble ⊕ 8) - 8` maps the unsigned range [0,15] to signed range [−8,7].

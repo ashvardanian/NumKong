@@ -10,10 +10,9 @@
 #include "harness.hpp"
 #include "cross.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
-void test_cross_wasm() {
-    [[maybe_unused]] error_stats_section_t check;
+void test_cross_wasm([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_V128RELAXED
     check.section("Cross V128 Relaxed", nk_cap_v128relaxed_k);
     check("dots_packed_f64_v128relaxed", test_dots_packed<f64_t>, nk_dots_pack_size_f64_v128relaxed,
@@ -271,3 +270,5 @@ void test_cross_wasm() {
     check("jaccards_symmetric_u1_v128", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_v128);
 #endif // NUMKONG_TARGET_V128
 }
+
+} // namespace ashvardanian::numkong::test

@@ -8,12 +8,13 @@
 //! File: rust/curved.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::{ffi::c_void, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{check_len, TensorError};
-use crate::types::{bf16, bf16c, f16, f16c, f32c, f64c, StorageElement};
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{check_len, TensorError},
+    types::{bf16, bf16c, f16, f16c, f32c, f64c, StorageElement},
+};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -560,6 +561,7 @@ impl Mahalanobis for bf16 {
 mod tests {
     use super::*;
     use crate::types::{assert_close, bf16, f16, FloatLike, NumberLike, TestableType};
+
     /// Build an identity matrix of size point_count × point_count.
     pub(crate) fn make_identity<Scalar: FloatLike>(point_count: usize) -> Vec<Scalar> {
         let mut v = vec![Scalar::zero(); point_count * point_count];

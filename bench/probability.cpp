@@ -9,54 +9,65 @@
 
 #include "harness.hpp"
 
-using namespace ashvardanian::numkong::bench;
+namespace ashvardanian::numkong::bench {
 
-void bench_probability() {
+void bench_probability(environment_t const &env) {
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;
     constexpr nk_dtype_t bf16_k = nk_bf16_k;
     constexpr nk_dtype_t f64_k = nk_f64_k;
 
 #if NUMKONG_TARGET_NEON
-    run_dense<f32_k, f64_k>("kld_f32_neon", nk_kld_f32_neon);
-    run_dense<f32_k, f64_k>("jsd_f32_neon", nk_jsd_f32_neon);
-    run_dense<f16_k, f32_k>("kld_f16_neon", nk_kld_f16_neon);
-    run_dense<f16_k, f32_k>("jsd_f16_neon", nk_jsd_f16_neon);
+    if (section(env, "Probability Divergences NEON", nk_cap_neon_k)) {
+        run_dense<f32_k, f64_k>(env, "kld_f32_neon", nk_kld_f32_neon);
+        run_dense<f32_k, f64_k>(env, "jsd_f32_neon", nk_jsd_f32_neon);
+        run_dense<f16_k, f32_k>(env, "kld_f16_neon", nk_kld_f16_neon);
+        run_dense<f16_k, f32_k>(env, "jsd_f16_neon", nk_jsd_f16_neon);
+    }
 #endif
 
 #if NUMKONG_TARGET_HASWELL
-    run_dense<f16_k, f32_k>("kld_f16_haswell", nk_kld_f16_haswell);
-    run_dense<f16_k, f32_k>("jsd_f16_haswell", nk_jsd_f16_haswell);
-    run_dense<f64_k, f64_k>("kld_f64_haswell", nk_kld_f64_haswell);
-    run_dense<f64_k, f64_k>("jsd_f64_haswell", nk_jsd_f64_haswell);
+    if (section(env, "Probability Divergences Haswell", nk_cap_haswell_k)) {
+        run_dense<f16_k, f32_k>(env, "kld_f16_haswell", nk_kld_f16_haswell);
+        run_dense<f16_k, f32_k>(env, "jsd_f16_haswell", nk_jsd_f16_haswell);
+        run_dense<f64_k, f64_k>(env, "kld_f64_haswell", nk_kld_f64_haswell);
+        run_dense<f64_k, f64_k>(env, "jsd_f64_haswell", nk_jsd_f64_haswell);
+    }
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
-    run_dense<f32_k, f64_k>("kld_f32_skylake", nk_kld_f32_skylake);
-    run_dense<f32_k, f64_k>("jsd_f32_skylake", nk_jsd_f32_skylake);
-    run_dense<f64_k, f64_k>("kld_f64_skylake", nk_kld_f64_skylake);
-    run_dense<f64_k, f64_k>("jsd_f64_skylake", nk_jsd_f64_skylake);
-    run_dense<f16_k, f32_k>("kld_f16_skylake", nk_kld_f16_skylake);
-    run_dense<f16_k, f32_k>("jsd_f16_skylake", nk_jsd_f16_skylake);
+    if (section(env, "Probability Divergences Skylake", nk_cap_skylake_k)) {
+        run_dense<f32_k, f64_k>(env, "kld_f32_skylake", nk_kld_f32_skylake);
+        run_dense<f32_k, f64_k>(env, "jsd_f32_skylake", nk_jsd_f32_skylake);
+        run_dense<f64_k, f64_k>(env, "kld_f64_skylake", nk_kld_f64_skylake);
+        run_dense<f64_k, f64_k>(env, "jsd_f64_skylake", nk_jsd_f64_skylake);
+        run_dense<f16_k, f32_k>(env, "kld_f16_skylake", nk_kld_f16_skylake);
+        run_dense<f16_k, f32_k>(env, "jsd_f16_skylake", nk_jsd_f16_skylake);
+    }
 #endif
 
 #if NUMKONG_TARGET_RVV
-    run_dense<f32_k, f64_k>("kld_f32_rvv", nk_kld_f32_rvv);
-    run_dense<f32_k, f64_k>("jsd_f32_rvv", nk_jsd_f32_rvv);
-    run_dense<f64_k, f64_k>("kld_f64_rvv", nk_kld_f64_rvv);
-    run_dense<f64_k, f64_k>("jsd_f64_rvv", nk_jsd_f64_rvv);
-    run_dense<f16_k, f32_k>("kld_f16_rvv", nk_kld_f16_rvv);
-    run_dense<f16_k, f32_k>("jsd_f16_rvv", nk_jsd_f16_rvv);
-    run_dense<bf16_k, f32_k>("kld_bf16_rvv", nk_kld_bf16_rvv);
-    run_dense<bf16_k, f32_k>("jsd_bf16_rvv", nk_jsd_bf16_rvv);
+    if (section(env, "Probability Divergences RVV", nk_cap_rvv_k)) {
+        run_dense<f32_k, f64_k>(env, "kld_f32_rvv", nk_kld_f32_rvv);
+        run_dense<f32_k, f64_k>(env, "jsd_f32_rvv", nk_jsd_f32_rvv);
+        run_dense<f64_k, f64_k>(env, "kld_f64_rvv", nk_kld_f64_rvv);
+        run_dense<f64_k, f64_k>(env, "jsd_f64_rvv", nk_jsd_f64_rvv);
+        run_dense<f16_k, f32_k>(env, "kld_f16_rvv", nk_kld_f16_rvv);
+        run_dense<f16_k, f32_k>(env, "jsd_f16_rvv", nk_jsd_f16_rvv);
+        run_dense<bf16_k, f32_k>(env, "kld_bf16_rvv", nk_kld_bf16_rvv);
+        run_dense<bf16_k, f32_k>(env, "jsd_bf16_rvv", nk_jsd_bf16_rvv);
+    }
 #endif
     // Serial fallbacks
-    run_dense<bf16_k, f32_k>("kld_bf16_serial", nk_kld_bf16_serial);
-    run_dense<bf16_k, f32_k>("jsd_bf16_serial", nk_jsd_bf16_serial);
-    run_dense<f16_k, f32_k>("kld_f16_serial", nk_kld_f16_serial);
-    run_dense<f16_k, f32_k>("jsd_f16_serial", nk_jsd_f16_serial);
-    run_dense<f32_k, f64_k>("kld_f32_serial", nk_kld_f32_serial);
-    run_dense<f32_k, f64_k>("jsd_f32_serial", nk_jsd_f32_serial);
-    run_dense<f64_k, f64_k>("kld_f64_serial", nk_kld_f64_serial);
-    run_dense<f64_k, f64_k>("jsd_f64_serial", nk_jsd_f64_serial);
+    section(env, "Probability Divergences Serial", nk_cap_serial_k);
+    run_dense<bf16_k, f32_k>(env, "kld_bf16_serial", nk_kld_bf16_serial);
+    run_dense<bf16_k, f32_k>(env, "jsd_bf16_serial", nk_jsd_bf16_serial);
+    run_dense<f16_k, f32_k>(env, "kld_f16_serial", nk_kld_f16_serial);
+    run_dense<f16_k, f32_k>(env, "jsd_f16_serial", nk_jsd_f16_serial);
+    run_dense<f32_k, f64_k>(env, "kld_f32_serial", nk_kld_f32_serial);
+    run_dense<f32_k, f64_k>(env, "jsd_f32_serial", nk_jsd_f32_serial);
+    run_dense<f64_k, f64_k>(env, "kld_f64_serial", nk_kld_f64_serial);
+    run_dense<f64_k, f64_k>(env, "jsd_f64_serial", nk_jsd_f64_serial);
 }
+
+} // namespace ashvardanian::numkong::bench

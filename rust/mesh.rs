@@ -29,12 +29,13 @@
 //! File: rust/mesh.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::{ffi::c_void, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{check_len, TensorError};
-use crate::types::{bf16, f16};
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{check_len, TensorError},
+    types::{bf16, f16},
+};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -788,6 +789,7 @@ impl MeshAlignment for bf16 {
 mod tests {
     use super::*;
     use crate::types::{assert_close, FloatLike, NumberLike, TestableType};
+
     /// Convert a point cloud from f32 to Scalar.
     pub(crate) fn convert_cloud<Scalar: FloatLike>(cloud: &[[f32; 3]]) -> Vec<[Scalar; 3]> {
         cloud

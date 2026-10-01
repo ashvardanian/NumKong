@@ -35,51 +35,43 @@ ctest --test-dir build_cuda -R cuda --output-on-failure
 ### Running
 
 ```sh
-build_release/numkong_cpu_test --filter=dot           # run only tests matching "dot"
-build_release/numkong_cpu_test --filter="dot|spatial"  # regex filter
-build_release/numkong_cpu_test --assert               # exit 1 when any kernel fails its accuracy check
-build_release/numkong_cpu_test --verbose              # per-dimension ULP breakdown
-build_release/numkong_cpu_test --budget-secs=5        # 5 seconds per kernel
+NUMKONG_FILTER=dot build_release/numkong_cpu_test             # run only tests matching "dot"
+NUMKONG_FILTER="dot|spatial" build_release/numkong_cpu_test   # regex filter
+NUMKONG_ASSERT=0 build_release/numkong_cpu_test               # exit 0 even when a kernel fails its accuracy check
+NUMKONG_TIME_LIMIT=5s build_release/numkong_cpu_test          # 5 seconds per kernel
 ```
 
-Foreign flag mapping for muscle-memory compatibility:
-
-| Foreign Flag                 | Maps To                                     |
-| :--------------------------- | :------------------------------------------ |
-| `--gtest_filter=<regex>`     | forwards to `--filter=<regex>` with warning |
-| `--benchmark_filter=<regex>` | forwards to `--filter=<regex>` with warning |
-| `--benchmark_min_time=<N>s`  | maps to `--budget-secs=<N>`                 |
+The binary takes no arguments; the environment configures it.
 
 ### Environment Variables
 
-| Variable                      |       Default | Description                                                           |
-| :---------------------------- | ------------: | :-------------------------------------------------------------------- |
-| `NUMKONG_FILTER`              |          `.*` | Regex searched in kernel names; an invalid one matches as a substring |
-| `NUMKONG_SEED`                |          `42` | RNG seed, or `random` to draw one; the `- Seed:` line prints it       |
-| `NUMKONG_BUDGET_SECS`         |           `1` | Time budget per kernel in seconds; `0` or less keeps the default      |
-| `NUMKONG_DENSE_DIMENSIONS`    |        `1536` | Vector dimension for dot/spatial tests                                |
-| `NUMKONG_CURVED_DIMENSIONS`   |          `64` | Vector dimension for curved tests                                     |
-| `NUMKONG_SPARSE_DIMENSIONS`   |         `256` | Vector dimension for sparse tests                                     |
-| `NUMKONG_MESH_POINTS`         |        `1000` | Point count for mesh tests                                            |
-| `NUMKONG_MATRIX_HEIGHT`       |        `1024` | GEMM M dimension                                                      |
-| `NUMKONG_MATRIX_WIDTH`        |         `128` | GEMM N dimension                                                      |
-| `NUMKONG_MATRIX_DEPTH`        |        `1536` | GEMM K dimension                                                      |
-| `NUMKONG_MAX_COORD_ANGLE`     |         `180` | Maximum angle in degrees for geospatial tests                         |
-| `NUMKONG_IN_QEMU`             |         unset | Shrink shapes for emulation; `0` or `false` also means off            |
-| `NUMKONG_ASSERT`              |           `0` | Exit 1 when any kernel fails its check                                |
-| `NUMKONG_VERBOSE`             |           `0` | Show per-dimension ULP breakdown                                      |
-| `NUMKONG_ULP_THRESHOLD_F32`   |           `4` | Max allowed ULP distance for f32                                      |
-| `NUMKONG_ULP_THRESHOLD_F16`   |          `32` | Max allowed ULP distance for f16                                      |
-| `NUMKONG_ULP_THRESHOLD_BF16`  |         `256` | Max allowed ULP distance for bf16                                     |
-| `NUMKONG_SCALE_THRESHOLD`     |        `0.02` | Max error over the largest reference, for attention                   |
-| `NUMKONG_RANDOM_DISTRIBUTION` | `lognormal_k` | Distribution: `uniform_k`, `lognormal_k`, `cauchy_k`                  |
+| Variable                      |     Default | Description                                                               |
+| :---------------------------- | ----------: | :------------------------------------------------------------------------ |
+| `NUMKONG_FILTER`              |       unset | ECMAScript regex searched in kernel names; an invalid one is a substring  |
+| `NUMKONG_SEED`                |        `42` | RNG seed, or `random` to draw one; the `- Seed:` line prints it           |
+| `NUMKONG_TIME_LIMIT`          |        `1s` | Time limit per kernel, `<int>ms` or `<int>s`; zero or a bare number exits |
+| `NUMKONG_DIMS`                |      `1536` | Vector dimension for dot/spatial tests                                    |
+| `NUMKONG_CURVED_DIMS`         |        `64` | Vector dimension for curved tests                                         |
+| `NUMKONG_SPARSE_DIMS`         |       `256` | Vector dimension for sparse tests                                         |
+| `NUMKONG_MESH_POINTS`         |      `1000` | Point count for mesh tests                                                |
+| `NUMKONG_DIMS_HEIGHT`         |      `1024` | GEMM M dimension                                                          |
+| `NUMKONG_DIMS_WIDTH`          |       `128` | GEMM N dimension                                                          |
+| `NUMKONG_DIMS_DEPTH`          |      `1536` | GEMM K dimension                                                          |
+| `NUMKONG_MAX_COORD_ANGLE`     |       `180` | Maximum angle in degrees for geospatial tests                             |
+| `NUMKONG_IN_QEMU`             |         `0` | Shrink shapes for emulation: `0`, `1`, `true` or `false`                  |
+| `NUMKONG_ASSERT`              |         `1` | Exit 1 when any kernel fails its check; `0` only reports it               |
+| `NUMKONG_ULP_THRESHOLD_F32`   |         `4` | Max allowed ULP distance for f32                                          |
+| `NUMKONG_ULP_THRESHOLD_F16`   |        `32` | Max allowed ULP distance for f16                                          |
+| `NUMKONG_ULP_THRESHOLD_BF16`  |       `256` | Max allowed ULP distance for bf16                                         |
+| `NUMKONG_SCALE_THRESHOLD`     |      `0.02` | Max error over the largest reference, for attention                       |
+| `NUMKONG_RANDOM_DISTRIBUTION` | `lognormal` | Distribution: `uniform`, `lognormal`, `cauchy`                            |
 
 The dimension and GEMM variables also take the comma-separated lists the Python suite reads, and the C++ suite runs the first entry.
-A first entry that is not a positive count aborts the run, naming the variable.
+A first entry that is not a positive count exits 1, naming the variable, as does any value that does not parse.
 A filter that matches no kernel runs nothing and passes.
 
 Every kernel's row lands in the table whether it passes or not, and the summary counts the failures.
-The run exits 1 on a failure only under `NUMKONG_ASSERT=1` or `--assert`.
+The run exits 1 on a failure unless `NUMKONG_ASSERT=0`.
 A failing row is followed by a line that replays that kernel alone, with the seed of this run:
 
 ```
@@ -231,46 +223,46 @@ cargo check -p numkong --no-default-features  # no-std compatibility
 ## Python
 
 ```sh
-pip install -e .
-pip install pytest pytest-repeat pytest-randomly numpy scipy ml_dtypes tabulate
-pytest test/ -s -x -Wd
+pip install -e . --group test --group test-oracles
+python -X faulthandler -m pytest -x
 ```
 
-Optional dependencies for extended test coverage:
+The `test` group holds pytest, pytest-repeat and NumPy.
+The `test-oracles` group adds the references the suite compares against when they install:
 
 | Package     | What it unlocks                                         |
 | :---------- | :------------------------------------------------------ |
-| `numpy`     | Array interop, cdist, custom dtype registration         |
 | `scipy`     | Cross-validation against `scipy.spatial.distance`       |
 | `ml_dtypes` | `__array_interface__` fallback for bfloat16 / fp8 / fp6 |
-| `tabulate`  | Formatted precision report tables                       |
 
 Tests that require a missing optional dependency are skipped automatically.
 
 ```sh
-pytest test/ -s -x -Wd -k dot         # filter by name
-pytest test/ -s -x -Wd -k "dot or spatial"
+NUMKONG_FILTER=dot python -m pytest               # node ids matching a regex, or else a substring
+NUMKONG_FILTER="dot|spatial" python -m pytest
+python -m pytest -k "dot or spatial"              # pytest's own filter still applies on top
 ```
 
 ### Environment Variables
 
-| Variable                    |       Default | Description                                                          |
-| :-------------------------- | ------------: | :------------------------------------------------------------------- |
-| `NUMKONG_DENSE_DIMENSIONS`  | `1,2,...,128` | Comma-separated vector dimensions, 19 sizes around powers of two     |
-| `NUMKONG_CURVED_DIMENSIONS` |     5 sampled | Dimensions for curved-space tests, drawn from the dense ones         |
-| `NUMKONG_MATRIX_HEIGHT`     |     6 sampled | GEMM M dimensions, drawn from the dense ones                         |
-| `NUMKONG_MATRIX_WIDTH`      |     6 sampled | GEMM N dimensions, drawn from the dense ones                         |
-| `NUMKONG_MATRIX_DEPTH`      |     6 sampled | GEMM K dimensions, drawn from the dense ones                         |
-| `NUMKONG_SEED`              |          `42` | Seed for `np.random`, or `random` to draw one                        |
-| `NUMKONG_REPETITIONS`       |          `10` | Randomized test repeat count, `3` under `NUMKONG_IN_QEMU`            |
-| `NUMKONG_IN_QEMU`           |         unset | Shrink dimensions and repetitions; `0` or `false` is off             |
-| `NUMKONG_SPARSE_DIMENSIONS` |         `256` | Universe size for sparse tests                                       |
-| `NUMKONG_MESH_POINTS`       |         `100` | Point count for mesh alignment tests                                 |
-| `NUMKONG_MAX_COORD_ANGLE`   |         `180` | Maximum angle in degrees for geospatial                              |
-| `NUMKONG_EXPECT_SIMD`       |         unset | `0` skips the check that a SIMD-capable machine dispatches to SIMD   |
+| Variable                  |       Default | Description                                                        |
+| :------------------------ | ------------: | :----------------------------------------------------------------- |
+| `NUMKONG_DIMS`            | `1,2,...,128` | Comma-separated vector dimensions, 19 sizes around powers of two   |
+| `NUMKONG_CURVED_DIMS`     |     5 sampled | Dimensions for curved-space tests, drawn from the dense ones       |
+| `NUMKONG_DIMS_HEIGHT`     |     6 sampled | GEMM M dimensions, drawn from the dense ones                       |
+| `NUMKONG_DIMS_WIDTH`      |     6 sampled | GEMM N dimensions, drawn from the dense ones                       |
+| `NUMKONG_DIMS_DEPTH`      |     6 sampled | GEMM K dimensions, drawn from the dense ones                       |
+| `NUMKONG_SEED`            |          `42` | Seed for `np.random`, or `random` to draw one                      |
+| `NUMKONG_FILTER`          |         unset | Regex searched in test node ids; an invalid one is a substring     |
+| `NUMKONG_REPETITIONS`     |          `10` | Randomized test repeat count, `3` under `NUMKONG_IN_QEMU`          |
+| `NUMKONG_IN_QEMU`         |           `0` | Shrink dimensions and repetitions: `0`, `1`, `true` or `false`     |
+| `NUMKONG_SPARSE_DIMS`     |         `256` | Universe size for sparse tests                                     |
+| `NUMKONG_MESH_POINTS`     |        `1000` | Point count for mesh alignment tests                               |
+| `NUMKONG_MAX_COORD_ANGLE` |         `180` | Maximum angle in degrees for geospatial                            |
+| `NUMKONG_EXPECT_SIMD`     |           `1` | `0` skips the check that a SIMD-capable machine dispatches to SIMD |
 
-The pytest header names the seed as `seed: <n>, pin with NUMKONG_SEED`, so a `random` draw replays.
-A seed that is neither a number nor `random` stops the session, naming the variable.
+The pytest header prints every setting as `- Name: value`, so a `random` seed draw replays.
+A value that does not parse stops the session with `NUMKONG_SEED="x" does not parse, expected an unsigned integer or random`.
 
 The `pytest-repeat` plugin re-runs each test `NUMKONG_REPETITIONS` times with auto-seeding — each iteration gets a unique seed derived from the base `NUMKONG_SEED`, ensuring broader input coverage without sacrificing reproducibility.
 
@@ -299,11 +291,11 @@ npx playwright test --config test/playwright.config.ts    # Browser via Playwrig
 
 ### Environment Variables
 
-| Variable                   |         Default | Description                                                   |
-| :------------------------- | --------------: | :------------------------------------------------------------ |
-| `NUMKONG_RUNTIME`          |        `native` | Runtime: `emscripten`, `emscripten64`, `wasi-node`            |
-| `NUMKONG_SEED`             |            `42` | Seed for test data, or `random` to draw one; printed at start |
-| `NUMKONG_DENSE_DIMENSIONS` | `3,16,128,1536` | Comma-separated vector dimensions                             |
+| Variable          |         Default | Description                                                   |
+| :---------------- | --------------: | :------------------------------------------------------------ |
+| `NUMKONG_RUNTIME` |        `native` | Runtime: `emscripten`, `emscripten64`, `wasi-node`            |
+| `NUMKONG_SEED`    |            `42` | Seed for test data, or `random` to draw one; printed at start |
+| `NUMKONG_DIMS`    | `3,16,128,1536` | Comma-separated vector dimensions                             |
 
 ## Swift
 

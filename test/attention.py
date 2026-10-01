@@ -15,7 +15,6 @@ from base import (
     keep_one_capability,
     make_nk,
     make_random,
-    nk_seed,  # noqa: F401 — pytest fixture
     possible_capabilities,
     tolerances_for_dtype,
 )
@@ -105,16 +104,15 @@ def mode_masks(mode):
 @pytest.mark.parametrize("head_dim", [64, 128])
 @pytest.mark.parametrize("threads", [1, 0])
 @pytest.mark.parametrize("mode", ATTENTION_MODES)
-def test_attention_packed(dtype, tolerance, scenario, head_dim, threads, mode):
+def test_attention_packed(dtype, tolerance, scenario, head_dim, threads, mode, np_rng: np.random.Generator):
     lengths = SCENARIOS[scenario]
     offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
     tokens, num_heads, num_kv_heads = int(offsets[-1]), 4, 2
     scale = 1.0 / np.sqrt(head_dim)
-    np.random.seed(42)
 
-    q_f32 = (np.random.randn(tokens, num_heads * head_dim) * 0.3).astype(np.float32)
-    k_f32 = (np.random.randn(tokens, num_kv_heads * head_dim) * 0.3).astype(np.float32)
-    v_f32 = (np.random.randn(tokens, num_kv_heads * head_dim) * 0.3).astype(np.float32)
+    q_f32 = (np_rng.standard_normal((tokens, num_heads * head_dim)) * 0.3).astype(np.float32)
+    k_f32 = (np_rng.standard_normal((tokens, num_kv_heads * head_dim)) * 0.3).astype(np.float32)
+    v_f32 = (np_rng.standard_normal((tokens, num_kv_heads * head_dim)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
     kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=head_dim, threads=threads)
@@ -135,18 +133,17 @@ def test_attention_packed(dtype, tolerance, scenario, head_dim, threads, mode):
 
 @pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
 @pytest.mark.parametrize("window", [None, 5])
-def test_attention_causal_decode(dtype, tolerance, window):
+def test_attention_causal_decode(dtype, tolerance, window, np_rng: np.random.Generator):
     """A few trailing queries per segment against a longer cache: `diagonal_offset = length - queries`."""
     length, query_count, segment_count, num_heads, head_dim = 37, 3, 2, 4, 64
     key_offsets = np.arange(segment_count + 1, dtype=np.uint32) * length
     query_offsets = np.arange(segment_count + 1, dtype=np.uint32) * query_count
     lengths = [length] * segment_count
     scale = 1.0 / np.sqrt(head_dim)
-    np.random.seed(5)
 
-    q_f32 = (np.random.randn(segment_count * query_count, num_heads * head_dim) * 0.3).astype(np.float32)
-    k_f32 = (np.random.randn(segment_count * length, num_heads * head_dim) * 0.3).astype(np.float32)
-    v_f32 = (np.random.randn(segment_count * length, num_heads * head_dim) * 0.3).astype(np.float32)
+    q_f32 = (np_rng.standard_normal((segment_count * query_count, num_heads * head_dim)) * 0.3).astype(np.float32)
+    k_f32 = (np_rng.standard_normal((segment_count * length, num_heads * head_dim)) * 0.3).astype(np.float32)
+    v_f32 = (np_rng.standard_normal((segment_count * length, num_heads * head_dim)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
     kv = nk.attention_pack(k, v, segment_offsets=key_offsets, depth=head_dim, threads=1)
@@ -174,18 +171,17 @@ def test_attention_causal_decode(dtype, tolerance, window):
 
 
 @pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
-def test_attention_pool(dtype, tolerance):
+def test_attention_pool(dtype, tolerance, np_rng: np.random.Generator):
     """One query per segment against the full segment KV — the batched pooling shape."""
     lengths = [33, 70, 5]
     kv_offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
     pool_offsets = np.arange(len(lengths) + 1, dtype=np.uint32)
     tokens, num_heads, head_dim = int(kv_offsets[-1]), 4, 128
     scale = 1.0 / np.sqrt(head_dim)
-    np.random.seed(7)
 
-    q_f32 = (np.random.randn(len(lengths), num_heads * head_dim) * 0.3).astype(np.float32)
-    k_f32 = (np.random.randn(tokens, num_heads * head_dim) * 0.3).astype(np.float32)
-    v_f32 = (np.random.randn(tokens, num_heads * head_dim) * 0.3).astype(np.float32)
+    q_f32 = (np_rng.standard_normal((len(lengths), num_heads * head_dim)) * 0.3).astype(np.float32)
+    k_f32 = (np_rng.standard_normal((tokens, num_heads * head_dim)) * 0.3).astype(np.float32)
+    v_f32 = (np_rng.standard_normal((tokens, num_heads * head_dim)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
     kv = nk.attention_pack(k, v, segment_offsets=kv_offsets, depth=head_dim, threads=1)
@@ -205,7 +201,7 @@ def test_attention_pool(dtype, tolerance):
 
 
 @pytest.mark.parametrize("mode", ATTENTION_MODES)
-def test_attention_i8(mode):
+def test_attention_i8(mode, np_rng: np.random.Generator):
     """I8 contract: exact integer scores, softmax weights quantized to u8, f32 outputs.
 
     The reference uses unquantized weights, so the tolerance is the u8 quantization
@@ -215,11 +211,10 @@ def test_attention_i8(mode):
     offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
     tokens, num_heads, head_dim = int(offsets[-1]), 4, 128
     scale = 0.05 / np.sqrt(head_dim)
-    np.random.seed(11)
 
-    q = nk.Tensor(np.random.randint(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
-    k = nk.Tensor(np.random.randint(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
-    v = nk.Tensor(np.random.randint(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
+    q = nk.Tensor(np_rng.integers(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
+    k = nk.Tensor(np_rng.integers(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
+    v = nk.Tensor(np_rng.integers(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
 
     kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=head_dim, threads=0)
     rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
@@ -275,16 +270,15 @@ def baseline_rope(x, cos, sin, head_count, depth):
     ],
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_attention_rope(geom, dtype, capability, nk_seed):
+def test_attention_rope(geom, dtype, capability, np_rng: np.random.Generator):
     """Test nk.attention_rope() out-of-place and in-place (out == x) against a float64 rotate-half reference."""
     keep_one_capability(capability)
     rows, head_count, depth = geom
     width = head_count * depth
-    rng = np.random.default_rng(nk_seed)
-    angles = rng.standard_normal((rows, depth // 2)).astype(np.float32) * 0.5
+    angles = np_rng.standard_normal((rows, depth // 2)).astype(np.float32) * 0.5
     cos = np.cos(angles).astype(np.float32)
     sin = np.sin(angles).astype(np.float32)
-    x_raw, x_base = make_random((rows, width), dtype, seed=nk_seed)
+    x_raw, x_base = make_random((rows, width), dtype, np_rng)
 
     expected = baseline_rope(x_base, cos, sin, head_count, depth)
     if dtype != "float32":  # round the reference through the lossy output dtype

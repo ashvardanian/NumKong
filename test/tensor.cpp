@@ -32,12 +32,6 @@
 #define NUMKONG_TEST_FORMAT_ 0
 #endif
 
-using namespace ashvardanian::numkong::test;
-
-#if NUMKONG_TEST_FORMAT_
-error_stats_t test_format_scalars();
-#endif
-
 /*  Explicit instantiations for tensor types, forcing full compilation of all APIs. */
 template struct nk::tensor<nk::f32_t>;
 template struct nk::tensor<nk::f64_t>;
@@ -53,8 +47,14 @@ template struct nk::tensor_span<nk::f32_t, 8>;
 template struct nk::tensor_view<nk::bf16_t, 2>;
 template struct nk::tensor_span<nk::bf16_t, 2>;
 
+namespace ashvardanian::numkong::test {
+
+#if NUMKONG_TEST_FORMAT_
+error_stats_t test_format_scalars(settings_t const &);
+#endif
+
 template <typename value_type_>
-error_stats_t test_vector_basics() {
+error_stats_t test_vector_basics(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     constexpr std::size_t dims_per_value = nk::dimensions_per_value<value_type_>();
     constexpr std::size_t test_dims = 64 * dims_per_value;
@@ -67,7 +67,7 @@ error_stats_t test_vector_basics() {
     return stats;
 }
 
-error_stats_t test_signed_indexing() {
+error_stats_t test_signed_indexing(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v = make_vector<float>(100);
     v[50] = 3.14f;
@@ -77,7 +77,7 @@ error_stats_t test_signed_indexing() {
     return stats;
 }
 
-error_stats_t test_integral_indexing_api() {
+error_stats_t test_integral_indexing_api(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v = make_vector<float>(5);
     for (std::size_t i = 0; i < v.size(); ++i) v[i] = static_cast<float>(i + 1);
@@ -103,7 +103,7 @@ error_stats_t test_integral_indexing_api() {
     return stats;
 }
 
-error_stats_t test_tensor_operator_indexing() {
+error_stats_t test_tensor_operator_indexing(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [t, t_status] = nk::tensor<float>::zeros({2, 3});
     stats.expect(nk::succeeded(t_status), "tensor allocation failed");
@@ -209,7 +209,7 @@ error_stats_t test_tensor_operator_indexing() {
     return stats;
 }
 
-error_stats_t test_packed_tensor_operator_indexing() {
+error_stats_t test_packed_tensor_operator_indexing(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [t4, t4_status] = nk::tensor<nk::u4x2_t>::zeros({2, 4});
     stats.expect(nk::succeeded(t4_status), "packed u4 tensor allocation failed");
@@ -264,7 +264,7 @@ error_stats_t test_packed_tensor_operator_indexing() {
     return stats;
 }
 
-error_stats_t test_move_semantics() {
+error_stats_t test_move_semantics(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v1 = make_vector<nk::f32_t>(100);
     v1[50] = nk::f32_t(42.0f);
@@ -281,7 +281,7 @@ error_stats_t test_move_semantics() {
     return stats;
 }
 
-error_stats_t test_swap() {
+error_stats_t test_swap(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v1 = make_vector<nk::i8_t>(10);
     auto v2 = make_vector<nk::i8_t>(20);
@@ -296,7 +296,7 @@ error_stats_t test_swap() {
     return stats;
 }
 
-error_stats_t test_view_span_rev() {
+error_stats_t test_view_span_rev(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v = make_vector<float>(5);
     v[0] = 1.0f;
@@ -319,7 +319,7 @@ error_stats_t test_view_span_rev() {
     return stats;
 }
 
-error_stats_t test_range_slicing() {
+error_stats_t test_range_slicing(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v = make_vector<float>(5);
     v[0] = 1.0f;
@@ -335,7 +335,7 @@ error_stats_t test_range_slicing() {
     return stats;
 }
 
-error_stats_t test_sub_byte_i4x2() {
+error_stats_t test_sub_byte_i4x2(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v = make_vector<nk::i4x2_t>(100);
     stats.expect(v.size() == 100, "i4x2_t size mismatch");
@@ -352,7 +352,7 @@ error_stats_t test_sub_byte_i4x2() {
     return stats;
 }
 
-error_stats_t test_sub_byte_u1x8() {
+error_stats_t test_sub_byte_u1x8(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v = make_vector<nk::u1x8_t>(64);
     stats.expect(v.size() == 64, "u1x8_t size mismatch");
@@ -365,7 +365,7 @@ error_stats_t test_sub_byte_u1x8() {
     return stats;
 }
 
-error_stats_t test_block_scaled_composites() {
+error_stats_t test_block_scaled_composites(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     // NVFP4: 9 bytes per block × 7 blocks for 112 logical dims.
     auto nvfp4_vec = make_vector<nk::nvfp4_t>(112);
@@ -412,7 +412,7 @@ concept exposes_tensor_scale_ = requires(scaled_type_ const &t) { t.tensor_scale
  *
  *  Every numeric path is checked byte-for-byte against @c nk_cast_block_scaled_serial.
  */
-error_stats_t test_scaled_tensor() {
+error_stats_t test_scaled_tensor(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using nk::f32_t;
     using nk::u8_t;
@@ -604,7 +604,7 @@ error_stats_t test_scaled_tensor() {
  *  - D idempotence: re-quantizing an already-quantized block is a fixed point, bit-stable.
  */
 template <typename format_>
-error_stats_t test_scaled_roundtrip(float narrow_relative_bound) {
+error_stats_t test_scaled_roundtrip(settings_t const &, float narrow_relative_bound) {
     error_stats_t stats(comparison_family_t::exact_k);
     using nk::f32_t;
     constexpr std::size_t block = format_::elements();
@@ -663,7 +663,7 @@ error_stats_t test_scaled_roundtrip(float narrow_relative_bound) {
 }
 
 /** Degenerate-input handling: all-zero blocks decode to zero; a NaN poisons only its block. */
-error_stats_t test_scaled_tensor_degenerate() {
+error_stats_t test_scaled_tensor_degenerate(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using nk::f32_t;
     auto abs_diff = [](float a, float b) { return a > b ? a - b : b - a; };
@@ -704,7 +704,7 @@ error_stats_t test_scaled_tensor_degenerate() {
     return stats;
 }
 
-error_stats_t test_custom_allocator() {
+error_stats_t test_custom_allocator(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using custom_alloc_t = nk::aligned_allocator<nk::f32_t, 128>;
     auto [v, v_status] = nk::vector<nk::f32_t, custom_alloc_t>::zeros(256);
@@ -836,7 +836,7 @@ void test_sub_byte_tensor_rank3_axis_case(
     assert_flat_tensor_equals(stats, minmax2.max_value, expected_max_axis2);
 }
 
-error_stats_t test_sub_byte_tensor_axis_reductions() {
+error_stats_t test_sub_byte_tensor_axis_reductions(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     test_sub_byte_tensor_axis_reduction_case<nk::i4x2_t, 4>(stats, {1, -2, 7, -8}, {-3, 4, -5, 6}, {-2, 2, 2, -2},
                                                             {-3, -2, -5, -8}, {1, 4, 7, 6});
@@ -848,7 +848,7 @@ error_stats_t test_sub_byte_tensor_axis_reductions() {
     return stats;
 }
 
-error_stats_t test_sub_byte_tensor_rank3_axis_reductions() {
+error_stats_t test_sub_byte_tensor_rank3_axis_reductions(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     test_sub_byte_tensor_rank3_axis_case<nk::i4x2_t, 4>(
         stats, {1, -2, 3, -4}, {5, -6, 7, -8}, {-1, 2, -3, 4}, {-5, 6, -7, 7}, {0, 0, 0, 0, 0, 0, 0, -1},
@@ -869,7 +869,7 @@ error_stats_t test_sub_byte_tensor_rank3_axis_reductions() {
     return stats;
 }
 
-error_stats_t test_rank1_negative_stride_reductions() {
+error_stats_t test_rank1_negative_stride_reductions(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using value_t = nk::f32_t;
     using sum_t = typename value_t::reduce_moments_sum_t;
@@ -891,7 +891,7 @@ error_stats_t test_rank1_negative_stride_reductions() {
     return stats;
 }
 
-error_stats_t test_rank1_axis_reductions() {
+error_stats_t test_rank1_axis_reductions(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [v, v_status] = nk::tensor<nk::i8_t>::zeros({4});
     stats.expect(nk::succeeded(v_status), "rank-1 tensor allocation failed");
@@ -925,7 +925,7 @@ error_stats_t test_rank1_axis_reductions() {
     return stats;
 }
 
-error_stats_t test_packed_tensor_fail_closed_views() {
+error_stats_t test_packed_tensor_fail_closed_views(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [packed, packed_status] = nk::tensor<nk::i4x2_t>::zeros({2, 4});
     stats.expect(nk::succeeded(packed_status), "packed tensor allocation failed");
@@ -943,11 +943,11 @@ error_stats_t test_packed_tensor_fail_closed_views() {
  *  exercising every accessor variant on a small random vector. Numerical accuracy of the underlying
  *  kernels is validated by @c test_reduce_moments and @c test_reduce_minmax above. */
 template <typename value_type_>
-error_stats_t test_vector_reductions_for_type() {
+error_stats_t test_vector_reductions_for_type(settings_t const &settings) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto v = make_vector<value_type_>(32);
     std::mt19937 generator(42);
-    fill_random(generator, v);
+    fill_random(settings, generator, v);
     auto view = nk::vector_view<value_type_>(v.values_data(), static_cast<std::size_t>(v.size()));
 
     auto mm = nk::minmax(view);
@@ -962,8 +962,7 @@ error_stats_t test_vector_reductions_for_type() {
     return stats;
 }
 
-void test_vector_types() {
-    error_stats_section_t check;
+void test_vector_types(error_stats_section_t &check) {
     check.section("Vectors", nk_cap_serial_k);
 
     check("vector_basics_f32", test_vector_basics<float>);
@@ -1019,7 +1018,7 @@ void test_vector_types() {
  *  mismatches, missing type traits, and implicit conversion errors that syntax-only checks miss.
  */
 template <typename value_type_>
-error_stats_t test_tensor_ops_for_type() {
+error_stats_t test_tensor_ops_for_type(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
 
@@ -1114,7 +1113,7 @@ error_stats_t test_tensor_ops_for_type() {
 }
 
 template <typename value_type_>
-error_stats_t test_tensor_symmetric_for_type() {
+error_stats_t test_tensor_symmetric_for_type(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
     auto [a, a_status] = tensor_t::zeros({4, 8});
@@ -1128,7 +1127,7 @@ error_stats_t test_tensor_symmetric_for_type() {
 }
 
 template <typename value_type_>
-error_stats_t test_tensor_packed_for_type() {
+error_stats_t test_tensor_packed_for_type(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
     auto [a, a_status] = tensor_t::zeros({4, 8});
@@ -1147,7 +1146,7 @@ error_stats_t test_tensor_packed_for_type() {
 }
 
 template <typename value_type_>
-error_stats_t test_tensor_maxsim_for_type() {
+error_stats_t test_tensor_maxsim_for_type(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
     auto [q, q_status] = tensor_t::zeros({3, 16});
@@ -1165,7 +1164,7 @@ error_stats_t test_tensor_maxsim_for_type() {
     return stats;
 }
 
-error_stats_t test_view_overloads() {
+error_stats_t test_view_overloads(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     nk::f32_t a_data[8] {}, c_data[64] {};
     std::array<nk::f32_t, 8> b_array {};
@@ -1250,7 +1249,7 @@ struct counting_allocator {
     }
 };
 
-error_stats_t test_custom_allocator_factories() {
+error_stats_t test_custom_allocator_factories(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using custom_alloc_t = nk::aligned_allocator<nk::f32_t, 128>;
     auto [a, a_status] = nk::tensor<nk::f32_t>::zeros({4, 8});
@@ -1287,12 +1286,12 @@ error_stats_t test_custom_allocator_factories() {
 }
 
 template <typename from_type_, typename to_type_>
-error_stats_t test_cast_for_types() {
+error_stats_t test_cast_for_types(settings_t const &settings) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto src = make_vector<from_type_>(64);
     auto dst = make_vector<to_type_>(64);
     std::mt19937 generator(42);
-    fill_random(generator, src);
+    fill_random(settings, generator, src);
 
     auto src_view = nk::vector_view<from_type_>(src.values_data(), static_cast<std::size_t>(src.size()));
     auto dst_span = nk::vector_span<to_type_>(dst.values_data(), static_cast<std::size_t>(dst.size()));
@@ -1308,7 +1307,7 @@ error_stats_t test_cast_for_types() {
 }
 
 #if NUMKONG_TEST_FORMAT_
-error_stats_t test_format_scalars() {
+error_stats_t test_format_scalars(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     // Float scalar formatters
     { [[maybe_unused]] auto s = std::format("{}", nk::f16_t(3.14f)); }
@@ -1353,7 +1352,7 @@ error_stats_t test_format_scalars() {
 #endif // NUMKONG_TEST_FORMAT_
 
 /** Typed-pointer ctors — count, initializer_list, @c std::array — with an out-of-range guard. */
-error_stats_t test_typed_pointer_ctors() {
+error_stats_t test_typed_pointer_ctors(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     alignas(64) float buf[64];
     for (int i = 0; i < 64; ++i) buf[i] = static_cast<float>(i);
@@ -1381,7 +1380,7 @@ error_stats_t test_typed_pointer_ctors() {
 }
 
 /** `explicit operator bool` on every owning + non-owning handle type. */
-error_stats_t test_operator_bool() {
+error_stats_t test_operator_bool(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [t, t_status] = nk::tensor<nk::f32_t>::uninitialized({2, 3});
     nk::tensor<nk::f32_t> te {};
@@ -1402,7 +1401,7 @@ error_stats_t test_operator_bool() {
 }
 
 /** Templated `flatten<out_rank_>()` with an explicit non-default output rank. */
-error_stats_t test_flatten_out_rank() {
+error_stats_t test_flatten_out_rank(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [t, t_status] = nk::tensor<nk::f32_t>::uninitialized({2, 3, 4});
     stats.expect(nk::succeeded(t_status), "tensor allocation");
@@ -1416,7 +1415,7 @@ error_stats_t test_flatten_out_rank() {
 }
 
 /** Fixed-capacity resize contract: data()-stability, beyond-capacity fail, reserve/clear/move. */
-error_stats_t test_resize_capacity() {
+error_stats_t test_resize_capacity(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     auto [t, t_status] = nk::tensor<nk::f32_t>::uninitialized({8, 4}); // capacity 32
     stats.expect(nk::succeeded(t_status) && t.capacity() == 32, "capacity from initial shape");
@@ -1461,7 +1460,7 @@ error_stats_t test_resize_capacity() {
  *  allocating and into-span variants on a small zero tensor, just exercising the dispatch paths,
  *  not the numerical accuracy, which the kernel tests above cover. */
 template <typename value_type_>
-error_stats_t test_tensor_trig_for_type() {
+error_stats_t test_tensor_trig_for_type(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using tensor_t = nk::tensor<value_type_>;
     auto [a, a_status] = tensor_t::zeros({4, 8});
@@ -1481,10 +1480,10 @@ error_stats_t test_tensor_trig_for_type() {
 /** Packs through @c packed_attention and runs the view overloads, which must match the raw-pointer
  *  layer bit for bit on the same capabilities, in place and allocating. */
 template <typename value_type_>
-error_stats_t test_tensor_attention_for_type() {
+error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
     using result_t = typename value_type_::attention_result_t;
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
     constexpr std::size_t tokens = 10, heads = 4, key_value_heads = 2, depth = 32;
     constexpr nk_f32_t scale = 0.125f;
     nk_u32_t const offsets[] = {0, 4, 10}, lengths[] = {4, 6};
@@ -1556,8 +1555,7 @@ error_stats_t test_tensor_attention_for_type() {
     return stats;
 }
 
-void test_tensor_ops() {
-    error_stats_section_t check;
+void test_tensor_ops(error_stats_section_t &check) {
     check.section("Tensors", nk_cap_serial_k);
 
     check("tensor_ops_f32", test_tensor_ops_for_type<nk::f32_t>);
@@ -1617,3 +1615,5 @@ void test_tensor_ops() {
     check("tensor_attention_e4m3", test_tensor_attention_for_type<nk::e4m3_t>);
     check("tensor_attention_i8", test_tensor_attention_for_type<nk::i8_t>);
 }
+
+} // namespace ashvardanian::numkong::test

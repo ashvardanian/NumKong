@@ -9,12 +9,12 @@
  */
 #include "cross_simt.cuh" // `cuda_backend_t`, `test_cross_dispatch`
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** Packed angular distance against serial where the B column holds the E4M3 NaN code 0x7F, whose
  *  norm must stay NaN rather than decode to 480. */
 template <auto packed_size_fn_, auto pack_fn_, auto angulars_fn_>
-static error_stats_t test_angulars_packed_nan_e4m3() {
+static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &) {
     using bytes_t = nk::vector<char, cuda_backend_t::allocator<char>>;
     cuda_backend_t backend;
     error_stats_t stats(comparison_family_t::exact_k);
@@ -38,8 +38,7 @@ static error_stats_t test_angulars_packed_nan_e4m3() {
     return stats;
 }
 
-void test_cross_cuda() {
-    error_stats_section_t check(device_capabilities<cuda_runtime_t>());
+void test_cross_cuda(error_stats_section_t &check) {
     check.section("Cross CUDA", nk_cap_cuda_k);
     check("dots_packed_f64_cuda", test_dots_packed<f64_t, cuda_backend_t>, nk_dots_pack_size_f64_cuda,
           nk_dots_pack_f64_cuda, nk_dots_packed_f64_cuda);
@@ -843,5 +842,7 @@ void test_cross_cuda() {
           nk_attention_causal_packed_e4m3_blackwellrtx);
 #endif // NUMKONG_TARGET_BLACKWELLRTX
 
-    test_cross_dispatch<cuda_backend_t>();
+    test_cross_dispatch<cuda_backend_t>(check);
 }
+
+} // namespace ashvardanian::numkong::test

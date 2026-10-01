@@ -47,12 +47,13 @@
 //! File: rust/dot.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::{ffi::c_void, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{check_len, TensorError};
-use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement};
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{check_len, TensorError},
+    types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement},
+};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -747,10 +748,12 @@ impl VDot for f64c {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::curved::Bilinear;
-    use crate::types::{
-        assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, FloatLike,
-        NumberLike, StorageElement, TestableType,
+    use crate::{
+        curved::Bilinear,
+        types::{
+            assert_close, bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, FloatLike,
+            NumberLike, StorageElement, TestableType,
+        },
     };
 
     /// Test a two-input metric: convert f32 inputs to Scalar, call `op`, compare to `expected`.

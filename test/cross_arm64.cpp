@@ -9,10 +9,9 @@
 #include "harness.hpp"
 #include "cross.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
-void test_cross_arm64() {
-    [[maybe_unused]] error_stats_section_t check;
+void test_cross_arm64([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_NEON
     check.section("Cross NEON", nk_cap_neon_k);
     check("dots_packed_f64_neon", test_dots_packed<f64_t>, nk_dots_pack_size_f64_neon, nk_dots_pack_f64_neon,
@@ -504,3 +503,5 @@ void test_cross_arm64() {
     check("euclideans_symmetric_f32_smef64", test_euclideans_symmetric<f32_t>, nk_euclideans_symmetric_f32_smef64);
 #endif // NUMKONG_TARGET_SMEF64
 }
+
+} // namespace ashvardanian::numkong::test

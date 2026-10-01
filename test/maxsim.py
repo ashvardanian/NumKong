@@ -10,7 +10,10 @@ Author: Ash Vardanian
 Date: March 9, 2026
 """
 
+from __future__ import annotations
+
 import atexit
+import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -28,22 +31,17 @@ except Exception:
     numpy_available = False
 
 from base import (
+    SETTINGS,
     assert_allclose,
     collect_warnings,
     create_stats,
     downcast_f32_to_dtype,
     keep_one_capability,
     make_nk,
-    nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
     possible_capabilities,
     precise_decimal,
     print_stats_report,
-    reduced_repetitions_count,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
-    test_depth_dimensions,
-    test_height_dimensions,
-    test_width_dimensions,
 )
 
 import numkong as nk
@@ -104,26 +102,28 @@ KERNELS_MAXSIM: dict[str, tuple[Callable, Callable, Callable]] = {
 }
 
 
-def _make_matrix(rows, cols, dtype):
+def _make_matrix(generator: np.random.Generator, rows, cols, dtype):
     """Create a test matrix in the target dtype."""
-    raw, _ = downcast_f32_to_dtype(np.random.randn(rows, cols).astype(np.float32), dtype)
+    raw, _ = downcast_f32_to_dtype(generator.standard_normal((rows, cols)).astype(np.float32), dtype)
     return make_nk(raw, dtype)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(reduced_repetitions_count)
-@pytest.mark.parametrize("rows", test_height_dimensions)
-@pytest.mark.parametrize("columns", test_width_dimensions)
-@pytest.mark.parametrize("depth", test_depth_dimensions)
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("rows", SETTINGS.dims_height)
+@pytest.mark.parametrize("columns", SETTINGS.dims_width)
+@pytest.mark.parametrize("depth", SETTINGS.dims_depth)
 @pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_maxsim_pack_and_packed(rows: int, columns: int, depth: int, dtype: str, capability: str):
+def test_maxsim_pack_and_packed(
+    rows: int, columns: int, depth: int, dtype: str, capability: str, np_rng: np.random.Generator
+):
     """Pack + compute vs baseline."""
     keep_one_capability(capability)
     baseline_kernel, _, _precise_kernel = KERNELS_MAXSIM["maxsim"]
     dtype_str = _MAXSIM_DTYPE[dtype]
-    queries = _make_matrix(rows, depth, dtype)
-    documents = _make_matrix(columns, depth, dtype)
+    queries = _make_matrix(np_rng, rows, depth, dtype)
+    documents = _make_matrix(np_rng, columns, depth, dtype)
 
     qp = nk.maxsim_pack(queries, dtype=dtype_str)
     dp = nk.maxsim_pack(documents, dtype=dtype_str)
@@ -153,13 +153,13 @@ def test_maxsim_pack_and_packed(rows: int, columns: int, depth: int, dtype: str,
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_maxsim_convenience(dtype: str, capability: str):
+def test_maxsim_convenience(dtype: str, capability: str, np_rng: np.random.Generator):
     """Verify maxsim() matches maxsim_pack + maxsim_packed."""
     keep_one_capability(capability)
     n_q, n_d, depth = 4, 8, 32
     dtype_str = _MAXSIM_DTYPE[dtype]
-    queries = _make_matrix(n_q, depth, dtype)
-    documents = _make_matrix(n_d, depth, dtype)
+    queries = _make_matrix(np_rng, n_q, depth, dtype)
+    documents = _make_matrix(np_rng, n_d, depth, dtype)
 
     # Packed path
     qp = nk.maxsim_pack(queries, dtype=dtype_str)
@@ -183,11 +183,11 @@ def test_maxsim_self_zero(capability: str):
 
 
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_maxsim_type_errors(capability: str, nk_seed: int):
+def test_maxsim_type_errors(capability: str, rng: random.Random):
     """Wrong type and mismatched dtype/depth."""
     keep_one_capability(capability)
-    query = nk.hash((4, 32), seed=nk_seed, dtype="float32")
-    documents = nk.hash((8, 32), seed=nk_seed + 1, dtype="float32")
+    query = nk.hash((4, 32), seed=rng.getrandbits(32), dtype="float32")
+    documents = nk.hash((8, 32), seed=rng.getrandbits(32), dtype="float32")
     query_packed = nk.maxsim_pack(query, dtype="f32")
     documents_packed = nk.maxsim_pack(documents, dtype="f32")
 
@@ -198,7 +198,7 @@ def test_maxsim_type_errors(capability: str, nk_seed: int):
         nk.maxsim_packed(query_packed, documents)
 
     # Mismatched depth
-    documents_wrong = nk.hash((8, 16), seed=nk_seed + 2, dtype="float32")
+    documents_wrong = nk.hash((8, 16), seed=rng.getrandbits(32), dtype="float32")
     documents_wrong_packed = nk.maxsim_pack(documents_wrong, dtype="f32")
     with pytest.raises(ValueError):
         nk.maxsim_packed(query_packed, documents_wrong_packed)

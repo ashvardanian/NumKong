@@ -8,7 +8,7 @@
 #include "harness.hpp"
 #include "numkong/mesh.hpp" // `nk::rmsd`
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** Half-precision kernels are judged by @ref mesh_error_bound, the rest in ULPs. */
 template <typename scalar_type_>
@@ -52,16 +52,16 @@ void offset_points(vector_type_ &points, nk_f64_t offset) noexcept {
 
 /** Test RMSD kernel. */
 template <typename scalar_type_>
-error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
+error_stats_t test_rmsd(settings_t const &settings, typename scalar_type_::mesh_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using transform_t = typename scalar_t::mesh_transform_t;
     using metric_t = typename scalar_t::mesh_metric_t;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(mesh_bounded<scalar_t> ? comparison_family_t::bounded_k : comparison_family_t::approximate_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    std::size_t n = global_config.mesh_points;
+    std::size_t n = settings.mesh_points;
     auto a = make_vector<scalar_t>(n * 3), b = make_vector<scalar_t>(n * 3);
 
     // Degenerate empty cloud (n == 0): the kernel must match the serial oracle's neutral result
@@ -79,9 +79,10 @@ error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
     }
 
     bool far_from_origin = false;
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
         if ((far_from_origin = !far_from_origin)) offset_points(a, 64), offset_points(b, 64);
 
         transform_t a_centroid[3], b_centroid[3], rot[9], scale;
@@ -103,16 +104,16 @@ error_stats_t test_rmsd(typename scalar_type_::mesh_kernel_t kernel) {
 
 /** Test Kabsch alignment kernel. */
 template <typename scalar_type_>
-error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
+error_stats_t test_kabsch(settings_t const &settings, typename scalar_type_::mesh_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using transform_t = typename scalar_t::mesh_transform_t;
     using metric_t = typename scalar_t::mesh_metric_t;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(mesh_bounded<scalar_t> ? comparison_family_t::bounded_k : comparison_family_t::approximate_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    std::size_t n = global_config.mesh_points;
+    std::size_t n = settings.mesh_points;
     auto a = make_vector<scalar_t>(n * 3), b = make_vector<scalar_t>(n * 3);
 
     // Degenerate empty cloud (n == 0): the kernel must match the serial oracle's neutral result
@@ -130,9 +131,10 @@ error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
     }
 
     bool far_from_origin = false;
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
         if ((far_from_origin = !far_from_origin)) offset_points(a, 64), offset_points(b, 64);
 
         transform_t a_centroid[3], b_centroid[3], rot[9], scale;
@@ -156,16 +158,16 @@ error_stats_t test_kabsch(typename scalar_type_::mesh_kernel_t kernel) {
 
 /** Test Umeyama alignment kernel. */
 template <typename scalar_type_>
-error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
+error_stats_t test_umeyama(settings_t const &settings, typename scalar_type_::mesh_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using transform_t = typename scalar_t::mesh_transform_t;
     using metric_t = typename scalar_t::mesh_metric_t;
     using reference_t = reference_for<scalar_t>;
 
     error_stats_t stats(mesh_bounded<scalar_t> ? comparison_family_t::bounded_k : comparison_family_t::approximate_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    std::size_t n = global_config.mesh_points;
+    std::size_t n = settings.mesh_points;
     auto a = make_vector<scalar_t>(n * 3), b = make_vector<scalar_t>(n * 3);
 
     // Degenerate empty cloud (n == 0): the kernel must match the serial oracle's neutral result
@@ -183,9 +185,10 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
     }
 
     bool far_from_origin = false;
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
         if ((far_from_origin = !far_from_origin)) offset_points(a, 64), offset_points(b, 64);
 
         transform_t a_centroid[3], b_centroid[3], rot[9], scale;
@@ -208,8 +211,7 @@ error_stats_t test_umeyama(typename scalar_type_::mesh_kernel_t kernel) {
     return stats;
 }
 
-void test_mesh() {
-    error_stats_section_t check;
+void test_mesh(error_stats_section_t &check) {
 
     check.section("Mesh Operations Serial", nk_cap_serial_k);
     check("rmsd_f64_serial", test_rmsd<f64_t>, nk_rmsd_f64_serial);
@@ -321,3 +323,5 @@ void test_mesh() {
     check("umeyama_f64_v128relaxed", test_umeyama<f64_t>, nk_umeyama_f64_v128relaxed);
 #endif // NUMKONG_TARGET_V128RELAXED
 }
+
+} // namespace ashvardanian::numkong::test

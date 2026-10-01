@@ -126,14 +126,9 @@ template <auto best_>
 inline constexpr auto gpu_best =
     [](auto... arguments) noexcept { return call_best<best_>(metal_capabilities(), arguments...); };
 
-} // namespace ashvardanian::numkong::test
-
-using namespace ashvardanian::numkong::test;
-
 /** Every Metal baseline entry point, on any Apple GPU of family 7 or newer. */
-static void test_cross_metal_baseline(nk_metal_queue_t &queue) {
+static void test_cross_metal_baseline(error_stats_section_t &check, nk_metal_queue_t &queue) {
     metal_backend_t const backend {queue};
-    error_stats_section_t check(metal_capabilities());
     check.section("Cross Metal", nk_cap_metal_k);
     check("dots_packed_i8_metal", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_metal,
           nk_dots_pack_i8_metal, nk_dots_packed_i8_metal);
@@ -266,10 +261,9 @@ static void test_cross_metal_baseline(nk_metal_queue_t &queue) {
 }
 
 /** Every Apple9 entry point, on devices whose families include it. */
-static void test_cross_apple9([[maybe_unused]] nk_metal_queue_t &queue) {
+static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check, [[maybe_unused]] nk_metal_queue_t &queue) {
 #if NUMKONG_TARGET_APPLE9
     metal_backend_t const backend {queue};
-    error_stats_section_t check(metal_capabilities());
     check.section("Cross Apple9", nk_cap_apple9_k);
     check("dots_packed_f16_apple9", test_dots_packed<f16_t, metal_backend_t>, backend, nk_dots_pack_size_f16_apple9,
           nk_dots_pack_f16_apple9, nk_dots_packed_f16_apple9);
@@ -359,10 +353,10 @@ static void test_cross_apple9([[maybe_unused]] nk_metal_queue_t &queue) {
 }
 
 /** Every Apple10 entry point, on devices whose families include it. */
-static void test_cross_apple10([[maybe_unused]] nk_metal_queue_t &queue) {
+static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check,
+                               [[maybe_unused]] nk_metal_queue_t &queue) {
 #if NUMKONG_TARGET_APPLE10
     metal_backend_t const backend {queue};
-    error_stats_section_t check(metal_capabilities());
     check.section("Cross Apple10", nk_cap_apple10_k);
     check("dots_packed_i8_apple10", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_apple10,
           nk_dots_pack_i8_apple10, nk_dots_packed_i8_apple10);
@@ -475,19 +469,19 @@ static void test_cross_apple10([[maybe_unused]] nk_metal_queue_t &queue) {
 #endif
 }
 
-void test_cross_metal(nk_metal_queue_t &queue) {
-    test_cross_metal_baseline(queue);
-    test_cross_apple9(queue);
-    test_cross_apple10(queue);
+void test_cross_metal(error_stats_section_t &check, nk_metal_queue_t &queue) {
+    test_cross_metal_baseline(check, queue);
+    test_cross_apple9(check, queue);
+    test_cross_apple10(check, queue);
 }
 
 /** The dispatching entry points, over the capabilities of the device the backend encodes on. */
-void test_cross_dispatch([[maybe_unused]] nk_metal_queue_t &queue) {
-    error_stats_section_t check(metal_capabilities());
+void test_cross_dispatch(error_stats_section_t &check, [[maybe_unused]] nk_metal_queue_t &queue) {
     check.section("Cross Dispatch", nk_cap_metal_k);
 #if NUMKONG_HEADER_ONLY
-    check("dots_packed_i8_dispatch", [] {
-        return test_missing_library<nk_dots_packed_i8_best>(nullptr, nullptr, nullptr, 0, 0, 0, 0, 0, nullptr);
+    check("dots_packed_i8_dispatch", [](settings_t const &settings) {
+        return test_missing_library<nk_dots_packed_i8_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
+                                                            nullptr);
     });
 #else
     metal_backend_t const backend {queue};
@@ -495,3 +489,5 @@ void test_cross_dispatch([[maybe_unused]] nk_metal_queue_t &queue) {
           gpu_best<nk_dots_pack_size_i8_best>, gpu_best<nk_dots_pack_i8_best>, gpu_best<nk_dots_packed_i8_best>);
 #endif
 }
+
+} // namespace ashvardanian::numkong::test

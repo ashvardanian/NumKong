@@ -9,10 +9,9 @@
 #include "harness.hpp"
 #include "cross.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
-void test_cross_x8664() {
-    [[maybe_unused]] error_stats_section_t check;
+void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_HASWELL
     check.section("Cross Haswell", nk_cap_haswell_k);
     check("dots_packed_f64_haswell", test_dots_packed<f64_t>, nk_dots_pack_size_f64_haswell, nk_dots_pack_f64_haswell,
@@ -760,3 +759,5 @@ void test_cross_x8664() {
           nk_attention_causal_packed_e4m3_diamondamx);
 #endif // NUMKONG_TARGET_DIAMONDAMX
 }
+
+} // namespace ashvardanian::numkong::test

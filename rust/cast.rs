@@ -10,12 +10,12 @@
 //! File: rust/cast.rs
 //! Author: Ash Vardanian
 
-use crate::capabilities::{
-    enabled_cpu_capabilities_mask, nk_capability_t, nk_dtype_t, nk_size_t, nk_status_t, StatusCode,
+use core::{ffi::c_void, ptr::null_mut};
+
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_dtype_t, nk_size_t, nk_status_t, StatusCode},
+    types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement},
 };
-use crate::types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement};
-use core::ffi::c_void;
-use core::ptr::null_mut;
 
 #[link(name = "numkong")]
 extern "C" {
@@ -244,8 +244,10 @@ impl<Source: Clone + CastDType, const R: usize, C: TensorRef<Source, R>> CastOps
 
 // region: Block-Scaled Formats (OCP MX family + NVIDIA NVFP4)
 
-use crate::tensor::{ScaledTensor, ScaledTensorView};
-use crate::types::{e2m1x2, Ue4m3, Ue8m0};
+use crate::{
+    tensor::{ScaledTensor, ScaledTensorView},
+    types::{e2m1x2, Ue4m3, Ue8m0},
+};
 
 /// `#[repr(C)]` mirror of `nk_block_scaled_format_t`.
 ///
@@ -776,6 +778,7 @@ mod tests {
         // Exercises `CastOps::cast` on a strided `TensorView`, mirroring how callers reach the
         // trait through the tensor-shaped wrapper.
         use crate::tensor::{SliceRange, Tensor};
+
         let data: Vec<f32> = (0..12).map(|i| i as f32).collect();
         let source = Tensor::<f32>::from_slice(&data, &[3, 4]).unwrap();
         let even_columns = source

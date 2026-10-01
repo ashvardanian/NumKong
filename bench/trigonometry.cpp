@@ -9,7 +9,7 @@
 
 #include "harness.hpp"
 
-using namespace ashvardanian::numkong::bench;
+namespace ashvardanian::numkong::bench {
 
 template <typename scalar_type_>
 struct sin_with_stl {
@@ -33,22 +33,21 @@ nk_status_t elementwise_with_stl(scalar_type_ const *ins, nk_size_t n, scalar_ty
 }
 
 /**
- *  @brief Measures trigonometric operations, sin, cos, atan, using Google Benchmark.
- *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @brief Measures trigonometric operations, sin, cos, atan.
+ *  @param[inout] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_trigonometry(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+void measure_trigonometry(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using input_vector_t = nk::vector<input_t>;
 
     // Preallocate vectors for trigonometric kernels (unary: input + output)
-    std::size_t bytes_per_set = bench_dtype_bytes(input_dtype_, 2 * dimensions);
-    std::size_t const vectors_count = bench_input_count(bytes_per_set);
+    std::size_t const vectors_count = input_sets_count(dtype_bytes(input_dtype_, 2 * dimensions));
     std::vector<input_vector_t> input_a(vectors_count), output(vectors_count);
-    auto generator = make_random_engine();
+    std::mt19937 generator(env.settings.seed.value);
     for (std::size_t index = 0; index != vectors_count; ++index) {
         input_a[index] = make_vector<input_t>(dimensions);
         output[index] = make_vector<input_t>(dimensions);
@@ -56,105 +55,119 @@ void measure_trigonometry(bm::State &state, kernel_type_ kernel, std::size_t dim
     }
 
     // Benchmark loop
-    std::size_t iterations = 0;
-    for (auto _ : state) {
-        std::size_t const index = iterations & (vectors_count - 1);
-        if (!succeeded(state,
+    for (std::size_t call : loop) {
+        std::size_t const index = call & (vectors_count - 1);
+        if (!succeeded(loop,
                        kernel(input_a[index].raw_values_data(), dimensions, output[index].raw_values_data(), nullptr)))
             break;
-        bm::ClobberMemory();
-        iterations++;
+        do_not_optimize(output[index].raw_values_data());
     }
 
-    state.counters["bytes"] = bm::Counter(1.0 * iterations * input_a[0].size_bytes(), bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
+    loop.byte_rate(input_a[0].size_bytes());
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_trigonometry(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.dense_dimensions) + "d>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_trigonometry<input_dtype_, kernel_type_ *>, kernel,
-                          bench_config.dense_dimensions);
+void run_trigonometry(environment_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.settings.batch_per_core) + ">";
+    run_benchmark(env, bench_name, measure_trigonometry<input_dtype_, kernel_type_ *>, kernel,
+                  env.settings.batch_per_core);
 }
 
-void bench_trigonometry() {
+void bench_trigonometry(environment_t const &env) {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;
 
 #if NUMKONG_TARGET_NEON
-    run_trigonometry<f32_k>("trig_sin_f32_neon", nk_trig_sin_f32_neon);
-    run_trigonometry<f32_k>("trig_cos_f32_neon", nk_trig_cos_f32_neon);
-    run_trigonometry<f32_k>("trig_atan_f32_neon", nk_trig_atan_f32_neon);
-    run_trigonometry<f64_k>("trig_sin_f64_neon", nk_trig_sin_f64_neon);
-    run_trigonometry<f64_k>("trig_cos_f64_neon", nk_trig_cos_f64_neon);
-    run_trigonometry<f64_k>("trig_atan_f64_neon", nk_trig_atan_f64_neon);
+    if (section(env, "Trigonometry NEON", nk_cap_neon_k)) {
+        run_trigonometry<f32_k>(env, "trig_sin_f32_neon", nk_trig_sin_f32_neon);
+        run_trigonometry<f32_k>(env, "trig_cos_f32_neon", nk_trig_cos_f32_neon);
+        run_trigonometry<f32_k>(env, "trig_atan_f32_neon", nk_trig_atan_f32_neon);
+        run_trigonometry<f64_k>(env, "trig_sin_f64_neon", nk_trig_sin_f64_neon);
+        run_trigonometry<f64_k>(env, "trig_cos_f64_neon", nk_trig_cos_f64_neon);
+        run_trigonometry<f64_k>(env, "trig_atan_f64_neon", nk_trig_atan_f64_neon);
+    }
 #endif
 
 #if NUMKONG_TARGET_NEONHALF
-    run_trigonometry<f16_k>("trig_sin_f16_neonhalf", nk_trig_sin_f16_neonhalf);
-    run_trigonometry<f16_k>("trig_cos_f16_neonhalf", nk_trig_cos_f16_neonhalf);
-    run_trigonometry<f16_k>("trig_atan_f16_neonhalf", nk_trig_atan_f16_neonhalf);
+    if (section(env, "Trigonometry NEON HALF", nk_cap_neonhalf_k)) {
+        run_trigonometry<f16_k>(env, "trig_sin_f16_neonhalf", nk_trig_sin_f16_neonhalf);
+        run_trigonometry<f16_k>(env, "trig_cos_f16_neonhalf", nk_trig_cos_f16_neonhalf);
+        run_trigonometry<f16_k>(env, "trig_atan_f16_neonhalf", nk_trig_atan_f16_neonhalf);
+    }
 #endif
 
 #if NUMKONG_TARGET_SVEHALF
-    run_trigonometry<f16_k>("trig_sin_f16_svehalf", nk_trig_sin_f16_svehalf);
-    run_trigonometry<f16_k>("trig_cos_f16_svehalf", nk_trig_cos_f16_svehalf);
-    run_trigonometry<f16_k>("trig_atan_f16_svehalf", nk_trig_atan_f16_svehalf);
+    if (section(env, "Trigonometry SVE HALF", nk_cap_svehalf_k)) {
+        run_trigonometry<f16_k>(env, "trig_sin_f16_svehalf", nk_trig_sin_f16_svehalf);
+        run_trigonometry<f16_k>(env, "trig_cos_f16_svehalf", nk_trig_cos_f16_svehalf);
+        run_trigonometry<f16_k>(env, "trig_atan_f16_svehalf", nk_trig_atan_f16_svehalf);
+    }
 #endif
 
 #if NUMKONG_TARGET_HASWELL
-    run_trigonometry<f32_k>("trig_sin_f32_haswell", nk_trig_sin_f32_haswell);
-    run_trigonometry<f32_k>("trig_cos_f32_haswell", nk_trig_cos_f32_haswell);
-    run_trigonometry<f32_k>("trig_atan_f32_haswell", nk_trig_atan_f32_haswell);
-    run_trigonometry<f64_k>("trig_sin_f64_haswell", nk_trig_sin_f64_haswell);
-    run_trigonometry<f64_k>("trig_cos_f64_haswell", nk_trig_cos_f64_haswell);
-    run_trigonometry<f64_k>("trig_atan_f64_haswell", nk_trig_atan_f64_haswell);
+    if (section(env, "Trigonometry Haswell", nk_cap_haswell_k)) {
+        run_trigonometry<f32_k>(env, "trig_sin_f32_haswell", nk_trig_sin_f32_haswell);
+        run_trigonometry<f32_k>(env, "trig_cos_f32_haswell", nk_trig_cos_f32_haswell);
+        run_trigonometry<f32_k>(env, "trig_atan_f32_haswell", nk_trig_atan_f32_haswell);
+        run_trigonometry<f64_k>(env, "trig_sin_f64_haswell", nk_trig_sin_f64_haswell);
+        run_trigonometry<f64_k>(env, "trig_cos_f64_haswell", nk_trig_cos_f64_haswell);
+        run_trigonometry<f64_k>(env, "trig_atan_f64_haswell", nk_trig_atan_f64_haswell);
+    }
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
-    run_trigonometry<f32_k>("trig_sin_f32_skylake", nk_trig_sin_f32_skylake);
-    run_trigonometry<f32_k>("trig_cos_f32_skylake", nk_trig_cos_f32_skylake);
-    run_trigonometry<f32_k>("trig_atan_f32_skylake", nk_trig_atan_f32_skylake);
-    run_trigonometry<f64_k>("trig_sin_f64_skylake", nk_trig_sin_f64_skylake);
-    run_trigonometry<f64_k>("trig_cos_f64_skylake", nk_trig_cos_f64_skylake);
-    run_trigonometry<f64_k>("trig_atan_f64_skylake", nk_trig_atan_f64_skylake);
-    run_trigonometry<f16_k>("trig_sin_f16_skylake", nk_trig_sin_f16_skylake);
-    run_trigonometry<f16_k>("trig_cos_f16_skylake", nk_trig_cos_f16_skylake);
-    run_trigonometry<f16_k>("trig_atan_f16_skylake", nk_trig_atan_f16_skylake);
+    if (section(env, "Trigonometry Skylake", nk_cap_skylake_k)) {
+        run_trigonometry<f32_k>(env, "trig_sin_f32_skylake", nk_trig_sin_f32_skylake);
+        run_trigonometry<f32_k>(env, "trig_cos_f32_skylake", nk_trig_cos_f32_skylake);
+        run_trigonometry<f32_k>(env, "trig_atan_f32_skylake", nk_trig_atan_f32_skylake);
+        run_trigonometry<f64_k>(env, "trig_sin_f64_skylake", nk_trig_sin_f64_skylake);
+        run_trigonometry<f64_k>(env, "trig_cos_f64_skylake", nk_trig_cos_f64_skylake);
+        run_trigonometry<f64_k>(env, "trig_atan_f64_skylake", nk_trig_atan_f64_skylake);
+        run_trigonometry<f16_k>(env, "trig_sin_f16_skylake", nk_trig_sin_f16_skylake);
+        run_trigonometry<f16_k>(env, "trig_cos_f16_skylake", nk_trig_cos_f16_skylake);
+        run_trigonometry<f16_k>(env, "trig_atan_f16_skylake", nk_trig_atan_f16_skylake);
+    }
 #endif
 
 #if NUMKONG_TARGET_SAPPHIRE
-    run_trigonometry<f16_k>("trig_sin_f16_sapphire", nk_trig_sin_f16_sapphire);
-    run_trigonometry<f16_k>("trig_cos_f16_sapphire", nk_trig_cos_f16_sapphire);
-    run_trigonometry<f16_k>("trig_atan_f16_sapphire", nk_trig_atan_f16_sapphire);
+    if (section(env, "Trigonometry Sapphire", nk_cap_sapphire_k)) {
+        run_trigonometry<f16_k>(env, "trig_sin_f16_sapphire", nk_trig_sin_f16_sapphire);
+        run_trigonometry<f16_k>(env, "trig_cos_f16_sapphire", nk_trig_cos_f16_sapphire);
+        run_trigonometry<f16_k>(env, "trig_atan_f16_sapphire", nk_trig_atan_f16_sapphire);
+    }
 #endif
 
 #if NUMKONG_TARGET_V128RELAXED
-    run_trigonometry<f32_k>("trig_sin_f32_v128relaxed", nk_trig_sin_f32_v128relaxed);
-    run_trigonometry<f32_k>("trig_cos_f32_v128relaxed", nk_trig_cos_f32_v128relaxed);
-    run_trigonometry<f32_k>("trig_atan_f32_v128relaxed", nk_trig_atan_f32_v128relaxed);
-    run_trigonometry<f64_k>("trig_sin_f64_v128relaxed", nk_trig_sin_f64_v128relaxed);
-    run_trigonometry<f64_k>("trig_cos_f64_v128relaxed", nk_trig_cos_f64_v128relaxed);
-    run_trigonometry<f64_k>("trig_atan_f64_v128relaxed", nk_trig_atan_f64_v128relaxed);
+    if (section(env, "Trigonometry V128 Relaxed", nk_cap_v128relaxed_k)) {
+        run_trigonometry<f32_k>(env, "trig_sin_f32_v128relaxed", nk_trig_sin_f32_v128relaxed);
+        run_trigonometry<f32_k>(env, "trig_cos_f32_v128relaxed", nk_trig_cos_f32_v128relaxed);
+        run_trigonometry<f32_k>(env, "trig_atan_f32_v128relaxed", nk_trig_atan_f32_v128relaxed);
+        run_trigonometry<f64_k>(env, "trig_sin_f64_v128relaxed", nk_trig_sin_f64_v128relaxed);
+        run_trigonometry<f64_k>(env, "trig_cos_f64_v128relaxed", nk_trig_cos_f64_v128relaxed);
+        run_trigonometry<f64_k>(env, "trig_atan_f64_v128relaxed", nk_trig_atan_f64_v128relaxed);
+    }
 #endif
 
     // STL baselines
-    run_trigonometry<f32_k>("trig_sin_f32_stl", elementwise_with_stl<nk_f32_t, sin_with_stl<nk_f32_t>>);
-    run_trigonometry<f32_k>("trig_cos_f32_stl", elementwise_with_stl<nk_f32_t, cos_with_stl<nk_f32_t>>);
-    run_trigonometry<f32_k>("trig_atan_f32_stl", elementwise_with_stl<nk_f32_t, atan_with_stl<nk_f32_t>>);
-    run_trigonometry<f64_k>("trig_sin_f64_stl", elementwise_with_stl<nk_f64_t, sin_with_stl<nk_f64_t>>);
-    run_trigonometry<f64_k>("trig_cos_f64_stl", elementwise_with_stl<nk_f64_t, cos_with_stl<nk_f64_t>>);
-    run_trigonometry<f64_k>("trig_atan_f64_stl", elementwise_with_stl<nk_f64_t, atan_with_stl<nk_f64_t>>);
+    section(env, "Trigonometry Serial", nk_cap_serial_k);
+    run_trigonometry<f32_k>(env, "trig_sin_f32_stl", elementwise_with_stl<nk_f32_t, sin_with_stl<nk_f32_t>>);
+    run_trigonometry<f32_k>(env, "trig_cos_f32_stl", elementwise_with_stl<nk_f32_t, cos_with_stl<nk_f32_t>>);
+    run_trigonometry<f32_k>(env, "trig_atan_f32_stl", elementwise_with_stl<nk_f32_t, atan_with_stl<nk_f32_t>>);
+    run_trigonometry<f64_k>(env, "trig_sin_f64_stl", elementwise_with_stl<nk_f64_t, sin_with_stl<nk_f64_t>>);
+    run_trigonometry<f64_k>(env, "trig_cos_f64_stl", elementwise_with_stl<nk_f64_t, cos_with_stl<nk_f64_t>>);
+    run_trigonometry<f64_k>(env, "trig_atan_f64_stl", elementwise_with_stl<nk_f64_t, atan_with_stl<nk_f64_t>>);
 
     // Serial fallbacks
-    run_trigonometry<f32_k>("trig_sin_f32_serial", nk_trig_sin_f32_serial);
-    run_trigonometry<f32_k>("trig_cos_f32_serial", nk_trig_cos_f32_serial);
-    run_trigonometry<f32_k>("trig_atan_f32_serial", nk_trig_atan_f32_serial);
-    run_trigonometry<f64_k>("trig_sin_f64_serial", nk_trig_sin_f64_serial);
-    run_trigonometry<f64_k>("trig_cos_f64_serial", nk_trig_cos_f64_serial);
-    run_trigonometry<f64_k>("trig_atan_f64_serial", nk_trig_atan_f64_serial);
-    run_trigonometry<f16_k>("trig_sin_f16_serial", nk_trig_sin_f16_serial);
-    run_trigonometry<f16_k>("trig_cos_f16_serial", nk_trig_cos_f16_serial);
-    run_trigonometry<f16_k>("trig_atan_f16_serial", nk_trig_atan_f16_serial);
+    run_trigonometry<f32_k>(env, "trig_sin_f32_serial", nk_trig_sin_f32_serial);
+    run_trigonometry<f32_k>(env, "trig_cos_f32_serial", nk_trig_cos_f32_serial);
+    run_trigonometry<f32_k>(env, "trig_atan_f32_serial", nk_trig_atan_f32_serial);
+    run_trigonometry<f64_k>(env, "trig_sin_f64_serial", nk_trig_sin_f64_serial);
+    run_trigonometry<f64_k>(env, "trig_cos_f64_serial", nk_trig_cos_f64_serial);
+    run_trigonometry<f64_k>(env, "trig_atan_f64_serial", nk_trig_atan_f64_serial);
+    run_trigonometry<f16_k>(env, "trig_sin_f16_serial", nk_trig_sin_f16_serial);
+    run_trigonometry<f16_k>(env, "trig_cos_f16_serial", nk_trig_cos_f16_serial);
+    run_trigonometry<f16_k>(env, "trig_atan_f16_serial", nk_trig_atan_f16_serial);
 }
+
+} // namespace ashvardanian::numkong::bench

@@ -258,10 +258,10 @@ pub mod prelude {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[cfg(feature = "parallel")]
     use forkunion as fu;
+
+    use super::*;
 
     #[test]
     fn dot_smoke() {

@@ -1846,7 +1846,7 @@ static __device__ __noinline__ void nk_assert_cuda_failure_(char const *conditio
         if (!(condition)) { nk_assert_cuda_failure_(#condition, __FILE__, __LINE__); } \
     } while (0)
 #elif NUMKONG_DEBUG && __STDC_HOSTED__ // ? CPU code with LibC
-NUMKONG_CONSTEXPR void nk_assert_failure_(char const *condition, char const *file, int line) {
+NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *condition, char const *file, int line) {
     fprintf(stderr, "Assertion failed: %s, in file %s, line %d\n", condition, file, line);
     abort();
 }

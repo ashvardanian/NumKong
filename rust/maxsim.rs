@@ -40,13 +40,13 @@
 //! File: rust/maxsim.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::marker::PhantomData;
-use core::ptr::null_mut;
+use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{Allocator, Global, PackedBuffer, TensorError, TensorRef};
-use crate::types::{bf16, f16, StorageElement};
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{Allocator, Global, PackedBuffer, TensorError, TensorRef},
+    types::{bf16, f16, StorageElement},
+};
 
 // region: FFI
 

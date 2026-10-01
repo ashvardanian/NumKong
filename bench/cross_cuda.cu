@@ -5,10 +5,9 @@
  *  @brief Batch operation benchmarks, CUDA kernels against cuBLASLt, cuBLAS, cuDNN and cuVS.
  *
  *  Runs the drivers of `cross.hpp` through a @c cuda_backend_t over device-resident operands,
- *  launching on @c cudaStreamPerThread, with timed windows of launches bracketed by CUDA events and
- *  reported through @c UseManualTime, so launch latency and host synchronization stay outside the
- *  measurement. The Time column is per window, and the @c calls counter recovers the per-call rate.
- *  Input sets rotate until their footprint is at least twice the L2.
+ *  launching on @c cudaStreamPerThread, with every window of launches bracketed by CUDA events
+ *  whose elapsed time replaces the wall time, so launch latency and host synchronization stay
+ *  outside the measurement. Input sets rotate until their footprint is at least twice the L2.
  *
  *  The @c attention rows time prefill, 4096 queries on 4096 keys, and decode, 1 query on 4096 keys,
  *  with 32 query heads over 8 K and V heads of depth 128. Every baseline enters the same drivers as
@@ -21,9 +20,9 @@
 #include <cstdint> // `std::int32_t`, `std::int64_t`
 #include <cstring> // `std::memcpy`
 
-#include <algorithm>   // `std::clamp`, `std::max`
+#include <algorithm>   // `std::max`, `std::min`
 #include <array>       // `std::array`
-#include <bit>         // `std::bit_ceil`, `std::bit_floor`
+#include <bit>         // `std::bit_ceil`
 #include <memory>      // `std::shared_ptr`
 #include <string>      // `std::string`
 #include <type_traits> // `std::remove_pointer_t`, `std::true_type`
@@ -112,20 +111,19 @@ struct cuda_backend_t {
      *  rows. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
 
-    /** Rotation sets of @p bytes_per_set each: enough to cover twice the L2, a power of two within
-     *  the budget. */
-    std::size_t input_sets(std::size_t bytes_per_set) const noexcept {
+    /** Rotation sets of @p per_set each: enough to cover twice the L2, at most
+     *  @c input_sets_count. */
+    std::size_t input_sets(bytes_t per_set) const noexcept {
         int l2_bytes = 0, device = 0;
         cudaGetDevice(&device);
         cudaDeviceGetAttribute(&l2_bytes, cudaDevAttrL2CacheSize, device);
-        std::size_t const set_bytes = std::max(bytes_per_set, std::size_t(1));
+        std::size_t const set_bytes = std::max(per_set.value, std::size_t(1));
         std::size_t const wanted = std::max(nk::divide_round_up(2 * std::size_t(l2_bytes), set_bytes), std::size_t(1));
-        std::size_t const affordable = std::max(bench_config.budget_bytes / set_bytes, std::size_t(1));
-        return std::bit_floor(std::clamp(std::bit_ceil(wanted), std::size_t(1), affordable));
+        return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
     }
 
     /** Prefill and decode segments at the end of a 4096-key cache, Llama-style heads. */
-    static std::vector<attention_shape_t> attention_shapes() {
+    static std::vector<attention_shape_t> attention_shapes(environment_t const &) {
         return {{"prefill", 32, 8, 128, 4096, 4096}, {"decode", 32, 8, 128, 1, 4096}};
     }
 
@@ -143,34 +141,28 @@ struct cuda_backend_t {
         keep(kernel(arguments..., stream));
     }
 
-    /** Times batches of @p launch lasting at least a millisecond each, returning the call count. */
+    /** Times windows of @p launch calls between two CUDA events, doubling a window until it spans a
+     *  millisecond. */
     template <typename launch_type_>
-    std::size_t time(bm::State &state, std::size_t sets_count, launch_type_ &launch) {
+    void time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
         cudaEvent_t start = nullptr, stop = nullptr;
         cudaEventCreate(&start), cudaEventCreate(&stop);
-        float calibration_milliseconds = 0;
-        cudaEventRecord(start, (cudaStream_t)stream);
-        for (std::size_t index = 0; index != sets_count; ++index) launch(index);
-        cudaEventRecord(stop, (cudaStream_t)stream);
-        cudaEventSynchronize(stop);
-        cudaEventElapsedTime(&calibration_milliseconds, start, stop);
-        double const per_call_milliseconds = std::max(double(calibration_milliseconds) / double(sets_count), 1e-4);
-        std::size_t const batch = std::clamp<std::size_t>(std::size_t(1.0 / per_call_milliseconds) + 1, 1, 1 << 16);
-
-        std::size_t calls = 0;
-        for (auto _ : state) {
+        std::size_t calls = 0, window = 1;
+        for ([[maybe_unused]] std::size_t call : loop) {
             cudaEventRecord(start, (cudaStream_t)stream);
-            for (std::size_t index = 0; index != batch && status == nk_success_k; ++index, ++calls)
-                launch(calls & (sets_count - 1));
+            for (std::size_t index = 0; index != window; ++index) launch((calls + index) & (sets_count - 1));
             cudaEventRecord(stop, (cudaStream_t)stream);
             keep(cudaEventSynchronize(stop));
             if (status != nk_success_k) break;
-            float window_milliseconds = 0;
-            cudaEventElapsedTime(&window_milliseconds, start, stop);
-            state.SetIterationTime(double(window_milliseconds) / 1e3);
+            float milliseconds = 0;
+            keep(cudaEventElapsedTime(&milliseconds, start, stop));
+            std::chrono::duration<float, std::milli> const elapsed {milliseconds};
+            loop.add_window(elapsed, window);
+            calls += window;
+            // Launch latency only amortizes over a millisecond of work
+            if (elapsed < std::chrono::milliseconds(1)) window *= 2;
         }
         cudaEventDestroy(start), cudaEventDestroy(stop);
-        return calls;
     }
 
     /** Waits for the stream, returning the name of the first failure since the last call, or
@@ -189,23 +181,18 @@ struct cuda_backend_t {
 
     /** Remembers a baseline's or runtime call's failure as the kernel it would have failed. */
     void keep(cudaError_t result) noexcept { keep(result == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k); }
-
-    /** Reports the event-timed windows instead of wall time. */
-    static void configure(bm::internal::Benchmark *benchmark) { benchmark->UseManualTime(); }
 };
 
-} // namespace ashvardanian::numkong::bench
+/** Prints why a baseline row is missing, when @p name passes the filter. */
+void print_skipped(environment_t const &env, std::string const &name, char const *reason) {
+    if (env.settings.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
+}
 
-using namespace ashvardanian::numkong::bench;
-
-/** Prints once why a baseline row is missing. */
-void print_skipped(std::string const &name, char const *reason) { fmt::println("  Skipping {}: {}", name, reason); }
-
-/** Registers a baseline @p kernel over dense B rows through @c register_packed, with a copy of B as
+/** Runs a baseline @p kernel over dense B rows through @c run_packed, with a copy of B as
  *  its pack. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
-void register_unpacked(std::string const &name, reference_metric_t metric, kernel_type_ kernel,
-                       cuda_backend_t const &backend) {
+void run_unpacked(environment_t const &env, std::string const &name, reference_metric_t metric, kernel_type_ kernel,
+                  cuda_backend_t const &backend) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     auto const packed_size = [](std::size_t width, std::size_t depth, nk_size_t *bytes) {
         *bytes = width * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
@@ -215,442 +202,470 @@ void register_unpacked(std::string const &name, reference_metric_t metric, kerne
                          std::size_t, std::size_t, void *stream) {
         return cudaMemcpyAsync(packed, b, width * row_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
     };
-    register_packed<input_dtype_, output_type_, cuda_backend_t>(name, metric, packed_size, copy, kernel, backend);
+    run_packed<input_dtype_, output_type_, cuda_backend_t>(env, name, metric, packed_size, copy, kernel, backend);
 }
 
 #pragma endregion CUDA Backend
 
-#pragma region Registrations
+#pragma region Rows
 
 /** The CUDA baseline rows the tensor-core capabilities have no faster path for, on every device. */
-void bench_cross_cuda(cuda_backend_t const &backend, nk_capability_t enabled) {
+void bench_cross_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
     if (!(enabled & nk_cap_cuda_k)) return;
-    run_dots_packed<nk_f64_k>("dots_packed_f64_cuda", nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda,
+    run_dots_packed<nk_f64_k>(env, "dots_packed_f64_cuda", nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda,
                               nk_dots_packed_f64_cuda, backend);
-    run_dots_packed<nk_f32_k>("dots_packed_f32_cuda", nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda,
+    run_dots_packed<nk_f32_k>(env, "dots_packed_f32_cuda", nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda,
                               nk_dots_packed_f32_cuda, backend);
-    run_dots_symmetric<nk_f64_k>("dots_symmetric_f64_cuda", nk_dots_symmetric_f64_cuda, backend);
-    run_dots_symmetric<nk_f32_k>("dots_symmetric_f32_cuda", nk_dots_symmetric_f32_cuda, backend);
-    run_angulars_packed<nk_f64_k>("angulars_packed_f64_cuda", nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda,
+    run_dots_symmetric<nk_f64_k>(env, "dots_symmetric_f64_cuda", nk_dots_symmetric_f64_cuda, backend);
+    run_dots_symmetric<nk_f32_k>(env, "dots_symmetric_f32_cuda", nk_dots_symmetric_f32_cuda, backend);
+    run_angulars_packed<nk_f64_k>(env, "angulars_packed_f64_cuda", nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda,
                                   nk_angulars_packed_f64_cuda, backend);
-    run_angulars_packed<nk_f32_k>("angulars_packed_f32_cuda", nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda,
+    run_angulars_packed<nk_f32_k>(env, "angulars_packed_f32_cuda", nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda,
                                   nk_angulars_packed_f32_cuda, backend);
-    run_angulars_symmetric<nk_f64_k>("angulars_symmetric_f64_cuda", nk_angulars_symmetric_f64_cuda, backend);
-    run_angulars_symmetric<nk_f32_k>("angulars_symmetric_f32_cuda", nk_angulars_symmetric_f32_cuda, backend);
-    run_euclideans_packed<nk_f64_k>("euclideans_packed_f64_cuda", nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda,
-                                    nk_euclideans_packed_f64_cuda, backend);
-    run_euclideans_packed<nk_f32_k>("euclideans_packed_f32_cuda", nk_dots_pack_size_f32_cuda, nk_dots_pack_f32_cuda,
-                                    nk_euclideans_packed_f32_cuda, backend);
-    run_euclideans_symmetric<nk_f64_k>("euclideans_symmetric_f64_cuda", nk_euclideans_symmetric_f64_cuda, backend);
-    run_euclideans_symmetric<nk_f32_k>("euclideans_symmetric_f32_cuda", nk_euclideans_symmetric_f32_cuda, backend);
+    run_angulars_symmetric<nk_f64_k>(env, "angulars_symmetric_f64_cuda", nk_angulars_symmetric_f64_cuda, backend);
+    run_angulars_symmetric<nk_f32_k>(env, "angulars_symmetric_f32_cuda", nk_angulars_symmetric_f32_cuda, backend);
+    run_euclideans_packed<nk_f64_k>(env, "euclideans_packed_f64_cuda", nk_dots_pack_size_f64_cuda,
+                                    nk_dots_pack_f64_cuda, nk_euclideans_packed_f64_cuda, backend);
+    run_euclideans_packed<nk_f32_k>(env, "euclideans_packed_f32_cuda", nk_dots_pack_size_f32_cuda,
+                                    nk_dots_pack_f32_cuda, nk_euclideans_packed_f32_cuda, backend);
+    run_euclideans_symmetric<nk_f64_k>(env, "euclideans_symmetric_f64_cuda", nk_euclideans_symmetric_f64_cuda, backend);
+    run_euclideans_symmetric<nk_f32_k>(env, "euclideans_symmetric_f32_cuda", nk_euclideans_symmetric_f32_cuda, backend);
 }
 
 /** Every Ampere entry point, compiled only when the architecture list includes the family. */
-void bench_cross_ampere([[maybe_unused]] cuda_backend_t const &backend, [[maybe_unused]] nk_capability_t enabled) {
+void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+                        [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_AMPERE
     if (!(enabled & nk_cap_ampere_k)) return;
-    run_dots_packed<nk_bf16_k>("dots_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere,
+    run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere, nk_dots_pack_bf16_ampere,
                                nk_dots_packed_bf16_ampere, backend);
-    run_dots_packed<nk_f16_k>("dots_packed_f16_ampere", nk_dots_pack_size_f16_ampere, nk_dots_pack_f16_ampere,
+    run_dots_packed<nk_f16_k>(env, "dots_packed_f16_ampere", nk_dots_pack_size_f16_ampere, nk_dots_pack_f16_ampere,
                               nk_dots_packed_f16_ampere, backend);
-    run_dots_packed<nk_e5m2_k>("dots_packed_e5m2_ampere", nk_dots_pack_size_e5m2_ampere, nk_dots_pack_e5m2_ampere,
+    run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_ampere", nk_dots_pack_size_e5m2_ampere, nk_dots_pack_e5m2_ampere,
                                nk_dots_packed_e5m2_ampere, backend);
-    run_dots_packed<nk_e4m3_k>("dots_packed_e4m3_ampere", nk_dots_pack_size_e4m3_ampere, nk_dots_pack_e4m3_ampere,
+    run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_ampere", nk_dots_pack_size_e4m3_ampere, nk_dots_pack_e4m3_ampere,
                                nk_dots_packed_e4m3_ampere, backend);
-    run_dots_packed<nk_e3m2_k>("dots_packed_e3m2_ampere", nk_dots_pack_size_e3m2_ampere, nk_dots_pack_e3m2_ampere,
+    run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_ampere", nk_dots_pack_size_e3m2_ampere, nk_dots_pack_e3m2_ampere,
                                nk_dots_packed_e3m2_ampere, backend);
-    run_dots_packed<nk_e2m3_k>("dots_packed_e2m3_ampere", nk_dots_pack_size_e2m3_ampere, nk_dots_pack_e2m3_ampere,
+    run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_ampere", nk_dots_pack_size_e2m3_ampere, nk_dots_pack_e2m3_ampere,
                                nk_dots_packed_e2m3_ampere, backend);
-    run_dots_packed<nk_e2m1_k>("dots_packed_e2m1_ampere", nk_dots_pack_size_e2m1_ampere, nk_dots_pack_e2m1_ampere,
+    run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_ampere", nk_dots_pack_size_e2m1_ampere, nk_dots_pack_e2m1_ampere,
                                nk_dots_packed_e2m1_ampere, backend);
-    run_dots_packed<nk_i8_k>("dots_packed_i8_ampere", nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere,
+    run_dots_packed<nk_i8_k>(env, "dots_packed_i8_ampere", nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere,
                              nk_dots_packed_i8_ampere, backend);
-    run_dots_packed<nk_i4_k>("dots_packed_i4_ampere", nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere,
+    run_dots_packed<nk_i4_k>(env, "dots_packed_i4_ampere", nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere,
                              nk_dots_packed_i4_ampere, backend);
-    run_dots_packed<nk_u8_k>("dots_packed_u8_ampere", nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere,
+    run_dots_packed<nk_u8_k>(env, "dots_packed_u8_ampere", nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere,
                              nk_dots_packed_u8_ampere, backend);
-    run_dots_packed<nk_u4_k>("dots_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
+    run_dots_packed<nk_u4_k>(env, "dots_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
                              nk_dots_packed_u4_ampere, backend);
 
-    run_dots_symmetric<nk_bf16_k>("dots_symmetric_bf16_ampere", nk_dots_symmetric_bf16_ampere, backend);
-    run_dots_symmetric<nk_f16_k>("dots_symmetric_f16_ampere", nk_dots_symmetric_f16_ampere, backend);
-    run_dots_symmetric<nk_e5m2_k>("dots_symmetric_e5m2_ampere", nk_dots_symmetric_e5m2_ampere, backend);
-    run_dots_symmetric<nk_e4m3_k>("dots_symmetric_e4m3_ampere", nk_dots_symmetric_e4m3_ampere, backend);
-    run_dots_symmetric<nk_e3m2_k>("dots_symmetric_e3m2_ampere", nk_dots_symmetric_e3m2_ampere, backend);
-    run_dots_symmetric<nk_e2m3_k>("dots_symmetric_e2m3_ampere", nk_dots_symmetric_e2m3_ampere, backend);
-    run_dots_symmetric<nk_e2m1_k>("dots_symmetric_e2m1_ampere", nk_dots_symmetric_e2m1_ampere, backend);
-    run_dots_symmetric<nk_i8_k>("dots_symmetric_i8_ampere", nk_dots_symmetric_i8_ampere, backend);
-    run_dots_symmetric<nk_i4_k>("dots_symmetric_i4_ampere", nk_dots_symmetric_i4_ampere, backend);
-    run_dots_symmetric<nk_u8_k>("dots_symmetric_u8_ampere", nk_dots_symmetric_u8_ampere, backend);
-    run_dots_symmetric<nk_u4_k>("dots_symmetric_u4_ampere", nk_dots_symmetric_u4_ampere, backend);
+    run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_ampere", nk_dots_symmetric_bf16_ampere, backend);
+    run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_ampere", nk_dots_symmetric_f16_ampere, backend);
+    run_dots_symmetric<nk_e5m2_k>(env, "dots_symmetric_e5m2_ampere", nk_dots_symmetric_e5m2_ampere, backend);
+    run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_ampere", nk_dots_symmetric_e4m3_ampere, backend);
+    run_dots_symmetric<nk_e3m2_k>(env, "dots_symmetric_e3m2_ampere", nk_dots_symmetric_e3m2_ampere, backend);
+    run_dots_symmetric<nk_e2m3_k>(env, "dots_symmetric_e2m3_ampere", nk_dots_symmetric_e2m3_ampere, backend);
+    run_dots_symmetric<nk_e2m1_k>(env, "dots_symmetric_e2m1_ampere", nk_dots_symmetric_e2m1_ampere, backend);
+    run_dots_symmetric<nk_i8_k>(env, "dots_symmetric_i8_ampere", nk_dots_symmetric_i8_ampere, backend);
+    run_dots_symmetric<nk_i4_k>(env, "dots_symmetric_i4_ampere", nk_dots_symmetric_i4_ampere, backend);
+    run_dots_symmetric<nk_u8_k>(env, "dots_symmetric_u8_ampere", nk_dots_symmetric_u8_ampere, backend);
+    run_dots_symmetric<nk_u4_k>(env, "dots_symmetric_u4_ampere", nk_dots_symmetric_u4_ampere, backend);
 
-    run_angulars_packed<nk_bf16_k>("angulars_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
+    run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
                                    nk_dots_pack_bf16_ampere, nk_angulars_packed_bf16_ampere, backend);
-    run_angulars_packed<nk_f16_k>("angulars_packed_f16_ampere", nk_dots_pack_size_f16_ampere, nk_dots_pack_f16_ampere,
-                                  nk_angulars_packed_f16_ampere, backend);
-    run_angulars_packed<nk_e5m2_k>("angulars_packed_e5m2_ampere", nk_dots_pack_size_e5m2_ampere,
+    run_angulars_packed<nk_f16_k>(env, "angulars_packed_f16_ampere", nk_dots_pack_size_f16_ampere,
+                                  nk_dots_pack_f16_ampere, nk_angulars_packed_f16_ampere, backend);
+    run_angulars_packed<nk_e5m2_k>(env, "angulars_packed_e5m2_ampere", nk_dots_pack_size_e5m2_ampere,
                                    nk_dots_pack_e5m2_ampere, nk_angulars_packed_e5m2_ampere, backend);
-    run_angulars_packed<nk_e4m3_k>("angulars_packed_e4m3_ampere", nk_dots_pack_size_e4m3_ampere,
+    run_angulars_packed<nk_e4m3_k>(env, "angulars_packed_e4m3_ampere", nk_dots_pack_size_e4m3_ampere,
                                    nk_dots_pack_e4m3_ampere, nk_angulars_packed_e4m3_ampere, backend);
-    run_angulars_packed<nk_e3m2_k>("angulars_packed_e3m2_ampere", nk_dots_pack_size_e3m2_ampere,
+    run_angulars_packed<nk_e3m2_k>(env, "angulars_packed_e3m2_ampere", nk_dots_pack_size_e3m2_ampere,
                                    nk_dots_pack_e3m2_ampere, nk_angulars_packed_e3m2_ampere, backend);
-    run_angulars_packed<nk_e2m3_k>("angulars_packed_e2m3_ampere", nk_dots_pack_size_e2m3_ampere,
+    run_angulars_packed<nk_e2m3_k>(env, "angulars_packed_e2m3_ampere", nk_dots_pack_size_e2m3_ampere,
                                    nk_dots_pack_e2m3_ampere, nk_angulars_packed_e2m3_ampere, backend);
-    run_angulars_packed<nk_e2m1_k>("angulars_packed_e2m1_ampere", nk_dots_pack_size_e2m1_ampere,
+    run_angulars_packed<nk_e2m1_k>(env, "angulars_packed_e2m1_ampere", nk_dots_pack_size_e2m1_ampere,
                                    nk_dots_pack_e2m1_ampere, nk_angulars_packed_e2m1_ampere, backend);
-    run_angulars_packed<nk_i8_k>("angulars_packed_i8_ampere", nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere,
+    run_angulars_packed<nk_i8_k>(env, "angulars_packed_i8_ampere", nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere,
                                  nk_angulars_packed_i8_ampere, backend);
-    run_angulars_packed<nk_i4_k>("angulars_packed_i4_ampere", nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere,
+    run_angulars_packed<nk_i4_k>(env, "angulars_packed_i4_ampere", nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere,
                                  nk_angulars_packed_i4_ampere, backend);
-    run_angulars_packed<nk_u8_k>("angulars_packed_u8_ampere", nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere,
+    run_angulars_packed<nk_u8_k>(env, "angulars_packed_u8_ampere", nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere,
                                  nk_angulars_packed_u8_ampere, backend);
-    run_angulars_packed<nk_u4_k>("angulars_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
+    run_angulars_packed<nk_u4_k>(env, "angulars_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
                                  nk_angulars_packed_u4_ampere, backend);
 
-    run_angulars_symmetric<nk_bf16_k>("angulars_symmetric_bf16_ampere", nk_angulars_symmetric_bf16_ampere, backend);
-    run_angulars_symmetric<nk_f16_k>("angulars_symmetric_f16_ampere", nk_angulars_symmetric_f16_ampere, backend);
-    run_angulars_symmetric<nk_e5m2_k>("angulars_symmetric_e5m2_ampere", nk_angulars_symmetric_e5m2_ampere, backend);
-    run_angulars_symmetric<nk_e4m3_k>("angulars_symmetric_e4m3_ampere", nk_angulars_symmetric_e4m3_ampere, backend);
-    run_angulars_symmetric<nk_e3m2_k>("angulars_symmetric_e3m2_ampere", nk_angulars_symmetric_e3m2_ampere, backend);
-    run_angulars_symmetric<nk_e2m3_k>("angulars_symmetric_e2m3_ampere", nk_angulars_symmetric_e2m3_ampere, backend);
-    run_angulars_symmetric<nk_e2m1_k>("angulars_symmetric_e2m1_ampere", nk_angulars_symmetric_e2m1_ampere, backend);
-    run_angulars_symmetric<nk_i8_k>("angulars_symmetric_i8_ampere", nk_angulars_symmetric_i8_ampere, backend);
-    run_angulars_symmetric<nk_i4_k>("angulars_symmetric_i4_ampere", nk_angulars_symmetric_i4_ampere, backend);
-    run_angulars_symmetric<nk_u8_k>("angulars_symmetric_u8_ampere", nk_angulars_symmetric_u8_ampere, backend);
-    run_angulars_symmetric<nk_u4_k>("angulars_symmetric_u4_ampere", nk_angulars_symmetric_u4_ampere, backend);
+    run_angulars_symmetric<nk_bf16_k>(env, "angulars_symmetric_bf16_ampere", nk_angulars_symmetric_bf16_ampere,
+                                      backend);
+    run_angulars_symmetric<nk_f16_k>(env, "angulars_symmetric_f16_ampere", nk_angulars_symmetric_f16_ampere, backend);
+    run_angulars_symmetric<nk_e5m2_k>(env, "angulars_symmetric_e5m2_ampere", nk_angulars_symmetric_e5m2_ampere,
+                                      backend);
+    run_angulars_symmetric<nk_e4m3_k>(env, "angulars_symmetric_e4m3_ampere", nk_angulars_symmetric_e4m3_ampere,
+                                      backend);
+    run_angulars_symmetric<nk_e3m2_k>(env, "angulars_symmetric_e3m2_ampere", nk_angulars_symmetric_e3m2_ampere,
+                                      backend);
+    run_angulars_symmetric<nk_e2m3_k>(env, "angulars_symmetric_e2m3_ampere", nk_angulars_symmetric_e2m3_ampere,
+                                      backend);
+    run_angulars_symmetric<nk_e2m1_k>(env, "angulars_symmetric_e2m1_ampere", nk_angulars_symmetric_e2m1_ampere,
+                                      backend);
+    run_angulars_symmetric<nk_i8_k>(env, "angulars_symmetric_i8_ampere", nk_angulars_symmetric_i8_ampere, backend);
+    run_angulars_symmetric<nk_i4_k>(env, "angulars_symmetric_i4_ampere", nk_angulars_symmetric_i4_ampere, backend);
+    run_angulars_symmetric<nk_u8_k>(env, "angulars_symmetric_u8_ampere", nk_angulars_symmetric_u8_ampere, backend);
+    run_angulars_symmetric<nk_u4_k>(env, "angulars_symmetric_u4_ampere", nk_angulars_symmetric_u4_ampere, backend);
 
-    run_euclideans_packed<nk_bf16_k>("euclideans_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
+    run_euclideans_packed<nk_bf16_k>(env, "euclideans_packed_bf16_ampere", nk_dots_pack_size_bf16_ampere,
                                      nk_dots_pack_bf16_ampere, nk_euclideans_packed_bf16_ampere, backend);
-    run_euclideans_packed<nk_f16_k>("euclideans_packed_f16_ampere", nk_dots_pack_size_f16_ampere,
+    run_euclideans_packed<nk_f16_k>(env, "euclideans_packed_f16_ampere", nk_dots_pack_size_f16_ampere,
                                     nk_dots_pack_f16_ampere, nk_euclideans_packed_f16_ampere, backend);
-    run_euclideans_packed<nk_e5m2_k>("euclideans_packed_e5m2_ampere", nk_dots_pack_size_e5m2_ampere,
+    run_euclideans_packed<nk_e5m2_k>(env, "euclideans_packed_e5m2_ampere", nk_dots_pack_size_e5m2_ampere,
                                      nk_dots_pack_e5m2_ampere, nk_euclideans_packed_e5m2_ampere, backend);
-    run_euclideans_packed<nk_e4m3_k>("euclideans_packed_e4m3_ampere", nk_dots_pack_size_e4m3_ampere,
+    run_euclideans_packed<nk_e4m3_k>(env, "euclideans_packed_e4m3_ampere", nk_dots_pack_size_e4m3_ampere,
                                      nk_dots_pack_e4m3_ampere, nk_euclideans_packed_e4m3_ampere, backend);
-    run_euclideans_packed<nk_e3m2_k>("euclideans_packed_e3m2_ampere", nk_dots_pack_size_e3m2_ampere,
+    run_euclideans_packed<nk_e3m2_k>(env, "euclideans_packed_e3m2_ampere", nk_dots_pack_size_e3m2_ampere,
                                      nk_dots_pack_e3m2_ampere, nk_euclideans_packed_e3m2_ampere, backend);
-    run_euclideans_packed<nk_e2m3_k>("euclideans_packed_e2m3_ampere", nk_dots_pack_size_e2m3_ampere,
+    run_euclideans_packed<nk_e2m3_k>(env, "euclideans_packed_e2m3_ampere", nk_dots_pack_size_e2m3_ampere,
                                      nk_dots_pack_e2m3_ampere, nk_euclideans_packed_e2m3_ampere, backend);
-    run_euclideans_packed<nk_e2m1_k>("euclideans_packed_e2m1_ampere", nk_dots_pack_size_e2m1_ampere,
+    run_euclideans_packed<nk_e2m1_k>(env, "euclideans_packed_e2m1_ampere", nk_dots_pack_size_e2m1_ampere,
                                      nk_dots_pack_e2m1_ampere, nk_euclideans_packed_e2m1_ampere, backend);
-    run_euclideans_packed<nk_i8_k>("euclideans_packed_i8_ampere", nk_dots_pack_size_i8_ampere, nk_dots_pack_i8_ampere,
-                                   nk_euclideans_packed_i8_ampere, backend);
-    run_euclideans_packed<nk_i4_k>("euclideans_packed_i4_ampere", nk_dots_pack_size_i4_ampere, nk_dots_pack_i4_ampere,
-                                   nk_euclideans_packed_i4_ampere, backend);
-    run_euclideans_packed<nk_u8_k>("euclideans_packed_u8_ampere", nk_dots_pack_size_u8_ampere, nk_dots_pack_u8_ampere,
-                                   nk_euclideans_packed_u8_ampere, backend);
-    run_euclideans_packed<nk_u4_k>("euclideans_packed_u4_ampere", nk_dots_pack_size_u4_ampere, nk_dots_pack_u4_ampere,
-                                   nk_euclideans_packed_u4_ampere, backend);
+    run_euclideans_packed<nk_i8_k>(env, "euclideans_packed_i8_ampere", nk_dots_pack_size_i8_ampere,
+                                   nk_dots_pack_i8_ampere, nk_euclideans_packed_i8_ampere, backend);
+    run_euclideans_packed<nk_i4_k>(env, "euclideans_packed_i4_ampere", nk_dots_pack_size_i4_ampere,
+                                   nk_dots_pack_i4_ampere, nk_euclideans_packed_i4_ampere, backend);
+    run_euclideans_packed<nk_u8_k>(env, "euclideans_packed_u8_ampere", nk_dots_pack_size_u8_ampere,
+                                   nk_dots_pack_u8_ampere, nk_euclideans_packed_u8_ampere, backend);
+    run_euclideans_packed<nk_u4_k>(env, "euclideans_packed_u4_ampere", nk_dots_pack_size_u4_ampere,
+                                   nk_dots_pack_u4_ampere, nk_euclideans_packed_u4_ampere, backend);
 
-    run_euclideans_symmetric<nk_bf16_k>("euclideans_symmetric_bf16_ampere", nk_euclideans_symmetric_bf16_ampere,
+    run_euclideans_symmetric<nk_bf16_k>(env, "euclideans_symmetric_bf16_ampere", nk_euclideans_symmetric_bf16_ampere,
                                         backend);
-    run_euclideans_symmetric<nk_f16_k>("euclideans_symmetric_f16_ampere", nk_euclideans_symmetric_f16_ampere, backend);
-    run_euclideans_symmetric<nk_e5m2_k>("euclideans_symmetric_e5m2_ampere", nk_euclideans_symmetric_e5m2_ampere,
+    run_euclideans_symmetric<nk_f16_k>(env, "euclideans_symmetric_f16_ampere", nk_euclideans_symmetric_f16_ampere,
+                                       backend);
+    run_euclideans_symmetric<nk_e5m2_k>(env, "euclideans_symmetric_e5m2_ampere", nk_euclideans_symmetric_e5m2_ampere,
                                         backend);
-    run_euclideans_symmetric<nk_e4m3_k>("euclideans_symmetric_e4m3_ampere", nk_euclideans_symmetric_e4m3_ampere,
+    run_euclideans_symmetric<nk_e4m3_k>(env, "euclideans_symmetric_e4m3_ampere", nk_euclideans_symmetric_e4m3_ampere,
                                         backend);
-    run_euclideans_symmetric<nk_e3m2_k>("euclideans_symmetric_e3m2_ampere", nk_euclideans_symmetric_e3m2_ampere,
+    run_euclideans_symmetric<nk_e3m2_k>(env, "euclideans_symmetric_e3m2_ampere", nk_euclideans_symmetric_e3m2_ampere,
                                         backend);
-    run_euclideans_symmetric<nk_e2m3_k>("euclideans_symmetric_e2m3_ampere", nk_euclideans_symmetric_e2m3_ampere,
+    run_euclideans_symmetric<nk_e2m3_k>(env, "euclideans_symmetric_e2m3_ampere", nk_euclideans_symmetric_e2m3_ampere,
                                         backend);
-    run_euclideans_symmetric<nk_e2m1_k>("euclideans_symmetric_e2m1_ampere", nk_euclideans_symmetric_e2m1_ampere,
+    run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_ampere", nk_euclideans_symmetric_e2m1_ampere,
                                         backend);
-    run_euclideans_symmetric<nk_i8_k>("euclideans_symmetric_i8_ampere", nk_euclideans_symmetric_i8_ampere, backend);
-    run_euclideans_symmetric<nk_i4_k>("euclideans_symmetric_i4_ampere", nk_euclideans_symmetric_i4_ampere, backend);
-    run_euclideans_symmetric<nk_u8_k>("euclideans_symmetric_u8_ampere", nk_euclideans_symmetric_u8_ampere, backend);
-    run_euclideans_symmetric<nk_u4_k>("euclideans_symmetric_u4_ampere", nk_euclideans_symmetric_u4_ampere, backend);
+    run_euclideans_symmetric<nk_i8_k>(env, "euclideans_symmetric_i8_ampere", nk_euclideans_symmetric_i8_ampere,
+                                      backend);
+    run_euclideans_symmetric<nk_i4_k>(env, "euclideans_symmetric_i4_ampere", nk_euclideans_symmetric_i4_ampere,
+                                      backend);
+    run_euclideans_symmetric<nk_u8_k>(env, "euclideans_symmetric_u8_ampere", nk_euclideans_symmetric_u8_ampere,
+                                      backend);
+    run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_ampere", nk_euclideans_symmetric_u4_ampere,
+                                      backend);
 
-    run_attention_bidirectional<nk_bf16_k>("attention_bidirectional_packed_bf16_ampere",
+    run_attention_bidirectional<nk_bf16_k>(env, "attention_bidirectional_packed_bf16_ampere",
                                            nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere,
                                            nk_attention_bidirectional_packed_bf16_ampere, backend);
-    run_attention_causal<nk_bf16_k>("attention_causal_packed_bf16_ampere", nk_attention_pack_size_bf16_ampere,
+    run_attention_causal<nk_bf16_k>(env, "attention_causal_packed_bf16_ampere", nk_attention_pack_size_bf16_ampere,
                                     nk_attention_pack_bf16_ampere, nk_attention_causal_packed_bf16_ampere, backend);
-    run_attention_bidirectional<nk_e4m3_k>("attention_bidirectional_packed_e4m3_ampere",
+    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_ampere",
                                            nk_attention_pack_size_e4m3_ampere, nk_attention_pack_e4m3_ampere,
                                            nk_attention_bidirectional_packed_e4m3_ampere, backend);
-    run_attention_causal<nk_e4m3_k>("attention_causal_packed_e4m3_ampere", nk_attention_pack_size_e4m3_ampere,
+    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_ampere", nk_attention_pack_size_e4m3_ampere,
                                     nk_attention_pack_e4m3_ampere, nk_attention_causal_packed_e4m3_ampere, backend);
-    run_attention_bidirectional<nk_i8_k>("attention_bidirectional_packed_i8_ampere", nk_attention_pack_size_i8_ampere,
-                                         nk_attention_pack_i8_ampere, nk_attention_bidirectional_packed_i8_ampere,
-                                         backend);
-    run_attention_causal<nk_i8_k>("attention_causal_packed_i8_ampere", nk_attention_pack_size_i8_ampere,
+    run_attention_bidirectional<nk_i8_k>(env, "attention_bidirectional_packed_i8_ampere",
+                                         nk_attention_pack_size_i8_ampere, nk_attention_pack_i8_ampere,
+                                         nk_attention_bidirectional_packed_i8_ampere, backend);
+    run_attention_causal<nk_i8_k>(env, "attention_causal_packed_i8_ampere", nk_attention_pack_size_i8_ampere,
                                   nk_attention_pack_i8_ampere, nk_attention_causal_packed_i8_ampere, backend);
 #endif // NUMKONG_TARGET_AMPERE
 }
 
 /** Every Hopper entry point, compiled only when the architecture list includes "90a". */
-void bench_cross_hopper([[maybe_unused]] cuda_backend_t const &backend, [[maybe_unused]] nk_capability_t enabled) {
+void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+                        [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_HOPPER
     if (!(enabled & nk_cap_hopper_k)) return;
-    run_dots_packed<nk_bf16_k>("dots_packed_bf16_hopper", nk_dots_pack_size_bf16_hopper, nk_dots_pack_bf16_hopper,
+    run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_hopper", nk_dots_pack_size_bf16_hopper, nk_dots_pack_bf16_hopper,
                                nk_dots_packed_bf16_hopper, backend);
-    run_dots_packed<nk_f16_k>("dots_packed_f16_hopper", nk_dots_pack_size_f16_hopper, nk_dots_pack_f16_hopper,
+    run_dots_packed<nk_f16_k>(env, "dots_packed_f16_hopper", nk_dots_pack_size_f16_hopper, nk_dots_pack_f16_hopper,
                               nk_dots_packed_f16_hopper, backend);
-    run_dots_packed<nk_e2m3_k>("dots_packed_e2m3_hopper", nk_dots_pack_size_e2m3_hopper, nk_dots_pack_e2m3_hopper,
+    run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_hopper", nk_dots_pack_size_e2m3_hopper, nk_dots_pack_e2m3_hopper,
                                nk_dots_packed_e2m3_hopper, backend);
-    run_dots_packed<nk_e2m1_k>("dots_packed_e2m1_hopper", nk_dots_pack_size_e2m1_hopper, nk_dots_pack_e2m1_hopper,
+    run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_hopper", nk_dots_pack_size_e2m1_hopper, nk_dots_pack_e2m1_hopper,
                                nk_dots_packed_e2m1_hopper, backend);
-    run_dots_packed<nk_i8_k>("dots_packed_i8_hopper", nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper,
+    run_dots_packed<nk_i8_k>(env, "dots_packed_i8_hopper", nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper,
                              nk_dots_packed_i8_hopper, backend);
-    run_dots_packed<nk_i4_k>("dots_packed_i4_hopper", nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper,
+    run_dots_packed<nk_i4_k>(env, "dots_packed_i4_hopper", nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper,
                              nk_dots_packed_i4_hopper, backend);
-    run_dots_packed<nk_u8_k>("dots_packed_u8_hopper", nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper,
+    run_dots_packed<nk_u8_k>(env, "dots_packed_u8_hopper", nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper,
                              nk_dots_packed_u8_hopper, backend);
-    run_dots_packed<nk_u4_k>("dots_packed_u4_hopper", nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper,
+    run_dots_packed<nk_u4_k>(env, "dots_packed_u4_hopper", nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper,
                              nk_dots_packed_u4_hopper, backend);
 
-    run_dots_symmetric<nk_bf16_k>("dots_symmetric_bf16_hopper", nk_dots_symmetric_bf16_hopper, backend);
-    run_dots_symmetric<nk_f16_k>("dots_symmetric_f16_hopper", nk_dots_symmetric_f16_hopper, backend);
-    run_dots_symmetric<nk_e2m3_k>("dots_symmetric_e2m3_hopper", nk_dots_symmetric_e2m3_hopper, backend);
-    run_dots_symmetric<nk_e2m1_k>("dots_symmetric_e2m1_hopper", nk_dots_symmetric_e2m1_hopper, backend);
-    run_dots_symmetric<nk_i8_k>("dots_symmetric_i8_hopper", nk_dots_symmetric_i8_hopper, backend);
-    run_dots_symmetric<nk_i4_k>("dots_symmetric_i4_hopper", nk_dots_symmetric_i4_hopper, backend);
-    run_dots_symmetric<nk_u8_k>("dots_symmetric_u8_hopper", nk_dots_symmetric_u8_hopper, backend);
-    run_dots_symmetric<nk_u4_k>("dots_symmetric_u4_hopper", nk_dots_symmetric_u4_hopper, backend);
+    run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_hopper", nk_dots_symmetric_bf16_hopper, backend);
+    run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_hopper", nk_dots_symmetric_f16_hopper, backend);
+    run_dots_symmetric<nk_e2m3_k>(env, "dots_symmetric_e2m3_hopper", nk_dots_symmetric_e2m3_hopper, backend);
+    run_dots_symmetric<nk_e2m1_k>(env, "dots_symmetric_e2m1_hopper", nk_dots_symmetric_e2m1_hopper, backend);
+    run_dots_symmetric<nk_i8_k>(env, "dots_symmetric_i8_hopper", nk_dots_symmetric_i8_hopper, backend);
+    run_dots_symmetric<nk_i4_k>(env, "dots_symmetric_i4_hopper", nk_dots_symmetric_i4_hopper, backend);
+    run_dots_symmetric<nk_u8_k>(env, "dots_symmetric_u8_hopper", nk_dots_symmetric_u8_hopper, backend);
+    run_dots_symmetric<nk_u4_k>(env, "dots_symmetric_u4_hopper", nk_dots_symmetric_u4_hopper, backend);
 
-    run_angulars_packed<nk_bf16_k>("angulars_packed_bf16_hopper", nk_dots_pack_size_bf16_hopper,
+    run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_hopper", nk_dots_pack_size_bf16_hopper,
                                    nk_dots_pack_bf16_hopper, nk_angulars_packed_bf16_hopper, backend);
-    run_angulars_packed<nk_f16_k>("angulars_packed_f16_hopper", nk_dots_pack_size_f16_hopper, nk_dots_pack_f16_hopper,
-                                  nk_angulars_packed_f16_hopper, backend);
-    run_angulars_packed<nk_e2m3_k>("angulars_packed_e2m3_hopper", nk_dots_pack_size_e2m3_hopper,
+    run_angulars_packed<nk_f16_k>(env, "angulars_packed_f16_hopper", nk_dots_pack_size_f16_hopper,
+                                  nk_dots_pack_f16_hopper, nk_angulars_packed_f16_hopper, backend);
+    run_angulars_packed<nk_e2m3_k>(env, "angulars_packed_e2m3_hopper", nk_dots_pack_size_e2m3_hopper,
                                    nk_dots_pack_e2m3_hopper, nk_angulars_packed_e2m3_hopper, backend);
-    run_angulars_packed<nk_e2m1_k>("angulars_packed_e2m1_hopper", nk_dots_pack_size_e2m1_hopper,
+    run_angulars_packed<nk_e2m1_k>(env, "angulars_packed_e2m1_hopper", nk_dots_pack_size_e2m1_hopper,
                                    nk_dots_pack_e2m1_hopper, nk_angulars_packed_e2m1_hopper, backend);
-    run_angulars_packed<nk_i8_k>("angulars_packed_i8_hopper", nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper,
+    run_angulars_packed<nk_i8_k>(env, "angulars_packed_i8_hopper", nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper,
                                  nk_angulars_packed_i8_hopper, backend);
-    run_angulars_packed<nk_i4_k>("angulars_packed_i4_hopper", nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper,
+    run_angulars_packed<nk_i4_k>(env, "angulars_packed_i4_hopper", nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper,
                                  nk_angulars_packed_i4_hopper, backend);
-    run_angulars_packed<nk_u8_k>("angulars_packed_u8_hopper", nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper,
+    run_angulars_packed<nk_u8_k>(env, "angulars_packed_u8_hopper", nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper,
                                  nk_angulars_packed_u8_hopper, backend);
-    run_angulars_packed<nk_u4_k>("angulars_packed_u4_hopper", nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper,
+    run_angulars_packed<nk_u4_k>(env, "angulars_packed_u4_hopper", nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper,
                                  nk_angulars_packed_u4_hopper, backend);
 
-    run_angulars_symmetric<nk_bf16_k>("angulars_symmetric_bf16_hopper", nk_angulars_symmetric_bf16_hopper, backend);
-    run_angulars_symmetric<nk_f16_k>("angulars_symmetric_f16_hopper", nk_angulars_symmetric_f16_hopper, backend);
-    run_angulars_symmetric<nk_e2m3_k>("angulars_symmetric_e2m3_hopper", nk_angulars_symmetric_e2m3_hopper, backend);
-    run_angulars_symmetric<nk_e2m1_k>("angulars_symmetric_e2m1_hopper", nk_angulars_symmetric_e2m1_hopper, backend);
-    run_angulars_symmetric<nk_i8_k>("angulars_symmetric_i8_hopper", nk_angulars_symmetric_i8_hopper, backend);
-    run_angulars_symmetric<nk_i4_k>("angulars_symmetric_i4_hopper", nk_angulars_symmetric_i4_hopper, backend);
-    run_angulars_symmetric<nk_u8_k>("angulars_symmetric_u8_hopper", nk_angulars_symmetric_u8_hopper, backend);
-    run_angulars_symmetric<nk_u4_k>("angulars_symmetric_u4_hopper", nk_angulars_symmetric_u4_hopper, backend);
+    run_angulars_symmetric<nk_bf16_k>(env, "angulars_symmetric_bf16_hopper", nk_angulars_symmetric_bf16_hopper,
+                                      backend);
+    run_angulars_symmetric<nk_f16_k>(env, "angulars_symmetric_f16_hopper", nk_angulars_symmetric_f16_hopper, backend);
+    run_angulars_symmetric<nk_e2m3_k>(env, "angulars_symmetric_e2m3_hopper", nk_angulars_symmetric_e2m3_hopper,
+                                      backend);
+    run_angulars_symmetric<nk_e2m1_k>(env, "angulars_symmetric_e2m1_hopper", nk_angulars_symmetric_e2m1_hopper,
+                                      backend);
+    run_angulars_symmetric<nk_i8_k>(env, "angulars_symmetric_i8_hopper", nk_angulars_symmetric_i8_hopper, backend);
+    run_angulars_symmetric<nk_i4_k>(env, "angulars_symmetric_i4_hopper", nk_angulars_symmetric_i4_hopper, backend);
+    run_angulars_symmetric<nk_u8_k>(env, "angulars_symmetric_u8_hopper", nk_angulars_symmetric_u8_hopper, backend);
+    run_angulars_symmetric<nk_u4_k>(env, "angulars_symmetric_u4_hopper", nk_angulars_symmetric_u4_hopper, backend);
 
-    run_euclideans_packed<nk_bf16_k>("euclideans_packed_bf16_hopper", nk_dots_pack_size_bf16_hopper,
+    run_euclideans_packed<nk_bf16_k>(env, "euclideans_packed_bf16_hopper", nk_dots_pack_size_bf16_hopper,
                                      nk_dots_pack_bf16_hopper, nk_euclideans_packed_bf16_hopper, backend);
-    run_euclideans_packed<nk_f16_k>("euclideans_packed_f16_hopper", nk_dots_pack_size_f16_hopper,
+    run_euclideans_packed<nk_f16_k>(env, "euclideans_packed_f16_hopper", nk_dots_pack_size_f16_hopper,
                                     nk_dots_pack_f16_hopper, nk_euclideans_packed_f16_hopper, backend);
-    run_euclideans_packed<nk_e2m3_k>("euclideans_packed_e2m3_hopper", nk_dots_pack_size_e2m3_hopper,
+    run_euclideans_packed<nk_e2m3_k>(env, "euclideans_packed_e2m3_hopper", nk_dots_pack_size_e2m3_hopper,
                                      nk_dots_pack_e2m3_hopper, nk_euclideans_packed_e2m3_hopper, backend);
-    run_euclideans_packed<nk_e2m1_k>("euclideans_packed_e2m1_hopper", nk_dots_pack_size_e2m1_hopper,
+    run_euclideans_packed<nk_e2m1_k>(env, "euclideans_packed_e2m1_hopper", nk_dots_pack_size_e2m1_hopper,
                                      nk_dots_pack_e2m1_hopper, nk_euclideans_packed_e2m1_hopper, backend);
-    run_euclideans_packed<nk_i8_k>("euclideans_packed_i8_hopper", nk_dots_pack_size_i8_hopper, nk_dots_pack_i8_hopper,
-                                   nk_euclideans_packed_i8_hopper, backend);
-    run_euclideans_packed<nk_i4_k>("euclideans_packed_i4_hopper", nk_dots_pack_size_i4_hopper, nk_dots_pack_i4_hopper,
-                                   nk_euclideans_packed_i4_hopper, backend);
-    run_euclideans_packed<nk_u8_k>("euclideans_packed_u8_hopper", nk_dots_pack_size_u8_hopper, nk_dots_pack_u8_hopper,
-                                   nk_euclideans_packed_u8_hopper, backend);
-    run_euclideans_packed<nk_u4_k>("euclideans_packed_u4_hopper", nk_dots_pack_size_u4_hopper, nk_dots_pack_u4_hopper,
-                                   nk_euclideans_packed_u4_hopper, backend);
+    run_euclideans_packed<nk_i8_k>(env, "euclideans_packed_i8_hopper", nk_dots_pack_size_i8_hopper,
+                                   nk_dots_pack_i8_hopper, nk_euclideans_packed_i8_hopper, backend);
+    run_euclideans_packed<nk_i4_k>(env, "euclideans_packed_i4_hopper", nk_dots_pack_size_i4_hopper,
+                                   nk_dots_pack_i4_hopper, nk_euclideans_packed_i4_hopper, backend);
+    run_euclideans_packed<nk_u8_k>(env, "euclideans_packed_u8_hopper", nk_dots_pack_size_u8_hopper,
+                                   nk_dots_pack_u8_hopper, nk_euclideans_packed_u8_hopper, backend);
+    run_euclideans_packed<nk_u4_k>(env, "euclideans_packed_u4_hopper", nk_dots_pack_size_u4_hopper,
+                                   nk_dots_pack_u4_hopper, nk_euclideans_packed_u4_hopper, backend);
 
-    run_euclideans_symmetric<nk_bf16_k>("euclideans_symmetric_bf16_hopper", nk_euclideans_symmetric_bf16_hopper,
+    run_euclideans_symmetric<nk_bf16_k>(env, "euclideans_symmetric_bf16_hopper", nk_euclideans_symmetric_bf16_hopper,
                                         backend);
-    run_euclideans_symmetric<nk_f16_k>("euclideans_symmetric_f16_hopper", nk_euclideans_symmetric_f16_hopper, backend);
-    run_euclideans_symmetric<nk_e2m3_k>("euclideans_symmetric_e2m3_hopper", nk_euclideans_symmetric_e2m3_hopper,
+    run_euclideans_symmetric<nk_f16_k>(env, "euclideans_symmetric_f16_hopper", nk_euclideans_symmetric_f16_hopper,
+                                       backend);
+    run_euclideans_symmetric<nk_e2m3_k>(env, "euclideans_symmetric_e2m3_hopper", nk_euclideans_symmetric_e2m3_hopper,
                                         backend);
-    run_euclideans_symmetric<nk_e2m1_k>("euclideans_symmetric_e2m1_hopper", nk_euclideans_symmetric_e2m1_hopper,
+    run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_hopper", nk_euclideans_symmetric_e2m1_hopper,
                                         backend);
-    run_euclideans_symmetric<nk_i8_k>("euclideans_symmetric_i8_hopper", nk_euclideans_symmetric_i8_hopper, backend);
-    run_euclideans_symmetric<nk_i4_k>("euclideans_symmetric_i4_hopper", nk_euclideans_symmetric_i4_hopper, backend);
-    run_euclideans_symmetric<nk_u8_k>("euclideans_symmetric_u8_hopper", nk_euclideans_symmetric_u8_hopper, backend);
-    run_euclideans_symmetric<nk_u4_k>("euclideans_symmetric_u4_hopper", nk_euclideans_symmetric_u4_hopper, backend);
+    run_euclideans_symmetric<nk_i8_k>(env, "euclideans_symmetric_i8_hopper", nk_euclideans_symmetric_i8_hopper,
+                                      backend);
+    run_euclideans_symmetric<nk_i4_k>(env, "euclideans_symmetric_i4_hopper", nk_euclideans_symmetric_i4_hopper,
+                                      backend);
+    run_euclideans_symmetric<nk_u8_k>(env, "euclideans_symmetric_u8_hopper", nk_euclideans_symmetric_u8_hopper,
+                                      backend);
+    run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_hopper", nk_euclideans_symmetric_u4_hopper,
+                                      backend);
 
-    run_attention_bidirectional<nk_bf16_k>("attention_bidirectional_packed_bf16_hopper",
+    run_attention_bidirectional<nk_bf16_k>(env, "attention_bidirectional_packed_bf16_hopper",
                                            nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper,
                                            nk_attention_bidirectional_packed_bf16_hopper, backend);
-    run_attention_causal<nk_bf16_k>("attention_causal_packed_bf16_hopper", nk_attention_pack_size_bf16_hopper,
+    run_attention_causal<nk_bf16_k>(env, "attention_causal_packed_bf16_hopper", nk_attention_pack_size_bf16_hopper,
                                     nk_attention_pack_bf16_hopper, nk_attention_causal_packed_bf16_hopper, backend);
-    run_attention_bidirectional<nk_e4m3_k>("attention_bidirectional_packed_e4m3_hopper",
+    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_hopper",
                                            nk_attention_pack_size_e4m3_hopper, nk_attention_pack_e4m3_hopper,
                                            nk_attention_bidirectional_packed_e4m3_hopper, backend);
-    run_attention_causal<nk_e4m3_k>("attention_causal_packed_e4m3_hopper", nk_attention_pack_size_e4m3_hopper,
+    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_hopper", nk_attention_pack_size_e4m3_hopper,
                                     nk_attention_pack_e4m3_hopper, nk_attention_causal_packed_e4m3_hopper, backend);
-    run_attention_bidirectional<nk_i8_k>("attention_bidirectional_packed_i8_hopper", nk_attention_pack_size_i8_hopper,
-                                         nk_attention_pack_i8_hopper, nk_attention_bidirectional_packed_i8_hopper,
-                                         backend);
-    run_attention_causal<nk_i8_k>("attention_causal_packed_i8_hopper", nk_attention_pack_size_i8_hopper,
+    run_attention_bidirectional<nk_i8_k>(env, "attention_bidirectional_packed_i8_hopper",
+                                         nk_attention_pack_size_i8_hopper, nk_attention_pack_i8_hopper,
+                                         nk_attention_bidirectional_packed_i8_hopper, backend);
+    run_attention_causal<nk_i8_k>(env, "attention_causal_packed_i8_hopper", nk_attention_pack_size_i8_hopper,
                                   nk_attention_pack_i8_hopper, nk_attention_causal_packed_i8_hopper, backend);
 #endif // NUMKONG_TARGET_HOPPER
 }
 
 /** Every Blackwell entry point, compiled only when the architecture list includes the family. */
-void bench_cross_blackwell([[maybe_unused]] cuda_backend_t const &backend, [[maybe_unused]] nk_capability_t enabled) {
+void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+                           [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_BLACKWELL
     if (!(enabled & nk_cap_blackwell_k)) return;
-    run_dots_packed<nk_bf16_k>("dots_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
+    run_dots_packed<nk_bf16_k>(env, "dots_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
                                nk_dots_pack_bf16_blackwell, nk_dots_packed_bf16_blackwell, backend);
-    run_dots_packed<nk_f16_k>("dots_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell, nk_dots_pack_f16_blackwell,
-                              nk_dots_packed_f16_blackwell, backend);
-    run_dots_packed<nk_e5m2_k>("dots_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell,
+    run_dots_packed<nk_f16_k>(env, "dots_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell,
+                              nk_dots_pack_f16_blackwell, nk_dots_packed_f16_blackwell, backend);
+    run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell,
                                nk_dots_pack_e5m2_blackwell, nk_dots_packed_e5m2_blackwell, backend);
-    run_dots_packed<nk_e4m3_k>("dots_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell,
+    run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell,
                                nk_dots_pack_e4m3_blackwell, nk_dots_packed_e4m3_blackwell, backend);
-    run_dots_packed<nk_e3m2_k>("dots_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell,
+    run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell,
                                nk_dots_pack_e3m2_blackwell, nk_dots_packed_e3m2_blackwell, backend);
-    run_dots_packed<nk_e2m3_k>("dots_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell,
+    run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell,
                                nk_dots_pack_e2m3_blackwell, nk_dots_packed_e2m3_blackwell, backend);
-    run_dots_packed<nk_e2m1_k>("dots_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
+    run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
                                nk_dots_pack_e2m1_blackwell, nk_dots_packed_e2m1_blackwell, backend);
 
-    run_dots_symmetric<nk_bf16_k>("dots_symmetric_bf16_blackwell", nk_dots_symmetric_bf16_blackwell, backend);
-    run_dots_symmetric<nk_f16_k>("dots_symmetric_f16_blackwell", nk_dots_symmetric_f16_blackwell, backend);
-    run_dots_symmetric<nk_e5m2_k>("dots_symmetric_e5m2_blackwell", nk_dots_symmetric_e5m2_blackwell, backend);
-    run_dots_symmetric<nk_e4m3_k>("dots_symmetric_e4m3_blackwell", nk_dots_symmetric_e4m3_blackwell, backend);
-    run_dots_symmetric<nk_e3m2_k>("dots_symmetric_e3m2_blackwell", nk_dots_symmetric_e3m2_blackwell, backend);
-    run_dots_symmetric<nk_e2m3_k>("dots_symmetric_e2m3_blackwell", nk_dots_symmetric_e2m3_blackwell, backend);
-    run_dots_symmetric<nk_e2m1_k>("dots_symmetric_e2m1_blackwell", nk_dots_symmetric_e2m1_blackwell, backend);
+    run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_blackwell", nk_dots_symmetric_bf16_blackwell, backend);
+    run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_blackwell", nk_dots_symmetric_f16_blackwell, backend);
+    run_dots_symmetric<nk_e5m2_k>(env, "dots_symmetric_e5m2_blackwell", nk_dots_symmetric_e5m2_blackwell, backend);
+    run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_blackwell", nk_dots_symmetric_e4m3_blackwell, backend);
+    run_dots_symmetric<nk_e3m2_k>(env, "dots_symmetric_e3m2_blackwell", nk_dots_symmetric_e3m2_blackwell, backend);
+    run_dots_symmetric<nk_e2m3_k>(env, "dots_symmetric_e2m3_blackwell", nk_dots_symmetric_e2m3_blackwell, backend);
+    run_dots_symmetric<nk_e2m1_k>(env, "dots_symmetric_e2m1_blackwell", nk_dots_symmetric_e2m1_blackwell, backend);
 
-    run_angulars_packed<nk_bf16_k>("angulars_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
+    run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
                                    nk_dots_pack_bf16_blackwell, nk_angulars_packed_bf16_blackwell, backend);
-    run_angulars_packed<nk_f16_k>("angulars_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell,
+    run_angulars_packed<nk_f16_k>(env, "angulars_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell,
                                   nk_dots_pack_f16_blackwell, nk_angulars_packed_f16_blackwell, backend);
-    run_angulars_packed<nk_e5m2_k>("angulars_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell,
+    run_angulars_packed<nk_e5m2_k>(env, "angulars_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell,
                                    nk_dots_pack_e5m2_blackwell, nk_angulars_packed_e5m2_blackwell, backend);
-    run_angulars_packed<nk_e4m3_k>("angulars_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell,
+    run_angulars_packed<nk_e4m3_k>(env, "angulars_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell,
                                    nk_dots_pack_e4m3_blackwell, nk_angulars_packed_e4m3_blackwell, backend);
-    run_angulars_packed<nk_e3m2_k>("angulars_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell,
+    run_angulars_packed<nk_e3m2_k>(env, "angulars_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell,
                                    nk_dots_pack_e3m2_blackwell, nk_angulars_packed_e3m2_blackwell, backend);
-    run_angulars_packed<nk_e2m3_k>("angulars_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell,
+    run_angulars_packed<nk_e2m3_k>(env, "angulars_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell,
                                    nk_dots_pack_e2m3_blackwell, nk_angulars_packed_e2m3_blackwell, backend);
-    run_angulars_packed<nk_e2m1_k>("angulars_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
+    run_angulars_packed<nk_e2m1_k>(env, "angulars_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
                                    nk_dots_pack_e2m1_blackwell, nk_angulars_packed_e2m1_blackwell, backend);
 
-    run_angulars_symmetric<nk_bf16_k>("angulars_symmetric_bf16_blackwell", nk_angulars_symmetric_bf16_blackwell,
+    run_angulars_symmetric<nk_bf16_k>(env, "angulars_symmetric_bf16_blackwell", nk_angulars_symmetric_bf16_blackwell,
                                       backend);
-    run_angulars_symmetric<nk_f16_k>("angulars_symmetric_f16_blackwell", nk_angulars_symmetric_f16_blackwell, backend);
-    run_angulars_symmetric<nk_e5m2_k>("angulars_symmetric_e5m2_blackwell", nk_angulars_symmetric_e5m2_blackwell,
+    run_angulars_symmetric<nk_f16_k>(env, "angulars_symmetric_f16_blackwell", nk_angulars_symmetric_f16_blackwell,
+                                     backend);
+    run_angulars_symmetric<nk_e5m2_k>(env, "angulars_symmetric_e5m2_blackwell", nk_angulars_symmetric_e5m2_blackwell,
                                       backend);
-    run_angulars_symmetric<nk_e4m3_k>("angulars_symmetric_e4m3_blackwell", nk_angulars_symmetric_e4m3_blackwell,
+    run_angulars_symmetric<nk_e4m3_k>(env, "angulars_symmetric_e4m3_blackwell", nk_angulars_symmetric_e4m3_blackwell,
                                       backend);
-    run_angulars_symmetric<nk_e3m2_k>("angulars_symmetric_e3m2_blackwell", nk_angulars_symmetric_e3m2_blackwell,
+    run_angulars_symmetric<nk_e3m2_k>(env, "angulars_symmetric_e3m2_blackwell", nk_angulars_symmetric_e3m2_blackwell,
                                       backend);
-    run_angulars_symmetric<nk_e2m3_k>("angulars_symmetric_e2m3_blackwell", nk_angulars_symmetric_e2m3_blackwell,
+    run_angulars_symmetric<nk_e2m3_k>(env, "angulars_symmetric_e2m3_blackwell", nk_angulars_symmetric_e2m3_blackwell,
                                       backend);
-    run_angulars_symmetric<nk_e2m1_k>("angulars_symmetric_e2m1_blackwell", nk_angulars_symmetric_e2m1_blackwell,
+    run_angulars_symmetric<nk_e2m1_k>(env, "angulars_symmetric_e2m1_blackwell", nk_angulars_symmetric_e2m1_blackwell,
                                       backend);
 
-    run_euclideans_packed<nk_bf16_k>("euclideans_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
+    run_euclideans_packed<nk_bf16_k>(env, "euclideans_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
                                      nk_dots_pack_bf16_blackwell, nk_euclideans_packed_bf16_blackwell, backend);
-    run_euclideans_packed<nk_f16_k>("euclideans_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell,
+    run_euclideans_packed<nk_f16_k>(env, "euclideans_packed_f16_blackwell", nk_dots_pack_size_f16_blackwell,
                                     nk_dots_pack_f16_blackwell, nk_euclideans_packed_f16_blackwell, backend);
-    run_euclideans_packed<nk_e5m2_k>("euclideans_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell,
+    run_euclideans_packed<nk_e5m2_k>(env, "euclideans_packed_e5m2_blackwell", nk_dots_pack_size_e5m2_blackwell,
                                      nk_dots_pack_e5m2_blackwell, nk_euclideans_packed_e5m2_blackwell, backend);
-    run_euclideans_packed<nk_e4m3_k>("euclideans_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell,
+    run_euclideans_packed<nk_e4m3_k>(env, "euclideans_packed_e4m3_blackwell", nk_dots_pack_size_e4m3_blackwell,
                                      nk_dots_pack_e4m3_blackwell, nk_euclideans_packed_e4m3_blackwell, backend);
-    run_euclideans_packed<nk_e3m2_k>("euclideans_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell,
+    run_euclideans_packed<nk_e3m2_k>(env, "euclideans_packed_e3m2_blackwell", nk_dots_pack_size_e3m2_blackwell,
                                      nk_dots_pack_e3m2_blackwell, nk_euclideans_packed_e3m2_blackwell, backend);
-    run_euclideans_packed<nk_e2m3_k>("euclideans_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell,
+    run_euclideans_packed<nk_e2m3_k>(env, "euclideans_packed_e2m3_blackwell", nk_dots_pack_size_e2m3_blackwell,
                                      nk_dots_pack_e2m3_blackwell, nk_euclideans_packed_e2m3_blackwell, backend);
-    run_euclideans_packed<nk_e2m1_k>("euclideans_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
+    run_euclideans_packed<nk_e2m1_k>(env, "euclideans_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
                                      nk_dots_pack_e2m1_blackwell, nk_euclideans_packed_e2m1_blackwell, backend);
 
-    run_euclideans_symmetric<nk_bf16_k>("euclideans_symmetric_bf16_blackwell", nk_euclideans_symmetric_bf16_blackwell,
-                                        backend);
-    run_euclideans_symmetric<nk_f16_k>("euclideans_symmetric_f16_blackwell", nk_euclideans_symmetric_f16_blackwell,
+    run_euclideans_symmetric<nk_bf16_k>(env, "euclideans_symmetric_bf16_blackwell",
+                                        nk_euclideans_symmetric_bf16_blackwell, backend);
+    run_euclideans_symmetric<nk_f16_k>(env, "euclideans_symmetric_f16_blackwell", nk_euclideans_symmetric_f16_blackwell,
                                        backend);
-    run_euclideans_symmetric<nk_e5m2_k>("euclideans_symmetric_e5m2_blackwell", nk_euclideans_symmetric_e5m2_blackwell,
-                                        backend);
-    run_euclideans_symmetric<nk_e4m3_k>("euclideans_symmetric_e4m3_blackwell", nk_euclideans_symmetric_e4m3_blackwell,
-                                        backend);
-    run_euclideans_symmetric<nk_e3m2_k>("euclideans_symmetric_e3m2_blackwell", nk_euclideans_symmetric_e3m2_blackwell,
-                                        backend);
-    run_euclideans_symmetric<nk_e2m3_k>("euclideans_symmetric_e2m3_blackwell", nk_euclideans_symmetric_e2m3_blackwell,
-                                        backend);
-    run_euclideans_symmetric<nk_e2m1_k>("euclideans_symmetric_e2m1_blackwell", nk_euclideans_symmetric_e2m1_blackwell,
-                                        backend);
-    run_attention_bidirectional<nk_e4m3_k>("attention_bidirectional_packed_e4m3_blackwell",
+    run_euclideans_symmetric<nk_e5m2_k>(env, "euclideans_symmetric_e5m2_blackwell",
+                                        nk_euclideans_symmetric_e5m2_blackwell, backend);
+    run_euclideans_symmetric<nk_e4m3_k>(env, "euclideans_symmetric_e4m3_blackwell",
+                                        nk_euclideans_symmetric_e4m3_blackwell, backend);
+    run_euclideans_symmetric<nk_e3m2_k>(env, "euclideans_symmetric_e3m2_blackwell",
+                                        nk_euclideans_symmetric_e3m2_blackwell, backend);
+    run_euclideans_symmetric<nk_e2m3_k>(env, "euclideans_symmetric_e2m3_blackwell",
+                                        nk_euclideans_symmetric_e2m3_blackwell, backend);
+    run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_blackwell",
+                                        nk_euclideans_symmetric_e2m1_blackwell, backend);
+    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_blackwell",
                                            nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,
                                            nk_attention_bidirectional_packed_e4m3_blackwell, backend);
-    run_attention_causal<nk_e4m3_k>("attention_causal_packed_e4m3_blackwell", nk_attention_pack_size_e4m3_blackwell,
-                                    nk_attention_pack_e4m3_blackwell, nk_attention_causal_packed_e4m3_blackwell,
-                                    backend);
+    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_blackwell",
+                                    nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,
+                                    nk_attention_causal_packed_e4m3_blackwell, backend);
 #endif // NUMKONG_TARGET_BLACKWELL
 }
 
 /** Every Blackwell RTX entry point, compiled only when the architecture list includes it. */
-void bench_cross_blackwellrtx([[maybe_unused]] cuda_backend_t const &backend,
+void bench_cross_blackwellrtx([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
                               [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_BLACKWELLRTX
     if (!(enabled & nk_cap_blackwellrtx_k)) return;
-    run_dots_packed<nk_e5m2_k>("dots_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
+    run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
                                nk_dots_pack_e5m2_blackwellrtx, nk_dots_packed_e5m2_blackwellrtx, backend);
-    run_dots_packed<nk_e4m3_k>("dots_packed_e4m3_blackwellrtx", nk_dots_pack_size_e4m3_blackwellrtx,
+    run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_blackwellrtx", nk_dots_pack_size_e4m3_blackwellrtx,
                                nk_dots_pack_e4m3_blackwellrtx, nk_dots_packed_e4m3_blackwellrtx, backend);
-    run_dots_packed<nk_e3m2_k>("dots_packed_e3m2_blackwellrtx", nk_dots_pack_size_e3m2_blackwellrtx,
+    run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_blackwellrtx", nk_dots_pack_size_e3m2_blackwellrtx,
                                nk_dots_pack_e3m2_blackwellrtx, nk_dots_packed_e3m2_blackwellrtx, backend);
-    run_dots_packed<nk_e2m3_k>("dots_packed_e2m3_blackwellrtx", nk_dots_pack_size_e2m3_blackwellrtx,
+    run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_blackwellrtx", nk_dots_pack_size_e2m3_blackwellrtx,
                                nk_dots_pack_e2m3_blackwellrtx, nk_dots_packed_e2m3_blackwellrtx, backend);
-    run_dots_packed<nk_e2m1_k>("dots_packed_e2m1_blackwellrtx", nk_dots_pack_size_e2m1_blackwellrtx,
+    run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_blackwellrtx", nk_dots_pack_size_e2m1_blackwellrtx,
                                nk_dots_pack_e2m1_blackwellrtx, nk_dots_packed_e2m1_blackwellrtx, backend);
 
-    run_dots_symmetric<nk_e5m2_k>("dots_symmetric_e5m2_blackwellrtx", nk_dots_symmetric_e5m2_blackwellrtx, backend);
-    run_dots_symmetric<nk_e4m3_k>("dots_symmetric_e4m3_blackwellrtx", nk_dots_symmetric_e4m3_blackwellrtx, backend);
-    run_dots_symmetric<nk_e3m2_k>("dots_symmetric_e3m2_blackwellrtx", nk_dots_symmetric_e3m2_blackwellrtx, backend);
-    run_dots_symmetric<nk_e2m3_k>("dots_symmetric_e2m3_blackwellrtx", nk_dots_symmetric_e2m3_blackwellrtx, backend);
-    run_dots_symmetric<nk_e2m1_k>("dots_symmetric_e2m1_blackwellrtx", nk_dots_symmetric_e2m1_blackwellrtx, backend);
+    run_dots_symmetric<nk_e5m2_k>(env, "dots_symmetric_e5m2_blackwellrtx", nk_dots_symmetric_e5m2_blackwellrtx,
+                                  backend);
+    run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_blackwellrtx", nk_dots_symmetric_e4m3_blackwellrtx,
+                                  backend);
+    run_dots_symmetric<nk_e3m2_k>(env, "dots_symmetric_e3m2_blackwellrtx", nk_dots_symmetric_e3m2_blackwellrtx,
+                                  backend);
+    run_dots_symmetric<nk_e2m3_k>(env, "dots_symmetric_e2m3_blackwellrtx", nk_dots_symmetric_e2m3_blackwellrtx,
+                                  backend);
+    run_dots_symmetric<nk_e2m1_k>(env, "dots_symmetric_e2m1_blackwellrtx", nk_dots_symmetric_e2m1_blackwellrtx,
+                                  backend);
 
-    run_angulars_packed<nk_e5m2_k>("angulars_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
+    run_angulars_packed<nk_e5m2_k>(env, "angulars_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
                                    nk_dots_pack_e5m2_blackwellrtx, nk_angulars_packed_e5m2_blackwellrtx, backend);
-    run_angulars_packed<nk_e4m3_k>("angulars_packed_e4m3_blackwellrtx", nk_dots_pack_size_e4m3_blackwellrtx,
+    run_angulars_packed<nk_e4m3_k>(env, "angulars_packed_e4m3_blackwellrtx", nk_dots_pack_size_e4m3_blackwellrtx,
                                    nk_dots_pack_e4m3_blackwellrtx, nk_angulars_packed_e4m3_blackwellrtx, backend);
-    run_angulars_packed<nk_e3m2_k>("angulars_packed_e3m2_blackwellrtx", nk_dots_pack_size_e3m2_blackwellrtx,
+    run_angulars_packed<nk_e3m2_k>(env, "angulars_packed_e3m2_blackwellrtx", nk_dots_pack_size_e3m2_blackwellrtx,
                                    nk_dots_pack_e3m2_blackwellrtx, nk_angulars_packed_e3m2_blackwellrtx, backend);
-    run_angulars_packed<nk_e2m3_k>("angulars_packed_e2m3_blackwellrtx", nk_dots_pack_size_e2m3_blackwellrtx,
+    run_angulars_packed<nk_e2m3_k>(env, "angulars_packed_e2m3_blackwellrtx", nk_dots_pack_size_e2m3_blackwellrtx,
                                    nk_dots_pack_e2m3_blackwellrtx, nk_angulars_packed_e2m3_blackwellrtx, backend);
-    run_angulars_packed<nk_e2m1_k>("angulars_packed_e2m1_blackwellrtx", nk_dots_pack_size_e2m1_blackwellrtx,
+    run_angulars_packed<nk_e2m1_k>(env, "angulars_packed_e2m1_blackwellrtx", nk_dots_pack_size_e2m1_blackwellrtx,
                                    nk_dots_pack_e2m1_blackwellrtx, nk_angulars_packed_e2m1_blackwellrtx, backend);
 
-    run_angulars_symmetric<nk_e5m2_k>("angulars_symmetric_e5m2_blackwellrtx", nk_angulars_symmetric_e5m2_blackwellrtx,
-                                      backend);
-    run_angulars_symmetric<nk_e4m3_k>("angulars_symmetric_e4m3_blackwellrtx", nk_angulars_symmetric_e4m3_blackwellrtx,
-                                      backend);
-    run_angulars_symmetric<nk_e3m2_k>("angulars_symmetric_e3m2_blackwellrtx", nk_angulars_symmetric_e3m2_blackwellrtx,
-                                      backend);
-    run_angulars_symmetric<nk_e2m3_k>("angulars_symmetric_e2m3_blackwellrtx", nk_angulars_symmetric_e2m3_blackwellrtx,
-                                      backend);
-    run_angulars_symmetric<nk_e2m1_k>("angulars_symmetric_e2m1_blackwellrtx", nk_angulars_symmetric_e2m1_blackwellrtx,
-                                      backend);
+    run_angulars_symmetric<nk_e5m2_k>(env, "angulars_symmetric_e5m2_blackwellrtx",
+                                      nk_angulars_symmetric_e5m2_blackwellrtx, backend);
+    run_angulars_symmetric<nk_e4m3_k>(env, "angulars_symmetric_e4m3_blackwellrtx",
+                                      nk_angulars_symmetric_e4m3_blackwellrtx, backend);
+    run_angulars_symmetric<nk_e3m2_k>(env, "angulars_symmetric_e3m2_blackwellrtx",
+                                      nk_angulars_symmetric_e3m2_blackwellrtx, backend);
+    run_angulars_symmetric<nk_e2m3_k>(env, "angulars_symmetric_e2m3_blackwellrtx",
+                                      nk_angulars_symmetric_e2m3_blackwellrtx, backend);
+    run_angulars_symmetric<nk_e2m1_k>(env, "angulars_symmetric_e2m1_blackwellrtx",
+                                      nk_angulars_symmetric_e2m1_blackwellrtx, backend);
 
-    run_euclideans_packed<nk_e5m2_k>("euclideans_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
+    run_euclideans_packed<nk_e5m2_k>(env, "euclideans_packed_e5m2_blackwellrtx", nk_dots_pack_size_e5m2_blackwellrtx,
                                      nk_dots_pack_e5m2_blackwellrtx, nk_euclideans_packed_e5m2_blackwellrtx, backend);
-    run_euclideans_packed<nk_e4m3_k>("euclideans_packed_e4m3_blackwellrtx", nk_dots_pack_size_e4m3_blackwellrtx,
+    run_euclideans_packed<nk_e4m3_k>(env, "euclideans_packed_e4m3_blackwellrtx", nk_dots_pack_size_e4m3_blackwellrtx,
                                      nk_dots_pack_e4m3_blackwellrtx, nk_euclideans_packed_e4m3_blackwellrtx, backend);
-    run_euclideans_packed<nk_e3m2_k>("euclideans_packed_e3m2_blackwellrtx", nk_dots_pack_size_e3m2_blackwellrtx,
+    run_euclideans_packed<nk_e3m2_k>(env, "euclideans_packed_e3m2_blackwellrtx", nk_dots_pack_size_e3m2_blackwellrtx,
                                      nk_dots_pack_e3m2_blackwellrtx, nk_euclideans_packed_e3m2_blackwellrtx, backend);
-    run_euclideans_packed<nk_e2m3_k>("euclideans_packed_e2m3_blackwellrtx", nk_dots_pack_size_e2m3_blackwellrtx,
+    run_euclideans_packed<nk_e2m3_k>(env, "euclideans_packed_e2m3_blackwellrtx", nk_dots_pack_size_e2m3_blackwellrtx,
                                      nk_dots_pack_e2m3_blackwellrtx, nk_euclideans_packed_e2m3_blackwellrtx, backend);
-    run_euclideans_packed<nk_e2m1_k>("euclideans_packed_e2m1_blackwellrtx", nk_dots_pack_size_e2m1_blackwellrtx,
+    run_euclideans_packed<nk_e2m1_k>(env, "euclideans_packed_e2m1_blackwellrtx", nk_dots_pack_size_e2m1_blackwellrtx,
                                      nk_dots_pack_e2m1_blackwellrtx, nk_euclideans_packed_e2m1_blackwellrtx, backend);
 
-    run_euclideans_symmetric<nk_e5m2_k>("euclideans_symmetric_e5m2_blackwellrtx",
+    run_euclideans_symmetric<nk_e5m2_k>(env, "euclideans_symmetric_e5m2_blackwellrtx",
                                         nk_euclideans_symmetric_e5m2_blackwellrtx, backend);
-    run_euclideans_symmetric<nk_e4m3_k>("euclideans_symmetric_e4m3_blackwellrtx",
+    run_euclideans_symmetric<nk_e4m3_k>(env, "euclideans_symmetric_e4m3_blackwellrtx",
                                         nk_euclideans_symmetric_e4m3_blackwellrtx, backend);
-    run_euclideans_symmetric<nk_e3m2_k>("euclideans_symmetric_e3m2_blackwellrtx",
+    run_euclideans_symmetric<nk_e3m2_k>(env, "euclideans_symmetric_e3m2_blackwellrtx",
                                         nk_euclideans_symmetric_e3m2_blackwellrtx, backend);
-    run_euclideans_symmetric<nk_e2m3_k>("euclideans_symmetric_e2m3_blackwellrtx",
+    run_euclideans_symmetric<nk_e2m3_k>(env, "euclideans_symmetric_e2m3_blackwellrtx",
                                         nk_euclideans_symmetric_e2m3_blackwellrtx, backend);
-    run_euclideans_symmetric<nk_e2m1_k>("euclideans_symmetric_e2m1_blackwellrtx",
+    run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_blackwellrtx",
                                         nk_euclideans_symmetric_e2m1_blackwellrtx, backend);
 
     run_attention_bidirectional<nk_e4m3_k>(
-        "attention_bidirectional_packed_e4m3_blackwellrtx", nk_attention_pack_size_e4m3_blackwellrtx,
+        env, "attention_bidirectional_packed_e4m3_blackwellrtx", nk_attention_pack_size_e4m3_blackwellrtx,
         nk_attention_pack_e4m3_blackwellrtx, nk_attention_bidirectional_packed_e4m3_blackwellrtx, backend);
-    run_attention_causal<nk_e4m3_k>("attention_causal_packed_e4m3_blackwellrtx",
+    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_blackwellrtx",
                                     nk_attention_pack_size_e4m3_blackwellrtx, nk_attention_pack_e4m3_blackwellrtx,
                                     nk_attention_causal_packed_e4m3_blackwellrtx, backend);
 #endif // NUMKONG_TARGET_BLACKWELLRTX
 }
 
-#pragma endregion Registrations
+#pragma endregion Rows
 
 #pragma region cuBLAS
 #if NUMKONG_COMPARE_TO_CUBLAS
@@ -790,36 +805,36 @@ struct cublaslt_plan_t {
     }
 };
 
-/** Registers a cuBLASLt row, or prints why cuBLASLt has no algorithm for it. */
+/** Runs a cuBLASLt row, or prints why cuBLASLt has no algorithm for it. */
 template <nk_dtype_t input_dtype_, typename output_type_ = typename nk::type_for<input_dtype_>::type::dot_result_t>
-void register_dots_with_cublaslt(std::string const &name, cuda_backend_t const &backend) {
+void run_dots_with_cublaslt(environment_t const &env, std::string const &name, cuda_backend_t const &backend) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     std::size_t const dimensions_per_value = nk::dimensions_per_value<input_t>();
-    std::size_t const a_row_bytes = nk::divide_round_up(bench_config.matrix_depth, dimensions_per_value) *
+    std::size_t const a_row_bytes = nk::divide_round_up(env.settings.matrix_depth, dimensions_per_value) *
                                     sizeof(input_t);
     auto const plan = std::make_shared<cublaslt_plan_t>();
     if (cublasStatus_t const status = plan->build(
-            input_dtype_, bench_config.matrix_height, bench_config.matrix_width, bench_config.matrix_depth,
+            input_dtype_, env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth,
             backend.row_stride(a_row_bytes) / sizeof(input_t) * dimensions_per_value))
-        return print_skipped(name, cublasLtGetStatusName(status));
-    register_unpacked<input_dtype_, output_type_>(
-        name, reference_metric_t::dot_k,
+        return print_skipped(env, name, cublasLtGetStatusName(status));
+    run_unpacked<input_dtype_, output_type_>(
+        env, name, reference_metric_t::dot_k,
         [plan](void const *a, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t,
                void *stream) { return plan->launch(a, b, c, (cudaStream_t)stream); },
         backend);
 }
 
-/** Registers DGEMM through cuBLAS's fixed-point emulation, which only the handle API runs on 12.x
+/** Runs DGEMM through cuBLAS's fixed-point emulation, which only the handle API runs on 12.x
  *  devices. */
-void register_dots_f64_with_cublas(std::string const &name, cuda_backend_t const &backend) {
+void run_dots_f64_with_cublas(environment_t const &env, std::string const &name, cuda_backend_t const &backend) {
     cublasHandle_t raw_handle = nullptr;
     if (cublasStatus_t const status = cublasCreate(&raw_handle))
-        return print_skipped(name, cublasGetStatusName(status));
+        return print_skipped(env, name, cublasGetStatusName(status));
     std::shared_ptr<std::remove_pointer_t<cublasHandle_t>> const handle(raw_handle, cublasDestroy);
     cublasSetEmulationStrategy(raw_handle, CUBLAS_EMULATION_STRATEGY_EAGER);
     cublasSetMathMode(raw_handle, CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH);
-    register_unpacked<nk_f64_k, nk::f64_t>(
-        name, reference_metric_t::dot_k,
+    run_unpacked<nk_f64_k, nk::f64_t>(
+        env, name, reference_metric_t::dot_k,
         [handle](void const *a, void const *b, void *c, std::size_t height, std::size_t width, std::size_t depth,
                  std::size_t a_stride, std::size_t, void *stream) {
             double const alpha = 1, beta = 0;
@@ -836,22 +851,22 @@ void register_dots_f64_with_cublas(std::string const &name, cuda_backend_t const
 #endif // NUMKONG_COMPARE_TO_CUBLAS
 
 /** Every cuBLASLt row, one per dtype, and cuBLAS's emulated DGEMM. */
-void bench_cross_cublas([[maybe_unused]] cuda_backend_t const &backend) {
+void bench_cross_cublas([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUBLAS
-    register_dots_with_cublaslt<nk_f64_k>("dots_packed_f64_with_cublaslt", backend);
-    register_dots_f64_with_cublas("dots_packed_f64_with_cublas", backend);
-    register_dots_with_cublaslt<nk_f32_k, nk::f32_t>("dots_packed_f32_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_bf16_k>("dots_packed_bf16_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_f16_k>("dots_packed_f16_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_e5m2_k>("dots_packed_e5m2_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_e4m3_k>("dots_packed_e4m3_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_e3m2_k>("dots_packed_e3m2_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_e2m3_k>("dots_packed_e2m3_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_e2m1_k>("dots_packed_e2m1_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_i8_k>("dots_packed_i8_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_i4_k>("dots_packed_i4_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_u8_k>("dots_packed_u8_with_cublaslt", backend);
-    register_dots_with_cublaslt<nk_u4_k>("dots_packed_u4_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_f64_k>(env, "dots_packed_f64_with_cublaslt", backend);
+    run_dots_f64_with_cublas(env, "dots_packed_f64_with_cublas", backend);
+    run_dots_with_cublaslt<nk_f32_k, nk::f32_t>(env, "dots_packed_f32_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_bf16_k>(env, "dots_packed_bf16_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_f16_k>(env, "dots_packed_f16_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_e5m2_k>(env, "dots_packed_e5m2_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_e4m3_k>(env, "dots_packed_e4m3_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_e3m2_k>(env, "dots_packed_e3m2_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_e2m3_k>(env, "dots_packed_e2m3_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_e2m1_k>(env, "dots_packed_e2m1_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_i8_k>(env, "dots_packed_i8_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_i4_k>(env, "dots_packed_i4_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_u8_k>(env, "dots_packed_u8_with_cublaslt", backend);
+    run_dots_with_cublaslt<nk_u4_k>(env, "dots_packed_u4_with_cublaslt", backend);
 #endif // NUMKONG_COMPARE_TO_CUBLAS
 }
 #pragma endregion cuBLAS
@@ -1145,13 +1160,14 @@ struct cudnn_attention_plan_t {
     }
 };
 
-/** Registers one cuDNN row of @p shape through @c register_attention, with K and V copied into each
+/** Runs one cuDNN row of @p shape through @c run_attention_row, with K and V copied into each
  *  set's cache. */
 template <nk_dtype_t input_dtype_, attention_visibility_t visibility_>
-void register_attention_with_cudnn(std::string const &name, attention_shape_t shape, cuda_backend_t const &backend) {
+void run_attention_row_with_cudnn(environment_t const &env, std::string const &name, attention_shape_t shape,
+                                  cuda_backend_t const &backend) {
     auto const plan = std::make_shared<cudnn_attention_plan_t>();
     if (cudnnStatus_t const status = plan->build(input_dtype_, visibility_, shape))
-        return print_skipped(attention_row_name(name, visibility_, shape), cudnnGetErrorString(status));
+        return print_skipped(env, attention_row_name(name, visibility_, shape), cudnnGetErrorString(status));
     auto const packed_size = [](std::size_t key_value_heads, std::size_t depth, nk_u32_t const *lengths, std::size_t,
                                 nk_size_t *bytes) {
         *bytes = 2 * std::size_t(lengths[0]) * key_value_heads * depth * nk_dtype_bits(input_dtype_) / 8;
@@ -1164,26 +1180,26 @@ void register_attention_with_cudnn(std::string const &name, attention_shape_t sh
         return cudaMemcpyAsync(static_cast<char *>(packed) + key_bytes, values, key_bytes, cudaMemcpyDeviceToDevice,
                                (cudaStream_t)stream);
     };
-    register_attention<input_dtype_, visibility_, cuda_backend_t>(
-        name, packed_size, pack,
+    run_attention_row<input_dtype_, visibility_, cuda_backend_t>(
+        env, name, packed_size, pack,
         [plan](void const *queries, void const *packed, void *output, auto...) {
             return plan->launch(queries, packed, output);
         },
         shape, backend);
 }
 
-/** Registers cuDNN rows beside the NumKong ones: bidirectional, causal, and windowed where the
+/** Runs cuDNN rows beside the NumKong ones: bidirectional, causal, and windowed where the
  *  window clips. */
 template <nk_dtype_t input_dtype_>
-void run_attention_with_cudnn(std::string const &bidirectional_name, std::string const &causal_name,
-                              cuda_backend_t const &backend) {
-    for (attention_shape_t const shape : backend.attention_shapes()) {
-        register_attention_with_cudnn<input_dtype_, attention_visibility_t::bidirectional_k>(bidirectional_name, shape,
-                                                                                             backend);
-        register_attention_with_cudnn<input_dtype_, attention_visibility_t::causal_k>(causal_name, shape, backend);
+void run_attention_with_cudnn(environment_t const &env, std::string const &bidirectional_name,
+                              std::string const &causal_name, cuda_backend_t const &backend) {
+    for (attention_shape_t const shape : backend.attention_shapes(env)) {
+        run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::bidirectional_k>(env, bidirectional_name,
+                                                                                            shape, backend);
+        run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_k>(env, causal_name, shape, backend);
         if (attention_window_clips(shape))
-            register_attention_with_cudnn<input_dtype_, attention_visibility_t::causal_window_1024_k>(causal_name,
-                                                                                                      shape, backend);
+            run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_window_1024_k>(env, causal_name,
+                                                                                                     shape, backend);
     }
 }
 
@@ -1191,12 +1207,12 @@ void run_attention_with_cudnn(std::string const &bidirectional_name, std::string
 
 /** Every cuDNN row: BF16 and E4M3 attention, bidirectional, causal, and windowed where the window
  *  clips. */
-void bench_cross_cudnn([[maybe_unused]] cuda_backend_t const &backend) {
+void bench_cross_cudnn([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUDNN
-    run_attention_with_cudnn<nk_bf16_k>("attention_bidirectional_bf16_with_cudnn", "attention_causal_bf16_with_cudnn",
-                                        backend);
-    run_attention_with_cudnn<nk_e4m3_k>("attention_bidirectional_e4m3_with_cudnn", "attention_causal_e4m3_with_cudnn",
-                                        backend);
+    run_attention_with_cudnn<nk_bf16_k>(env, "attention_bidirectional_bf16_with_cudnn",
+                                        "attention_causal_bf16_with_cudnn", backend);
+    run_attention_with_cudnn<nk_e4m3_k>(env, "attention_bidirectional_e4m3_with_cudnn",
+                                        "attention_causal_e4m3_with_cudnn", backend);
 #endif // NUMKONG_COMPARE_TO_CUDNN
 }
 #pragma endregion cuDNN
@@ -1215,19 +1231,20 @@ DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_
     return tensor;
 }
 
-/** Registers @c cuvsPairwiseDistance as a cosine or L2-expanded row beside NumKong's angular or
+/** Runs @c cuvsPairwiseDistance as a cosine or L2-expanded row beside NumKong's angular or
  *  euclidean one. */
 template <nk_dtype_t input_dtype_>
-void register_spatials_with_cuvs(std::string const &name, reference_metric_t metric, cuda_backend_t const &backend) {
+void run_spatials_with_cuvs(environment_t const &env, std::string const &name, reference_metric_t metric,
+                            cuda_backend_t const &backend) {
     std::shared_ptr<cuvsResources_t> const resources(new cuvsResources_t {}, [](cuvsResources_t *resources) {
         cuvsResourcesDestroy(*resources);
         delete resources;
     });
-    if (cuvsResourcesCreate(resources.get()) != CUVS_SUCCESS) return print_skipped(name, cuvsGetLastErrorText());
+    if (cuvsResourcesCreate(resources.get()) != CUVS_SUCCESS) return print_skipped(env, name, cuvsGetLastErrorText());
     cuvsDistanceType const distance = metric == reference_metric_t::angular_k ? CosineExpanded : L2SqrtExpanded;
     std::uint8_t const bits = std::uint8_t(nk_dtype_bits(input_dtype_));
-    register_unpacked<input_dtype_, nk::f32_t>(
-        name, metric,
+    run_unpacked<input_dtype_, nk::f32_t>(
+        env, name, metric,
         [resources, distance, bits](void const *a, void const *b, void *c, std::size_t height, std::size_t width,
                                     std::size_t depth, std::size_t a_stride, std::size_t, void *stream) {
             if (a_stride * 8 != depth * bits) return cudaErrorInvalidPitchValue;
@@ -1247,20 +1264,24 @@ void register_spatials_with_cuvs(std::string const &name, reference_metric_t met
 #endif // NUMKONG_COMPARE_TO_CUVS
 
 /** Every cuVS row: cosine and L2 distances over F32 and F16. */
-void bench_cross_cuvs([[maybe_unused]] cuda_backend_t const &backend) {
+void bench_cross_cuvs([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUVS
-    register_spatials_with_cuvs<nk_f32_k>("angulars_packed_f32_with_cuvs", reference_metric_t::angular_k, backend);
-    register_spatials_with_cuvs<nk_f32_k>("euclideans_packed_f32_with_cuvs", reference_metric_t::euclidean_k, backend);
-    register_spatials_with_cuvs<nk_f16_k>("angulars_packed_f16_with_cuvs", reference_metric_t::angular_k, backend);
-    register_spatials_with_cuvs<nk_f16_k>("euclideans_packed_f16_with_cuvs", reference_metric_t::euclidean_k, backend);
+    run_spatials_with_cuvs<nk_f32_k>(env, "angulars_packed_f32_with_cuvs", reference_metric_t::angular_k, backend);
+    run_spatials_with_cuvs<nk_f32_k>(env, "euclideans_packed_f32_with_cuvs", reference_metric_t::euclidean_k, backend);
+    run_spatials_with_cuvs<nk_f16_k>(env, "angulars_packed_f16_with_cuvs", reference_metric_t::angular_k, backend);
+    run_spatials_with_cuvs<nk_f16_k>(env, "euclideans_packed_f16_with_cuvs", reference_metric_t::euclidean_k, backend);
 #endif // NUMKONG_COMPARE_TO_CUVS
 }
 #pragma endregion cuVS
 
+} // namespace ashvardanian::numkong::bench
+
 #endif // NUMKONG_ARCH_CUDA_
 
+namespace ashvardanian::numkong::bench {
+
 /** Every CUDA row: the kernel families this device runs, then the baselines compiled in. */
-void bench_cross_cuda() {
+void bench_cross_cuda([[maybe_unused]] environment_t const &env) {
 #if NUMKONG_ARCH_CUDA_
     cudaDeviceProp properties {};
     int device = 0;
@@ -1269,19 +1290,21 @@ void bench_cross_cuda() {
         return;
     }
     fmt::println("- CUDA: {} sm_{}{}", properties.name, properties.major, properties.minor);
-    fmt::println("  CUDA baselines: cuBLAS={}  cuDNN={}  cuVS={}", NUMKONG_COMPARE_TO_CUBLAS ? "on" : "off",
+    fmt::println("- CUDA baselines: cuBLAS {}, cuDNN {}, cuVS {}", NUMKONG_COMPARE_TO_CUBLAS ? "on" : "off",
                  NUMKONG_COMPARE_TO_CUDNN ? "on" : "off", NUMKONG_COMPARE_TO_CUVS ? "on" : "off");
 
     cuda_backend_t const backend {};
     nk_capability_t capabilities = 0;
     if (nk_cuda_capabilities_enabled(0, &capabilities) != nk_success_k) capabilities = 0;
-    bench_cross_cuda(backend, capabilities);
-    bench_cross_ampere(backend, capabilities);
-    bench_cross_hopper(backend, capabilities);
-    bench_cross_blackwell(backend, capabilities);
-    bench_cross_blackwellrtx(backend, capabilities);
-    bench_cross_cublas(backend);
-    bench_cross_cudnn(backend);
-    bench_cross_cuvs(backend);
+    bench_cross_cuda(env, backend, capabilities);
+    bench_cross_ampere(env, backend, capabilities);
+    bench_cross_hopper(env, backend, capabilities);
+    bench_cross_blackwell(env, backend, capabilities);
+    bench_cross_blackwellrtx(env, backend, capabilities);
+    bench_cross_cublas(env, backend);
+    bench_cross_cudnn(env, backend);
+    bench_cross_cuvs(env, backend);
 #endif // NUMKONG_ARCH_CUDA_
 }
+
+} // namespace ashvardanian::numkong::bench

@@ -86,8 +86,8 @@ message(STATUS "NumKong WASI: SIMD capability ${NUMKONG_TARGET_ARCH}, wasi-threa
 message(STATUS "NumKong WASI: Toolchain at ${WASI_SDK_PATH}")
 
 # The engine CTest runs each test binary through. Only hosts that spawn workers over the imported shared memory can
-# run this module: wasmtime with its threads proposal and WASI threads on, the default, or wasmer with threads on,
-# through `-DCMAKE_CROSSCOMPILING_EMULATOR="wasmer;run;--enable-simd;--enable-relaxed-simd;--enable-threads"`.
+# run this module: wasmtime with its threads proposal and WASI threads on, the default, or wasmer with threads on:
+# `-DCMAKE_CROSSCOMPILING_EMULATOR="wasmer;run;--enable-simd;--enable-relaxed-simd;--enable-threads;--forward-host-env"`.
 find_program(NUMKONG_WASMTIME_EXE_ wasmtime PATHS "$ENV{HOME}/.wasmtime/bin")
 set(CMAKE_CROSSCOMPILING_EMULATOR "${NUMKONG_WASMTIME_EXE_};run;-W;relaxed-simd=y,threads=y;-S;threads=y,inherit-env=y"
     CACHE STRING "Runs the WASI tests"

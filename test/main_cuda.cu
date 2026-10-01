@@ -35,11 +35,14 @@
 
 using namespace ashvardanian::numkong::test;
 
-test_config_t nk::test::global_config;
 char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 
+namespace ashvardanian::numkong::test {
+
 /** Every CUDA capability this build compiled, from @c test/cross_cuda.cu. */
-void test_cross_cuda();
+void test_cross_cuda(error_stats_section_t &check);
+
+} // namespace ashvardanian::numkong::test
 
 #pragma region CUDA Error Handling
 
@@ -632,8 +635,7 @@ static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_
 #pragma region CUDA Capabilities
 
 /** Element-wise operations on the CUDA baseline, over @c test/each.hpp. */
-static void test_each_cuda() {
-    error_stats_section_t check(device_capabilities<cuda_runtime_t>());
+static void test_each_cuda(error_stats_section_t &check) {
     check.section("Elementwise Operations CUDA", nk_cap_cuda_k);
     check("each_swiglu_f32_cuda", test_swiglu<f32_t, cuda_backend_t>, nk_each_swiglu_f32_cuda);
     check("each_swiglu_bf16_cuda", test_swiglu<bf16_t, cuda_backend_t>, nk_each_swiglu_bf16_cuda);
@@ -648,7 +650,7 @@ static void test_each_cuda() {
 
 /** @c nk_cuda_capabilities_detected reports the CUDA baseline on every device, and the tensor-core
  *  capabilities the device's compute capability runs. */
-static error_stats_t test_cuda_capabilities(int device) {
+static error_stats_t test_cuda_capabilities(settings_t const &, int device) {
     error_stats_t stats(comparison_family_t::exact_k);
     int major = 0, minor = 0;
     stats.expect(cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, device) == cudaSuccess &&
@@ -669,24 +671,21 @@ static error_stats_t test_cuda_capabilities(int device) {
 #pragma endregion CUDA Capabilities
 
 int main(int, char **argv) {
-    global_config.load_environment();
-    global_config.program = argv[0];
-    log_environment();
-    fmt::println("- Seed: {}", global_config.seed);
-    fmt::println("- Rerun one test: NUMKONG_SEED={} NUMKONG_FILTER='^<name>$' {}", global_config.seed, argv[0]);
+    environment_t const env {read_settings(argv[0]), probe_machine()};
+    print(env.machine);
+    print(env.settings);
     auto const devices = nk::device_t::count(nk::device_kind_t::cuda_k);
     if (!devices) {
         fmt::println("- CUDA: no device");
         return 0;
     }
-    nk_capability_t const capabilities =
-        nk::device_t::make(nk::device_kind_t::cuda_k, 0).value.capabilities_enabled().value;
+    nk_capability_t const capabilities = device_capabilities<cuda_runtime_t>();
     char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
     nk_capabilities_name(capabilities, names, sizeof(names));
     fmt::println("- CUDA: {} devices, the first running {}", devices.value, names);
 
-    error_stats_section_t check(nk_cap_any_k);
-    check.section("CUDA capabilities", nk_cap_cuda_k);
+    error_stats_section_t check(env.settings, capabilities | nk_cap_serial_k);
+    check.section("CUDA capabilities", nk_cap_serial_k); // the report itself is under test, so never gate on it
     check("gpu_capabilities_cuda", test_cuda_capabilities, 0);
 
     // Hardware intrinsics: fp8 from SM_89 (Ada), fp6 from SM_100 (Blackwell).
@@ -703,7 +702,7 @@ int main(int, char **argv) {
         (ok ? passed : failed) += 1;
     };
 
-    if (global_config.should_run("Tensor memcpy round-trips")) {
+    if (env.settings.selects("Tensor memcpy round-trips")) {
         fmt::println("\nTensor memcpy round-trips");
         run_("1D round-trip (cudaMemcpy)", test_memcpy_1d_roundtrip_());
         run_("2D round-trip, padded rows (cudaMemcpy2D)", test_memcpy_2d_padded_rows_());
@@ -713,7 +712,7 @@ int main(int, char **argv) {
         run_("device tensor_view/vector_view ops", test_device_tensor_view_ops_());
     }
 
-    if (global_config.should_run("FP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)")) {
+    if (env.settings.selects("FP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)")) {
         fmt::println("\nFP8 conformance: nk_cast vs __nv_cvt_* (bit-exact)");
         run_("fp32 → e4m3 (exhaustive 2^32)",
              sweep_fp32_to_fp8_( //
@@ -765,7 +764,7 @@ int main(int, char **argv) {
                  }));
     }
 
-    if (global_config.should_run("FP8 reverse: fp{32,16,bf16} ← e{4m3,5m2} (bit-exact)")) {
+    if (env.settings.selects("FP8 reverse: fp{32,16,bf16} ← e{4m3,5m2} (bit-exact)")) {
         fmt::println("\nFP8 reverse: fp{{32,16,bf16}} ← e{{4m3,5m2}} (bit-exact)");
         run_("e4m3 → fp32 (exhaustive 2^8)",
              sweep_small_to_wide_<float>( //
@@ -817,7 +816,7 @@ int main(int, char **argv) {
                  bf16_bits_equal_tolerant_nan_));
     }
 
-    if (global_config.should_run("FP6 conformance: nk_cast vs __nv_cvt_* (bit-exact)")) {
+    if (env.settings.selects("FP6 conformance: nk_cast vs __nv_cvt_* (bit-exact)")) {
         fmt::println("\nFP6 conformance: nk_cast vs __nv_cvt_* (bit-exact)");
         run_("fp32 → e3m2 (exhaustive 2^32)",
              sweep_fp32_to_fp6_( //
@@ -863,7 +862,7 @@ int main(int, char **argv) {
                  }));
     }
 
-    if (global_config.should_run("FP6 reverse: fp{32,16,bf16} ← e{3m2,2m3} (bit-exact)")) {
+    if (env.settings.selects("FP6 reverse: fp{32,16,bf16} ← e{3m2,2m3} (bit-exact)")) {
         fmt::println("\nFP6 reverse: fp{{32,16,bf16}} ← e{{3m2,2m3}} (bit-exact)");
         run_("e3m2 → fp32 (exhaustive 2^6)",
              sweep_small_to_wide_<float>( //
@@ -915,11 +914,11 @@ int main(int, char **argv) {
                  bf16_bits_equal_tolerant_nan_));
     }
 
-    test_each_cuda();
-    test_cross_cuda();
+    test_each_cuda(check);
+    test_cross_cuda(check);
 
-    passed += static_cast<int>(global_config.kernel_count - global_config.failure_count);
-    failed += static_cast<int>(global_config.failure_count);
+    passed += static_cast<int>(check.kernel_count - check.failure_count);
+    failed += static_cast<int>(check.failure_count);
     fmt::println("\n{} passed, {} failed", passed, failed);
-    return failed == 0 ? 0 : 1;
+    return failed != 0 && env.settings.on_failure == on_failure_t::exit_k ? 1 : 0;
 }

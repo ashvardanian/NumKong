@@ -7,10 +7,9 @@
 #include "harness.hpp"
 #include "cross.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
-void test_cross_loongarch64() {
-    [[maybe_unused]] error_stats_section_t check;
+void test_cross_loongarch64([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_LOONGSONASX
     check.section("Cross LoongArch LASX", nk_cap_loongsonasx_k);
     check("dots_packed_f64_loongsonasx", test_dots_packed<f64_t>, nk_dots_pack_size_f64_loongsonasx,
@@ -112,3 +111,5 @@ void test_cross_loongarch64() {
     check("jaccards_symmetric_u1_loongsonasx", test_jaccards_symmetric<u1x8_t>, nk_jaccards_symmetric_u1_loongsonasx);
 #endif // NUMKONG_TARGET_LOONGSONASX
 }
+
+} // namespace ashvardanian::numkong::test

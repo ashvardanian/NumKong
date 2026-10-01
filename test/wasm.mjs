@@ -18,6 +18,7 @@ import assert from "node:assert";
 import { readFileSync } from "node:fs";
 import { WASI } from "node:wasi";
 import { relaxedProbe, simd128Probe } from "../javascript/dist/esm/wasm-probes.js";
+import { Random, streamKey } from "./random.mjs";
 
 function resolveModule(candidates) {
   return candidates.find((path) => {
@@ -114,20 +115,9 @@ function readSeed() {
 /** Runtime selected by the environment variable. */
 const runtime = process.env.NUMKONG_RUNTIME || "native";
 const seed = readSeed();
-const dims = process.env.NUMKONG_DENSE_DIMENSIONS
-  ? process.env.NUMKONG_DENSE_DIMENSIONS.split(",").map(Number)
+const dims = process.env.NUMKONG_DIMS
+  ? process.env.NUMKONG_DIMS.split(",").map(Number)
   : [3, 16, 128, 1536];
-
-/** Simple PRNG for reproducible tests. */
-class Random {
-  constructor(seed) {
-    this.seed = seed;
-  }
-  next() {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return this.seed / 0x7fffffff;
-  }
-}
 
 /** Sub-byte packing ratio, equal to `nk_dimensions_per_value` in types.h. */
 function dimensionsPerValue(dtype) {
@@ -275,9 +265,7 @@ const testMatrix = {
   jaccard: ["u8"],
 };
 
-let rngCounter = 0;
-function randomVector(dtype, len) {
-  const rng = new Random(seed + rngCounter++);
+function randomVector(dtype, len, rng) {
   if (dtype === "f64") return Float64Array.from({ length: len }, () => rng.next() * 2 - 1);
   if (dtype === "f32") return Float32Array.from({ length: len }, () => rng.next() * 2 - 1);
   if (dtype === "i8") return Int8Array.from({ length: len }, () => (rng.next() * 256 - 128) | 0);
@@ -288,8 +276,9 @@ for (const [fn, dtypes] of Object.entries(testMatrix)) {
   for (const dtype of dtypes) {
     for (const dim of dims) {
       test(`[${runtime}] ${fn}(${dtype}×${dim})`, () => {
-        const a = randomVector(dtype, dim);
-        const b = randomVector(dtype, dim);
+        const rng = new Random(streamKey(seed, `${fn}/${dtype}/${dim}`));
+        const a = randomVector(dtype, dim, rng);
+        const b = randomVector(dtype, dim, rng);
         const result = numkong[fn](a, b);
 
         assert.strictEqual(typeof result, "number");

@@ -17,15 +17,20 @@ import collections
 import contextlib
 import decimal
 import faulthandler
+import importlib.util
+import io
+import itertools
 import math
 import os
 import random
+import re
+import secrets
 import sys
 import time
 from collections.abc import Callable, Generator
-from typing import TYPE_CHECKING, Any
-
-import pytest
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import TYPE_CHECKING, Any, Literal, NewType, TypeVar
 
 import numkong as nk
 
@@ -35,92 +40,171 @@ if TYPE_CHECKING:
 
 faulthandler.enable()
 
-_nk_seed_request: str = os.environ.get("NUMKONG_SEED", "42")
-try:
-    _nk_seed_base: int = (
-        int.from_bytes(os.urandom(4), "little") if _nk_seed_request == "random" else int(_nk_seed_request)
+T = TypeVar("T")
+
+Seed = NewType("Seed", int)  # 32-bit; derive streams from it with `stream_key`, never add to it
+StreamKey = NewType("StreamKey", int)  # 64-bit, from `stream_key`; seeds one test's generators
+Threads = NewType("Threads", int)  # resolved count, never 0: `parse_threads` maps 0 to all cores
+Bytes = NewType("Bytes", int)  # a size in bytes, never an element count
+Nanoseconds = NewType("Nanoseconds", int)  # a `time.perf_counter_ns` difference
+
+DType = Literal[
+    "float64", "float32", "float16", "bfloat16", "bf16", "e5m2", "e4m3", "e3m2", "e2m3", "e2m1",
+    "int64", "int32", "int16", "int8", "int4", "uint64", "uint32", "uint16", "uint8", "uint4", "uint1",
+    "complex128", "complex64",
+]  # fmt: skip
+BufferDType = Literal["float64", "float32", "int8", "uint8"]
+
+
+def env_text(name: str) -> str | None:
+    """Reads `name`, or `None` when it is unset or empty."""
+    return os.environ.get(name) or None
+
+
+def env_parsed(name: str, fallback: T, parse: Callable[[str], T | None], expected: str) -> T:
+    """Reads `name` through `parse`, or `fallback` when unset or empty; exits with status 1 on bad text."""
+    text = env_text(name)
+    if text is None:
+        return fallback
+    try:
+        parsed = parse(text)
+    except (ValueError, TypeError):
+        parsed = None
+    if parsed is None:
+        raise SystemExit(f'{name}="{text}" does not parse, expected {expected}')
+    return parsed
+
+
+def env_count(name: str, fallback: int) -> int:
+    """Reads a positive count like `128`, or `fallback` when unset or empty."""
+    return env_parsed(name, fallback, parse_count, "a positive count")
+
+
+def env_flag(name: str, fallback: bool) -> bool:
+    """Reads `0`, `1`, `true` or `false`, or `fallback` when unset or empty."""
+    return env_parsed(name, fallback, {"0": False, "false": False, "1": True, "true": True}.get, "0, 1, true or false")
+
+
+def env_seed(name: str, fallback: Seed) -> Seed:
+    """Reads an unsigned 32-bit seed or `random`, or `fallback` when unset or empty."""
+    return env_parsed(name, fallback, parse_seed, "an unsigned integer or random")
+
+
+def parse_count(text: str) -> int | None:
+    """Parses a positive whole number in ASCII digits, like `128`; zero is `None`."""
+    digits = re.fullmatch(r"[0-9]+", text) is not None
+    return (int(text) or None) if digits else None
+
+
+def parse_dims(text: str) -> list[int] | None:
+    """Parses one count like `128` or a comma list like `64,128,256,512`."""
+    counts = [count for piece in text.split(",") if (count := parse_count(piece)) is not None]
+    return counts if len(counts) == text.count(",") + 1 else None
+
+
+def parse_seed(text: str) -> Seed | None:
+    """Parses an unsigned 32-bit integer like `42`, or `random` to draw one from system entropy."""
+    if text == "random":
+        return Seed(secrets.randbits(32))
+    digits = re.fullmatch(r"[0-9]+", text) is not None
+    return Seed(int(text)) if digits and int(text) < 2**32 else None
+
+
+def parse_angle_degrees(text: str) -> float | None:
+    """Parses an angle in degrees within `[0, 180]`, like the C++ harness."""
+    angle = float(text)
+    return angle if 0 <= angle <= 180 else None
+
+
+_UINT64_MASK = 2**64 - 1
+
+
+def mix(value: int) -> int:
+    """SplitMix64's finalizer, a bijection that spreads every input bit over all 64 output bits."""
+    value = ((value ^ (value >> 30)) * 0xBF58476D1CE4E5B9) & _UINT64_MASK
+    value = ((value ^ (value >> 27)) * 0x94D049BB133111EB) & _UINT64_MASK
+    return value ^ (value >> 31)
+
+
+def stream_key(seed: Seed, name: str) -> StreamKey:
+    """The key of stream `name`, `mix(mix(seed ^ fnv1a64(name)))`, bit-identical to C++ `stream_key`."""
+    hashed = 0xCBF29CE484222325
+    for byte in name.encode():
+        hashed = ((hashed ^ byte) * 0x100000001B3) & _UINT64_MASK
+    return StreamKey(mix(mix(seed ^ hashed)))
+
+
+@dataclass(frozen=True)
+class Settings:
+    """Every `NUMKONG_*` variable the Python suite reads, parsed once at import."""
+
+    seed: Seed
+    filter: str
+    filter_pattern: re.Pattern[str] | None
+    in_qemu: bool
+    repetitions: int
+    dims: list[int]
+    dims_height: list[int]
+    dims_width: list[int]
+    dims_depth: list[int]
+    curved_dims: list[int]
+    sparse_dims: list[int]
+    mesh_points: int
+    max_coord_angle_degrees: float
+    expect_simd: bool
+
+    @property
+    def reduced_repetitions(self) -> int:
+        """A fifth of `repetitions`, for the costlier matrix and mesh sweeps."""
+        return max(1, self.repetitions // 5)
+
+    def selects(self, name: str) -> bool:
+        """Whether `NUMKONG_FILTER` selects the test `name`, as a regex or else as a substring."""
+        return bool(self.filter_pattern.search(name)) if self.filter_pattern else self.filter in name
+
+
+def read_settings() -> Settings:
+    """Reads every `NUMKONG_*` variable, exiting with status 1 on the first that does not parse."""
+    seed = env_seed("NUMKONG_SEED", Seed(42))
+    filter = env_text("NUMKONG_FILTER") or ""
+    try:
+        filter_pattern = re.compile(filter) if filter else None
+    except re.error:
+        filter_pattern = None
+    in_qemu = env_flag("NUMKONG_IN_QEMU", False)
+    repetitions = env_count("NUMKONG_REPETITIONS", 3 if in_qemu else 10)
+    # Simple cases first, then tiny ones, then the corners around common sizes.
+    wide = [4, 8, 16, 64, 128, 1, 2, 3, 5, 7, 9, 15, 17, 31, 32, 33, 63, 65, 97]
+    dims = env_parsed(
+        "NUMKONG_DIMS", [1, 4, 16, 33, 64] if in_qemu else wide, parse_dims, "positive counts like 64,128"
     )
-except ValueError:
-    raise SystemExit(f'NUMKONG_SEED="{_nk_seed_request}" does not parse') from None
-_nk_in_qemu: bool = os.environ.get("NUMKONG_IN_QEMU", "") not in ("", "0", "false")
 
-_nk_possible_dimensions = (
-    [1, 4, 16, 33, 64]
-    if _nk_in_qemu
-    else [
-        # start with simplest cases
-        4,
-        8,
-        16,
-        64,
-        128,
-        # cover tiny cases
-        1,
-        2,
-        3,
-        5,
-        7,
-        9,
-        # corner cases around common sizes
-        15,
-        16,
-        17,
-        31,
-        32,
-        33,
-        63,
-        64,
-        65,
-        97,
-    ]
-)
+    def sampled(name: str, sample_key: int, count: int) -> list[int]:
+        fallback = sorted(random.Random(sample_key).sample(dims, min(count, len(dims))))
+        return env_parsed(name, fallback, parse_dims, "positive counts like 64,128")
+
+    return Settings(
+        seed=seed,
+        filter=filter,
+        filter_pattern=filter_pattern,
+        in_qemu=in_qemu,
+        repetitions=repetitions,
+        dims=dims,
+        # Deterministic subsamples for the `[height, width, depth]` axes, named as in `dots.h`.
+        dims_height=sampled("NUMKONG_DIMS_HEIGHT", 42, 6),
+        dims_width=sampled("NUMKONG_DIMS_WIDTH", 43, 6),
+        dims_depth=sampled("NUMKONG_DIMS_DEPTH", 44, 6),
+        curved_dims=sampled("NUMKONG_CURVED_DIMS", 45, 5),
+        sparse_dims=env_parsed("NUMKONG_SPARSE_DIMS", [256], parse_dims, "positive counts like 64,128"),
+        mesh_points=env_count("NUMKONG_MESH_POINTS", 1000),
+        max_coord_angle_degrees=env_parsed(
+            "NUMKONG_MAX_COORD_ANGLE", 180.0, parse_angle_degrees, "a number in [0, 180]"
+        ),
+        expect_simd=env_flag("NUMKONG_EXPECT_SIMD", True),
+    )
 
 
-randomized_repetitions_count: int = (
-    int(s) if (s := os.environ.get("NUMKONG_REPETITIONS")) is not None else (3 if _nk_in_qemu else 10)
-)
-
-dense_dimensions: list[int] = (
-    [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NUMKONG_DENSE_DIMENSIONS")) is not None
-    else _nk_possible_dimensions
-)
-
-_dim_sample_k = min(6, len(dense_dimensions))
-"""Deterministic random subsamples for multi-dimensional parametrization shaped [height,width,depth],
-matching the C API naming in dots.h. Override via NUMKONG_MATRIX_HEIGHT/WIDTH/DEPTH env vars.
-"""
-test_height_dimensions: list[int] = (
-    [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NUMKONG_MATRIX_HEIGHT")) is not None
-    else sorted(random.Random(42).sample(dense_dimensions, _dim_sample_k))
-)
-test_width_dimensions: list[int] = (
-    [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NUMKONG_MATRIX_WIDTH")) is not None
-    else sorted(random.Random(43).sample(dense_dimensions, _dim_sample_k))
-)
-test_depth_dimensions: list[int] = (
-    [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NUMKONG_MATRIX_DEPTH")) is not None
-    else sorted(random.Random(44).sample(dense_dimensions, _dim_sample_k))
-)
-
-reduced_repetitions_count: int = max(1, randomized_repetitions_count // 5)
-
-test_curved_dimensions: list[int] = (
-    [int(d) for d in s.split(",")]
-    if (s := os.environ.get("NUMKONG_CURVED_DIMENSIONS")) is not None
-    else sorted(random.Random(45).sample(dense_dimensions, min(5, len(dense_dimensions))))
-)
-
-sparse_dimensions: list[int] = (
-    [int(d) for d in s.split(",")] if (s := os.environ.get("NUMKONG_SPARSE_DIMENSIONS")) is not None else [256]
-)
-
-mesh_points: int = int(s) if (s := os.environ.get("NUMKONG_MESH_POINTS")) is not None else 100
-
-max_coord_angle: float = float(s) if (s := os.environ.get("NUMKONG_MAX_COORD_ANGLE")) is not None else 180.0
+SETTINGS = read_settings()
 
 try:
     import numpy as np
@@ -129,25 +213,14 @@ try:
 except Exception:
     numpy_available = False
 
-try:
-    import scipy.spatial.distance  # noqa: F401
-
-    scipy_available = True
-except ImportError:
-    scipy_available = False
-
-try:
-    import ml_dtypes  # noqa: F401
-
-    ml_dtypes_available = True
-except ImportError:
-    ml_dtypes_available = False
+scipy_available = importlib.util.find_spec("scipy") is not None
+ml_dtypes_available = importlib.util.find_spec("ml_dtypes") is not None
 
 
 NUMKONG_RTOL = 0.1
 NUMKONG_ATOL = 0.1
 
-NATIVE_COMPUTE_DTYPE: dict[str, type] = (
+NATIVE_COMPUTE_DTYPE: dict[str, type[Any]] = (
     {
         "float64": np.float64,
         "float32": np.float32,
@@ -197,7 +270,9 @@ _DTYPES_NEEDING_DECIMAL = {"float32", "float64", "complex64", "complex128"}
 
 
 @contextlib.contextmanager
-def precise_decimal(dtype: str | None = None) -> Generator[tuple[Callable, Callable, Callable], None, None]:
+def precise_decimal(
+    dtype: str | None = None,
+) -> Generator[tuple[Callable[..., Any], Callable[..., Any], Callable[..., Any]], None, None]:
     """Yield ``(upcast, sqrt, ln)`` helpers for high-precision baselines.
 
     When *dtype* is a small type (float32, float16, int8, …) native ``float``
@@ -221,13 +296,13 @@ def precise_decimal(dtype: str | None = None) -> Generator[tuple[Callable, Calla
             yield decimal.Decimal.from_float, decimal.Decimal.sqrt, decimal.Decimal.ln
 
 
-def profile(callable: Callable | None, *args: Any, **kwargs: Any) -> tuple[int, Any]:
-    if callable is None:
-        return 0, None
-    before = time.perf_counter_ns()
-    result = callable(*args, **kwargs)
-    after = time.perf_counter_ns()
-    return after - before, result
+def timed_call(function: Callable[..., T] | None, *args: Any, **kwargs: Any) -> tuple[Nanoseconds, T | None]:
+    """Calls `function` once, returning its duration and result, or `(0, None)` without one."""
+    if function is None:
+        return Nanoseconds(0), None
+    started = time.perf_counter_ns()
+    result = function(*args, **kwargs)
+    return Nanoseconds(time.perf_counter_ns() - started), result
 
 
 def scipy_metric_name(metric: str) -> str:
@@ -238,11 +313,9 @@ def scipy_metric_name(metric: str) -> str:
 
 
 def to_array(x: Any, dtype: str | None = None) -> np.ndarray:
-    if numpy_available:
-        y = np.array(x)
-        if dtype is not None:
-            y = y.astype(dtype)
-        return y
+    """Copies `x` into a NumPy array, cast to `dtype` when one is given."""
+    array = np.array(x)
+    return array if dtype is None else array.astype(dtype)
 
 
 _DTYPE_TOLERANCES: dict[str, tuple[float, float]] = {
@@ -276,21 +349,15 @@ def tolerances_for_dtype(dtype: str) -> tuple[float, float]:
     return _DTYPE_TOLERANCES.get(dtype, (NUMKONG_ATOL, NUMKONG_RTOL))
 
 
-def random_of_dtype(dtype: str, shape: tuple[int, ...]) -> tuple[Any, Any]:
-    """Legacy helper — thin wrapper around :func:`make_random`."""
-    raw, _ = make_random(shape, dtype)
-    return raw
-
-
 class LazyFormat:
     """Deferred string formatting — only evaluated when str() is called (on assertion failure)."""
 
     __slots__ = ("_fn",)
 
-    def __init__(self, fn):
+    def __init__(self, fn: Callable[[], str]) -> None:
         self._fn = fn
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self._fn()
 
 
@@ -314,7 +381,7 @@ def f32_downcast_to_bf16(array: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     return array_f32_rounded, array_bf16
 
 
-def _pack_nibbles(array):
+def _pack_nibbles(array: Any) -> np.ndarray:
     """Pack pairs of nibbles along the last axis, preserving leading dimensions: high nibble = even index.
 
     The last axis must hold an even number of nibbles. Returns a uint8 array.
@@ -324,7 +391,7 @@ def _pack_nibbles(array):
     return ((nibbles[..., 0::2] << 4) | nibbles[..., 1::2]).astype(np.uint8)
 
 
-def i8_downcast_to_i4(array):
+def i8_downcast_to_i4(array: Any) -> np.ndarray:
     """Pack signed 8-bit integers into signed 4-bit pairs (2 per byte).
 
     Layout matches C ``nk_i4x2_t``: high nibble = even index, low nibble = odd index.
@@ -335,7 +402,7 @@ def i8_downcast_to_i4(array):
     return _pack_nibbles(array)
 
 
-def u8_downcast_to_u4(array):
+def u8_downcast_to_u4(array: Any) -> np.ndarray:
     """Pack unsigned 8-bit integers into unsigned 4-bit pairs (2 per byte).
 
     Layout matches C ``nk_u4x2_t``: high nibble = even index, low nibble = odd index.
@@ -346,7 +413,7 @@ def u8_downcast_to_u4(array):
     return _pack_nibbles(array)
 
 
-def e2m1_codes_to_e2m1x2(codes):
+def e2m1_codes_to_e2m1x2(codes: Any) -> np.ndarray:
     """Pack E2M1 nibble codes along the last axis, matching C ``nk_e2m1x2_t``: high nibble = even index."""
     return _pack_nibbles(codes)
 
@@ -372,9 +439,17 @@ def hex_array(arr: Any) -> str:
 # NaN entries are stored as ``float('nan')``.
 
 
+class SpecialValues(Enum):
+    """What a sub-byte float's top exponent encodes."""
+
+    FINITE = "finite"  # every code is a number: e2m1, e2m3, e3m2
+    IEEE = "ieee"  # zero mantissa is ±∞, the rest NaN: e5m2
+    NAN_AT_MAX_MANTISSA = "nan-at-max-mantissa"  # only the all-ones code is NaN: e4m3
+
+
 def build_subbyte_float_lookup_table(
-    sign_bit, exp_bits, mant_bits, bias, total_bits, has_inf=False, nan_only_max_mant=False
-):
+    sign_bit: int, exp_bits: int, mant_bits: int, bias: int, total_bits: int, special: SpecialValues
+) -> list[float]:
     """Build a byte→float64 lookup table for a sub-byte float format.
 
     Args:
@@ -383,51 +458,37 @@ def build_subbyte_float_lookup_table(
         mant_bits: number of mantissa bits
         bias: exponent bias
         total_bits: number of significant bits (6 for float6, 8 for float8)
-        has_inf: if True, max exponent with zero mantissa = ±∞
-        nan_only_max_mant: if True, only max_exp + max_mant is NaN (e4m3 rule)
+        special: what the top exponent encodes
     """
-    n = 1 << total_bits
     exp_mask = (1 << exp_bits) - 1
     mant_mask = (1 << mant_bits) - 1
-    max_exp = exp_mask
-    max_mant = mant_mask
-    lut = [0.0] * n
-    for i in range(n):
+    lut = [0.0] * (1 << total_bits)
+    for i in range(len(lut)):
         sign = (i >> sign_bit) & 1
         exp = (i >> mant_bits) & exp_mask
         mant = i & mant_mask
+        if exp == exp_mask and special is SpecialValues.IEEE:
+            lut[i] = (-math.inf if sign else math.inf) if mant == 0 else math.nan
+            continue
+        if exp == exp_mask and special is SpecialValues.NAN_AT_MAX_MANTISSA and mant == mant_mask:
+            lut[i] = math.nan
+            continue
         if exp == 0:
             # Subnormal: value = (−1)^s × 2^(1−bias) × (mant / 2^mant_bits)
             val = (mant / (1 << mant_bits)) * (2.0 ** (1 - bias))
-        elif exp == max_exp:
-            if has_inf and mant == 0:
-                lut[i] = -float("inf") if sign else float("inf")
-                continue
-            if has_inf and mant != 0:
-                lut[i] = float("nan")
-                continue
-            if nan_only_max_mant and mant == max_mant:
-                lut[i] = float("nan")
-                continue
-            # Finite max-exponent value
-            val = 2.0 ** (exp - bias) * (1.0 + mant / (1 << mant_bits))
         else:
             val = 2.0 ** (exp - bias) * (1.0 + mant / (1 << mant_bits))
         lut[i] = -val if sign else val
     return lut
 
 
-LOOKUP_TABLE_E2M3 = build_subbyte_float_lookup_table(sign_bit=5, exp_bits=2, mant_bits=3, bias=1, total_bits=6)
-LOOKUP_TABLE_E2M1 = build_subbyte_float_lookup_table(sign_bit=3, exp_bits=2, mant_bits=1, bias=1, total_bits=4)
-LOOKUP_TABLE_E3M2 = build_subbyte_float_lookup_table(sign_bit=5, exp_bits=3, mant_bits=2, bias=3, total_bits=6)
-LOOKUP_TABLE_E4M3 = build_subbyte_float_lookup_table(
-    sign_bit=7, exp_bits=4, mant_bits=3, bias=7, total_bits=8, nan_only_max_mant=True
-)
-LOOKUP_TABLE_E5M2 = build_subbyte_float_lookup_table(
-    sign_bit=7, exp_bits=5, mant_bits=2, bias=15, total_bits=8, has_inf=True
-)
+LOOKUP_TABLE_E2M3 = build_subbyte_float_lookup_table(5, 2, 3, 1, 6, SpecialValues.FINITE)
+LOOKUP_TABLE_E2M1 = build_subbyte_float_lookup_table(3, 2, 1, 1, 4, SpecialValues.FINITE)
+LOOKUP_TABLE_E3M2 = build_subbyte_float_lookup_table(5, 3, 2, 3, 6, SpecialValues.FINITE)
+LOOKUP_TABLE_E4M3 = build_subbyte_float_lookup_table(7, 4, 3, 7, 8, SpecialValues.NAN_AT_MAX_MANTISSA)
+LOOKUP_TABLE_E5M2 = build_subbyte_float_lookup_table(7, 5, 2, 15, 8, SpecialValues.IEEE)
 
-SUBBYTE_LOOKUP_TABLES = {
+SUBBYTE_LOOKUP_TABLES: dict[str, list[float]] = {
     "e5m2": LOOKUP_TABLE_E5M2,
     "e4m3": LOOKUP_TABLE_E4M3,
     "e3m2": LOOKUP_TABLE_E3M2,
@@ -435,27 +496,27 @@ SUBBYTE_LOOKUP_TABLES = {
 }
 
 
-def _make_random_numpy(shape, dtype):
-    """NumPy-backed random-data factory (original implementation)."""
+def _make_random_numpy(shape: tuple[int, ...], dtype: DType, generator: np.random.Generator) -> tuple[Any, Any]:
+    """Draws `shape` values of `dtype` from `generator`, as `(raw, baseline)`."""
     if dtype in ("float64", "float32", "float16"):
-        raw = np.random.randn(*shape).astype(dtype)
+        raw = generator.standard_normal(shape).astype(dtype)
         baseline = raw.astype(np.float64)
         return raw, baseline
 
     if dtype in ("bfloat16", "bf16"):
-        f32_arr = np.random.randn(*shape).astype(np.float32)
+        f32_arr = generator.standard_normal(shape).astype(np.float32)
         f32_rounded, bf16_raw = f32_downcast_to_bf16(f32_arr)
         baseline = f32_rounded.astype(np.float64)
         return bf16_raw, baseline
 
     if dtype in ("int64", "int32", "int16", "int8", "uint64", "uint32", "uint16", "uint8"):
         info = np.iinfo(np.dtype(dtype))
-        raw = np.random.randint(info.min, info.max, size=shape, dtype=dtype)
+        raw = generator.integers(info.min, info.max, size=shape, dtype=dtype)
         baseline = raw.astype(np.float64)
         return raw, baseline
 
     if dtype in ("complex64", "complex128"):
-        raw = (np.random.randn(*shape) + 1j * np.random.randn(*shape)).astype(dtype)
+        raw = (generator.standard_normal(shape) + 1j * generator.standard_normal(shape)).astype(dtype)
         baseline = raw.astype(np.complex128)
         return raw, baseline
 
@@ -476,23 +537,23 @@ def _make_random_numpy(shape, dtype):
         magnitude_ok = np.abs(decoded) <= mag_threshold
         if not np.all(magnitude_ok):
             valid_bytes = valid_bytes[magnitude_ok]
-        raw = valid_bytes[np.random.randint(0, len(valid_bytes), size=shape)]
+        raw = valid_bytes[generator.integers(0, len(valid_bytes), size=shape)]
         baseline = lut[raw.astype(int)]
         return raw, baseline
 
     if dtype == "e2m1":
-        codes = np.random.randint(0, 16, size=shape).astype(np.uint8)
+        codes = generator.integers(0, 16, size=shape).astype(np.uint8)
         baseline = np.array(LOOKUP_TABLE_E2M1)[codes.astype(int)]
         return e2m1_codes_to_e2m1x2(codes), baseline
 
     if dtype == "int4":
-        values = np.random.randint(-8, 8, size=shape, dtype=np.int8)
+        values = generator.integers(-8, 8, size=shape, dtype=np.int8)
         baseline = values.astype(np.float64)
         raw = i8_downcast_to_i4(values)
         return raw, baseline
 
     if dtype == "uint4":
-        values = np.random.randint(0, 16, size=shape, dtype=np.uint8)
+        values = generator.integers(0, 16, size=shape, dtype=np.uint8)
         baseline = values.astype(np.float64)
         raw = u8_downcast_to_u4(values)
         return raw, baseline
@@ -500,58 +561,28 @@ def _make_random_numpy(shape, dtype):
     raise ValueError(f"Unsupported dtype for make_random: {dtype}")
 
 
-def _make_random_fallback(shape, dtype, seed):
-    """NumPy-free random-data factory using ``nk.iota``.
-
-    Returns ``(nk_tensor, list_of_floats)`` — the list serves as the
-    baseline for Decimal-based precise functions.
-
-    Values are centered around zero and scaled to approximately [-3, 3]
-    (matching ``np.random.randn`` magnitude) to avoid overflow in
-    low-precision types.
-    """
-    n = 1
-    for d in shape:
-        n *= d
-    # Build centered iota: values from -n//2 to +n//2
-    raw = nk.iota(shape, seed=seed - n // 2, dtype=dtype)
-    if n > 6:
-        # Scale down to [-3, 3] range to match np.random.randn magnitude.
-        # This prevents overflow in product ops for float16/bf16.
-        scale_factor = 6.0 / n
-        raw = nk.scale(raw, alpha=scale_factor, beta=0.0)
-    baseline = [float(x) for x in raw.flatten()]
-    return raw, baseline
-
-
-def make_random(shape: int | tuple[int, ...], dtype: str, seed: int = 0) -> tuple[Any, Any]:
-    """Unified random-data factory.
+def make_random(shape: int | tuple[int, ...], dtype: DType, generator: np.random.Generator) -> tuple[Any, Any]:
+    """Unified random-data factory, drawing from the test's `np_rng`.
 
     Returns ``(raw, baseline)`` where:
 
     - *raw*: data in the dtype's storage format, suitable for SIMD kernels.
     - *baseline*: ``float64`` (or ``complex128``) array for reference comparison.
-      When NumPy is available this is a NumPy array; otherwise a plain ``list[float]``.
 
     For exotic types the raw array uses a NumPy-native storage dtype
     (``uint16`` for bf16, ``uint8`` for float8/float6).
     """
     if isinstance(shape, int):
         shape = (shape,)
-
-    if numpy_available:
-        return _make_random_numpy(shape, dtype)
-
-    return _make_random_fallback(shape, dtype, seed)
+    return _make_random_numpy(shape, dtype, generator)
 
 
 def make_nk(np_arr: np.ndarray, dtype: str | None = None) -> nk.Tensor:
     """Copy a NumPy array into a NumKong tensor; packed dtypes read the bytes and count logical dimensions."""
-    if dtype is None:
-        dtype = str(np_arr.dtype)
-    if dtype in PACKING_GRANULARITY:
-        return nk.Tensor(np.ascontiguousarray(np_arr), dtype=dtype)
-    nk_arr = nk.zeros(np_arr.shape, dtype=dtype)
+    dtype_name: Any = str(np_arr.dtype) if dtype is None else dtype  # a NumPy name, checked by `nk` at run time
+    if dtype_name in PACKING_GRANULARITY:
+        return nk.Tensor(np.ascontiguousarray(np_arr), dtype=dtype_name)
+    nk_arr = nk.zeros(np_arr.shape, dtype=dtype_name)
     dst = np.asarray(nk_arr)
     src = np.ascontiguousarray(np_arr)
     if dst.dtype != src.dtype:
@@ -576,7 +607,7 @@ def downcast_f32_to_dtype(f32_arr: np.ndarray, dtype: str) -> tuple[np.ndarray, 
 
 
 possible_capabilities: list[str] = [
-    capability.name.lower() for capability in nk.Capability if capability in nk.Device.cpu().capabilities_enabled()
+    str(capability.name).lower() for capability in nk.Capability if capability in nk.Device.cpu().capabilities_enabled()
 ]
 """Must be `enabled` at import, not `detected`: parametrizing over a capability this CPU has but this
 binary lacks silently tests the serial fallback while claiming to cover the SIMD kernel. A binary holds
@@ -586,107 +617,83 @@ one CPU capability group, serial first, so no per-architecture list is needed.
 current_capability: str | None = None
 
 
-def keep_one_capability(cap: str):
+def keep_one_capability(capability: str) -> None:
+    """Restricts dispatch to `capability`, which this binary must have compiled in."""
     global current_capability
-    assert cap in possible_capabilities, f"Capability {cap} is not available on this platform."
-    if cap == current_capability:
+    assert capability in possible_capabilities, f"Capability {capability} is not available on this platform."
+    if capability == current_capability:
         return
-    nk.Device.cpu().capabilities_enable(nk.Capability[cap.upper()])
-    current_capability = cap
+    nk.Device.cpu().capabilities_enable(nk.Capability[capability.upper()])
+    current_capability = capability
 
 
-def create_stats() -> dict[str, list]:
-    """Create a fresh stats dict for error collection."""
-    return {
-        "metric": [],
-        "ndim": [],
-        "dtype": [],
-        "capability": [],
-        "absolute_baseline_error": [],
-        "relative_baseline_error": [],
-        "absolute_nk_error": [],
-        "relative_nk_error": [],
-        "accurate_duration": [],
-        "baseline_duration": [],
-        "nk_duration": [],
-        "warnings": [],
-    }
+@dataclass(frozen=True)
+class ErrorRow:
+    """One kernel call checked against its references: errors, timings, and where it ran."""
+
+    metric: str
+    dims: int
+    dtype: str
+    capability: str
+    absolute_baseline_error: float
+    relative_baseline_error: float
+    absolute_nk_error: float
+    relative_nk_error: float
+    accurate_nanoseconds: Nanoseconds
+    baseline_nanoseconds: Nanoseconds
+    nk_nanoseconds: Nanoseconds
 
 
-_SENTINEL = object()
+@dataclass
+class Stats:
+    """Every `ErrorRow` and warning a module collected, printed once at exit."""
+
+    rows: list[ErrorRow] = field(default_factory=list)
+    warnings: list[tuple[str, str]] = field(default_factory=list)
 
 
-def _infer_dtype_name(value) -> str:
+def create_stats() -> Stats:
+    """A fresh, empty collection for one module's error report."""
+    return Stats()
+
+
+def _infer_dtype_name(value: Any) -> str:
     """Extract a dtype name string from a NumPy array, nk.Tensor, or scalar."""
     if hasattr(value, "dtype"):
-        dt = value.dtype
-        if hasattr(dt, "name"):
-            return dt.name
-        return str(dt)
+        return str(getattr(value.dtype, "name", value.dtype))
     if isinstance(value, int):
         return "int64"
     if isinstance(value, float):
         return "float64"
-    if numpy_available:
-        arr = np.asarray(value)
-        return arr.dtype.name
-    return ""
+    return str(np.asarray(value).dtype.name)
 
 
 def assert_allclose(
-    actual: Any, expected: Any, atol: object = _SENTINEL, rtol: object = _SENTINEL, err_msg: str = ""
+    actual: Any, expected: Any, atol: float | None = None, rtol: float | None = None, err_msg: str = ""
 ) -> None:
     """Drop-in replacement for ``np.testing.assert_allclose`` with dtype-aware defaults.
 
     When both *atol* and *rtol* are omitted the tolerances are inferred from
     the dtype of *actual* via :func:`tolerances_for_dtype`.
     """
-    if atol is _SENTINEL and rtol is _SENTINEL:
-        dtype_name = _infer_dtype_name(actual)
-        atol, rtol = tolerances_for_dtype(dtype_name)
-    else:
-        if atol is _SENTINEL:
-            atol = 0
-        if rtol is _SENTINEL:
-            rtol = 1e-7
-    if numpy_available:
-        a_arr = np.asarray(actual)
-        e_arr = np.asarray(expected)
-        if not np.issubdtype(a_arr.dtype, np.complexfloating):
-            a_arr = a_arr.astype(float)
-        if not np.issubdtype(e_arr.dtype, np.complexfloating):
-            e_arr = e_arr.astype(float)
-        np.testing.assert_allclose(
-            a_arr,
-            e_arr,
-            atol=atol,
-            rtol=rtol,
-            err_msg=err_msg,
-        )
-        return
-    # Scalar path
-    if not hasattr(actual, "__len__") and not hasattr(expected, "__len__"):
-        a, e = float(actual), float(expected)
-        if abs(a - e) > atol + rtol * abs(e):
-            raise AssertionError(f"Not close: {a} vs {e}. {err_msg}")
-        return
-    # Iterable path
-    if hasattr(actual, "flatten"):
-        actual = actual.flatten()
-    if hasattr(expected, "flatten"):
-        expected = expected.flatten()
-    for i, (ai, ei) in enumerate(zip(actual, expected)):
-        ai_f, ei_f = float(ai), float(ei)
-        if abs(ai_f - ei_f) > atol + rtol * abs(ei_f):
-            raise AssertionError(f"Element {i}: {ai_f} vs {ei_f}. {err_msg}")
+    if atol is None and rtol is None:
+        atol, rtol = tolerances_for_dtype(_infer_dtype_name(actual))
+    actual_array, expected_array = np.asarray(actual), np.asarray(expected)
+    if not np.issubdtype(actual_array.dtype, np.complexfloating):
+        actual_array = actual_array.astype(float)
+    if not np.issubdtype(expected_array.dtype, np.complexfloating):
+        expected_array = expected_array.astype(float)
+    np.testing.assert_allclose(
+        actual_array, expected_array, atol=atol or 0.0, rtol=1e-7 if rtol is None else rtol, err_msg=err_msg
+    )
 
 
-def _compute_errors_numpy(accurate_result, baseline_result, nk_result):
-    """Compute error metrics using NumPy."""
+def _compute_errors(accurate_result: Any, baseline_result: Any, nk_result: Any) -> tuple[float, float, float, float]:
+    """The absolute and relative errors of the baseline and of NumKong against the accurate result."""
     accurate_result = np.asarray(accurate_result)
     eps = np.finfo(accurate_result.dtype).resolution if np.issubdtype(accurate_result.dtype, np.inexact) else 1.0
     if baseline_result is None:
-        abs_bl, rel_bl = float("nan"), float("nan")
+        abs_bl, rel_bl = math.nan, math.nan
     else:
         abs_bl = float(np.max(np.abs(baseline_result - accurate_result)))
         rel_bl = float(np.max(np.abs(baseline_result - accurate_result) / (np.abs(accurate_result) + eps)))
@@ -695,77 +702,33 @@ def _compute_errors_numpy(accurate_result, baseline_result, nk_result):
     return abs_bl, rel_bl, abs_nk, rel_nk
 
 
-def _compute_errors_fallback(accurate_result, baseline_result, nk_result):
-    """Compute error metrics using pure Python."""
-    eps = 1e-15
-    accurate_f = float(accurate_result) if not hasattr(accurate_result, "__len__") else None
-    if accurate_f is not None:
-        nk_f = float(nk_result)
-        abs_nk = abs(nk_f - accurate_f)
-        rel_nk = abs(nk_f - accurate_f) / (abs(accurate_f) + eps)
-    else:
-        acc_flat = list(accurate_result.flatten()) if hasattr(accurate_result, "flatten") else list(accurate_result)
-        nk_flat = list(nk_result.flatten()) if hasattr(nk_result, "flatten") else list(nk_result)
-        abs_errs = [abs(float(a) - float(b)) for a, b in zip(nk_flat, acc_flat)]
-        rel_errs = [abs(float(a) - float(b)) / (abs(float(b)) + eps) for a, b in zip(nk_flat, acc_flat)]
-        abs_nk = max(abs_errs)
-        rel_nk = max(rel_errs)
-    if baseline_result is None:
-        abs_bl, rel_bl = float("nan"), float("nan")
-    else:
-        bl_f = float(baseline_result) if not hasattr(baseline_result, "__len__") else None
-        if bl_f is not None:
-            abs_bl = abs(bl_f - float(accurate_result))
-            rel_bl = abs(bl_f - float(accurate_result)) / (abs(float(accurate_result)) + eps)
-        else:
-            acc_flat = list(accurate_result.flatten()) if hasattr(accurate_result, "flatten") else list(accurate_result)
-            bl_flat = list(baseline_result.flatten()) if hasattr(baseline_result, "flatten") else list(baseline_result)
-            abs_errs = [abs(float(a) - float(b)) for a, b in zip(bl_flat, acc_flat)]
-            rel_errs = [abs(float(a) - float(b)) / (abs(float(b)) + eps) for a, b in zip(bl_flat, acc_flat)]
-            abs_bl = max(abs_errs)
-            rel_bl = max(rel_errs)
-    return abs_bl, rel_bl, abs_nk, rel_nk
-
-
 def collect_errors(
     metric: str,
-    ndim: int,
+    dims: int,
     dtype: str,
-    accurate_result: float,
-    accurate_duration: float,
-    baseline_result: float,
-    baseline_duration: float,
-    nk_result: float,
-    nk_duration: float,
-    stats: dict[str, list],
+    accurate_result: Any,
+    accurate_nanoseconds: Nanoseconds,
+    baseline_result: Any,
+    baseline_nanoseconds: Nanoseconds,
+    nk_result: Any,
+    nk_nanoseconds: Nanoseconds,
+    stats: Stats,
 ) -> None:
-    """Calculates and aggregates errors for a given test."""
-    if numpy_available:
-        abs_bl, rel_bl, abs_nk, rel_nk = _compute_errors_numpy(accurate_result, baseline_result, nk_result)
-    else:
-        abs_bl, rel_bl, abs_nk, rel_nk = _compute_errors_fallback(accurate_result, baseline_result, nk_result)
-
-    stats["metric"].append(metric)
-    stats["ndim"].append(ndim)
-    stats["dtype"].append(dtype)
-    stats["capability"].append(current_capability or "unknown")
-    stats["absolute_baseline_error"].append(abs_bl)
-    stats["relative_baseline_error"].append(rel_bl)
-    stats["absolute_nk_error"].append(abs_nk)
-    stats["relative_nk_error"].append(rel_nk)
-    stats["accurate_duration"].append(accurate_duration)
-    stats["baseline_duration"].append(baseline_duration)
-    stats["nk_duration"].append(nk_duration)
+    """Calculates the errors of one call and adds them to `stats`."""
+    errors = _compute_errors(accurate_result, baseline_result, nk_result)
+    capability = current_capability or "unknown"
+    row = ErrorRow(metric, dims, dtype, capability, *errors, accurate_nanoseconds, baseline_nanoseconds, nk_nanoseconds)
+    stats.rows.append(row)
 
 
-def collect_warnings(message: str, stats: dict[str, list]) -> None:
+def collect_warnings(message: str, stats: Stats) -> None:
     """Collects warnings for the final report."""
     full_name = os.environ.get("PYTEST_CURRENT_TEST", "unknown::unknown").split(" ")[0]
     function_name = full_name.split("::")[-1].split("[")[0]
-    stats["warnings"].append((function_name, message))
+    stats.warnings.append((function_name, message))
 
 
-def format_scientific(value):
+def format_scientific(value: float) -> str:
     """Format a float as compact scientific notation (e.g. 7.4e-5). Return '0' for exact zero."""
     if value == 0:
         return "0"
@@ -778,119 +741,104 @@ def format_scientific(value):
     return f"{mantissa}e{exp_sign}{exp_digits}"
 
 
-def pad_with_ansi_color(visible, width, code):
+def pad_with_ansi_color(visible: str, width: int, code: str) -> str:
     """Pad visible string to width first, then wrap in ANSI so escape codes don't break alignment."""
     padded = f"{visible:<{width}}"
     return f"\033[{code}m{padded}\033[0m"
 
 
-CapabilityRecord = collections.namedtuple(
-    "CapabilityRecord",
-    ["metric", "ndim", "dtype", "capability", "baseline_error_mean", "nk_error_mean", "speedup_mean"],
-)
+@dataclass(frozen=True)
+class CapabilityRecord:
+    """The mean errors and speed-up of one capability at one `(metric, dims, dtype)`."""
+
+    metric: str
+    dims: int
+    dtype: str
+    capability: str
+    baseline_error_mean: float
+    nk_error_mean: float
+    speedup_mean: float
 
 
-def print_stats_report(stats: dict[str, list]) -> None:
-    """Print a condensed error/speedup report: two rows per (metric, dtype) showing min/max ndim."""
-    if not stats["metric"]:
+@dataclass(frozen=True)
+class ReportLine:
+    """One printed line of the report: the smallest or largest `dims` of a `(metric, dtype)`."""
+
+    metric: str
+    dtype: str
+    dims: str
+    baseline_error: float
+    worst_nk_error: float
+    worst_capability: str
+    best_speedup: float
+    best_capability: str
+    best_capability_error: float
+
+
+def print_stats_report(stats: Stats) -> None:
+    """Print a condensed error/speedup report: two rows per (metric, dtype) showing min/max dims."""
+    if not stats.rows:
         return
     # Windows consoles default to cp1252, which lacks the report's brackets.
-    sys.stdout.reconfigure(errors="replace")
+    if isinstance(sys.stdout, io.TextIOWrapper):
+        sys.stdout.reconfigure(errors="replace")
 
-    # Stage 1: Group raw stats by (metric, ndim, dtype, capability) and compute per-group means.
-    grouped = collections.defaultdict(
-        lambda: {"relative_baseline_error": [], "relative_nk_error": [], "baseline_duration": [], "nk_duration": []}
-    )
-    for metric, ndim, dtype, capability, rel_base, rel_nk, base_dur, nk_dur in zip(
-        stats["metric"],
-        stats["ndim"],
-        stats["dtype"],
-        stats["capability"],
-        stats["relative_baseline_error"],
-        stats["relative_nk_error"],
-        stats["baseline_duration"],
-        stats["nk_duration"],
-    ):
-        key = (metric, ndim, dtype, capability)
-        grouped[key]["relative_baseline_error"].append(rel_base)
-        grouped[key]["relative_nk_error"].append(rel_nk)
-        grouped[key]["baseline_duration"].append(base_dur)
-        grouped[key]["nk_duration"].append(nk_dur)
+    # Stage 1: Group rows by (metric, dims, dtype, capability) and compute per-group means.
+    def group_key(row: ErrorRow) -> tuple[str, int, str, str]:
+        return row.metric, row.dims, row.dtype, row.capability
 
-    cap_records = []
-    for (metric, ndim, dtype, capability), vals in grouped.items():
-        n = len(vals["nk_duration"])
-        base_err_mean = sum(vals["relative_baseline_error"]) / n
-        nk_err_mean = sum(vals["relative_nk_error"]) / n
-        speedups = [b / nk for b, nk in zip(vals["baseline_duration"], vals["nk_duration"]) if nk > 0]
+    cap_records: list[CapabilityRecord] = []
+    for (metric, dims, dtype, capability), group in itertools.groupby(sorted(stats.rows, key=group_key), group_key):
+        rows = list(group)
+        base_err_mean = sum(row.relative_baseline_error for row in rows) / len(rows)
+        nk_err_mean = sum(row.relative_nk_error for row in rows) / len(rows)
+        speedups = [row.baseline_nanoseconds / row.nk_nanoseconds for row in rows if row.nk_nanoseconds > 0]
         speedup_mean = sum(speedups) / len(speedups) if speedups else 0.0
-        cap_records.append(CapabilityRecord(metric, ndim, dtype, capability, base_err_mean, nk_err_mean, speedup_mean))
+        cap_records.append(CapabilityRecord(metric, dims, dtype, capability, base_err_mean, nk_err_mean, speedup_mean))
 
-    # Stage 2: Re-aggregate by (metric, dtype). For each, find min/max ndim and cross-capability aggregates.
-    by_metric_dtype = collections.defaultdict(list)
+    # Stage 2: Re-aggregate by (metric, dtype): min/max dims and cross-capability aggregates.
+    by_metric_dtype: dict[tuple[str, str], list[CapabilityRecord]] = collections.defaultdict(list)
     for rec in cap_records:
         by_metric_dtype[(rec.metric, rec.dtype)].append(rec)
 
-    # Each output row: (metric_str, dtype_str, ndim_str, base_err_str, worst_nk_err_str, best_speedup_str)
-    rows = []
+    lines: list[ReportLine] = []
     for (metric, dtype), recs in sorted(by_metric_dtype.items()):
-        all_ndims = sorted(set(r.ndim for r in recs))
-        min_ndim, max_ndim = all_ndims[0], all_ndims[-1]
-        single_ndim = min_ndim == max_ndim
-        target_ndims = [min_ndim] if single_ndim else [min_ndim, max_ndim]
+        all_dims = sorted({r.dims for r in recs})
+        min_dims, max_dims = all_dims[0], all_dims[-1]
+        single_dims = min_dims == max_dims
+        target_dims = [min_dims] if single_dims else [min_dims, max_dims]
 
-        for i, target_ndim in enumerate(target_ndims):
-            subset = [r for r in recs if r.ndim == target_ndim]
-            if not subset:
-                continue
-
-            # Base error: average across capabilities
+        for i, target in enumerate(target_dims):
+            subset = [r for r in recs if r.dims == target]
             base_err = sum(r.baseline_error_mean for r in subset) / len(subset)
-            # Worst NK error: capability with highest mean NK error
             worst_rec = max(subset, key=lambda r: r.nk_error_mean)
-            worst_nk_err = worst_rec.nk_error_mean
-            worst_cap = worst_rec.capability
-            # Best speedup: capability with highest mean speedup
             best_rec = max(subset, key=lambda r: r.speedup_mean)
-            best_speedup = best_rec.speedup_mean
-            best_cap = best_rec.capability
-            best_cap_err = best_rec.nk_error_mean
-
-            # Format strings
-            if i == 0:
-                metric_str = metric
-                dtype_str = dtype
-            else:
-                metric_str = ""
-                dtype_str = ""
-
-            if single_ndim:
-                ndim_str = str(target_ndim)
+            if single_dims:
+                dims_text = str(target)
             elif i == 0:
-                ndim_str = f"\u230a{target_ndim:>4}\u230b"
+                dims_text = f"\u230a{target:>4}\u230b"
             else:
-                ndim_str = f"\u2308{target_ndim:>4}\u2309"
-
-            rows.append(
-                (
-                    metric_str,
-                    dtype_str,
-                    ndim_str,
+                dims_text = f"\u2308{target:>4}\u2309"
+            lines.append(
+                ReportLine(
+                    metric if i == 0 else "",
+                    dtype if i == 0 else "",
+                    dims_text,
                     base_err,
-                    worst_nk_err,
-                    worst_cap,
-                    best_speedup,
-                    best_cap,
-                    best_cap_err,
+                    worst_rec.nk_error_mean,
+                    worst_rec.capability,
+                    best_rec.speedup_mean,
+                    best_rec.capability,
+                    best_rec.nk_error_mean,
                 )
             )
 
     # Stage 3: Render
-    col_w = {"kernel": 17, "dtype": 12, "ndim": 8, "base_err": 14, "worst_nk": 30, "best_spd": 34}
+    col_w = {"kernel": 17, "dtype": 12, "dims": 8, "base_err": 14, "worst_nk": 30, "best_spd": 34}
     header = (
         f"{'Kernel':<{col_w['kernel']}}"
         f"{'DType':<{col_w['dtype']}}"
-        f"{'NDim':<{col_w['ndim']}}"
+        f"{'Dims':<{col_w['dims']}}"
         f"{'Base Error':<{col_w['base_err']}}"
         f"{'Worst NK Error':<{col_w['worst_nk']}}"
         f"{'Best NK Speedup':<{col_w['best_spd']}}"
@@ -899,79 +847,38 @@ def print_stats_report(stats: dict[str, list]) -> None:
     print(f"\n\n{header}")
     print(sep)
 
-    for (
-        metric_str,
-        dtype_str,
-        ndim_str,
-        base_err,
-        worst_nk_err,
-        worst_cap,
-        best_speedup,
-        best_cap,
-        best_cap_err,
-    ) in rows:
-        base_err_s = format_scientific(base_err)
-        worst_nk_s = f"{format_scientific(worst_nk_err)} \u2039{worst_cap}\u203a"
-        best_spd_s = f"{best_speedup:.1f}x \u2039{best_cap}, err {format_scientific(best_cap_err)}\u203a"
+    for line in lines:
+        base_err_s = format_scientific(line.baseline_error)
+        worst_nk_s = f"{format_scientific(line.worst_nk_error)} \u2039{line.worst_capability}\u203a"
+        best_spd_s = f"{line.best_speedup:.1f}x \u2039{line.best_capability}, err {format_scientific(line.best_capability_error)}\u203a"
 
         # Color for worst NK error: red if NK error > base error
-        nk_err_code = "31" if worst_nk_err > base_err else "0"
+        nk_err_code = "31" if line.worst_nk_error > line.baseline_error else "0"
         # Color for speedup: green >=2x, yellow 1-2x, red <1x
-        if best_speedup >= 2.0:
+        if line.best_speedup >= 2.0:
             spd_code = "32"
-        elif best_speedup >= 1.0:
+        elif line.best_speedup >= 1.0:
             spd_code = "33"
         else:
             spd_code = "31"
 
-        line = (
-            f"{metric_str:<{col_w['kernel']}}"
-            f"{dtype_str:<{col_w['dtype']}}"
-            f"{ndim_str:<{col_w['ndim']}}"
+        print(
+            f"{line.metric:<{col_w['kernel']}}"
+            f"{line.dtype:<{col_w['dtype']}}"
+            f"{line.dims:<{col_w['dims']}}"
             f"{base_err_s:<{col_w['base_err']}}"
             f"{pad_with_ansi_color(worst_nk_s, col_w['worst_nk'], nk_err_code)}"
             f"{pad_with_ansi_color(best_spd_s, col_w['best_spd'], spd_code)}"
         )
-        print(line)
 
-    warnings_list = stats.get("warnings", [])
-    warnings_list = sorted(warnings_list)
-    warnings_list = [f"{name}: {message}" for name, message in warnings_list]
-    if len(warnings_list) != 0:
+    warnings_list = [f"{name}: {message}" for name, message in sorted(stats.warnings)]
+    if warnings_list:
         print("\nWarnings:")
-        warning_counts = collections.Counter(warnings_list)
-        for warning, count in sorted(warning_counts.items()):
+        for warning, count in sorted(collections.Counter(warnings_list).items()):
             print(f"- {count}x times: {warning}")
 
 
-@pytest.fixture(autouse=True)
-def seed_rng(__pytest_repeat_step_number: int) -> int:
-    """Auto-seed NumPy RNG before every test and return the computed seed.
-
-    Each @pytest.mark.repeat() step gets a unique seed derived from NUMKONG_SEED,
-    42 unless set, or drawn once per run with ``NUMKONG_SEED=random``. Tests
-    that use ``nk.hash`` can accept this fixture as a parameter and pass the
-    return value as the ``seed=`` argument so that repeated runs exercise
-    different data.
-    """
-    step = __pytest_repeat_step_number or 0
-    seed = _nk_seed_base + step
-    if numpy_available:
-        np.random.seed(seed)
-    return seed
-
-
-@pytest.fixture
-def nk_seed(seed_rng: int) -> int:
-    """Per-test seed that incorporates the repeat step number.
-
-    Wraps *seed_rng* under the name ``nk_seed`` so tests that build data
-    with ``nk.hash`` / ``nk.iota`` can request it by name.
-    """
-    return seed_rng
-
-
-ARRAY_TYPECODES = {
+ARRAY_TYPECODES: dict[BufferDType, tuple[str, float, float]] = {
     "float64": ("d", -10.0, 10.0),
     "float32": ("f", -10.0, 10.0),
     "int8": ("b", -128, 127),
@@ -980,18 +887,17 @@ ARRAY_TYPECODES = {
 """Map nk dtype to its array.array typecode along with the low and high representable values."""
 
 
-def make_random_buffer(n: int, dtype: str = "float32") -> array.array:
-    """Create a random array.array for the given dtype — no numpy needed."""
-    tc, lo, hi = ARRAY_TYPECODES[dtype]
-    if tc in ("f", "d"):
-        return array.array(tc, [random.uniform(lo, hi) for _ in range(n)])
-    else:
-        return array.array(tc, [random.randint(int(lo), int(hi)) for _ in range(n)])
+def make_random_buffer(rng: random.Random, count: int, dtype: BufferDType = "float32") -> array.array[Any]:
+    """A random `array.array` of `count` elements drawn from `rng`; no NumPy needed."""
+    typecode, low, high = ARRAY_TYPECODES[dtype]
+    if typecode in ("f", "d"):
+        return array.array(typecode, [rng.uniform(low, high) for _ in range(count)])
+    return array.array(typecode, [rng.randint(int(low), int(high)) for _ in range(count)])
 
 
-def make_positive_buffer(n: int, dtype: str = "float32") -> array.array:
-    """Create a random positive array.array — for probability distributions."""
-    tc = "f" if dtype == "float32" else "d"
-    vals = [random.uniform(0.01, 1.0) for _ in range(n)]
-    total = sum(vals)
-    return array.array(tc, [v / total for v in vals])
+def make_positive_buffer(rng: random.Random, count: int, dtype: BufferDType = "float32") -> array.array[float]:
+    """A random distribution of `count` probabilities drawn from `rng`, as an `array.array`."""
+    typecode = "f" if dtype == "float32" else "d"
+    values = [rng.uniform(0.01, 1.0) for _ in range(count)]
+    total = sum(values)
+    return array.array(typecode, [value / total for value in values])

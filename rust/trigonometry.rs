@@ -3,12 +3,13 @@
 //! File: rust/trigonometry.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::ptr::null_mut;
+use core::{ffi::c_void, ptr::null_mut};
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef};
-use crate::types::{f16, StorageElement};
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef},
+    types::{f16, StorageElement},
+};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -439,8 +440,10 @@ impl<Scalar: Clone + TrigAtan, Alloc: Allocator, const MAX_RANK: usize> Tensor<S
 #[cfg(test)]
 mod tests {
     use super::{TrigAtan, TrigCos, TrigSin};
-    use crate::tensor::TensorError;
-    use crate::types::{assert_close, f16, FloatLike, TestableType};
+    use crate::{
+        tensor::TensorError,
+        types::{assert_close, f16, FloatLike, TestableType},
+    };
 
     pub(crate) fn check_trig_unary<Scalar, F>(
         count: usize,
@@ -473,6 +476,7 @@ mod tests {
         Scalar: FloatLike + TestableType + TrigSin,
     {
         use core::f64::consts::PI;
+
         check_trig_unary::<Scalar, _>(
             count,
             |i, n| (i as f64) * 2.0 * PI / (n as f64),
@@ -487,6 +491,7 @@ mod tests {
         Scalar: FloatLike + TestableType + TrigCos,
     {
         use core::f64::consts::PI;
+
         check_trig_unary::<Scalar, _>(
             count,
             |i, n| (i as f64) * 2.0 * PI / (n as f64),

@@ -46,15 +46,15 @@ You can inspect the runtime SIMD surface from Go.
 
 ## Ecosystem Comparison
 
-| Feature                      | NumKong                                                                                  | [GoNum][gonum]                                           |
-| :--------------------------- | :--------------------------------------------------------------------------------------- | :------------------------------------------------------- |
-| Operation families           | dots, distances, binary, probability, geospatial, MaxSim                                 | dots, distances, some statistics                         |
-| Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64 | Float64 only; standard accuracy                          |
-| Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V     | no runtime dispatch; some hand-written assembly routines |
-| Packed matrix, GEMM-like     | pack once, reuse across query batches via `DotsPackedMatrix`                                 | `mat.Dense.Mul` — no persistent packing                  |
-| Symmetric kernels, SYRK-like | skips duplicate pairs, up to 2x speedup for self-distance                                | no duplicate-pair skipping                               |
-| Memory model                 | slice-based, caller-owned; cGo zero-copy pointer passing                                 | allocates internally in many functions                   |
-| Host-side parallelism        | reusable `WorkerPool` for packed and symmetric batch ops                                 | partial — gonum/optimize has some parallel support       |
+| Feature                      | NumKong                                                                                    | [GoNum][gonum]                                           |
+| :--------------------------- | :----------------------------------------------------------------------------------------- | :------------------------------------------------------- |
+| Operation families           | dots, distances, binary, probability, geospatial, MaxSim                                   | dots, distances, some statistics                         |
+| Precision                    | BFloat16 through sub-byte; automatic widening; Kahan summation; 0 ULP in Float32/Float64   | Float64 only; standard accuracy                          |
+| Runtime SIMD dispatch        | per call, the highest capability the CPU runs and the build holds, across x86, Arm, RISC-V | no runtime dispatch; some hand-written assembly routines |
+| Packed matrix, GEMM-like     | pack once, reuse across query batches via `DotsPackedMatrix`                               | `mat.Dense.Mul` — no persistent packing                  |
+| Symmetric kernels, SYRK-like | skips duplicate pairs, up to 2x speedup for self-distance                                  | no duplicate-pair skipping                               |
+| Memory model                 | slice-based, caller-owned; cGo zero-copy pointer passing                                   | allocates internally in many functions                   |
+| Host-side parallelism        | reusable `WorkerPool` for packed and symmetric batch ops                                   | partial — gonum/optimize has some parallel support       |
 
 [gonum]: https://github.com/gonum/gonum
 
@@ -498,7 +498,7 @@ That means a few rules matter:
 - `DotsPackedMatrix` and `MaxSimPackedMatrix` structs own their packed buffers and carry dimensions and dtype metadata.
 - Constructors validate that input slices are large enough for the given dimensions.
 - Batch functions validate both input and output slice sizes.
-- Symmetric output matrices must be `n × n` in size.
+- Symmetric output matrices must be n × n in size.
 
 ### Memory Safety
 

@@ -584,31 +584,6 @@ if (NUMKONG_BUILD_TEST OR NUMKONG_BUILD_BENCH)
     FetchContent_MakeAvailable(fmt)
 endif ()
 
-# Google Benchmark serves both the CPU and the CUDA benchmarks
-if (NUMKONG_BUILD_BENCH)
-    # We only need the core parts of Google Benchmark — disable tests, docs, and
-    # force std::regex so the regex-backend detection (which uses try_run) doesn't
-    # fail when ASAN is enabled and the sanitizer DLL isn't on PATH at configure time.
-    # All variables are CACHE entries scoped to the benchmark sub-project via FetchContent.
-    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_DOXYGEN OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_INSTALL_DOCS OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_DOWNLOAD_DEPENDENCIES ON CACHE BOOL "" FORCE)
-    set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
-    set(BENCHMARK_USE_BUNDLED_GTEST ON CACHE BOOL "" FORCE)
-    set(HAVE_STD_REGEX ON CACHE BOOL "Force std::regex for Google Benchmark" FORCE)
-
-    FetchContent_Declare(benchmark GIT_REPOSITORY https://github.com/google/benchmark.git GIT_TAG v1.9.1)
-    FetchContent_MakeAvailable(benchmark)
-
-    # Remove the Google Benchmark's "built in debug warning"
-    if (CMAKE_BUILD_TYPE STREQUAL "Release")
-        target_compile_definitions(benchmark PRIVATE NDEBUG)
-    endif ()
-    find_package(Threads REQUIRED)
-endif ()
-
 # Build benchmarks
 if (NUMKONG_BUILD_BENCH)
     add_executable(
@@ -621,7 +596,7 @@ if (NUMKONG_BUILD_BENCH)
         bench/cross_ppc64.cpp bench/cross_wasm.cpp bench/cross_loongarch64.cpp bench/cross_cuda.cu
         bench/cross_metal.cpp bench/maxsim.cpp
     )
-    target_link_libraries(numkong_bench numkong_static Threads::Threads benchmark fmt::fmt)
+    target_link_libraries(numkong_bench numkong_static fmt::fmt)
 
     # Mirror the shipped Release codegen.
     if (NUMKONG_IPO_SUPPORTED_)

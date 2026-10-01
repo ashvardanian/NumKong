@@ -3038,8 +3038,7 @@ mod tests {
 
     #[test]
     fn half_crate_interop() {
-        use half::bf16 as HalfBF16;
-        use half::f16 as HalfF16;
+        use half::{bf16 as HalfBF16, f16 as HalfF16};
 
         // f16: all 65536 bit patterns
         for bits in 0u16..=u16::MAX {

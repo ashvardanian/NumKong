@@ -9,9 +9,9 @@
  *
  *  - `NUMWARS_DIMS`: vector dimensionality, default 1536
  *  - `NUMKONG_ITERATIONS`: benchmark iterations, default 1000
- *  - `NUMWARS_FILTER`: regex to filter tests, default `.*`
+ *  - `NUMWARS_FILTER`: regex to filter tests, or a substring when it does not compile, default `.*`
  *  - `NUMKONG_RUNTIME`: runtime to use, default `native`
- *  - `NUMKONG_SEED`: random seed, default 42, or `random` to draw one
+ *  - `NUMWARS_SEED`: random seed, default 42, or `random` to draw one
  *
  *  ```sh
  *  node main.mjs              # run benchmarks for the configured runtime
@@ -25,6 +25,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 
 import build from 'node-gyp-build';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { Random, streamKey } from '../test/random.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,21 +33,39 @@ const rootDir = path.join(__dirname, '..');
 const resultsDir = path.join(__dirname, 'results');
 
 
-/** `NUMKONG_SEED` as a number: 42 when unset, a fresh draw for `random`; anything else throws. */
-function readSeed() {
-    const text = process.env.NUMKONG_SEED || '42';
+/** Variable `name` read by `parse`, or `fallback` when unset or empty; bad text exits 1. */
+function envParsed(name, fallback, parse, expected) {
+    const text = process.env[name];
+    if (!text) return fallback;
+    const value = parse(text);
+    if (value !== undefined) return value;
+    console.error(`${name}="${text}" does not parse, expected ${expected}`);
+    process.exit(1);
+}
+
+const parseCount = (text) => (/^\d+$/.test(text) && Number(text) > 0 ? Number(text) : undefined);
+const parseSeed = (text) => {
     if (text === 'random') return Math.floor(Math.random() * 0x100000000);
-    const seed = Number(text);
-    if (!Number.isSafeInteger(seed) || seed < 0) throw new Error(`NUMKONG_SEED="${text}" does not parse`);
-    return seed;
+    return /^\d+$/.test(text) && Number(text) < 0x100000000 ? Number(text) : undefined;
+};
+const parseRuntime = (text) => (['native', 'emscripten', 'browser'].includes(text) ? text : undefined);
+
+/** `NUMWARS_FILTER` as a regex, or as a substring when it does not compile: never an error. */
+function readFilter() {
+    const text = process.env.NUMWARS_FILTER || '.*';
+    try {
+        return new RegExp(text);
+    } catch {
+        return { source: text, test: (name) => name.includes(text) };
+    }
 }
 
 const CONFIG = {
-    dimensions: parseInt(process.env.NUMWARS_DIMS || '1536'),
-    iterations: parseInt(process.env.NUMKONG_ITERATIONS || '1000'),
-    filter: new RegExp(process.env.NUMWARS_FILTER || '.*'),
-    runtime: process.env.NUMKONG_RUNTIME || 'native',
-    seed: readSeed()
+    dimensions: envParsed('NUMWARS_DIMS', 1536, parseCount, 'a positive count'),
+    iterations: envParsed('NUMKONG_ITERATIONS', 1000, parseCount, 'a positive count'),
+    filter: readFilter(),
+    runtime: envParsed('NUMKONG_RUNTIME', 'native', parseRuntime, 'native, emscripten or browser'),
+    seed: envParsed('NUMWARS_SEED', 42, parseSeed, 'an unsigned integer or random')
 };
 
 const BENCHMARK_MATRIX = {
@@ -130,20 +149,7 @@ async function loadEmscripten() {
 }
 
 
-class Random {
-    constructor(seed) {
-        this.seed = seed;
-    }
-
-    next() {
-        this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-        return this.seed / 0x7fffffff;
-    }
-}
-
-function generateTestData(dtype, length, seed) {
-    const rng = new Random(seed);
-
+function generateTestData(dtype, length, rng) {
     switch (dtype) {
         case 'f64':
             return Float64Array.from({ length }, () => rng.next() * 2 - 1);
@@ -232,8 +238,9 @@ async function runBenchmarks() {
             }
 
             // Generate test data
-            const a = generateTestData(dtype, CONFIG.dimensions, CONFIG.seed);
-            const b = generateTestData(dtype, CONFIG.dimensions, CONFIG.seed + 1);
+            const rng = new Random(streamKey(CONFIG.seed, testName));
+            const a = generateTestData(dtype, CONFIG.dimensions, rng);
+            const b = generateTestData(dtype, CONFIG.dimensions, rng);
 
             // Run benchmark
             const bench = benchmarkOperation(() => numkong[func](a, b));

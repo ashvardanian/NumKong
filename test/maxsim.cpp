@@ -10,10 +10,11 @@
 #include "numkong/maxsim.h"
 #include "numkong/maxsim.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 template <typename scalar_type_>
-error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
+error_stats_t test_maxsim_packed(settings_t const &settings,
+                                 typename scalar_type_::dots_pack_size_kernel_t packed_size_fn,
                                  typename scalar_type_::maxsim_pack_kernel_t pack_fn,
                                  typename scalar_type_::maxsim_packed_kernel_t maxsim_fn) {
     using scalar_t = scalar_type_;
@@ -21,11 +22,11 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(nk_maxsim_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    std::size_t query_count = global_config.matrix_height;
-    std::size_t document_count = global_config.matrix_width;
-    std::size_t depth = global_config.matrix_depth;
+    std::size_t query_count = settings.matrix_height;
+    std::size_t document_count = settings.matrix_width;
+    std::size_t depth = settings.matrix_depth;
     std::size_t stride = depth * sizeof(typename scalar_t::raw_t);
 
     auto queries = make_vector<scalar_t>(query_count * depth);
@@ -37,9 +38,10 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
     auto query_packed = make_vector<char>(query_pack_size);
     auto document_packed = make_vector<char>(document_pack_size);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, queries);
-        fill_random(generator, documents);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, queries);
+        fill_random(settings, generator, documents);
 
         // Pack and compute with kernel under test
         stats.expect(
@@ -61,8 +63,7 @@ error_stats_t test_maxsim_packed(typename scalar_type_::dots_pack_size_kernel_t 
     return stats;
 }
 
-void test_maxsim() {
-    error_stats_section_t check;
+void test_maxsim(error_stats_section_t &check) {
 
     check.section("MaxSim Serial", nk_cap_serial_k);
     check("maxsim_packed_bf16_serial", test_maxsim_packed<bf16_t>, nk_maxsim_pack_size_bf16_serial,
@@ -156,3 +157,5 @@ void test_maxsim() {
           nk_maxsim_packed_f16_sme);
 #endif // NUMKONG_TARGET_SME
 }
+
+} // namespace ashvardanian::numkong::test

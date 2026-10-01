@@ -10,8 +10,11 @@ Author: Ash Vardanian
 Date: February 27, 2026
 """
 
+from __future__ import annotations
+
 import atexit
 import math
+import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -31,20 +34,17 @@ except Exception:
 from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
+    SETTINGS,
     assert_allclose,
     collect_errors,
     create_stats,
-    dense_dimensions,
     keep_one_capability,
     make_random,
     make_random_buffer,
-    nk_seed,  # noqa: F401 — pytest fixture
     numpy_available,
     possible_capabilities,
     print_stats_report,
-    profile,
-    randomized_repetitions_count,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
+    timed_call,
 )
 
 import numkong as nk
@@ -92,32 +92,34 @@ KERNELS_TRIGONOMETRY: dict[str, tuple[Callable, Callable, Callable]] = {
     "atan": (baseline_atan, nk.atan, precise_atan),
 }
 
-trigonometry_shapes = [(d,) for d in dense_dimensions] + ([(6, 8), (4, 5, 3)] if numpy_available else [])
+trigonometry_shapes = [(d,) for d in SETTINGS.dims] + ([(6, 8), (4, 5, 3)] if numpy_available else [])
 """Trig ops are shape-invariant: sweep a couple of NumPy-only rank-N shapes alongside the 1-D
-`dense_dimensions` so the N-D chunk walker is exercised; comparison flattens for rank-agnosticism.
+`SETTINGS.dims` so the N-D chunk walker is exercised; comparison flattens for rank-agnosticism.
 """
 
 
-@pytest.mark.repeat(randomized_repetitions_count)
+@pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", trigonometry_shapes)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("metric", list(KERNELS_TRIGONOMETRY.keys()))
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_trigonometry_random_accuracy(shape: tuple, dtype: str, metric: str, capability: str, nk_seed: int):
+def test_trigonometry_random_accuracy(
+    shape: tuple, dtype: str, metric: str, capability: str, np_rng: np.random.Generator
+):
     """sin, cos, atan on random inputs of any rank against high-precision baselines."""
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_TRIGONOMETRY[metric]
 
     if numpy_available:
-        a = np.random.uniform(-np.pi, np.pi, shape).astype(dtype)
-        accurate_dt, accurate = profile(baseline_kernel, a.astype(np.float64))
-        expected_dt, expected = profile(baseline_kernel, a)
+        a = np_rng.uniform(-np.pi, np.pi, shape).astype(dtype)
+        accurate_ns, accurate = timed_call(baseline_kernel, a.astype(np.float64))
+        expected_ns, expected = timed_call(baseline_kernel, a)
     else:
-        a, a_baseline = make_random(shape, dtype, seed=nk_seed)
-        accurate_dt, accurate = profile(precise_kernel, a_baseline)
-        expected_dt, expected = 0, None
+        a, a_baseline = make_random(shape, dtype, np_rng)
+        accurate_ns, accurate = timed_call(precise_kernel, a_baseline)
+        expected_ns, expected = 0, None
 
-    result_dt, result = profile(simd_kernel, a)
+    result_ns, result = timed_call(simd_kernel, a)
 
     # Elementwise op is shape-invariant; flatten so a rank-N result matches the baseline.
     if numpy_available:
@@ -131,11 +133,11 @@ def test_trigonometry_random_accuracy(shape: tuple, dtype: str, metric: str, cap
         len(accurate),
         dtype,
         accurate,
-        accurate_dt,
+        accurate_ns,
         expected,
-        expected_dt,
+        expected_ns,
         result,
-        result_dt,
+        result_ns,
         stats,
     )
 
@@ -176,10 +178,10 @@ def test_trigonometry_known_values(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_pythagorean_identity(ndim: int, dtype: str, capability: str):
+def test_pythagorean_identity(ndim: int, dtype: str, capability: str, rng: random.Random):
     """sin^2(x) + cos^2(x) ~ 1."""
     keep_one_capability(capability)
-    input_angles = make_random_buffer(ndim, dtype)
+    input_angles = make_random_buffer(rng, ndim, dtype)
     sin_values = list(nk.sin(input_angles))
     cos_values = list(nk.cos(input_angles))
     for i in range(ndim):

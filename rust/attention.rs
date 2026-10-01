@@ -36,18 +36,18 @@
 //! File: rust/attention.rs
 //! Author: Ash Vardanian
 
-use core::ffi::c_void;
-use core::marker::PhantomData;
-use core::ptr::null_mut;
-
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode};
-use crate::scalar::Roots;
-use crate::tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef};
-use crate::types::{bf16, e4m3, StorageElement};
-use crate::vector::Vector;
+use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
 #[cfg(feature = "parallel")]
 use forkunion as fu;
+
+use crate::{
+    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    scalar::Roots,
+    tensor::{Allocator, Global, PackedBuffer, Tensor, TensorError, TensorMut, TensorRef},
+    types::{bf16, e4m3, StorageElement},
+    vector::Vector,
+};
 
 #[cfg(feature = "parallel")]
 use crate::capabilities::WorkerStatus;
@@ -1894,8 +1894,10 @@ impl AttentionRope for e4m3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tensor::SIMD_ALIGNMENT;
-    use crate::types::{assert_close, FloatLike, TestableType};
+    use crate::{
+        tensor::SIMD_ALIGNMENT,
+        types::{assert_close, FloatLike, TestableType},
+    };
 
     #[test]
     fn shape_matches_packed_cache() {
@@ -2057,6 +2059,7 @@ mod tests {
     #[test]
     fn rope_strided_section() {
         use crate::tensor::{SliceRange, Tensor};
+
         // Rotate the left __[rows,width]__ column-section of a __[rows,2×width]__ buffer in place
         // with a row stride of twice the width, the Q or K section of a fused QKV buffer.
         let (rows, head_count, depth) = (3, 2, 8);

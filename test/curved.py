@@ -10,7 +10,10 @@ Author: Ash Vardanian
 Date: September 4, 2024
 """
 
+from __future__ import annotations
+
 import atexit
+import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -30,6 +33,7 @@ except Exception:
 from base import (
     NUMKONG_ATOL,
     NUMKONG_RTOL,
+    SETTINGS,
     LazyFormat,
     assert_allclose,
     collect_errors,
@@ -41,10 +45,7 @@ from base import (
     possible_capabilities,
     precise_decimal,
     print_stats_report,
-    profile,
-    reduced_repetitions_count,
-    seed_rng,  # noqa: F401 — pytest fixture (autouse)
-    test_curved_dimensions,
+    timed_call,
 )
 
 import numkong as nk
@@ -61,14 +62,12 @@ def baseline_bilinear(x, y, z, dtype=None):
 try:
     import scipy.spatial.distance as spd
 
-    def baseline_mahalanobis(x, y, z, dtype=None):
-        try:
-            result = spd.mahalanobis(x, y, z).astype(np.float64)
-            if not np.isnan(result):
-                return result
-        except Exception:
-            pass
-        pytest.skip(f"SciPy Mahalanobis distance returned {result} due to `sqrt` of a negative number")
+    def baseline_mahalanobis(x: np.ndarray, y: np.ndarray, z: np.ndarray, dtype: str | None = None) -> float:
+        with np.errstate(invalid="ignore"):
+            result = float(spd.mahalanobis(x, y, z))
+        if math.isnan(result):
+            pytest.skip("SciPy Mahalanobis distance took the `sqrt` of a negative number")
+        return result
 
 except ImportError:
 
@@ -124,8 +123,8 @@ KERNELS_CURVED: dict[str, tuple[Callable, Callable, Callable]] = {
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(reduced_repetitions_count)
-@pytest.mark.parametrize("ndim", test_curved_dimensions)
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
 @pytest.mark.parametrize(
     "dtypes",
     [
@@ -137,16 +136,16 @@ KERNELS_CURVED: dict[str, tuple[Callable, Callable, Callable]] = {
 )
 @pytest.mark.parametrize("metric", ["bilinear", "mahalanobis"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability: str):
+def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability: str, np_rng: np.random.Generator):
     """Bilinear and Mahalanobis for float and bfloat16 dtypes against high-precision baselines."""
     dtype, compute_dtype = dtypes
 
     # Generate structured data at f32
-    a_vector_f32 = np.abs(np.random.randn(ndim).astype(np.float32))
-    b_vector_f32 = np.abs(np.random.randn(ndim).astype(np.float32))
+    a_vector_f32 = np.abs(np_rng.standard_normal(ndim).astype(np.float32))
+    b_vector_f32 = np.abs(np_rng.standard_normal(ndim).astype(np.float32))
     a_vector_f32 /= np.sum(a_vector_f32)
     b_vector_f32 /= np.sum(b_vector_f32)
-    c_matrix_f32 = make_positive_semidefinite(np.random.randn(ndim, ndim).astype(np.float32))
+    c_matrix_f32 = make_positive_semidefinite(np_rng.standard_normal((ndim, ndim)).astype(np.float32))
 
     a_raw, a_baseline = downcast_f32_to_dtype(a_vector_f32, dtype)
     b_raw, b_baseline = downcast_f32_to_dtype(b_vector_f32, dtype)
@@ -156,11 +155,13 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_CURVED[metric]
 
     # High-precision baseline
-    accurate_dt, accurate = profile(precise_kernel or baseline_kernel, a_baseline, b_baseline, c_baseline, dtype=dtype)
+    accurate_ns, accurate = timed_call(
+        precise_kernel or baseline_kernel, a_baseline, b_baseline, c_baseline, dtype=dtype
+    )
 
     # Baseline at native compute precision (for error-stat collection)
     native_dt = np.dtype(compute_dtype).type
-    expected_dt, expected = profile(
+    expected_ns, expected = timed_call(
         baseline_kernel,
         a_baseline.astype(native_dt),
         b_baseline.astype(native_dt),
@@ -168,7 +169,7 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
     )
 
     # SIMD result
-    result_dt, result = profile(simd_kernel, a_raw, b_raw, c_raw, dtype)
+    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, c_raw, dtype)
     result = np.asarray(result)
 
     err_msg = LazyFormat(
@@ -183,32 +184,32 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
     )
 
     assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL, err_msg=err_msg)
-    collect_errors(metric, ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors(metric, ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.repeat(reduced_repetitions_count)
-@pytest.mark.parametrize("ndim", test_curved_dimensions)
+@pytest.mark.repeat(SETTINGS.reduced_repetitions)
+@pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
 @pytest.mark.parametrize("dtype", ["complex128", "complex64"])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_bilinear_complex_accuracy(ndim: int, dtype: str, capability: str):
+def test_bilinear_complex_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Complex bilinear form against NumPy at extended precision."""
-    a_vector = (np.random.randn(ndim) + 1.0j * np.random.randn(ndim)).astype(dtype)
-    b_vector = (np.random.randn(ndim) + 1.0j * np.random.randn(ndim)).astype(dtype)
-    c_matrix = (np.random.randn(ndim, ndim) + 1.0j * np.random.randn(ndim, ndim)).astype(dtype)
+    a_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)
+    b_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)
+    c_matrix = (np_rng.standard_normal((ndim, ndim)) + 1.0j * np_rng.standard_normal((ndim, ndim))).astype(dtype)
 
     keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_CURVED["bilinear"]
     precise_dtype = np.clongdouble if dtype == "complex128" else np.complex128
-    accurate_dt, accurate = profile(
+    accurate_ns, accurate = timed_call(
         baseline_kernel,
         a_vector.astype(precise_dtype),
         b_vector.astype(precise_dtype),
         c_matrix.astype(precise_dtype),
     )
-    expected_dt, expected = profile(baseline_kernel, a_vector, b_vector, c_matrix)
-    result_dt, result = profile(simd_kernel, a_vector, b_vector, c_matrix)
+    expected_ns, expected = timed_call(baseline_kernel, a_vector, b_vector, c_matrix)
+    result_ns, result = timed_call(simd_kernel, a_vector, b_vector, c_matrix)
     result = np.asarray(result)
 
     assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
-    collect_errors("bilinear", ndim, dtype, accurate, accurate_dt, expected, expected_dt, result, result_dt, stats)
+    collect_errors("bilinear", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)

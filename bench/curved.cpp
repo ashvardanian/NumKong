@@ -12,7 +12,7 @@
 
 #include "harness.hpp"
 
-using namespace ashvardanian::numkong::bench;
+namespace ashvardanian::numkong::bench {
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
@@ -87,23 +87,23 @@ nk_status_t bilinear_f64c_with_blas(nk_f64c_t const *a, nk_f64c_t const *b, nk_f
 #endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 /**
- *  @brief Measures a @b curved kernel, bilinear or Mahalanobis, using Google Benchmark.
- *  @param[inout] state The benchmark state object provided by Google Benchmark.
+ *  @brief Measures a @b curved kernel, bilinear or Mahalanobis.
+ *  @param[inout] loop The timed loop, which takes the counters.
  *  @param[in] kernel The kernel function to benchmark.
  *  @param[in] dimensions The number of dimensions in the vectors.
  */
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void measure_curved(bm::State &state, kernel_type_ kernel, std::size_t dimensions) {
+void measure_curved(loop_t &loop, environment_t const &env, kernel_type_ kernel, std::size_t dimensions) {
 
     using input_t = typename nk::type_for<input_dtype_>::type;
     using output_t = typename input_t::curved_result_t;
     using input_vector_t = nk::vector<input_t>;
 
     // Preallocate inputs: pairs of vectors + metric tensors (dimensions x dimensions)
-    std::size_t bytes_per_set = bench_dtype_bytes(input_dtype_, 2 * dimensions + dimensions * dimensions);
-    std::size_t const vectors_count = bench_input_count(bytes_per_set);
+    std::size_t const vectors_count = input_sets_count(
+        dtype_bytes(input_dtype_, 2 * dimensions + dimensions * dimensions));
     std::vector<input_vector_t> first_vectors(vectors_count), second_vectors(vectors_count), tensors(vectors_count);
-    auto generator = make_random_engine();
+    std::mt19937 generator(env.settings.seed.value);
     for (std::size_t index = 0; index != vectors_count; ++index) {
         first_vectors[index] = make_vector<input_t>(dimensions);
         second_vectors[index] = make_vector<input_t>(dimensions);
@@ -114,31 +114,27 @@ void measure_curved(bm::State &state, kernel_type_ kernel, std::size_t dimension
     }
 
     // Benchmark loop
-    std::size_t iterations = 0;
-    for (auto _ : state) {
+    for (std::size_t call : loop) {
         output_t output[2] = {};
-        std::size_t const index = iterations & (vectors_count - 1);
-        if (!succeeded(state, kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
-                                     tensors[index].raw_values_data(), dimensions, &output[0].raw_, nullptr)))
+        std::size_t const index = call & (vectors_count - 1);
+        if (!succeeded(loop, kernel(first_vectors[index].raw_values_data(), second_vectors[index].raw_values_data(),
+                                    tensors[index].raw_values_data(), dimensions, &output[0].raw_, nullptr)))
             break;
-        bm::DoNotOptimize(output);
-        iterations++;
+        do_not_optimize(output);
     }
 
-    state.counters["bytes"] = bm::Counter(2.0 * iterations * first_vectors[0].size_bytes(), bm::Counter::kIsRate);
-    state.counters["calls"] = bm::Counter(iterations, bm::Counter::kIsRate);
-    state.counters["scalar-ops"] = bm::Counter(2.0 * iterations * (dimensions * dimensions + dimensions),
-                                               bm::Counter::kIsRate);
+    loop.byte_rate(2.0 * first_vectors[0].size_bytes());
+    loop.rate("scalar-ops", 2.0 * (dimensions * dimensions + dimensions));
 }
 
 template <nk_dtype_t input_dtype_, typename kernel_type_ = void>
-void run_curved(std::string name, kernel_type_ *kernel) {
-    std::string bench_name = name + "<" + std::to_string(bench_config.curved_dimensions) + "d>";
-    bm::RegisterBenchmark(bench_name.c_str(), measure_curved<input_dtype_, kernel_type_ *>, kernel,
-                          bench_config.curved_dimensions);
+void run_curved(environment_t const &env, std::string name, kernel_type_ *kernel) {
+    std::string bench_name = name + "<" + std::to_string(env.settings.curved_dimensions) + ">";
+    run_benchmark(env, bench_name, measure_curved<input_dtype_, kernel_type_ *>, kernel,
+                  env.settings.curved_dimensions);
 }
 
-void bench_curved() {
+void bench_curved(environment_t const &env) {
     constexpr nk_dtype_t f64_k = nk_f64_k;
     constexpr nk_dtype_t f32_k = nk_f32_k;
     constexpr nk_dtype_t f16_k = nk_f16_k;
@@ -149,71 +145,87 @@ void bench_curved() {
     constexpr nk_dtype_t bf16c_k = nk_bf16c_k;
 
 #if NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
-    run_curved<f64_k>("bilinear_f64_with_blas", bilinear_f64_with_blas);
-    run_curved<f64c_k>("bilinear_f64c_with_blas", bilinear_f64c_with_blas);
-    run_curved<f32_k>("bilinear_f32_with_blas", bilinear_f32_with_blas);
-    run_curved<f32c_k>("bilinear_f32c_with_blas", bilinear_f32c_with_blas);
+    section(env, "Curved Kernels External Baselines", nk_cap_serial_k);
+    run_curved<f64_k>(env, "bilinear_f64_with_blas", bilinear_f64_with_blas);
+    run_curved<f64c_k>(env, "bilinear_f64c_with_blas", bilinear_f64c_with_blas);
+    run_curved<f32_k>(env, "bilinear_f32_with_blas", bilinear_f32_with_blas);
+    run_curved<f32c_k>(env, "bilinear_f32c_with_blas", bilinear_f32c_with_blas);
 #endif
 
 #if NUMKONG_TARGET_NEON
-    run_curved<f32_k>("bilinear_f32_neon", nk_bilinear_f32_neon);
-    run_curved<f32_k>("mahalanobis_f32_neon", nk_mahalanobis_f32_neon);
-    run_curved<f32c_k>("bilinear_f32c_neon", nk_bilinear_f32c_neon);
-    run_curved<f16_k>("bilinear_f16_neon", nk_bilinear_f16_neon);
-    run_curved<f16_k>("mahalanobis_f16_neon", nk_mahalanobis_f16_neon);
-    run_curved<f16c_k>("bilinear_f16c_neon", nk_bilinear_f16c_neon);
+    if (section(env, "Curved Kernels NEON", nk_cap_neon_k)) {
+        run_curved<f32_k>(env, "bilinear_f32_neon", nk_bilinear_f32_neon);
+        run_curved<f32_k>(env, "mahalanobis_f32_neon", nk_mahalanobis_f32_neon);
+        run_curved<f32c_k>(env, "bilinear_f32c_neon", nk_bilinear_f32c_neon);
+        run_curved<f16_k>(env, "bilinear_f16_neon", nk_bilinear_f16_neon);
+        run_curved<f16_k>(env, "mahalanobis_f16_neon", nk_mahalanobis_f16_neon);
+        run_curved<f16c_k>(env, "bilinear_f16c_neon", nk_bilinear_f16c_neon);
+    }
 #endif
 
 #if NUMKONG_TARGET_NEONBFDOT
-    run_curved<bf16_k>("bilinear_bf16_neonbfdot", nk_bilinear_bf16_neonbfdot);
-    run_curved<bf16_k>("mahalanobis_bf16_neonbfdot", nk_mahalanobis_bf16_neonbfdot);
-    run_curved<bf16c_k>("bilinear_bf16c_neonbfdot", nk_bilinear_bf16c_neonbfdot);
+    if (section(env, "Curved Kernels NEON BF16", nk_cap_neonbfdot_k)) {
+        run_curved<bf16_k>(env, "bilinear_bf16_neonbfdot", nk_bilinear_bf16_neonbfdot);
+        run_curved<bf16_k>(env, "mahalanobis_bf16_neonbfdot", nk_mahalanobis_bf16_neonbfdot);
+        run_curved<bf16c_k>(env, "bilinear_bf16c_neonbfdot", nk_bilinear_bf16c_neonbfdot);
+    }
 #endif
 
 #if NUMKONG_TARGET_SMEF64
-    run_curved<f32_k>("bilinear_f32_smef64", nk_bilinear_f32_smef64);
-    run_curved<f32c_k>("bilinear_f32c_smef64", nk_bilinear_f32c_smef64);
-    run_curved<f32_k>("mahalanobis_f32_smef64", nk_mahalanobis_f32_smef64);
-    run_curved<f64_k>("bilinear_f64_smef64", nk_bilinear_f64_smef64);
-    run_curved<f64c_k>("bilinear_f64c_smef64", nk_bilinear_f64c_smef64);
-    run_curved<f64_k>("mahalanobis_f64_smef64", nk_mahalanobis_f64_smef64);
+    if (section(env, "Curved Kernels SME F64", nk_cap_smef64_k)) {
+        run_curved<f32_k>(env, "bilinear_f32_smef64", nk_bilinear_f32_smef64);
+        run_curved<f32c_k>(env, "bilinear_f32c_smef64", nk_bilinear_f32c_smef64);
+        run_curved<f32_k>(env, "mahalanobis_f32_smef64", nk_mahalanobis_f32_smef64);
+        run_curved<f64_k>(env, "bilinear_f64_smef64", nk_bilinear_f64_smef64);
+        run_curved<f64c_k>(env, "bilinear_f64c_smef64", nk_bilinear_f64c_smef64);
+        run_curved<f64_k>(env, "mahalanobis_f64_smef64", nk_mahalanobis_f64_smef64);
+    }
 #endif
 
 #if NUMKONG_TARGET_HASWELL
-    run_curved<f32_k>("bilinear_f32_haswell", nk_bilinear_f32_haswell);
-    run_curved<f32_k>("mahalanobis_f32_haswell", nk_mahalanobis_f32_haswell);
-    run_curved<f16_k>("bilinear_f16_haswell", nk_bilinear_f16_haswell);
-    run_curved<f16_k>("mahalanobis_f16_haswell", nk_mahalanobis_f16_haswell);
-    run_curved<bf16_k>("bilinear_bf16_haswell", nk_bilinear_bf16_haswell);
-    run_curved<bf16_k>("mahalanobis_bf16_haswell", nk_mahalanobis_bf16_haswell);
+    if (section(env, "Curved Kernels Haswell", nk_cap_haswell_k)) {
+        run_curved<f32_k>(env, "bilinear_f32_haswell", nk_bilinear_f32_haswell);
+        run_curved<f32_k>(env, "mahalanobis_f32_haswell", nk_mahalanobis_f32_haswell);
+        run_curved<f16_k>(env, "bilinear_f16_haswell", nk_bilinear_f16_haswell);
+        run_curved<f16_k>(env, "mahalanobis_f16_haswell", nk_mahalanobis_f16_haswell);
+        run_curved<bf16_k>(env, "bilinear_bf16_haswell", nk_bilinear_bf16_haswell);
+        run_curved<bf16_k>(env, "mahalanobis_bf16_haswell", nk_mahalanobis_bf16_haswell);
+    }
 #endif
 
 #if NUMKONG_TARGET_SKYLAKE
-    run_curved<f32_k>("bilinear_f32_skylake", nk_bilinear_f32_skylake);
-    run_curved<f32c_k>("bilinear_f32c_skylake", nk_bilinear_f32c_skylake);
-    run_curved<f64_k>("bilinear_f64_skylake", nk_bilinear_f64_skylake);
-    run_curved<f64c_k>("bilinear_f64c_skylake", nk_bilinear_f64c_skylake);
-    run_curved<f32_k>("mahalanobis_f32_skylake", nk_mahalanobis_f32_skylake);
-    run_curved<f64_k>("mahalanobis_f64_skylake", nk_mahalanobis_f64_skylake);
+    if (section(env, "Curved Kernels Skylake", nk_cap_skylake_k)) {
+        run_curved<f32_k>(env, "bilinear_f32_skylake", nk_bilinear_f32_skylake);
+        run_curved<f32c_k>(env, "bilinear_f32c_skylake", nk_bilinear_f32c_skylake);
+        run_curved<f64_k>(env, "bilinear_f64_skylake", nk_bilinear_f64_skylake);
+        run_curved<f64c_k>(env, "bilinear_f64c_skylake", nk_bilinear_f64c_skylake);
+        run_curved<f32_k>(env, "mahalanobis_f32_skylake", nk_mahalanobis_f32_skylake);
+        run_curved<f64_k>(env, "mahalanobis_f64_skylake", nk_mahalanobis_f64_skylake);
+    }
 #endif
 
 #if NUMKONG_TARGET_GENOA
-    run_curved<bf16_k>("bilinear_bf16_genoa", nk_bilinear_bf16_genoa);
-    run_curved<bf16_k>("mahalanobis_bf16_genoa", nk_mahalanobis_bf16_genoa);
-    run_curved<bf16c_k>("bilinear_bf16c_genoa", nk_bilinear_bf16c_genoa);
+    if (section(env, "Curved Kernels Genoa", nk_cap_genoa_k)) {
+        run_curved<bf16_k>(env, "bilinear_bf16_genoa", nk_bilinear_bf16_genoa);
+        run_curved<bf16_k>(env, "mahalanobis_bf16_genoa", nk_mahalanobis_bf16_genoa);
+        run_curved<bf16c_k>(env, "bilinear_bf16c_genoa", nk_bilinear_bf16c_genoa);
+    }
 #endif
 
     // Serial fallbacks
-    run_curved<f64_k>("bilinear_f64_serial", nk_bilinear_f64_serial);
-    run_curved<f64c_k>("bilinear_f64c_serial", nk_bilinear_f64c_serial);
-    run_curved<f64_k>("mahalanobis_f64_serial", nk_mahalanobis_f64_serial);
-    run_curved<f32_k>("bilinear_f32_serial", nk_bilinear_f32_serial);
-    run_curved<f32c_k>("bilinear_f32c_serial", nk_bilinear_f32c_serial);
-    run_curved<f32_k>("mahalanobis_f32_serial", nk_mahalanobis_f32_serial);
-    run_curved<f16_k>("bilinear_f16_serial", nk_bilinear_f16_serial);
-    run_curved<f16c_k>("bilinear_f16c_serial", nk_bilinear_f16c_serial);
-    run_curved<f16_k>("mahalanobis_f16_serial", nk_mahalanobis_f16_serial);
-    run_curved<bf16_k>("bilinear_bf16_serial", nk_bilinear_bf16_serial);
-    run_curved<bf16c_k>("bilinear_bf16c_serial", nk_bilinear_bf16c_serial);
-    run_curved<bf16_k>("mahalanobis_bf16_serial", nk_mahalanobis_bf16_serial);
+    section(env, "Curved Kernels Serial", nk_cap_serial_k);
+    run_curved<f64_k>(env, "bilinear_f64_serial", nk_bilinear_f64_serial);
+    run_curved<f64c_k>(env, "bilinear_f64c_serial", nk_bilinear_f64c_serial);
+    run_curved<f64_k>(env, "mahalanobis_f64_serial", nk_mahalanobis_f64_serial);
+    run_curved<f32_k>(env, "bilinear_f32_serial", nk_bilinear_f32_serial);
+    run_curved<f32c_k>(env, "bilinear_f32c_serial", nk_bilinear_f32c_serial);
+    run_curved<f32_k>(env, "mahalanobis_f32_serial", nk_mahalanobis_f32_serial);
+    run_curved<f16_k>(env, "bilinear_f16_serial", nk_bilinear_f16_serial);
+    run_curved<f16c_k>(env, "bilinear_f16c_serial", nk_bilinear_f16c_serial);
+    run_curved<f16_k>(env, "mahalanobis_f16_serial", nk_mahalanobis_f16_serial);
+    run_curved<bf16_k>(env, "bilinear_bf16_serial", nk_bilinear_bf16_serial);
+    run_curved<bf16c_k>(env, "bilinear_bf16c_serial", nk_bilinear_bf16c_serial);
+    run_curved<bf16_k>(env, "mahalanobis_bf16_serial", nk_mahalanobis_bf16_serial);
 }
+
+} // namespace ashvardanian::numkong::bench

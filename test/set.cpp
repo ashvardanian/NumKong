@@ -8,30 +8,30 @@
 #include "harness.hpp"
 #include "numkong/set.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** Test Hamming distance for binary or integer vectors. */
 template <typename scalar_type_>
-error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
+error_stats_t test_hamming(settings_t const &settings, typename scalar_type_::hamming_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::hamming_result_t;
 
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    auto a = make_vector<scalar_t>(global_config.dense_dimensions),
-         b = make_vector<scalar_t>(global_config.dense_dimensions);
+    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
 
         result_t result;
         stats.expect(
-            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
+            kernel(a.raw_values_data(), b.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
 
         result_t reference;
-        stats.expect(nk::hamming<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+        stats.expect(nk::hamming<scalar_t, result_t>(a.values_data(), b.values_data(), settings.dense_dimensions,
                                                      &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
@@ -42,26 +42,26 @@ error_stats_t test_hamming(typename scalar_type_::hamming_kernel_t kernel) {
 
 /** Test Jaccard distance for binary or integer vectors. */
 template <typename scalar_type_>
-error_stats_t test_jaccard(typename scalar_type_::jaccard_kernel_t kernel) {
+error_stats_t test_jaccard(settings_t const &settings, typename scalar_type_::jaccard_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using result_t = typename scalar_t::jaccard_result_t;
 
     error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
 
-    auto a = make_vector<scalar_t>(global_config.dense_dimensions),
-         b = make_vector<scalar_t>(global_config.dense_dimensions);
+    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
 
         result_t result;
         stats.expect(
-            kernel(a.raw_values_data(), b.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
+            kernel(a.raw_values_data(), b.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
 
         result_t reference;
-        stats.expect(nk::jaccard<scalar_t, result_t>(a.values_data(), b.values_data(), global_config.dense_dimensions,
+        stats.expect(nk::jaccard<scalar_t, result_t>(a.values_data(), b.values_data(), settings.dense_dimensions,
                                                      &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
@@ -70,8 +70,7 @@ error_stats_t test_jaccard(typename scalar_type_::jaccard_kernel_t kernel) {
     return stats;
 }
 
-void test_set() {
-    error_stats_section_t check;
+void test_set(error_stats_section_t &check) {
 
     check.section("Binary Distances Serial", nk_cap_serial_k);
     check("hamming_u1_serial", test_hamming<u1x8_t>, nk_hamming_u1_serial);
@@ -154,3 +153,5 @@ void test_set() {
     check("hamming_u8_powervsx", test_hamming<u8_t>, nk_hamming_u8_powervsx);
 #endif // NUMKONG_TARGET_POWERVSX
 }
+
+} // namespace ashvardanian::numkong::test

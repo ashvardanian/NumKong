@@ -34,6 +34,7 @@ import assert from "node:assert";
 
 import * as numkong from "../javascript/dist/esm/numkong.js";
 import { relaxedProbe, simd128Probe } from "../javascript/dist/esm/wasm-probes.js";
+import { Random } from "./random.mjs";
 
 /** Asserts approximate equality within a tolerance. */
 function assertAlmostEqual(actual, expected, tolerance = 1e-6) {
@@ -41,6 +42,12 @@ function assertAlmostEqual(actual, expected, tolerance = 1e-6) {
   const upperBound = expected + tolerance;
   assert(actual >= lowerBound && actual <= upperBound, `Expected ${actual} to be almost equal to ${expected}`);
 }
+
+test("Random matches the C++ SplitMix64 for seed 42", () => {
+  const rng = new Random(42n);
+  const outputs = Array.from({ length: 4 }, () => rng.next64().map((half) => half.toString(16).padStart(8, "0")).join(""));
+  assert.deepStrictEqual(outputs, ["bdd732262feb6e95", "28efe333b266f103", "47526757130f9f52", "581ce1ff0e4ae394"]);
+});
 
 test("Distance from itself", () => {
   const f32s = new Float32Array([1.0, 2.0, 3.0]);

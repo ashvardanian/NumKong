@@ -8,12 +8,12 @@
 #include "harness.hpp"
 #include "numkong/probability.hpp" // `nk::kld`
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** Template for the KL divergence test, whose inputs must be probability distributions: positive
  *  values summing to 1. */
 template <typename scalar_type_>
-error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
+error_stats_t test_kld(settings_t const &settings, typename scalar_type_::probability_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::probability_result_t;
@@ -21,20 +21,20 @@ error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
 
     error_stats_t stats(nk_probability_error_bound(scalar_t::dtype()),
                         nk_accumulation_error_bound(nk_probability_output_dtype(scalar_t::dtype())));
-    std::mt19937 generator(global_config.seed);
-    auto p = make_vector<scalar_t>(global_config.dense_dimensions),
-         q = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto p = make_vector<scalar_t>(settings.dense_dimensions), q = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        nk::fill_probability(generator, p.values_data(), global_config.dense_dimensions);
-        nk::fill_probability(generator, q.values_data(), global_config.dense_dimensions);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        nk::fill_probability(generator, p.values_data(), settings.dense_dimensions);
+        nk::fill_probability(generator, q.values_data(), settings.dense_dimensions);
 
         result_t result;
         stats.expect(
-            kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
+            kernel(p.raw_values_data(), q.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::kld<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions,
+        stats.expect(nk::kld<scalar_t, reference_t>(p.values_data(), q.values_data(), settings.dense_dimensions,
                                                     &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
@@ -46,7 +46,7 @@ error_stats_t test_kld(typename scalar_type_::probability_kernel_t kernel) {
 /** Template for the Jensen-Shannon distance test, whose inputs must be probability distributions:
  *  positive values summing to 1. */
 template <typename scalar_type_>
-error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
+error_stats_t test_jsd(settings_t const &settings, typename scalar_type_::probability_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::probability_result_t;
@@ -54,20 +54,20 @@ error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
 
     error_stats_t stats(nk_probability_error_bound(scalar_t::dtype()),
                         nk_accumulation_error_bound(nk_probability_output_dtype(scalar_t::dtype())));
-    std::mt19937 generator(global_config.seed);
-    auto p = make_vector<scalar_t>(global_config.dense_dimensions),
-         q = make_vector<scalar_t>(global_config.dense_dimensions);
+    std::mt19937 generator(settings.seed.value);
+    auto p = make_vector<scalar_t>(settings.dense_dimensions), q = make_vector<scalar_t>(settings.dense_dimensions);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        nk::fill_probability(generator, p.values_data(), global_config.dense_dimensions);
-        nk::fill_probability(generator, q.values_data(), global_config.dense_dimensions);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        nk::fill_probability(generator, p.values_data(), settings.dense_dimensions);
+        nk::fill_probability(generator, q.values_data(), settings.dense_dimensions);
 
         result_t result;
         stats.expect(
-            kernel(p.raw_values_data(), q.raw_values_data(), global_config.dense_dimensions, &result.raw_, nullptr));
+            kernel(p.raw_values_data(), q.raw_values_data(), settings.dense_dimensions, &result.raw_, nullptr));
 
         reference_t reference;
-        stats.expect(nk::jsd<scalar_t, reference_t>(p.values_data(), q.values_data(), global_config.dense_dimensions,
+        stats.expect(nk::jsd<scalar_t, reference_t>(p.values_data(), q.values_data(), settings.dense_dimensions,
                                                     &reference, no_tiers_k));
 
         stats.accumulate(result, reference);
@@ -76,8 +76,7 @@ error_stats_t test_jsd(typename scalar_type_::probability_kernel_t kernel) {
     return stats;
 }
 
-void test_probability() {
-    error_stats_section_t check;
+void test_probability(error_stats_section_t &check) {
 
     check.section("Probability Divergences Serial", nk_cap_serial_k);
     check("kld_f32_serial", test_kld<f32_t>, nk_kld_f32_serial);
@@ -139,3 +138,5 @@ void test_probability() {
     check("jsd_bf16_rvv", test_jsd<bf16_t>, nk_jsd_bf16_rvv);
 #endif // NUMKONG_TARGET_RVV
 }
+
+} // namespace ashvardanian::numkong::test

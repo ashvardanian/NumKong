@@ -98,6 +98,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/benchmark@2.1.4/benchmark.min.js"></script>
     <script type="module">
+        import { Random, streamKey } from '../test/random.mjs';
+
         // Configuration from URL parameters or defaults
         const urlParams = new URLSearchParams(window.location.search);
         const CONFIG = {
@@ -125,22 +127,8 @@
             'jensenshannon': ['f64', 'f32']
         };
 
-        // Simple PRNG for reproducible benchmarks
-        class Random {
-            constructor(seed) {
-                this.seed = seed;
-            }
-
-            next() {
-                this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-                return this.seed / 0x7fffffff;
-            }
-        }
-
         // Generate test data
-        function generateTestData(dtype, length, seed) {
-            const rng = new Random(seed);
-
+        function generateTestData(dtype, length, rng) {
             switch (dtype) {
                 case 'f64':
                     return Float64Array.from({ length }, () => rng.next() * 2 - 1);
@@ -275,8 +263,9 @@
                         updateProgress(`Running ${testCount}/${totalTests}: ${testName}...`);
 
                         // Generate test data
-                        const a = generateTestData(dtype, CONFIG.dimensions, CONFIG.seed);
-                        const b = generateTestData(dtype, CONFIG.dimensions, CONFIG.seed + 1);
+                        const rng = new Random(streamKey(CONFIG.seed, testName));
+                        const a = generateTestData(dtype, CONFIG.dimensions, rng);
+                        const b = generateTestData(dtype, CONFIG.dimensions, rng);
 
                         const metrics = benchmarkOperation(() => numkong[func](a, b), CONFIG.iterations);
 

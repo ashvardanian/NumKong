@@ -8,26 +8,27 @@
 #include "harness.hpp"
 #include "numkong/spatial.hpp"
 
-using namespace ashvardanian::numkong::test;
+namespace ashvardanian::numkong::test {
 
 /** Unified squared Euclidean distance test for float types. Works with f32_t, f64_t, f16_t, bf16_t
  *  wrapper types. */
 template <typename scalar_type_>
-error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kernel) {
+error_stats_t test_sqeuclidean(settings_t const &settings, typename scalar_type_::sqeuclidean_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::sqeuclidean_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(nk_sqeuclidean_error_bound(scalar_t::dtype()), nk_spatial_sum_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
+    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
 
         result_t result;
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
@@ -44,21 +45,22 @@ error_stats_t test_sqeuclidean(typename scalar_type_::sqeuclidean_kernel_t kerne
 /** Unified angular, or cosine, distance test for float types. Works with f32_t, f64_t, f16_t,
  *  bf16_t wrapper types. */
 template <typename scalar_type_>
-error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
+error_stats_t test_angular(settings_t const &settings, typename scalar_type_::angular_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::angular_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(nk_angular_error_bound(scalar_t::dtype()), nk_spatial_sum_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
+    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
 
         result_t result;
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
@@ -74,21 +76,22 @@ error_stats_t test_angular(typename scalar_type_::angular_kernel_t kernel) {
 /** Unified Euclidean distance test for float types. Works with f32_t, f64_t, f16_t, bf16_t, e2m3_t,
  *  e3m2_t wrapper types. */
 template <typename scalar_type_>
-error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
+error_stats_t test_euclidean(settings_t const &settings, typename scalar_type_::euclidean_kernel_t kernel) {
     using scalar_t = scalar_type_;
     using raw_t = typename scalar_t::raw_t;
     using result_t = typename scalar_t::euclidean_result_t;
     using reference_t = bounded_reference_for<scalar_t, result_t>;
 
     error_stats_t stats(nk_euclidean_error_bound(scalar_t::dtype()), nk_spatial_sum_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(global_config.seed);
+    std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
-    std::size_t const n = nk::divide_round_up(global_config.dense_dimensions, dims_per_value) * dims_per_value;
+    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto a = make_vector<scalar_t>(n), b = make_vector<scalar_t>(n);
 
-    for (auto start = test_start_time(); within_time_budget(start);) {
-        fill_random(generator, a);
-        fill_random(generator, b);
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
 
         result_t result;
         stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), n, &result.raw_, nullptr));
@@ -101,8 +104,7 @@ error_stats_t test_euclidean(typename scalar_type_::euclidean_kernel_t kernel) {
     return stats;
 }
 
-void test_spatial() {
-    error_stats_section_t check;
+void test_spatial(error_stats_section_t &check) {
 
     check.section("Spatial Distances Serial", nk_cap_serial_k);
     check("sqeuclidean_f32_serial", test_sqeuclidean<f32_t>, nk_sqeuclidean_f32_serial);
@@ -541,3 +543,5 @@ void test_spatial() {
     check("angular_u8_powervsx", test_angular<u8_t>, nk_angular_u8_powervsx);
 #endif // NUMKONG_TARGET_POWERVSX
 }
+
+} // namespace ashvardanian::numkong::test

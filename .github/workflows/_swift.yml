@@ -30,11 +30,11 @@ jobs:
         with:
           version-file: "VERSION"
           update-major-version-in: |
-            include/numkong/capabilities.h:^#define NUMKONG_VERSION_MAJOR (\d+)
+            include/numkong/types.h:^#define NUMKONG_VERSION_MAJOR (\d+)
           update-minor-version-in: |
-            include/numkong/capabilities.h:^#define NUMKONG_VERSION_MINOR (\d+)
+            include/numkong/types.h:^#define NUMKONG_VERSION_MINOR (\d+)
           update-patch-version-in: |
-            include/numkong/capabilities.h:^#define NUMKONG_VERSION_PATCH (\d+)
+            include/numkong/types.h:^#define NUMKONG_VERSION_PATCH (\d+)
           dry-run: "false"
       - name: Upload Bumped Files
         uses: actions/upload-artifact@v7
@@ -42,7 +42,7 @@ jobs:
           name: swift-version
           path: |
             VERSION
-            include/numkong/capabilities.h
+            include/numkong/types.h
           if-no-files-found: error
           retention-days: 1
 

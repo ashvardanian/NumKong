@@ -1,6 +1,7 @@
 # MaxSim Late-Interaction Scoring in NumKong
 
-NumKong implements ColBERT-style late-interaction scoring: the MaxSim score sums, over each query token, the minimum angular distance to any document token. A two-stage coarse-to-fine strategy uses i8-quantized screening to rule out documents per query, then full-precision refinement of every document the screen cannot rule out computes the exact minimum angular distance.
+NumKong implements ColBERT-style late-interaction scoring: the MaxSim score sums, over each query token, the minimum angular distance to any document token.
+A two-stage coarse-to-fine strategy uses i8-quantized screening to rule out documents per query, then full-precision refinement of every document the screen cannot rule out computes the exact minimum angular distance.
 
 MaxSim score:
 

@@ -51,7 +51,7 @@ jobs:
           timeout_minutes: 180
           command: |
             python -m pip install --no-cache-dir --upgrade pip
-            pip install --no-cache-dir py-cpuinfo pytest pytest-repeat pytest-randomly numpy scipy ml_dtypes tabulate
+            pip install --no-cache-dir --group test --group test-oracles py-cpuinfo
             python -c "from cpuinfo import get_cpu_info; print(get_cpu_info())"
 
       - name: Build Locally
@@ -60,4 +60,4 @@ jobs:
       - name: Test with PyTest
         run: |
           python -c "import numkong; print(repr(numkong.Device.cpu().capabilities_enabled()))"
-          pytest test/ -s -x -Wd -v
+          python -X faulthandler -m pytest -x

@@ -231,7 +231,7 @@ jobs:
           wasmer run --enable-simd ${{ matrix.simd == 'v128relaxed' && '--enable-relaxed-simd' || '' }} \
             --forward-host-env ./build_wasm32_wasi/numkong_cpu_test.wasm
         env:
-          NUMKONG_BUDGET_SECS: 0.1
+          NUMKONG_TIME_LIMIT: 100ms
 
   # Both wasm32 tiers meet in one directory, where the loader picks by what each browser validates.
   test_browsers:

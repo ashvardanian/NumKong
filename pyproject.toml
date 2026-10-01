@@ -56,22 +56,18 @@ build-verbosity = 0
 enable = []  # no PyPy and no free-threading 3.13; 3.14t is on by default
 # Forwarded from the job environment; `NUMKONG_IN_QEMU` shrinks the fuzzing dimensions on emulated runners.
 environment-pass = [
-    "NUMKONG_ASSERT",
-    "NUMKONG_BUDGET_SECS",
-    "NUMKONG_CURVED_DIMENSIONS",
-    "NUMKONG_DENSE_DIMENSIONS",
+    "NUMKONG_CURVED_DIMS",
+    "NUMKONG_DIMS",
+    "NUMKONG_DIMS_DEPTH",
+    "NUMKONG_DIMS_HEIGHT",
+    "NUMKONG_DIMS_WIDTH",
     "NUMKONG_FILTER",
     "NUMKONG_IN_QEMU",
-    "NUMKONG_MATRIX_DEPTH",
-    "NUMKONG_MATRIX_HEIGHT",
-    "NUMKONG_MATRIX_WIDTH",
     "NUMKONG_MAX_COORD_ANGLE",
     "NUMKONG_MESH_POINTS",
-    "NUMKONG_RANDOM_DISTRIBUTION",
     "NUMKONG_REPETITIONS",
     "NUMKONG_SEED",
-    "NUMKONG_SPARSE_DIMENSIONS",
-    "NUMKONG_VERBOSE",
+    "NUMKONG_SPARSE_DIMS",
 ]
 # Lock the glibc floor for the popular architectures. These match cibuildwheel's current defaults,
 # so a future default bump moves neither the floor nor the wheel tags without an edit here.
@@ -91,23 +87,20 @@ musllinux-x86_64-image = "musllinux_1_2"
 # Alpine's clang 20 can't see RVV intrinsics behind the per-function `target("arch=+v")` the
 # kernels use; clang 21 can, so the manylinux leg builds and the musllinux one doesn't.
 skip = ["*-musllinux_riscv64"]  # we also don't use any SIMD on: ["*s390x*", "*ppc64le*"]
-# Assuming NumPy and SciPy aren't available precompiled for some platforms,
-# we will end up compiling them from source on emulated hardware...
-# To avoid that use `--only-binary=:all:` to only fetch precompiled wheels.
+# The optional oracles may have no precompiled wheels for some platforms, and compiling them
+# from source on emulated hardware takes hours, so `--only-binary=:all:` fetches them or skips them.
 # For better compatibility, we use (&&) to chain commands instead of (;).
 test-command = """
-    python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
     python -m pip install ml_dtypes --only-binary=:all: || (echo "Failed to install ml_dtypes" && exit 0) &&
     python -X faulthandler -c "import numkong; print(repr(numkong.Device.cpu().capabilities_enabled()))" &&
-    PYTHONMALLOC=debug pytest {project}/test/ -s -x -Wd
+    PYTHONMALLOC=debug python -X faulthandler -m pytest -x {project}/test
 """
-test-requires = ["pytest", "pytest-randomly", "pytest-repeat", "tabulate"]
-# NumPy / SciPy / ml_dtypes publish no prebuilt wheels for these arches, so under
-# `--only-binary=:all:` the test-reference deps can't install and the suite crashes at
-# pytest collection. Still BUILD + upload the wheels for them — just skip their test phase.
+test-groups = ["test"]
+# NumPy publishes no prebuilt wheels for these arches, so the `test` group would compile it on
+# emulated hardware. Still BUILD + upload the wheels for them — just skip their test phase.
 # (The wheels themselves import and run fine there; only the numeric-parity tests need NumPy.)
-test-skip = "*_i686 *_ppc64le *_s390x"
+test-skip = "*_i686 *_ppc64le *_s390x *_riscv64"
 
 # In Docker containers `os.cpu_count()` reports the host's cores, and that many SIMD compile jobs OOM the container.
 [tool.cibuildwheel.environment]
@@ -143,14 +136,17 @@ select = "*-manylinux*_aarch64"
 before-all = "apk add --update wget python3-dev"
 select = "*-musllinux*"
 
+# Windows-based OSes and PowerShell don't support the logical operators
+# In PowerShell we could write something like:
+# python -m pip install scipy; if ($LASTEXITCODE -ne 0) { echo "Failed to install SciPy... Nothing can stop me, I'm all the way up!" }
+# but its safer to use the CMD syntax
 [[tool.cibuildwheel.overrides]]
 select = "*win*"
 test-command = """
-    cmd /c "python -m pip install numpy --only-binary=:all: & if errorlevel 1 echo Failed to install NumPy... Nothing can stop me, I'm all the way up! &
-    python -m pip install scipy --only-binary=:all: & if errorlevel 1 echo Failed to install SciPy... Nothing can stop me, I'm all the way up! &
+    cmd /c "python -m pip install scipy --only-binary=:all: & if errorlevel 1 echo Failed to install SciPy... Nothing can stop me, I'm all the way up! &
     python -m pip install ml_dtypes --only-binary=:all: & if errorlevel 1 echo Failed to install ml_dtypes... Nothing can stop me, I'm all the way up! &
     python -X faulthandler -c "import numkong; print(repr(numkong.Device.cpu().capabilities_enabled()))" &
-    set PYTHONMALLOC=debug && pytest {project}/test/ -s -x -Wd"
+    set PYTHONMALLOC=debug && python -X faulthandler -m pytest -x {project}/test"
 """
 
 # RISC-V builds: the images' GCC 14 ignores `#pragma GCC target`, which is how the RVV kernels
@@ -171,10 +167,9 @@ inherit.environment = "append"
 before-build = ["rm -rf {project}/build_python"]
 select = "*-pyodide*"
 test-command = """
-    python -m pip install numpy --only-binary=:all: || (echo "Failed to install NumPy" && exit 0) &&
     python -m pip install scipy --only-binary=:all: || (echo "Failed to install SciPy" && exit 0) &&
     python -X faulthandler -c "import numkong; print(repr(numkong.Device.cpu().capabilities_enabled()))" &&
-    PYTHONMALLOC=debug python -m pytest {project}/test/ -s -x -Wd
+    PYTHONMALLOC=debug python -X faulthandler -m pytest -x {project}/test
 """
 
 [tool.cibuildwheel.windows]
@@ -197,20 +192,23 @@ path = "README.md"
 [tool.pyright]
 extraPaths = ["test"]
 stubPath = "python"
-[tool.pytest]
 
 [tool.pytest.ini_options]
-addopts = ["--showlocals", "--strict-config", "--strict-markers", "-ra"]
+# `-p no:randomly` keeps `<PROJECT>_SEED` in charge wherever pytest-randomly happens to be installed.
+addopts = ["-ra", "--showlocals", "--strict-markers", "--strict-config", "-p", "no:randomly"]
+filterwarnings = ["error"]
+minversion = "8.0"
 python_files = ["*.py"]
 testpaths = ["test"]
-filterwarnings = ["error"]
-minversion = "6.0"
 xfail_strict = true
 
-# Windows-based OSes and PowerShell don't support the logical operators
-# In PowerShell we could write something like:
-# python -m pip install numpy; if ($LASTEXITCODE -ne 0) { echo "Failed to install NumPy... Nothing can stop me, I'm all the way up!" }
-# but its safer to use the CMD syntax
+# Groups rather than extras, so none of this reaches the published wheel's metadata.
+[dependency-groups]
+lint = ["ruff>=0.15.8"]
+test = ["numpy>=1.21", "pytest>=8", "pytest-repeat>=0.9.4"]
+# References the suite compares against when they install, and skips without.
+test-oracles = ["ml_dtypes", "scipy"]
+
 [tool.ruff]
 extend-exclude = [".cmake-format.py"]  # cmake-format DSL config, not Python source
 line-length = 120
@@ -227,7 +225,10 @@ ignore = [
     "RUF043",  # pytest.raises regex patterns: the metacharacters are intentional
     "SIM105",  # contextlib.suppress: explicit try/except is clearer here
 ]
-select = ["B", "D", "E", "F", "I", "PLC0415", "RUF", "SIM", "UP", "W"]
+select = ["B", "D", "E", "F", "I", "PLC0415", "RUF", "SIM", "TID", "UP", "W"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
 
 [tool.ruff.lint.isort]
 known-first-party = ["numkong"]

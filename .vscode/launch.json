@@ -10,11 +10,12 @@
       "request": "launch",
       "program": "${workspaceFolder}/build_debug/numkong_bench",
       "cwd": "${workspaceFolder}",
-      "args": [
-        // "--benchmark_filter=\"intersect_u16_sve_128d\\^8192d\""
-        "--benchmark_filter=nk_mahalanobis_f16_neon"
-      ],
+      "args": [],
       "environment": [
+        {
+          "name": "NUMWARS_FILTER",
+          "value": "mahalanobis_f16_neon"
+        },
         {
           "name": "ASAN_OPTIONS",
           "value": "detect_leaks=0:atexit=1:strict_init_order=1:strict_string_checks=1"

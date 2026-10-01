@@ -84,7 +84,7 @@ This fuses the conjugation of $a$ into the sign of the cross terms rather than e
 ## Performance
 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).
-The input size is controlled by the `NUMKONG_CURVED_DIMENSIONS` environment variable.
+The input size is controlled by the `NUMKONG_CURVED_DIMS` environment variable.
 The metric tensor is a square matrix of side $N$, so each bilinear form $\mathbf{x}^\top M \mathbf{x}$ has $O(N^2)$ arithmetic complexity.
 Columns show matrix side length: 256², 1024², 4096².
 The throughput is measured in GSO/s as Giga Scalar Operations per Second.
@@ -96,11 +96,11 @@ The throughput is measured in GSO/s as Giga Scalar Operations per Second.
 | Kernel                        |                     256² |                    1024² |                    4096² |
 | :---------------------------- | -----------------------: | -----------------------: | -----------------------: |
 | __f64c__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f64c_with_blas` 🧩   |               1.25 gso/s |               1.36 gso/s |               1.38 gso/s |
+| `bilinear_f64c_with_blas` 🧩  |               1.25 gso/s |               1.36 gso/s |               1.38 gso/s |
 | `nk_bilinear_f64c_serial`     |    0.0862 gso/s, 0.5 ulp |     0.161 gso/s, 0.2 ulp |     0.171 gso/s, 0.5 ulp |
 | `nk_bilinear_f64c_skylake`    |     0.583 gso/s, 3.5 ulp |     0.718 gso/s, 3.5 ulp |     0.765 gso/s, 3.5 ulp |
 | __f32c__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f32c_with_blas` 🧩   |               2.14 gso/s |               2.61 gso/s |               2.57 gso/s |
+| `bilinear_f32c_with_blas` 🧩  |               2.14 gso/s |               2.61 gso/s |               2.57 gso/s |
 | `nk_bilinear_f32c_serial`     |       0.756 gso/s, 0 ulp |        1.37 gso/s, 0 ulp |        1.37 gso/s, 0 ulp |
 | `nk_bilinear_f32c_skylake`    |        1.72 gso/s, 0 ulp |        1.75 gso/s, 0 ulp |        1.46 gso/s, 0 ulp |
 | __bf16c__                     | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
@@ -109,13 +109,13 @@ The throughput is measured in GSO/s as Giga Scalar Operations per Second.
 | __f16c__                      | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
 | `nk_bilinear_f16c_serial`     |     0.585 gso/s, 7.2 ulp |     0.592 gso/s, 7.2 ulp |     0.600 gso/s, 7.2 ulp |
 | __f64__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f64_with_blas` 🧩    |               2.84 gso/s |               3.23 gso/s |               3.14 gso/s |
+| `bilinear_f64_with_blas` 🧩   |               2.84 gso/s |               3.23 gso/s |               3.14 gso/s |
 | `nk_bilinear_f64_serial`      |     0.291 gso/s, 0.7 ulp |     0.565 gso/s, 0.4 ulp |     0.577 gso/s, 0.7 ulp |
 | `nk_mahalanobis_f64_serial`   |       0.267 gso/s, 0 ulp |       0.537 gso/s, 0 ulp |       0.539 gso/s, 0 ulp |
 | `nk_bilinear_f64_skylake`     |      1.79 gso/s, 1.6 ulp |      1.71 gso/s, 1.3 ulp |        1.59 gso/s, 1 ulp |
 | `nk_mahalanobis_f64_skylake`  |        1.77 gso/s, 0 ulp |        1.82 gso/s, 0 ulp |      2.12 gso/s, 0.2 ulp |
 | __f32__                       | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ | ░░░░░░░░░░░░░░░░░░░░░░░░ |
-| `bilinear_f32_with_blas` 🧩    |               4.09 gso/s |               5.61 gso/s |               6.59 gso/s |
+| `bilinear_f32_with_blas` 🧩   |               4.09 gso/s |               5.61 gso/s |               6.59 gso/s |
 | `nk_bilinear_f32_serial`      |        1.19 gso/s, 0 ulp |        2.71 gso/s, 0 ulp |        2.68 gso/s, 0 ulp |
 | `nk_mahalanobis_f32_serial`   |        2.36 gso/s, 0 ulp |        2.53 gso/s, 0 ulp |        2.40 gso/s, 0 ulp |
 | `nk_bilinear_f32_haswell`     |        3.45 gso/s, 0 ulp |        3.66 gso/s, 0 ulp |        3.24 gso/s, 0 ulp |

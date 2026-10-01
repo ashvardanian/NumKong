@@ -13,6 +13,7 @@ import assert from "node:assert";
 import build from "node-gyp-build";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { Random, streamKey } from "./random.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,8 +37,8 @@ function readSeed() {
 /** Configuration from environment variables. */
 const CONFIG = {
   seed: readSeed(),
-  dimensions: process.env.NUMKONG_DENSE_DIMENSIONS
-    ? process.env.NUMKONG_DENSE_DIMENSIONS.split(",").map(Number)
+  dimensions: process.env.NUMKONG_DIMS
+    ? process.env.NUMKONG_DIMS.split(",").map(Number)
     : [3, 16, 128, 1536],
 };
 
@@ -77,24 +78,10 @@ function alignDimension(dimension, dtype) {
   return Math.ceil(dimension / dpv) * dpv;
 }
 
-/** Simple PRNG for reproducible tests. */
-class Random {
-  constructor(seed) {
-    this.seed = seed;
-  }
-
-  next() {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return this.seed / 0x7fffffff;
-  }
-}
-
 /** Generates test data for a specific dtype. For the custom dtypes f16, bf16, e4m3, e5m2, e2m3 and
  *  e3m2, generates f32 source data and uses `numkong.cast()` to convert it to the proper backing
  *  array type. */
-function generateTestData(dtype, length, seed = CONFIG.seed) {
-  const rng = new Random(seed);
-
+function generateTestData(dtype, length, rng) {
   switch (dtype) {
     case "f64":
       return Float64Array.from({ length }, () => rng.next() * 2 - 1);
@@ -140,21 +127,22 @@ function generateTestData(dtype, length, seed = CONFIG.seed) {
 
 /** Generates positive probability-like data suitable for KLD/JSD. Values are in the [0.1, 1.0]
  *  range to avoid precision issues with narrow types. */
-function generateProbabilityData(dtype, length, seed = CONFIG.seed) {
-  const rng = new Random(seed);
-
+function generateProbabilityData(dtype, length, rng) {
+  // Divergences are non-negative only between distributions, so the weights sum to one
+  const weights = Float64Array.from({ length }, () => rng.next() * 0.9 + 0.1);
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  const probabilities = weights.map((weight) => weight / total);
   switch (dtype) {
     case "f64":
-      return Float64Array.from({ length }, () => rng.next() * 0.9 + 0.1);
+      return probabilities;
 
     case "f32":
-      return Float32Array.from({ length }, () => rng.next() * 0.9 + 0.1);
+      return Float32Array.from(probabilities);
 
     case "f16":
     case "bf16": {
-      const src = Float32Array.from({ length }, () => rng.next() * 0.9 + 0.1);
       const dst = new Uint16Array(length);
-      numkong.cast(src, "f32", dst, dtype);
+      numkong.cast(Float32Array.from(probabilities), "f32", dst, dtype);
       return dst;
     }
 
@@ -211,10 +199,12 @@ function validateResultRange(result, funcName, dtype, dimension) {
       assert.ok(result >= 0 && result <= 1, `${funcName}(${dtype}) should be in [0, 1], got ${result}`);
       break;
 
-    case "kullbackleibler":
-      // KL divergence is non-negative
-      assert.ok(result >= 0, `${funcName}(${dtype}) should be non-negative, got ${result}`);
+    case "kullbackleibler": {
+      // KL(p‖q) ≥ Σp − Σq, and rounding moves each sum by up to half an ulp per weight
+      const slack = dimension * ({ bf16: 2 ** -9, f16: 2 ** -12, f32: 2 ** -25 }[dtype] ?? 0);
+      assert.ok(result >= -slack, `${funcName}(${dtype}) should be at least ${-slack}, got ${result}`);
       break;
+    }
 
     case "jensenshannon":
       // JS divergence is in [0, 1] for probability distributions
@@ -232,8 +222,9 @@ function callFunc(funcName, a, b, dtype) {
 
 /** Tests determinism: the same inputs should produce the same output. */
 function testDeterminism(funcName, dtype, dimension) {
-  const a = genData(funcName, dtype, dimension, 123);
-  const b = genData(funcName, dtype, dimension, 456);
+  const rng = new Random(streamKey(CONFIG.seed, `${funcName}/${dtype}/${dimension}/determinism`));
+  const a = genData(funcName, dtype, dimension, rng);
+  const b = genData(funcName, dtype, dimension, rng);
 
   const result1 = callFunc(funcName, a, b, dtype);
   const result2 = callFunc(funcName, a, b, dtype);
@@ -249,8 +240,9 @@ function testCommutativity(funcName, dtype, dimension) {
     return;
   }
 
-  const a = genData(funcName, dtype, dimension, 789);
-  const b = genData(funcName, dtype, dimension, 101);
+  const rng = new Random(streamKey(CONFIG.seed, `${funcName}/${dtype}/${dimension}/commutativity`));
+  const a = genData(funcName, dtype, dimension, rng);
+  const b = genData(funcName, dtype, dimension, rng);
 
   const result1 = callFunc(funcName, a, b, dtype);
   const result2 = callFunc(funcName, b, a, dtype);
@@ -265,7 +257,8 @@ function testCommutativity(funcName, dtype, dimension) {
 
 /** Tests self-distance properties. */
 function testSelfDistance(funcName, dtype, dimension) {
-  const a = genData(funcName, dtype, dimension, 111);
+  const rng = new Random(streamKey(CONFIG.seed, `${funcName}/${dtype}/${dimension}/self-distance`));
+  const a = genData(funcName, dtype, dimension, rng);
 
   const result = callFunc(funcName, a, a, dtype);
 
@@ -325,10 +318,10 @@ function isKnownBroken(funcName, dtype, dimension) {
 
 /** Divergence functions need positive, probability-like test data. */
 const DIVERGENCE_FUNCS = new Set(["kullbackleibler", "jensenshannon"]);
-function genData(funcName, dtype, length, seed) {
+function genData(funcName, dtype, length, rng) {
   return DIVERGENCE_FUNCS.has(funcName)
-    ? generateProbabilityData(dtype, length, seed)
-    : generateTestData(dtype, length, seed);
+    ? generateProbabilityData(dtype, length, rng)
+    : generateTestData(dtype, length, rng);
 }
 
 // Generate tests for each function, dtype, and dimension
@@ -340,8 +333,9 @@ for (const [funcName, supportedDTypes] of Object.entries(TEST_MATRIX.functions))
 
       // Test 1: Basic functionality
       test(`${funcName}(${dtype}, dim=${dimension}): basic`, () => {
-        const a = genData(funcName, dtype, dimension, CONFIG.seed);
-        const b = genData(funcName, dtype, dimension, CONFIG.seed + 1);
+        const rng = new Random(streamKey(CONFIG.seed, `${funcName}/${dtype}/${dimension}/basic`));
+        const a = genData(funcName, dtype, dimension, rng);
+        const b = genData(funcName, dtype, dimension, rng);
 
         const result = callFunc(funcName, a, b, dtype);
 
