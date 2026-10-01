@@ -86,3 +86,8 @@ Cargo.lock
 uv.lock
 package-lock.json
 CLAUDE.local.md
+
+# Editors, assistants, language servers and tool caches
+/compile_commands.json
+.ruff_cache/
+.mypy_cache/

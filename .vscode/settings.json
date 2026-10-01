@@ -1,43 +1,47 @@
 {
   "[c]": {
-    "editor.defaultFormatter": "xaver.clang-format"
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": true,
+    "editor.rulers": [120]
   },
   "[cpp]": {
-    "editor.defaultFormatter": "xaver.clang-format"
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": true,
+    "editor.rulers": [120]
   },
   "[cuda-cpp]": {
-    "editor.defaultFormatter": "xaver.clang-format"
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "editor.formatOnSave": true,
+    "editor.rulers": [120]
   },
   "[json]": {
-    "editor.defaultFormatter": "dprint.dprint"
+    "editor.defaultFormatter": "dprint.dprint",
+    "editor.formatOnSave": true,
+    "editor.rulers": [120]
   },
   "[jsonc]": {
-    "editor.defaultFormatter": "dprint.dprint"
+    "editor.defaultFormatter": "dprint.dprint",
+    "editor.formatOnSave": true,
+    "editor.rulers": [120]
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "yzhang.markdown-all-in-one",
+    "editor.formatOnSave": false,
+    "editor.rulers": [120]
   },
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
-    "editor.codeActionsOnSave": {
-      "source.organizeImports.ruff": "explicit"
-    }
-  },
-  "[rust]": {
-    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+    "editor.formatOnSave": true,
+    "editor.rulers": [120]
   },
   "[yaml]": {
-    "editor.defaultFormatter": "dprint.dprint"
+    "editor.defaultFormatter": "dprint.dprint",
+    "editor.formatOnSave": true,
+    "editor.rulers": [120]
   },
-  "C_Cpp.default.compilerPath": "/usr/bin/g++-14",
-  "C_Cpp.default.cppStandard": "c++20",
-  "C_Cpp.default.includePath": [
-    "${workspaceFolder}/include"
-  ],
-  "C_Cpp.intelliSenseEngine": "disabled",
   "clangd.arguments": [
-    "--compile-commands-dir=${workspaceFolder}",
-    "-std=c++20"
-  ],
-  "clangd.fallbackFlags": [
-    "-I${workspaceFolder}/include"
+    "--background-index",
+    "--header-insertion=never"
   ],
   "cSpell.words": [
     "allclose",
@@ -177,13 +181,12 @@
     "XuanTie",
     "Zilla"
   ],
-  "diffEditor.diffAlgorithm": "legacy",
-  "diffEditor.maxComputationTime": 0,
-  "editor.formatOnSave": true,
-  "editor.rulers": [
-    120
-  ],
   "files.associations": {
+    "*.cu": "cuda-cpp",
+    "*.cuh": "cuda-cpp",
+    "*.gyp": "jsonc",
+    "*.metal": "cpp",
+    "*.tcc": "cpp",
     "__bit_reference": "cpp",
     "__bits": "cpp",
     "__config": "cpp",
@@ -199,11 +202,6 @@
     "__tree": "cpp",
     "__tuple": "cpp",
     "__verbose_abort": "cpp",
-    "*.gyp": "jsonc",
-    "*.cu": "cuda-cpp",
-    "*.cuh": "cuda-cpp",
-    "*.metal": "cpp",
-    "*.tcc": "cpp",
     "algorithm": "cpp",
     "arm_neon.h": "c",
     "array": "cpp",
@@ -286,31 +284,19 @@
     "variant": "cpp",
     "vector": "cpp"
   },
-  "files.exclude": {
-    "**/__pycache__": true,
-    "**/.pytest_cache": true,
-    "**/.ruff_cache": true
-  },
-  "files.insertFinalNewline": true,
-  "files.trimTrailingWhitespace": true,
   "files.watcherExclude": {
+    "**/__pycache__": true,
     "**/build*/**": true,
-    "**/target/**": true,
     "**/node_modules/**": true,
-    "**/__pycache__": true
+    "**/target/**": true
   },
-  "python.testing.pytestArgs": [
-    "test"
-  ],
+  "python.testing.pytestArgs": ["test"],
   "python.testing.pytestEnabled": true,
   "python.testing.unittestEnabled": false,
-  "rust-analyzer.rustfmt.extraArgs": [
-    "+nightly"
-  ],
   "search.exclude": {
-    "build*/**": true,
-    "target/**": true,
+    "**/__pycache__": true,
     "**/node_modules": true,
-    "**/__pycache__": true
+    "build*/**": true,
+    "target/**": true
   }
 }

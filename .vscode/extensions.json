@@ -1,22 +1,21 @@
 {
-  // Recommendations that make settings.json work on a fresh clone. clangd is the C/C++/CUDA language
-  // server (reads compile_commands.json); CMake Tools drives the build and cmake-format formats CMake;
-  // ruff lints/formats Python; rust-analyzer covers the Rust crate; dprint formats JSON and YAML the way the
-  // pre-commit hook checks them; the YAML extension and spell-checker keep configs and prose tidy.
   "recommendations": [
     "charliermarsh.ruff",
     "cheshirekow.cmake-format",
     "dprint.dprint",
+    "golang.go",
     "llvm-vs-code-extensions.vscode-clangd",
     "ms-python.python",
     "ms-vscode.cmake-tools",
-    "redhat.vscode-yaml",
     "rust-lang.rust-analyzer",
-    "streetsidesoftware.code-spell-checker"
+    "swiftlang.swift-vscode",
+    "tamasfe.even-better-toml",
+    "yzhang.markdown-all-in-one"
   ],
-  // The MS C/C++ extension ships its own IntelliSense engine that conflicts with clangd; it is
-  // intentionally not recommended so a fresh clone does not run two language servers.
   "unwantedRecommendations": [
-    "ms-vscode.cpptools"
+    "ms-python.black-formatter",
+    "ms-vscode.cpptools",
+    "ms-vscode.cpptools-extension-pack",
+    "xaver.clang-format"
   ]
 }
