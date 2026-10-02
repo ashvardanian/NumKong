@@ -70,14 +70,14 @@ NUMKONG_INLINE void nk_reduce_moments_bf16_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-/** Sums and squares @p count BF16 values @p stride_bytes apart, in chunks the accumulators hold. */
-NUMKONG_INLINE void nk_reduce_moments_bf16_genoa_chunked_(              //
-    nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+/** Sums and squares @p count BF16 values @p stride apart, in chunks the accumulators hold. */
+NUMKONG_INLINE void nk_reduce_moments_bf16_genoa_chunked_(        //
+    nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_size_t stride_elements = stride_bytes / sizeof(nk_bf16_t);
-    int aligned = (stride_bytes % sizeof(nk_bf16_t) == 0);
+    nk_size_t stride_elements = stride / sizeof(nk_bf16_t);
+    int aligned = (stride % sizeof(nk_bf16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_bf16_strided_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_bf16_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     else {
         nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 32;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
@@ -85,18 +85,18 @@ NUMKONG_INLINE void nk_reduce_moments_bf16_genoa_chunked_(              //
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_f32_t sum, sumsq;
             if (stride_elements == 1) nk_reduce_moments_bf16_genoa_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
-            else nk_reduce_moments_bf16_strided_(chunk_ptr, chunk_count, stride_bytes, &sum, &sumsq);
+            else nk_reduce_moments_bf16_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
             if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
             else *sum_ptr += sum, *sumsq_ptr += sumsq;
         }
     }
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_bf16_genoa(                   //
-    nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_genoa(             //
+    nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_reduce_moments_bf16_genoa_chunked_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    nk_reduce_moments_bf16_genoa_chunked_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -130,14 +130,14 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-/** Sums and squares @p count E4M3 values @p stride_bytes apart, in chunks the accumulators hold. */
-NUMKONG_INLINE void nk_reduce_moments_e4m3_genoa_chunked_(              //
-    nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+/** Sums and squares @p count E4M3 values @p stride apart, in chunks the accumulators hold. */
+NUMKONG_INLINE void nk_reduce_moments_e4m3_genoa_chunked_(        //
+    nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    nk_size_t stride_elements = stride_bytes / sizeof(nk_e4m3_t);
-    int aligned = (stride_bytes % sizeof(nk_e4m3_t) == 0);
+    nk_size_t stride_elements = stride / sizeof(nk_e4m3_t);
+    int aligned = (stride % sizeof(nk_e4m3_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e4m3_strided_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_e4m3_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     else {
         nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 32;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
@@ -145,18 +145,18 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_genoa_chunked_(              //
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_f32_t sum, sumsq;
             if (stride_elements == 1) nk_reduce_moments_e4m3_genoa_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
-            else nk_reduce_moments_e4m3_strided_(chunk_ptr, chunk_count, stride_bytes, &sum, &sumsq);
+            else nk_reduce_moments_e4m3_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
             if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
             else *sum_ptr += sum, *sumsq_ptr += sumsq;
         }
     }
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e4m3_genoa(                   //
-    nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+NUMKONG_API nk_status_t nk_reduce_moments_e4m3_genoa(             //
+    nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_reduce_moments_e4m3_genoa_chunked_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    nk_reduce_moments_e4m3_genoa_chunked_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -190,14 +190,14 @@ NUMKONG_INLINE void nk_reduce_moments_e5m2_genoa_contiguous_( //
     *sumsq_ptr = nk_reduce_add_f32x16_skylake_(sumsq_f32x16);
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e5m2_genoa(                   //
-    nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride_bytes, //
+NUMKONG_API nk_status_t nk_reduce_moments_e5m2_genoa(             //
+    nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t stride_elements = stride_bytes / sizeof(nk_e5m2_t);
-    int aligned = (stride_bytes % sizeof(nk_e5m2_t) == 0);
+    nk_size_t stride_elements = stride / sizeof(nk_e5m2_t);
+    int aligned = (stride % sizeof(nk_e5m2_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) nk_reduce_moments_e5m2_strided_(data_ptr, count, stride_bytes, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_e5m2_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     else {
         nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 32;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
@@ -205,7 +205,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e5m2_genoa(                   //
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_f32_t sum, sumsq;
             if (stride_elements == 1) nk_reduce_moments_e5m2_genoa_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
-            else nk_reduce_moments_e5m2_strided_(chunk_ptr, chunk_count, stride_bytes, &sum, &sumsq);
+            else nk_reduce_moments_e5m2_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
             if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
             else *sum_ptr += sum, *sumsq_ptr += sumsq;
         }

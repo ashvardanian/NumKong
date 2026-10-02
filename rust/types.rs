@@ -1565,7 +1565,7 @@ impl From<i4x2> for (i8, i8) {
 ///
 /// This is the storage scalar for the `elements` tensor of NVFP4 / MXFP4. Like the other sub-byte
 /// packers ([`u4x2`]), it reports `dimensions_per_value() == 2` so a tensor of logical shape
-/// __[rows,columns]__ allocates `rows * cols / 2` bytes — exactly `nk_block_scaled_elements_size`.
+/// __[rows,columns]__ allocates `rows * columns / 2` bytes, as `nk_block_scaled_elements_size`.
 /// Bytes are produced and consumed by the C kernel (`element_dtype = nk_e2m1_k`); Rust never
 /// unpacks the nibbles itself.
 #[repr(transparent)]
@@ -2702,7 +2702,7 @@ pub(crate) fn init_thread() {
     });
 }
 
-/// Standard `(height, width, depth)` problem sizes swept by the batched tests.
+/// Standard `(rows, columns, depth)` problem sizes swept by the batched tests.
 #[cfg(test)]
 pub(crate) const DIMS: &[(usize, usize, usize)] = &[(1, 1, 1), (1, 8, 3), (3, 1, 7), (7, 5, 3), (33, 17, 65)];
 

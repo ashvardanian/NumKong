@@ -371,14 +371,13 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_v128relaxed(void const *packe
                                                                void *stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_v128relaxed(nk_bf16_t const *vectors, nk_size_t vector_count,
-                                                        nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
-                                                        void *stream);
+                                                        nk_size_t depth, nk_size_t stride, void *packed, void *stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_v128relaxed(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride_in_bytes, void *packed, void *stream);
+                                                       nk_size_t stride, void *packed, void *stream);
 /** @copydoc nk_maxsim_pack_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_v128relaxed(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride_in_bytes, void *packed, void *stream);
+                                                       nk_size_t stride, void *packed, void *stream);
 /** @copydoc nk_maxsim_packed_bf16_best */
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_v128relaxed(void const *query_packed, void const *document_packed,
                                                           nk_size_t query_count, nk_size_t document_count,
@@ -520,85 +519,87 @@ NUMKONG_API nk_status_t nk_maxsim_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
 extern "C" {
 #endif
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_best(nk_size_t width, nk_size_t depth, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
                                                      nk_size_t *bytes) {
-    nk_unused_(width), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
+    nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
                                                         nk_capability_t capabilities, void *stream) {
-    nk_unused_(packed), nk_unused_(width), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
+    nk_unused_(packed), nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
-                                                void *b_packed, nk_capability_t capabilities, void *stream) {
-    nk_unused_(b), nk_unused_(width), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
+NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
+                                                nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
+                                                void *stream) {
+    nk_unused_(b), nk_unused_(columns), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_f32_best(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                                  nk_size_t document_count, nk_size_t depth, nk_f64_t *result,
-                                                  nk_capability_t capabilities, void *stream) {
-    nk_unused_(q_packed), nk_unused_(d_packed), nk_unused_(query_count), nk_unused_(document_count), nk_unused_(depth),
-        nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_maxsim_packed_f32_best(void const *query_packed, void const *document_packed,
+                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                  nk_f64_t *result, nk_capability_t capabilities, void *stream) {
+    nk_unused_(query_packed), nk_unused_(document_packed), nk_unused_(query_count), nk_unused_(document_count),
+        nk_unused_(depth), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_best(nk_size_t width, nk_size_t depth, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
                                                       nk_size_t *bytes) {
-    nk_unused_(width), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
+    nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
                                                          nk_capability_t capabilities, void *stream) {
-    nk_unused_(packed), nk_unused_(width), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
+    nk_unused_(packed), nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *b, nk_size_t width, nk_size_t depth,
+NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *b, nk_size_t columns, nk_size_t depth,
                                                  nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
                                                  void *stream) {
-    nk_unused_(b), nk_unused_(width), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
+    nk_unused_(b), nk_unused_(columns), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_bf16_best(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                                   nk_size_t document_count, nk_size_t depth, nk_f32_t *result,
-                                                   nk_capability_t capabilities, void *stream) {
-    nk_unused_(q_packed), nk_unused_(d_packed), nk_unused_(query_count), nk_unused_(document_count), nk_unused_(depth),
-        nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_maxsim_packed_bf16_best(void const *query_packed, void const *document_packed,
+                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                   nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+    nk_unused_(query_packed), nk_unused_(document_packed), nk_unused_(query_count), nk_unused_(document_count),
+        nk_unused_(depth), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t width, nk_size_t depth, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
                                                      nk_size_t *bytes) {
-    nk_unused_(width), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
+    nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
                                                         nk_capability_t capabilities, void *stream) {
-    nk_unused_(packed), nk_unused_(width), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
+    nk_unused_(packed), nk_unused_(columns), nk_unused_(depth), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
-                                                void *b_packed, nk_capability_t capabilities, void *stream) {
-    nk_unused_(b), nk_unused_(width), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
+NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *b, nk_size_t columns, nk_size_t depth,
+                                                nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
+                                                void *stream) {
+    nk_unused_(b), nk_unused_(columns), nk_unused_(depth), nk_unused_(b_stride), nk_unused_(b_packed),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_f16_best(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                                  nk_size_t document_count, nk_size_t depth, nk_f32_t *result,
-                                                  nk_capability_t capabilities, void *stream) {
-    nk_unused_(q_packed), nk_unused_(d_packed), nk_unused_(query_count), nk_unused_(document_count), nk_unused_(depth),
-        nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_maxsim_packed_f16_best(void const *query_packed, void const *document_packed,
+                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                  nk_f32_t *result, nk_capability_t capabilities, void *stream) {
+    nk_unused_(query_packed), nk_unused_(document_packed), nk_unused_(query_count), nk_unused_(document_count),
+        nk_unused_(depth), nk_unused_(result), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 

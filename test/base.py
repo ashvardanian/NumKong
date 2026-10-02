@@ -190,7 +190,7 @@ def read_settings() -> Settings:
         in_qemu=in_qemu,
         repetitions=repetitions,
         dims=dims,
-        # Deterministic subsamples for the `[height, width, depth]` axes, named as in `dots.h`.
+        # Deterministic subsamples for the `[rows, columns, depth]` axes, named as in `dots.h`.
         dims_height=sampled("NUMKONG_DIMS_HEIGHT", 42, 6),
         dims_width=sampled("NUMKONG_DIMS_WIDTH", 43, 6),
         dims_depth=sampled("NUMKONG_DIMS_DEPTH", 44, 6),

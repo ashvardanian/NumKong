@@ -15,13 +15,13 @@
 
 #include <numeric> // `std::lcm`
 
-#include "numkong/cast.h" // `nk_cast_serial`, `nk_cast_block_scaled_serial`
+#include "numkong/cast.h" // `nk_cast_serial`
 
 #include "harness.hpp"
 
 namespace ashvardanian::numkong::test {
 
-using cast_t = nk_status_t (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t, void *);
+using cast_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, void *);
 
 /**
  *  @brief Pull one logical element out of a vector as a primitive comparable value.
@@ -37,12 +37,68 @@ static auto read_element_(vec_type_ const &v, std::size_t i) {
     else return v[i].raw_;
 }
 
-/** Tests a cast kernel against the serial kernel; SIMD kernels must match serial output exactly for
- *  every logical element. */
+/** The buffers of one side of a cast: elements, and for block-scaled dtypes their scales and the
+ *  tensor scale, all in the memory of @p backend_type_. */
+template <typename value_type_, typename backend_type_>
+struct cast_operand {
+    static constexpr nk_dtype_t dtype = value_type_::dtype();
+    static constexpr bool scaled = nk_dtype_is_block_scaled(dtype);
+    static constexpr bool has_tensor_scale = nk_block_scaled_format_of_dtype(dtype).tensor_scale_dtype == nk_f32_k;
+
+    using bytes_t = nk::vector<u8_t, typename backend_type_::template allocator<u8_t>>;
+    using elements_t =
+        std::conditional_t<scaled, bytes_t,
+                           nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>>;
+
+    elements_t elements;
+    bytes_t scales;
+    bytes_t tensor_scale;
+
+    explicit cast_operand(std::size_t dimensions)
+        : elements(make_elements_(dimensions)),
+          scales(bytes_t::zeros(nk_block_scaled_scales_size(dimensions, nk_block_scaled_format_of_dtype(dtype)) + 1)
+                     .value),
+          tensor_scale(bytes_t::zeros(sizeof(nk_f32_t)).value) {}
+
+    nk_f32_t &tensor_scale_value() { return *reinterpret_cast<nk_f32_t *>(tensor_scale.raw_values_data()); }
+
+    /** The reference a kernel takes for block-scaled dtypes, read-only or writable alike: every one
+     *  starts as NVFP4's does, and MX formats never read the tensor scale. */
+    struct reference_t {
+        void *elements;
+        void *scales;
+        nk_f32_t *tensor_scale;
+    };
+
+    reference_t reference() {
+        return {elements.raw_values_data(), scales.raw_values_data(),
+                has_tensor_scale ? &tensor_scale_value() : nullptr};
+    }
+
+    /** What to pass as the kernel's operand: the reference for block-scaled dtypes, else the plain
+     *  elements. */
+    void *operand(reference_t &reference_storage) {
+        if constexpr (scaled) return &reference_storage;
+        else return elements.raw_values_data();
+    }
+
+    static elements_t make_elements_(std::size_t dimensions) {
+        if constexpr (scaled)
+            return bytes_t::zeros(nk_block_scaled_elements_size(dimensions, nk_block_scaled_format_of_dtype(dtype)))
+                .value;
+        else return elements_t::zeros(dimensions).value;
+    }
+};
+
+/** Tests a cast kernel against the serial kernel, byte for byte for block-scaled results and per
+ *  logical element for plain ones. Either side may be plain or block-scaled: a block-scaled source
+ *  is the serial encoding of random F32, a block-scaled destination with a tensor scale runs with a
+ *  given scale and with one the kernel derives. */
 template <typename from_type_, typename to_type_, typename backend_type_ = host_backend_t>
 error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
-    using sources_t = nk::vector<from_type_, typename backend_type_::template allocator<from_type_>>;
-    using targets_t = nk::vector<to_type_, typename backend_type_::template allocator<to_type_>>;
+    using source_t = cast_operand<from_type_, backend_type_>;
+    using target_t = cast_operand<to_type_, backend_type_>;
+    using floats_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
     backend_type_ backend;
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
@@ -52,23 +108,49 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
                                               nk::dimensions_per_value<to_type_>());
     std::size_t const dimensions = (settings.dense_dimensions / aligned_dims) * aligned_dims;
 
-    auto source_vec = sources_t::zeros(dimensions).value;
-    auto target_vec = targets_t::zeros(dimensions).value;
-    auto reference_vec = make_vector<to_type_>(dimensions);
+    source_t source(dimensions);
+    target_t target(dimensions), reference(dimensions);
+    auto source_floats = floats_t::zeros(dimensions).value;
+    typename source_t::reference_t source_reference = source.reference();
+    typename target_t::reference_t target_reference = target.reference(), reference_reference = reference.reference();
+    void *source_operand = source.operand(source_reference);
+    void *target_operand = target.operand(target_reference);
+    void *reference_operand = reference.operand(reference_reference);
+
+    auto compare_bytes = [&](auto &target_bytes, auto &reference_bytes) {
+        for (std::size_t i = 0; i < target_bytes.size_bytes(); ++i)
+            stats.accumulate(target_bytes.raw_values_data()[i], reference_bytes.raw_values_data()[i]);
+    };
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;) {
-        fill_random_bits(generator, source_vec);
+        if constexpr (source_t::scaled) {
+            fill_random(settings, generator, source_floats);
+            source.tensor_scale_value() = 0.0f;
+            stats.expect(nk_cast_serial(source_floats.raw_values_data(), nk_f32_k, source_operand, from_type_::dtype(),
+                                        dimensions, nullptr));
+        }
+        else if constexpr (target_t::scaled) fill_random(settings, generator, source.elements);
+        else fill_random_bits(generator, source.elements);
 
-        stats.expect(nk_cast_serial(source_vec.raw_values_data(), from_type_::dtype(), dimensions,
-                                    reference_vec.raw_values_data(), to_type_::dtype(), nullptr));
-        backend.call(kernel, source_vec.raw_values_data(), from_type_::dtype(), dimensions,
-                     target_vec.raw_values_data(), to_type_::dtype());
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        for (float const tensor_scale : {1.0f, 0.0f}) {
+            if (tensor_scale == 0.0f && !target_t::has_tensor_scale) continue;
+            target.tensor_scale_value() = reference.tensor_scale_value() = tensor_scale;
+            stats.expect(nk_cast_serial(source_operand, from_type_::dtype(), reference_operand, to_type_::dtype(),
+                                        dimensions, nullptr));
+            backend.call(kernel, static_cast<void const *>(source_operand), from_type_::dtype(), target_operand,
+                         to_type_::dtype(), static_cast<nk_size_t>(dimensions));
+            if (char const *failure = backend.synchronize()) stats.expect(false, failure);
 
-        // Per-element comparison, dispatched to the smart reference for sub-byte types.
-        for (std::size_t i = 0; i < target_vec.size(); ++i)
-            stats.accumulate(read_element_(target_vec, i), read_element_(reference_vec, i));
+            if constexpr (target_t::scaled) {
+                compare_bytes(target.elements, reference.elements);
+                compare_bytes(target.scales, reference.scales);
+                if constexpr (target_t::has_tensor_scale) compare_bytes(target.tensor_scale, reference.tensor_scale);
+            }
+            else
+                for (std::size_t i = 0; i < target.elements.size(); ++i)
+                    stats.accumulate(read_element_(target.elements, i), read_element_(reference.elements, i));
+        }
     }
     return stats;
 }
@@ -98,10 +180,10 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
                 if (from_type == nk_u1_k && nk_dtype_family(to_type) == nk_dtype_family_int_k) continue;
                 std::memset(target.raw_values_data(), 0, capacity);
                 std::memset(reference.raw_values_data(), 0, capacity);
-                stats.expect(nk_cast_serial(source.raw_values_data(), from_type, count, reference.raw_values_data(),
-                                            to_type, nullptr));
-                backend.call(kernel, static_cast<void const *>(source.raw_values_data()), from_type, count,
-                             static_cast<void *>(target.raw_values_data()), to_type);
+                stats.expect(nk_cast_serial(source.raw_values_data(), from_type, reference.raw_values_data(), to_type,
+                                            count, nullptr));
+                backend.call(kernel, static_cast<void const *>(source.raw_values_data()), from_type,
+                             static_cast<void *>(target.raw_values_data()), to_type, count);
                 if (char const *failure = backend.synchronize()) stats.expect(false, failure);
                 std::size_t const to_bytes = count * nk_dtype_bits(to_type) / NUMKONG_BITS_PER_BYTE;
                 for (std::size_t i = 0; i < to_bytes; ++i)
@@ -111,97 +193,24 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
     return stats;
 }
 
-using block_scaled_cast_t = nk_status_t (*)(                                                  //
-    void const *, void const *, nk_scalar_buffer_t const *, nk_block_scaled_format_t const *, //
-    void *, void *, nk_scalar_buffer_t *, nk_block_scaled_format_t const *, nk_size_t, void *);
-using block_scaled_format_factory_t = nk_block_scaled_format_t (*)(void);
-
-/**
- *  @brief Tests a block-scaled cast kernel against the serial reference, byte for byte, over every
- *      direction of the format: encoding F32 with a given and with a derived tensor scale, decoding
- *      the serial encoding back to F32, and transcoding it into NVFP4 with a derived tensor scale.
- *
- *  Derived scales only apply to formats with a tensor scale, so MX formats skip that encoding.
- */
+/** Registers the casts of every block-scaled format from F32 and to F32, and three transcodes
+ *  covering each distinct path, as rows named `cast_<from>_to_<to>_<isa>`, each checked by
+ *  @c test_cast: a 16-element block into a 32-element one, the reverse with a derived tensor scale,
+ *  and a widening between two MX formats. */
 template <typename backend_type_ = host_backend_t>
-error_stats_t test_cast_block_scaled(settings_t const &settings, block_scaled_cast_t kernel,
-                                     block_scaled_format_factory_t factory) {
-    using floats_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
-    using bytes_t = nk::vector<u8_t, typename backend_type_::template allocator<u8_t>>;
-    backend_type_ backend;
-    error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
-
-    nk_block_scaled_format_t const format = factory(), plain_f32 = nk_plain(nk_f32_k), nvfp4 = nk_nvfp4();
-    std::size_t const dimensions = (settings.dense_dimensions / format.block_size) * format.block_size;
-    bool const has_tensor_scale = format.tensor_scale_dtype == nk_f32_k;
-
-    auto source = floats_t::zeros(dimensions).value;
-    auto target_decoded = floats_t::zeros(dimensions).value, reference_decoded = floats_t::zeros(dimensions).value;
-    auto target_elements = bytes_t::zeros(nk_block_scaled_elements_size(dimensions, format)).value;
-    auto reference_elements = bytes_t::zeros(nk_block_scaled_elements_size(dimensions, format)).value;
-    auto target_scales = bytes_t::zeros(nk_block_scaled_scales_size(dimensions, format)).value;
-    auto reference_scales = bytes_t::zeros(nk_block_scaled_scales_size(dimensions, format)).value;
-    auto target_nvfp4 = bytes_t::zeros(nk_block_scaled_elements_size(dimensions, nvfp4)).value;
-    auto reference_nvfp4 = bytes_t::zeros(nk_block_scaled_elements_size(dimensions, nvfp4)).value;
-    auto target_nvfp4_scales = bytes_t::zeros(nk_block_scaled_scales_size(dimensions, nvfp4)).value;
-    auto reference_nvfp4_scales = bytes_t::zeros(nk_block_scaled_scales_size(dimensions, nvfp4)).value;
-    // Tensor scales of the target and the reference, in memory the kernel reaches
-    auto tensor_scales = bytes_t::zeros(4 * sizeof(nk_scalar_buffer_t)).value;
-    auto *target_tensor_scale = reinterpret_cast<nk_scalar_buffer_t *>(tensor_scales.raw_values_data());
-    auto *reference_tensor_scale = target_tensor_scale + 1;
-    auto *target_nvfp4_tensor_scale = target_tensor_scale + 2, *reference_nvfp4_tensor_scale = target_tensor_scale + 3;
-
-    auto compare_bytes = [&](void const *target, void const *reference, std::size_t bytes) {
-        for (std::size_t i = 0; i < bytes; ++i)
-            stats.accumulate(static_cast<nk_u8_t const *>(target)[i], static_cast<nk_u8_t const *>(reference)[i]);
+void check_block_scaled_casts(error_stats_section_t &check, char const *isa, cast_t kernel) {
+    auto row = [&]<typename from_type_, typename to_type_>() {
+        std::string const name = fmt::format("cast_{}_to_{}_{}", from_type_::dtype_name(), to_type_::dtype_name(), isa);
+        check(name.c_str(), test_cast<from_type_, to_type_, backend_type_>, kernel);
     };
-    auto cast_both = [&](void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,
-                         nk_block_scaled_format_t const *from_format, void *target, void *target_scales,
-                         nk_scalar_buffer_t *target_tensor_scale, void *reference, void *reference_scales,
-                         nk_scalar_buffer_t *reference_tensor_scale, nk_block_scaled_format_t const *to_format) {
-        stats.expect(nk_cast_block_scaled_serial(from, from_scales, from_tensor_scale, from_format, reference,
-                                                 reference_scales, reference_tensor_scale, to_format, dimensions,
-                                                 nullptr));
-        backend.call(kernel, from, from_scales, from_tensor_scale, from_format, target, target_scales,
-                     target_tensor_scale, to_format, static_cast<nk_size_t>(dimensions));
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
-    };
-
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
-        fill_random(settings, generator, source);
-        std::size_t const elements_bytes = target_elements.size_values(), scales_bytes = target_scales.size_values();
-
-        for (float const tensor_scale : {1.0f, 0.0f}) {
-            if (tensor_scale == 0.0f && !has_tensor_scale) continue;
-            target_tensor_scale->f32 = reference_tensor_scale->f32 = tensor_scale;
-            cast_both(source.raw_values_data(), nullptr, nullptr, &plain_f32, target_elements.raw_values_data(),
-                      target_scales.raw_values_data(), has_tensor_scale ? target_tensor_scale : nullptr,
-                      reference_elements.raw_values_data(), reference_scales.raw_values_data(),
-                      has_tensor_scale ? reference_tensor_scale : nullptr, &format);
-            compare_bytes(target_elements.raw_values_data(), reference_elements.raw_values_data(), elements_bytes);
-            compare_bytes(target_scales.raw_values_data(), reference_scales.raw_values_data(), scales_bytes);
-            compare_bytes(target_tensor_scale, reference_tensor_scale, sizeof(nk_f32_t));
-        }
-
-        cast_both(reference_elements.raw_values_data(), reference_scales.raw_values_data(), reference_tensor_scale,
-                  &format, target_decoded.raw_values_data(), nullptr, nullptr, reference_decoded.raw_values_data(),
-                  nullptr, nullptr, &plain_f32);
-        compare_bytes(target_decoded.raw_values_data(), reference_decoded.raw_values_data(),
-                      dimensions * sizeof(nk_f32_t));
-
-        target_nvfp4_tensor_scale->f32 = reference_nvfp4_tensor_scale->f32 = 0.0f;
-        cast_both(reference_elements.raw_values_data(), reference_scales.raw_values_data(), reference_tensor_scale,
-                  &format, target_nvfp4.raw_values_data(), target_nvfp4_scales.raw_values_data(),
-                  target_nvfp4_tensor_scale, reference_nvfp4.raw_values_data(),
-                  reference_nvfp4_scales.raw_values_data(), reference_nvfp4_tensor_scale, &nvfp4);
-        compare_bytes(target_nvfp4.raw_values_data(), reference_nvfp4.raw_values_data(), target_nvfp4.size_values());
-        compare_bytes(target_nvfp4_scales.raw_values_data(), reference_nvfp4_scales.raw_values_data(),
-                      target_nvfp4_scales.size_values());
-        compare_bytes(target_nvfp4_tensor_scale, reference_nvfp4_tensor_scale, sizeof(nk_f32_t));
-    }
-    return stats;
+    [&]<typename... format_types_>(std::type_identity<format_types_>...) {
+        ((row.template operator()<f32_t, format_types_>(), row.template operator()<format_types_, f32_t>()), ...);
+    }(std::type_identity<nvfp4_t> {}, std::type_identity<mxfp4_t> {}, std::type_identity<mxfp6e2m3_t> {},
+      std::type_identity<mxfp6e3m2_t> {}, std::type_identity<mxfp8e4m3_t> {}, std::type_identity<mxfp8e5m2_t> {},
+      std::type_identity<mxint8_t> {});
+    row.template operator()<nvfp4_t, mxfp8e4m3_t>();
+    row.template operator()<mxfp8e4m3_t, nvfp4_t>();
+    row.template operator()<mxfp4_t, mxfp8e5m2_t>();
 }
 
 } // namespace ashvardanian::numkong::test

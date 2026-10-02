@@ -1385,6 +1385,10 @@ NUMKONG_INLINE nk_dtype_t nk_euclidean_output_dtype(nk_dtype_t dtype) {
     case nk_e5m2_k: return nk_f32_k;
     case nk_e2m3_k: return nk_f32_k;
     case nk_e2m1_k: return nk_f32_k;
+    case nk_nvfp4_k:
+    case nk_mxfp4_k:
+    case nk_mxfp8e4m3_k:
+    case nk_mxfp8e5m2_k: return nk_f32_k;
     case nk_e3m2_k: return nk_f32_k;
     case nk_i8_k: return nk_f32_k;
     case nk_u8_k: return nk_f32_k;
@@ -1424,6 +1428,10 @@ NUMKONG_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
     case nk_e5m2_k: return nk_f32_k;
     case nk_e2m3_k: return nk_f32_k;
     case nk_e2m1_k: return nk_f32_k;
+    case nk_nvfp4_k:
+    case nk_mxfp4_k:
+    case nk_mxfp8e4m3_k:
+    case nk_mxfp8e5m2_k: return nk_f32_k;
     case nk_e3m2_k: return nk_f32_k;
     case nk_i8_k: return nk_f32_k;
     case nk_u8_k: return nk_f32_k;

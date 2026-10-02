@@ -108,11 +108,11 @@ void measure_dots_symmetric_f64_with_blas(loop_t &loop, environment_t const &env
 
 #if NUMKONG_COMPARE_TO_ACCELERATE
 
-static BNNSNDArrayDescriptor bnns_matrix_desc(BNNSDataType dtype, void *data, std::size_t rows, std::size_t cols) {
+static BNNSNDArrayDescriptor bnns_matrix_desc(BNNSDataType dtype, void *data, std::size_t rows, std::size_t columns) {
     BNNSNDArrayDescriptor desc = {};
     desc.layout = BNNSDataLayout2DFirstMajor;
     desc.size[0] = rows;
-    desc.size[1] = cols;
+    desc.size[1] = columns;
     desc.data_type = dtype;
     desc.data = data;
     return desc;

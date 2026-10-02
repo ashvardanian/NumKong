@@ -298,8 +298,8 @@ typedef struct {
     unsigned char *to;
     nk_size_t count;
     nk_size_t units;
-    nk_dtype_t from_type;
-    nk_dtype_t to_type;
+    nk_dtype_t from_dtype;
+    nk_dtype_t to_dtype;
     nk_cast_hub_t hub;
     unsigned unit_values;
 } nk_cast_arguments_t;
@@ -573,10 +573,10 @@ NUMKONG_DEVICE void nk_cast_unit_simt_(nk_cast_arguments_t const *arguments, nk_
         nk_f32_to_bf16_simt_((nk_f32_t const *)arguments->from + unit, (nk_bf16_t *)arguments->to + unit);
         return;
     }
-    switch (arguments->to_type) {
+    switch (arguments->to_dtype) {
     case nk_u1_k:
         for (unsigned offset = 0; offset != values; ++offset) {
-            nk_cast_load_simt_(hub, arguments->from, arguments->from_type, first + offset, &value);
+            nk_cast_load_simt_(hub, arguments->from, arguments->from_dtype, first + offset, &value);
             packed |= nk_cast_code_simt_(hub, &value, nk_u1_k) << (7 - offset);
         }
         arguments->to[first / 8] = (unsigned char)packed;
@@ -585,17 +585,17 @@ NUMKONG_DEVICE void nk_cast_unit_simt_(nk_cast_arguments_t const *arguments, nk_
     case nk_u4_k:
     case nk_e2m1_k:
         for (unsigned offset = 0; offset + 2 <= values; offset += 2) {
-            nk_cast_load_simt_(hub, arguments->from, arguments->from_type, first + offset, &value);
-            nk_cast_load_simt_(hub, arguments->from, arguments->from_type, first + offset + 1, &partner);
+            nk_cast_load_simt_(hub, arguments->from, arguments->from_dtype, first + offset, &value);
+            nk_cast_load_simt_(hub, arguments->from, arguments->from_dtype, first + offset + 1, &partner);
             arguments->to[(first + offset) / 2] =
-                (unsigned char)((nk_cast_code_simt_(hub, &value, arguments->to_type) << 4) |
-                                nk_cast_code_simt_(hub, &partner, arguments->to_type));
+                (unsigned char)((nk_cast_code_simt_(hub, &value, arguments->to_dtype) << 4) |
+                                nk_cast_code_simt_(hub, &partner, arguments->to_dtype));
         }
         break;
     default:
         for (unsigned offset = 0; offset != values; ++offset) {
-            nk_cast_load_simt_(hub, arguments->from, arguments->from_type, first + offset, &value);
-            nk_cast_store_simt_(hub, &value, arguments->to, arguments->to_type, first + offset);
+            nk_cast_load_simt_(hub, arguments->from, arguments->from_dtype, first + offset, &value);
+            nk_cast_store_simt_(hub, &value, arguments->to, arguments->to_dtype, first + offset);
         }
         break;
     }
@@ -604,26 +604,26 @@ NUMKONG_DEVICE void nk_cast_unit_simt_(nk_cast_arguments_t const *arguments, nk_
 /** Plans the bulk cast of @p count values from @p from to @p to through the hub
  *  @c nk_cast_elementwise_ would take, copying same-type bytes in the widest words their
  *  alignment allows. Returns zero when the serial cast writes nothing. */
-NUMKONG_INLINE int nk_cast_plan_simt_(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
-                                      nk_dtype_t to_type, nk_cast_arguments_t *arguments) {
-    nk_size_t const from_bits = nk_dtype_bits(from_type), to_bits = nk_dtype_bits(to_type);
-    nk_dtype_family_t const from_family = nk_dtype_family(from_type), to_family = nk_dtype_family(to_type);
+NUMKONG_INLINE int nk_cast_plan_simt_(void const *from, nk_dtype_t from_dtype, nk_size_t count, void *to,
+                                      nk_dtype_t to_dtype, nk_cast_arguments_t *arguments) {
+    nk_size_t const from_bits = nk_dtype_bits(from_dtype), to_bits = nk_dtype_bits(to_dtype);
+    nk_dtype_family_t const from_family = nk_dtype_family(from_dtype), to_family = nk_dtype_family(to_dtype);
     int const from_integer = from_family == nk_dtype_family_int_k || from_family == nk_dtype_family_uint_k;
     int const to_integer = to_family == nk_dtype_family_int_k || to_family == nk_dtype_family_uint_k;
     nk_size_t const from_per_byte = from_bits && from_bits < NUMKONG_BITS_PER_BYTE ? NUMKONG_BITS_PER_BYTE / from_bits
                                                                                    : 1;
     nk_size_t const to_per_byte = to_bits && to_bits < NUMKONG_BITS_PER_BYTE ? NUMKONG_BITS_PER_BYTE / to_bits : 1;
     arguments->from = (unsigned char const *)from, arguments->to = (unsigned char *)to, arguments->count = count;
-    arguments->from_type = from_type, arguments->to_type = to_type;
+    arguments->from_dtype = from_dtype, arguments->to_dtype = to_dtype;
     arguments->unit_values = (unsigned)(from_per_byte > to_per_byte ? from_per_byte : to_per_byte);
-    if (from_type == to_type) {
+    if (from_dtype == to_dtype) {
         arguments->count = count * from_bits / NUMKONG_BITS_PER_BYTE;
         arguments->hub = nk_cast_hub_bytes_k, arguments->unit_values = 16;
         while (((nk_size_t)from | (nk_size_t)to | arguments->count) & (arguments->unit_values - 1))
             arguments->unit_values /= 2;
     }
-    else if (from_type == nk_f32_k && to_type == nk_bf16_k) { arguments->hub = nk_cast_hub_bf16_k; }
-    else if (from_type == nk_f32c_k && to_type == nk_bf16c_k) {
+    else if (from_dtype == nk_f32_k && to_dtype == nk_bf16_k) { arguments->hub = nk_cast_hub_bf16_k; }
+    else if (from_dtype == nk_f32c_k && to_dtype == nk_bf16c_k) {
         arguments->hub = nk_cast_hub_bf16_k, arguments->count *= 2;
     }
     else if (!from_bits || !to_bits) { return 0; }
@@ -632,10 +632,10 @@ NUMKONG_INLINE int nk_cast_plan_simt_(void const *from, nk_dtype_t from_type, nk
     }
     else if (from_integer && to_integer) {
         // The serial I64 hub stores no U4 and no U1
-        if (to_type == nk_u4_k || to_type == nk_u1_k) return 0;
+        if (to_dtype == nk_u4_k || to_dtype == nk_u1_k) return 0;
         arguments->hub = nk_cast_hub_i64_k;
     }
-    else if (nk_dtype_f32_exact_(from_type) && nk_dtype_f32_exact_(to_type)) { arguments->hub = nk_cast_hub_f32c_k; }
+    else if (nk_dtype_f32_exact_(from_dtype) && nk_dtype_f32_exact_(to_dtype)) { arguments->hub = nk_cast_hub_f32c_k; }
     else { arguments->hub = nk_cast_hub_f64c_k; }
     arguments->units = nk_size_divide_round_up_(arguments->count, arguments->unit_values);
     return arguments->units != 0;
@@ -643,13 +643,13 @@ NUMKONG_INLINE int nk_cast_plan_simt_(void const *from, nk_dtype_t from_type, nk
 
 /** Validates and launches a bulk cast with @p kernel, as many 256-thread blocks as stay resident
  *  walking the units. */
-NUMKONG_INLINE nk_status_t nk_cast_launch_simt_(void const *kernel, void const *from, nk_dtype_t from_type, nk_size_t n,
-                                                void *to, nk_dtype_t to_type, void *stream) {
+NUMKONG_INLINE nk_status_t nk_cast_launch_simt_(void const *kernel, void const *from, nk_dtype_t from_dtype,
+                                                nk_size_t count, void *to, nk_dtype_t to_dtype, void *stream) {
     nk_cast_arguments_t arguments;
-    if (((nk_size_t)from & (nk_dtype_alignment_(from_type) - 1)) ||
-        ((nk_size_t)to & (nk_dtype_alignment_(to_type) - 1)))
+    if (((nk_size_t)from & (nk_dtype_alignment_(from_dtype) - 1)) ||
+        ((nk_size_t)to & (nk_dtype_alignment_(to_dtype) - 1)))
         return nk_misaligned_k;
-    if (!nk_cast_plan_simt_(from, from_type, n, to, to_type, &arguments)) return nk_success_k;
+    if (!nk_cast_plan_simt_(from, from_dtype, count, to, to_dtype, &arguments)) return nk_success_k;
     return nk_device_launch_resident_(kernel, 256, 0, 0, nk_size_divide_round_up_(arguments.units, 256), &arguments,
                                       stream);
 }
@@ -659,16 +659,16 @@ NUMKONG_INLINE nk_status_t nk_cast_launch_simt_(void const *kernel, void const *
 typedef struct {
     unsigned char const *from;
     unsigned char const *from_scales;
-    nk_scalar_buffer_t const *from_tensor_scale;
+    nk_f32_t const *from_tensor_scale;
     unsigned char *to;
     unsigned char *to_scales;
-    nk_scalar_buffer_t *to_tensor_scale;
+    nk_f32_t *to_tensor_scale;
     nk_size_t count;
     nk_size_t chunks;
-    nk_dtype_t from_type;
-    nk_dtype_t from_scale_type;
-    nk_dtype_t to_type;
-    nk_dtype_t to_scale_type;
+    nk_dtype_t from_dtype;
+    nk_dtype_t from_scale_dtype;
+    nk_dtype_t to_dtype;
+    nk_dtype_t to_scale_dtype;
     unsigned from_block;
     unsigned to_block;
     unsigned phase;
@@ -690,11 +690,11 @@ typedef enum {
 /** The destination's tensor scale: the caller's, or derived from the abs-max its bits gathered. */
 NUMKONG_DEVICE nk_f32_t nk_cast_block_scaled_to_tensor_scale_simt_(nk_cast_block_scaled_arguments_t const *arguments) {
     if (!arguments->to_tensor_scale) return 1.0f;
-    nk_u32_t const bits = *(nk_u32_t volatile *)&arguments->to_tensor_scale->u32;
+    nk_u32_t const bits = *(nk_u32_t volatile *)arguments->to_tensor_scale;
     if (bits && !(bits >> 31)) return __uint_as_float(bits);
     nk_f32_t const amax = __uint_as_float(bits & 0x7FFFFFFFu);
-    nk_f32_t const scale_max = arguments->to_scale_type == nk_ue4m3_k ? 448.0f : 1.0f;
-    return amax > 0 ? amax / (nk_element_max_representable_(arguments->to_type) * scale_max) : 1.0f;
+    nk_f32_t const scale_max = arguments->to_scale_dtype == nk_ue4m3_k ? 448.0f : 1.0f;
+    return amax > 0 ? amax / (nk_element_max_representable_(arguments->to_dtype) * scale_max) : 1.0f;
 }
 
 /** Reads values @p first onward of @p dtype as @p count F32 values, like @c nk_cast_elementwise_
@@ -710,7 +710,7 @@ NUMKONG_DEVICE void nk_cast_decode_f32s_simt_(unsigned char const *bytes, nk_dty
     }
     if (!bits) return;
     arguments.from = bytes + first * bits / NUMKONG_BITS_PER_BYTE, arguments.to = (unsigned char *)values;
-    arguments.count = count, arguments.from_type = dtype, arguments.to_type = nk_f32_k;
+    arguments.count = count, arguments.from_dtype = dtype, arguments.to_dtype = nk_f32_k;
     arguments.unit_values = bits < NUMKONG_BITS_PER_BYTE ? (unsigned)(NUMKONG_BITS_PER_BYTE / bits) : 1;
     arguments.hub = nk_dtype_f32_exact_(dtype) ? nk_cast_hub_f32c_k : nk_cast_hub_f64c_k;
     for (nk_size_t unit = 0; unit * arguments.unit_values < count; ++unit) nk_cast_unit_simt_(&arguments, unit);
@@ -728,7 +728,7 @@ NUMKONG_DEVICE void nk_cast_encode_f32s_simt_(nk_f32_t const *values, nk_size_t 
     }
     if (!bits) return;
     arguments.from = (unsigned char const *)values, arguments.to = bytes + first * bits / NUMKONG_BITS_PER_BYTE;
-    arguments.count = count, arguments.from_type = nk_f32_k, arguments.to_type = dtype;
+    arguments.count = count, arguments.from_dtype = nk_f32_k, arguments.to_dtype = dtype;
     arguments.unit_values = bits < NUMKONG_BITS_PER_BYTE ? (unsigned)(NUMKONG_BITS_PER_BYTE / bits) : 1;
     arguments.hub = dtype == nk_bf16_k           ? nk_cast_hub_bf16_k
                     : nk_dtype_f32_exact_(dtype) ? nk_cast_hub_f32c_k
@@ -740,9 +740,9 @@ NUMKONG_DEVICE void nk_cast_encode_f32s_simt_(nk_f32_t const *values, nk_size_t 
  *  for a plain source. */
 NUMKONG_DEVICE nk_f32_t nk_cast_block_scaled_from_scale_simt_(nk_cast_block_scaled_arguments_t const *arguments,
                                                               nk_size_t block) {
-    if (arguments->from_scale_type == nk_dtype_unknown_k) return 1.0f;
-    return nk_block_scaled_decode_scale_serial_(arguments->from_scales[block], arguments->from_scale_type) *
-           (arguments->from_tensor_scale ? arguments->from_tensor_scale->f32 : 1.0f);
+    if (arguments->from_scale_dtype == nk_dtype_unknown_k) return 1.0f;
+    return nk_block_scaled_decode_scale_serial_(arguments->from_scales[block], arguments->from_scale_dtype) *
+           (arguments->from_tensor_scale ? *arguments->from_tensor_scale : 1.0f);
 }
 
 /** Converts the chunk at @p chunk_start like one step of @c nk_cast_block_scaled_through_f32_. */
@@ -752,15 +752,15 @@ NUMKONG_DEVICE void nk_cast_block_scaled_chunk_simt_(nk_cast_block_scaled_argume
     unsigned const chunk = arguments->from_block > arguments->to_block ? arguments->from_block : arguments->to_block;
     unsigned const chunk_count = arguments->count - chunk_start < chunk ? (unsigned)(arguments->count - chunk_start)
                                                                         : chunk;
-    int const from_plain = arguments->from_scale_type == nk_dtype_unknown_k;
-    int const to_plain = arguments->to_scale_type == nk_dtype_unknown_k;
+    int const from_plain = arguments->from_scale_dtype == nk_dtype_unknown_k;
+    int const to_plain = arguments->to_scale_dtype == nk_dtype_unknown_k;
     unsigned const from_step = from_plain ? chunk_count : arguments->from_block;
     unsigned const to_step = to_plain ? chunk_count : arguments->to_block;
     nk_f32_t const to_tensor_scale = nk_cast_block_scaled_to_tensor_scale_simt_(arguments);
-    nk_f32_t const element_max = nk_element_max_representable_(arguments->to_type);
+    nk_f32_t const element_max = nk_element_max_representable_(arguments->to_dtype);
     for (unsigned begin = 0; begin < chunk_count; begin += from_step) {
         unsigned const valid = chunk_count - begin < from_step ? chunk_count - begin : from_step;
-        nk_cast_decode_f32s_simt_(arguments->from, arguments->from_type, chunk_start + begin, valid, scratch + begin);
+        nk_cast_decode_f32s_simt_(arguments->from, arguments->from_dtype, chunk_start + begin, valid, scratch + begin);
         if (from_plain) continue;
         nk_f32_t const scale = nk_cast_block_scaled_from_scale_simt_(arguments,
                                                                      (chunk_start + begin) / arguments->from_block);
@@ -769,21 +769,21 @@ NUMKONG_DEVICE void nk_cast_block_scaled_chunk_simt_(nk_cast_block_scaled_argume
     for (unsigned begin = 0; begin < chunk_count; begin += to_step) {
         unsigned const valid = chunk_count - begin < to_step ? chunk_count - begin : to_step;
         if (to_plain) {
-            nk_cast_encode_f32s_simt_(scratch + begin, valid, arguments->to, arguments->to_type, chunk_start + begin);
+            nk_cast_encode_f32s_simt_(scratch + begin, valid, arguments->to, arguments->to_dtype, chunk_start + begin);
             continue;
         }
         nk_f32_t const block_amax = nk_block_amax_f32_serial_(scratch + begin, valid);
         nk_u8_t const raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale,
-                                                                 arguments->to_scale_type);
+                                                                 arguments->to_scale_dtype);
         arguments->to_scales[(chunk_start + begin) / arguments->to_block] = raw;
-        nk_f32_t const effective_scale = nk_block_scaled_decode_scale_serial_(raw, arguments->to_scale_type) *
+        nk_f32_t const effective_scale = nk_block_scaled_decode_scale_serial_(raw, arguments->to_scale_dtype) *
                                          to_tensor_scale;
         nk_f32_t const reciprocal = effective_scale > 0 ? 1.0f / effective_scale : 0.0f;
         for (unsigned offset = 0; offset != valid; ++offset) {
             nk_f32_t const scaled = scratch[begin + offset] * reciprocal;
             encoded[offset] = scaled > element_max ? element_max : scaled < -element_max ? -element_max : scaled;
         }
-        nk_cast_encode_f32s_simt_(encoded, valid, arguments->to, arguments->to_type, chunk_start + begin);
+        nk_cast_encode_f32s_simt_(encoded, valid, arguments->to, arguments->to_dtype, chunk_start + begin);
     }
 }
 
@@ -791,7 +791,7 @@ NUMKONG_DEVICE void nk_cast_block_scaled_chunk_simt_(nk_cast_block_scaled_argume
  *  order like the magnitudes they encode. Every thread of the block must call it. */
 NUMKONG_DEVICE void nk_cast_block_scaled_amax_simt_(nk_cast_block_scaled_arguments_t const *arguments,
                                                     nk_u32_t *partials) {
-    nk_size_t const bits = nk_dtype_bits(arguments->from_type);
+    nk_size_t const bits = nk_dtype_bits(arguments->from_dtype);
     nk_size_t const per_byte = bits < NUMKONG_BITS_PER_BYTE ? NUMKONG_BITS_PER_BYTE / bits : 1;
     nk_size_t const units = nk_size_divide_round_up_(arguments->count, per_byte);
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
@@ -799,7 +799,7 @@ NUMKONG_DEVICE void nk_cast_block_scaled_amax_simt_(nk_cast_block_scaled_argumen
     for (nk_size_t unit = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; unit < units; unit += stride) {
         nk_size_t const first = unit * per_byte, left = arguments->count - first;
         nk_size_t const valid = left < per_byte ? left : per_byte;
-        nk_cast_decode_f32s_simt_(arguments->from, arguments->from_type, first, valid, values);
+        nk_cast_decode_f32s_simt_(arguments->from, arguments->from_dtype, first, valid, values);
         for (nk_size_t offset = 0; offset != valid; ++offset) {
             nk_f32_t const magnitude = fabsf(values[offset] * nk_cast_block_scaled_from_scale_simt_(
                                                                   arguments, (first + offset) / arguments->from_block));
@@ -813,17 +813,17 @@ NUMKONG_DEVICE void nk_cast_block_scaled_amax_simt_(nk_cast_block_scaled_argumen
             partials[threadIdx.x] = partials[threadIdx.x + half];
         __syncthreads();
     }
-    if (threadIdx.x == 0) atomicMax((unsigned int *)&arguments->to_tensor_scale->u32, partials[0] | 0x80000000u);
+    if (threadIdx.x == 0) atomicMax((unsigned int *)arguments->to_tensor_scale, partials[0] | 0x80000000u);
 }
 
 /** Runs one phase of a block-scaled cast, the same kernel launched once per phase. */
 NUMKONG_DEVICE void nk_cast_block_scaled_phase_simt_(nk_cast_block_scaled_arguments_t const *arguments,
                                                      nk_u32_t *partials) {
     nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;
-    nk_scalar_buffer_t *tensor_scale = arguments->to_tensor_scale;
+    nk_f32_t *tensor_scale = arguments->to_tensor_scale;
     switch (arguments->phase) {
     case nk_cast_block_scaled_amax_k: {
-        nk_u32_t const bits = *(nk_u32_t volatile *)&tensor_scale->u32;
+        nk_u32_t const bits = *(nk_u32_t volatile *)tensor_scale;
         if (!bits || bits >> 31) nk_cast_block_scaled_amax_simt_(arguments, partials);
         break;
     }
@@ -835,40 +835,33 @@ NUMKONG_DEVICE void nk_cast_block_scaled_phase_simt_(nk_cast_block_scaled_argume
                 chunk * (arguments->from_block > arguments->to_block ? arguments->from_block : arguments->to_block));
         // Every thread derives this same scale, even one still reading the gathered bits
         if (tensor_scale && blockIdx.x == 0 && threadIdx.x == 0)
-            tensor_scale->f32 = nk_cast_block_scaled_to_tensor_scale_simt_(arguments);
+            *tensor_scale = nk_cast_block_scaled_to_tensor_scale_simt_(arguments);
         break;
     }
 }
 
-/** Validates a block-scaled cast and queues its launches of @p kernel: a plain-to-plain one becomes
- *  a bulk cast with @p cast_kernel, and a destination tensor scale adds the mark, abs-max and
- *  derive launches before the chunks. */
-NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_simt_(                                                  //
-    void const *kernel, void const *cast_kernel,                                                               //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream) {
+/** Validates a cast with a block-scaled side and queues its launches of @p kernel: a destination
+ *  tensor scale adds the mark, abs-max and derive launches before the chunks. */
+NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_simt_(void const *kernel, nk_cast_operand_t const &from,
+                                                             nk_block_scaled_format_t const *from_format,
+                                                             nk_cast_operand_t const &to,
+                                                             nk_block_scaled_format_t const *to_format, nk_size_t count,
+                                                             void *stream) {
     int const from_plain = from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0;
     int const to_plain = to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0;
     nk_cast_block_scaled_arguments_t arguments;
-    if (from_plain && to_plain)
-        return nk_cast_launch_simt_(cast_kernel, from, from_format->element_dtype, count, to, to_format->element_dtype,
-                                    stream);
     if ((!from_plain && from_format->block_size > 32) || (!to_plain && to_format->block_size > 32))
         return nk_unexpected_dimensions_k;
-    if (((nk_size_t)from & (nk_dtype_alignment_(from_format->element_dtype) - 1)) ||
-        ((nk_size_t)to & (nk_dtype_alignment_(to_format->element_dtype) - 1)))
+    if (((nk_size_t)from.codes & (nk_dtype_alignment_(from_format->element_dtype) - 1)) ||
+        ((nk_size_t)to.codes & (nk_dtype_alignment_(to_format->element_dtype) - 1)))
         return nk_misaligned_k;
-    arguments.from = (unsigned char const *)from, arguments.from_scales = (unsigned char const *)from_scales;
-    arguments.from_tensor_scale = !from_plain && from_format->tensor_scale_dtype == nk_f32_k ? from_tensor_scale
-                                                                                             : NUMKONG_NULL;
-    arguments.to = (unsigned char *)to, arguments.to_scales = (unsigned char *)to_scales;
-    arguments.to_tensor_scale = !to_plain && to_format->tensor_scale_dtype == nk_f32_k ? to_tensor_scale : NUMKONG_NULL;
-    arguments.count = count, arguments.from_type = from_format->element_dtype;
-    arguments.to_type = to_format->element_dtype;
-    arguments.from_scale_type = from_plain ? nk_dtype_unknown_k : from_format->scale_dtype;
-    arguments.to_scale_type = to_plain ? nk_dtype_unknown_k : to_format->scale_dtype;
+    arguments.from = (unsigned char const *)from.codes, arguments.to = (unsigned char *)to.codes;
+    arguments.from_scales = from.scales, arguments.to_scales = to.scales;
+    arguments.from_tensor_scale = from.tensor_scale, arguments.to_tensor_scale = to.tensor_scale;
+    arguments.count = count, arguments.from_dtype = from_format->element_dtype;
+    arguments.to_dtype = to_format->element_dtype;
+    arguments.from_scale_dtype = from_plain ? nk_dtype_unknown_k : from_format->scale_dtype;
+    arguments.to_scale_dtype = to_plain ? nk_dtype_unknown_k : to_format->scale_dtype;
     arguments.from_block = from_plain ? 1u : (unsigned)from_format->block_size;
     arguments.to_block = to_plain ? 1u : (unsigned)to_format->block_size;
     arguments.chunks = nk_size_divide_round_up_(
@@ -900,19 +893,15 @@ static __global__ void nk_cast_block_scaled_cuda_kernel_(nk_cast_block_scaled_ar
     nk_cast_block_scaled_phase_simt_(&arguments, partials);
 }
 
-NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                     void *stream) {
-    return nk_cast_launch_simt_((void const *)&nk_cast_cuda_kernel_, from, from_type, n, to, to_type, stream);
-}
-
-NUMKONG_API nk_status_t nk_cast_block_scaled_cuda(                                                             //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream) {
+NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, void *stream) {
+    if (!nk_dtype_is_block_scaled(from_dtype) && !nk_dtype_is_block_scaled(to_dtype))
+        return nk_cast_launch_simt_((void const *)&nk_cast_cuda_kernel_, from, from_dtype, count, to, to_dtype, stream);
+    nk_block_scaled_format_t const from_format = nk_block_scaled_format_of_dtype(from_dtype);
+    nk_block_scaled_format_t const to_format = nk_block_scaled_format_of_dtype(to_dtype);
     return nk_cast_block_scaled_launch_simt_((void const *)&nk_cast_block_scaled_cuda_kernel_,
-                                             (void const *)&nk_cast_cuda_kernel_, from, from_scales, from_tensor_scale,
-                                             from_format, to, to_scales, to_tensor_scale, to_format, count, stream);
+                                             nk_cast_operand_(from_dtype, from), &from_format,
+                                             nk_cast_operand_(to_dtype, to), &to_format, count, stream);
 }
 
 #endif // NUMKONG_TARGET_CUDA

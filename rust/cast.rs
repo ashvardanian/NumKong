@@ -22,22 +22,8 @@ extern "C" {
     fn nk_cast_best(
         from: *const c_void,
         from_type: nk_dtype_t,
-        n: nk_size_t,
         to: *mut c_void,
         to_type: nk_dtype_t,
-        capabilities: nk_capability_t,
-        stream: *mut c_void,
-    ) -> nk_status_t;
-
-    fn nk_cast_block_scaled_best(
-        from: *const c_void,
-        from_scales: *const c_void,
-        from_tensor_scale: *const ScalarBuffer,
-        from_format: *const BlockScaledDescriptor,
-        to: *mut c_void,
-        to_scales: *mut c_void,
-        to_tensor_scale: *mut ScalarBuffer,
-        to_format: *const BlockScaledDescriptor,
         count: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -204,9 +190,9 @@ pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Result<
         nk_cast_best(
             source.as_ptr() as *const c_void,
             S::dtype_code(),
-            source.len(),
             dest.as_mut_ptr() as *mut c_void,
             D::dtype_code(),
+            source.len(),
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
@@ -252,7 +238,7 @@ use crate::{
 /// `#[repr(C)]` mirror of `nk_block_scaled_format_t`.
 ///
 /// Field order and types match the C struct exactly so a `*const` can be handed to
-/// `nk_cast_block_scaled`. The `tensor_scale_dtype` field is `nk_f32_k` for NVFP4 and
+/// `nk_cast_best`. The `tensor_scale_dtype` field is `nk_f32_k` for NVFP4 and
 /// `nk_dtype_unknown_k` (0) for the MX family; `block_size` is `0` for plain buffers.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -306,27 +292,246 @@ fn dtype_bits(code: u32) -> usize {
     }
 }
 
-/// `#[repr(C)]` mirror of `nk_scalar_buffer_t` — a 16-byte union. The only field the block-scaled
-/// kernel reads or writes is the leading `f32` — the NVFP4 per-tensor multiplier.
-#[repr(C, align(16))]
-#[derive(Clone, Copy)]
-pub(crate) struct ScalarBuffer {
-    pub bytes: [u8; 16],
-}
+/// Crate-private `#[repr(C)]` mirrors of the C block-scaled operand structs, which a cast kernel
+/// reads as selected by the dtype codes it is given.
+#[allow(non_camel_case_types)]
+pub(crate) mod ffi {
+    use core::ffi::c_void;
 
-impl ScalarBuffer {
-    #[inline]
-    fn from_f32(value: f32) -> Self {
-        let mut bytes = [0u8; 16];
-        bytes[..4].copy_from_slice(&value.to_ne_bytes());
-        ScalarBuffer { bytes }
+    use super::{dtype, BlockScaledDescriptor};
+    use crate::types::{e2m1x2, e2m3, e3m2, e4m3, e5m2, Ue4m3, Ue8m0};
+
+    #[repr(C)]
+    pub(crate) struct nk_nvfp4_cref_t {
+        pub(crate) elements: *const e2m1x2,
+        pub(crate) scales: *const Ue4m3,
+        pub(crate) tensor_scale: *const f32,
     }
 
-    #[inline]
-    fn to_f32(self) -> f32 {
-        let mut four = [0u8; 4];
-        four.copy_from_slice(&self.bytes[..4]);
-        f32::from_ne_bytes(four)
+    #[repr(C)]
+    pub(crate) struct nk_nvfp4_ref_t {
+        pub(crate) elements: *mut e2m1x2,
+        pub(crate) scales: *mut Ue4m3,
+        pub(crate) tensor_scale: *mut f32,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp4_cref_t {
+        pub(crate) elements: *const e2m1x2,
+        pub(crate) scales: *const Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp4_ref_t {
+        pub(crate) elements: *mut e2m1x2,
+        pub(crate) scales: *mut Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp6e2m3_cref_t {
+        pub(crate) elements: *const e2m3,
+        pub(crate) scales: *const Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp6e2m3_ref_t {
+        pub(crate) elements: *mut e2m3,
+        pub(crate) scales: *mut Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp6e3m2_cref_t {
+        pub(crate) elements: *const e3m2,
+        pub(crate) scales: *const Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp6e3m2_ref_t {
+        pub(crate) elements: *mut e3m2,
+        pub(crate) scales: *mut Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp8e4m3_cref_t {
+        pub(crate) elements: *const e4m3,
+        pub(crate) scales: *const Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp8e4m3_ref_t {
+        pub(crate) elements: *mut e4m3,
+        pub(crate) scales: *mut Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp8e5m2_cref_t {
+        pub(crate) elements: *const e5m2,
+        pub(crate) scales: *const Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxfp8e5m2_ref_t {
+        pub(crate) elements: *mut e5m2,
+        pub(crate) scales: *mut Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxint8_cref_t {
+        pub(crate) elements: *const i8,
+        pub(crate) scales: *const Ue8m0,
+    }
+
+    #[repr(C)]
+    pub(crate) struct nk_mxint8_ref_t {
+        pub(crate) elements: *mut i8,
+        pub(crate) scales: *mut Ue8m0,
+    }
+
+    /// The source operand of a cast, whichever layout its format takes.
+    pub(crate) enum Cref {
+        Plain(*const c_void),
+        Nvfp4(nk_nvfp4_cref_t),
+        Mxfp4(nk_mxfp4_cref_t),
+        Mxfp6E2m3(nk_mxfp6e2m3_cref_t),
+        Mxfp6E3m2(nk_mxfp6e3m2_cref_t),
+        Mxfp8E4m3(nk_mxfp8e4m3_cref_t),
+        Mxfp8E5m2(nk_mxfp8e5m2_cref_t),
+        Mxint8(nk_mxint8_cref_t),
+    }
+
+    impl Cref {
+        /// A null `tensor_scale` reads as one.
+        pub(crate) fn new(
+            format: &BlockScaledDescriptor,
+            elements: *const c_void,
+            scales: *const c_void,
+            tensor_scale: *const f32,
+        ) -> Self {
+            let scales = scales as *const Ue8m0;
+            if format.scale_dtype == dtype::UNKNOWN {
+                return Self::Plain(elements);
+            }
+            if format.tensor_scale_dtype != dtype::UNKNOWN {
+                return Self::Nvfp4(nk_nvfp4_cref_t {
+                    elements: elements as *const e2m1x2,
+                    scales: scales as *const Ue4m3,
+                    tensor_scale,
+                });
+            }
+            match format.element_dtype {
+                dtype::E2M3 => Self::Mxfp6E2m3(nk_mxfp6e2m3_cref_t {
+                    elements: elements as *const e2m3,
+                    scales,
+                }),
+                dtype::E3M2 => Self::Mxfp6E3m2(nk_mxfp6e3m2_cref_t {
+                    elements: elements as *const e3m2,
+                    scales,
+                }),
+                dtype::E4M3 => Self::Mxfp8E4m3(nk_mxfp8e4m3_cref_t {
+                    elements: elements as *const e4m3,
+                    scales,
+                }),
+                dtype::E5M2 => Self::Mxfp8E5m2(nk_mxfp8e5m2_cref_t {
+                    elements: elements as *const e5m2,
+                    scales,
+                }),
+                dtype::I8 => Self::Mxint8(nk_mxint8_cref_t {
+                    elements: elements as *const i8,
+                    scales,
+                }),
+                _ => Self::Mxfp4(nk_mxfp4_cref_t {
+                    elements: elements as *const e2m1x2,
+                    scales,
+                }),
+            }
+        }
+
+        pub(crate) fn as_ptr(&self) -> *const c_void {
+            match self {
+                Self::Plain(elements) => *elements,
+                Self::Nvfp4(operand) => operand as *const _ as *const c_void,
+                Self::Mxfp4(operand) => operand as *const _ as *const c_void,
+                Self::Mxfp6E2m3(operand) => operand as *const _ as *const c_void,
+                Self::Mxfp6E3m2(operand) => operand as *const _ as *const c_void,
+                Self::Mxfp8E4m3(operand) => operand as *const _ as *const c_void,
+                Self::Mxfp8E5m2(operand) => operand as *const _ as *const c_void,
+                Self::Mxint8(operand) => operand as *const _ as *const c_void,
+            }
+        }
+    }
+
+    /// The destination operand of a cast, whichever layout its format takes.
+    pub(crate) enum Ref {
+        Plain(*mut c_void),
+        Nvfp4(nk_nvfp4_ref_t),
+        Mxfp4(nk_mxfp4_ref_t),
+        Mxfp6E2m3(nk_mxfp6e2m3_ref_t),
+        Mxfp6E3m2(nk_mxfp6e3m2_ref_t),
+        Mxfp8E4m3(nk_mxfp8e4m3_ref_t),
+        Mxfp8E5m2(nk_mxfp8e5m2_ref_t),
+        Mxint8(nk_mxint8_ref_t),
+    }
+
+    impl Ref {
+        /// A `tensor_scale` holding zero receives the derived scale, any other is applied as is.
+        pub(crate) fn new(
+            format: &BlockScaledDescriptor,
+            derives_scale: bool,
+            elements: *mut c_void,
+            scales: *mut c_void,
+            tensor_scale: *mut f32,
+        ) -> Self {
+            let scales = scales as *mut Ue8m0;
+            if format.scale_dtype == dtype::UNKNOWN {
+                return Self::Plain(elements);
+            }
+            if derives_scale {
+                return Self::Nvfp4(nk_nvfp4_ref_t {
+                    elements: elements as *mut e2m1x2,
+                    scales: scales as *mut Ue4m3,
+                    tensor_scale,
+                });
+            }
+            match format.element_dtype {
+                dtype::E2M3 => Self::Mxfp6E2m3(nk_mxfp6e2m3_ref_t {
+                    elements: elements as *mut e2m3,
+                    scales,
+                }),
+                dtype::E3M2 => Self::Mxfp6E3m2(nk_mxfp6e3m2_ref_t {
+                    elements: elements as *mut e3m2,
+                    scales,
+                }),
+                dtype::E4M3 => Self::Mxfp8E4m3(nk_mxfp8e4m3_ref_t {
+                    elements: elements as *mut e4m3,
+                    scales,
+                }),
+                dtype::E5M2 => Self::Mxfp8E5m2(nk_mxfp8e5m2_ref_t {
+                    elements: elements as *mut e5m2,
+                    scales,
+                }),
+                dtype::I8 => Self::Mxint8(nk_mxint8_ref_t {
+                    elements: elements as *mut i8,
+                    scales,
+                }),
+                _ => Self::Mxfp4(nk_mxfp4_ref_t {
+                    elements: elements as *mut e2m1x2,
+                    scales,
+                }),
+            }
+        }
+
+        pub(crate) fn as_mut_ptr(&mut self) -> *mut c_void {
+            match self {
+                Self::Plain(elements) => *elements,
+                Self::Nvfp4(operand) => operand as *mut _ as *mut c_void,
+                Self::Mxfp4(operand) => operand as *mut _ as *mut c_void,
+                Self::Mxfp6E2m3(operand) => operand as *mut _ as *mut c_void,
+                Self::Mxfp6E3m2(operand) => operand as *mut _ as *mut c_void,
+                Self::Mxfp8E4m3(operand) => operand as *mut _ as *mut c_void,
+                Self::Mxfp8E5m2(operand) => operand as *mut _ as *mut c_void,
+                Self::Mxint8(operand) => operand as *mut _ as *mut c_void,
+            }
+        }
     }
 }
 
@@ -515,42 +720,35 @@ fn block_scaled_cast_(
     to_format: &BlockScaledDescriptor,
     count: usize,
 ) -> Result<Option<f32>, TensorError> {
-    let from_scale_buf = from_tensor_scale.map(ScalarBuffer::from_f32);
-    let from_scale_ptr = from_scale_buf
+    let from_scale = from_tensor_scale
         .as_ref()
-        .map_or(core::ptr::null(), |buf| buf as *const ScalarBuffer);
-    let mut to_scale_buf = ScalarBuffer::from_f32(0.0);
-    let to_scale_ptr = if to_derives_scale {
-        &mut to_scale_buf as *mut ScalarBuffer
-    } else {
-        core::ptr::null_mut()
-    };
+        .map_or(core::ptr::null(), |scale| scale as *const f32);
+    let from_operand = ffi::Cref::new(from_format, from_elements, from_scales, from_scale);
+    let mut to_scale = 0.0f32;
+    let mut to_operand = ffi::Ref::new(to_format, to_derives_scale, to_elements, to_scales, &mut to_scale);
 
     // SAFETY: the caller sizes the source slices and the freshly-allocated destination tensors from
-    // the same shape, so both buffers cover `count` logical elements; the scale buffers live across
-    // the call; the kernel reads the source and writes only the destination.
+    // the same shape, so both buffers cover `count` logical elements; the operand structs and the
+    // tensor scales live across the call; the kernel reads the source and writes only the
+    // destination.
     unsafe {
-        nk_cast_block_scaled_best(
-            from_elements,
-            from_scales,
-            from_scale_ptr,
-            from_format,
-            to_elements,
-            to_scales,
-            to_scale_ptr,
-            to_format,
+        nk_cast_best(
+            from_operand.as_ptr(),
+            from_format.element_dtype | from_format.scale_dtype,
+            to_operand.as_mut_ptr(),
+            to_format.element_dtype | to_format.scale_dtype,
             count,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
     }
     .check()?;
-    Ok(to_derives_scale.then(|| to_scale_buf.to_f32()))
+    Ok(to_derives_scale.then_some(to_scale))
 }
 
 /// Encode a dense `f32` matrix into a [`ScaledTensor`].
 ///
-/// The source must be a contiguous 2D __[rows,columns]__ view with `cols` divisible by
+/// The source must be a contiguous 2D __[rows,columns]__ view with `columns` divisible by
 /// `F::BLOCK_SIZE`. For formats with a per-tensor scale, such as NVFP4, the multiplier is derived
 /// from the tensor amax by the kernel — we seed the buffer with `0.0` and read it back. Extension
 /// trait: encode any dense `f32` tensor into a block-scaled [`ScaledTensor`].
@@ -801,17 +999,17 @@ mod tests {
 
     /// Sample matrix: 2 rows × 32 columns — two NVFP4 blocks of 16 per row, one MX block of 32.
     fn sample_matrix() -> (Vec<f32>, [usize; 2]) {
-        let cols = 32usize;
+        let columns = 32usize;
         let rows = 2usize;
-        let mut data = Vec::with_capacity(rows * cols);
+        let mut data = Vec::with_capacity(rows * columns);
         for r in 0..rows {
-            for c in 0..cols {
+            for c in 0..columns {
                 // A smooth, signed ramp that exercises both NVFP4 blocks per row.
                 let v = (c as f32 - 16.0) * 0.25 + (r as f32) * 2.0;
                 data.push(v);
             }
         }
-        (data, [rows, cols])
+        (data, [rows, columns])
     }
 
     /// Encode then decode `sample_matrix` through format `F`; assert the dense round-trip error
@@ -880,9 +1078,9 @@ mod tests {
         assert!(ts.is_some(), "NVFP4 must carry a per-tensor scale");
         assert!(ts.unwrap() > 0.0, "derived tensor_scale must be positive");
 
-        let mxfp8 = dense.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
+        let mxfp8e4m3 = dense.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
         assert!(
-            mxfp8.tensor_scale().is_none(),
+            mxfp8e4m3.tensor_scale().is_none(),
             "MX formats must not carry a per-tensor scale"
         );
     }
@@ -913,14 +1111,14 @@ mod tests {
     }
 
     #[test]
-    fn transcode_mxfp8_to_nvfp4() {
+    fn transcode_mxfp8e4m3_to_nvfp4() {
         let (data, shape) = sample_matrix();
         let dense = Tensor::<f32>::from_slice(&data, &shape).unwrap();
 
-        let mxfp8 = dense.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        assert!(mxfp8.tensor_scale().is_none());
+        let mxfp8e4m3 = dense.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
+        assert!(mxfp8e4m3.tensor_scale().is_none());
 
-        let nvfp4 = mxfp8.view().cast_to_scaled::<Nvfp4>().unwrap();
+        let nvfp4 = mxfp8e4m3.view().cast_to_scaled::<Nvfp4>().unwrap();
         assert_eq!(nvfp4.shape(), &[2, 32]);
         assert!(nvfp4.tensor_scale().is_some());
 
@@ -966,16 +1164,16 @@ mod tests {
     #[test]
     fn rank1_vector_roundtrips() {
         // A bare 1-D vector, no leading axis: the verbs block the last axis only.
-        let cols = 32usize;
-        let data: Vec<f32> = (0..cols).map(|c| (c as f32 - 16.0) * 0.25).collect();
-        let dense = Tensor::<f32>::from_slice(&data, &[cols]).unwrap();
+        let columns = 32usize;
+        let data: Vec<f32> = (0..columns).map(|c| (c as f32 - 16.0) * 0.25).collect();
+        let dense = Tensor::<f32>::from_slice(&data, &[columns]).unwrap();
 
         let scaled = dense.view().cast_to_scaled::<Nvfp4>().unwrap();
-        assert_eq!(scaled.shape(), &[cols]);
-        assert_eq!(scaled.block_scales().shape(), &[cols / 16]);
+        assert_eq!(scaled.shape(), &[columns]);
+        assert_eq!(scaled.block_scales().shape(), &[columns / 16]);
 
         let decoded = scaled.view().cast::<f32>().unwrap();
-        assert_eq!(decoded.shape(), &[cols]);
+        assert_eq!(decoded.shape(), &[columns]);
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
@@ -987,18 +1185,18 @@ mod tests {
 
     #[test]
     fn rank3_batch_roundtrips() {
-        // (batch, rows, cols): the rank-general path blocks only the last axis. The old rank-2-only
-        // verbs indexed `shape[1]` and errored/panicked on this shape.
-        let (batch, rows, cols) = (2usize, 2usize, 32usize);
-        let data: Vec<f32> = (0..batch * rows * cols).map(|i| (i % 31) as f32 - 15.0).collect();
-        let dense = Tensor::<f32>::from_slice(&data, &[batch, rows, cols]).unwrap();
+        // (batch, rows, columns): the rank-general path blocks only the last axis. The old
+        // rank-2-only verbs indexed `shape[1]` and errored/panicked on this shape.
+        let (batch, rows, columns) = (2usize, 2usize, 32usize);
+        let data: Vec<f32> = (0..batch * rows * columns).map(|i| (i % 31) as f32 - 15.0).collect();
+        let dense = Tensor::<f32>::from_slice(&data, &[batch, rows, columns]).unwrap();
 
         let scaled = dense.view().cast_to_scaled::<Mxfp8E4m3>().unwrap();
-        assert_eq!(scaled.shape(), &[batch, rows, cols]);
-        assert_eq!(scaled.block_scales().shape(), &[batch, rows, cols / 32]);
+        assert_eq!(scaled.shape(), &[batch, rows, columns]);
+        assert_eq!(scaled.block_scales().shape(), &[batch, rows, columns / 32]);
 
         let decoded = scaled.view().cast::<f32>().unwrap();
-        assert_eq!(decoded.shape(), &[batch, rows, cols]);
+        assert_eq!(decoded.shape(), &[batch, rows, columns]);
         let max_abs = data.iter().fold(0.0f32, |m, &v| m.max(v.abs()));
         for (i, (&expected, &actual)) in data.iter().zip(decoded.as_slice()).enumerate() {
             assert!(
@@ -1030,9 +1228,9 @@ mod tests {
         assert_eq!(nvfp4.elements_size(64), 32); // 64 * 4 bits / 8
         assert_eq!(nvfp4.scales_size(64), 4); // 64 / 16
 
-        let mxfp8 = Mxfp8E4m3::descriptor();
-        assert_eq!(mxfp8.elements_size(64), 64); // 64 * 8 bits / 8
-        assert_eq!(mxfp8.scales_size(64), 2); // 64 / 32
+        let mxfp8e4m3 = Mxfp8E4m3::descriptor();
+        assert_eq!(mxfp8e4m3.elements_size(64), 64); // 64 * 8 bits / 8
+        assert_eq!(mxfp8e4m3.scales_size(64), 2); // 64 / 32
 
         let plain = BlockScaledDescriptor::plain(dtype::F32);
         assert_eq!(plain.scales_size(64), 0);
@@ -1061,24 +1259,22 @@ mod tests {
         let has_tensor_scale = scaled.tensor_scale().is_some();
 
         let to_format = F::descriptor();
-        let from_format = BlockScaledDescriptor::plain(dtype::F32);
         let mut ref_elements = vec![0u8; to_format.elements_size(count)];
         let mut ref_scales = vec![0u8; to_format.scales_size(count)];
-        let mut ref_scale_buf = ScalarBuffer::from_f32(0.0);
+        let mut ref_scale = 0.0f32;
+        let mut to_operand = ffi::Ref::new(
+            &to_format,
+            has_tensor_scale,
+            ref_elements.as_mut_ptr() as *mut c_void,
+            ref_scales.as_mut_ptr() as *mut c_void,
+            &mut ref_scale,
+        );
         unsafe {
-            nk_cast_block_scaled_best(
+            nk_cast_best(
                 data.as_ptr() as *const c_void,
-                core::ptr::null(),
-                core::ptr::null(),
-                &from_format,
-                ref_elements.as_mut_ptr() as *mut c_void,
-                ref_scales.as_mut_ptr() as *mut c_void,
-                if has_tensor_scale {
-                    &mut ref_scale_buf
-                } else {
-                    core::ptr::null_mut()
-                },
-                &to_format,
+                dtype::F32,
+                to_operand.as_mut_ptr(),
+                to_format.element_dtype | to_format.scale_dtype,
                 count,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
@@ -1100,11 +1296,7 @@ mod tests {
             "{ty} scale bytes"
         );
         if has_tensor_scale {
-            assert_eq!(
-                scaled.tensor_scale().unwrap(),
-                ref_scale_buf.to_f32(),
-                "{ty} tensor scale"
-            );
+            assert_eq!(scaled.tensor_scale().unwrap(), ref_scale, "{ty} tensor scale");
         }
     }
 

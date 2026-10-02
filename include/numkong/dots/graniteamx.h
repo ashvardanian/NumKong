@@ -126,9 +126,9 @@ NUMKONG_INLINE void nk_dots_f16_init_graniteamx_(nk_dots_f16_state_graniteamx_t 
 NUMKONG_INLINE void nk_dots_f16_load_a_graniteamx_(     //
     nk_dots_f16_a16x32_graniteamx_t *a_tile,            //
     nk_f16_t const *src, nk_size_t src_stride_elements, //
-    nk_size_t valid_rows, nk_size_t valid_cols) {
+    nk_size_t valid_rows, nk_size_t valid_columns) {
 
-    __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
+    __mmask32 column_m32 = (valid_columns >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_columns) - 1;
     __m512i zero_i16x32 = _mm512_setzero_si512();
 
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) {
@@ -145,9 +145,9 @@ NUMKONG_INLINE void nk_dots_f16_load_a_graniteamx_(     //
 NUMKONG_INLINE void nk_dots_f16_store_graniteamx_( //
     nk_dots_f16_state_graniteamx_t const *state,   //
     nk_f32_t *dst, nk_size_t dst_stride_elements,  //
-    nk_size_t valid_rows, nk_size_t valid_cols) {
+    nk_size_t valid_rows, nk_size_t valid_columns) {
 
-    __mmask16 column_m16 = (valid_cols >= 16) ? 0xFFFF : ((__mmask16)1 << valid_cols) - 1;
+    __mmask16 column_m16 = (valid_columns >= 16) ? 0xFFFF : ((__mmask16)1 << valid_columns) - 1;
 
     for (nk_size_t row_idx = 0; row_idx < valid_rows; row_idx++) {
         __m512 row_f32x16 = _mm512_load_ps(state->data[row_idx]);
@@ -158,24 +158,24 @@ NUMKONG_INLINE void nk_dots_f16_store_graniteamx_( //
 NUMKONG_INLINE void nk_dots_f16_output2x2_graniteamx_( //
     nk_dots_f16_state2x2_graniteamx_t const *state,    //
     nk_f32_t *dst, nk_size_t dst_stride_elements,      //
-    nk_size_t valid_rows, nk_size_t valid_cols) {
+    nk_size_t valid_rows, nk_size_t valid_columns) {
 
     nk_size_t const rows_high = (valid_rows > 16) ? 16 : valid_rows;
-    nk_size_t const cols_left = (valid_cols > 16) ? 16 : valid_cols;
-    nk_size_t const cols_right = (valid_cols > 16) ? valid_cols - 16 : 0;
+    nk_size_t const columns_left = (valid_columns > 16) ? 16 : valid_columns;
+    nk_size_t const columns_right = (valid_columns > 16) ? valid_columns - 16 : 0;
 
-    if (rows_high > 0 && cols_left > 0)
-        nk_dots_f16_store_graniteamx_(&state->c[0][0], dst, dst_stride_elements, rows_high, cols_left);
-    if (rows_high > 0 && cols_right > 0)
-        nk_dots_f16_store_graniteamx_(&state->c[0][1], dst + 16, dst_stride_elements, rows_high, cols_right);
+    if (rows_high > 0 && columns_left > 0)
+        nk_dots_f16_store_graniteamx_(&state->c[0][0], dst, dst_stride_elements, rows_high, columns_left);
+    if (rows_high > 0 && columns_right > 0)
+        nk_dots_f16_store_graniteamx_(&state->c[0][1], dst + 16, dst_stride_elements, rows_high, columns_right);
 
     if (valid_rows > 16) {
         nk_size_t const rows_low = valid_rows - 16;
         nk_f32_t *dst_low = dst + 16 * dst_stride_elements;
-        if (cols_left > 0)
-            nk_dots_f16_store_graniteamx_(&state->c[1][0], dst_low, dst_stride_elements, rows_low, cols_left);
-        if (cols_right > 0)
-            nk_dots_f16_store_graniteamx_(&state->c[1][1], dst_low + 16, dst_stride_elements, rows_low, cols_right);
+        if (columns_left > 0)
+            nk_dots_f16_store_graniteamx_(&state->c[1][0], dst_low, dst_stride_elements, rows_low, columns_left);
+        if (columns_right > 0)
+            nk_dots_f16_store_graniteamx_(&state->c[1][1], dst_low + 16, dst_stride_elements, rows_low, columns_right);
     }
 }
 
@@ -209,11 +209,11 @@ NUMKONG_INLINE void nk_dots_f16_update_graniteamx_(  //
 
 NUMKONG_API nk_status_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
     nk_size_t const tmm_rows = 16;
-    nk_size_t const tmm_cols = 32;
+    nk_size_t const tmm_columns = 32;
     nk_size_t const tile_bytes = 512 * sizeof(nk_f16_t); // 16 × 32 × 2 = 1KB
 
     nk_size_t const full_column_tiles = column_count / tmm_rows;
-    nk_size_t const tiles_along_depth = nk_size_divide_round_up_(depth, tmm_cols);
+    nk_size_t const tiles_along_depth = nk_size_divide_round_up_(depth, tmm_columns);
     nk_size_t const column_remainder_count = column_count - full_column_tiles * tmm_rows;
 
     // Header (64 bytes aligned)
@@ -232,32 +232,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_f16_graniteamx(nk_size_t column_count,
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_packed_shape_f16_graniteamx(void const *b_packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_dots_packed_shape_f16_graniteamx(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
-    *width = header->columns;
+    *columns = header->columns;
     *depth = header->depth;
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(                                  //
-    nk_f16_t const *b, void const *b_scales, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin,
-    nk_size_t columns_end, void *stream) {
+NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(            //
+    nk_f16_t const *b, nk_size_t column_count, nk_size_t depth, //
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     // AMX FP16 tile dimensions: 16 rows × 32 columns (512 FP16 elements = 1KB)
     nk_size_t const tmm_rows = 16;
-    nk_size_t const tmm_cols = 32;
+    nk_size_t const tmm_columns = 32;
     nk_size_t const tile_elements = 512;
     nk_size_t const tile_bytes = tile_elements * sizeof(nk_f16_t);
-    nk_size_t const b_stride_elements = b_stride_in_bytes / sizeof(nk_f16_t);
+    nk_size_t const b_stride_elements = b_stride / sizeof(nk_f16_t);
 
     // Compute layout dimensions
     nk_size_t const column_tiles_count = column_count / tmm_rows;
-    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, tmm_cols);
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, tmm_columns);
     nk_size_t const column_remainder_count = column_count - column_tiles_count * tmm_rows;
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
@@ -266,6 +265,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(                            
     if (columns_begin == 0) {
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
             ((nk_u32_t *)header)[word_index] = 0;
+        header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
         header->full_column_tiles = (nk_u32_t)column_tiles_count;
@@ -294,13 +294,13 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(                            
             nk_f16_t *tile_output = tiles_ptr + tile_index * tile_elements;
 
             nk_size_t const src_row_start = column_tile_idx * tmm_rows;
-            nk_size_t const src_column_start = depth_tile_idx * tmm_cols;
-            nk_size_t const columns_to_pack = (src_column_start + tmm_cols <= depth) ? tmm_cols
-                                                                                     : (depth - src_column_start);
+            nk_size_t const src_column_start = depth_tile_idx * tmm_columns;
+            nk_size_t const columns_to_pack = (src_column_start + tmm_columns <= depth) ? tmm_columns
+                                                                                        : (depth - src_column_start);
 
             // Gather 16 strided source rows into a contiguous aligned tile
             nk_dots_bf16_a16x32_sapphireamx_t source_tile;
-            if (columns_to_pack == tmm_cols) {
+            if (columns_to_pack == tmm_columns) {
                 for (nk_size_t row_idx = 0; row_idx < tmm_rows; row_idx++) {
                     nk_f16_t const *source_row = b + (src_row_start + row_idx) * b_stride_elements + src_column_start;
                     _mm512_store_si512(&source_tile.data[row_idx][0], _mm512_loadu_si512(source_row));
@@ -355,8 +355,8 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(                            
 /** F16 GEMM of @p a rows against pre-packed B columns into F32 @p c, on AMX-FP16 tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
-    nk_unused_(cols_count);
+    nk_size_t rows, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
+    nk_unused_(column_count);
 
     // Parse packed B header
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
@@ -370,16 +370,16 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
     nk_f16_t const *col_edge_ptr = (nk_f16_t const *)((char const *)b_packed + header->column_edge_offset);
 
     // Stride conversions
-    nk_size_t const a_stride_elements = a_stride_bytes / sizeof(nk_f16_t);
-    nk_size_t const c_stride_elements = c_stride_bytes / sizeof(nk_f32_t);
+    nk_size_t const a_stride_elements = a_stride / sizeof(nk_f16_t);
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
 
     // Tile dimensions
     nk_size_t const tile_depth = 32;
     nk_size_t const tile_size = 512;
-    nk_size_t const full_cols = column_tiles_count * 16;
+    nk_size_t const full_columns = column_tiles_count * 16;
 
     // Block counts (32 × 32 output blocks = 2 × 2 tiles)
-    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows_count, 32);
+    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
     nk_size_t const col_blocks_count = column_tiles_count / 2;
 
     if (depth_tiles_count == 0) return nk_success_k;
@@ -397,7 +397,7 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
     // Loop order: row_blocks outer, col_blocks inner - maximizes A tile L2 cache reuse
     for (nk_size_t row_block_idx = 0; row_block_idx < row_blocks_count; row_block_idx++) {
         nk_size_t const row_block_start = row_block_idx * 32;
-        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows_count) ? 32 : (rows_count - row_block_start);
+        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
         nk_size_t const is_full_row_block = (valid_rows_count == 32);
 
         for (nk_size_t column_block_idx = 0; column_block_idx < col_blocks_count; column_block_idx++) {
@@ -422,8 +422,8 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
                     (nk_dots_f16_b32x16_graniteamx_t const *)(b_tiles_base + b_column_right_base * tile_size);
 
                 // Prologue: load first depth tile
-                _tile_loadd(0, a_top_base, a_stride_bytes);
-                _tile_loadd(1, a_bottom_base, a_stride_bytes);
+                _tile_loadd(0, a_top_base, a_stride);
+                _tile_loadd(1, a_bottom_base, a_stride);
                 _tile_loadd(2, b_tile_left->data, 64);
                 _tile_loadd(3, b_tile_right->data, 64);
 
@@ -436,8 +436,8 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
                     _tile_dpfp16ps(6, 1, 2);
                     _tile_dpfp16ps(7, 1, 3);
 
-                    _tile_loadd(0, a_top_base + next_depth_offset, a_stride_bytes);
-                    _tile_loadd(1, a_bottom_base + next_depth_offset, a_stride_bytes);
+                    _tile_loadd(0, a_top_base + next_depth_offset, a_stride);
+                    _tile_loadd(1, a_bottom_base + next_depth_offset, a_stride);
                     b_tile_left = (nk_dots_f16_b32x16_graniteamx_t const *)(b_tiles_base +
                                                                             (b_column_left_base + depth_tile_idx + 1) *
                                                                                 tile_size);
@@ -544,10 +544,10 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
             // Store accumulators to output (once per output block)
             if (is_full_row_block) {
                 nk_f32_t *c_block = c + row_block_start * c_stride_elements + col_block_start;
-                _tile_stored(4, c_block, c_stride_bytes);
-                _tile_stored(5, c_block + 16, c_stride_bytes);
-                _tile_stored(6, (nk_f32_t *)((char *)c_block + 16 * c_stride_bytes), c_stride_bytes);
-                _tile_stored(7, (nk_f32_t *)((char *)c_block + 16 * c_stride_bytes) + 16, c_stride_bytes);
+                _tile_stored(4, c_block, c_stride);
+                _tile_stored(5, c_block + 16, c_stride);
+                _tile_stored(6, (nk_f32_t *)((char *)c_block + 16 * c_stride), c_stride);
+                _tile_stored(7, (nk_f32_t *)((char *)c_block + 16 * c_stride) + 16, c_stride);
             }
             else {
                 _tile_stored(4, c_accum_buffer.c[0][0].data, 64);
@@ -569,8 +569,7 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
 
         for (nk_size_t row_block_idx = 0; row_block_idx < row_blocks_count; row_block_idx++) {
             nk_size_t const row_block_start = row_block_idx * 32;
-            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows_count) ? 32
-                                                                                    : (rows_count - row_block_start);
+            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
             nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
             nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
 
@@ -619,8 +618,7 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
     if (column_remainder_count > 0) {
         for (nk_size_t row_block_idx = 0; row_block_idx < row_blocks_count; row_block_idx++) {
             nk_size_t const row_block_start = row_block_idx * 32;
-            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows_count) ? 32
-                                                                                    : (rows_count - row_block_start);
+            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
             nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
             nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
 
@@ -659,10 +657,11 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
             _tile_stored(4, c_high_state.data, 64);
             _tile_stored(6, c_low_state.data, 64);
 
-            nk_dots_f16_store_graniteamx_(&c_high_state, c + row_block_start * c_stride_elements + full_cols,
+            nk_dots_f16_store_graniteamx_(&c_high_state, c + row_block_start * c_stride_elements + full_columns,
                                           c_stride_elements, rows_in_high_tile, column_remainder_count);
             if (rows_in_low_tile > 0) {
-                nk_dots_f16_store_graniteamx_(&c_low_state, c + (row_block_start + 16) * c_stride_elements + full_cols,
+                nk_dots_f16_store_graniteamx_(&c_low_state,
+                                              c + (row_block_start + 16) * c_stride_elements + full_columns,
                                               c_stride_elements, rows_in_low_tile, column_remainder_count);
             }
         }
@@ -672,24 +671,22 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_f16_graniteamx_( //
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_packed_f16_graniteamx(                          //
-    nk_f16_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t a_scales_stride,
-    nk_size_t c_stride_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_dots_packed_f16_graniteamx(    //
+    nk_f16_t const *a, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gemm_packed_f16_graniteamx_(a, b_packed, c, rows_count, cols_count, depth, a_stride_bytes,
-                                          c_stride_bytes);
+    return nk_gemm_packed_f16_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
 /** F16 Gram upper triangle of @p vectors on AMX-FP16, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                                //
-    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth,             //
-    nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
+NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                    //
+    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
     nk_size_t row_start, nk_size_t row_count) {
-    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
-    nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f16_t);
-    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
+    nk_size_t const stride_elements = stride / sizeof(nk_f16_t);
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
     nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
 
@@ -708,7 +705,7 @@ NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                             
         nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
 
         for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_cols = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
 
             nk_dots_f16_init_graniteamx_(&state);
 
@@ -726,7 +723,7 @@ NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                             
                         vectors + row_tile * stride_elements + depth_start, //
                         stride_elements, valid_rows, valid_depth);
 
-                    if (row_tile == col_tile && valid_rows == valid_cols) {
+                    if (row_tile == col_tile && valid_rows == valid_columns) {
                         // Reuse A data as B (self-correlation on diagonal)
                         nk_dots_pack_bf16_transposed_sapphireamx_(
                             (nk_dots_bf16_a16x32_sapphireamx_t const *)&a_tiles[tile_idx],
@@ -736,7 +733,7 @@ NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                             
                         nk_dots_f16_load_a_graniteamx_(                         //
                             &b_src_tiles[tile_idx],                             //
                             vectors + col_tile * stride_elements + depth_start, //
-                            stride_elements, valid_cols, valid_depth);
+                            stride_elements, valid_columns, valid_depth);
                         nk_dots_pack_bf16_transposed_sapphireamx_(
                             (nk_dots_bf16_a16x32_sapphireamx_t const *)&b_src_tiles[tile_idx],
                             (nk_dots_bf16_b32x16_sapphireamx_t *)&b_tiles[tile_idx]);
@@ -750,19 +747,18 @@ NUMKONG_INLINE nk_status_t nk_gram_f16_graniteamx_(                             
 
             nk_dots_symmetric_store_sapphireamx_(                                  //
                 state.data, result + row_tile * result_stride_elements + col_tile, //
-                result_stride_elements, valid_rows, valid_cols, col_tile - row_tile);
+                result_stride_elements, valid_rows, valid_columns, col_tile - row_tile);
         }
     }
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_f16_graniteamx(                                                   //
-    nk_f16_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,           //
-    nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
+NUMKONG_API nk_status_t nk_dots_symmetric_f16_graniteamx(              //
+    nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
     nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_f16_graniteamx_(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
-                                   row_start, row_count);
+    return nk_gram_f16_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
 }
 
 #pragma endregion F16 Native
@@ -785,9 +781,9 @@ typedef nk_dots_f16_state2x2_graniteamx_t nk_dots_e5m2_state2x2_graniteamx_t;
 NUMKONG_INLINE void nk_dots_e5m2_load_a_graniteamx_(     //
     nk_dots_e5m2_a16x32_graniteamx_t *a_tile,            //
     nk_e5m2_t const *src, nk_size_t src_stride_elements, //
-    nk_size_t valid_rows, nk_size_t valid_cols) {
+    nk_size_t valid_rows, nk_size_t valid_columns) {
 
-    __mmask32 column_m32 = (valid_cols >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_cols) - 1;
+    __mmask32 column_m32 = (valid_columns >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << valid_columns) - 1;
     __m512i zero_i16x32 = _mm512_setzero_si512();
 
     for (nk_size_t row_idx = 0; row_idx < 16; row_idx++) {
@@ -804,11 +800,11 @@ NUMKONG_INLINE void nk_dots_e5m2_load_a_graniteamx_(     //
 
 NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
     nk_size_t const tmm_rows = 16;
-    nk_size_t const tmm_cols = 32;
+    nk_size_t const tmm_columns = 32;
     nk_size_t const tile_bytes = 512 * sizeof(nk_f16_t); // Tiles hold F16 after widen: same 1KB as F16.
 
     nk_size_t const full_column_tiles = column_count / tmm_rows;
-    nk_size_t const tiles_along_depth = nk_size_divide_round_up_(depth, tmm_cols);
+    nk_size_t const tiles_along_depth = nk_size_divide_round_up_(depth, tmm_columns);
     nk_size_t const column_remainder_count = column_count - full_column_tiles * tmm_rows;
 
     nk_size_t size = sizeof(nk_dots_amx_packed_header_t);
@@ -820,30 +816,29 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_graniteamx(nk_size_t column_count
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_graniteamx(void const *b_packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_graniteamx(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
-    *width = header->columns;
+    *columns = header->columns;
     *depth = header->depth;
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(                                  //
-    nk_e5m2_t const *b, void const *b_scales, nk_size_t column_count, nk_size_t depth, //
-    nk_size_t b_stride_in_bytes, nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin,
-    nk_size_t columns_end, void *stream) {
+NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(            //
+    nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
+    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const tmm_rows = 16;
-    nk_size_t const tmm_cols = 32;
+    nk_size_t const tmm_columns = 32;
     nk_size_t const tile_elements = 512;
     nk_size_t const tile_bytes = tile_elements * sizeof(nk_f16_t);
-    nk_size_t const b_stride_elements = b_stride_in_bytes; // E5M2: 1 byte per element
+    nk_size_t const b_stride_elements = b_stride; // E5M2: 1 byte per element
 
     nk_size_t const column_tiles_count = column_count / tmm_rows;
-    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, tmm_cols);
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, tmm_columns);
     nk_size_t const column_remainder_count = column_count - column_tiles_count * tmm_rows;
     nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
 
@@ -851,6 +846,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(                           
     if (columns_begin == 0) {
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
             ((nk_u32_t *)header)[word_index] = 0;
+        header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
         header->full_column_tiles = (nk_u32_t)column_tiles_count;
@@ -877,9 +873,9 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(                           
             nk_f16_t *tile_output = tiles_ptr + tile_index * tile_elements;
 
             nk_size_t const src_row_start = column_tile_idx * tmm_rows;
-            nk_size_t const src_column_start = depth_tile_idx * tmm_cols;
-            nk_size_t const columns_to_pack = (src_column_start + tmm_cols <= depth) ? tmm_cols
-                                                                                     : (depth - src_column_start);
+            nk_size_t const src_column_start = depth_tile_idx * tmm_columns;
+            nk_size_t const columns_to_pack = (src_column_start + tmm_columns <= depth) ? tmm_columns
+                                                                                        : (depth - src_column_start);
 
             nk_dots_bf16_a16x32_sapphireamx_t source_tile;
             __mmask32 depth_m32 = (__mmask32)((columns_to_pack < 32) ? ((1U << columns_to_pack) - 1) : ~0U);
@@ -934,8 +930,8 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(                           
 /** E5M2 GEMM of @p a rows against pre-packed B columns into F32 @p c, through F16 AMX tiles. */
 NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,  //
-    nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t c_stride_bytes) {
-    nk_unused_(cols_count);
+    nk_size_t rows, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
+    nk_unused_(column_count);
 
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_graniteamx_k) return nk_pack_mismatch_k;
@@ -946,14 +942,14 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
     nk_f16_t const *b_tiles_base = (nk_f16_t const *)((char const *)b_packed + sizeof(nk_dots_amx_packed_header_t));
     nk_f16_t const *col_edge_ptr = (nk_f16_t const *)((char const *)b_packed + header->column_edge_offset);
 
-    nk_size_t const a_stride_elements = a_stride_bytes; // E5M2: 1 byte per element
-    nk_size_t const c_stride_elements = c_stride_bytes / sizeof(nk_f32_t);
+    nk_size_t const a_stride_elements = a_stride; // E5M2: 1 byte per element
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
 
     nk_size_t const tile_depth = 32;
     nk_size_t const tile_size = 512;
-    nk_size_t const full_cols = column_tiles_count * 16;
+    nk_size_t const full_columns = column_tiles_count * 16;
 
-    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows_count, 32);
+    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
     nk_size_t const col_blocks_count = column_tiles_count / 2;
 
     if (depth_tiles_count == 0) return nk_success_k;
@@ -968,7 +964,7 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
 
     for (nk_size_t row_block_idx = 0; row_block_idx < row_blocks_count; row_block_idx++) {
         nk_size_t const row_block_start = row_block_idx * 32;
-        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows_count) ? 32 : (rows_count - row_block_start);
+        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
         nk_size_t const is_full_row_block = (valid_rows_count == 32);
 
         for (nk_size_t column_block_idx = 0; column_block_idx < col_blocks_count; column_block_idx++) {
@@ -1023,10 +1019,10 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
 
             if (is_full_row_block) {
                 nk_f32_t *c_block = c + row_block_start * c_stride_elements + col_block_start;
-                _tile_stored(4, c_block, c_stride_bytes);
-                _tile_stored(5, c_block + 16, c_stride_bytes);
-                _tile_stored(6, (nk_f32_t *)((char *)c_block + 16 * c_stride_bytes), c_stride_bytes);
-                _tile_stored(7, (nk_f32_t *)((char *)c_block + 16 * c_stride_bytes) + 16, c_stride_bytes);
+                _tile_stored(4, c_block, c_stride);
+                _tile_stored(5, c_block + 16, c_stride);
+                _tile_stored(6, (nk_f32_t *)((char *)c_block + 16 * c_stride), c_stride);
+                _tile_stored(7, (nk_f32_t *)((char *)c_block + 16 * c_stride) + 16, c_stride);
             }
             else {
                 _tile_stored(4, c_accum_buffer.c[0][0].data, 64);
@@ -1048,8 +1044,7 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
 
         for (nk_size_t row_block_idx = 0; row_block_idx < row_blocks_count; row_block_idx++) {
             nk_size_t const row_block_start = row_block_idx * 32;
-            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows_count) ? 32
-                                                                                    : (rows_count - row_block_start);
+            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
             nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
             nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
 
@@ -1098,8 +1093,7 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
     if (column_remainder_count > 0) {
         for (nk_size_t row_block_idx = 0; row_block_idx < row_blocks_count; row_block_idx++) {
             nk_size_t const row_block_start = row_block_idx * 32;
-            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows_count) ? 32
-                                                                                    : (rows_count - row_block_start);
+            nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
             nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
             nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
 
@@ -1137,10 +1131,11 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
             _tile_stored(4, c_high_state.data, 64);
             if (rows_in_low_tile > 0) _tile_stored(6, c_low_state.data, 64);
 
-            nk_dots_f16_store_graniteamx_(&c_high_state, c + row_block_start * c_stride_elements + full_cols,
+            nk_dots_f16_store_graniteamx_(&c_high_state, c + row_block_start * c_stride_elements + full_columns,
                                           c_stride_elements, rows_in_high_tile, column_remainder_count);
             if (rows_in_low_tile > 0) {
-                nk_dots_f16_store_graniteamx_(&c_low_state, c + (row_block_start + 16) * c_stride_elements + full_cols,
+                nk_dots_f16_store_graniteamx_(&c_low_state,
+                                              c + (row_block_start + 16) * c_stride_elements + full_columns,
                                               c_stride_elements, rows_in_low_tile, column_remainder_count);
             }
         }
@@ -1150,24 +1145,22 @@ NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_graniteamx_( //
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_packed_e5m2_graniteamx(                          //
-    nk_e5m2_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows_count, nk_size_t cols_count, nk_size_t depth, nk_size_t a_stride_bytes, nk_size_t a_scales_stride,
-    nk_size_t c_stride_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_dots_packed_e5m2_graniteamx(    //
+    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gemm_packed_e5m2_graniteamx_(a, b_packed, c, rows_count, cols_count, depth, a_stride_bytes,
-                                           c_stride_bytes);
+    return nk_gemm_packed_e5m2_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
 }
 
 /** E5M2 Gram upper triangle of @p vectors on AMX-FP16, @p row_count rows from @p row_start. */
-NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                               //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,            //
-    nk_size_t stride_in_bytes, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
+NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                    //
+    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
     nk_size_t row_start, nk_size_t row_count) {
-    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
 
-    nk_size_t const stride_elements = stride_in_bytes; // E5M2: 1 byte per element
-    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f32_t);
+    nk_size_t const stride_elements = stride; // E5M2: 1 byte per element
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
 
     nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);
 
@@ -1185,7 +1178,7 @@ NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                            
         nk_size_t const valid_rows = (row_tile + 16 <= row_end) ? 16 : (row_end - row_tile);
 
         for (nk_size_t col_tile = row_tile; col_tile < vectors_count; col_tile += 16) {
-            nk_size_t const valid_cols = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
+            nk_size_t const valid_columns = (col_tile + 16 <= vectors_count) ? 16 : (vectors_count - col_tile);
 
             nk_dots_f16_init_graniteamx_(&state);
 
@@ -1203,7 +1196,7 @@ NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                            
                         vectors + row_tile * stride_elements + depth_start, //
                         stride_elements, valid_rows, valid_depth);
 
-                    if (row_tile == col_tile && valid_rows == valid_cols) {
+                    if (row_tile == col_tile && valid_rows == valid_columns) {
                         nk_dots_pack_bf16_transposed_sapphireamx_(
                             (nk_dots_bf16_a16x32_sapphireamx_t const *)&a_tiles[tile_idx],
                             (nk_dots_bf16_b32x16_sapphireamx_t *)&b_tiles[tile_idx]);
@@ -1212,7 +1205,7 @@ NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                            
                         nk_dots_e5m2_load_a_graniteamx_(                        //
                             &b_src_tiles[tile_idx],                             //
                             vectors + col_tile * stride_elements + depth_start, //
-                            stride_elements, valid_cols, valid_depth);
+                            stride_elements, valid_columns, valid_depth);
                         nk_dots_pack_bf16_transposed_sapphireamx_(
                             (nk_dots_bf16_a16x32_sapphireamx_t const *)&b_src_tiles[tile_idx],
                             (nk_dots_bf16_b32x16_sapphireamx_t *)&b_tiles[tile_idx]);
@@ -1226,19 +1219,18 @@ NUMKONG_INLINE nk_status_t nk_gram_e5m2_graniteamx_(                            
 
             nk_dots_symmetric_store_sapphireamx_(                                  //
                 state.data, result + row_tile * result_stride_elements + col_tile, //
-                result_stride_elements, valid_rows, valid_cols, col_tile - row_tile);
+                result_stride_elements, valid_rows, valid_columns, col_tile - row_tile);
         }
     }
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(                                                  //
-    nk_e5m2_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,          //
-    nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_f32_t *result, nk_size_t result_stride_in_bytes, //
+NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_graniteamx(              //
+    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,        //
     nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_gram_e5m2_graniteamx_(vectors, vectors_count, depth, stride_in_bytes, result, result_stride_in_bytes,
-                                    row_start, row_count);
+    return nk_gram_e5m2_graniteamx_(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count);
 }
 
 #pragma endregion E5M2 Source

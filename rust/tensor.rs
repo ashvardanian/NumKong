@@ -1068,13 +1068,13 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         if self.ndim != 2 {
             return None;
         }
-        let (rows, cols) = (self.shape[0], self.shape[1]);
+        let (rows, columns) = (self.shape[0], self.shape[1]);
         if i >= rows {
             return None;
         }
-        // `cols` counts dimensions, a multiple of the values per byte, while the slice counts
+        // `columns` counts dimensions, a multiple of the values per byte, while the slice counts
         // storage values, so rows never straddle a storage value.
-        let row_values = Scalar::dimensions_to_values(cols);
+        let row_values = Scalar::dimensions_to_values(columns);
         let start = i * row_values;
         Some(&self.as_slice()[start..start + row_values])
     }
@@ -1084,13 +1084,13 @@ impl<Scalar: StorageElement, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sca
         if self.ndim != 2 {
             return None;
         }
-        let (rows, cols) = (self.shape[0], self.shape[1]);
+        let (rows, columns) = (self.shape[0], self.shape[1]);
         if i >= rows {
             return None;
         }
-        // `cols` counts dimensions, a multiple of the values per byte, while the slice counts
+        // `columns` counts dimensions, a multiple of the values per byte, while the slice counts
         // storage values, so rows never straddle a storage value.
-        let row_values = Scalar::dimensions_to_values(cols);
+        let row_values = Scalar::dimensions_to_values(columns);
         let start = i * row_values;
         Some(&mut self.as_mut_slice()[start..start + row_values])
     }
@@ -2544,7 +2544,7 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize, Alloc: Allocator
     ///
     /// Unlike [`is_contiguous`](Self::is_contiguous), this accounts for sub-byte packing: the
     /// innermost-axis extent is measured in storage values (`shape / dimensions_per_value`), so a
-    /// freshly-allocated `e2m1x2` tensor — whose row stride is `cols / 2` bytes — is recognized as
+    /// freshly-allocated `e2m1x2` tensor, whose row stride is `columns / 2` bytes, is recognized as
     /// packed. Used by the block-scaled casts, which hand raw byte buffers to the C kernel.
     pub fn is_packed_contiguous(&self) -> bool {
         if self.ndim == 0 {
@@ -2583,13 +2583,13 @@ impl<'a, Scalar: Clone + StorageElement, const MAX_RANK: usize, Alloc: Allocator
         // For 2D case, optimize the copy
         if self.ndim == 2 {
             let rows = self.shape[0];
-            let cols = self.shape[1];
+            let columns = self.shape[1];
             let row_stride = self.strides[0];
             let col_stride = self.strides[1];
             let mut dest_idx = 0;
             for r in 0..rows {
                 let row_ptr = unsafe { (self.data as *const u8).offset(r as isize * row_stride) as *const Scalar };
-                for c in 0..cols {
+                for c in 0..columns {
                     let elem_ptr = unsafe { (row_ptr as *const u8).offset(c as isize * col_stride) as *const Scalar };
                     dest[dest_idx] = unsafe { *elem_ptr };
                     dest_idx += 1;
@@ -5034,7 +5034,7 @@ fn logical_index_byte_offset(flat_index: usize, shape: &[usize], strides: &[isiz
 }
 
 /// Detect trailing dimensions where `stride[i] == stride[i+1] * shape[i+1]`.
-/// Returns `(tail_dims, element_count, abs_stride_bytes)`.
+/// Returns `(tail_dims, element_count, abs_stride)`.
 fn uniform_stride_tail(shape: &[usize], strides: &[isize]) -> (usize, usize, usize) {
     let rank = shape.len();
     if rank == 0 {
@@ -6742,14 +6742,14 @@ mod tests {
         };
         for _ in 0..256 {
             let rows = 1 + below(7);
-            let cols = 1 + below(7);
-            let data: Vec<f32> = (0..(rows * cols) as u32).map(|i| i as f32).collect();
-            let t = Tensor::<f32>::from_slice(&data, &[rows, cols]).unwrap();
+            let columns = 1 + below(7);
+            let data: Vec<f32> = (0..(rows * columns) as u32).map(|i| i as f32).collect();
+            let t = Tensor::<f32>::from_slice(&data, &[rows, columns]).unwrap();
 
             let r0 = below(rows);
             let r1 = r0 + 1 + below(rows - r0);
-            let c0 = below(cols);
-            let c1 = c0 + 1 + below(cols - c0);
+            let c0 = below(columns);
+            let c1 = c0 + 1 + below(columns - c0);
 
             let view = t
                 .slice(&[SliceRange::range(r0, r1), SliceRange::range(c0, c1)])
@@ -6759,7 +6759,7 @@ mod tests {
             let mut expected: Vec<f32> = Vec::new();
             for r in r0..r1 {
                 for c in c0..c1 {
-                    expected.push(data[r * cols + c]);
+                    expected.push(data[r * columns + c]);
                 }
             }
             assert_eq!(view.to_owned().unwrap().as_slice(), expected.as_slice());

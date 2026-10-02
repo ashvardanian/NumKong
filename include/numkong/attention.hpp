@@ -33,8 +33,8 @@ namespace ashvardanian::numkong {
  *  @param[in] key_value_packed A buffer @c attention_pack filled with the same @p capabilities.
  *  @param[out] output Token-major matrix, one row of @p head_count × @p depth results per token.
  *  @param[in] query_offsets First query row of each segment, as segment count + 1 prefix sums.
- *  @param[in] queries_stride_in_bytes Row (token) stride of @p queries in bytes.
- *  @param[in] output_stride_in_bytes Row (token) stride of @p output in bytes.
+ *  @param[in] queries_stride Row (token) stride of @p queries in bytes.
+ *  @param[in] output_stride Row (token) stride of @p output in bytes.
  *  @param[in] scale Score multiplier, typically 1 / √depth.
  *  @param[in] task_start First task of a window over the segments × heads grid.
  *  @param[in] task_count Tasks in that window, clipped to the grid, for sharded launches.
@@ -46,8 +46,8 @@ namespace ashvardanian::numkong {
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t>
 status_t attention_bidirectional_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
                                         std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
-                                        std::uint32_t const *query_offsets, std::size_t queries_stride_in_bytes,
-                                        std::size_t output_stride_in_bytes, f32_t scale, std::size_t task_start = 0,
+                                        std::uint32_t const *query_offsets, std::size_t queries_stride,
+                                        std::size_t output_stride, f32_t scale, std::size_t task_start = 0,
                                         std::size_t task_count = static_cast<std::size_t>(-1),
                                         nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
@@ -58,35 +58,29 @@ status_t attention_bidirectional_packed(in_type_ const *queries, void const *key
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_bidirectional_packed_bf16_best(
-                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
-                capabilities, stream));
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, scale.raw_, task_start, task_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_bidirectional_packed_e4m3_best(
-                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
-                capabilities, stream));
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, scale.raw_, task_start, task_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_bidirectional_packed_i8_best(
-                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
-                capabilities, stream));
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, scale.raw_, task_start, task_count, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_bidirectional_packed_bf16_serial(
-            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
-            stream));
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, scale.raw_, task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_bidirectional_packed_e4m3_serial(
-            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
-            stream));
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, scale.raw_, task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_bidirectional_packed_i8_serial(
-            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
-            stream));
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, scale.raw_, task_start, task_count, stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -103,8 +97,8 @@ status_t attention_bidirectional_packed(in_type_ const *queries, void const *key
 template <numeric_dtype in_type_, numeric_dtype result_type_ = typename in_type_::attention_result_t>
 status_t attention_causal_packed(in_type_ const *queries, void const *key_value_packed, result_type_ *output,
                                  std::size_t head_count, std::size_t key_value_head_count, std::size_t depth,
-                                 std::uint32_t const *query_offsets, std::size_t queries_stride_in_bytes,
-                                 std::size_t output_stride_in_bytes, f32_t scale, std::int64_t diagonal_offset = 0,
+                                 std::uint32_t const *query_offsets, std::size_t queries_stride,
+                                 std::size_t output_stride, f32_t scale, std::int64_t diagonal_offset = 0,
                                  std::size_t window = static_cast<std::size_t>(-1), std::size_t task_start = 0,
                                  std::size_t task_count = static_cast<std::size_t>(-1),
                                  nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
@@ -116,35 +110,32 @@ status_t attention_causal_packed(in_type_ const *queries, void const *key_value_
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_causal_packed_bf16_best(
-                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
-                task_start, task_count, capabilities, stream));
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, scale.raw_, diagonal_offset, window, task_start, task_count,
+                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_causal_packed_e4m3_best(
-                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
-                task_start, task_count, capabilities, stream));
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, scale.raw_, diagonal_offset, window, task_start, task_count,
+                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_causal_packed_i8_best(
-                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
-                task_start, task_count, capabilities, stream));
+                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+                queries_stride, output_stride, scale.raw_, diagonal_offset, window, task_start, task_count,
+                capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_causal_packed_bf16_serial(
-            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
-            task_start, task_count, stream));
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, scale.raw_, diagonal_offset, window, task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_causal_packed_e4m3_serial(
-            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
-            task_start, task_count, stream));
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, scale.raw_, diagonal_offset, window, task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_causal_packed_i8_serial(
-            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
-            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
-            task_start, task_count, stream));
+            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
+            queries_stride, output_stride, scale.raw_, diagonal_offset, window, task_start, task_count, stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -159,9 +150,8 @@ status_t attention_causal_packed(in_type_ const *queries, void const *key_value_
  *  @param[in] rows Token count
  *  @param[in] head_count Heads per token
  *  @param[in] depth Even channel count per head; channel @c i pairs with `i + depth / 2`
- *  @param[in] x_stride_bytes Row (token) stride of x in bytes
- *  @param[in] y_stride_bytes Row (token) stride of y in bytes
- *  @param[in] input_scale Scalar folded onto every loaded element (E4M3 descale; 1.0 for BF16/F32)
+ *  @param[in] x_stride Row (token) stride of x in bytes
+ *  @param[in] y_stride Row (token) stride of y in bytes
  *  @param[in] capabilities Capabilities to pick from, or zero for the C++ template
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes
  *
@@ -169,38 +159,36 @@ status_t attention_causal_packed(in_type_ const *queries, void const *key_value_
  */
 template <numeric_dtype in_type_>
 status_t attention_rope(in_type_ const *x, f32_t const *cos, f32_t const *sin, in_type_ *y, std::size_t rows,
-                        std::size_t head_count, std::size_t depth, std::size_t x_stride_bytes,
-                        std::size_t y_stride_bytes, f32_t input_scale = 1.0f,
+                        std::size_t head_count, std::size_t depth, std::size_t x_stride, std::size_t y_stride,
                         nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     if (depth % 2) return status_t::unexpected_dimensions_k;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
             return static_cast<status_t>(nk_attention_rope_f32_best(&x->raw_, &cos->raw_, &sin->raw_, &y->raw_, rows,
-                                                                    head_count, depth, x_stride_bytes, y_stride_bytes,
-                                                                    input_scale.raw_, capabilities, stream));
+                                                                    head_count, depth, x_stride, y_stride, capabilities,
+                                                                    stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_rope_bf16_best(&x->raw_, &cos->raw_, &sin->raw_, &y->raw_, rows,
-                                                                     head_count, depth, x_stride_bytes, y_stride_bytes,
-                                                                     input_scale.raw_, capabilities, stream));
+                                                                     head_count, depth, x_stride, y_stride,
+                                                                     capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_rope_e4m3_best(&x->raw_, &cos->raw_, &sin->raw_, &y->raw_, rows,
-                                                                     head_count, depth, x_stride_bytes, y_stride_bytes,
-                                                                     input_scale.raw_, capabilities, stream));
+                                                                     head_count, depth, x_stride, y_stride,
+                                                                     capabilities, stream));
     }
     // Scalar fallback for other numeric dtypes or a mask of no capability.
     std::size_t const half_depth = depth / 2;
     for (std::size_t row = 0; row < rows; ++row) {
         f32_t const *cos_row = cos + row * half_depth;
         f32_t const *sin_row = sin + row * half_depth;
-        in_type_ const *x_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) +
-                                                                   row * x_stride_bytes);
-        in_type_ *y_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_stride_bytes);
+        in_type_ const *x_row = reinterpret_cast<in_type_ const *>(reinterpret_cast<char const *>(x) + row * x_stride);
+        in_type_ *y_row = reinterpret_cast<in_type_ *>(reinterpret_cast<char *>(y) + row * y_stride);
         for (std::size_t head = 0; head < head_count; ++head) {
             in_type_ const *x_base = x_row + head * depth;
             in_type_ *y_base = y_row + head * depth;
             for (std::size_t i = 0; i < half_depth; ++i) {
-                float low = static_cast<float>(x_base[i]) * input_scale.raw_;
-                float high = static_cast<float>(x_base[i + half_depth]) * input_scale.raw_;
+                float low = static_cast<float>(x_base[i]);
+                float high = static_cast<float>(x_base[i + half_depth]);
                 float cosine = static_cast<float>(cos_row[i]), sine = static_cast<float>(sin_row[i]);
                 y_base[i] = f32_t(low * cosine - high * sine).template to<in_type_>();
                 y_base[i + half_depth] = f32_t(low * sine + high * cosine).template to<in_type_>();
@@ -328,15 +316,14 @@ expected<tensor<typename value_type_::attention_result_t, allocator_type_, max_r
  *  or the tables are too small. */
 template <numeric_dtype value_type_>
 status_t attention_rope(matrix_view<value_type_> x, vector_view<f32_t> cos, vector_view<f32_t> sin,
-                        matrix_span<value_type_> y, std::size_t head_count, std::size_t depth,
-                        f32_t input_scale = 1.0f) noexcept {
+                        matrix_span<value_type_> y, std::size_t head_count, std::size_t depth) noexcept {
     if (x.extent(0) != y.extent(0) || x.extent(1) != y.extent(1)) return status_t::unexpected_dimensions_k;
     if (x.extent(1) < head_count * depth) return status_t::unexpected_dimensions_k;
     if (cos.size() < x.extent(0) * depth / 2 || sin.size() < x.extent(0) * depth / 2)
         return status_t::unexpected_dimensions_k;
     return numkong::attention_rope<value_type_>(x.data(), cos.data(), sin.data(), y.data(), x.extent(0), head_count,
                                                 depth, static_cast<std::size_t>(x.stride_bytes(0)),
-                                                static_cast<std::size_t>(y.stride_bytes(0)), input_scale);
+                                                static_cast<std::size_t>(y.stride_bytes(0)));
 }
 
 #pragma endregion Attention Views

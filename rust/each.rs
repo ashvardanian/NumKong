@@ -752,11 +752,12 @@ extern "C" {
         up: *const f32,
         y: *mut f32,
         rows: nk_size_t,
-        cols: nk_size_t,
-        gate_stride_bytes: nk_size_t,
-        up_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        input_scale: f32,
+        columns: nk_size_t,
+        gate_stride: nk_size_t,
+        up_stride: nk_size_t,
+        y_stride: nk_size_t,
+        gate_scale: f32,
+        output_scale: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -765,11 +766,12 @@ extern "C" {
         up: *const u16,
         y: *mut u16,
         rows: nk_size_t,
-        cols: nk_size_t,
-        gate_stride_bytes: nk_size_t,
-        up_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        input_scale: f32,
+        columns: nk_size_t,
+        gate_stride: nk_size_t,
+        up_stride: nk_size_t,
+        y_stride: nk_size_t,
+        gate_scale: f32,
+        output_scale: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -778,11 +780,12 @@ extern "C" {
         up: *const u8,
         y: *mut u8,
         rows: nk_size_t,
-        cols: nk_size_t,
-        gate_stride_bytes: nk_size_t,
-        up_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        input_scale: f32,
+        columns: nk_size_t,
+        gate_stride: nk_size_t,
+        up_stride: nk_size_t,
+        y_stride: nk_size_t,
+        gate_scale: f32,
+        output_scale: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -792,11 +795,10 @@ extern "C" {
         y: *mut f32,
         rows: nk_size_t,
         groups: nk_size_t,
-        cols: nk_size_t,
-        x_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        eps: f32,
-        input_scale: f32,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -806,11 +808,10 @@ extern "C" {
         y: *mut u16,
         rows: nk_size_t,
         groups: nk_size_t,
-        cols: nk_size_t,
-        x_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        eps: f32,
-        input_scale: f32,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -820,11 +821,10 @@ extern "C" {
         y: *mut u8,
         rows: nk_size_t,
         groups: nk_size_t,
-        cols: nk_size_t,
-        x_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        eps: f32,
-        input_scale: f32,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -4443,19 +4443,20 @@ where
 
 // region: Fused SwiGLU
 
-/// Fused SwiGLU of a row-major __[rows,cols]__ slice, where `up = None` reduces it to plain SiLU
-/// over `gate.len() / rows` columns: y = silu(input_scale × gate) × input_scale × up.
+/// Fused SwiGLU of a row-major __[rows,columns]__ slice, where `up = None` reduces it to plain SiLU
+/// over `gate.len() / rows` columns: y = silu(gate_scale × gate) × up × output_scale.
 pub trait EachSwiGlu: Sized + StorageElement {
-    /// Fused SwiGLU of 2D `[rows, cols]` tensors: y = silu(input_scale × gate) × input_scale × up.
+    /// Fused SwiGLU of 2D tensors: y = silu(gate_scale × gate) × up × output_scale.
     ///
     /// Strides are read from the tensors, so `gate`, `up`, and `y` may be independent strided
-    /// sub-spans, for example the two column halves of a __[rows,2×cols]__ gate|up buffer, while
+    /// sub-spans, for example the two column halves of a __[rows,2×columns]__ gate|up buffer, while
     /// `up = None` reduces to plain SiLU. Returns `Err` on a shape mismatch.
     fn swiglu_into<GIn, UIn, YOut, const RG: usize, const RU: usize, const RY: usize>(
         gate: &GIn,
         up: Option<&UIn>,
         y: &mut YOut,
-        input_scale: f32,
+        gate_scale: f32,
+        output_scale: f32,
     ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
@@ -4469,7 +4470,7 @@ pub trait EachSwiGlu: Sized + StorageElement {
 /// point expects, which is where a representation cast belongs.
 struct SwigluPlan<Scalar> {
     rows: usize,
-    cols: usize,
+    columns: usize,
     gate_stride: usize,
     y_stride: usize,
     up_ptr: *const Scalar,
@@ -4503,16 +4504,21 @@ where
             got: y.ndim(),
         });
     }
-    if gate.shape() != y.shape() {
-        let axis = if gate.shape()[0] != y.shape()[0] { 0 } else { 1 };
-        return Err(TensorError::ShapeMismatch {
-            axis,
-            expected: gate.shape()[axis],
-            got: y.shape()[axis],
+    let (&[rows, columns], &[y_rows, y_columns]) = (gate.shape(), y.shape()) else {
+        return Err(TensorError::DimensionMismatch {
+            expected: 2,
+            got: gate.ndim(),
         });
+    };
+    if (rows, columns) != (y_rows, y_columns) {
+        let (axis, expected, got) = if rows != y_rows {
+            (0, rows, y_rows)
+        } else {
+            (1, columns, y_columns)
+        };
+        return Err(TensorError::ShapeMismatch { axis, expected, got });
     }
-    let (rows, cols) = (gate.shape()[0], gate.shape()[1]);
-    if rows == 0 || cols == 0 {
+    if rows == 0 || columns == 0 {
         return Ok(None);
     }
     let gate_stride = gate.stride_bytes(0) as usize;
@@ -4525,13 +4531,19 @@ where
                     got: u.ndim(),
                 });
             }
-            if u.shape() != gate.shape() {
-                let axis = if u.shape()[0] != gate.shape()[0] { 0 } else { 1 };
-                return Err(TensorError::ShapeMismatch {
-                    axis,
-                    expected: gate.shape()[axis],
-                    got: u.shape()[axis],
+            let &[up_rows, up_columns] = u.shape() else {
+                return Err(TensorError::DimensionMismatch {
+                    expected: 2,
+                    got: u.ndim(),
                 });
+            };
+            if (up_rows, up_columns) != (rows, columns) {
+                let (axis, expected, got) = if up_rows != rows {
+                    (0, rows, up_rows)
+                } else {
+                    (1, columns, up_columns)
+                };
+                return Err(TensorError::ShapeMismatch { axis, expected, got });
             }
             (u.as_ptr(), u.stride_bytes(0) as usize)
         }
@@ -4539,7 +4551,7 @@ where
     };
     Ok(Some(SwigluPlan {
         rows,
-        cols,
+        columns,
         gate_stride,
         y_stride,
         up_ptr,
@@ -4552,7 +4564,8 @@ impl EachSwiGlu for f32 {
         gate: &GIn,
         up: Option<&UIn>,
         y: &mut YOut,
-        input_scale: f32,
+        gate_scale: f32,
+        output_scale: f32,
     ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
@@ -4561,7 +4574,7 @@ impl EachSwiGlu for f32 {
     {
         let Some(SwigluPlan {
             rows,
-            cols,
+            columns,
             gate_stride,
             y_stride,
             up_ptr,
@@ -4576,11 +4589,12 @@ impl EachSwiGlu for f32 {
                 up_ptr,
                 y.as_mut_ptr(),
                 rows,
-                cols,
+                columns,
                 gate_stride,
                 up_stride,
                 y_stride,
-                input_scale,
+                gate_scale,
+                output_scale,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -4595,7 +4609,8 @@ impl EachSwiGlu for bf16 {
         gate: &GIn,
         up: Option<&UIn>,
         y: &mut YOut,
-        input_scale: f32,
+        gate_scale: f32,
+        output_scale: f32,
     ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
@@ -4604,7 +4619,7 @@ impl EachSwiGlu for bf16 {
     {
         let Some(SwigluPlan {
             rows,
-            cols,
+            columns,
             gate_stride,
             y_stride,
             up_ptr,
@@ -4619,11 +4634,12 @@ impl EachSwiGlu for bf16 {
                 up_ptr as *const u16,
                 y.as_mut_ptr() as *mut u16,
                 rows,
-                cols,
+                columns,
                 gate_stride,
                 up_stride,
                 y_stride,
-                input_scale,
+                gate_scale,
+                output_scale,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -4638,7 +4654,8 @@ impl EachSwiGlu for e4m3 {
         gate: &GIn,
         up: Option<&UIn>,
         y: &mut YOut,
-        input_scale: f32,
+        gate_scale: f32,
+        output_scale: f32,
     ) -> Result<(), TensorError>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
@@ -4647,7 +4664,7 @@ impl EachSwiGlu for e4m3 {
     {
         let Some(SwigluPlan {
             rows,
-            cols,
+            columns,
             gate_stride,
             y_stride,
             up_ptr,
@@ -4662,11 +4679,12 @@ impl EachSwiGlu for e4m3 {
                 up_ptr as *const u8,
                 y.as_mut_ptr() as *mut u8,
                 rows,
-                cols,
+                columns,
                 gate_stride,
                 up_stride,
                 y_stride,
-                input_scale,
+                gate_scale,
+                output_scale,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -4680,23 +4698,22 @@ impl EachSwiGlu for e4m3 {
 
 // region: Grouped RMSNorm
 
-/// Grouped RMSNorm over a row-major __[rows,groups×cols]__ slice, y = x / √(mean(x²) + ε) × γ,
-/// where each row holds `groups` independent `cols`-vectors, normalized separately, with `cols`
-/// equal to `x.len() / rows / groups`. `gamma` is an optional per-column gain of length `cols`,
-/// which defaults to unit scale when `None`.
+/// Grouped RMSNorm over a row-major __[rows,groups×columns]__ slice, y = x / √(mean(x²) + ε) × γ,
+/// where each row holds `groups` independent `columns`-vectors, normalized separately, with
+/// `columns` equal to `x.len() / rows / groups`. `gamma` is an optional per-column gain of length
+/// `columns`, which defaults to unit scale when `None`.
 pub trait EachRmsNorm: Sized + StorageElement {
-    /// Grouped RMSNorm of a 2D __[rows,groups×cols]__ tensor into `y` of the same shape.
+    /// Grouped RMSNorm of a 2D __[rows,groups×columns]__ tensor into `y` of the same shape.
     ///
     /// Row strides are read from the tensors, so `x` and `y` may be non-contiguous sub-spans, for
     /// example a strided section of a fused activation buffer. `gamma` is an optional per-column
-    /// gain of length `cols` (`None` = unit scale). Returns `Err` on a shape mismatch.
+    /// gain of length `columns` (`None` = unit scale). Returns `Err` on a shape mismatch.
     fn rmsnorm_into<XIn, YOut, const RX: usize, const RY: usize>(
         x: &XIn,
         gamma: Option<&[f32]>,
         y: &mut YOut,
         groups: usize,
-        eps: f32,
-        input_scale: f32,
+        epsilon: f32,
     ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
@@ -4706,7 +4723,7 @@ pub trait EachRmsNorm: Sized + StorageElement {
 /// Geometry a fused RMS-norm kernel needs once its operands are validated.
 struct RmsNormPlan {
     rows: usize,
-    cols: usize,
+    columns: usize,
     x_stride: usize,
     y_stride: usize,
     gamma_ptr: *const f32,
@@ -4740,15 +4757,20 @@ where
             got: y.ndim(),
         });
     }
-    if x.shape() != y.shape() {
-        let axis = if x.shape()[0] != y.shape()[0] { 0 } else { 1 };
-        return Err(TensorError::ShapeMismatch {
-            axis,
-            expected: x.shape()[axis],
-            got: y.shape()[axis],
+    let (&[rows, width], &[y_rows, y_width]) = (x.shape(), y.shape()) else {
+        return Err(TensorError::DimensionMismatch {
+            expected: 2,
+            got: x.ndim(),
         });
+    };
+    if (rows, width) != (y_rows, y_width) {
+        let (axis, expected, got) = if rows != y_rows {
+            (0, rows, y_rows)
+        } else {
+            (1, width, y_width)
+        };
+        return Err(TensorError::ShapeMismatch { axis, expected, got });
     }
-    let (rows, width) = (x.shape()[0], x.shape()[1]);
     if groups == 0 || width % groups != 0 {
         return Err(TensorError::InvalidShape {
             axis: 1,
@@ -4759,12 +4781,12 @@ where
     if rows == 0 {
         return Ok(None);
     }
-    let cols = width / groups;
+    let columns = width / groups;
     if let Some(g) = gamma {
-        if g.len() != cols {
+        if g.len() != columns {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
-                expected: cols,
+                expected: columns,
                 got: g.len(),
             });
         }
@@ -4774,7 +4796,7 @@ where
     let gamma_ptr = gamma.map_or(core::ptr::null(), |g| g.as_ptr());
     Ok(Some(RmsNormPlan {
         rows,
-        cols,
+        columns,
         x_stride,
         y_stride,
         gamma_ptr,
@@ -4787,8 +4809,7 @@ impl EachRmsNorm for f32 {
         gamma: Option<&[f32]>,
         y: &mut YOut,
         groups: usize,
-        eps: f32,
-        input_scale: f32,
+        epsilon: f32,
     ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
@@ -4796,7 +4817,7 @@ impl EachRmsNorm for f32 {
     {
         let Some(RmsNormPlan {
             rows,
-            cols,
+            columns,
             x_stride,
             y_stride,
             gamma_ptr,
@@ -4811,11 +4832,10 @@ impl EachRmsNorm for f32 {
                 y.as_mut_ptr(),
                 rows,
                 groups,
-                cols,
+                columns,
                 x_stride,
                 y_stride,
-                eps,
-                input_scale,
+                epsilon,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -4831,8 +4851,7 @@ impl EachRmsNorm for bf16 {
         gamma: Option<&[f32]>,
         y: &mut YOut,
         groups: usize,
-        eps: f32,
-        input_scale: f32,
+        epsilon: f32,
     ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
@@ -4840,7 +4859,7 @@ impl EachRmsNorm for bf16 {
     {
         let Some(RmsNormPlan {
             rows,
-            cols,
+            columns,
             x_stride,
             y_stride,
             gamma_ptr,
@@ -4855,11 +4874,10 @@ impl EachRmsNorm for bf16 {
                 y.as_mut_ptr() as *mut u16,
                 rows,
                 groups,
-                cols,
+                columns,
                 x_stride,
                 y_stride,
-                eps,
-                input_scale,
+                epsilon,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -4875,8 +4893,7 @@ impl EachRmsNorm for e4m3 {
         gamma: Option<&[f32]>,
         y: &mut YOut,
         groups: usize,
-        eps: f32,
-        input_scale: f32,
+        epsilon: f32,
     ) -> Result<(), TensorError>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
@@ -4884,7 +4901,7 @@ impl EachRmsNorm for e4m3 {
     {
         let Some(RmsNormPlan {
             rows,
-            cols,
+            columns,
             x_stride,
             y_stride,
             gamma_ptr,
@@ -4899,11 +4916,10 @@ impl EachRmsNorm for e4m3 {
                 y.as_mut_ptr() as *mut u8,
                 rows,
                 groups,
-                cols,
+                columns,
                 x_stride,
                 y_stride,
-                eps,
-                input_scale,
+                epsilon,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -5316,12 +5332,12 @@ mod tests {
         let rows = 2;
         let gate: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
         let up: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(0.5 - v)).collect();
-        let cols = gate.len() / rows;
-        let gate_t = crate::tensor::Tensor::<Scalar>::from_slice(&gate, &[rows, cols]).unwrap();
-        let up_t = crate::tensor::Tensor::<Scalar>::from_slice(&up, &[rows, cols]).unwrap();
-        let mut y_t = crate::tensor::Tensor::<Scalar>::full(&[rows, cols], Scalar::zero()).unwrap();
+        let columns = gate.len() / rows;
+        let gate_t = crate::tensor::Tensor::<Scalar>::from_slice(&gate, &[rows, columns]).unwrap();
+        let up_t = crate::tensor::Tensor::<Scalar>::from_slice(&up, &[rows, columns]).unwrap();
+        let mut y_t = crate::tensor::Tensor::<Scalar>::full(&[rows, columns], Scalar::zero()).unwrap();
         let up_ref = if with_up { Some(&up_t) } else { None };
-        Scalar::swiglu_into(&gate_t, up_ref, &mut y_t, 1.0).unwrap();
+        Scalar::swiglu_into(&gate_t, up_ref, &mut y_t, 1.0, 1.0).unwrap();
         let y = y_t.as_slice().to_vec();
         for i in 0..gate.len() {
             let g = Scalar::from_f32(values[i]).to_f64();
@@ -5353,37 +5369,38 @@ mod tests {
     fn swiglu_gate_up_halves() {
         use crate::tensor::{SliceRange, Tensor};
 
-        // gate|up are the two strided column halves of one `[rows, 2*cols]` buffer with row stride 2*cols.
+        // gate|up are the two strided column halves of one __[rows,2×columns]__ buffer, whose row
+        // stride is 2×columns.
         let rows = 3;
-        let cols = 8;
-        let buf: Vec<f32> = (0..rows * 2 * cols).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
-        let wide = Tensor::<f32>::from_slice(&buf, &[rows, 2 * cols]).unwrap();
+        let columns = 8;
+        let buf: Vec<f32> = (0..rows * 2 * columns).map(|i| ((i % 11) as f32 - 5.0) * 0.3).collect();
+        let wide = Tensor::<f32>::from_slice(&buf, &[rows, 2 * columns]).unwrap();
         let gate = wide
             .view()
-            .slice(&[SliceRange::Full, SliceRange::range(0, cols)][..])
+            .slice(&[SliceRange::Full, SliceRange::range(0, columns)][..])
             .unwrap();
         let up = wide
             .view()
-            .slice(&[SliceRange::Full, SliceRange::range(cols, 2 * cols)][..])
+            .slice(&[SliceRange::Full, SliceRange::range(columns, 2 * columns)][..])
             .unwrap();
-        let mut y = Tensor::<f32>::full(&[rows, cols], 0.0f32).unwrap();
-        f32::swiglu_into(&gate, Some(&up), &mut y, 1.0).unwrap();
+        let mut y = Tensor::<f32>::full(&[rows, columns], 0.0f32).unwrap();
+        f32::swiglu_into(&gate, Some(&up), &mut y, 1.0, 1.0).unwrap();
 
         // Contiguous reference over dense copies of the same two halves.
-        let mut gate_c = vec![0.0f32; rows * cols];
-        let mut up_c = vec![0.0f32; rows * cols];
+        let mut gate_c = vec![0.0f32; rows * columns];
+        let mut up_c = vec![0.0f32; rows * columns];
         for r in 0..rows {
-            for c in 0..cols {
-                gate_c[r * cols + c] = buf[r * 2 * cols + c];
-                up_c[r * cols + c] = buf[r * 2 * cols + cols + c];
+            for c in 0..columns {
+                gate_c[r * columns + c] = buf[r * 2 * columns + c];
+                up_c[r * columns + c] = buf[r * 2 * columns + columns + c];
             }
         }
-        let gate_ct = Tensor::<f32>::from_slice(&gate_c, &[rows, cols]).unwrap();
-        let up_ct = Tensor::<f32>::from_slice(&up_c, &[rows, cols]).unwrap();
-        let mut y_ref = Tensor::<f32>::full(&[rows, cols], 0.0f32).unwrap();
-        f32::swiglu_into(&gate_ct, Some(&up_ct), &mut y_ref, 1.0).unwrap();
+        let gate_ct = Tensor::<f32>::from_slice(&gate_c, &[rows, columns]).unwrap();
+        let up_ct = Tensor::<f32>::from_slice(&up_c, &[rows, columns]).unwrap();
+        let mut y_ref = Tensor::<f32>::full(&[rows, columns], 0.0f32).unwrap();
+        f32::swiglu_into(&gate_ct, Some(&up_ct), &mut y_ref, 1.0, 1.0).unwrap();
 
-        for i in 0..rows * cols {
+        for i in 0..rows * columns {
             assert!(
                 (y.as_slice()[i] - y_ref.as_slice()[i]).abs() < 1e-5,
                 "strided gate|up SwiGLU mismatch at {i}"
@@ -5396,25 +5413,25 @@ mod tests {
         Scalar: FloatLike + TestableType + EachRmsNorm,
     {
         let x: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v)).collect();
-        let cols = x.len() / rows / groups;
+        let columns = x.len() / rows / groups;
         let width = x.len() / rows;
-        let gamma: Vec<f32> = (0..cols).map(|i| 1.0 + 0.01 * i as f32).collect();
+        let gamma: Vec<f32> = (0..columns).map(|i| 1.0 + 0.01 * i as f32).collect();
         let x_t = Tensor::<Scalar>::from_slice(&x, &[rows, width]).unwrap();
         let mut y_t = Tensor::<Scalar>::full(&[rows, width], Scalar::zero()).unwrap();
-        Scalar::rmsnorm_into(&x_t, Some(&gamma), &mut y_t, groups, 1e-6, 1.0).unwrap();
+        Scalar::rmsnorm_into(&x_t, Some(&gamma), &mut y_t, groups, 1e-6).unwrap();
         let y = y_t.as_slice().to_vec();
         for r in 0..rows {
             for g in 0..groups {
-                let base = (r * groups + g) * cols;
-                let mean_square: f64 = (0..cols)
+                let base = (r * groups + g) * columns;
+                let mean_square: f64 = (0..columns)
                     .map(|c| {
                         let v = Scalar::from_f32(values[base + c]).to_f64();
                         v * v
                     })
                     .sum::<f64>()
-                    / cols as f64;
+                    / columns as f64;
                 let inverse_rms = 1.0 / (mean_square + 1e-6).sqrt();
-                for c in 0..cols {
+                for c in 0..columns {
                     let v = Scalar::from_f32(values[base + c]).to_f64();
                     // round the reference through the dtype, matching what the kernel stores
                     let expected = Scalar::from_f32((v * inverse_rms * gamma[c] as f64) as f32).to_f64();

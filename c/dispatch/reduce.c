@@ -48,12 +48,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_f64_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f64_t *sum, nk_f64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_f64_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_f64_capabilities(void) {
@@ -98,12 +98,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f64_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f64_t *min_value, nk_size_t *min_index, nk_f64_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_f64_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -149,12 +149,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_f32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f64_t *sum, nk_f64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_f32_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_f32_capabilities(void) {
@@ -199,12 +199,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f32_t *min_value, nk_size_t *min_index, nk_f32_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_f32_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -260,12 +260,11 @@ static nk_capability_kernels_t const *nk_reduce_moments_i8_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                  nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
-                                                  void *stream) {
+NUMKONG_API nk_status_t nk_reduce_moments_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride, nk_i64_t *sum,
+                                                  nk_u64_t *sumsq, nk_capability_t capabilities, void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_i8_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_i8_capabilities(void) {
@@ -310,12 +309,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i8_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_i8_t *min_value, nk_size_t *min_index, nk_i8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_i8_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -375,12 +374,11 @@ static nk_capability_kernels_t const *nk_reduce_moments_u8_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                  nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
-                                                  void *stream) {
+NUMKONG_API nk_status_t nk_reduce_moments_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride, nk_u64_t *sum,
+                                                  nk_u64_t *sumsq, nk_capability_t capabilities, void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_u8_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_u8_capabilities(void) {
@@ -425,12 +423,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u8_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value, nk_size_t *min_index, nk_u8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_u8_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -483,12 +481,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_i16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_i16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_i16_capabilities(void) {
@@ -533,12 +531,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i16_t *min_value, nk_size_t *min_index, nk_i16_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_i16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -587,12 +585,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_u16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_u16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_u16_capabilities(void) {
@@ -637,12 +635,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u16_t *min_value, nk_size_t *min_index, nk_u16_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_u16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -688,12 +686,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_i32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_i32_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_i32_capabilities(void) {
@@ -738,12 +736,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i32_t *min_value, nk_size_t *min_index, nk_i32_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_i32_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -789,12 +787,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_u32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_u32_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_u32_capabilities(void) {
@@ -839,12 +837,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u32_t *min_value, nk_size_t *min_index, nk_u32_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_u32_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -890,12 +888,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_i64_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_i64_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_i64_capabilities(void) {
@@ -940,12 +938,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i64_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i64_t *min_value, nk_size_t *min_index, nk_i64_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_i64_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -991,12 +989,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_u64_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_u64_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_u64_capabilities(void) {
@@ -1041,12 +1039,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u64_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *min_value, nk_size_t *min_index, nk_u64_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_u64_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1092,12 +1090,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_f16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_f16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_f16_capabilities(void) {
@@ -1138,12 +1136,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f16_t *min_value, nk_size_t *min_index, nk_f16_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_f16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1192,12 +1190,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_bf16_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_bf16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_bf16_capabilities(void) {
@@ -1238,12 +1236,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_bf16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_bf16_t *min_value, nk_size_t *min_index, nk_bf16_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_bf16_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1296,12 +1294,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_e4m3_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_e4m3_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_e4m3_capabilities(void) {
@@ -1346,12 +1344,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e4m3_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e4m3_t *min_value, nk_size_t *min_index, nk_e4m3_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_e4m3_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1404,12 +1402,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_e5m2_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_e5m2_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_e5m2_capabilities(void) {
@@ -1454,12 +1452,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e5m2_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e5m2_t *min_value, nk_size_t *min_index, nk_e5m2_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_e5m2_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1519,12 +1517,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_e2m3_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_e2m3_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_e2m3_capabilities(void) {
@@ -1569,12 +1567,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e2m3_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e2m3_t *min_value, nk_size_t *min_index, nk_e2m3_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_e2m3_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1627,12 +1625,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_e3m2_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_e3m2_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_e3m2_capabilities(void) {
@@ -1677,12 +1675,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e3m2_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e3m2_t *min_value, nk_size_t *min_index, nk_e3m2_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_e3m2_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1710,12 +1708,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_e2m1_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e2m1_best(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e2m1_best(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_e2m1_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_moments_i4_capabilities(void) {
@@ -1748,12 +1746,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_i4_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                   void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_i4_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_i4_capabilities(void) {
@@ -1780,12 +1778,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i4_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_i8_t *min_value, nk_size_t *min_index, nk_i8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_i4_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1819,12 +1817,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_u4_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                   void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_u4_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_u4_capabilities(void) {
@@ -1851,12 +1849,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u4_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value, nk_size_t *min_index, nk_u8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_u4_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1895,12 +1893,12 @@ static nk_capability_kernels_t const *nk_reduce_moments_u1_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                   void *stream) {
     nk_reduce_moments_punned_t const kernel = (nk_reduce_moments_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_moments_u1_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, sum, sumsq, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(data, count, stride, sum, sumsq, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_reduce_minmax_u1_capabilities(void) {
@@ -1927,12 +1925,12 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u1_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value, nk_size_t *min_index, nk_u8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
     nk_reduce_minmax_punned_t const kernel = (nk_reduce_minmax_punned_t)nk_kernel_pick_(
         capabilities, nk_reduce_minmax_u1_capabilities());
-    return kernel ? kernel(data, count, stride_bytes, min_value, min_index, max_value, max_index, stream)
+    return kernel ? kernel(data, count, stride, min_value, min_index, max_value, max_index, stream)
                   : nk_missing_kernel_k;
 }
 

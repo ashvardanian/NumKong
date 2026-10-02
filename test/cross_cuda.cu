@@ -27,15 +27,13 @@ static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &) {
     auto const *a_codes = reinterpret_cast<nk_e4m3_t const *>(a.raw_values_data());
     auto const *b_codes = reinterpret_cast<nk_e4m3_t const *>(b.raw_values_data());
     auto *gpu = reinterpret_cast<nk_f32_t *>(distance.raw_values_data());
-    backend.call(pack_fn_, b_codes, nullptr, 1, depth, depth, 0, packed.raw_values_data(), 0, 1);
-    backend.call(angulars_fn_, a_codes, nullptr, packed.raw_values_data(), gpu, 1, 1, depth, depth, 0,
-                 sizeof(nk_f32_t));
+    backend.call(pack_fn_, b_codes, 1, depth, depth, packed.raw_values_data(), 0, 1);
+    backend.call(angulars_fn_, a_codes, packed.raw_values_data(), gpu, 1, 1, depth, depth, sizeof(nk_f32_t));
     synchronize(backend, stats);
     nk_f32_t serial = 0;
-    stats.expect(
-        nk_dots_pack_e4m3_serial(b_codes, nullptr, 1, depth, depth, 0, serial_packed.raw_values_data(), 0, 1, nullptr));
-    stats.expect(nk_angulars_packed_e4m3_serial(a_codes, nullptr, serial_packed.raw_values_data(), &serial, 1, 1, depth,
-                                                depth, 0, sizeof(nk_f32_t), nullptr));
+    stats.expect(nk_dots_pack_e4m3_serial(b_codes, 1, depth, depth, serial_packed.raw_values_data(), 0, 1, nullptr));
+    stats.expect(nk_angulars_packed_e4m3_serial(a_codes, serial_packed.raw_values_data(), &serial, 1, 1, depth, depth,
+                                                sizeof(nk_f32_t), nullptr));
     stats.expect(*gpu == serial, "a NaN code in B packed to a finite column norm");
     return stats;
 }
@@ -105,6 +103,42 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("dots_contract_e2m1_cuda", test_dots_launch_contract<e2m1x2_t, cuda_backend_t, nk_dots_pack_size_e2m1_cuda,
                                                                nk_dots_packed_e2m1_cuda, nk_dots_symmetric_e2m1_cuda>);
     check("dots_symmetric_e2m1_cuda", test_dots_symmetric<e2m1x2_t, cuda_backend_t>, nk_dots_symmetric_e2m1_cuda);
+    check("dots_packed_nvfp4_cuda", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_cuda,
+          nk_dots_pack_nvfp4_cuda, nk_dots_packed_nvfp4_cuda);
+    check("dots_pack_nvfp4_cuda", test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_cuda,
+                                                        nk_dots_packed_shape_nvfp4_cuda, nk_dots_pack_nvfp4_cuda>);
+    check("dots_contract_nvfp4_cuda",
+          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_cuda, nk_dots_packed_nvfp4_cuda,
+                                    nk_dots_symmetric_nvfp4_cuda>);
+    check("dots_symmetric_nvfp4_cuda", test_dots_symmetric<nvfp4_t, cuda_backend_t>, nk_dots_symmetric_nvfp4_cuda);
+    check("dots_packed_mxfp4_cuda", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_cuda,
+          nk_dots_pack_mxfp4_cuda, nk_dots_packed_mxfp4_cuda);
+    check("dots_pack_mxfp4_cuda", test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_cuda,
+                                                        nk_dots_packed_shape_mxfp4_cuda, nk_dots_pack_mxfp4_cuda>);
+    check("dots_contract_mxfp4_cuda",
+          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_cuda, nk_dots_packed_mxfp4_cuda,
+                                    nk_dots_symmetric_mxfp4_cuda>);
+    check("dots_symmetric_mxfp4_cuda", test_dots_symmetric<mxfp4_t, cuda_backend_t>, nk_dots_symmetric_mxfp4_cuda);
+    check("dots_packed_mxfp8e4m3_cuda", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>, nk_dots_pack_size_mxfp8e4m3_cuda,
+          nk_dots_pack_mxfp8e4m3_cuda, nk_dots_packed_mxfp8e4m3_cuda);
+    check("dots_pack_mxfp8e4m3_cuda",
+          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_cuda,
+                                nk_dots_packed_shape_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda>);
+    check("dots_contract_mxfp8e4m3_cuda",
+          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_cuda,
+                                    nk_dots_packed_mxfp8e4m3_cuda, nk_dots_symmetric_mxfp8e4m3_cuda>);
+    check("dots_symmetric_mxfp8e4m3_cuda", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e4m3_cuda);
+    check("dots_packed_mxfp8e5m2_cuda", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>, nk_dots_pack_size_mxfp8e5m2_cuda,
+          nk_dots_pack_mxfp8e5m2_cuda, nk_dots_packed_mxfp8e5m2_cuda);
+    check("dots_pack_mxfp8e5m2_cuda",
+          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_cuda,
+                                nk_dots_packed_shape_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda>);
+    check("dots_contract_mxfp8e5m2_cuda",
+          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_cuda,
+                                    nk_dots_packed_mxfp8e5m2_cuda, nk_dots_symmetric_mxfp8e5m2_cuda>);
+    check("dots_symmetric_mxfp8e5m2_cuda", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e5m2_cuda);
     check("dots_packed_i8_cuda", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_cuda,
           nk_dots_pack_i8_cuda, nk_dots_packed_i8_cuda);
     check("dots_pack_i8_cuda", test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_cuda,
@@ -205,6 +239,38 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_dots_pack_e2m1_cuda, nk_euclideans_packed_e2m1_cuda);
     check("euclideans_symmetric_e2m1_cuda", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
           nk_euclideans_symmetric_e2m1_cuda);
+    check("angulars_packed_nvfp4_cuda", test_angulars_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_cuda,
+          nk_dots_pack_nvfp4_cuda, nk_angulars_packed_nvfp4_cuda);
+    check("angulars_symmetric_nvfp4_cuda", test_angulars_symmetric<nvfp4_t, cuda_backend_t>,
+          nk_angulars_symmetric_nvfp4_cuda);
+    check("euclideans_packed_nvfp4_cuda", test_euclideans_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_cuda,
+          nk_dots_pack_nvfp4_cuda, nk_euclideans_packed_nvfp4_cuda);
+    check("euclideans_symmetric_nvfp4_cuda", test_euclideans_symmetric<nvfp4_t, cuda_backend_t>,
+          nk_euclideans_symmetric_nvfp4_cuda);
+    check("angulars_packed_mxfp4_cuda", test_angulars_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_cuda,
+          nk_dots_pack_mxfp4_cuda, nk_angulars_packed_mxfp4_cuda);
+    check("angulars_symmetric_mxfp4_cuda", test_angulars_symmetric<mxfp4_t, cuda_backend_t>,
+          nk_angulars_symmetric_mxfp4_cuda);
+    check("euclideans_packed_mxfp4_cuda", test_euclideans_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_cuda,
+          nk_dots_pack_mxfp4_cuda, nk_euclideans_packed_mxfp4_cuda);
+    check("euclideans_symmetric_mxfp4_cuda", test_euclideans_symmetric<mxfp4_t, cuda_backend_t>,
+          nk_euclideans_symmetric_mxfp4_cuda);
+    check("angulars_packed_mxfp8e4m3_cuda", test_angulars_packed<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda, nk_angulars_packed_mxfp8e4m3_cuda);
+    check("angulars_symmetric_mxfp8e4m3_cuda", test_angulars_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_angulars_symmetric_mxfp8e4m3_cuda);
+    check("euclideans_packed_mxfp8e4m3_cuda", test_euclideans_packed<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e4m3_cuda, nk_dots_pack_mxfp8e4m3_cuda, nk_euclideans_packed_mxfp8e4m3_cuda);
+    check("euclideans_symmetric_mxfp8e4m3_cuda", test_euclideans_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_euclideans_symmetric_mxfp8e4m3_cuda);
+    check("angulars_packed_mxfp8e5m2_cuda", test_angulars_packed<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda, nk_angulars_packed_mxfp8e5m2_cuda);
+    check("angulars_symmetric_mxfp8e5m2_cuda", test_angulars_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_angulars_symmetric_mxfp8e5m2_cuda);
+    check("euclideans_packed_mxfp8e5m2_cuda", test_euclideans_packed<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e5m2_cuda, nk_dots_pack_mxfp8e5m2_cuda, nk_euclideans_packed_mxfp8e5m2_cuda);
+    check("euclideans_symmetric_mxfp8e5m2_cuda", test_euclideans_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_euclideans_symmetric_mxfp8e5m2_cuda);
     check("angulars_packed_i8_cuda", test_angulars_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_cuda,
           nk_dots_pack_i8_cuda, nk_angulars_packed_i8_cuda);
     check("angulars_symmetric_i8_cuda", test_angulars_symmetric<i8_t, cuda_backend_t>, nk_angulars_symmetric_i8_cuda);
@@ -673,6 +739,46 @@ void test_cross_cuda(error_stats_section_t &check) {
                                     nk_dots_packed_e2m1_blackwell, nk_dots_symmetric_e2m1_blackwell>);
     check("dots_symmetric_e2m1_blackwell", test_dots_symmetric<e2m1x2_t, cuda_backend_t>,
           nk_dots_symmetric_e2m1_blackwell);
+    check("dots_packed_nvfp4_blackwell", test_dots_packed<nvfp4_t, cuda_backend_t>, nk_dots_pack_size_nvfp4_blackwell,
+          nk_dots_pack_nvfp4_blackwell, nk_dots_packed_nvfp4_blackwell);
+    check("dots_pack_nvfp4_blackwell",
+          test_dots_pack_layout<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_blackwell,
+                                nk_dots_packed_shape_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell>);
+    check("dots_contract_nvfp4_blackwell",
+          test_dots_launch_contract<nvfp4_t, cuda_backend_t, nk_dots_pack_size_nvfp4_blackwell,
+                                    nk_dots_packed_nvfp4_blackwell, nk_dots_symmetric_nvfp4_blackwell>);
+    check("dots_symmetric_nvfp4_blackwell", test_dots_symmetric<nvfp4_t, cuda_backend_t>,
+          nk_dots_symmetric_nvfp4_blackwell);
+    check("dots_packed_mxfp4_blackwell", test_dots_packed<mxfp4_t, cuda_backend_t>, nk_dots_pack_size_mxfp4_blackwell,
+          nk_dots_pack_mxfp4_blackwell, nk_dots_packed_mxfp4_blackwell);
+    check("dots_pack_mxfp4_blackwell",
+          test_dots_pack_layout<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_blackwell,
+                                nk_dots_packed_shape_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell>);
+    check("dots_contract_mxfp4_blackwell",
+          test_dots_launch_contract<mxfp4_t, cuda_backend_t, nk_dots_pack_size_mxfp4_blackwell,
+                                    nk_dots_packed_mxfp4_blackwell, nk_dots_symmetric_mxfp4_blackwell>);
+    check("dots_symmetric_mxfp4_blackwell", test_dots_symmetric<mxfp4_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp4_blackwell);
+    check("dots_packed_mxfp8e4m3_blackwell", test_dots_packed<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell, nk_dots_packed_mxfp8e4m3_blackwell);
+    check("dots_pack_mxfp8e4m3_blackwell",
+          test_dots_pack_layout<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_blackwell,
+                                nk_dots_packed_shape_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell>);
+    check("dots_contract_mxfp8e4m3_blackwell",
+          test_dots_launch_contract<mxfp8e4m3_t, cuda_backend_t, nk_dots_pack_size_mxfp8e4m3_blackwell,
+                                    nk_dots_packed_mxfp8e4m3_blackwell, nk_dots_symmetric_mxfp8e4m3_blackwell>);
+    check("dots_symmetric_mxfp8e4m3_blackwell", test_dots_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e4m3_blackwell);
+    check("dots_packed_mxfp8e5m2_blackwell", test_dots_packed<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell, nk_dots_packed_mxfp8e5m2_blackwell);
+    check("dots_pack_mxfp8e5m2_blackwell",
+          test_dots_pack_layout<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_blackwell,
+                                nk_dots_packed_shape_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell>);
+    check("dots_contract_mxfp8e5m2_blackwell",
+          test_dots_launch_contract<mxfp8e5m2_t, cuda_backend_t, nk_dots_pack_size_mxfp8e5m2_blackwell,
+                                    nk_dots_packed_mxfp8e5m2_blackwell, nk_dots_symmetric_mxfp8e5m2_blackwell>);
+    check("dots_symmetric_mxfp8e5m2_blackwell", test_dots_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_symmetric_mxfp8e5m2_blackwell);
     check("angulars_packed_bf16_blackwell", test_angulars_packed<bf16_t, cuda_backend_t>,
           nk_dots_pack_size_bf16_blackwell, nk_dots_pack_bf16_blackwell, nk_angulars_packed_bf16_blackwell);
     check("angulars_symmetric_bf16_blackwell", test_angulars_symmetric<bf16_t, cuda_backend_t>,
@@ -732,6 +838,42 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_dots_pack_size_e2m1_blackwell, nk_dots_pack_e2m1_blackwell, nk_euclideans_packed_e2m1_blackwell);
     check("euclideans_symmetric_e2m1_blackwell", test_euclideans_symmetric<e2m1x2_t, cuda_backend_t>,
           nk_euclideans_symmetric_e2m1_blackwell);
+    check("angulars_packed_nvfp4_blackwell", test_angulars_packed<nvfp4_t, cuda_backend_t>,
+          nk_dots_pack_size_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell, nk_angulars_packed_nvfp4_blackwell);
+    check("angulars_symmetric_nvfp4_blackwell", test_angulars_symmetric<nvfp4_t, cuda_backend_t>,
+          nk_angulars_symmetric_nvfp4_blackwell);
+    check("euclideans_packed_nvfp4_blackwell", test_euclideans_packed<nvfp4_t, cuda_backend_t>,
+          nk_dots_pack_size_nvfp4_blackwell, nk_dots_pack_nvfp4_blackwell, nk_euclideans_packed_nvfp4_blackwell);
+    check("euclideans_symmetric_nvfp4_blackwell", test_euclideans_symmetric<nvfp4_t, cuda_backend_t>,
+          nk_euclideans_symmetric_nvfp4_blackwell);
+    check("angulars_packed_mxfp4_blackwell", test_angulars_packed<mxfp4_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell, nk_angulars_packed_mxfp4_blackwell);
+    check("angulars_symmetric_mxfp4_blackwell", test_angulars_symmetric<mxfp4_t, cuda_backend_t>,
+          nk_angulars_symmetric_mxfp4_blackwell);
+    check("euclideans_packed_mxfp4_blackwell", test_euclideans_packed<mxfp4_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp4_blackwell, nk_dots_pack_mxfp4_blackwell, nk_euclideans_packed_mxfp4_blackwell);
+    check("euclideans_symmetric_mxfp4_blackwell", test_euclideans_symmetric<mxfp4_t, cuda_backend_t>,
+          nk_euclideans_symmetric_mxfp4_blackwell);
+    check("angulars_packed_mxfp8e4m3_blackwell", test_angulars_packed<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
+          nk_angulars_packed_mxfp8e4m3_blackwell);
+    check("angulars_symmetric_mxfp8e4m3_blackwell", test_angulars_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_angulars_symmetric_mxfp8e4m3_blackwell);
+    check("euclideans_packed_mxfp8e4m3_blackwell", test_euclideans_packed<mxfp8e4m3_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
+          nk_euclideans_packed_mxfp8e4m3_blackwell);
+    check("euclideans_symmetric_mxfp8e4m3_blackwell", test_euclideans_symmetric<mxfp8e4m3_t, cuda_backend_t>,
+          nk_euclideans_symmetric_mxfp8e4m3_blackwell);
+    check("angulars_packed_mxfp8e5m2_blackwell", test_angulars_packed<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
+          nk_angulars_packed_mxfp8e5m2_blackwell);
+    check("angulars_symmetric_mxfp8e5m2_blackwell", test_angulars_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_angulars_symmetric_mxfp8e5m2_blackwell);
+    check("euclideans_packed_mxfp8e5m2_blackwell", test_euclideans_packed<mxfp8e5m2_t, cuda_backend_t>,
+          nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
+          nk_euclideans_packed_mxfp8e5m2_blackwell);
+    check("euclideans_symmetric_mxfp8e5m2_blackwell", test_euclideans_symmetric<mxfp8e5m2_t, cuda_backend_t>,
+          nk_euclideans_symmetric_mxfp8e5m2_blackwell);
     check("attention_bidirectional_packed_e4m3_blackwell",
           test_attention_bidirectional_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
           nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,

@@ -113,14 +113,13 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_f32_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_f32_smef64( //
-    nk_f32_t const *a, void const *a_scales, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns,
-    nk_size_t depth, nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes,
-    void *stream) {
+    nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
+    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
 
-    nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_f32_t);
-    nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const a_stride_elements = a_stride / sizeof(nk_f32_t);
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_packed_f32_smef64_streaming_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
@@ -158,14 +157,13 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_f32_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_euclideans_packed_f32_smef64( //
-    nk_f32_t const *a, void const *a_scales, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns,
-    nk_size_t depth, nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes,
-    void *stream) {
+    nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
+    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
 
-    nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_f32_t);
-    nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const a_stride_elements = a_stride / sizeof(nk_f32_t);
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_packed_f32_smef64_streaming_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
@@ -216,15 +214,14 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_f32_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_f32_smef64( //
-    nk_f32_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
-    nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_f64_t *result, nk_size_t result_stride_in_bytes,
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
-    nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f32_t);
-    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const stride_elements = stride / sizeof(nk_f32_t);
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_symmetric_f32_smef64_streaming_(vectors, vectors_count, depth, stride_elements, result,
@@ -276,15 +273,14 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_f32_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f32_smef64( //
-    nk_f32_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
-    nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_f64_t *result, nk_size_t result_stride_in_bytes,
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
-    nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f32_t);
-    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const stride_elements = stride / sizeof(nk_f32_t);
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_symmetric_f32_smef64_streaming_(vectors, vectors_count, depth, stride_elements, result,
@@ -323,14 +319,13 @@ NUMKONG_OUTLINED_ void nk_angulars_packed_f64_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_angulars_packed_f64_smef64( //
-    nk_f64_t const *a, void const *a_scales, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns,
-    nk_size_t depth, nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes,
-    void *stream) {
+    nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
+    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
 
-    nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_f64_t);
-    nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const a_stride_elements = a_stride / sizeof(nk_f64_t);
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_packed_f64_smef64_streaming_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
@@ -368,14 +363,13 @@ NUMKONG_OUTLINED_ void nk_euclideans_packed_f64_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_euclideans_packed_f64_smef64( //
-    nk_f64_t const *a, void const *a_scales, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns,
-    nk_size_t depth, nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes,
-    void *stream) {
+    nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
+    nk_size_t a_stride, nk_size_t c_stride, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_sme_packed_header_t const *)b_packed)->capability != nk_cap_smef64_k) return nk_pack_mismatch_k;
 
-    nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_f64_t);
-    nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const a_stride_elements = a_stride / sizeof(nk_f64_t);
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_packed_f64_smef64_streaming_(a, b_packed, c, rows, columns, depth, a_stride_elements, c_stride_elements);
@@ -426,15 +420,14 @@ NUMKONG_OUTLINED_ void nk_angulars_symmetric_f64_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_angulars_symmetric_f64_smef64( //
-    nk_f64_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
-    nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_f64_t *result, nk_size_t result_stride_in_bytes,
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
-    nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f64_t);
-    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const stride_elements = stride / sizeof(nk_f64_t);
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_symmetric_f64_smef64_streaming_(vectors, vectors_count, depth, stride_elements, result,
@@ -486,15 +479,14 @@ NUMKONG_OUTLINED_ void nk_euclideans_symmetric_f64_smef64_finalize_ssve_( //
 }
 
 NUMKONG_API nk_status_t nk_euclideans_symmetric_f64_smef64( //
-    nk_f64_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
-    nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_f64_t *result, nk_size_t result_stride_in_bytes,
-    nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride, nk_f64_t *result,
+    nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
+    nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
     row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;
 
-    nk_size_t const stride_elements = stride_in_bytes / sizeof(nk_f64_t);
-    nk_size_t const result_stride_elements = result_stride_in_bytes / sizeof(nk_f64_t);
+    nk_size_t const stride_elements = stride / sizeof(nk_f64_t);
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f64_t);
 
     nk_sme_start_streaming_();
     nk_dots_symmetric_f64_smef64_streaming_(vectors, vectors_count, depth, stride_elements, result,

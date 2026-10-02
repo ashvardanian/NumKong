@@ -91,12 +91,12 @@ NUMKONG_DEVICE void nk_tmem_load_16x256b_x8_blackwell_(nk_u32_t address, nk_u32_
 #pragma region Fragments
 
 /** The shared-memory descriptor of an operand at @p shared: K-major 128-byte swizzled rows for
- *  @p layout 2 or 64-byte ones for 4, eight-row groups @p stride_bytes apart, and for an MN-major
+ *  @p layout 2 or 64-byte ones for 4, eight-row groups @p stride apart, and for an MN-major
  *  operand, swizzle-wide column blocks @p leading_bytes apart. */
-NUMKONG_DEVICE nk_u64_t nk_attention_descriptor_blackwell_(nk_u32_t shared, nk_u32_t leading_bytes,
-                                                           nk_u32_t stride_bytes, nk_u32_t layout) {
+NUMKONG_DEVICE nk_u64_t nk_attention_descriptor_blackwell_(nk_u32_t shared, nk_u32_t leading_bytes, nk_u32_t stride,
+                                                           nk_u32_t layout) {
     return (nk_u64_t)((shared & 0x3FFFFu) >> 4) | ((nk_u64_t)(leading_bytes >> 4) << 16) |
-           ((nk_u64_t)(stride_bytes >> 4) << 32) | ((nk_u64_t)1 << 46) | ((nk_u64_t)layout << 61);
+           ((nk_u64_t)(stride >> 4) << 32) | ((nk_u64_t)1 << 46) | ((nk_u64_t)layout << 61);
 }
 
 /** The instruction descriptor of a 64-row step from K-major E4M3 A and B into @p columns F32

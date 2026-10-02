@@ -62,7 +62,7 @@ typedef struct {
     nk_u32_t offset_original_data;
 
     /** Row stride in bytes for originals region. */
-    nk_u32_t original_stride_bytes;
+    nk_u32_t original_stride;
 
     /** Padding to 64 bytes. */
     nk_u32_t reserved[6];
@@ -129,7 +129,7 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_header_setup_(   //
     header->offset_i8_data = (nk_u32_t)header_size;
     header->offset_metadata = (nk_u32_t)(header_size + i8_region_size);
     header->offset_original_data = (nk_u32_t)(header_size + i8_region_size + metadata_region_size);
-    header->original_stride_bytes = (nk_u32_t)original_stride;
+    header->original_stride = (nk_u32_t)original_stride;
     header->capability = capability;
     for (nk_size_t reserved_index = 0; reserved_index < 6; reserved_index++) header->reserved[reserved_index] = 0;
 
@@ -214,8 +214,8 @@ NUMKONG_INLINE nk_maxsim_packed_regions_t nk_maxsim_extract_packed_regions_( //
                                                                       document_header->offset_metadata);
     regions.query_originals = (char const *)query_packed + query_header->offset_original_data;
     regions.document_originals = (char const *)document_packed + document_header->offset_original_data;
-    regions.query_original_stride = query_header->original_stride_bytes;
-    regions.document_original_stride = document_header->original_stride_bytes;
+    regions.query_original_stride = query_header->original_stride;
+    regions.document_original_stride = document_header->original_stride;
     return regions;
 }
 
@@ -391,13 +391,13 @@ NUMKONG_INLINE int nk_maxsim_packed_by_(void const *packed, nk_capability_t capa
     return ((nk_maxsim_packed_header_t const *)packed)->capability == capability;
 }
 
-/** Whether @p packed_shape reads back from @p packed the @p width and @p depth a packed kernel is
+/** Whether @p packed_shape reads back from @p packed the @p columns and @p depth a packed kernel is
  *  about to trust. */
 NUMKONG_CONSTEXPR int nk_packed_shape_matches_(void (*packed_shape)(void const *, nk_size_t *, nk_size_t *),
-                                               void const *packed, nk_size_t width, nk_size_t depth) {
+                                               void const *packed, nk_size_t columns, nk_size_t depth) {
     nk_size_t packed_width = 0, packed_depth = 0;
     packed_shape(packed, &packed_width, &packed_depth);
-    return packed_width == width && packed_depth == depth;
+    return packed_width == columns && packed_depth == depth;
 }
 
 #if NUMKONG_TARGET_SERIAL
@@ -438,8 +438,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_serial(void const *packed, nk
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_serial( //
-    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
-    void *stream) {
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -450,10 +449,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_serial( //
     nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
     nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
     char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride_bytes;
+    nk_size_t const original_stride = header->original_stride;
 
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
+        char const *source_row = (char const *)vectors + vector_index * stride;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
                                    (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
                                    &metadata[vector_index]);
@@ -466,8 +465,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_serial( //
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_serial( //
-    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
-    void *stream) {
+    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const element_bytes = sizeof(nk_f32_t);
@@ -478,10 +476,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_serial( //
     nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
     nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
     char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride_bytes;
+    nk_size_t const original_stride = header->original_stride;
 
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
+        char const *source_row = (char const *)vectors + vector_index * stride;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f, nk_f32_to_f32_,
                                    &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
         char *destination_original = originals + vector_index * original_stride;
@@ -506,8 +504,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_serial(void const *packed, nk
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_serial( //
-    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
-    void *stream) {
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const element_bytes = sizeof(nk_f16_t);
@@ -518,10 +515,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_serial( //
     nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
     nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
     char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride_bytes;
+    nk_size_t const original_stride = header->original_stride;
 
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
+        char const *source_row = (char const *)vectors + vector_index * stride;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
                                    (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
                                    &metadata[vector_index]);

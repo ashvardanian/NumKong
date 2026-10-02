@@ -112,6 +112,43 @@ nk_define_device_cross_tma_(euclidean, e2m1, blackwell, e2m1x2, e2m1x2, f32, /*d
 
 #pragma endregion E2M1
 
+#pragma region Block Scaled Floats
+
+nk_define_device_cross_tma_(angular, nvfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                            /*dimensions_per_value=*/2, nk_dots_nvfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+nk_define_device_cross_tma_(euclidean, nvfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                            /*dimensions_per_value=*/2, nk_dots_nvfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+nk_define_device_cross_tma_(angular, mxfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                            /*dimensions_per_value=*/2, nk_dots_mxfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+nk_define_device_cross_tma_(euclidean, mxfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                            /*dimensions_per_value=*/2, nk_dots_mxfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+nk_define_device_cross_tma_(angular, mxfp8e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                            /*dimensions_per_value=*/1, nk_dots_mxfp8e4m3_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e4m3_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+nk_define_device_cross_tma_(euclidean, mxfp8e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                            /*dimensions_per_value=*/1, nk_dots_mxfp8e4m3_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e4m3_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+nk_define_device_cross_tma_(angular, mxfp8e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                            /*dimensions_per_value=*/1, nk_dots_mxfp8e5m2_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e5m2_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+nk_define_device_cross_tma_(euclidean, mxfp8e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                            /*dimensions_per_value=*/1, nk_dots_mxfp8e5m2_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e5m2_norm_update_ampere_,
+                            /*norm_scale=*/1.0f)
+
+#pragma endregion Block Scaled Floats
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

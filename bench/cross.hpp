@@ -142,9 +142,9 @@ bool time_rotating(loop_t &loop, backend_type_ &backend, std::size_t sets_count,
     return true;
 }
 
-/** The `<cols>` suffix of a one-row benchmark name, `<rows x cols>` for more rows. */
-inline std::string token_rows_name(std::string const &name, std::size_t rows, std::size_t cols) {
-    return name + "<" + (rows == 1 ? "" : std::to_string(rows) + "x") + std::to_string(cols) + ">";
+/** The `<columns>` suffix of a one-row benchmark name, `<rows x columns>` for more rows. */
+inline std::string token_rows_name(std::string const &name, std::size_t rows, std::size_t columns) {
+    return name + "<" + (rows == 1 ? "" : std::to_string(rows) + "x") + std::to_string(columns) + ">";
 }
 
 /** A backend copy of @p count random values of @p input_dtype_ under @p seed, empty when the
@@ -221,21 +221,21 @@ inline double reference_distance(reference_metric_t metric, double const *first,
     return std::max(0.0, 1 - dot / std::sqrt(first_norm) / std::sqrt(second_norm));
 }
 
-/** Random A and B of @p height and @p width rows of @p depth dimensions under @p seed: A at @p
+/** Random A of @p rows and B of @p columns rows of @p depth dimensions under @p seed: A at @p
  *  backend_type_'s row stride and zero past each row's end, B dense. A matrix whose allocation
  *  failed comes back empty. */
 template <nk_dtype_t input_dtype_, typename backend_type_>
 std::array<nk::tensor<typename nk::type_for<input_dtype_>::type,
                       nk::aligned_allocator<typename nk::type_for<input_dtype_>::type>, 2>,
            2>
-random_matrices(seed_t seed, std::size_t height, std::size_t width, std::size_t depth) {
+random_matrices(seed_t seed, std::size_t rows, std::size_t columns, std::size_t depth) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using matrix_t = nk::tensor<input_t, nk::aligned_allocator<input_t>, 2>;
     std::size_t const dimensions_per_value = nk::dimensions_per_value<input_t>();
     std::size_t const row_values = nk::divide_round_up(depth, dimensions_per_value);
     std::size_t const a_stride_values = backend_type_::row_stride(row_values * sizeof(input_t)) / sizeof(input_t);
-    std::array<matrix_t, 2> matrices {matrix_t::zeros({height, a_stride_values * dimensions_per_value}).value,
-                                      matrix_t::zeros({width, row_values * dimensions_per_value}).value};
+    std::array<matrix_t, 2> matrices {matrix_t::zeros({rows, a_stride_values * dimensions_per_value}).value,
+                                      matrix_t::zeros({columns, row_values * dimensions_per_value}).value};
     std::mt19937 generator(seed.value);
     for (matrix_t &matrix : matrices) {
         if (matrix.empty()) continue;
@@ -268,10 +268,10 @@ double sampled_accuracy(backend_type_ &backend,
         std::size_t const row = entry / second.extent(0), column = entry % second.extent(0);
         if (written == written_entries_t::upper_triangle_k && column < row) continue;
         if (written == written_entries_t::strict_upper_triangle_k && column <= row) continue;
-        if (nk_cast_serial(first.byte_data() + row * first.stride_bytes(0), input_dtype_, depth, first_decoded.data(),
-                           nk_f64_k, nullptr) != nk_success_k ||
-            nk_cast_serial(second.byte_data() + column * second.stride_bytes(0), input_dtype_, depth,
-                           second_decoded.data(), nk_f64_k, nullptr) != nk_success_k)
+        if (nk_cast_serial(first.byte_data() + row * first.stride_bytes(0), input_dtype_, first_decoded.data(),
+                           nk_f64_k, depth, nullptr) != nk_success_k ||
+            nk_cast_serial(second.byte_data() + column * second.stride_bytes(0), input_dtype_, second_decoded.data(),
+                           nk_f64_k, depth, nullptr) != nk_success_k)
             continue;
         double const expected = reference_distance(metric, first_decoded.data(), second_decoded.data(), depth);
         if constexpr (std::is_integral_v<output_raw_t>) score_sum += double(double(result[entry]) == expected);
@@ -309,83 +309,134 @@ struct matrix_set {
     outputs_t c;
 };
 
+template <typename input_type_>
+struct cref_of_ {
+    struct none {};
+    using type = none;
+};
+
+template <typename input_type_>
+    requires requires { typename input_type_::cref_t; }
+struct cref_of_<input_type_> {
+    using type = typename input_type_::cref_t;
+};
+
+/** The scales of one operand in @p backend_type_'s memory, all one with no tensor scale, so a
+ *  block-scaled kernel multiplies the same values as its element dtype; @c operand wraps codes into
+ *  what kernels take: the codes themselves for plain dtypes, else a reference holding the codes and
+ *  their scales, as every kernel of the family expects. */
+template <nk_dtype_t input_dtype_, typename backend_type_>
+struct unit_block_scales {
+    static constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(input_dtype_);
+    using scale_t = typename nk::type_for<format.block_size ? format.scale_dtype : nk_u8_k>::type;
+    using blocks_t = nk::tensor<scale_t, typename backend_type_::template allocator<scale_t>, 2>;
+
+    blocks_t blocks;
+    mutable typename cref_of_<typename nk::type_for<input_dtype_>::type>::type reference {};
+
+    unit_block_scales(backend_type_ &backend, std::size_t rows, std::size_t stride) {
+        if constexpr (format.block_size) {
+            std::size_t const scale_stride = stride / format.block_bytes;
+            blocks = blocks_t::uninitialized({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
+            std::vector<scale_t> const host(rows * scale_stride, scale_t(1.0f));
+            if (!blocks.empty()) backend.copy(blocks.data(), host.data(), host.size() * sizeof(scale_t));
+        }
+    }
+
+    template <typename codes_pointer_type_>
+    auto operand(codes_pointer_type_ codes) const noexcept {
+        if constexpr (!format.block_size) return codes;
+        else {
+            reference.elements = reinterpret_cast<decltype(reference.elements)>(codes);
+            reference.scales = reinterpret_cast<decltype(reference.scales)>(blocks.data());
+            return &reference;
+        }
+    }
+};
+
 /** Times a packed-B kernel, C = A × Bᵀ or a distance over the same tile, against its @p metric
  *  reference. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
 void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backend, reference_metric_t metric,
                     pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn, kernel_type_ kernel,
-                    std::size_t height, std::size_t width, std::size_t depth) {
-    using input_t = typename nk::type_for<input_dtype_>::type;
+                    std::size_t rows, std::size_t columns, std::size_t depth) {
+    constexpr nk_dtype_t element_dtype_ = nk_block_scaled_format_of_dtype(input_dtype_).element_dtype;
+    using input_t = typename nk::type_for<element_dtype_>::type;
     using set_t = matrix_set<backend_type_, output_type_>;
-    auto const [a, b] = random_matrices<input_dtype_, backend_type_>(env.settings.seed, height, width, depth);
+    auto const [a, b] = random_matrices<element_dtype_, backend_type_>(env.settings.seed, rows, columns, depth);
     if (a.empty() || b.empty()) return loop.skip("input allocation failed");
-    std::size_t const a_stride = a.stride_bytes(0), row_bytes = b.stride_bytes(0), a_bytes = height * a_stride;
+    std::size_t const a_stride = a.stride_bytes(0), row_bytes = b.stride_bytes(0), a_bytes = rows * a_stride;
+    unit_block_scales<input_dtype_, backend_type_> const a_scales(backend, rows, a_stride),
+        b_scales(backend, columns, row_bytes);
     nk_size_t packed_bytes = 0;
-    if (!succeeded(loop, packed_size_fn(width, depth, &packed_bytes))) return;
+    if (!succeeded(loop, packed_size_fn(columns, depth, &packed_bytes))) return;
     auto const b_uploaded = upload(backend, b.data(), b.numel());
     if (b_uploaded.empty()) return loop.skip("B allocation failed");
 
     // One B upload, packed into every set, since the sets differ only in where they live.
     std::vector<set_t> sets(
-        backend.input_sets(bytes_t {a_bytes + packed_bytes + height * width * sizeof(output_type_)}));
+        backend.input_sets(bytes_t {a_bytes + packed_bytes + rows * columns * sizeof(output_type_)}));
     for (set_t &set : sets) {
         set = {set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value,
                set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
-               set_t::outputs_t::uninitialized(height * width, allocator_of<output_type_>(backend)).value};
+               set_t::outputs_t::uninitialized(rows * columns, allocator_of<output_type_>(backend)).value};
         if (set.a.empty() || set.b.empty() || set.c.empty()) return loop.skip("set allocation failed");
         backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
         backend.zero(set.b.raw_values_data(), packed_bytes), backend.zero(set.c.raw_values_data(), set.c.size_bytes());
-        backend.call(pack_fn, b_uploaded.raw_values_data(), width, depth, row_bytes, set.b.raw_values_data(),
-                     std::size_t(0), width);
+        backend.call(pack_fn, b_scales.operand(b_uploaded.raw_values_data()), columns, depth, row_bytes,
+                     set.b.raw_values_data(), std::size_t(0), columns);
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        backend.call(kernel, reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data()),
-                     static_cast<void const *>(set.b.raw_values_data()), set.c.raw_values_data(), height, width, depth,
-                     a_stride, width * sizeof(output_type_));
+        backend.call(kernel,
+                     a_scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
+                     static_cast<void const *>(set.b.raw_values_data()), set.c.raw_values_data(), rows, columns, depth,
+                     a_stride, columns * sizeof(output_type_));
     });
     if (!timed) return;
-    double const score = sampled_accuracy<input_dtype_, output_type_>(
+    double const score = sampled_accuracy<element_dtype_, output_type_>(
         backend, sets[0].c, a.view(), b.view(), depth, metric, written_entries_t::full_k, env.settings.seed);
-    report_matrix<output_type_>(loop, 2.0 * height * width * depth, score);
+    report_matrix<output_type_>(loop, 2.0 * rows * columns * depth, score);
 }
 
 /** Times a symmetric kernel over A × Aᵀ, judged on the upper triangle: with the diagonal for dots,
- *  without it for distances. `scalar-ops` counts the triangle's height · (height + 1) · depth. */
+ *  without it for distances. `scalar-ops` counts the triangle's rows · (rows + 1) · depth. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
 void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ backend, reference_metric_t metric,
-                       kernel_type_ kernel, std::size_t height, std::size_t depth) {
-    using input_t = typename nk::type_for<input_dtype_>::type;
+                       kernel_type_ kernel, std::size_t rows, std::size_t depth) {
+    constexpr nk_dtype_t element_dtype_ = nk_block_scaled_format_of_dtype(input_dtype_).element_dtype;
+    using input_t = typename nk::type_for<element_dtype_>::type;
     using set_t = matrix_set<backend_type_, output_type_>;
-    auto const matrices = random_matrices<input_dtype_, backend_type_>(env.settings.seed, height, 0, depth);
+    auto const matrices = random_matrices<element_dtype_, backend_type_>(env.settings.seed, rows, 0, depth);
     auto const &a = matrices[0];
     if (a.empty()) return loop.skip("input allocation failed");
-    std::size_t const a_stride = a.stride_bytes(0), a_bytes = height * a_stride;
-    std::vector<set_t> sets(backend.input_sets(bytes_t {a_bytes + height * height * sizeof(output_type_)}));
+    std::size_t const a_stride = a.stride_bytes(0), a_bytes = rows * a_stride;
+    unit_block_scales<input_dtype_, backend_type_> const scales(backend, rows, a_stride);
+    std::vector<set_t> sets(backend.input_sets(bytes_t {a_bytes + rows * rows * sizeof(output_type_)}));
     for (set_t &set : sets) {
         set.a = set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value;
-        set.c = set_t::outputs_t::uninitialized(height * height, allocator_of<output_type_>(backend)).value;
+        set.c = set_t::outputs_t::uninitialized(rows * rows, allocator_of<output_type_>(backend)).value;
         if (set.a.empty() || set.c.empty()) return loop.skip("set allocation failed");
         backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
         backend.zero(set.c.raw_values_data(), set.c.size_bytes());
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        backend.call(kernel, reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data()), height, depth,
-                     a_stride, set.c.raw_values_data(), height * sizeof(output_type_), std::size_t(0), height);
+        backend.call(kernel, scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
+                     rows, depth, a_stride, set.c.raw_values_data(), rows * sizeof(output_type_), std::size_t(0), rows);
     });
     if (!timed) return;
     written_entries_t const written = metric == reference_metric_t::dot_k ? written_entries_t::upper_triangle_k
                                                                           : written_entries_t::strict_upper_triangle_k;
-    double const score = sampled_accuracy<input_dtype_, output_type_>(backend, sets[0].c, a.view(), a.view(), depth,
-                                                                      metric, written, env.settings.seed);
-    report_matrix<output_type_>(loop, 1.0 * height * (height + 1) * depth, score);
+    double const score = sampled_accuracy<element_dtype_, output_type_>(backend, sets[0].c, a.view(), a.view(), depth,
+                                                                        metric, written, env.settings.seed);
+    report_matrix<output_type_>(loop, 1.0 * rows * (rows + 1) * depth, score);
 }
 
-/** The `<height x width x depth>` suffix of a matrix row's name. */
-inline std::string matrix_row_name(std::string const &name, std::size_t height, std::size_t width, std::size_t depth) {
-    return name + "<" + std::to_string(height) + "x" + std::to_string(width) + "x" + std::to_string(depth) + ">";
+/** The `<rows x columns x depth>` suffix of a matrix row's name. */
+inline std::string matrix_row_name(std::string const &name, std::size_t rows, std::size_t columns, std::size_t depth) {
+    return name + "<" + std::to_string(rows) + "x" + std::to_string(columns) + "x" + std::to_string(depth) + ">";
 }
 
 /** Runs a packed-B row over the configured matrix shape on @p backend. */
@@ -394,12 +445,12 @@ template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_
 void run_packed(environment_t const &env, std::string const &name, reference_metric_t metric,
                 pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn, kernel_type_ kernel,
                 backend_type_ backend) {
-    std::size_t const height = env.settings.matrix_height, width = env.settings.matrix_width,
+    std::size_t const rows = env.settings.matrix_height, columns = env.settings.matrix_width,
                       depth = env.settings.matrix_depth;
-    run_benchmark(env, matrix_row_name(name, height, width, depth),
+    run_benchmark(env, matrix_row_name(name, rows, columns, depth),
                   measure_packed<input_dtype_, output_type_, backend_type_, pack_size_kernel_type_, pack_kernel_type_,
                                  kernel_type_>,
-                  backend, metric, packed_size_fn, pack_fn, kernel, height, width, depth);
+                  backend, metric, packed_size_fn, pack_fn, kernel, rows, columns, depth);
 }
 
 /** Runs a symmetric row over @c NUMWARS_DIMS_HEIGHT vectors of @c NUMWARS_DIMS_DEPTH dimensions on
@@ -407,10 +458,10 @@ void run_packed(environment_t const &env, std::string const &name, reference_met
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
 void run_symmetric(environment_t const &env, std::string const &name, reference_metric_t metric, kernel_type_ kernel,
                    backend_type_ backend) {
-    std::size_t const height = env.settings.matrix_height, depth = env.settings.matrix_depth;
-    std::string const row_name = name + "<" + std::to_string(height) + "x" + std::to_string(depth) + ">";
+    std::size_t const rows = env.settings.matrix_height, depth = env.settings.matrix_depth;
+    std::string const row_name = name + "<" + std::to_string(rows) + "x" + std::to_string(depth) + ">";
     run_benchmark(env, row_name, measure_symmetric<input_dtype_, output_type_, backend_type_, kernel_type_>, backend,
-                  metric, kernel, height, depth);
+                  metric, kernel, rows, depth);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
@@ -663,7 +714,7 @@ void measure_attention_rope(loop_t &loop, environment_t const &env, backend_type
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         auto *tokens = sets[index].raw_values_data();
         backend.call(kernel, tokens, cosines.raw_values_data(), sines.raw_values_data(), tokens, rows, std::size_t(1),
-                     dimensions, stride, stride, 1.0f);
+                     dimensions, stride, stride);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
 }
@@ -725,19 +776,19 @@ template <nk_dtype_t input_dtype_, nk_kernel_kind_t kernel_kind_ = nk_kernel_unk
           nk_dtype_t alpha_dtype_ = nk_dtype_unknown_k, typename backend_type_ = host_backend_t,
           typename kernel_type_ = void>
 void run_each(environment_t const &env, std::string const &name, kernel_type_ *kernel, backend_type_ backend = {}) {
-    std::size_t const rows = backend.token_rows(env), cols = env.settings.batch_per_core;
-    run_benchmark(env, token_rows_name(name, rows, cols),
+    std::size_t const rows = backend.token_rows(env), columns = env.settings.batch_per_core;
+    run_benchmark(env, token_rows_name(name, rows, columns),
                   measure_each<input_dtype_, kernel_kind_, alpha_dtype_, backend_type_, kernel_type_ *>, backend,
-                  kernel, rows * cols);
+                  kernel, rows * columns);
 }
 
-/** Times SwiGLU over @p rows rows of @p cols gate and up values; @c bytes counts both inputs. */
+/** Times SwiGLU over @p rows rows of @p columns gate and up values; @c bytes counts both inputs. */
 template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
 void measure_swiglu(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
-                    std::size_t rows, std::size_t cols) {
+                    std::size_t rows, std::size_t columns) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
-    std::size_t const count = rows * cols, stride = cols * sizeof(typename input_t::raw_t);
+    std::size_t const count = rows * columns, stride = columns * sizeof(typename input_t::raw_t);
     std::vector<std::array<values_t, 3>> sets(backend.input_sets(dtype_bytes(input_dtype_, 3 * count)));
     for (std::array<values_t, 3> &set : sets) {
         set[0] = random_upload<input_dtype_>(backend, count, env.settings.seed);
@@ -747,29 +798,29 @@ void measure_swiglu(loop_t &loop, environment_t const &env, backend_type_ backen
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         auto &set = sets[index];
-        backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), set[2].raw_values_data(), rows, cols,
-                     stride, stride, stride, 1.0f);
+        backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), set[2].raw_values_data(), rows,
+                     columns, stride, stride, stride, 1.0f, 1.0f);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, 2 * count).value));
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_ = void>
 void run_swiglu(environment_t const &env, std::string const &name, kernel_type_ *kernel, backend_type_ backend = {}) {
-    std::size_t const rows = backend.token_rows(env), cols = env.settings.batch_per_core;
-    run_benchmark(env, token_rows_name(name, rows, cols), measure_swiglu<input_dtype_, backend_type_, kernel_type_ *>,
-                  backend, kernel, rows, cols);
+    std::size_t const rows = backend.token_rows(env), columns = env.settings.batch_per_core;
+    run_benchmark(env, token_rows_name(name, rows, columns),
+                  measure_swiglu<input_dtype_, backend_type_, kernel_type_ *>, backend, kernel, rows, columns);
 }
 
-/** Times RMSNorm over @p rows rows of @p cols values, one group with a unit γ each; @c bytes counts
- *  the input. */
+/** Times RMSNorm over @p rows rows of @p columns values, one group with a unit γ each; @c bytes
+ *  counts the input. */
 template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
 void measure_rmsnorm(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
-                     std::size_t rows, std::size_t cols) {
+                     std::size_t rows, std::size_t columns) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
-    std::size_t const count = rows * cols, stride = cols * sizeof(typename input_t::raw_t);
-    std::vector<nk::f32_t> const ones(cols, nk::f32_t(1.0f));
-    auto const gamma = upload(backend, ones.data(), cols);
+    std::size_t const count = rows * columns, stride = columns * sizeof(typename input_t::raw_t);
+    std::vector<nk::f32_t> const ones(columns, nk::f32_t(1.0f));
+    auto const gamma = upload(backend, ones.data(), columns);
     if (gamma.empty()) return loop.skip("gamma allocation failed");
     std::vector<std::array<values_t, 2>> sets(backend.input_sets(dtype_bytes(input_dtype_, 2 * count)));
     for (std::array<values_t, 2> &set : sets) {
@@ -779,16 +830,177 @@ void measure_rmsnorm(loop_t &loop, environment_t const &env, backend_type_ backe
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         backend.call(kernel, sets[index][0].raw_values_data(), gamma.raw_values_data(),
-                     sets[index][1].raw_values_data(), rows, std::size_t(1), cols, stride, stride, 1e-6f, 1.0f);
+                     sets[index][1].raw_values_data(), rows, std::size_t(1), columns, stride, stride, 1e-6f);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_ = void>
 void run_rmsnorm(environment_t const &env, std::string const &name, kernel_type_ *kernel, backend_type_ backend = {}) {
-    std::size_t const rows = backend.token_rows(env), cols = env.settings.batch_per_core;
-    run_benchmark(env, token_rows_name(name, rows, cols), measure_rmsnorm<input_dtype_, backend_type_, kernel_type_ *>,
-                  backend, kernel, rows, cols);
+    std::size_t const rows = backend.token_rows(env), columns = env.settings.batch_per_core;
+    run_benchmark(env, token_rows_name(name, rows, columns),
+                  measure_rmsnorm<input_dtype_, backend_type_, kernel_type_ *>, backend, kernel, rows, columns);
+}
+
+/** Times a bulk cast of @p count random @p from_dtype_ values into @p to_dtype_. @c bytes counts
+ *  the input and the output once. */
+template <nk_dtype_t from_dtype_, nk_dtype_t to_dtype_, typename backend_type_, typename kernel_type_>
+void measure_cast_rows(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
+                       std::size_t count) {
+    using from_t = typename nk::type_for<from_dtype_>::type;
+    using to_t = typename nk::type_for<to_dtype_>::type;
+    using sources_t = nk::vector<from_t, typename backend_type_::template allocator<from_t>>;
+    using targets_t = nk::vector<to_t, typename backend_type_::template allocator<to_t>>;
+    bytes_t const per_set {dtype_bytes(from_dtype_, count).value + dtype_bytes(to_dtype_, count).value};
+    std::size_t const sets_count = backend.input_sets(per_set);
+    std::vector<sources_t> sources(sets_count);
+    std::vector<targets_t> targets(sets_count);
+    for (std::size_t set = 0; set != sets_count; ++set) {
+        sources[set] = random_upload<from_dtype_>(backend, count, env.settings.seed);
+        targets[set] = targets_t::uninitialized(count, allocator_of<to_t>(backend)).value;
+        if (sources[set].empty() || targets[set].empty()) return loop.skip("set allocation failed");
+    }
+    bool const timed = time_rotating(loop, backend, sets_count, [&](std::size_t index) {
+        backend.call(kernel, static_cast<void const *>(sources[index].raw_values_data()), from_dtype_,
+                     static_cast<void *>(targets[index].raw_values_data()), to_dtype_, count);
+    });
+    if (timed) loop.byte_rate(double(per_set.value));
+}
+
+/** Whether a block-scaled row times encoding F32 into its format or decoding the format to F32. */
+enum class block_scaled_direction_t { encode_k, decode_k };
+
+/** Times encoding @p count random F32 values into @p dtype_, its tensor scale set to one, or
+ *  decoding that encoding back. @c bytes counts the F32 values, elements and scales once. */
+template <block_scaled_direction_t direction_, nk_dtype_t dtype_, typename backend_type_, typename kernel_type_>
+void measure_block_scaled_rows(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
+                               std::size_t count) {
+    using values_t = nk::vector<nk::f32_t, typename backend_type_::template allocator<nk::f32_t>>;
+    using codes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+    using block_t = typename nk::type_for<dtype_>::type;
+    using cref_t = typename block_t::cref_t;
+    using ref_t = typename block_t::ref_t;
+    constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(dtype_);
+    std::size_t const elements_bytes = nk_block_scaled_elements_size(count, format);
+    std::size_t const scales_bytes = nk_block_scaled_scales_size(count, format);
+    nk_f32_t const unit_scale = 1.0f;
+    auto tensor_scale_bytes = upload(backend, reinterpret_cast<char const *>(&unit_scale), sizeof(unit_scale));
+    if (tensor_scale_bytes.empty()) return loop.skip("tensor scale allocation failed");
+    auto *tensor_scale = reinterpret_cast<nk_f32_t *>(tensor_scale_bytes.raw_values_data());
+    bytes_t const per_set {count * sizeof(nk_f32_t) + elements_bytes + scales_bytes};
+    std::size_t const sets_count = backend.input_sets(per_set);
+    std::vector<values_t> values(sets_count);
+    std::vector<codes_t> elements(sets_count), scales(sets_count);
+    std::vector<ref_t> refs(sets_count);
+    std::vector<cref_t> crefs(sets_count);
+    for (std::size_t set = 0; set != sets_count; ++set) {
+        values[set] = random_upload<nk_f32_k>(backend, count, env.settings.seed);
+        elements[set] = codes_t::uninitialized(elements_bytes, allocator_of<char>(backend)).value;
+        scales[set] = codes_t::uninitialized(scales_bytes, allocator_of<char>(backend)).value;
+        if (values[set].empty() || elements[set].empty() || scales[set].empty())
+            return loop.skip("set allocation failed");
+        refs[set].elements = reinterpret_cast<decltype(ref_t::elements)>(elements[set].raw_values_data());
+        refs[set].scales = reinterpret_cast<decltype(ref_t::scales)>(scales[set].raw_values_data());
+        crefs[set].elements = refs[set].elements;
+        crefs[set].scales = refs[set].scales;
+        if constexpr (format.tensor_scale_dtype == nk_f32_k) refs[set].tensor_scale = tensor_scale;
+        if constexpr (format.tensor_scale_dtype == nk_f32_k) crefs[set].tensor_scale = tensor_scale;
+        backend.call(kernel, static_cast<void const *>(values[set].raw_values_data()), nk_f32_k,
+                     static_cast<void *>(&refs[set]), dtype_, count);
+    }
+    bool const timed = time_rotating(loop, backend, sets_count, [&](std::size_t index) {
+        if constexpr (direction_ == block_scaled_direction_t::encode_k)
+            backend.call(kernel, static_cast<void const *>(values[index].raw_values_data()), nk_f32_k,
+                         static_cast<void *>(&refs[index]), dtype_, count);
+        else
+            backend.call(kernel, static_cast<void const *>(&crefs[index]), dtype_,
+                         static_cast<void *>(values[index].raw_values_data()), nk_f32_k, count);
+    });
+    if (timed) loop.byte_rate(double(per_set.value));
+}
+
+/** Times the sum and sum of squares of @p count random @p input_dtype_ values. @c bytes counts the
+ *  input once. */
+template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+void measure_moments_rows(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
+                          std::size_t count) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    using sum_t = typename input_t::reduce_moments_sum_t;
+    using sumsq_t = typename input_t::reduce_moments_sumsq_t;
+    using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
+    auto sum = nk::vector<sum_t, typename backend_type_::template allocator<sum_t>>::uninitialized(
+                   1, allocator_of<sum_t>(backend))
+                   .value;
+    auto sumsq = nk::vector<sumsq_t, typename backend_type_::template allocator<sumsq_t>>::uninitialized(
+                     1, allocator_of<sumsq_t>(backend))
+                     .value;
+    if (sum.empty() || sumsq.empty()) return loop.skip("output allocation failed");
+    std::vector<values_t> sets(backend.input_sets(dtype_bytes(input_dtype_, count)));
+    for (values_t &set : sets)
+        if ((set = random_upload<input_dtype_>(backend, count, env.settings.seed)).empty())
+            return loop.skip("set allocation failed");
+    bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
+        backend.call(kernel, sets[index].raw_values_data(), count, sizeof(typename input_t::raw_t),
+                     sum.raw_values_data(), sumsq.raw_values_data());
+    });
+    if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
+}
+
+/** Times the first minimum and maximum of @p count random @p input_dtype_ values with their
+ *  indices. @c bytes counts the input once. */
+template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+void measure_minmax_rows(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
+                         std::size_t count) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    using value_t = typename input_t::reduce_minmax_value_t;
+    using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
+    auto extrema = nk::vector<value_t, typename backend_type_::template allocator<value_t>>::uninitialized(
+                       2, allocator_of<value_t>(backend))
+                       .value;
+    auto indices = nk::vector<nk::u64_t, typename backend_type_::template allocator<nk::u64_t>>::uninitialized(
+                       2, allocator_of<nk::u64_t>(backend))
+                       .value;
+    if (extrema.empty() || indices.empty()) return loop.skip("output allocation failed");
+    auto *index_values = reinterpret_cast<nk_size_t *>(indices.raw_values_data());
+    std::vector<values_t> sets(backend.input_sets(dtype_bytes(input_dtype_, count)));
+    for (values_t &set : sets)
+        if ((set = random_upload<input_dtype_>(backend, count, env.settings.seed)).empty())
+            return loop.skip("set allocation failed");
+    bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
+        backend.call(kernel, sets[index].raw_values_data(), count, sizeof(typename input_t::raw_t),
+                     extrema.raw_values_data(), index_values, extrema.raw_values_data() + 1, index_values + 1);
+    });
+    if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
+}
+
+template <nk_dtype_t from_dtype_, nk_dtype_t to_dtype_, typename backend_type_, typename kernel_type_>
+void run_cast_rows(environment_t const &env, std::string const &name, kernel_type_ kernel, std::size_t rows,
+                   std::size_t columns, backend_type_ backend) {
+    run_benchmark(env, token_rows_name(name, rows, columns),
+                  measure_cast_rows<from_dtype_, to_dtype_, backend_type_, kernel_type_>, backend, kernel,
+                  rows * columns);
+}
+
+template <block_scaled_direction_t direction_, nk_dtype_t dtype_, typename backend_type_, typename kernel_type_>
+void run_block_scaled_rows(environment_t const &env, std::string const &name, kernel_type_ kernel, std::size_t rows,
+                           std::size_t columns, backend_type_ backend) {
+    run_benchmark(env, token_rows_name(name, rows, columns),
+                  measure_block_scaled_rows<direction_, dtype_, backend_type_, kernel_type_>, backend, kernel,
+                  rows * columns);
+}
+
+template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+void run_moments_rows(environment_t const &env, std::string const &name, kernel_type_ kernel, std::size_t rows,
+                      std::size_t columns, backend_type_ backend) {
+    run_benchmark(env, token_rows_name(name, rows, columns),
+                  measure_moments_rows<input_dtype_, backend_type_, kernel_type_>, backend, kernel, rows * columns);
+}
+
+template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+void run_minmax_rows(environment_t const &env, std::string const &name, kernel_type_ kernel, std::size_t rows,
+                     std::size_t columns, backend_type_ backend) {
+    run_benchmark(env, token_rows_name(name, rows, columns),
+                  measure_minmax_rows<input_dtype_, backend_type_, kernel_type_>, backend, kernel, rows * columns);
 }
 
 #pragma endregion Token Rows

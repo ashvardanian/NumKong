@@ -211,46 +211,48 @@ NUMKONG_INLINE nk_vu16x8_t nk_f32x4_to_bf16_pack_powervsx_(nk_vf32x4_t values_f3
     return vec_pack(rounded_u32x4, rounded_u32x4);
 }
 
-NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                         nk_dtype_t to_type, void *stream) {
+NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                         nk_size_t count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype))
+        return nk_cast_serial(from, from_dtype, to, to_dtype, count, stream);
     // Same-type fast path
-    if (from_type == to_type) {
-        nk_size_t size_bits = nk_dtype_bits(from_type);
-        if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
+    if (from_dtype == to_dtype) {
+        nk_size_t size_bits = nk_dtype_bits(from_dtype);
+        if (size_bits > 0) nk_copy_bytes_(to, from, count * size_bits / 8);
         return nk_success_k;
     }
 
     // Validate supported types (f32 and smaller, no FP8 vectorization on Power)
-    int from_ok = (from_type == nk_f32_k || from_type == nk_f16_k || from_type == nk_bf16_k || from_type == nk_i8_k ||
-                   from_type == nk_u8_k || from_type == nk_i16_k || from_type == nk_u16_k || from_type == nk_i32_k ||
-                   from_type == nk_u32_k);
-    int to_ok = (to_type == nk_f32_k || to_type == nk_f16_k || to_type == nk_bf16_k || to_type == nk_i8_k ||
-                 to_type == nk_u8_k || to_type == nk_i16_k || to_type == nk_u16_k || to_type == nk_i32_k ||
-                 to_type == nk_u32_k);
+    int from_ok = (from_dtype == nk_f32_k || from_dtype == nk_f16_k || from_dtype == nk_bf16_k ||
+                   from_dtype == nk_i8_k || from_dtype == nk_u8_k || from_dtype == nk_i16_k || from_dtype == nk_u16_k ||
+                   from_dtype == nk_i32_k || from_dtype == nk_u32_k);
+    int to_ok = (to_dtype == nk_f32_k || to_dtype == nk_f16_k || to_dtype == nk_bf16_k || to_dtype == nk_i8_k ||
+                 to_dtype == nk_u8_k || to_dtype == nk_i16_k || to_dtype == nk_u16_k || to_dtype == nk_i32_k ||
+                 to_dtype == nk_u32_k);
 
     // Fall back to serial for unsupported types or i32 ↔ u32 (loses precision through f32)
-    if (!from_ok || !to_ok || (from_type == nk_i32_k && to_type == nk_u32_k) ||
-        (from_type == nk_u32_k && to_type == nk_i32_k)) {
-        nk_cast_elementwise_(from, from_type, n, to, to_type);
+    if (!from_ok || !to_ok || (from_dtype == nk_i32_k && to_dtype == nk_u32_k) ||
+        (from_dtype == nk_u32_k && to_dtype == nk_i32_k)) {
+        nk_cast_elementwise_(from, from_dtype, count, to, to_dtype);
         return nk_success_k;
     }
 
     // F32 hub with predicated loads/stores — no serial fallback needed
-    nk_size_t from_element_bytes = nk_size_divide_round_up_(nk_dtype_bits(from_type), NUMKONG_BITS_PER_BYTE);
-    nk_size_t to_element_bytes = nk_size_divide_round_up_(nk_dtype_bits(to_type), NUMKONG_BITS_PER_BYTE);
+    nk_size_t from_element_bytes = nk_size_divide_round_up_(nk_dtype_bits(from_dtype), NUMKONG_BITS_PER_BYTE);
+    nk_size_t to_element_bytes = nk_size_divide_round_up_(nk_dtype_bits(to_dtype), NUMKONG_BITS_PER_BYTE);
     nk_u8_t const *from_ptr = (nk_u8_t const *)from;
     nk_u8_t *to_ptr = (nk_u8_t *)to;
 
-    for (nk_size_t index = 0; index < n; index += 4) {
-        nk_size_t remaining = n - index < 4 ? n - index : 4;
+    for (nk_size_t index = 0; index < count; index += 4) {
+        nk_size_t remaining = count - index < 4 ? count - index : 4;
         nk_size_t from_bytes = remaining * from_element_bytes;
         nk_size_t to_bytes = remaining * to_element_bytes;
 
         // Predicated load → upcast to f32x4 hub
         nk_vu8x16_t raw_u8x16 = vec_xl_len((nk_u8_t *)from_ptr, from_bytes);
         nk_vf32x4_t hub_f32x4;
-        switch (from_type) {
+        switch (from_dtype) {
         case nk_f32_k: hub_f32x4 = (nk_vf32x4_t)raw_u8x16; break;
         case nk_f16_k: hub_f32x4 = vec_extract_fp32_from_shorth((nk_vu16x8_t)raw_u8x16); break;
         case nk_bf16_k: hub_f32x4 = (nk_vf32x4_t)vec_mergeh(vec_splats((nk_u16_t)0), (nk_vu16x8_t)raw_u8x16); break;
@@ -270,7 +272,7 @@ NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type,
         }
 
         // Downcast from f32x4 hub → predicated store
-        switch (to_type) {
+        switch (to_dtype) {
         case nk_f32_k: vec_xst_len(hub_f32x4, (nk_f32_t *)to_ptr, to_bytes); break;
         case nk_f16_k:
             vec_xst_len((nk_vu8x16_t)vec_pack_to_short_fp32(hub_f32x4, hub_f32x4), (nk_u8_t *)to_ptr, to_bytes);

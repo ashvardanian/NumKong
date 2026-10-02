@@ -562,8 +562,8 @@ Regardless of the intrinsic name used to produce a value, the variable name shou
 > Using `high` & `low` would suggest register halves; `top` & `bottom` reflects the spatial role in the matrix multiplication:
 >
 > ```c
-> _tile_loadd(0, a_tile_top, a_stride_bytes);         // A top rows
-> _tile_loadd(1, a_tile_bottom, a_stride_bytes);      // A bottom rows
+> _tile_loadd(0, a_tile_top, a_stride);         // A top rows
+> _tile_loadd(1, a_tile_bottom, a_stride);      // A bottom rows
 > _tile_loadd(2, b_tile_left, 64);                    // B left columns
 > _tile_loadd(3, b_tile_right, 64);                   // B right columns
 > ```
@@ -579,7 +579,7 @@ For scalar variables, similar preferences for cleaner and longer variable names 
 - Matrix / GEMM dimensions use `rows`, `columns`, `depth` — never single-letter `m`, `n`, `k`.
 - Tile terminology is descriptive: `tile_dimension`, `row_in_tile`, `column_within_tile`.
 - Element counts are explicit about what's counted: `count_scalars`, `count_pairs`.
-- Strides explicitly mention the units: `a_stride_in_bytes`, `a_stride_elements = a_stride_in_bytes / sizeof(nk_f16_t)`.
+- Strides are always in bytes and named `a_stride`; element strides say so: `a_stride_elements = a_stride / sizeof(nk_f16_t)`.
 
 ### Intrinsic Style
 

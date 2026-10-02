@@ -333,37 +333,38 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t co
 #endif
 #endif
 
-/** SwiGLU: y = silu(input_scale × gate) ⊙ (input_scale × up), and a NULL @c up collapses it to
- *  plain SiLU, y = silu(input_scale × gate). Separate gate and up pointers with their own byte
- *  row-strides let UForm's fused @b [rows,2×ffn] output pass gate = base and up = base + ffn, let
- *  other split-weight models fit without a v2, and let the FFN head's fc1 → SiLU → fc2 pass a NULL
- *  @c up. @c input_scale folds an E4M3 descale onto the load, and is 1.0 for BF16 and F32. */
-#define nk_define_each_swiglu_(input_type, load_and_convert, convert_and_store)                                       \
-    NUMKONG_API nk_status_t nk_each_swiglu_##input_type##_serial(                                                     \
-        nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows,       \
-        nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,             \
-        nk_f32_t input_scale, void *stream) {                                                                         \
-        nk_assert_(stream == NUMKONG_NULL);                                                                           \
-        for (nk_size_t row = 0; row != rows; ++row) {                                                                 \
-            nk_##input_type##_t const *gate_row = /**/                                                                \
-                (nk_##input_type##_t const *)((unsigned char const *)gate + row * gate_stride_bytes);                 \
-            nk_##input_type##_t const *up_row = /**/                                                                  \
-                up ? (nk_##input_type##_t const *)((unsigned char const *)up + row * up_stride_bytes) : NUMKONG_NULL; \
-            nk_##input_type##_t *y_row = /**/                                                                         \
-                (nk_##input_type##_t *)((unsigned char *)y + row * y_stride_bytes);                                   \
-            for (nk_size_t col = 0; col != cols; ++col) {                                                             \
-                nk_f32_t gate_value;                                                                                  \
-                load_and_convert(gate_row + col, &gate_value);                                                        \
-                nk_f32_t result = nk_f32_silu_serial_(gate_value * input_scale);                                      \
-                if (up_row) {                                                                                         \
-                    nk_f32_t up_value;                                                                                \
-                    load_and_convert(up_row + col, &up_value);                                                        \
-                    result *= up_value * input_scale;                                                                 \
-                }                                                                                                     \
-                convert_and_store(&result, y_row + col);                                                              \
-            }                                                                                                         \
-        }                                                                                                             \
-        return nk_success_k;                                                                                          \
+/** SwiGLU: y = silu(gate_scale × gate) ⊙ up × output_scale, and a NULL @c up collapses it to plain
+ *  SiLU, y = silu(gate_scale × gate) × output_scale. Separate gate and up pointers with their own
+ *  byte row-strides let UForm's fused @b [rows,2×ffn] output pass gate = base and up = base + ffn,
+ *  let other split-weight models fit without a v2, and let the FFN head's fc1 → SiLU → fc2 pass a
+ *  NULL @c up. The scales fold an E4M3 descale and requantization. */
+#define nk_define_each_swiglu_(input_type, load_and_convert, convert_and_store)                                 \
+    NUMKONG_API nk_status_t nk_each_swiglu_##input_type##_serial(                                               \
+        nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows, \
+        nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale, \
+        nk_f32_t output_scale, void *stream) {                                                                  \
+        nk_assert_(stream == NUMKONG_NULL);                                                                     \
+        for (nk_size_t row = 0; row != rows; ++row) {                                                           \
+            nk_##input_type##_t const *gate_row = /**/                                                          \
+                (nk_##input_type##_t const *)((unsigned char const *)gate + row * gate_stride);                 \
+            nk_##input_type##_t const *up_row = /**/                                                            \
+                up ? (nk_##input_type##_t const *)((unsigned char const *)up + row * up_stride) : NUMKONG_NULL; \
+            nk_##input_type##_t *y_row = /**/                                                                   \
+                (nk_##input_type##_t *)((unsigned char *)y + row * y_stride);                                   \
+            for (nk_size_t col = 0; col != columns; ++col) {                                                    \
+                nk_f32_t gate_value;                                                                            \
+                load_and_convert(gate_row + col, &gate_value);                                                  \
+                nk_f32_t result = nk_f32_silu_serial_(gate_value * gate_scale);                                 \
+                if (up_row) {                                                                                   \
+                    nk_f32_t up_value;                                                                          \
+                    load_and_convert(up_row + col, &up_value);                                                  \
+                    result *= up_value;                                                                         \
+                }                                                                                               \
+                result *= output_scale;                                                                         \
+                convert_and_store(&result, y_row + col);                                                        \
+            }                                                                                                   \
+        }                                                                                                       \
+        return nk_success_k;                                                                                    \
     }
 
 nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
@@ -371,37 +372,33 @@ nk_define_each_swiglu_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
 nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
 #undef nk_define_each_swiglu_
 
-/** RMSNorm: y = x × rsqrt(mean(x²) + eps) × γ, where a NULL γ means unit scale. Each row, with
- *  byte strides @c x_stride_bytes and @c y_stride_bytes, holds @c groups independent vectors of
- *  @c cols elements, each normalized separately. One group with a learned γ covers the pre, post,
- *  final and head norms, while groups = heads, cols = head_dim and a NULL γ give the in-place unit
- *  QK-norm over the strided sections of a fused @b [tokens,3×hidden] QKV buffer. Pass 1 reuses the
- *  strided moments reducer, and pass 2 rescales with the same widening converters. @c input_scale
- *  folds an E4M3 descale onto the load, and is 1.0 for BF16 and F32. */
+/** RMSNorm: y = x × rsqrt(mean(x²) + epsilon) × γ, where a NULL γ means unit scale. Each row, with
+ *  byte strides @c x_stride and @c y_stride, holds @c groups independent vectors of
+ *  @c columns elements, each normalized separately. One group with a learned γ covers the pre,
+ *  post, final and head norms, while groups = heads, columns = depth and a NULL γ give the in-place
+ *  unit QK-norm over the strided sections of a fused @b [tokens,3×hidden] QKV buffer. Pass 1 reuses
+ *  the strided moments reducer, and pass 2 rescales with the same widening converters. */
 #define nk_define_each_rmsnorm_(input_type, accumulator_type, load_and_convert, convert_and_store)                     \
     NUMKONG_API nk_status_t nk_each_rmsnorm_##input_type##_serial(                                                     \
         nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##input_type##_t *y, nk_size_t rows, nk_size_t groups, \
-        nk_size_t cols, nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps, nk_f32_t input_scale,        \
-        void *stream) {                                                                                                \
+        nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon, void *stream) {                   \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
-        nk_f64_t const scale_sq = (nk_f64_t)input_scale * (nk_f64_t)input_scale;                                       \
         for (nk_size_t r = 0; r != rows; ++r) {                                                                        \
-            nk_##input_type##_t const *x_row = (nk_##input_type##_t const *)((unsigned char const *)x +                \
-                                                                             r * x_stride_bytes);                      \
-            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_stride_bytes);             \
+            nk_##input_type##_t const *x_row = (nk_##input_type##_t const *)((unsigned char const *)x + r * x_stride); \
+            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_stride);                   \
             for (nk_size_t group = 0; group != groups; ++group) {                                                      \
-                nk_##input_type##_t const *group_input = x_row + group * cols;                                         \
-                nk_##input_type##_t *group_output = y_row + group * cols;                                              \
+                nk_##input_type##_t const *group_input = x_row + group * columns;                                      \
+                nk_##input_type##_t *group_output = y_row + group * columns;                                           \
                 accumulator_type sum, sumsq;                                                                           \
-                nk_reduce_moments_##input_type##_strided_(group_input, cols, sizeof(nk_##input_type##_t), &sum,        \
+                nk_reduce_moments_##input_type##_strided_(group_input, columns, sizeof(nk_##input_type##_t), &sum,     \
                                                           &sumsq);                                                     \
-                nk_f64_t mean_square = scale_sq * (nk_f64_t)sumsq / (nk_f64_t)cols;                                    \
-                nk_f32_t inv_rms = nk_f32_rsqrt_((nk_f32_t)mean_square + eps);                                         \
-                for (nk_size_t c = 0; c != cols; ++c) {                                                                \
+                nk_f64_t mean_square = (nk_f64_t)sumsq / (nk_f64_t)columns;                                            \
+                nk_f32_t inv_rms = nk_f32_rsqrt_((nk_f32_t)mean_square + epsilon);                                     \
+                for (nk_size_t c = 0; c != columns; ++c) {                                                             \
                     nk_f32_t value;                                                                                    \
                     load_and_convert(group_input + c, &value);                                                         \
                     nk_f32_t gamma_value = gamma ? gamma[c] : 1.0f;                                                    \
-                    nk_f32_t result = value * input_scale * inv_rms * gamma_value;                                     \
+                    nk_f32_t result = value * inv_rms * gamma_value;                                                   \
                     convert_and_store(&result, group_output + c);                                                      \
                 }                                                                                                      \
             }                                                                                                          \

@@ -232,9 +232,29 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
                                 nk_dots_packed_shape_e2m3_skylake, nk_dots_pack_e2m3_skylake>);
     check("dots_packed_e2m1_skylake", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_skylake,
           nk_dots_pack_e2m1_skylake, nk_dots_packed_e2m1_skylake);
+    check("dots_packed_nvfp4_skylake", test_dots_packed<nvfp4_t>, nk_dots_pack_size_nvfp4_skylake,
+          nk_dots_pack_nvfp4_skylake, nk_dots_packed_nvfp4_skylake);
+    check("dots_packed_mxfp4_skylake", test_dots_packed<mxfp4_t>, nk_dots_pack_size_mxfp4_skylake,
+          nk_dots_pack_mxfp4_skylake, nk_dots_packed_mxfp4_skylake);
+    check("dots_packed_mxfp8e4m3_skylake", test_dots_packed<mxfp8e4m3_t>, nk_dots_pack_size_mxfp8e4m3_skylake,
+          nk_dots_pack_mxfp8e4m3_skylake, nk_dots_packed_mxfp8e4m3_skylake);
+    check("dots_packed_mxfp8e5m2_skylake", test_dots_packed<mxfp8e5m2_t>, nk_dots_pack_size_mxfp8e5m2_skylake,
+          nk_dots_pack_mxfp8e5m2_skylake, nk_dots_packed_mxfp8e5m2_skylake);
     check("dots_pack_e2m1_skylake",
           test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_skylake,
                                 nk_dots_packed_shape_e2m1_skylake, nk_dots_pack_e2m1_skylake>);
+    check("dots_pack_nvfp4_skylake",
+          test_dots_pack_layout<nvfp4_t, host_backend_t, nk_dots_pack_size_nvfp4_skylake,
+                                nk_dots_packed_shape_nvfp4_skylake, nk_dots_pack_nvfp4_skylake>);
+    check("dots_pack_mxfp4_skylake",
+          test_dots_pack_layout<mxfp4_t, host_backend_t, nk_dots_pack_size_mxfp4_skylake,
+                                nk_dots_packed_shape_mxfp4_skylake, nk_dots_pack_mxfp4_skylake>);
+    check("dots_pack_mxfp8e4m3_skylake",
+          test_dots_pack_layout<mxfp8e4m3_t, host_backend_t, nk_dots_pack_size_mxfp8e4m3_skylake,
+                                nk_dots_packed_shape_mxfp8e4m3_skylake, nk_dots_pack_mxfp8e4m3_skylake>);
+    check("dots_pack_mxfp8e5m2_skylake",
+          test_dots_pack_layout<mxfp8e5m2_t, host_backend_t, nk_dots_pack_size_mxfp8e5m2_skylake,
+                                nk_dots_packed_shape_mxfp8e5m2_skylake, nk_dots_pack_mxfp8e5m2_skylake>);
 
     check("dots_symmetric_f64_skylake", test_dots_symmetric<f64_t>, nk_dots_symmetric_f64_skylake);
     check("dots_symmetric_f32_skylake", test_dots_symmetric<f32_t>, nk_dots_symmetric_f32_skylake);
@@ -245,6 +265,10 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
     check("dots_symmetric_e3m2_skylake", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_skylake);
     check("dots_symmetric_e2m3_skylake", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_skylake);
     check("dots_symmetric_e2m1_skylake", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_skylake);
+    check("dots_symmetric_nvfp4_skylake", test_dots_symmetric<nvfp4_t>, nk_dots_symmetric_nvfp4_skylake);
+    check("dots_symmetric_mxfp4_skylake", test_dots_symmetric<mxfp4_t>, nk_dots_symmetric_mxfp4_skylake);
+    check("dots_symmetric_mxfp8e4m3_skylake", test_dots_symmetric<mxfp8e4m3_t>, nk_dots_symmetric_mxfp8e4m3_skylake);
+    check("dots_symmetric_mxfp8e5m2_skylake", test_dots_symmetric<mxfp8e5m2_t>, nk_dots_symmetric_mxfp8e5m2_skylake);
 
     check("angulars_packed_f64_skylake", test_angulars_packed<f64_t>, nk_dots_pack_size_f64_skylake,
           nk_dots_pack_f64_skylake, nk_angulars_packed_f64_skylake);
@@ -264,6 +288,14 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_pack_e2m3_skylake, nk_angulars_packed_e2m3_skylake);
     check("angulars_packed_e2m1_skylake", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_skylake,
           nk_dots_pack_e2m1_skylake, nk_angulars_packed_e2m1_skylake);
+    check("angulars_packed_nvfp4_skylake", test_angulars_packed<nvfp4_t>, nk_dots_pack_size_nvfp4_skylake,
+          nk_dots_pack_nvfp4_skylake, nk_angulars_packed_nvfp4_skylake);
+    check("angulars_packed_mxfp4_skylake", test_angulars_packed<mxfp4_t>, nk_dots_pack_size_mxfp4_skylake,
+          nk_dots_pack_mxfp4_skylake, nk_angulars_packed_mxfp4_skylake);
+    check("angulars_packed_mxfp8e4m3_skylake", test_angulars_packed<mxfp8e4m3_t>, nk_dots_pack_size_mxfp8e4m3_skylake,
+          nk_dots_pack_mxfp8e4m3_skylake, nk_angulars_packed_mxfp8e4m3_skylake);
+    check("angulars_packed_mxfp8e5m2_skylake", test_angulars_packed<mxfp8e5m2_t>, nk_dots_pack_size_mxfp8e5m2_skylake,
+          nk_dots_pack_mxfp8e5m2_skylake, nk_angulars_packed_mxfp8e5m2_skylake);
 
     check("angulars_symmetric_f64_skylake", test_angulars_symmetric<f64_t>, nk_angulars_symmetric_f64_skylake);
     check("angulars_symmetric_f32_skylake", test_angulars_symmetric<f32_t>, nk_angulars_symmetric_f32_skylake);
@@ -274,6 +306,12 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
     check("angulars_symmetric_e3m2_skylake", test_angulars_symmetric<e3m2_t>, nk_angulars_symmetric_e3m2_skylake);
     check("angulars_symmetric_e2m3_skylake", test_angulars_symmetric<e2m3_t>, nk_angulars_symmetric_e2m3_skylake);
     check("angulars_symmetric_e2m1_skylake", test_angulars_symmetric<e2m1x2_t>, nk_angulars_symmetric_e2m1_skylake);
+    check("angulars_symmetric_nvfp4_skylake", test_angulars_symmetric<nvfp4_t>, nk_angulars_symmetric_nvfp4_skylake);
+    check("angulars_symmetric_mxfp4_skylake", test_angulars_symmetric<mxfp4_t>, nk_angulars_symmetric_mxfp4_skylake);
+    check("angulars_symmetric_mxfp8e4m3_skylake", test_angulars_symmetric<mxfp8e4m3_t>,
+          nk_angulars_symmetric_mxfp8e4m3_skylake);
+    check("angulars_symmetric_mxfp8e5m2_skylake", test_angulars_symmetric<mxfp8e5m2_t>,
+          nk_angulars_symmetric_mxfp8e5m2_skylake);
 
     check("euclideans_packed_f64_skylake", test_euclideans_packed<f64_t>, nk_dots_pack_size_f64_skylake,
           nk_dots_pack_f64_skylake, nk_euclideans_packed_f64_skylake);
@@ -293,6 +331,14 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_pack_e2m3_skylake, nk_euclideans_packed_e2m3_skylake);
     check("euclideans_packed_e2m1_skylake", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_skylake,
           nk_dots_pack_e2m1_skylake, nk_euclideans_packed_e2m1_skylake);
+    check("euclideans_packed_nvfp4_skylake", test_euclideans_packed<nvfp4_t>, nk_dots_pack_size_nvfp4_skylake,
+          nk_dots_pack_nvfp4_skylake, nk_euclideans_packed_nvfp4_skylake);
+    check("euclideans_packed_mxfp4_skylake", test_euclideans_packed<mxfp4_t>, nk_dots_pack_size_mxfp4_skylake,
+          nk_dots_pack_mxfp4_skylake, nk_euclideans_packed_mxfp4_skylake);
+    check("euclideans_packed_mxfp8e4m3_skylake", test_euclideans_packed<mxfp8e4m3_t>,
+          nk_dots_pack_size_mxfp8e4m3_skylake, nk_dots_pack_mxfp8e4m3_skylake, nk_euclideans_packed_mxfp8e4m3_skylake);
+    check("euclideans_packed_mxfp8e5m2_skylake", test_euclideans_packed<mxfp8e5m2_t>,
+          nk_dots_pack_size_mxfp8e5m2_skylake, nk_dots_pack_mxfp8e5m2_skylake, nk_euclideans_packed_mxfp8e5m2_skylake);
 
     check("euclideans_symmetric_f64_skylake", test_euclideans_symmetric<f64_t>, nk_euclideans_symmetric_f64_skylake);
     check("euclideans_symmetric_f32_skylake", test_euclideans_symmetric<f32_t>, nk_euclideans_symmetric_f32_skylake);
@@ -304,6 +350,14 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
     check("euclideans_symmetric_e2m3_skylake", test_euclideans_symmetric<e2m3_t>, nk_euclideans_symmetric_e2m3_skylake);
     check("euclideans_symmetric_e2m1_skylake", test_euclideans_symmetric<e2m1x2_t>,
           nk_euclideans_symmetric_e2m1_skylake);
+    check("euclideans_symmetric_nvfp4_skylake", test_euclideans_symmetric<nvfp4_t>,
+          nk_euclideans_symmetric_nvfp4_skylake);
+    check("euclideans_symmetric_mxfp4_skylake", test_euclideans_symmetric<mxfp4_t>,
+          nk_euclideans_symmetric_mxfp4_skylake);
+    check("euclideans_symmetric_mxfp8e4m3_skylake", test_euclideans_symmetric<mxfp8e4m3_t>,
+          nk_euclideans_symmetric_mxfp8e4m3_skylake);
+    check("euclideans_symmetric_mxfp8e5m2_skylake", test_euclideans_symmetric<mxfp8e5m2_t>,
+          nk_euclideans_symmetric_mxfp8e5m2_skylake);
 
     check("attention_bidirectional_packed_bf16_skylake", test_attention_bidirectional_packed<bf16_t>,
           nk_attention_pack_size_bf16_skylake, nk_attention_pack_bf16_skylake,
@@ -605,9 +659,29 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
                                 nk_dots_packed_shape_e2m3_sapphireamx, nk_dots_pack_e2m3_sapphireamx>);
     check("dots_packed_e2m1_sapphireamx", test_dots_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sapphireamx,
           nk_dots_pack_e2m1_sapphireamx, nk_dots_packed_e2m1_sapphireamx);
+    check("dots_packed_nvfp4_sapphireamx", test_dots_packed<nvfp4_t>, nk_dots_pack_size_nvfp4_sapphireamx,
+          nk_dots_pack_nvfp4_sapphireamx, nk_dots_packed_nvfp4_sapphireamx);
+    check("dots_packed_mxfp4_sapphireamx", test_dots_packed<mxfp4_t>, nk_dots_pack_size_mxfp4_sapphireamx,
+          nk_dots_pack_mxfp4_sapphireamx, nk_dots_packed_mxfp4_sapphireamx);
+    check("dots_packed_mxfp8e4m3_sapphireamx", test_dots_packed<mxfp8e4m3_t>, nk_dots_pack_size_mxfp8e4m3_sapphireamx,
+          nk_dots_pack_mxfp8e4m3_sapphireamx, nk_dots_packed_mxfp8e4m3_sapphireamx);
+    check("dots_packed_mxfp8e5m2_sapphireamx", test_dots_packed<mxfp8e5m2_t>, nk_dots_pack_size_mxfp8e5m2_sapphireamx,
+          nk_dots_pack_mxfp8e5m2_sapphireamx, nk_dots_packed_mxfp8e5m2_sapphireamx);
     check("dots_pack_e2m1_sapphireamx",
           test_dots_pack_layout<e2m1x2_t, host_backend_t, nk_dots_pack_size_e2m1_sapphireamx,
                                 nk_dots_packed_shape_e2m1_sapphireamx, nk_dots_pack_e2m1_sapphireamx>);
+    check("dots_pack_nvfp4_sapphireamx",
+          test_dots_pack_layout<nvfp4_t, host_backend_t, nk_dots_pack_size_nvfp4_sapphireamx,
+                                nk_dots_packed_shape_nvfp4_sapphireamx, nk_dots_pack_nvfp4_sapphireamx>);
+    check("dots_pack_mxfp4_sapphireamx",
+          test_dots_pack_layout<mxfp4_t, host_backend_t, nk_dots_pack_size_mxfp4_sapphireamx,
+                                nk_dots_packed_shape_mxfp4_sapphireamx, nk_dots_pack_mxfp4_sapphireamx>);
+    check("dots_pack_mxfp8e4m3_sapphireamx",
+          test_dots_pack_layout<mxfp8e4m3_t, host_backend_t, nk_dots_pack_size_mxfp8e4m3_sapphireamx,
+                                nk_dots_packed_shape_mxfp8e4m3_sapphireamx, nk_dots_pack_mxfp8e4m3_sapphireamx>);
+    check("dots_pack_mxfp8e5m2_sapphireamx",
+          test_dots_pack_layout<mxfp8e5m2_t, host_backend_t, nk_dots_pack_size_mxfp8e5m2_sapphireamx,
+                                nk_dots_packed_shape_mxfp8e5m2_sapphireamx, nk_dots_pack_mxfp8e5m2_sapphireamx>);
     check("dots_packed_i8_sapphireamx", test_dots_packed<i8_t>, nk_dots_pack_size_i8_sapphireamx,
           nk_dots_pack_i8_sapphireamx, nk_dots_packed_i8_sapphireamx);
     check("dots_pack_i8_sapphireamx",
@@ -625,6 +699,12 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
     check("dots_symmetric_e3m2_sapphireamx", test_dots_symmetric<e3m2_t>, nk_dots_symmetric_e3m2_sapphireamx);
     check("dots_symmetric_e2m3_sapphireamx", test_dots_symmetric<e2m3_t>, nk_dots_symmetric_e2m3_sapphireamx);
     check("dots_symmetric_e2m1_sapphireamx", test_dots_symmetric<e2m1x2_t>, nk_dots_symmetric_e2m1_sapphireamx);
+    check("dots_symmetric_nvfp4_sapphireamx", test_dots_symmetric<nvfp4_t>, nk_dots_symmetric_nvfp4_sapphireamx);
+    check("dots_symmetric_mxfp4_sapphireamx", test_dots_symmetric<mxfp4_t>, nk_dots_symmetric_mxfp4_sapphireamx);
+    check("dots_symmetric_mxfp8e4m3_sapphireamx", test_dots_symmetric<mxfp8e4m3_t>,
+          nk_dots_symmetric_mxfp8e4m3_sapphireamx);
+    check("dots_symmetric_mxfp8e5m2_sapphireamx", test_dots_symmetric<mxfp8e5m2_t>,
+          nk_dots_symmetric_mxfp8e5m2_sapphireamx);
     check("dots_symmetric_i8_sapphireamx", test_dots_symmetric<i8_t>, nk_dots_symmetric_i8_sapphireamx);
     check("dots_symmetric_u8_sapphireamx", test_dots_symmetric<u8_t>, nk_dots_symmetric_u8_sapphireamx);
 
@@ -659,6 +739,16 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_pack_e2m3_sapphireamx, nk_angulars_packed_e2m3_sapphireamx);
     check("angulars_packed_e2m1_sapphireamx", test_angulars_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sapphireamx,
           nk_dots_pack_e2m1_sapphireamx, nk_angulars_packed_e2m1_sapphireamx);
+    check("angulars_packed_nvfp4_sapphireamx", test_angulars_packed<nvfp4_t>, nk_dots_pack_size_nvfp4_sapphireamx,
+          nk_dots_pack_nvfp4_sapphireamx, nk_angulars_packed_nvfp4_sapphireamx);
+    check("angulars_packed_mxfp4_sapphireamx", test_angulars_packed<mxfp4_t>, nk_dots_pack_size_mxfp4_sapphireamx,
+          nk_dots_pack_mxfp4_sapphireamx, nk_angulars_packed_mxfp4_sapphireamx);
+    check("angulars_packed_mxfp8e4m3_sapphireamx", test_angulars_packed<mxfp8e4m3_t>,
+          nk_dots_pack_size_mxfp8e4m3_sapphireamx, nk_dots_pack_mxfp8e4m3_sapphireamx,
+          nk_angulars_packed_mxfp8e4m3_sapphireamx);
+    check("angulars_packed_mxfp8e5m2_sapphireamx", test_angulars_packed<mxfp8e5m2_t>,
+          nk_dots_pack_size_mxfp8e5m2_sapphireamx, nk_dots_pack_mxfp8e5m2_sapphireamx,
+          nk_angulars_packed_mxfp8e5m2_sapphireamx);
     check("angulars_packed_i8_sapphireamx", test_angulars_packed<i8_t>, nk_dots_pack_size_i8_sapphireamx,
           nk_dots_pack_i8_sapphireamx, nk_angulars_packed_i8_sapphireamx);
     check("angulars_packed_u8_sapphireamx", test_angulars_packed<u8_t>, nk_dots_pack_size_u8_sapphireamx,
@@ -676,6 +766,14 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
           nk_angulars_symmetric_e2m3_sapphireamx);
     check("angulars_symmetric_e2m1_sapphireamx", test_angulars_symmetric<e2m1x2_t>,
           nk_angulars_symmetric_e2m1_sapphireamx);
+    check("angulars_symmetric_nvfp4_sapphireamx", test_angulars_symmetric<nvfp4_t>,
+          nk_angulars_symmetric_nvfp4_sapphireamx);
+    check("angulars_symmetric_mxfp4_sapphireamx", test_angulars_symmetric<mxfp4_t>,
+          nk_angulars_symmetric_mxfp4_sapphireamx);
+    check("angulars_symmetric_mxfp8e4m3_sapphireamx", test_angulars_symmetric<mxfp8e4m3_t>,
+          nk_angulars_symmetric_mxfp8e4m3_sapphireamx);
+    check("angulars_symmetric_mxfp8e5m2_sapphireamx", test_angulars_symmetric<mxfp8e5m2_t>,
+          nk_angulars_symmetric_mxfp8e5m2_sapphireamx);
     check("angulars_symmetric_i8_sapphireamx", test_angulars_symmetric<i8_t>, nk_angulars_symmetric_i8_sapphireamx);
     check("angulars_symmetric_u8_sapphireamx", test_angulars_symmetric<u8_t>, nk_angulars_symmetric_u8_sapphireamx);
 
@@ -691,6 +789,16 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
           nk_dots_pack_e2m3_sapphireamx, nk_euclideans_packed_e2m3_sapphireamx);
     check("euclideans_packed_e2m1_sapphireamx", test_euclideans_packed<e2m1x2_t>, nk_dots_pack_size_e2m1_sapphireamx,
           nk_dots_pack_e2m1_sapphireamx, nk_euclideans_packed_e2m1_sapphireamx);
+    check("euclideans_packed_nvfp4_sapphireamx", test_euclideans_packed<nvfp4_t>, nk_dots_pack_size_nvfp4_sapphireamx,
+          nk_dots_pack_nvfp4_sapphireamx, nk_euclideans_packed_nvfp4_sapphireamx);
+    check("euclideans_packed_mxfp4_sapphireamx", test_euclideans_packed<mxfp4_t>, nk_dots_pack_size_mxfp4_sapphireamx,
+          nk_dots_pack_mxfp4_sapphireamx, nk_euclideans_packed_mxfp4_sapphireamx);
+    check("euclideans_packed_mxfp8e4m3_sapphireamx", test_euclideans_packed<mxfp8e4m3_t>,
+          nk_dots_pack_size_mxfp8e4m3_sapphireamx, nk_dots_pack_mxfp8e4m3_sapphireamx,
+          nk_euclideans_packed_mxfp8e4m3_sapphireamx);
+    check("euclideans_packed_mxfp8e5m2_sapphireamx", test_euclideans_packed<mxfp8e5m2_t>,
+          nk_dots_pack_size_mxfp8e5m2_sapphireamx, nk_dots_pack_mxfp8e5m2_sapphireamx,
+          nk_euclideans_packed_mxfp8e5m2_sapphireamx);
     check("euclideans_packed_i8_sapphireamx", test_euclideans_packed<i8_t>, nk_dots_pack_size_i8_sapphireamx,
           nk_dots_pack_i8_sapphireamx, nk_euclideans_packed_i8_sapphireamx);
     check("euclideans_packed_u8_sapphireamx", test_euclideans_packed<u8_t>, nk_dots_pack_size_u8_sapphireamx,
@@ -708,6 +816,14 @@ void test_cross_x8664([[maybe_unused]] error_stats_section_t &check) {
           nk_euclideans_symmetric_e2m3_sapphireamx);
     check("euclideans_symmetric_e2m1_sapphireamx", test_euclideans_symmetric<e2m1x2_t>,
           nk_euclideans_symmetric_e2m1_sapphireamx);
+    check("euclideans_symmetric_nvfp4_sapphireamx", test_euclideans_symmetric<nvfp4_t>,
+          nk_euclideans_symmetric_nvfp4_sapphireamx);
+    check("euclideans_symmetric_mxfp4_sapphireamx", test_euclideans_symmetric<mxfp4_t>,
+          nk_euclideans_symmetric_mxfp4_sapphireamx);
+    check("euclideans_symmetric_mxfp8e4m3_sapphireamx", test_euclideans_symmetric<mxfp8e4m3_t>,
+          nk_euclideans_symmetric_mxfp8e4m3_sapphireamx);
+    check("euclideans_symmetric_mxfp8e5m2_sapphireamx", test_euclideans_symmetric<mxfp8e5m2_t>,
+          nk_euclideans_symmetric_mxfp8e5m2_sapphireamx);
     check("euclideans_symmetric_i8_sapphireamx", test_euclideans_symmetric<i8_t>,
           nk_euclideans_symmetric_i8_sapphireamx);
     check("euclideans_symmetric_u8_sapphireamx", test_euclideans_symmetric<u8_t>,

@@ -50,6 +50,14 @@ void bench_cross_serial(environment_t const &env) {
                             nk_dots_packed_e2m3_serial);
     run_dots_packed<e2m1_k>(env, "dots_packed_e2m1_serial", nk_dots_pack_size_e2m1_serial, nk_dots_pack_e2m1_serial,
                             nk_dots_packed_e2m1_serial);
+    run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_serial", nk_dots_pack_size_nvfp4_serial,
+                                nk_dots_pack_nvfp4_serial, nk_dots_packed_nvfp4_serial);
+    run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_serial", nk_dots_pack_size_mxfp4_serial,
+                                nk_dots_pack_mxfp4_serial, nk_dots_packed_mxfp4_serial);
+    run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_serial", nk_dots_pack_size_mxfp8e4m3_serial,
+                                    nk_dots_pack_mxfp8e4m3_serial, nk_dots_packed_mxfp8e4m3_serial);
+    run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_serial", nk_dots_pack_size_mxfp8e5m2_serial,
+                                    nk_dots_pack_mxfp8e5m2_serial, nk_dots_packed_mxfp8e5m2_serial);
     run_dots_packed<i8_k>(env, "dots_packed_i8_serial", nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
                           nk_dots_packed_i8_serial);
     run_dots_packed<i4_k>(env, "dots_packed_i4_serial", nk_dots_pack_size_i4_serial, nk_dots_pack_i4_serial,
@@ -70,6 +78,10 @@ void bench_cross_serial(environment_t const &env) {
     run_dots_symmetric<e3m2_k>(env, "dots_symmetric_e3m2_serial", nk_dots_symmetric_e3m2_serial);
     run_dots_symmetric<e2m3_k>(env, "dots_symmetric_e2m3_serial", nk_dots_symmetric_e2m3_serial);
     run_dots_symmetric<e2m1_k>(env, "dots_symmetric_e2m1_serial", nk_dots_symmetric_e2m1_serial);
+    run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_serial", nk_dots_symmetric_nvfp4_serial);
+    run_dots_symmetric<nk_mxfp4_k>(env, "dots_symmetric_mxfp4_serial", nk_dots_symmetric_mxfp4_serial);
+    run_dots_symmetric<nk_mxfp8e4m3_k>(env, "dots_symmetric_mxfp8e4m3_serial", nk_dots_symmetric_mxfp8e4m3_serial);
+    run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_serial", nk_dots_symmetric_mxfp8e5m2_serial);
     run_dots_symmetric<i8_k>(env, "dots_symmetric_i8_serial", nk_dots_symmetric_i8_serial);
     run_dots_symmetric<i4_k>(env, "dots_symmetric_i4_serial", nk_dots_symmetric_i4_serial);
     run_dots_symmetric<u8_k>(env, "dots_symmetric_u8_serial", nk_dots_symmetric_u8_serial);
@@ -118,6 +130,14 @@ void bench_cross_serial(environment_t const &env) {
                                 nk_dots_pack_e2m3_serial, nk_angulars_packed_e2m3_serial);
     run_angulars_packed<e2m1_k>(env, "angulars_packed_e2m1_serial", nk_dots_pack_size_e2m1_serial,
                                 nk_dots_pack_e2m1_serial, nk_angulars_packed_e2m1_serial);
+    run_angulars_packed<nk_nvfp4_k>(env, "angulars_packed_nvfp4_serial", nk_dots_pack_size_nvfp4_serial,
+                                    nk_dots_pack_nvfp4_serial, nk_angulars_packed_nvfp4_serial);
+    run_angulars_packed<nk_mxfp4_k>(env, "angulars_packed_mxfp4_serial", nk_dots_pack_size_mxfp4_serial,
+                                    nk_dots_pack_mxfp4_serial, nk_angulars_packed_mxfp4_serial);
+    run_angulars_packed<nk_mxfp8e4m3_k>(env, "angulars_packed_mxfp8e4m3_serial", nk_dots_pack_size_mxfp8e4m3_serial,
+                                        nk_dots_pack_mxfp8e4m3_serial, nk_angulars_packed_mxfp8e4m3_serial);
+    run_angulars_packed<nk_mxfp8e5m2_k>(env, "angulars_packed_mxfp8e5m2_serial", nk_dots_pack_size_mxfp8e5m2_serial,
+                                        nk_dots_pack_mxfp8e5m2_serial, nk_angulars_packed_mxfp8e5m2_serial);
     run_angulars_packed<i8_k>(env, "angulars_packed_i8_serial", nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
                               nk_angulars_packed_i8_serial);
     run_angulars_packed<i4_k>(env, "angulars_packed_i4_serial", nk_dots_pack_size_i4_serial, nk_dots_pack_i4_serial,
@@ -131,6 +151,12 @@ void bench_cross_serial(environment_t const &env) {
     run_angulars_symmetric<e3m2_k>(env, "angulars_symmetric_e3m2_serial", nk_angulars_symmetric_e3m2_serial);
     run_angulars_symmetric<e2m3_k>(env, "angulars_symmetric_e2m3_serial", nk_angulars_symmetric_e2m3_serial);
     run_angulars_symmetric<e2m1_k>(env, "angulars_symmetric_e2m1_serial", nk_angulars_symmetric_e2m1_serial);
+    run_angulars_symmetric<nk_nvfp4_k>(env, "angulars_symmetric_nvfp4_serial", nk_angulars_symmetric_nvfp4_serial);
+    run_angulars_symmetric<nk_mxfp4_k>(env, "angulars_symmetric_mxfp4_serial", nk_angulars_symmetric_mxfp4_serial);
+    run_angulars_symmetric<nk_mxfp8e4m3_k>(env, "angulars_symmetric_mxfp8e4m3_serial",
+                                           nk_angulars_symmetric_mxfp8e4m3_serial);
+    run_angulars_symmetric<nk_mxfp8e5m2_k>(env, "angulars_symmetric_mxfp8e5m2_serial",
+                                           nk_angulars_symmetric_mxfp8e5m2_serial);
     run_angulars_symmetric<i8_k>(env, "angulars_symmetric_i8_serial", nk_angulars_symmetric_i8_serial);
     run_angulars_symmetric<i4_k>(env, "angulars_symmetric_i4_serial", nk_angulars_symmetric_i4_serial);
     run_angulars_symmetric<u8_k>(env, "angulars_symmetric_u8_serial", nk_angulars_symmetric_u8_serial);
@@ -145,6 +171,14 @@ void bench_cross_serial(environment_t const &env) {
                                   nk_dots_pack_e2m3_serial, nk_euclideans_packed_e2m3_serial);
     run_euclideans_packed<e2m1_k>(env, "euclideans_packed_e2m1_serial", nk_dots_pack_size_e2m1_serial,
                                   nk_dots_pack_e2m1_serial, nk_euclideans_packed_e2m1_serial);
+    run_euclideans_packed<nk_nvfp4_k>(env, "euclideans_packed_nvfp4_serial", nk_dots_pack_size_nvfp4_serial,
+                                      nk_dots_pack_nvfp4_serial, nk_euclideans_packed_nvfp4_serial);
+    run_euclideans_packed<nk_mxfp4_k>(env, "euclideans_packed_mxfp4_serial", nk_dots_pack_size_mxfp4_serial,
+                                      nk_dots_pack_mxfp4_serial, nk_euclideans_packed_mxfp4_serial);
+    run_euclideans_packed<nk_mxfp8e4m3_k>(env, "euclideans_packed_mxfp8e4m3_serial", nk_dots_pack_size_mxfp8e4m3_serial,
+                                          nk_dots_pack_mxfp8e4m3_serial, nk_euclideans_packed_mxfp8e4m3_serial);
+    run_euclideans_packed<nk_mxfp8e5m2_k>(env, "euclideans_packed_mxfp8e5m2_serial", nk_dots_pack_size_mxfp8e5m2_serial,
+                                          nk_dots_pack_mxfp8e5m2_serial, nk_euclideans_packed_mxfp8e5m2_serial);
     run_euclideans_packed<i8_k>(env, "euclideans_packed_i8_serial", nk_dots_pack_size_i8_serial, nk_dots_pack_i8_serial,
                                 nk_euclideans_packed_i8_serial);
     run_euclideans_packed<i4_k>(env, "euclideans_packed_i4_serial", nk_dots_pack_size_i4_serial, nk_dots_pack_i4_serial,
@@ -158,6 +192,14 @@ void bench_cross_serial(environment_t const &env) {
     run_euclideans_symmetric<e3m2_k>(env, "euclideans_symmetric_e3m2_serial", nk_euclideans_symmetric_e3m2_serial);
     run_euclideans_symmetric<e2m3_k>(env, "euclideans_symmetric_e2m3_serial", nk_euclideans_symmetric_e2m3_serial);
     run_euclideans_symmetric<e2m1_k>(env, "euclideans_symmetric_e2m1_serial", nk_euclideans_symmetric_e2m1_serial);
+    run_euclideans_symmetric<nk_nvfp4_k>(env, "euclideans_symmetric_nvfp4_serial",
+                                         nk_euclideans_symmetric_nvfp4_serial);
+    run_euclideans_symmetric<nk_mxfp4_k>(env, "euclideans_symmetric_mxfp4_serial",
+                                         nk_euclideans_symmetric_mxfp4_serial);
+    run_euclideans_symmetric<nk_mxfp8e4m3_k>(env, "euclideans_symmetric_mxfp8e4m3_serial",
+                                             nk_euclideans_symmetric_mxfp8e4m3_serial);
+    run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_serial",
+                                             nk_euclideans_symmetric_mxfp8e5m2_serial);
     run_euclideans_symmetric<i8_k>(env, "euclideans_symmetric_i8_serial", nk_euclideans_symmetric_i8_serial);
     run_euclideans_symmetric<i4_k>(env, "euclideans_symmetric_i4_serial", nk_euclideans_symmetric_i4_serial);
     run_euclideans_symmetric<u8_k>(env, "euclideans_symmetric_u8_serial", nk_euclideans_symmetric_u8_serial);

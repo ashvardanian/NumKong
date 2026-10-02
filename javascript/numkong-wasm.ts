@@ -622,11 +622,11 @@ class WasmPackedMatrix extends PackedMatrix {
   private _heapPointer: number;
   private _wasmDisposed: boolean = false;
 
-  constructor(heapPointer: number, byteLength: number, width: number, depth: number, dtype: DType) {
+  constructor(heapPointer: number, byteLength: number, columns: number, depth: number, dtype: DType) {
     // Create a JS ArrayBuffer that is a copy of the WASM heap region for read access
     const buffer = new ArrayBuffer(byteLength);
     new Uint8Array(buffer).set(HEAPU8.subarray(heapPointer, heapPointer + byteLength));
-    super(buffer, width, depth, dtype, byteLength);
+    super(buffer, columns, depth, dtype, byteLength);
     this._heapPointer = heapPointer;
 
     // Register with FinalizationRegistry as safety net
@@ -659,14 +659,14 @@ function allocAndCopyMatrix(matrix: Matrix): number {
 }
 
 /**
- *  Queries the packed buffer's byte count for a matrix with the given __[width,depth]__ and dtype,
- *  matching what `dotsPack` would allocate.
- *  @param width - Number of vectors being packed, the matrix rows.
+ *  Queries the packed buffer's byte count for a matrix with the given __[columns,depth]__ and
+ *  dtype, matching what `dotsPack` would allocate.
+ *  @param columns - Number of vectors being packed, the matrix rows.
  *  @param depth - Dimensionality per vector, the matrix columns.
  *  @param dtype - Element dtype of the source matrix.
  *  @returns The byte count of the packed buffer.
  */
-export function dotsPackedSize(width: number, depth: number, dtype: DType): number {
+export function dotsPackedSize(columns: number, depth: number, dtype: DType): number {
   if (!Module) throw new Error('WASM module not initialized');
 
   const fnName = `_nk_dots_pack_size_${dtypeToString(dtype)}_best`;
@@ -674,16 +674,16 @@ export function dotsPackedSize(width: number, depth: number, dtype: DType): numb
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
   }
-  checkStatus(fn(width, depth, defaultCapabilities, toWasmPtr(resultPtr)));
+  checkStatus(fn(columns, depth, defaultCapabilities, toWasmPtr(resultPtr)));
   return new Uint32Array(Module.wasmMemory.buffer, resultPtr, 1)[0];
 }
 
 /**
- *  Reads a packed matrix's __[width,depth]__ back from its self-describing header.
+ *  Reads a packed matrix's __[columns,depth]__ back from its self-describing header.
  *  @param packed - The packed matrix to inspect.
- *  @returns The packed matrix's width and depth.
+ *  @returns The packed matrix's columns and depth.
  */
-export function dotsPackedShape(packed: PackedMatrix): { width: number; depth: number } {
+export function dotsPackedShape(packed: PackedMatrix): { columns: number; depth: number } {
   if (!Module) throw new Error('WASM module not initialized');
 
   const fnName = `_nk_dots_packed_shape_${dtypeToString(packed.dtype)}_best`;
@@ -696,9 +696,9 @@ export function dotsPackedShape(packed: PackedMatrix): { width: number; depth: n
   const outPtr = Module._malloc(8); // two nk_size_t out-params (i32 each in WASM)
   try {
     checkStatus(fn(toWasmPtr(blobPtr), toWasmPtr(outPtr), toWasmPtr(outPtr + 4), defaultCapabilities, toWasmPtr(0)));
-    const width = HEAPU32[outPtr / 4];
+    const columns = HEAPU32[outPtr / 4];
     const depth = HEAPU32[(outPtr + 4) / 4];
-    return { width, depth };
+    return { columns, depth };
   } finally {
     Module._free(outPtr);
     Module._free(blobPtr);
@@ -720,14 +720,14 @@ export function dotsPack(matrix: Matrix): PackedMatrix {
     throw new Error(`Pack functions not available for dtype ${dtypeStr}`);
   }
 
-  const packedByteCount = dotsPackedSize(matrix.rows, matrix.cols, matrix.dtype);
+  const packedByteCount = dotsPackedSize(matrix.rows, matrix.columns, matrix.dtype);
   const packedPtr = Module._malloc(packedByteCount);
   const matrixPtr = allocAndCopyMatrix(matrix);
 
   try {
     checkStatus(packFn(
       toWasmPtr(matrixPtr),
-      matrix.rows, matrix.cols,
+      matrix.rows, matrix.columns,
       matrix.rowStride,
       toWasmPtr(packedPtr),
       0, matrix.rows,
@@ -740,18 +740,18 @@ export function dotsPack(matrix: Matrix): PackedMatrix {
     Module._free(matrixPtr);
   }
 
-  return new WasmPackedMatrix(packedPtr, packedByteCount, matrix.rows, matrix.cols, matrix.dtype);
+  return new WasmPackedMatrix(packedPtr, packedByteCount, matrix.rows, matrix.columns, matrix.dtype);
 }
 
 function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
   if (!Module) throw new Error('WASM module not initialized');
-  if (a.cols !== packed.depth) {
-    throw new Error(`Matrix cols (${a.cols}) must match packed depth (${packed.depth})`);
+  if (a.columns !== packed.depth) {
+    throw new Error(`Matrix columns (${a.columns}) must match packed depth (${packed.depth})`);
   }
 
   const outDType = outputDType(family, a.dtype);
   if (!out) {
-    out = new Matrix(a.rows, packed.width, outDType);
+    out = new Matrix(a.rows, packed.columns, outDType);
   }
 
   const dtypeStr = dtypeToString(a.dtype);
@@ -762,7 +762,7 @@ function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matr
   }
 
   const outBpe = out.bytesPerElement;
-  const resultByteLength = out.rows * out.cols * outBpe;
+  const resultByteLength = out.rows * out.columns * outBpe;
   const aPtr = allocAndCopyMatrix(a);
   const resultPtr = Module._malloc(resultByteLength);
 
@@ -781,7 +781,7 @@ function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matr
   try {
     checkStatus(fn(
       toWasmPtr(aPtr), toWasmPtr(packedPtr), toWasmPtr(resultPtr),
-      a.rows, packed.width, a.cols,
+      a.rows, packed.columns, a.columns,
       a.rowStride, out.rowStride,
       defaultCapabilities, toWasmPtr(0),
     ));
@@ -814,14 +814,14 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
     throw new Error(`Function ${fnName} not available in WASM module`);
   }
 
-  const resultByteLength = out.rows * out.cols * out.bytesPerElement;
+  const resultByteLength = out.rows * out.columns * out.bytesPerElement;
   const vectorsPtr = allocAndCopyMatrix(vectors);
   const resultPtr = Module._malloc(resultByteLength);
 
   try {
     checkStatus(fn(
       toWasmPtr(vectorsPtr),
-      vectors.rows, vectors.cols,
+      vectors.rows, vectors.columns,
       vectors.rowStride,
       toWasmPtr(resultPtr), out.rowStride,
       rowStart, count,
@@ -843,7 +843,7 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
  *  Computes the dot products between every row of `a` and every packed vector in `packed`.
  *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
  *  @param packed - The packed matrix produced by `dotsPack`.
- *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.columns]__ shaped.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
 export function dotsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
@@ -854,7 +854,7 @@ export function dotsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matri
  *  Computes the angular distances between every row of `a` and every packed vector in `packed`.
  *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
  *  @param packed - The packed matrix produced by `dotsPack`.
- *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.columns]__ shaped.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
 export function angularsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
@@ -865,7 +865,7 @@ export function angularsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): M
  *  Computes the Euclidean distances between every row of `a` and every packed vector in `packed`.
  *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
  *  @param packed - The packed matrix produced by `dotsPack`.
- *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.columns]__ shaped.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
 export function euclideansPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {

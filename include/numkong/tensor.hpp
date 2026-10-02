@@ -264,10 +264,10 @@ struct tensor_view {
         : data_(data), shape_(shape) {}
 
     /** Convenience constructor for rank-2 views from typed pointer, rows, and columns. */
-    constexpr tensor_view(value_type const *data, size_type rows, size_type cols) noexcept
+    constexpr tensor_view(value_type const *data, size_type rows, size_type columns) noexcept
         requires(max_rank_ >= 2)
         : data_(reinterpret_cast<char const *>(data)) {
-        std::size_t extents[2] = {rows, cols};
+        std::size_t extents[2] = {rows, columns};
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 2);
     }
 
@@ -544,11 +544,11 @@ struct tensor_span {
 
     constexpr tensor_span(char *data, shape_storage_<max_rank_> const &shape) noexcept : data_(data), shape_(shape) {}
 
-    /** Convenience constructor for rank-2 spans from typed pointer, rows, and cols. */
-    constexpr tensor_span(value_type *data, size_type rows, size_type cols) noexcept
+    /** Convenience constructor for rank-2 spans from typed pointer, rows, and columns. */
+    constexpr tensor_span(value_type *data, size_type rows, size_type columns) noexcept
         requires(max_rank_ >= 2)
         : data_(reinterpret_cast<char *>(data)) {
-        std::size_t extents[2] = {rows, cols};
+        std::size_t extents[2] = {rows, columns};
         shape_ = make_contiguous_shape_<value_type_, max_rank_>(extents, 2);
     }
 
@@ -1575,10 +1575,10 @@ struct tensor {
     {
         auto num_rows = rows.size();
         if (num_rows == 0) return {tensor(alloc), status_t::success_k};
-        auto num_cols = rows.begin()->size();
+        auto num_columns = rows.begin()->size();
         for (auto const &row : rows)
-            if (row.size() != num_cols) return {tensor(alloc), status_t::unexpected_dimensions_k};
-        auto result = uninitialized({num_rows, num_cols}, alloc);
+            if (row.size() != num_columns) return {tensor(alloc), status_t::unexpected_dimensions_k};
+        auto result = uninitialized({num_rows, num_columns}, alloc);
         if (!result) return result;
         size_type index = 0;
         for (auto const &row : rows)
@@ -2342,7 +2342,7 @@ template <typename value_type_, std::size_t max_rank_>
 struct normalized_rank1_lane_ {
     value_type_ const *data = nullptr;
     std::size_t count = 0;
-    std::size_t stride_bytes = sizeof(value_type_);
+    std::size_t stride = sizeof(value_type_);
     bool reversed = false;
 };
 
@@ -2376,18 +2376,18 @@ normalized_rank1_lane_<value_type_, max_rank_> normalize_rank1_lane_(
     if constexpr (dimensions_per_value<value_type_>() > 1) {
         if (!input.is_contiguous()) return {};
         lane.data = input.data();
-        lane.stride_bytes = sizeof(value_type_);
+        lane.stride = sizeof(value_type_);
         lane.reversed = false;
         return lane;
     }
     if (stride >= 0) {
         lane.data = input.data();
-        lane.stride_bytes = static_cast<std::size_t>(stride);
+        lane.stride = static_cast<std::size_t>(stride);
         lane.reversed = false;
     }
     else {
         lane.data = reinterpret_cast<value_type_ const *>(input.byte_data() + (lane.count - 1) * stride);
-        lane.stride_bytes = static_cast<std::size_t>(-stride);
+        lane.stride = static_cast<std::size_t>(-stride);
         lane.reversed = true;
     }
     return lane;
@@ -2649,15 +2649,14 @@ status_t span_for_each_contiguous_run_(tensor_span<value_type_, max_rank_> outpu
         return status_t::success_k;
     }
     else {
-        auto element_stride_bytes = output.stride_bytes(0);
-        if (element_stride_bytes == static_cast<std::ptrdiff_t>(sizeof(value_type_))) {
+        auto element_stride = output.stride_bytes(0);
+        if (element_stride == static_cast<std::ptrdiff_t>(sizeof(value_type_))) {
             leaf(output.byte_data(), element_count * sizeof(value_type_));
             return status_t::success_k;
         }
         auto *base_byte_data = output.byte_data();
         for (std::size_t element_index = 0; element_index < element_count; ++element_index)
-            leaf(base_byte_data + static_cast<std::ptrdiff_t>(element_index) * element_stride_bytes,
-                 sizeof(value_type_));
+            leaf(base_byte_data + static_cast<std::ptrdiff_t>(element_index) * element_stride, sizeof(value_type_));
         return status_t::success_k;
     }
 }

@@ -189,37 +189,37 @@ func kernel(_ kernel: Kernel) throws {
 }
 
 @Test func tensorFromArray() throws {
-    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
-    #expect((t.rows, t.cols, t.count) == (2, 3, 6))
+    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, columns: 3)
+    #expect((t.rows, t.columns, t.count) == (2, 3, 6))
     #expect([t[0, 0], t[0, 2], t[1, 0], t[1, 2]] == [1, 3, 4, 6])
 }
 
 @Test func tensorZeros() throws {
-    let t = try Tensor<Float32>.zeros(rows: 3, cols: 4)
-    #expect((t.rows, t.cols) == (3, 4))
+    let t = try Tensor<Float32>.zeros(rows: 3, columns: 4)
+    #expect((t.rows, t.columns) == (3, 4))
     #expect((0..<3).allSatisfy { t.row($0).allSatisfy { $0 == 0 } })
 }
 
 @Test func tensorRejectsEmpty() {
-    #expect(throws: NumKongMatrixError.invalidDimensions) { try Tensor<Float32>.zeros(rows: 0, cols: 4) }
+    #expect(throws: NumKongMatrixError.invalidDimensions) { try Tensor<Float32>.zeros(rows: 0, columns: 4) }
 }
 
 @Test func tensorResizeWithinCapacity() throws {
-    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6, 7, 8], rows: 2, cols: 4)
-    #expect(t.tryResize(rows: 2, cols: 2))
-    #expect((t.rows, t.cols, t.count, t.capacity) == (2, 2, 4, 8))
+    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6, 7, 8], rows: 2, columns: 4)
+    #expect(t.tryResize(rows: 2, columns: 2))
+    #expect((t.rows, t.columns, t.count, t.capacity) == (2, 2, 4, 8))
     #expect((t[0, 0], t[1, 1]) == (1, 4))  // storage never moves within capacity
-    #expect(!t.tryResize(rows: 3, cols: 4))  // 12 > 8, left unchanged
-    #expect((t.rows, t.cols) == (2, 2))
+    #expect(!t.tryResize(rows: 3, columns: 4))  // 12 > 8, left unchanged
+    #expect((t.rows, t.columns) == (2, 2))
 }
 
 @Test func tensorReserveAndClear() throws {
-    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4], rows: 1, cols: 4)
+    let t = try Tensor<Float32>.fromArray([1, 2, 3, 4], rows: 1, columns: 4)
     t.reserve(64)
     #expect(t.capacity >= 64)
     #expect(t.count == 4)  // reserve grows capacity, it does not reshape
     #expect((t[0, 0], t[0, 3]) == (1, 4))
-    #expect(t.tryResize(rows: 8, cols: 8))
+    #expect(t.tryResize(rows: 8, columns: 8))
     #expect(t.count == 64)
     t.clear()
     #expect(t.count == 0)
@@ -227,15 +227,15 @@ func kernel(_ kernel: Kernel) throws {
 }
 
 @Test func tensorDotsPacked() throws {
-    let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
-    let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, cols: 3)
+    let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, columns: 3)
+    let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, columns: 3)
     let result = try a.dotsPacked(b.packForDots())
-    #expect((result.rows, result.cols) == (2, 2))
+    #expect((result.rows, result.columns) == (2, 2))
     #expect([result[0, 0], result[0, 1], result[1, 0], result[1, 1]] == [50, 4, 122, 10])
 }
 
 @Test func foreignPackThrows() throws {
-    let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
+    let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, columns: 3)
     let packed = try a.packForDots()
     // Every capability stamps its packs, so bytes no capability wrote are refused rather than read.
     UnsafeMutableRawPointer(mutating: packed.rawBuffer.baseAddress!)
@@ -244,7 +244,7 @@ func kernel(_ kernel: Kernel) throws {
 }
 
 @Test func tensorAngularsPacked() throws {
-    let a = try Tensor<Float32>.fromArray([1, 0, 0, 0, 1, 0], rows: 2, cols: 3)
+    let a = try Tensor<Float32>.fromArray([1, 0, 0, 0, 1, 0], rows: 2, columns: 3)
     let result = try a.angularsPacked(a.packForDots())
     #expect(abs(result[0, 0]) <= 0.01)
     #expect(abs(result[0, 1] - 1) <= 0.05)
@@ -253,40 +253,40 @@ func kernel(_ kernel: Kernel) throws {
 }
 
 @Test func hammingsPacked() throws {
-    let a = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00), U1x8(0x00), U1x8(0xFF)], rows: 2, cols: 2)
-    let b = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0xFF)], rows: 1, cols: 2)
+    let a = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00), U1x8(0x00), U1x8(0xFF)], rows: 2, columns: 2)
+    let b = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0xFF)], rows: 1, columns: 2)
     let result = try a.hammingsPacked(b.packForDots())
-    #expect((result.rows, result.cols) == (2, 1))
+    #expect((result.rows, result.columns) == (2, 1))
     #expect([result[0, 0], result[1, 0]] == [8, 8])  // each row misses one full byte of all-ones
 }
 
 @Test func hammingsSymmetric() throws {
-    let t = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00), U1x8(0x0F)], rows: 3, cols: 1)
+    let t = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00), U1x8(0x0F)], rows: 3, columns: 1)
     let result = try t.hammingsSymmetric()
-    #expect((result.rows, result.cols) == (3, 3))
+    #expect((result.rows, result.columns) == (3, 3))
     #expect([result[0, 0], result[1, 1], result[2, 2], result[0, 1]] == [0, 0, 0, 8])
 }
 
 @Test func jaccardsPacked() throws {
-    let a = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00)], rows: 1, cols: 2)
+    let a = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0x00)], rows: 1, columns: 2)
     let result = try a.jaccardsPacked(a.packForDots())
-    #expect((result.rows, result.cols) == (1, 1))
+    #expect((result.rows, result.columns) == (1, 1))
     #expect(abs(result[0, 0]) <= 0.01)  // identical sets, and NaN fails this too
 }
 
 @Test func jaccardsSymmetric() throws {
-    let t = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0xFF), U1x8(0x00)], rows: 3, cols: 1)
+    let t = try Tensor<U1x8>.fromArray([U1x8(0xFF), U1x8(0xFF), U1x8(0x00)], rows: 3, columns: 1)
     let result = try t.jaccardsSymmetric()
-    #expect((result.rows, result.cols) == (3, 3))
+    #expect((result.rows, result.columns) == (3, 3))
     #expect(abs(result[0, 1]) <= 0.01)
 }
 
 @Test func maxSimFloat32() throws {
-    let t = try Tensor<Float32>.fromArray([1, 0, 0, 0, 0, 1, 0, 0], rows: 2, cols: 4)
+    let t = try Tensor<Float32>.fromArray([1, 0, 0, 0, 0, 1, 0, 0], rows: 2, columns: 4)
     #expect(try t.maxSimPack().score(t.maxSimPack()).isFinite)
 }
 
 @Test func maxSimBFloat16() throws {
-    let t = try Tensor<BFloat16>.fromArray([1, 0, 0, 0, 0, 1, 0, 0].map { BFloat16(float: $0) }, rows: 2, cols: 4)
+    let t = try Tensor<BFloat16>.fromArray([1, 0, 0, 0, 0, 1, 0, 0].map { BFloat16(float: $0) }, rows: 2, columns: 4)
     #expect(try t.maxSimPack().score(t.maxSimPack()).isFinite)
 }

@@ -11,7 +11,7 @@
 
 namespace ashvardanian::numkong::bench {
 
-using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, nk_size_t, void *, nk_dtype_t, void *);
+using cast_kernel_t = nk_status_t (*)(void const *, nk_dtype_t, void *, nk_dtype_t, nk_size_t, void *);
 
 /**
  *  @brief Measures the performance of type casting operations.
@@ -35,7 +35,7 @@ void measure_cast(loop_t &loop, environment_t const &env, cast_kernel_t kernel, 
     // Benchmark loop
     for ([[maybe_unused]] std::size_t call : loop) {
         if (!succeeded(loop,
-                       kernel(input.values_data(), input_dtype_, count, output.values_data(), output_dtype_, nullptr)))
+                       kernel(input.values_data(), input_dtype_, output.values_data(), output_dtype_, count, nullptr)))
             break;
         do_not_optimize(output.values_data());
     }

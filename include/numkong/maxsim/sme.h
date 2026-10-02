@@ -198,9 +198,9 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
 
             // Vertical column extraction + max update (manually unrolled over 4 tiles)
             nk_size_t const last_col_start = (column_tile_index + 3) * tile_dimension;
-            nk_size_t const last_cols_remaining = (last_col_start + tile_dimension <= document_count)
-                                                      ? tile_dimension
-                                                      : (document_count - last_col_start);
+            nk_size_t const last_columns_remaining = (last_col_start + tile_dimension <= document_count)
+                                                         ? tile_dimension
+                                                         : (document_count - last_col_start);
             for (nk_size_t column_within_tile = 0; column_within_tile < tile_dimension; column_within_tile++) {
                 // Tile 0
                 {
@@ -230,7 +230,7 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
                         svmul_n_f32_x(predicate_all_b32x, column_dots_f32x, document_inverse_norms[document_index]));
                 }
                 // Tile 3, whose zero-padded columns would outscore all-negative dots
-                if (column_within_tile < last_cols_remaining) {
+                if (column_within_tile < last_columns_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
                     svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
                                                                          3, column_within_tile);
@@ -244,12 +244,12 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
         // Remainder: 1 doc column tile at a time using ZA0 only
         for (; column_tile_index < document_col_tiles; column_tile_index++) {
             nk_size_t const col_start = column_tile_index * tile_dimension;
-            nk_size_t const cols_remaining = (col_start + tile_dimension <= document_count)
-                                                 ? tile_dimension
-                                                 : (document_count - col_start);
-            svbool_t const column_predicate_b16x = (cols_remaining == tile_dimension)
+            nk_size_t const columns_remaining = (col_start + tile_dimension <= document_count)
+                                                    ? tile_dimension
+                                                    : (document_count - col_start);
+            svbool_t const column_predicate_b16x = (columns_remaining == tile_dimension)
                                                        ? svptrue_b16()
-                                                       : svwhilelt_b16_u64(0u, cols_remaining * 2);
+                                                       : svwhilelt_b16_u64(0u, columns_remaining * 2);
 
             svzero_mask_za(nk_sme_zero_za32_tile_0_k); // Zero ZA0 only
 
@@ -267,7 +267,7 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
             }
 
             // Vertical column extraction from ZA0 + max update
-            for (nk_size_t column_within_tile = 0; column_within_tile < cols_remaining; column_within_tile++) {
+            for (nk_size_t column_within_tile = 0; column_within_tile < columns_remaining; column_within_tile++) {
                 nk_u32_t document_index = (nk_u32_t)(col_start + column_within_tile);
                 svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x, 0,
                                                                      column_within_tile);
@@ -394,9 +394,9 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
 
             // Vertical column extraction + max update (manually unrolled over 4 tiles)
             nk_size_t const last_col_start = (column_tile_index + 3) * tile_dimension;
-            nk_size_t const last_cols_remaining = (last_col_start + tile_dimension <= document_count)
-                                                      ? tile_dimension
-                                                      : (document_count - last_col_start);
+            nk_size_t const last_columns_remaining = (last_col_start + tile_dimension <= document_count)
+                                                         ? tile_dimension
+                                                         : (document_count - last_col_start);
             for (nk_size_t column_within_tile = 0; column_within_tile < tile_dimension; column_within_tile++) {
                 // Tile 0
                 {
@@ -426,7 +426,7 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
                         svmul_n_f32_x(predicate_all_b32x, column_dots_f32x, document_inverse_norms[document_index]));
                 }
                 // Tile 3, whose zero-padded columns would outscore all-negative dots
-                if (column_within_tile < last_cols_remaining) {
+                if (column_within_tile < last_columns_remaining) {
                     nk_u32_t document_index = (nk_u32_t)((column_tile_index + 3) * tile_dimension + column_within_tile);
                     svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x,
                                                                          3, column_within_tile);
@@ -440,12 +440,12 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
         // Remainder: 1 doc column tile at a time using ZA0 only
         for (; column_tile_index < document_col_tiles; column_tile_index++) {
             nk_size_t const col_start = column_tile_index * tile_dimension;
-            nk_size_t const cols_remaining = (col_start + tile_dimension <= document_count)
-                                                 ? tile_dimension
-                                                 : (document_count - col_start);
-            svbool_t const column_predicate_b16x = (cols_remaining == tile_dimension)
+            nk_size_t const columns_remaining = (col_start + tile_dimension <= document_count)
+                                                    ? tile_dimension
+                                                    : (document_count - col_start);
+            svbool_t const column_predicate_b16x = (columns_remaining == tile_dimension)
                                                        ? svptrue_b16()
-                                                       : svwhilelt_b16_u64(0u, cols_remaining * 2);
+                                                       : svwhilelt_b16_u64(0u, columns_remaining * 2);
 
             svzero_mask_za(nk_sme_zero_za32_tile_0_k); // Zero ZA0 only
 
@@ -463,7 +463,7 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
             }
 
             // Vertical column extraction from ZA0 + max update
-            for (nk_size_t column_within_tile = 0; column_within_tile < cols_remaining; column_within_tile++) {
+            for (nk_size_t column_within_tile = 0; column_within_tile < columns_remaining; column_within_tile++) {
                 nk_u32_t document_index = (nk_u32_t)(col_start + column_within_tile);
                 svfloat32_t column_dots_f32x = svread_ver_za32_f32_m(svdup_f32(NUMKONG_F32_MIN), predicate_all_b32x, 0,
                                                                      column_within_tile);
@@ -531,7 +531,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sme(void const *packed, nk_si
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme( //
-    nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
+    nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
     void *stream) { //
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
@@ -539,7 +539,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme( //
 
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
-    nk_dots_pack_bf16_tiles_sme_(vectors, columns, depth, stride_in_bytes, packed, 0, columns);
+    nk_dots_pack_bf16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
 
     // Set maxsim-specific header fields (overlaps dots reserved area)
     nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
@@ -559,7 +559,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme( //
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme( //
-    nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
+    nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
     void *stream) { //
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
@@ -567,7 +567,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme( //
 
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
-    nk_dots_pack_f16_tiles_sme_(vectors, columns, depth, stride_in_bytes, packed, 0, columns);
+    nk_dots_pack_f16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
 
     // Set maxsim-specific header fields (overlaps dots reserved area)
     nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
@@ -621,7 +621,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sme(void const *packed, nk_si
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
-    nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
+    nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
     void *stream) { //
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const blob_bytes = nk_maxsim_pack_bytes_f32_sme_(columns, depth);
@@ -666,7 +666,7 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
 
     // For each vector: quantize metadata, quantize+interleave into tiles, copy originals
     for (nk_size_t vector_index = 0; vector_index < columns; vector_index++) {
-        nk_f32_t const *source = (nk_f32_t const *)((char const *)vectors + vector_index * stride_in_bytes);
+        nk_f32_t const *source = (nk_f32_t const *)((char const *)vectors + vector_index * stride);
 
         // Pass 1: Compute absmax and norm_sq simultaneously
         nk_f32_t absmax = 0.0f;
@@ -902,9 +902,9 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
             // Vertical column reads, manually unrolled over 4 tiles, first raising the lower bounds
             nk_size_t const first_column = column_tile_index * tile_dimension;
             nk_size_t const last_col_start = (column_tile_index + 3) * tile_dimension;
-            nk_size_t const last_cols_remaining = (last_col_start + tile_dimension <= document_count)
-                                                      ? tile_dimension
-                                                      : (document_count - last_col_start);
+            nk_size_t const last_columns_remaining = (last_col_start + tile_dimension <= document_count)
+                                                         ? tile_dimension
+                                                         : (document_count - last_col_start);
             for (nk_size_t column_within_tile = 0; column_within_tile < tile_dimension; column_within_tile++) {
                 nk_size_t const document_index = first_column + column_within_tile;
                 lower_bounds_f32x = nk_maxsim_fold_column_sme_(
@@ -920,7 +920,7 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                     document_screen_weights[document_index + 2 * tile_dimension], error_bases_f32x,
                     error_per_weights_f32x);
                 // Tile 3 may end in zero-padded columns
-                if (column_within_tile < last_cols_remaining)
+                if (column_within_tile < last_columns_remaining)
                     lower_bounds_f32x = nk_maxsim_fold_column_sme_(
                         lower_bounds_f32x,
                         svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 3, column_within_tile),
@@ -942,7 +942,7 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                     &refine, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 2, column_within_tile),
                     document_index + 2 * tile_dimension, error_bases_f32x, error_per_weights_f32x, lower_bounds_f32x,
                     row_predicate_b32x, row_start, best_cosines);
-                if (column_within_tile < last_cols_remaining)
+                if (column_within_tile < last_columns_remaining)
                     nk_maxsim_refine_column_sme_(
                         &refine, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 3, column_within_tile),
                         document_index + 3 * tile_dimension, error_bases_f32x, error_per_weights_f32x,
@@ -953,12 +953,12 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
         // 1-tile remainder: ZA0 only
         for (; column_tile_index < document_col_tiles; column_tile_index++) {
             nk_size_t const col_start = column_tile_index * tile_dimension;
-            nk_size_t const cols_remaining = (col_start + tile_dimension <= document_count)
-                                                 ? tile_dimension
-                                                 : (document_count - col_start);
-            svbool_t const column_predicate_b8x = (cols_remaining == tile_dimension)
+            nk_size_t const columns_remaining = (col_start + tile_dimension <= document_count)
+                                                    ? tile_dimension
+                                                    : (document_count - col_start);
+            svbool_t const column_predicate_b8x = (columns_remaining == tile_dimension)
                                                       ? svptrue_b8()
-                                                      : svwhilelt_b8_u64(0u, cols_remaining * expansion);
+                                                      : svwhilelt_b8_u64(0u, columns_remaining * expansion);
 
             svzero_mask_za(nk_sme_zero_za32_tile_0_k);
 
@@ -974,11 +974,11 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
                 svmopa_za32_s8_m(0, row_predicate_b8x, column_predicate_b8x, query_packed_i8x, document_packed_i8x);
             }
 
-            for (nk_size_t column_within_tile = 0; column_within_tile < cols_remaining; column_within_tile++)
+            for (nk_size_t column_within_tile = 0; column_within_tile < columns_remaining; column_within_tile++)
                 lower_bounds_f32x = nk_maxsim_fold_column_sme_(
                     lower_bounds_f32x, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 0, column_within_tile),
                     document_screen_weights[col_start + column_within_tile], error_bases_f32x, error_per_weights_f32x);
-            for (nk_size_t column_within_tile = 0; column_within_tile < cols_remaining; column_within_tile++)
+            for (nk_size_t column_within_tile = 0; column_within_tile < columns_remaining; column_within_tile++)
                 nk_maxsim_refine_column_sme_(
                     &refine, svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 0, column_within_tile),
                     col_start + column_within_tile, error_bases_f32x, error_per_weights_f32x, lower_bounds_f32x,

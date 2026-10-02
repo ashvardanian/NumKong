@@ -330,7 +330,7 @@ static int tensor_is_f_contig(Tensor *tensor) {
 static PyObject *tensor_read_packed_scalar(Tensor *tensor, size_t byte_offset, size_t lane) {
     if (!tensor_on_host(tensor)) return NULL;
     nk_f64_t lanes[NUMKONG_BITS_PER_BYTE];
-    nk_cast_best(tensor->data + byte_offset, tensor->dtype, nk_dimensions_per_value(tensor->dtype), lanes, nk_f64_k,
+    nk_cast_best(tensor->data + byte_offset, tensor->dtype, lanes, nk_f64_k, nk_dimensions_per_value(tensor->dtype),
                  default_capabilities, NULL);
     if (nk_dtype_family(tensor->dtype) == nk_dtype_family_float_k) return PyFloat_FromDouble(lanes[lane]);
     return PyLong_FromLongLong((long long)lanes[lane]);
@@ -626,7 +626,7 @@ static void cast_strided_recursive(                                            /
         if (src_dtype == dest_dtype)
             memcpy(dest_data, src_data, dimensions_to_values(src_dtype, slice_elements) * element_size);
         else
-            nk_cast_best(src_data, src_dtype, (nk_size_t)slice_elements, dest_data, dest_dtype, default_capabilities,
+            nk_cast_best(src_data, src_dtype, dest_data, dest_dtype, (nk_size_t)slice_elements, default_capabilities,
                          NULL);
         return;
     }
@@ -2572,17 +2572,25 @@ static PyObject *Tensor_argmax(PyObject *self, PyObject *const *args, Py_ssize_t
     return reduce_axis_dispatch(&view, &parsed, nk_i64_k, argmax_slice);
 }
 
+/** Layout shared by every @c nk_<format>_ref_t and @c _cref_t; the MX formats stop before
+ *  @c tensor_scale. */
+typedef struct scaled_operand_t {
+    void *elements;
+    void *scales;
+    nk_f32_t *tensor_scale;
+} scaled_operand_t;
+
 /**
  *  @brief Build a @c ScaledTensor by quantizing a dense tensor into @p target_dtype.
  *
  *  The dense source is linearized into a contiguous f32 staging buffer — quantization is on the
  *  last axis, the last dim must be a multiple of the format's block size. The element and scale
  *  buffers are sized via @c nk_block_scaled_elements_size and @c nk_block_scaled_scales_size,
- *  allocated as child Tensors, and filled by a single @c nk_cast_block_scaled_best call over the
- *  flattened element count — blocks never span rows because the last dim is block-aligned.
+ *  allocated as child Tensors, and filled by a single @c nk_cast_best call over the flattened
+ *  element count — blocks never span rows because the last dim is block-aligned.
  *
  *  For NVFP4, `tensor_scale_dtype == f32`, the per-tensor scale is auto-derived by handing the
- *  kernel a zero-initialised @c to_tensor_scale and reading the result back into `.tensor_scale`.
+ *  kernel a zero-initialised @c tensor_scale and reading the result back into `.tensor_scale`.
  *  The MX family carries no per-tensor scale, `.tensor_scale is None`.
  */
 static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dtype) {
@@ -2626,15 +2634,11 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
     }
 
     int has_tensor_scale = (to_format.tensor_scale_dtype == nk_f32_k);
-    nk_scalar_buffer_t to_tensor_scale;
-    memset(&to_tensor_scale, 0, sizeof(to_tensor_scale));
-    to_tensor_scale.f32 = 0.0f; // zero → kernel derives the per-tensor scale (NVFP4)
+    nk_f32_t to_tensor_scale = 0.0f; // zero → kernel derives the per-tensor scale (NVFP4)
+    scaled_operand_t to_operand = {elements->data, block_scales->data, has_tensor_scale ? &to_tensor_scale : NULL};
 
-    nk_block_scaled_format_t from_format = nk_plain(nk_f32_k);
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_block_scaled_best(staging, NULL, NULL, &from_format,                                              //
-                              elements->data, block_scales->data, has_tensor_scale ? &to_tensor_scale : NULL, //
-                              &to_format, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(staging, nk_f32_k, &to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
     PyEval_RestoreThread(gil);
 
     if (staging_free) PyMem_Free(staging);
@@ -2643,7 +2647,7 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
     result->block_scales = block_scales;
     result->dtype = target_dtype;
     result->block_size = block_size;
-    result->tensor_scale = has_tensor_scale ? to_tensor_scale.f32 : 1.0f;
+    result->tensor_scale = has_tensor_scale ? to_tensor_scale : 1.0f;
     result->has_tensor_scale = has_tensor_scale;
     return (PyObject *)result;
 }
@@ -2652,7 +2656,7 @@ char const doc_method_astype[] =                                                
     "Cast the tensor to a different dtype.\n\n"                                              //
     "Args:\n"                                                                                //
     "    dtype (str): Target data type. Standard dtypes, such as 'float32' or 'bf16',\n"     //
-    "        return a Tensor; block-scaled dtypes ('nvfp4', 'mxfp4', 'mxfp8_e4m3',\n"        //
+    "        return a Tensor; block-scaled dtypes ('nvfp4', 'mxfp4', 'mxfp8e4m3',\n"         //
     "        ...) quantize along the last axis and return a ScaledTensor.\n"                 //
     "    out (Tensor, optional): Pre-allocated destination. When given, conversion writes\n" //
     "        into it with no allocation; must match the target dtype and source shape.\n"    //
@@ -3446,10 +3450,10 @@ static char const *scaled_dtype_name(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return "nvfp4";
     case nk_mxfp4_k: return "mxfp4";
-    case nk_mxfp6_e2m3_k: return "mxfp6_e2m3";
-    case nk_mxfp6_e3m2_k: return "mxfp6_e3m2";
-    case nk_mxfp8_e4m3_k: return "mxfp8_e4m3";
-    case nk_mxfp8_e5m2_k: return "mxfp8_e5m2";
+    case nk_mxfp6e2m3_k: return "mxfp6e2m3";
+    case nk_mxfp6e3m2_k: return "mxfp6e3m2";
+    case nk_mxfp8e4m3_k: return "mxfp8e4m3";
+    case nk_mxfp8e5m2_k: return "mxfp8e5m2";
     case nk_mxint8_k: return "mxint8";
     default: return nk_dtype_python_name(dtype);
     }
@@ -3609,18 +3613,14 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
         return NULL;
     }
 
-    nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(scaled->dtype);
     int to_has_tensor_scale = (to_format.tensor_scale_dtype == nk_f32_k);
-    nk_scalar_buffer_t from_tensor_scale, to_tensor_scale;
-    memset(&from_tensor_scale, 0, sizeof(from_tensor_scale));
-    memset(&to_tensor_scale, 0, sizeof(to_tensor_scale));
-    from_tensor_scale.f32 = scaled->tensor_scale;
-    to_tensor_scale.f32 = 0.0f; // zero → kernel derives the destination per-tensor scale (NVFP4)
+    nk_f32_t from_tensor_scale = scaled->tensor_scale;
+    nk_f32_t to_tensor_scale = 0.0f; // zero → kernel derives the destination per-tensor scale (NVFP4)
+    scaled_operand_t from_operand = {elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL};
+    scaled_operand_t to_operand = {dst_elements->data, dst_scales->data, to_has_tensor_scale ? &to_tensor_scale : NULL};
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_block_scaled_best(elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL, &from_format,
-                              dst_elements->data, dst_scales->data, to_has_tensor_scale ? &to_tensor_scale : NULL,
-                              &to_format, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(&from_operand, scaled->dtype, &to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
@@ -3630,7 +3630,7 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
     result->block_scales = dst_scales;
     result->dtype = target_dtype;
     result->block_size = to_block_size;
-    result->tensor_scale = to_has_tensor_scale ? to_tensor_scale.f32 : 1.0f;
+    result->tensor_scale = to_has_tensor_scale ? to_tensor_scale : 1.0f;
     result->has_tensor_scale = to_has_tensor_scale;
     return (PyObject *)result;
 }
@@ -3683,15 +3683,12 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
         return NULL;
     }
 
-    nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(scaled->dtype);
-    nk_block_scaled_format_t to_format = nk_plain(nk_f32_k);
-    nk_scalar_buffer_t from_tensor_scale;
-    memset(&from_tensor_scale, 0, sizeof(from_tensor_scale));
-    from_tensor_scale.f32 = scaled->tensor_scale;
+    nk_f32_t from_tensor_scale = scaled->tensor_scale;
+    scaled_operand_t from_operand = {elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL};
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_block_scaled_best(elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL, &from_format,
-                              f32_result->data, NULL, NULL, &to_format, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(&from_operand, scaled->dtype, f32_result->data, nk_f32_k, (nk_size_t)total, default_capabilities,
+                 NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
@@ -3705,7 +3702,7 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
         Py_DECREF(f32_result);
         return NULL;
     }
-    nk_cast_best(f32_result->data, nk_f32_k, (nk_size_t)total, result->data, target_dtype, default_capabilities, NULL);
+    nk_cast_best(f32_result->data, nk_f32_k, result->data, target_dtype, (nk_size_t)total, default_capabilities, NULL);
     Py_DECREF(f32_result);
     return (PyObject *)result;
 }
@@ -3926,7 +3923,7 @@ static int tensor_fill_affine(Tensor *tensor, nk_f64_t first, nk_f64_t step) {
             return 0;
         }
         for (size_t i = 0; i < total; i++) staging[i] = first + step * (nk_f64_t)i;
-        nk_cast_best(staging, nk_f64_k, (nk_size_t)total, tensor->data, tensor->dtype, default_capabilities, NULL);
+        nk_cast_best(staging, nk_f64_k, tensor->data, tensor->dtype, (nk_size_t)total, default_capabilities, NULL);
         PyMem_Free(staging);
         return 1;
     }
@@ -4374,7 +4371,7 @@ PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t const n
             return PyErr_NoMemory();
         }
         for (Py_ssize_t i = 0; i < n; i++) staging[(size_t)i * ((size_t)n + 1)] = (nk_f64_t)seed;
-        nk_cast_best(staging, nk_f64_k, (nk_size_t)total, result->data, dtype, default_capabilities, NULL);
+        nk_cast_best(staging, nk_f64_k, result->data, dtype, (nk_size_t)total, default_capabilities, NULL);
         PyMem_Free(staging);
         return (PyObject *)result;
     }

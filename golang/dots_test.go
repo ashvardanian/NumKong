@@ -70,22 +70,22 @@ func TestPackedConstructorValidation(t *testing.T) {
 
 func TestDotsPackedF64(t *testing.T) {
 	// A: 2×3 matrix, B: 3×3 matrix → C: 2×3 result
-	height, width, depth := 2, 3, 3
+	rows, columns, depth := 2, 3, 3
 	a := []float64{1, 2, 3, 4, 5, 6}             // 2 rows of depth 3
 	b := []float64{7, 8, 9, 10, 11, 12, 1, 0, 1} // 3 rows of depth 3
 
-	bPacked := numkong.NewDotsPackedMatrixF64(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF64(b, columns, depth)
 
-	c := make([]float64, height*width)
-	numkong.DotsPackedF64(a, bPacked, c, height)
+	c := make([]float64, rows*columns)
+	numkong.DotsPackedF64(a, bPacked, c, rows)
 
 	// Verify against scalar dot products
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.DotF64(aVec, bVec)
-			got := c[i*width+j]
+			got := c[i*columns+j]
 			if math.Abs(got-expected) > 1e-6 {
 				t.Errorf("DotsPackedF64[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -94,21 +94,21 @@ func TestDotsPackedF64(t *testing.T) {
 }
 
 func TestDotsPackedF32(t *testing.T) {
-	height, width, depth := 2, 3, 3
+	rows, columns, depth := 2, 3, 3
 	a := []float32{1, 2, 3, 4, 5, 6}
 	b := []float32{7, 8, 9, 10, 11, 12, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixF32(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF32(b, columns, depth)
 
-	c := make([]float64, height*width)
-	numkong.DotsPackedF32(a, bPacked, c, height)
+	c := make([]float64, rows*columns)
+	numkong.DotsPackedF32(a, bPacked, c, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.DotF32(aVec, bVec)
-			got := c[i*width+j]
+			got := c[i*columns+j]
 			if math.Abs(got-expected) > 0.01 {
 				t.Errorf("DotsPackedF32[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -117,21 +117,21 @@ func TestDotsPackedF32(t *testing.T) {
 }
 
 func TestDotsPackedI8(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []int8{1, 2, 3, 4, 5, 6}
 	b := []int8{7, 8, 9, 10, 11, 12}
 
-	bPacked := numkong.NewDotsPackedMatrixI8(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixI8(b, columns, depth)
 
-	c := make([]int32, height*width)
-	numkong.DotsPackedI8(a, bPacked, c, height)
+	c := make([]int32, rows*columns)
+	numkong.DotsPackedI8(a, bPacked, c, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.DotI8(aVec, bVec)
-			got := c[i*width+j]
+			got := c[i*columns+j]
 			if got != expected {
 				t.Errorf("DotsPackedI8[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -140,21 +140,21 @@ func TestDotsPackedI8(t *testing.T) {
 }
 
 func TestDotsPackedU8(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []uint8{1, 2, 3, 4, 5, 6}
 	b := []uint8{7, 8, 9, 10, 11, 12}
 
-	bPacked := numkong.NewDotsPackedMatrixU8(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixU8(b, columns, depth)
 
-	c := make([]uint32, height*width)
-	numkong.DotsPackedU8(a, bPacked, c, height)
+	c := make([]uint32, rows*columns)
+	numkong.DotsPackedU8(a, bPacked, c, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.DotU8(aVec, bVec)
-			got := c[i*width+j]
+			got := c[i*columns+j]
 			if got != expected {
 				t.Errorf("DotsPackedU8[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}

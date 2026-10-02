@@ -35,7 +35,7 @@ error_stats_t test_reduce_moments(settings_t const &settings, typename input_typ
     backend_type_ backend;
     error_stats_t stats(nk_reduce_moments_error_bound(input_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
-    std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
+    std::uniform_int_distribution<std::size_t> stride_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_))).value;
@@ -43,14 +43,14 @@ error_stats_t test_reduce_moments(settings_t const &settings, typename input_typ
     auto sumsq = sumsqs_t::zeros(1).value;
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;) {
-        std::size_t stride_bytes = stride_bytes_distribution(generator);
+        std::size_t stride = stride_distribution(generator);
         fill_random(settings, generator, buffer);
-        backend.call(kernel, buffer.raw_values_data(), n, stride_bytes, sum.raw_values_data(), sumsq.raw_values_data());
+        backend.call(kernel, buffer.raw_values_data(), n, stride, sum.raw_values_data(), sumsq.raw_values_data());
         if (char const *failure = backend.synchronize()) stats.expect(false, failure);
         sum_reference_t sum_reference;
         sumsq_reference_t sumsq_reference;
         stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
-            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference, no_tiers_k));
+            buffer.values_data(), n, stride, &sum_reference, &sumsq_reference, no_tiers_k));
         stats.accumulate(sum_t::from_raw(sum.raw_values_data()[0]), sum_reference);
         stats.accumulate(sumsq_t::from_raw(sumsq.raw_values_data()[0]), sumsq_reference);
     }
@@ -67,20 +67,20 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
     backend_type_ backend;
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
-    std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
+    std::uniform_int_distribution<std::size_t> stride_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
     auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_))).value;
     auto extrema = extrema_t::zeros(2).value;
     auto indices = indices_t::zeros(2).value;
     auto *index_values = reinterpret_cast<nk_size_t *>(indices.raw_values_data());
-    auto compare = [&](std::size_t stride_bytes) {
-        backend.call(kernel, buffer.raw_values_data(), n, stride_bytes, extrema.raw_values_data() + 0, index_values + 0,
+    auto compare = [&](std::size_t stride) {
+        backend.call(kernel, buffer.raw_values_data(), n, stride, extrema.raw_values_data() + 0, index_values + 0,
                      extrema.raw_values_data() + 1, index_values + 1);
         if (char const *failure = backend.synchronize()) stats.expect(false, failure);
         output_t reference_min, reference_max;
         std::size_t reference_min_index, reference_max_index;
-        stats.expect(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride_bytes, &reference_min,
+        stats.expect(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride, &reference_min,
                                                               &reference_min_index, &reference_max,
                                                               &reference_max_index, no_tiers_k));
         stats.accumulate(index_values[0], static_cast<nk_size_t>(reference_min_index));
@@ -98,9 +98,9 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
     }
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;) {
-        std::size_t stride_bytes = stride_bytes_distribution(generator);
+        std::size_t stride = stride_distribution(generator);
         fill_random(settings, generator, buffer);
-        compare(stride_bytes);
+        compare(stride);
     }
     return stats;
 }

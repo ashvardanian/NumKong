@@ -303,20 +303,20 @@ mod tests {
     #[test]
     fn attention_smoke() {
         capabilities::configure_cpu_thread().unwrap();
-        let (tokens, heads, head_dim) = (24usize, 2usize, 32usize);
-        let keys = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.25)).unwrap();
-        let values = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.5)).unwrap();
+        let (tokens, heads, depth) = (24usize, 2usize, 32usize);
+        let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.25)).unwrap();
+        let values = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.5)).unwrap();
         let offsets = [0u32, 10, 24];
 
-        let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
+        let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
         assert_eq!(kv.segments(), 2);
         assert_eq!(kv.heads(), heads);
-        assert_eq!(kv.depth(), head_dim);
+        assert_eq!(kv.depth(), depth);
         assert_eq!(kv.tokens(), tokens);
 
         // With constant V, softmax weights sum to 1 → every output equals V's value.
         let outputs = kv.attention(&keys.view(), &offsets, None).unwrap();
-        assert_eq!(outputs.shape(), [tokens, heads * head_dim]);
+        assert_eq!(outputs.shape(), [tokens, heads * depth]);
         for &x in outputs.as_slice() {
             assert!((x - 0.5).abs() < 1e-2, "expected 0.5, got {x}");
         }
@@ -325,24 +325,23 @@ mod tests {
     #[test]
     fn attention_kv_cache_reuse() {
         capabilities::configure_cpu_thread().unwrap();
-        let (heads, head_dim) = (2usize, 32usize);
-        let small = Tensor::<bf16>::full(&[10, heads * head_dim], bf16::from_f32(0.25)).unwrap();
-        let big = Tensor::<bf16>::full(&[24, heads * head_dim], bf16::from_f32(0.25)).unwrap();
+        let (heads, depth) = (2usize, 32usize);
+        let small = Tensor::<bf16>::full(&[10, heads * depth], bf16::from_f32(0.25)).unwrap();
+        let big = Tensor::<bf16>::full(&[24, heads * depth], bf16::from_f32(0.25)).unwrap();
         let small_off = [0u32, 4, 10];
         let big_off = [0u32, 10, 24];
 
-        let mut kv = AttentionPackedMatrix::new(&small.view(), &small.view(), head_dim, &small_off).unwrap();
+        let mut kv = AttentionPackedMatrix::new(&small.view(), &small.view(), depth, &small_off).unwrap();
         let cap0 = kv.capacity();
         assert!(cap0 > 0);
 
         // Same geometry repacked in place → allocation reused, capacity unchanged.
-        kv.pack_into(&small.view(), &small.view(), head_dim, &small_off)
-            .unwrap();
+        kv.pack_into(&small.view(), &small.view(), depth, &small_off).unwrap();
         assert_eq!(kv.capacity(), cap0, "same-size repack must reuse the buffer");
         assert_eq!(kv.tokens(), 10);
 
         // Larger geometry → capacity grows, never shrinks.
-        kv.pack_into(&big.view(), &big.view(), head_dim, &big_off).unwrap();
+        kv.pack_into(&big.view(), &big.view(), depth, &big_off).unwrap();
         assert!(kv.capacity() >= cap0, "grow must not shrink capacity");
         assert_eq!(kv.tokens(), 24);
         assert_eq!(kv.segments(), 2);
@@ -353,10 +352,9 @@ mod tests {
         assert_eq!(kv.tokens(), 0);
         assert_eq!(kv.capacity(), cap_big, "clear keeps the allocation");
 
-        kv.pack_into(&small.view(), &small.view(), head_dim, &small_off)
-            .unwrap();
+        kv.pack_into(&small.view(), &small.view(), depth, &small_off).unwrap();
         let outputs = kv.attention(&small.view(), &small_off, None).unwrap();
-        assert_eq!(outputs.shape(), [10, heads * head_dim]);
+        assert_eq!(outputs.shape(), [10, heads * depth]);
     }
 
     #[cfg(feature = "parallel")]
@@ -364,7 +362,7 @@ mod tests {
     #[test]
     fn attention_parallel_matches_serial() {
         capabilities::configure_cpu_thread().unwrap();
-        let (heads, head_dim) = (4usize, 64usize);
+        let (heads, depth) = (4usize, 64usize);
         let lengths = [7u32, 250, 0, 33, 129]; // ragged mix: tiny, sub-panel, pad, odd
         let mut offsets = vec![0u32];
         for length in lengths {
@@ -372,14 +370,14 @@ mod tests {
         }
         let tokens = *offsets.last().unwrap() as usize;
 
-        let keys = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.125)).unwrap();
-        let values = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.75)).unwrap();
-        let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
+        let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.125)).unwrap();
+        let values = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.75)).unwrap();
+        let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
 
         let sequential = kv.attention(&keys.view(), &offsets, None).unwrap();
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
-        let mut parallel = Tensor::<f32>::full(&[tokens, heads * head_dim], 0.0).unwrap();
+        let mut parallel = Tensor::<f32>::full(&[tokens, heads * depth], 0.0).unwrap();
         kv.attention_parallel_into(&keys.view(), &offsets, None, &mut parallel, &mut pool)
             .unwrap();
 
@@ -399,7 +397,7 @@ mod tests {
     #[test]
     fn attention_capabilities_symmetry() {
         capabilities::configure_cpu_thread().unwrap();
-        let (heads, head_dim) = (4usize, 64usize);
+        let (heads, depth) = (4usize, 64usize);
         let lengths = [7u32, 250, 0, 33, 129]; // ragged mix incl. a pad segment
         let mut offsets = vec![0u32];
         for length in lengths {
@@ -407,15 +405,15 @@ mod tests {
         }
         let tokens = *offsets.last().unwrap() as usize;
 
-        let keys = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.125)).unwrap();
-        let values = Tensor::<bf16>::full(&[tokens, heads * head_dim], bf16::from_f32(0.75)).unwrap();
+        let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.125)).unwrap();
+        let values = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.75)).unwrap();
 
         // The `pack_size` query must predict the produced blob size exactly.
         let seg_lengths: Vec<u32> = offsets.windows(2).map(|p| p[1] - p[0]).collect();
-        let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, head_dim, &seg_lengths).unwrap();
+        let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, depth, &seg_lengths).unwrap();
 
         // Serial pack via the typed constructor.
-        let kv_serial = AttentionPackedMatrix::new(&keys.view(), &values.view(), head_dim, &offsets).unwrap();
+        let kv_serial = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
         assert_eq!(
             kv_serial.as_bytes().len(),
             predicted,
@@ -426,7 +424,7 @@ mod tests {
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         let kv_parallel =
-            AttentionPackedMatrix::new_parallel(&keys.view(), &values.view(), head_dim, &offsets, &mut pool).unwrap();
+            AttentionPackedMatrix::new_parallel(&keys.view(), &values.view(), depth, &offsets, &mut pool).unwrap();
         assert_eq!(
             kv_serial.as_bytes(),
             kv_parallel.as_bytes(),

@@ -9,27 +9,27 @@ package numkong
 import "C"
 import "unsafe"
 
-// HammingsPackedU1 computes the Hamming distance from each of height binary vectors to every packed
-// query. Each vector has [DotsPackedMatrix.Depth] dimensions, and result holds at least height *
-// [DotsPackedMatrix.Width] entries.
-func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, height int) {
+// HammingsPackedU1 computes the Hamming distance from each of rows binary vectors to every packed
+// query. Each vector has [DotsPackedMatrix.Depth] dimensions, and result holds at least rows *
+// [DotsPackedMatrix.Columns] entries.
+func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, rows int) {
 	if query.DType() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
 	}
 	bytesPerVec := DimensionsToValues("u1", query.depth)
-	if len(vectors) < height*bytesPerVec {
-		panic("input slice too short for the given height and depth")
+	if len(vectors) < rows*bytesPerVec {
+		panic("input slice too short for the given rows and depth")
 	}
-	if len(result) < height*query.width {
-		panic("output slice too short for the given height and width")
+	if len(result) < rows*query.columns {
+		panic("output slice too short for the given rows and columns")
 	}
 	check(C.nk_hammings_packed_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		unsafe.Pointer(&query.data[0]),
 		(*C.nk_u32_t)(&result[0]),
-		C.nk_size_t(height), C.nk_size_t(query.width), C.nk_size_t(query.depth),
+		C.nk_size_t(rows), C.nk_size_t(query.columns), C.nk_size_t(query.depth),
 		C.nk_size_t(bytesPerVec),
-		C.nk_size_t(query.width*4), capabilities(), nil))
+		C.nk_size_t(query.columns*4), capabilities(), nil))
 }
 
 // HammingsSymmetricU1 computes the Hamming distance between every pair of nVectors binary vectors
@@ -58,27 +58,27 @@ func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, r
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
 }
 
-// JaccardsPackedU1 computes the Jaccard distance from each of height binary vectors to every packed
-// query. Each vector has [DotsPackedMatrix.Depth] dimensions, and result holds at least height *
-// [DotsPackedMatrix.Width] entries.
-func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, height int) {
+// JaccardsPackedU1 computes the Jaccard distance from each of rows binary vectors to every packed
+// query. Each vector has [DotsPackedMatrix.Depth] dimensions, and result holds at least rows *
+// [DotsPackedMatrix.Columns] entries.
+func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, rows int) {
 	if query.DType() != "u1" {
 		panic("DotsPackedMatrix dtype must be u1")
 	}
 	bytesPerVec := DimensionsToValues("u1", query.depth)
-	if len(vectors) < height*bytesPerVec {
-		panic("input slice too short for the given height and depth")
+	if len(vectors) < rows*bytesPerVec {
+		panic("input slice too short for the given rows and depth")
 	}
-	if len(result) < height*query.width {
-		panic("output slice too short for the given height and width")
+	if len(result) < rows*query.columns {
+		panic("output slice too short for the given rows and columns")
 	}
 	check(C.nk_jaccards_packed_u1_best(
 		(*C.nk_u1x8_t)(&vectors[0]),
 		unsafe.Pointer(&query.data[0]),
 		(*C.nk_f32_t)(&result[0]),
-		C.nk_size_t(height), C.nk_size_t(query.width), C.nk_size_t(query.depth),
+		C.nk_size_t(rows), C.nk_size_t(query.columns), C.nk_size_t(query.depth),
 		C.nk_size_t(bytesPerVec),
-		C.nk_size_t(query.width*4), capabilities(), nil))
+		C.nk_size_t(query.columns*4), capabilities(), nil))
 }
 
 // JaccardsSymmetricU1 computes the Jaccard distance between every pair of nVectors binary vectors

@@ -139,24 +139,24 @@ def baseline_multiply(x, y, out=None):
     return result
 
 
-def baseline_swiglu(gate, up, input_scale):
+def baseline_swiglu(gate, up, gate_scale, output_scale):
     """NumPy float64 reference for SwiGLU / SiLU over the rounded inputs."""
-    g = np.asarray(gate, dtype=np.float64) * input_scale
+    g = np.asarray(gate, dtype=np.float64) * gate_scale
     y = g / (1.0 + np.exp(-g))  # SiLU
     if up is not None:
-        y = y * (np.asarray(up, dtype=np.float64) * input_scale)
-    return y
+        y = y * np.asarray(up, dtype=np.float64)
+    return y * output_scale
 
 
-def baseline_rmsnorm(x, gamma, groups, eps, input_scale):
+def baseline_rmsnorm(x, gamma, groups, epsilon):
     """NumPy float64 reference for grouped RMSNorm over the rounded input."""
     rows, width = x.shape
-    cols = width // groups
-    scaled = (np.asarray(x, dtype=np.float64) * input_scale).reshape(rows, groups, cols)
+    columns = width // groups
+    scaled = np.asarray(x, dtype=np.float64).reshape(rows, groups, columns)
     mean_sq = np.mean(scaled * scaled, axis=2, keepdims=True)
-    normalized = scaled / np.sqrt(mean_sq + eps)
+    normalized = scaled / np.sqrt(mean_sq + epsilon)
     if gamma is not None:
-        normalized = normalized * np.asarray(gamma, dtype=np.float64).reshape(1, 1, cols)
+        normalized = normalized * np.asarray(gamma, dtype=np.float64).reshape(1, 1, columns)
     return normalized.reshape(rows, width)
 
 
@@ -862,12 +862,12 @@ def test_swiglu(shape, with_up, dtype, capability, np_rng: np.random.Generator):
         nk_up = make_nk(up_raw, dtype)
     else:
         nk_up, up_base = None, None
-    input_scale = 0.75 if dtype == "e4m3" else 1.0
+    gate_scale, output_scale = (0.75, 0.5) if dtype == "e4m3" else (1.0, 1.0)
 
-    result = nk.swiglu(nk_gate, nk_up, input_scale=input_scale)
+    result = nk.swiglu(nk_gate, nk_up, gate_scale=gate_scale, output_scale=output_scale)
     y = np.asarray(result if dtype == "float32" else result.astype("float32"))
 
-    expected = baseline_swiglu(gate_base, up_base, input_scale)
+    expected = baseline_swiglu(gate_base, up_base, gate_scale, output_scale)
     if dtype != "float32":  # round the reference through the lossy output dtype (matches what the kernel stores)
         expected = np.asarray(
             nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
@@ -890,16 +890,15 @@ def test_rmsnorm(shape, groups, with_gamma, dtype, capability, np_rng: np.random
     _rows, width = shape
     if width % groups != 0:
         pytest.skip("width not divisible by groups")
-    cols = width // groups
+    columns = width // groups
     x_raw, x_base = make_random(shape, dtype, np_rng)
     nk_x = make_nk(x_raw, dtype)
-    gamma = make_random((cols,), "float32", np_rng)[0] if with_gamma else None
-    input_scale = 0.75 if dtype == "e4m3" else 1.0
+    gamma = make_random((columns,), "float32", np_rng)[0] if with_gamma else None
 
-    result = nk.rmsnorm(nk_x, gamma, groups=groups, eps=1e-6, input_scale=input_scale)
+    result = nk.rmsnorm(nk_x, gamma, groups=groups, epsilon=1e-6)
     y = np.asarray(result if dtype == "float32" else result.astype("float32"))
 
-    expected = baseline_rmsnorm(x_base, gamma, groups, 1e-6, input_scale)
+    expected = baseline_rmsnorm(x_base, gamma, groups, 1e-6)
     if dtype != "float32":  # round the reference through the lossy output dtype (matches what the kernel stores)
         expected = np.asarray(
             nk.Tensor(np.ascontiguousarray(expected.astype(np.float32))).astype(dtype).astype("float32")
@@ -909,14 +908,14 @@ def test_rmsnorm(shape, groups, with_gamma, dtype, capability, np_rng: np.random
 
 
 def test_rmsnorm_strided_qk_norm(np_rng: np.random.Generator):
-    """Unit QK-norm shape: a strided [tokens, head_dim] view of a fused [tokens, 3*hidden] buffer."""
+    """Unit QK-norm shape: a strided [tokens, depth] view of a fused [tokens, 3*hidden] buffer."""
     keep_one_capability("serial")
     tokens, hidden = 5, 96
     qkv = np_rng.standard_normal((tokens, 3 * hidden)).astype(np.float32)
     q_view = qkv[:, 0:hidden]  # row stride = 3*hidden*4 bytes
     heads = 3
-    out = np.asarray(nk.rmsnorm(q_view, None, groups=heads, eps=1e-6))
-    expected = baseline_rmsnorm(np.ascontiguousarray(q_view), None, heads, 1e-6, 1.0)
+    out = np.asarray(nk.rmsnorm(q_view, None, groups=heads, epsilon=1e-6))
+    expected = baseline_rmsnorm(np.ascontiguousarray(q_view), None, heads, 1e-6)
     assert_allclose(out, expected, atol=1e-4, rtol=1e-4)
 
 

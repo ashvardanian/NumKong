@@ -97,14 +97,15 @@ nk_define_cross_pack_(dots, e2m3, alder, e2m3, e2m3, nk_b256_vec_t, nk_load_b256
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_,
                       /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e2m3, alder, e2m3, f32, nk_b256_vec_t, nk_dot_e2m3x32_state_alder_t, nk_b128_vec_t,
-                           nk_dot_e2m3x32_init_alder, nk_load_b256_haswell_, nk_partial_load_b8x32_serial_,
-                           nk_dot_e2m3x32_update_alder, nk_dot_e2m3x32_finalize_alder, nk_store_b128_haswell_,
-                           nk_partial_store_b32x4_haswell_,
+                           nk_dot_e2m3x32_init_alder, nk_cross_unscaled_, nk_load_b256_haswell_,
+                           nk_partial_load_b8x32_serial_, nk_dot_e2m3x32_update_alder, nk_dot_e2m3x32_finalize_alder,
+                           nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e2m3, alder, e2m3, e2m3, f32, nk_b256_vec_t, nk_dot_e2m3x32_state_alder_t, nk_b128_vec_t,
-                        nk_dot_e2m3x32_init_alder, nk_load_b256_haswell_, nk_partial_load_b8x32_serial_,
-                        nk_load_b256_haswell_, nk_partial_load_b8x32_serial_, nk_dot_e2m3x32_update_alder,
-                        nk_dot_e2m3x32_finalize_alder, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                        nk_dot_e2m3x32_init_alder, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_partial_load_b8x32_serial_, nk_load_b256_haswell_, nk_partial_load_b8x32_serial_,
+                        nk_dot_e2m3x32_update_alder, nk_dot_e2m3x32_finalize_alder, nk_store_b128_haswell_,
+                        nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
 /*  E2M1 GEMM via the DPBUSD integer path: depth_simd_dimensions = 64, as 64 nibbles span the 32
@@ -117,13 +118,15 @@ nk_define_cross_pack_(dots, e2m1, alder, e2m1x2, e2m1x2, nk_b256_vec_t, nk_load_
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
                       /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, e2m1, alder, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_alder_t, nk_b128_vec_t,
-                           nk_dot_e2m1x64_init_alder, nk_load_b256_haswell_, nk_partial_load_b4x64_serial_,
-                           nk_dot_e2m1x64_update_alder, nk_dot_e2m1x64_finalize_alder, nk_store_b128_haswell_,
-                           nk_partial_store_b32x4_haswell_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
+                           nk_dot_e2m1x64_init_alder, nk_cross_unscaled_, nk_load_b256_haswell_,
+                           nk_partial_load_b4x64_serial_, nk_dot_e2m1x64_update_alder, nk_dot_e2m1x64_finalize_alder,
+                           nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_, /*depth_simd_dimensions=*/64,
+                           /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, e2m1, alder, e2m1x2, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_alder_t,
-                        nk_b128_vec_t, nk_dot_e2m1x64_init_alder, nk_load_b256_haswell_, nk_partial_load_b4x64_serial_,
-                        nk_load_b256_haswell_, nk_partial_load_b4x64_serial_, nk_dot_e2m1x64_update_alder,
-                        nk_dot_e2m1x64_finalize_alder, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                        nk_b128_vec_t, nk_dot_e2m1x64_init_alder, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_partial_load_b4x64_serial_, nk_load_b256_haswell_, nk_partial_load_b4x64_serial_,
+                        nk_dot_e2m1x64_update_alder, nk_dot_e2m1x64_finalize_alder, nk_store_b128_haswell_,
+                        nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 
 #if defined(__clang__)

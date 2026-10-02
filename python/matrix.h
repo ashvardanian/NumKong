@@ -52,8 +52,8 @@ typedef struct PackedMatrix {
     /** Packed dtype, bf16, i8, f32, etc. */
     nk_dtype_t dtype;
 
-    /** Number of rows in original matrix, the width. */
-    nk_size_t width;
+    /** Number of rows in the original matrix, the columns of the result. */
+    nk_size_t columns;
 
     /** Number of columns in original matrix, the depth. */
     nk_size_t depth;

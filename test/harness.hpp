@@ -140,6 +140,10 @@ using nk::i32_t;
 using nk::i4x2_t;
 using nk::i64_t;
 using nk::i8_t;
+using nk::mxfp4_t;
+using nk::mxfp8e4m3_t;
+using nk::mxfp8e5m2_t;
+using nk::nvfp4_t;
 using nk::u16_t;
 using nk::u1x8_t;
 using nk::u32_t;
@@ -150,10 +154,10 @@ using nk::ue4m3_t;
 using nk::ue8m0_t;
 
 using nk::mxfp4_t;
-using nk::mxfp6_e2m3_t;
-using nk::mxfp6_e3m2_t;
-using nk::mxfp8_e4m3_t;
-using nk::mxfp8_e5m2_t;
+using nk::mxfp6e2m3_t;
+using nk::mxfp6e3m2_t;
+using nk::mxfp8e4m3_t;
+using nk::mxfp8e5m2_t;
 using nk::mxint8_t;
 using nk::nvfp4_t;
 

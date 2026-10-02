@@ -30,25 +30,23 @@ use crate::capabilities::WorkerStatus;
 extern "C" {
 
     fn nk_dots_pack_size_f32_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_f32_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_f32_best(
         matrix: *const f32,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -57,39 +55,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_f32_best(
         queries: *const f32,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_f64_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_f64_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_f64_best(
         matrix: *const f64,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -98,39 +92,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_f64_best(
         queries: *const f64,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_f16_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_f16_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_f16_best(
         matrix: *const u16,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -139,39 +129,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_f16_best(
         queries: *const u16,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_bf16_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_bf16_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_bf16_best(
         matrix: *const u16,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -180,39 +166,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_bf16_best(
         queries: *const u16,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_i8_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_i8_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_i8_best(
         matrix: *const i8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -221,39 +203,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_i8_best(
         queries: *const i8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut i32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_u8_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_u8_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_u8_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -262,39 +240,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_u8_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut u32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_e4m3_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_e4m3_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_e4m3_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -303,39 +277,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e4m3_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_e5m2_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_e5m2_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_e5m2_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -344,39 +314,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e5m2_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_e2m3_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_e2m3_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_e2m3_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -385,39 +351,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e2m3_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_e2m1_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_e2m1_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_e2m1_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -426,39 +388,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e2m1_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_e3m2_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_e3m2_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_e3m2_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -467,39 +425,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e3m2_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_u4_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_u4_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_u4_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -508,39 +462,35 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_u4_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut u32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_i4_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_i4_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_i4_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -549,14 +499,12 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_i4_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut i32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -565,11 +513,9 @@ extern "C" {
     // Symmetric Gram matrix (C = A × Aᵀ)
     fn nk_dots_symmetric_f32_best(
         vectors: *const f32,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -579,11 +525,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_f64_best(
         vectors: *const f64,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -593,11 +537,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_f16_best(
         vectors: *const u16,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -607,11 +549,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_bf16_best(
         vectors: *const u16,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -621,11 +561,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_i8_best(
         vectors: *const i8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut i32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -635,11 +573,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_u8_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -649,11 +585,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e4m3_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -663,11 +597,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e5m2_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -677,11 +609,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e2m3_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -691,11 +621,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e2m1_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -705,11 +633,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e3m2_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -719,11 +645,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_u4_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -733,11 +657,9 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_i4_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut i32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -747,25 +669,23 @@ extern "C" {
     ) -> nk_status_t;
 
     fn nk_dots_pack_size_u1_best(
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         capabilities: nk_capability_t,
         bytes: *mut nk_size_t,
     ) -> nk_status_t;
     fn nk_dots_packed_shape_u1_best(
         packed: *const u8,
-        width: *mut nk_size_t,
+        columns: *mut nk_size_t,
         depth: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_pack_u1_best(
         matrix: *const u8,
-        b_scales: *const c_void,
-        width: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
-        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -774,25 +694,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_u1_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut u32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_symmetric_u1_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -852,9 +768,9 @@ pub trait Dots: StorageElement + private::Sealed {
     type Accumulator: StorageElement;
 
     /// Returns the size in bytes needed for the packed B matrix buffer.
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError>;
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError>;
 
-    /// Reads the packed B matrix's width and depth from its header.
+    /// Reads the packed B matrix's columns and depth from its header.
     /// # Safety
     /// `packed` must point to a buffer produced by `dots_pack`.
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError>;
@@ -862,11 +778,11 @@ pub trait Dots: StorageElement + private::Sealed {
     /// Packs the B matrix into an optimized backend-specific layout.
     ///
     /// # Safety
-    /// - `b` must point to valid memory for `width * depth` elements
-    /// - `packed` must point to a buffer of at least `dots_pack_size(width, depth)` bytes
+    /// - `b` must point to valid memory for `columns * depth` elements
+    /// - `packed` must point to a buffer of at least `dots_pack_size(columns, depth)` bytes
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -877,15 +793,15 @@ pub trait Dots: StorageElement + private::Sealed {
     /// Computes C = A × Bᵀ using packed B.
     ///
     /// # Safety
-    /// - `a` must point to valid memory for `height * depth` elements with given stride
+    /// - `a` must point to valid memory for `rows * depth` elements with given stride
     /// - `packed` must be a buffer filled by `dots_pack`
-    /// - `c` must point to valid memory for `height` × `width` elements with given stride
+    /// - `c` must point to valid memory for `rows` × `columns` elements with given stride
     unsafe fn dots_packed(
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
@@ -916,27 +832,27 @@ pub trait Dots: StorageElement + private::Sealed {
 impl Dots for f32 {
     type Accumulator = f64;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_f32_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_f32_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_f32_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -945,11 +861,9 @@ impl Dots for f32 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_f32_best(
             matrix,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -963,22 +877,20 @@ impl Dots for f32 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_f32_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -998,11 +910,9 @@ impl Dots for f32 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_f32_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1017,27 +927,27 @@ impl Dots for f32 {
 impl Dots for f64 {
     type Accumulator = f64;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_f64_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_f64_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_f64_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1046,11 +956,9 @@ impl Dots for f64 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_f64_best(
             matrix,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1064,22 +972,20 @@ impl Dots for f64 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_f64_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1099,11 +1005,9 @@ impl Dots for f64 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_f64_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1118,27 +1022,27 @@ impl Dots for f64 {
 impl Dots for f16 {
     type Accumulator = f32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_f16_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_f16_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_f16_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1147,11 +1051,9 @@ impl Dots for f16 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_f16_best(
             matrix as *const u16,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1165,22 +1067,20 @@ impl Dots for f16 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_f16_best(
             queries as *const u16,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1200,11 +1100,9 @@ impl Dots for f16 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_f16_best(
             vectors as *const u16,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1219,27 +1117,27 @@ impl Dots for f16 {
 impl Dots for bf16 {
     type Accumulator = f32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_bf16_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_bf16_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_bf16_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1248,11 +1146,9 @@ impl Dots for bf16 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_bf16_best(
             matrix as *const u16,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1266,22 +1162,20 @@ impl Dots for bf16 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_bf16_best(
             queries as *const u16,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1301,11 +1195,9 @@ impl Dots for bf16 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_bf16_best(
             vectors as *const u16,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1320,27 +1212,27 @@ impl Dots for bf16 {
 impl Dots for i8 {
     type Accumulator = i32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_i8_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_i8_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_i8_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1349,11 +1241,9 @@ impl Dots for i8 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_i8_best(
             matrix,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1367,22 +1257,20 @@ impl Dots for i8 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_i8_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1402,11 +1290,9 @@ impl Dots for i8 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_i8_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1421,27 +1307,27 @@ impl Dots for i8 {
 impl Dots for u8 {
     type Accumulator = u32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_u8_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_u8_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_u8_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1450,11 +1336,9 @@ impl Dots for u8 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_u8_best(
             matrix,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1468,22 +1352,20 @@ impl Dots for u8 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_u8_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1503,11 +1385,9 @@ impl Dots for u8 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_u8_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1522,27 +1402,27 @@ impl Dots for u8 {
 impl Dots for e4m3 {
     type Accumulator = f32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e4m3_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e4m3_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_e4m3_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1551,11 +1431,9 @@ impl Dots for e4m3 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e4m3_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1569,22 +1447,20 @@ impl Dots for e4m3 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_e4m3_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1604,11 +1480,9 @@ impl Dots for e4m3 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e4m3_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1623,27 +1497,27 @@ impl Dots for e4m3 {
 impl Dots for e5m2 {
     type Accumulator = f32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e5m2_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e5m2_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_e5m2_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1652,11 +1526,9 @@ impl Dots for e5m2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e5m2_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1670,22 +1542,20 @@ impl Dots for e5m2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_e5m2_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1705,11 +1575,9 @@ impl Dots for e5m2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e5m2_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1724,27 +1592,27 @@ impl Dots for e5m2 {
 impl Dots for e2m3 {
     type Accumulator = f32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e2m3_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e2m3_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_e2m3_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1753,11 +1621,9 @@ impl Dots for e2m3 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e2m3_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1771,22 +1637,20 @@ impl Dots for e2m3 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_e2m3_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1806,11 +1670,9 @@ impl Dots for e2m3 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e2m3_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1825,27 +1687,27 @@ impl Dots for e2m3 {
 impl Dots for e2m1x2 {
     type Accumulator = f32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e2m1_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e2m1_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_e2m1_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1854,11 +1716,9 @@ impl Dots for e2m1x2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e2m1_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1872,22 +1732,20 @@ impl Dots for e2m1x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_e2m1_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1907,11 +1765,9 @@ impl Dots for e2m1x2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e2m1_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1926,27 +1782,27 @@ impl Dots for e2m1x2 {
 impl Dots for e3m2 {
     type Accumulator = f32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e3m2_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e3m2_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_e3m2_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -1955,11 +1811,9 @@ impl Dots for e3m2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e3m2_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -1973,22 +1827,20 @@ impl Dots for e3m2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_e3m2_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2008,11 +1860,9 @@ impl Dots for e3m2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e3m2_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2027,27 +1877,27 @@ impl Dots for e3m2 {
 impl Dots for u4x2 {
     type Accumulator = u32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_u4_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_u4_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_u4_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -2056,11 +1906,9 @@ impl Dots for u4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_u4_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -2074,22 +1922,20 @@ impl Dots for u4x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_u4_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2109,11 +1955,9 @@ impl Dots for u4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_u4_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2128,27 +1972,27 @@ impl Dots for u4x2 {
 impl Dots for i4x2 {
     type Accumulator = i32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_i4_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_i4_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_i4_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -2157,11 +2001,9 @@ impl Dots for i4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_i4_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -2175,22 +2017,20 @@ impl Dots for i4x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_i4_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2210,11 +2050,9 @@ impl Dots for i4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_i4_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2229,27 +2067,27 @@ impl Dots for i4x2 {
 impl Dots for u1x8 {
     type Accumulator = u32;
 
-    fn dots_pack_size(width: usize, depth: usize) -> Result<usize, TensorError> {
+    fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_u1_best(width, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_u1_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), TensorError> {
-        let (mut width, mut depth) = (0usize, 0usize);
+        let (mut columns, mut depth) = (0usize, 0usize);
         nk_dots_packed_shape_u1_best(
             packed,
-            &mut width,
+            &mut columns,
             &mut depth,
             enabled_cpu_capabilities_mask(),
             null_mut(),
         )
         .check()?;
-        Ok((width, depth))
+        Ok((columns, depth))
     }
 
     unsafe fn dots_pack(
         matrix: *const Self,
-        width: usize,
+        columns: usize,
         depth: usize,
         matrix_stride: usize,
         packed: *mut u8,
@@ -2258,11 +2096,9 @@ impl Dots for u1x8 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_u1_best(
             matrix as *const u8,
-            core::ptr::null(),
-            width,
+            columns,
             depth,
             matrix_stride,
-            0,
             packed,
             columns_begin,
             columns_end,
@@ -2276,22 +2112,20 @@ impl Dots for u1x8 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::Accumulator,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_dots_packed_u1_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2311,11 +2145,9 @@ impl Dots for u1x8 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_u1_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2356,8 +2188,8 @@ impl Dots for u1x8 {
 #[derive(Debug)]
 pub struct DotsPackedMatrix<Scalar: Dots, Alloc: Allocator = Global> {
     buffer: PackedBuffer<Alloc>,
-    /// Output columns, the B width.
-    width: usize,
+    /// Output columns, the B columns.
+    columns: usize,
     /// Inner dimension, the depth.
     depth: usize,
     _marker: PhantomData<Scalar>,
@@ -2373,7 +2205,7 @@ impl<Scalar: Dots, Alloc: Allocator + Clone> DotsPackedMatrix<Scalar, Alloc> {
     pub fn clone(&self) -> Result<Self, TensorError> {
         Ok(Self {
             buffer: self.buffer.clone()?,
-            width: self.width,
+            columns: self.columns,
             depth: self.depth,
             _marker: PhantomData,
         })
@@ -2388,7 +2220,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             buffer: PackedBuffer::empty_in(alloc),
-            width: 0,
+            columns: 0,
             depth: 0,
             _marker: PhantomData,
         }
@@ -2423,8 +2255,13 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         if !matrix.has_contiguous_rows() {
             return Err(TensorError::NonContiguousRows);
         }
-        let (width, depth) = (matrix.shape()[0], matrix.shape()[1]);
-        let size = Scalar::dots_pack_size(width, depth)?;
+        let &[columns, depth] = matrix.shape() else {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: matrix.ndim(),
+            });
+        };
+        let size = Scalar::dots_pack_size(columns, depth)?;
         // The packer zero-fills its header reserved words and panel padding, so it owns every
         // byte of the blob — no pre-zeroing needed here.
         let destination = self.buffer.reset_for_pack(size)?;
@@ -2432,28 +2269,28 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
             unsafe {
                 Scalar::dots_pack(
                     matrix.as_ptr(),
-                    width,
+                    columns,
                     depth,
                     matrix.stride_bytes(0) as usize,
                     destination,
                     0,
-                    width,
+                    columns,
                 )
             }?;
         }
-        self.width = width;
+        self.columns = columns;
         self.depth = depth;
         Ok(())
     }
 
-    /// Pre-grow the buffer to hold a width-by-depth B matrix, so a later `pack_into` that fits
+    /// Pre-grow the buffer to hold a columns-by-depth B matrix, so a later `pack_into` that fits
     /// stays allocation-free with a stable pointer — hoist this out of a repeated-pack loop.
-    pub fn reserve(&mut self, width: usize, depth: usize) -> Result<(), TensorError> {
-        self.buffer.reserve(Scalar::dots_pack_size(width, depth)?)
+    pub fn reserve(&mut self, columns: usize, depth: usize) -> Result<(), TensorError> {
+        self.buffer.reserve(Scalar::dots_pack_size(columns, depth)?)
     }
 
     /// Repack `b` into this matrix's buffer in parallel, splitting the columns across a ForkUnion
-    /// thread pool. Column ranges partition `[0, width)` contiguously, so every packed tile is
+    /// thread pool. Column ranges partition `[0, columns)` contiguously, so every packed tile is
     /// written exactly once and the range covering column 0 writes the shared header. Like
     /// [`pack_into`](Self::pack_into), packing overwrites, so growing the buffer discards its old
     /// contents.
@@ -2476,22 +2313,27 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
         if !matrix.has_contiguous_rows() {
             return Err(TensorError::NonContiguousRows);
         }
-        let (width, depth) = (matrix.shape()[0], matrix.shape()[1]);
+        let &[columns, depth] = matrix.shape() else {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: matrix.ndim(),
+            });
+        };
         let stride = matrix.stride_bytes(0) as usize;
-        let size = Scalar::dots_pack_size(width, depth)?;
+        let size = Scalar::dots_pack_size(columns, depth)?;
         let destination = self.buffer.reset_for_pack(size)?;
-        self.width = width;
+        self.columns = columns;
         self.depth = depth;
         if size == 0 {
             return Ok(());
         }
-        // for_slices partitions [0, width) into one contiguous column range per thread, so every
+        // for_slices partitions [0, columns) into one contiguous column range per thread, so every
         // packed tile is written exactly once and the slice starting at column 0 writes the header.
         let matrix_ptr = fu::SyncConstPtr::new(matrix.as_ptr());
         let destination_ptr = fu::SyncMutPtr::new(destination);
         let failure = WorkerStatus::default();
         let failure = &failure;
-        pool.for_slices(width, move |prong, count| {
+        pool.for_slices(columns, move |prong, count| {
             if let Err(error) = crate::capabilities::configure_cpu_thread() {
                 failure.record(Err(error));
                 return;
@@ -2500,7 +2342,7 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
             failure.record(unsafe {
                 Scalar::dots_pack(
                     matrix_ptr.as_ptr(),
-                    width,
+                    columns,
                     depth,
                     stride,
                     destination_ptr.as_ptr(),
@@ -2554,32 +2396,34 @@ impl<Scalar: Dots, Alloc: Allocator> DotsPackedMatrix<Scalar, Alloc> {
     /// Returns a reference to the allocator.
     pub fn allocator(&self) -> &Alloc { self.buffer.allocator() }
 
-    /// Returns the shape __[width,depth]__ of the original B matrix.
-    pub fn shape(&self) -> (usize, usize) { (self.width, self.depth) }
+    /// Returns the shape __[columns,depth]__ of the original B matrix.
+    pub fn shape(&self) -> (usize, usize) { (self.columns, self.depth) }
 
-    /// Bytes a packed buffer occupies for a width-by-depth B matrix of this scalar type under the
+    /// Bytes a packed buffer occupies for a columns-by-depth B matrix of this scalar type under the
     /// active backend's layout. Mirrors [`crate::attention::AttentionPackedMatrix::pack_size`] and
     /// lets a caller pre-size an external buffer without packing.
-    pub fn pack_size(width: usize, depth: usize) -> Result<usize, TensorError> { Scalar::dots_pack_size(width, depth) }
+    pub fn pack_size(columns: usize, depth: usize) -> Result<usize, TensorError> {
+        Scalar::dots_pack_size(columns, depth)
+    }
 
     /// Adopt an externally-produced packed buffer by copying `bytes` into a container-owned
-    /// allocation tagged with the given `width` and `depth`. The dots packed layout is not
+    /// allocation tagged with the given `columns` and `depth`. The dots packed layout is not
     /// self-describing — it carries no dtype tag and its AMX variant drops the exact depth — so the
     /// caller must supply the shape the bytes were packed for.
     ///
     /// # Safety
-    /// `bytes` must be a valid packing of a width-by-depth matrix of `Scalar`, produced by this
+    /// `bytes` must be a valid packing of a columns-by-depth matrix of `Scalar`, produced by this
     /// build's packer for a compatible backend; anything else makes a later `dots_packed` read out
     /// of bounds or return garbage.
     pub unsafe fn from_packed_bytes_in(
         bytes: &[u8],
-        width: usize,
+        columns: usize,
         depth: usize,
         alloc: Alloc,
     ) -> Result<Self, TensorError> {
         let mut packed = Self::empty_in(alloc);
         packed.buffer.fill_from_bytes(bytes)?;
-        packed.width = width;
+        packed.columns = columns;
         packed.depth = depth;
         Ok(packed)
     }
@@ -2643,7 +2487,7 @@ impl<Scalar: Dots> DotsPackedMatrix<Scalar, Global> {
 /// Validate shared preconditions for `*_packed` operations.
 ///
 /// Checks that `a` is a 2D tensor with contiguous rows and that its depth matches that of the
-/// packed matrix. Returns `(height, width, depth)` on success.
+/// packed matrix. Returns `(rows, columns, depth)` on success.
 #[inline]
 pub(crate) fn validate_packed_input<Scalar, A, PackedAlloc, const MAX_RANK: usize>(
     queries: &A,
@@ -2663,8 +2507,13 @@ where
     if !queries.has_contiguous_rows() {
         return Err(TensorError::NonContiguousRows);
     }
-    let (height, depth) = (queries.shape()[0], queries.shape()[1]);
-    let (width, packed_depth) = packed_right.shape();
+    let &[rows, depth] = queries.shape() else {
+        return Err(TensorError::DimensionMismatch {
+            expected: 2,
+            got: queries.ndim(),
+        });
+    };
+    let (columns, packed_depth) = packed_right.shape();
     if depth != packed_depth {
         return Err(TensorError::ShapeMismatch {
             axis: 1,
@@ -2672,33 +2521,33 @@ where
             got: depth,
         });
     }
-    Ok((height, width, depth))
+    Ok((rows, columns, depth))
 }
 
-/// Validate that pre-allocated output `c` has shape `[height, width]` and contiguous rows.
+/// Validate that pre-allocated output `c` has shape `[rows, columns]` and contiguous rows.
 #[inline]
 pub(crate) fn validate_matrix_output<R, OutputTensor, const OUTPUT_MAX_RANK: usize>(
     output: &OutputTensor,
-    height: usize,
-    width: usize,
+    rows: usize,
+    columns: usize,
 ) -> Result<(), TensorError>
 where
     R: StorageElement,
     OutputTensor: TensorRef<R, OUTPUT_MAX_RANK> + ?Sized,
 {
-    if output.shape() != [height, width] {
+    if output.shape() != [rows, columns] {
         return Err(TensorError::ShapeMismatch {
-            axis: if output.shape().first().copied() != Some(height) {
+            axis: if output.shape().first().copied() != Some(rows) {
                 0
             } else {
                 1
             },
-            expected: if output.shape().first().copied() != Some(height) {
-                height
+            expected: if output.shape().first().copied() != Some(rows) {
+                rows
             } else {
-                width
+                columns
             },
-            got: if output.shape().first().copied() != Some(height) {
+            got: if output.shape().first().copied() != Some(rows) {
                 output.shape().first().copied().unwrap_or(0)
             } else {
                 output.shape().get(1).copied().unwrap_or(0)
@@ -2734,7 +2583,14 @@ where
     if !queries.has_contiguous_rows() {
         return Err(TensorError::NonContiguousRows);
     }
-    Ok((queries.shape()[0], queries.shape()[1]))
+    let &[rows, depth] = queries.shape() else {
+        return Err(TensorError::InvalidShape {
+            axis: 0,
+            size: queries.ndim(),
+            reason: "symmetric operations require a 2D tensor",
+        });
+    };
+    Ok((rows, depth))
 }
 
 // endregion: Shared validators
@@ -2762,15 +2618,15 @@ impl<Scalar: Dots, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<Scala
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::Accumulator, Alloc, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::full_in(&[height, width], Scalar::Accumulator::default(), self.alloc.clone())?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::full_in(&[rows, columns], Scalar::Accumulator::default(), self.alloc.clone())?;
         unsafe {
             Scalar::dots_packed(
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2805,9 +2661,9 @@ pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
     where
         Self::Alloc: Clone,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(
-            &[height, width],
+            &[rows, columns],
             Scalar::Accumulator::default(),
             self.allocator().clone(),
         )?;
@@ -2816,8 +2672,8 @@ pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2840,15 +2696,15 @@ pub trait DotsPackedOps<Scalar: Dots, const MAX_RANK: usize>: TensorRef<Scalar, 
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::Accumulator, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        validate_matrix_output::<Scalar::Accumulator, _, OUTPUT_MAX_RANK>(output, height, width)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::Accumulator, _, OUTPUT_MAX_RANK>(output, rows, columns)?;
         unsafe {
             Scalar::dots_packed(
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2918,8 +2774,8 @@ where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::Accumulator, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        validate_matrix_output::<Scalar::Accumulator, _, OUTPUT_MAX_RANK>(output, height, width)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::Accumulator, _, OUTPUT_MAX_RANK>(output, rows, columns)?;
 
         let queries_ptr = fu::SyncConstPtr::new(self.as_ptr());
         let output_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
@@ -2929,7 +2785,7 @@ where
 
         // Get actual thread count from pool
         let num_threads = pool.threads_count().max(1);
-        let rows_per_thread = height.div_ceil(num_threads);
+        let rows_per_thread = rows.div_ceil(num_threads);
 
         // Distribute rows across threads using the ForkUnion pool
         // Safety: Each thread writes to disjoint rows of C, so no data races.
@@ -2944,10 +2800,10 @@ where
             }
 
             let row_start = thread_index * rows_per_thread;
-            if row_start >= height {
+            if row_start >= rows {
                 return;
             }
-            let row_end = (row_start + rows_per_thread).min(height);
+            let row_end = (row_start + rows_per_thread).min(rows);
             unsafe {
                 // Byte arithmetic so sub-byte types such as u1x8 stride correctly.
                 let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
@@ -2957,7 +2813,7 @@ where
                     packed_ptr.as_ptr(),
                     c_row,
                     row_end - row_start,
-                    width,
+                    columns,
                     depth,
                     query_stride,
                     output_stride,
@@ -2979,9 +2835,9 @@ where
     where
         Self::Alloc: Clone,
     {
-        let (height, width, _) = validate_packed_input(self, packed_right)?;
+        let (rows, columns, _) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(
-            &[height, width],
+            &[rows, columns],
             Scalar::Accumulator::default(),
             self.allocator().clone(),
         )?;
@@ -3255,38 +3111,38 @@ mod tests {
         Scalar::Accumulator: FloatLike + PartialEq + core::fmt::Debug,
     {
         init_thread();
-        for &(height, width, depth) in DIMS {
+        for &(rows, columns, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::new(&b).unwrap();
             let output = a.dots_packed(&b_packed).unwrap();
-            assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
+            assert_eq!(output.shape(), &[rows, columns], "shape @ ({rows},{columns},{depth})");
             let expected = depth as f64;
             let tol = Scalar::atol() + Scalar::rtol() * expected.abs();
             for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
                     (v.to_f64() - expected).abs() <= tol,
-                    "({height},{width},{depth})[{i}]: {} vs {expected} (tol={tol})",
+                    "({rows},{columns},{depth})[{i}]: {} vs {expected} (tol={tol})",
                     v.to_f64()
                 );
             }
             // Verify _into(&mut Tensor) and _into(&mut span) produce identical bytes.
             let mut into_tensor =
-                Tensor::<Scalar::Accumulator>::full(&[height, width], Scalar::Accumulator::default()).unwrap();
+                Tensor::<Scalar::Accumulator>::full(&[rows, columns], Scalar::Accumulator::default()).unwrap();
             a.dots_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_tensor.as_slice(),
-                "_into(Tensor) @ ({height},{width},{depth})"
+                "_into(Tensor) @ ({rows},{columns},{depth})"
             );
             let mut into_span_buf =
-                Tensor::<Scalar::Accumulator>::full(&[height, width], Scalar::Accumulator::default()).unwrap();
+                Tensor::<Scalar::Accumulator>::full(&[rows, columns], Scalar::Accumulator::default()).unwrap();
             a.dots_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_span_buf.as_slice(),
-                "_into(span) @ ({height},{width},{depth})"
+                "_into(span) @ ({rows},{columns},{depth})"
             );
         }
     }
@@ -3296,19 +3152,19 @@ mod tests {
         Scalar::Accumulator: FloatLike,
     {
         init_thread();
-        for &(height, width, depth) in DIMS {
+        for &(rows, columns, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
-            let b_t = Tensor::<Scalar>::full(&[depth, width], Scalar::from_f32(2.0)).unwrap();
+            let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
+            let b_t = Tensor::<Scalar>::full(&[depth, columns], Scalar::from_f32(2.0)).unwrap();
             let b_packed = DotsPackedMatrix::new_transposed(&b_t).unwrap();
             let output = a.dots_packed(&b_packed).unwrap();
-            assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
+            assert_eq!(output.shape(), &[rows, columns], "shape @ ({rows},{columns},{depth})");
             let expected = depth as f64 * 2.0;
             let tol = Scalar::atol() + Scalar::rtol() * expected.abs();
             for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
                     (v.to_f64() - expected).abs() <= tol,
-                    "({height},{width},{depth})[{i}]: {} vs {expected} (tol={tol})",
+                    "({rows},{columns},{depth})[{i}]: {} vs {expected} (tol={tol})",
                     v.to_f64()
                 );
             }
@@ -3324,16 +3180,16 @@ mod tests {
         init_thread();
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
-        for &(height, width, depth) in DIMS {
-            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+        for &(rows, columns, depth) in DIMS {
+            let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::new(&b).unwrap();
             let serial = a.dots_packed(&b_packed).unwrap();
             let parallel = a.dots_packed_parallel(&b_packed, &mut pool).unwrap();
             assert_eq!(
                 serial.as_slice(),
                 parallel.as_slice(),
-                "serial != parallel @ ({height},{width},{depth})"
+                "serial != parallel @ ({rows},{columns},{depth})"
             );
         }
     }
@@ -3463,25 +3319,25 @@ mod tests {
     #[test]
     fn dots_packed_accepts_views_and_spans() {
         init_thread();
-        let (height, width, depth) = (3usize, 4usize, 5usize);
-        let a_data: Vec<f32> = (0..height * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
-        let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]).unwrap();
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        let (rows, columns, depth) = (3usize, 4usize, 5usize);
+        let a_data: Vec<f32> = (0..rows * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
+        let b_data: Vec<f32> = (0..columns * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
+        let mut a = Tensor::<f32>::from_slice(&a_data, &[rows, depth]).unwrap();
+        let b = Tensor::<f32>::from_slice(&b_data, &[columns, depth]).unwrap();
 
         // Manual reference: C = A × Bᵀ, so C[i][j] = Σ_l A[i][l] · B[j][l].
-        let mut expected = vec![0.0f64; height * width];
-        for i in 0..height {
-            for j in 0..width {
+        let mut expected = vec![0.0f64; rows * columns];
+        for i in 0..rows {
+            for j in 0..columns {
                 let mut acc = 0.0f64;
                 for l in 0..depth {
                     acc += a_data[i * depth + l] as f64 * b_data[j * depth + l] as f64;
                 }
-                expected[i * width + j] = acc;
+                expected[i * columns + j] = acc;
             }
         }
         let close = |output: &Tensor<f64>, reference: &[f64], label: &str| {
-            assert_eq!(output.shape(), &[height, width], "{label} shape");
+            assert_eq!(output.shape(), &[rows, columns], "{label} shape");
             for (v, e) in output.as_slice().iter().zip(reference.iter()) {
                 assert!((v - e).abs() <= 1e-9 + 1e-6 * e.abs(), "{label}: {v} vs {e}");
             }
@@ -3501,22 +3357,22 @@ mod tests {
         close(&a.span().dots_packed(&packed_view).unwrap(), &expected, "span A");
 
         // A view can also write into a caller-provided output.
-        let mut into = Tensor::<f64>::full(&[height, width], 0.0).unwrap();
+        let mut into = Tensor::<f64>::full(&[rows, columns], 0.0).unwrap();
         a.view().dots_packed_into(&packed_view, &mut into).unwrap();
         close(&into, &expected, "view A into");
 
         // Transposed packing from a view with B in k×n layout: C = A × B. Non-uniform
         // values here guard the materialization inside `new_transposed_in`.
-        let bt_data: Vec<f32> = (0..depth * width).map(|i| i as f32 * 0.2 - 0.7).collect();
-        let bt = Tensor::<f32>::from_slice(&bt_data, &[depth, width]).unwrap();
-        let mut expected_t = vec![0.0f64; height * width];
-        for i in 0..height {
-            for j in 0..width {
+        let bt_data: Vec<f32> = (0..depth * columns).map(|i| i as f32 * 0.2 - 0.7).collect();
+        let bt = Tensor::<f32>::from_slice(&bt_data, &[depth, columns]).unwrap();
+        let mut expected_t = vec![0.0f64; rows * columns];
+        for i in 0..rows {
+            for j in 0..columns {
                 let mut acc = 0.0f64;
                 for l in 0..depth {
-                    acc += a_data[i * depth + l] as f64 * bt_data[l * width + j] as f64;
+                    acc += a_data[i * depth + l] as f64 * bt_data[l * columns + j] as f64;
                 }
-                expected_t[i * width + j] = acc;
+                expected_t[i * columns + j] = acc;
             }
         }
         let packed_t = DotsPackedMatrix::new_transposed(&bt.view()).unwrap();
@@ -3573,23 +3429,24 @@ mod tests {
     #[test]
     fn packed_size_matches_and_from_bytes_roundtrips() {
         init_thread();
-        let (width, depth) = (4usize, 5usize);
-        let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        let (columns, depth) = (4usize, 5usize);
+        let b_data: Vec<f32> = (0..columns * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
+        let b = Tensor::<f32>::from_slice(&b_data, &[columns, depth]).unwrap();
         let packed = DotsPackedMatrix::new(&b).unwrap();
 
         // The static size query matches the live packed byte length and the stored dims.
         assert_eq!(
-            DotsPackedMatrix::<f32>::pack_size(width, depth).unwrap(),
+            DotsPackedMatrix::<f32>::pack_size(columns, depth).unwrap(),
             packed.as_bytes().len()
         );
-        assert_eq!(packed.shape(), (width, depth));
+        assert_eq!(packed.shape(), (columns, depth));
 
         // Adopting the packed bytes reproduces byte-identical contents and an identical multiply.
-        let adopted =
-            unsafe { DotsPackedMatrix::<f32>::from_packed_bytes_in(packed.as_bytes(), width, depth, Global).unwrap() };
+        let adopted = unsafe {
+            DotsPackedMatrix::<f32>::from_packed_bytes_in(packed.as_bytes(), columns, depth, Global).unwrap()
+        };
         assert_eq!(adopted.as_bytes(), packed.as_bytes());
-        assert_eq!(adopted.shape(), (width, depth));
+        assert_eq!(adopted.shape(), (columns, depth));
 
         let a_data: Vec<f32> = (0..3 * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
         let a = Tensor::<f32>::from_slice(&a_data, &[3, depth]).unwrap();
@@ -3609,11 +3466,11 @@ mod tests {
         let reserved_ptr = packed.as_ptr();
         assert!(reserved_capacity >= DotsPackedMatrix::<f32>::pack_size(max_width, depth).unwrap());
 
-        for width in [4usize, 17, 48] {
-            let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.1).collect();
-            let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        for columns in [4usize, 17, 48] {
+            let b_data: Vec<f32> = (0..columns * depth).map(|i| i as f32 * 0.1).collect();
+            let b = Tensor::<f32>::from_slice(&b_data, &[columns, depth]).unwrap();
             packed.pack_into(&b).unwrap();
-            assert_eq!(packed.shape(), (width, depth));
+            assert_eq!(packed.shape(), (columns, depth));
             assert_eq!(
                 packed.capacity(),
                 reserved_capacity,
@@ -3641,24 +3498,24 @@ mod tests {
     #[test]
     fn packed_shape_reads_dims() {
         init_thread();
-        fn check<Scalar: TestableType + Dots>(width: usize, depth: usize) {
+        fn check<Scalar: TestableType + Dots>(columns: usize, depth: usize) {
             let depth = align_depth::<Scalar>(depth);
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let packed = DotsPackedMatrix::new(&b).unwrap();
             let (read_width, read_depth) = unsafe { Scalar::dots_packed_shape(packed.as_ptr()) }.unwrap();
             assert_eq!(
                 (read_width, read_depth),
-                (width, depth),
-                "packed_shape<{}> @ ({width},{depth})",
+                (columns, depth),
+                "packed_shape<{}> @ ({columns},{depth})",
                 core::any::type_name::<Scalar>()
             );
         }
-        for &(width, depth) in &[(4usize, 5usize), (17, 33), (1, 8)] {
-            check::<f32>(width, depth);
-            check::<f16>(width, depth);
-            check::<bf16>(width, depth);
-            check::<i8>(width, depth);
-            check::<u8>(width, depth);
+        for &(columns, depth) in &[(4usize, 5usize), (17, 33), (1, 8)] {
+            check::<f32>(columns, depth);
+            check::<f16>(columns, depth);
+            check::<bf16>(columns, depth);
+            check::<i8>(columns, depth);
+            check::<u8>(columns, depth);
         }
     }
 
@@ -3666,12 +3523,12 @@ mod tests {
     fn pack_is_hermetic() {
         // Packing is a pure function of its inputs: pre-filling the destination with different garbage
         // must not change a byte of the result. Both windows are 64-aligned so the layout is identical.
-        // Non-tile-multiple width/depth exercises the panel and header padding across backends (the
-        // cross panel path for f32/f16, the AMX tile path for i8/u8/bf16 on Sapphire Rapids).
+        // Non-tile-multiple columns/depth exercises the panel and header padding across backends
+        // (the cross panel path for f32/f16, the AMX tile path for i8/u8/bf16 on Sapphire Rapids).
         fn check<Scalar: TestableType + Dots>() {
-            let (width, depth) = (5usize, align_depth::<Scalar>(20usize));
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
-            let size = <Scalar as Dots>::dots_pack_size(width, depth).unwrap();
+            let (columns, depth) = (5usize, align_depth::<Scalar>(20usize));
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
+            let size = <Scalar as Dots>::dots_pack_size(columns, depth).unwrap();
             let matrix_ptr = b.as_ptr();
             let matrix_stride = b.stride_bytes(0) as usize;
 
@@ -3680,7 +3537,7 @@ mod tests {
                 let base = backing.as_mut_ptr();
                 let packed = unsafe { base.add(base.align_offset(SIMD_ALIGNMENT)) };
                 unsafe {
-                    <Scalar as Dots>::dots_pack(matrix_ptr, width, depth, matrix_stride, packed, 0, width).unwrap();
+                    <Scalar as Dots>::dots_pack(matrix_ptr, columns, depth, matrix_stride, packed, 0, columns).unwrap();
                     core::slice::from_raw_parts(packed, size).to_vec()
                 }
             };
@@ -3705,9 +3562,9 @@ mod tests {
         // The column-split parallel pack must produce a byte-identical blob to the serial pack.
         // Odd widths cross tile and remainder boundaries on the AMX backends; a skipped or
         // double-written column range leaves the blob differing from the serial reference.
-        fn check<Scalar: TestableType + Dots>(width: usize) {
+        fn check<Scalar: TestableType + Dots>(columns: usize) {
             let depth = align_depth::<Scalar>(20usize);
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let serial = DotsPackedMatrix::new(&b).unwrap();
             let topology = fu::Topology::new().unwrap();
             let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
@@ -3715,17 +3572,17 @@ mod tests {
             assert_eq!(
                 serial.as_bytes(),
                 parallel.as_bytes(),
-                "parallel pack != serial: {} width={width}",
+                "parallel pack != serial: {} columns={columns}",
                 core::any::type_name::<Scalar>()
             );
         }
         init_thread();
-        for &width in &[1usize, 17, 33, 48, 65] {
-            check::<f32>(width);
-            check::<f16>(width);
-            check::<bf16>(width);
-            check::<i8>(width);
-            check::<u8>(width);
+        for &columns in &[1usize, 17, 33, 48, 65] {
+            check::<f32>(columns);
+            check::<f16>(columns);
+            check::<bf16>(columns);
+            check::<i8>(columns);
+            check::<u8>(columns);
         }
     }
 }

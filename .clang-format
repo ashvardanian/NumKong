@@ -97,6 +97,8 @@ StatementMacros:
   - nk_define_sparse_dot_
   - nk_define_each_scale_
   - nk_define_each_sum_
+  - nk_define_cross_block_scaled_
+  - nk_define_cross_block_scaled_normalized_
   - nk_define_each_blend_
   - nk_define_each_fma_
   - nk_define_each_swiglu_

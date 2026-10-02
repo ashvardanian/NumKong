@@ -76,17 +76,19 @@ Packed sub-byte conversions:
 | `i4x2`     | `i8`        | Signed 4-bit pair to two signed 8-bit values     |
 | `u4x2`     | `u8`        | Unsigned 4-bit pair to two unsigned 8-bit values |
 
-Block-scaled conversions go through `nk_cast_block_scaled_best`, between plain buffers and the layouts `nk_block_scaled_format_of_dtype` describes, deriving the scales on encode and applying them on decode:
+Block-scaled conversions go through the same `nk_cast_best`, with the composite dtypes of `nk_block_scaled_format_of_dtype`.
+A block-scaled side passes an `nk_<format>_cref_t` as its source or an `nk_<format>_ref_t` as its destination, holding the codes, the block scales and, for NVFP4, the tensor scale.
+Encodes derive the scales and decodes apply them:
 
-| Format       | Elements | Scale per Block | Tensor Scale |
-| :----------- | :------- | :-------------- | :----------- |
-| `nvfp4`      | `e2m1`   | `ue4m3` per 16  | `f32`        |
-| `mxfp4`      | `e2m1`   | `ue8m0` per 32  | …            |
-| `mxfp6_e2m3` | `e2m3`   | `ue8m0` per 32  | …            |
-| `mxfp6_e3m2` | `e3m2`   | `ue8m0` per 32  | …            |
-| `mxfp8_e4m3` | `e4m3`   | `ue8m0` per 32  | …            |
-| `mxfp8_e5m2` | `e5m2`   | `ue8m0` per 32  | …            |
-| `mxint8`     | `i8`     | `ue8m0` per 32  | …            |
+| Format      | Elements | Scale per Block | Tensor Scale |
+| :---------- | :------- | :-------------- | :----------- |
+| `nvfp4`     | `e2m1`   | `ue4m3` per 16  | `f32`        |
+| `mxfp4`     | `e2m1`   | `ue8m0` per 32  | none         |
+| `mxfp6e2m3` | `e2m3`   | `ue8m0` per 32  | none         |
+| `mxfp6e3m2` | `e3m2`   | `ue8m0` per 32  | none         |
+| `mxfp8e4m3` | `e4m3`   | `ue8m0` per 32  | none         |
+| `mxfp8e5m2` | `e5m2`   | `ue8m0` per 32  | none         |
+| `mxint8`    | `i8`     | `ue8m0` per 32  | none         |
 
 ## Optimizations
 

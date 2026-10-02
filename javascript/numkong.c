@@ -381,7 +381,7 @@ static napi_value cast_to_f32(napi_env env, napi_callback_info info, nk_dtype_t 
     }
 
     nk_f32_t f32_val;
-    if (!check_status(env, nk_cast_best(&bits, src_dtype, 1, &f32_val, nk_f32_k, default_capabilities, NULL)))
+    if (!check_status(env, nk_cast_best(&bits, src_dtype, &f32_val, nk_f32_k, 1, default_capabilities, NULL)))
         return NULL;
 
     napi_value result;
@@ -407,7 +407,7 @@ static napi_value cast_from_f32(napi_env env, napi_callback_info info, nk_dtype_
 
     nk_f32_t f32_val = (nk_f32_t)f32_dbl;
     uint32_t bits = 0;
-    if (!check_status(env, nk_cast_best(&f32_val, nk_f32_k, 1, &bits, dst_dtype, default_capabilities, NULL)))
+    if (!check_status(env, nk_cast_best(&f32_val, nk_f32_k, &bits, dst_dtype, 1, default_capabilities, NULL)))
         return NULL;
 
     napi_value result;
@@ -483,7 +483,7 @@ napi_value api_cast(napi_env env, napi_callback_info info) {
         return NULL;
     }
 
-    check_status(env, nk_cast_best(src_data, src_dtype, src_len, dst_data, dst_dtype, default_capabilities, NULL));
+    check_status(env, nk_cast_best(src_data, src_dtype, dst_data, dst_dtype, src_len, default_capabilities, NULL));
     return NULL; // Modifies dst_data in place
 }
 
@@ -491,18 +491,18 @@ napi_value api_cast(napi_env env, napi_callback_info info) {
 
 #pragma region Packed API
 
-/** Query packed buffer byte count, dotsPackedSize(width, depth, dtype) → number. */
+/** Query packed buffer byte count, dotsPackedSize(columns, depth, dtype) → number. */
 static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
     size_t argc = 3;
     napi_value args[3];
     napi_get_cb_info(env, info, &argc, args, NULL, NULL);
     if (argc != 3) {
-        napi_throw_error(env, NULL, "dotsPackedSize requires 3 arguments: (width, depth, dtype)");
+        napi_throw_error(env, NULL, "dotsPackedSize requires 3 arguments: (columns, depth, dtype)");
         return NULL;
     }
 
-    uint32_t width, depth;
-    napi_get_value_uint32(env, args[0], &width);
+    uint32_t columns, depth;
+    napi_get_value_uint32(env, args[0], &columns);
     napi_get_value_uint32(env, args[1], &depth);
 
     char dtype_str[16];
@@ -524,7 +524,7 @@ static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
     }
 
     nk_size_t byte_count = 0;
-    if (!check_status(env, size_fn((nk_size_t)width, (nk_size_t)depth, &byte_count))) return NULL;
+    if (!check_status(env, size_fn((nk_size_t)columns, (nk_size_t)depth, &byte_count))) return NULL;
 
     napi_value result;
     napi_create_double(env, (double)byte_count, &result);
@@ -533,13 +533,13 @@ static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
 
 /** Packs matrix B, returning a packed ArrayBuffer for dotsPacked, angularsPacked, or
  *  euclideansPacked:
- *  dotsPack(data, width, depth, strideBytes, dtype) → { buffer, width, depth, byteLength }. */
+ *  dotsPack(data, columns, depth, stride, dtype) → { buffer, columns, depth, byteLength }. */
 static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     size_t argc = 5;
     napi_value args[5];
     napi_get_cb_info(env, info, &argc, args, NULL, NULL);
     if (argc != 5) {
-        napi_throw_error(env, NULL, "dotsPack requires 5 arguments: (data, width, depth, strideBytes, dtype)");
+        napi_throw_error(env, NULL, "dotsPack requires 5 arguments: (data, columns, depth, stride, dtype)");
         return NULL;
     }
 
@@ -548,10 +548,10 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     napi_typedarray_type arr_type;
     napi_get_typedarray_info(env, args[0], &arr_type, &data_len, &data, NULL, NULL);
 
-    uint32_t width, depth, stride_bytes;
-    napi_get_value_uint32(env, args[1], &width);
+    uint32_t columns, depth, stride;
+    napi_get_value_uint32(env, args[1], &columns);
     napi_get_value_uint32(env, args[2], &depth);
-    napi_get_value_uint32(env, args[3], &stride_bytes);
+    napi_get_value_uint32(env, args[3], &stride);
 
     char dtype_str[16];
     size_t str_len;
@@ -572,7 +572,7 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
         return NULL;
     }
     nk_size_t packed_byte_count = 0;
-    if (!check_status(env, size_fn((nk_size_t)width, (nk_size_t)depth, &packed_byte_count))) return NULL;
+    if (!check_status(env, size_fn((nk_size_t)columns, (nk_size_t)depth, &packed_byte_count))) return NULL;
 
     // Allocate V8-managed ArrayBuffer for packed data
     void *packed_data = NULL;
@@ -590,21 +590,21 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
         napi_throw_error(env, NULL, "dots_pack not available for this dtype");
         return NULL;
     }
-    if (!check_status(env, pack_fn(data, (nk_size_t)width, (nk_size_t)depth, (nk_size_t)stride_bytes, packed_data,
-                                   (nk_size_t)0, (nk_size_t)width, NULL)))
+    if (!check_status(env, pack_fn(data, (nk_size_t)columns, (nk_size_t)depth, (nk_size_t)stride, packed_data,
+                                   (nk_size_t)0, (nk_size_t)columns, NULL)))
         return NULL;
 
-    // Return object { buffer, width, depth, byteLength }
+    // Return object { buffer, columns, depth, byteLength }
     napi_value result_obj;
     napi_create_object(env, &result_obj);
 
     napi_value js_width, js_depth, js_byte_length;
-    napi_create_uint32(env, width, &js_width);
+    napi_create_uint32(env, columns, &js_width);
     napi_create_uint32(env, depth, &js_depth);
     napi_create_double(env, (double)packed_byte_count, &js_byte_length);
 
     napi_set_named_property(env, result_obj, "buffer", arraybuffer);
-    napi_set_named_property(env, result_obj, "width", js_width);
+    napi_set_named_property(env, result_obj, "columns", js_width);
     napi_set_named_property(env, result_obj, "depth", js_depth);
     napi_set_named_property(env, result_obj, "byteLength", js_byte_length);
 
@@ -620,8 +620,8 @@ typedef struct packed_task_t {
     nk_size_t rows;
     nk_size_t columns;
     nk_size_t depth;
-    nk_size_t a_stride_bytes;
-    nk_size_t c_stride_bytes;
+    nk_size_t a_stride;
+    nk_size_t c_stride;
 } packed_task_t;
 
 static nk_status_t packed_tile_(nk_size_t tile_index, void *context) {
@@ -629,15 +629,15 @@ static nk_status_t packed_tile_(nk_size_t tile_index, void *context) {
     nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
     nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
                                                                                : (task->rows - row);
-    return task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes,
-                        chunk, task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes, NULL);
+    return task->kernel(task->a + row * task->a_stride, task->b_packed, task->c + row * task->c_stride, chunk,
+                        task->columns, task->depth, task->a_stride, task->c_stride, NULL);
 }
 
 /**
  *  @brief Shared dispatcher for packed operations, dots, angulars and euclideans.
  *
  *  @code{.ts}
- *  (a: TypedArray, packed: ArrayBuffer, result: TypedArray, height: number, width: number,
+ *  (a: TypedArray, packed: ArrayBuffer, result: TypedArray, rows: number, columns: number,
  *      depth: number, aStride: number, resultStride: number, dtype: string, threads?: number)
  *  @endcode
  */
@@ -667,10 +667,10 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     napi_typedarray_type result_type;
     napi_get_typedarray_info(env, args[2], &result_type, &result_len, &result_data, NULL, NULL);
 
-    // args[3..7]: height, width, depth, aStride, resultStride
-    uint32_t height, width, depth, a_stride, result_stride;
-    napi_get_value_uint32(env, args[3], &height);
-    napi_get_value_uint32(env, args[4], &width);
+    // args[3..7]: rows, columns, depth, aStride, resultStride
+    uint32_t rows, columns, depth, a_stride, result_stride;
+    napi_get_value_uint32(env, args[3], &rows);
+    napi_get_value_uint32(env, args[4], &columns);
     napi_get_value_uint32(env, args[5], &depth);
     napi_get_value_uint32(env, args[6], &a_stride);
     napi_get_value_uint32(env, args[7], &result_stride);
@@ -701,12 +701,12 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     task.a = a_data;
     task.b_packed = packed_data;
     task.c = result_data;
-    task.rows = height;
-    task.columns = width;
+    task.rows = rows;
+    task.columns = columns;
     task.depth = depth;
-    task.a_stride_bytes = a_stride;
-    task.c_stride_bytes = result_stride;
-    check_status(env, nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE), threads,
+    task.a_stride = a_stride;
+    task.c_stride = result_stride;
+    check_status(env, nk_parallel_for_tiles(nk_size_divide_round_up_(rows, NUMKONG_PARALLEL_PACKED_TILE), threads,
                                             packed_tile_, &task));
     return NULL;
 }
@@ -728,8 +728,8 @@ typedef struct symmetric_task_t {
     void *result;
     nk_size_t vectors_count;
     nk_size_t depth;
-    nk_size_t stride_bytes;
-    nk_size_t result_stride_bytes;
+    nk_size_t stride;
+    nk_size_t result_stride;
     nk_size_t row_start;
     nk_size_t row_end;
 } symmetric_task_t;
@@ -740,8 +740,8 @@ static nk_status_t symmetric_tile_(nk_size_t tile_index, void *context) {
     nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
                                     ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->row_end - tile_start);
-    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
-                        task->result_stride_bytes, tile_start, tile_rows, NULL);
+    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride, task->result,
+                        task->result_stride, tile_start, tile_rows, NULL);
 }
 
 /**
@@ -810,8 +810,8 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     task.result = result_data;
     task.vectors_count = n_vectors;
     task.depth = depth;
-    task.stride_bytes = vectors_stride;
-    task.result_stride_bytes = result_stride;
+    task.stride = vectors_stride;
+    task.result_stride = result_stride;
     task.row_start = row_start;
     // Widen before the sum so two `uint32_t` row bounds cannot wrap.
     task.row_end = (nk_size_t)row_start + row_count;

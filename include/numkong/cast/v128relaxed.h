@@ -320,34 +320,36 @@ NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_e3m2x4_v128relaxed_(nk_b128_vec_t hub_ve
     return result_vec;
 }
 
-NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                            nk_dtype_t to_type, void *stream) {
+NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                            nk_size_t count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype))
+        return nk_cast_serial(from, from_dtype, to, to_dtype, count, stream);
     // Same-type fast path
-    if (from_type == to_type) {
-        nk_size_t size_bits = nk_dtype_bits(from_type);
-        if (size_bits > 0) nk_copy_bytes_(to, from, n * size_bits / 8);
+    if (from_dtype == to_dtype) {
+        nk_size_t size_bits = nk_dtype_bits(from_dtype);
+        if (size_bits > 0) nk_copy_bytes_(to, from, count * size_bits / 8);
         return nk_success_k;
     }
 
     // Validate supported types
-    int from_ok = (from_type == nk_f32_k || from_type == nk_f16_k || from_type == nk_bf16_k || from_type == nk_e4m3_k ||
-                   from_type == nk_e5m2_k || from_type == nk_e2m3_k || from_type == nk_e3m2_k || from_type == nk_i8_k ||
-                   from_type == nk_u8_k);
-    int to_ok = (to_type == nk_f32_k || to_type == nk_f16_k || to_type == nk_bf16_k || to_type == nk_e4m3_k ||
-                 to_type == nk_e5m2_k || to_type == nk_e2m3_k || to_type == nk_e3m2_k || to_type == nk_i8_k ||
-                 to_type == nk_u8_k);
+    int from_ok = (from_dtype == nk_f32_k || from_dtype == nk_f16_k || from_dtype == nk_bf16_k ||
+                   from_dtype == nk_e4m3_k || from_dtype == nk_e5m2_k || from_dtype == nk_e2m3_k ||
+                   from_dtype == nk_e3m2_k || from_dtype == nk_i8_k || from_dtype == nk_u8_k);
+    int to_ok = (to_dtype == nk_f32_k || to_dtype == nk_f16_k || to_dtype == nk_bf16_k || to_dtype == nk_e4m3_k ||
+                 to_dtype == nk_e5m2_k || to_dtype == nk_e2m3_k || to_dtype == nk_e3m2_k || to_dtype == nk_i8_k ||
+                 to_dtype == nk_u8_k);
 
     if (!from_ok || !to_ok) {
-        nk_cast_elementwise_(from, from_type, n, to, to_type);
+        nk_cast_elementwise_(from, from_dtype, count, to, to_dtype);
         return nk_success_k;
     }
 
     // F32 hub: 4 elements per iteration
-    nk_size_t batches = n / 4;
-    nk_size_t tail = n % 4;
-    nk_size_t from_step = nk_size_divide_round_up_(4 * nk_dtype_bits(from_type), NUMKONG_BITS_PER_BYTE);
-    nk_size_t to_step = nk_size_divide_round_up_(4 * nk_dtype_bits(to_type), NUMKONG_BITS_PER_BYTE);
+    nk_size_t batches = count / 4;
+    nk_size_t tail = count % 4;
+    nk_size_t from_step = nk_size_divide_round_up_(4 * nk_dtype_bits(from_dtype), NUMKONG_BITS_PER_BYTE);
+    nk_size_t to_step = nk_size_divide_round_up_(4 * nk_dtype_bits(to_dtype), NUMKONG_BITS_PER_BYTE);
     nk_u8_t const *from_ptr = (nk_u8_t const *)from;
     nk_u8_t *to_ptr = (nk_u8_t *)to;
 
@@ -359,7 +361,7 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_ty
         else if (from_step == 8) {
             nk_b64_vec_t raw64_vec;
             raw64_vec.u64 = (nk_u64_t)wasm_i64x2_extract_lane(wasm_v128_load64_zero(from_ptr), 0);
-            switch (from_type) {
+            switch (from_dtype) {
             case nk_f16_k: hub_vec = nk_f16x4_to_f32x4_v128relaxed_(raw64_vec); break;
             case nk_bf16_k: hub_vec = nk_bf16x4_to_f32x4_v128_(raw64_vec); break;
             default: break;
@@ -368,7 +370,7 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_ty
         else if (from_step == 4) {
             nk_b32_vec_t raw32_vec;
             raw32_vec.u32 = (nk_u32_t)wasm_i32x4_extract_lane(wasm_v128_load32_zero(from_ptr), 0);
-            switch (from_type) {
+            switch (from_dtype) {
             case nk_e4m3_k: hub_vec = nk_e4m3x4_to_f32x4_v128relaxed_(raw32_vec); break;
             case nk_e5m2_k: hub_vec = nk_e5m2x4_to_f32x4_v128_(raw32_vec); break;
             case nk_e2m3_k: hub_vec = nk_e2m3x4_to_f32x4_v128_(raw32_vec); break;
@@ -381,7 +383,7 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_ty
         else hub_vec.v128 = wasm_f32x4_splat(0);
 
         // Downcast from f32x4 hub and store using half-register stores
-        switch (to_type) {
+        switch (to_dtype) {
         case nk_f32_k: wasm_v128_store(to_ptr, hub_vec.v128); break;
         case nk_f16_k: *(nk_u64_t *)to_ptr = nk_f32x4_to_f16x4_v128relaxed_(hub_vec).u64; break;
         case nk_bf16_k: *(nk_u64_t *)to_ptr = nk_f32x4_to_bf16x4_v128_(hub_vec).u64; break;
@@ -396,7 +398,7 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_ty
     }
 
     // Handle tail elements with serial fallback
-    if (tail) nk_cast_elementwise_(from_ptr, from_type, tail, to_ptr, to_type);
+    if (tail) nk_cast_elementwise_(from_ptr, from_dtype, tail, to_ptr, to_dtype);
     return nk_success_k;
 }
 

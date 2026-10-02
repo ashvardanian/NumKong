@@ -107,14 +107,14 @@ extern "C" {
  *  @brief Horizontal moments reduction (sum + sum-of-squares) over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride_bytes Byte stride between elements, `sizeof(*data)` for contiguous arrays.
+ *  @param[in] stride Byte stride between elements, `sizeof(*data)` for contiguous arrays.
  *  @param[out] sum_ptr Output sum.
  *  @param[out] sumsq_ptr Output sum of squares.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 
@@ -122,7 +122,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size
  *  @brief Horizontal min+max reduction with argmin/argmax over a strided array.
  *  @param[in] data Pointer to the input data.
  *  @param[in] count Counts dimensions, a multiple of the values per byte.
- *  @param[in] stride_bytes Byte stride between elements, `sizeof(*data)` for contiguous arrays.
+ *  @param[in] stride Byte stride between elements, `sizeof(*data)` for contiguous arrays.
  *  @param[out] min_value_ptr Output minimum value.
  *  @param[out] min_index_ptr Output index of the minimum value.
  *  @param[out] max_value_ptr Output maximum value.
@@ -131,192 +131,192 @@ NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_reduce_minmax_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f64_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_f64_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f32_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_f32_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                   void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                  nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                  nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                   void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                  nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                  nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, nk_capability_t capabilities,
                                                    void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                   nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                   nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr,
                                                     nk_capability_t capabilities, void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                    nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                    nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr,
                                                     nk_capability_t capabilities, void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                    nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                    nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr,
                                                     nk_capability_t capabilities, void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                    nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                    nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr,
                                                     nk_capability_t capabilities, void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                    nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                    nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr,
                                                     nk_capability_t capabilities, void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                    nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                    nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_e2m1_best(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e2m1_best(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr,
                                                     nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                   void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                  nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                  nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                   void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                  nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                  nk_capability_t capabilities, void *stream);
 
 /** @copydoc nk_reduce_moments_f64_best */
-NUMKONG_API nk_status_t nk_reduce_moments_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, nk_capability_t capabilities,
                                                   void *stream);
 /** @copydoc nk_reduce_minmax_f64_best */
-NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,
                                                  nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr,
                                                  nk_capability_t capabilities, void *stream);
@@ -1273,314 +1273,312 @@ NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
 extern "C" {
 #endif
 
-NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f64_t *sum, nk_f64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f64_best(nk_f64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f64_t *min_value, nk_size_t *min_index, nk_f64_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f64_t *sum, nk_f64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f32_best(nk_f32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f32_t *min_value, nk_size_t *min_index, nk_f32_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_bf16_best(nk_bf16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_bf16_t *min_value, nk_size_t *min_index, nk_bf16_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_f16_best(nk_f16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_f16_t *min_value, nk_size_t *min_index, nk_f16_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_best(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e5m2_t *min_value, nk_size_t *min_index, nk_e5m2_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_best(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e4m3_t *min_value, nk_size_t *min_index, nk_e4m3_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_best(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e3m2_t *min_value, nk_size_t *min_index, nk_e3m2_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_best(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_e2m3_t *min_value, nk_size_t *min_index, nk_e2m3_t *max_value,
                                                    nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_e2m1_best(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_e2m1_best(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride,
                                                     nk_f32_t *sum, nk_f32_t *sumsq, nk_capability_t capabilities,
                                                     void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i64_best(nk_i64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i64_t *min_value, nk_size_t *min_index, nk_i64_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i32_best(nk_i32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i32_t *min_value, nk_size_t *min_index, nk_i32_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i16_best(nk_i16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i16_t *min_value, nk_size_t *min_index, nk_i16_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                  nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
-                                                  void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+NUMKONG_API nk_status_t nk_reduce_moments_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride, nk_i64_t *sum,
+                                                  nk_u64_t *sumsq, nk_capability_t capabilities, void *stream) {
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i8_best(nk_i8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_i8_t *min_value, nk_size_t *min_index, nk_i8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_i64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                   void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_i4_best(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_i8_t *min_value, nk_size_t *min_index, nk_i8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u64_best(nk_u64_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *min_value, nk_size_t *min_index, nk_u64_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u32_best(nk_u32_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u32_t *min_value, nk_size_t *min_index, nk_u32_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride,
                                                    nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u16_best(nk_u16_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u16_t *min_value, nk_size_t *min_index, nk_u16_t *max_value,
                                                   nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                  nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
-                                                  void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+NUMKONG_API nk_status_t nk_reduce_moments_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride, nk_u64_t *sum,
+                                                  nk_u64_t *sumsq, nk_capability_t capabilities, void *stream) {
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u8_best(nk_u8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value, nk_size_t *min_index, nk_u8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                   void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u4_best(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value, nk_size_t *min_index, nk_u8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_moments_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_moments_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride,
                                                   nk_u64_t *sum, nk_u64_t *sumsq, nk_capability_t capabilities,
                                                   void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(sum), nk_unused_(sumsq),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(sum), nk_unused_(sumsq),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride_bytes,
+NUMKONG_API nk_status_t nk_reduce_minmax_u1_best(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride,
                                                  nk_u8_t *min_value, nk_size_t *min_index, nk_u8_t *max_value,
                                                  nk_size_t *max_index, nk_capability_t capabilities, void *stream) {
-    nk_unused_(data), nk_unused_(count), nk_unused_(stride_bytes), nk_unused_(min_value), nk_unused_(min_index),
+    nk_unused_(data), nk_unused_(count), nk_unused_(stride), nk_unused_(min_value), nk_unused_(min_index),
         nk_unused_(max_value), nk_unused_(max_index), nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }

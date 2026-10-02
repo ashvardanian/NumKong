@@ -14,12 +14,12 @@ Reformulating as Python pseudocode:
 
 ```python
 def attention_ragged(q, k, v, segment_offsets, query_offsets, scale) -> Matrix:
-    out = zeros(rows=query_offsets[-1], cols=q.cols)
+    out = zeros(rows=query_offsets[-1], columns=q.columns)
     for s in range(len(segment_offsets) - 1):
         kv = slice(segment_offsets[s], segment_offsets[s + 1])
         queries = slice(query_offsets[s], query_offsets[s + 1])
-        for h in range(num_heads):
-            kv_head = h // (num_heads // num_kv_heads)  # GQA / MQA sharing
+        for h in range(head_count):
+            kv_head = h // (head_count // key_value_head_count)  # GQA / MQA sharing
             scores = q[queries, h] @ k[kv, kv_head].T * scale
             out[queries, h] = softmax(scores, axis=-1) @ v[kv, kv_head]
     return out
@@ -39,7 +39,7 @@ Internally every backend uses the streaming base-2 softmax: the scale folds $\lo
 | `e4m3`     | `f32`       | 8-bit Float8; widened to the ISA's compute format at the pack boundary     |
 | `i8`       | `f32`       | 8-bit signed integers; exact `i32` scores, probabilities quantized to `u8` |
 
-Shape envelope: any `head_dim ≥ 1` (SIMD fast paths cover 1…256 with zero-padded channels; wider heads route to the width-agnostic serial kernel), arbitrary segment lengths including empty PAD segments, and any integer GQA ratio.
+Shape envelope: any `depth ≥ 1` (SIMD fast paths cover 1…256 with zero-padded channels; wider heads route to the width-agnostic serial kernel), arbitrary segment lengths including empty PAD segments, and any integer GQA ratio.
 Quantization scales fold into the `scale` argument for `i8` (queries and keys) or stay with the caller (values), so all three dtypes share one signature.
 
 ## Optimizations
@@ -75,7 +75,7 @@ Scores stay exact in `i32` integer arithmetic; only the probabilities round.
 ## Performance
 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology) on one core pinned with `numactl --membind=0 taskset -c <core>`, counting `4 \cdot h \cdot n_q \cdot n_{kv} \cdot d` FLOPs.
-Rows are kernels, columns are square self-attention shapes at `head_dim = 128`, 8 heads; accuracy is the maximum absolute error against an `f64` reference over dtype-rounded inputs.
+Rows are kernels, columns are square self-attention shapes at `depth = 128`, 8 heads; accuracy is the maximum absolute error against an `f64` reference over dtype-rounded inputs.
 Cells marked `⋯` await measurement on the corresponding platform.
 
 ### Intel Sapphire Rapids

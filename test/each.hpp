@@ -166,7 +166,7 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
 }
 
 /** Grouped RMSNorm over padded rows against an F64 reference: one group with a learned γ, as a
- *  pre-norm, then three groups with none, as a QK-norm over heads. E4M3 rows fold a descale. */
+ *  pre-norm, then three groups with none, as a QK-norm over heads. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename rmsnorm_kernel_type_>
 error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsnorm_fn) {
     using scalar_t = scalar_type_;
@@ -177,34 +177,34 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
     error_stats_t stats(nk_each_rmsnorm_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::uniform_real_distribution<float> gain_distribution(0.5f, 1.5f);
-    nk_f32_t const input_scale = scalar_t::dtype() == nk_e4m3_k ? 0.25f : 1.0f, eps = 1e-6f;
-    std::size_t const rows = 33, cols = 100;
+    nk_f32_t const epsilon = 1e-6f;
+    std::size_t const rows = 33, columns = 100;
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;)
         for (std::size_t const groups : {1, 3}) {
-            std::size_t const row_values = groups * cols + 8, row_bytes = row_values * sizeof(scalar_t);
+            std::size_t const row_values = groups * columns + 8, row_bytes = row_values * sizeof(scalar_t);
             auto x = scalars_t::zeros(rows * row_values).value, y = scalars_t::zeros(rows * row_values).value;
-            auto gamma = gains_t::zeros(cols).value;
+            auto gamma = gains_t::zeros(columns).value;
             fill_random(settings, generator, x);
-            for (std::size_t col = 0; col < cols; col++) gamma.raw_values_data()[col] = gain_distribution(generator);
+            for (std::size_t col = 0; col < columns; col++) gamma.raw_values_data()[col] = gain_distribution(generator);
             nk_f32_t const *gains = groups == 1 ? gamma.raw_values_data() : nullptr;
 
-            backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(), rows, groups, cols, row_bytes,
-                         row_bytes, eps, input_scale);
+            backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(), rows, groups, columns, row_bytes,
+                         row_bytes, epsilon);
             if (char const *failure = backend.synchronize()) stats.expect(false, failure);
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t group = 0; group < groups; group++) {
-                    std::size_t const first = row * row_values + group * cols;
+                    std::size_t const first = row * row_values + group * columns;
                     double sum_squares = 0;
-                    for (std::size_t col = 0; col < cols; col++) {
-                        double const value = static_cast<double>(x[first + col]) * input_scale;
+                    for (std::size_t col = 0; col < columns; col++) {
+                        double const value = static_cast<double>(x[first + col]);
                         sum_squares += value * value;
                     }
-                    double const inverse_rms = 1 / std::sqrt(sum_squares / cols + eps);
-                    for (std::size_t col = 0; col < cols; col++) {
-                        double const expected = static_cast<double>(x[first + col]) * input_scale * inverse_rms *
+                    double const inverse_rms = 1 / std::sqrt(sum_squares / columns + epsilon);
+                    for (std::size_t col = 0; col < columns; col++) {
+                        double const expected = static_cast<double>(x[first + col]) * inverse_rms *
                                                 (gains ? gains[col] : 1.0f);
                         stats.accumulate_bounded(y[first + col], expected,
                                                  stats.term_error_bound * std::fabs(expected));
@@ -214,8 +214,8 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
     return stats;
 }
 
-/** SwiGLU over a fused @b [rows,2×cols] buffer of gate and up rows against an F64 reference, then
- *  plain SiLU with a NULL @c up. E4M3 rows fold a descale. */
+/** SwiGLU over a fused @b [rows,2×columns] buffer of gate and up rows against an F64 reference,
+ *  then plain SiLU with a NULL @c up. Both carry a non-unit gate and output scale. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename swiglu_kernel_type_>
 error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu_fn) {
     using scalar_t = scalar_type_;
@@ -224,8 +224,8 @@ error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu
     backend_type_ backend;
     error_stats_t stats(nk_each_swiglu_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
-    nk_f32_t const input_scale = scalar_t::dtype() == nk_e4m3_k ? 0.25f : 1.0f;
-    std::size_t const rows = 37, cols = 129, fused_values = 2 * cols + 3, output_values = cols + 5;
+    nk_f32_t const gate_scale = 0.25f, output_scale = 2.0f;
+    std::size_t const rows = 37, columns = 129, fused_values = 2 * columns + 3, output_values = columns + 5;
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;)
@@ -233,17 +233,18 @@ error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu
             auto fused = scalars_t::zeros(rows * fused_values).value, y = scalars_t::zeros(rows * output_values).value;
             fill_random(settings, generator, fused);
             auto const *gate = fused.raw_values_data();
-            auto const *up = gated ? gate + cols : nullptr;
+            auto const *up = gated ? gate + columns : nullptr;
 
-            backend.call(swiglu_fn, gate, up, y.raw_values_data(), rows, cols, fused_values * sizeof(scalar_t),
-                         fused_values * sizeof(scalar_t), output_values * sizeof(scalar_t), input_scale);
+            backend.call(swiglu_fn, gate, up, y.raw_values_data(), rows, columns, fused_values * sizeof(scalar_t),
+                         fused_values * sizeof(scalar_t), output_values * sizeof(scalar_t), gate_scale, output_scale);
             if (char const *failure = backend.synchronize()) stats.expect(false, failure);
 
             for (std::size_t row = 0; row < rows; row++)
-                for (std::size_t col = 0; col < cols; col++) {
-                    double const gate_value = static_cast<double>(fused[row * fused_values + col]) * input_scale;
+                for (std::size_t col = 0; col < columns; col++) {
+                    double const gate_value = static_cast<double>(fused[row * fused_values + col]) * gate_scale;
                     double expected = gate_value / (1 + std::exp(-gate_value));
-                    if (gated) expected *= static_cast<double>(fused[row * fused_values + cols + col]) * input_scale;
+                    if (gated) expected *= static_cast<double>(fused[row * fused_values + columns + col]);
+                    expected *= output_scale;
                     stats.accumulate_bounded(y[row * output_values + col], expected,
                                              stats.term_error_bound * std::fabs(expected));
                 }

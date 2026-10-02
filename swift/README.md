@@ -152,13 +152,13 @@ It allocates its own buffer, handles deallocation on `deinit`, and produces non-
 import NumKong
 
 // From an existing array:
-let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
+let t = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, columns: 3)
 
 // Zero-initialized:
-let z = try Tensor<Float32>.zeros(rows: 4, cols: 768)
+let z = try Tensor<Float32>.zeros(rows: 4, columns: 768)
 
 // Constant fill:
-let c = try Tensor<Float32>.full(rows: 4, cols: 768, value: 1.0)
+let c = try Tensor<Float32>.full(rows: 4, columns: 768, value: 1.0)
 
 // Subscript access:
 let v = t[0, 2] // row 0, col 2
@@ -173,7 +173,7 @@ let span: MatrixSpan<Float32>  = t.span()  // mutable
 
 `Tensor<T>` is fixed-capacity resizable.
 `capacity` reports the allocated element ceiling.
-`tryResize(rows:cols:)` reshapes within capacity without moving storage, so an existing `view()`, `span()`, or `row()` stays valid.
+`tryResize(rows:columns:)` reshapes within capacity without moving storage, so an existing `view()`, `span()`, or `row()` stays valid.
 `reserve(_:)` may reallocate to grow, which __invalidates__ any view, span, or row pointer obtained earlier.
 `clear()` empties the tensor while keeping capacity.
 
@@ -202,9 +202,9 @@ The difference in call-site verbosity is significant for anything more than a si
 try a.withUnsafeBufferPointer { aPtr in
     try b.withUnsafeBufferPointer { bPtr in
         try out.withUnsafeMutableBufferPointer { outPtr in
-            let aView = MatrixView(baseAddress: aPtr.baseAddress!, rows: 2, cols: 3)
-            let bView = MatrixView(baseAddress: bPtr.baseAddress!, rows: 2, cols: 3)
-            var cSpan = MatrixSpan(baseAddress: outPtr.baseAddress!, rows: 2, cols: 2)
+            let aView = MatrixView(baseAddress: aPtr.baseAddress!, rows: 2, columns: 3)
+            let bView = MatrixView(baseAddress: bPtr.baseAddress!, rows: 2, columns: 3)
+            var cSpan = MatrixSpan(baseAddress: outPtr.baseAddress!, rows: 2, columns: 2)
             let packed = try PackedMatrix<Float32>(packing: bView)
             try dots_packed(aView, packed, &cSpan)
         }
@@ -212,8 +212,8 @@ try a.withUnsafeBufferPointer { aPtr in
 }
 
 // With Tensor — no closures at the call site
-let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
-let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, cols: 3)
+let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, columns: 3)
+let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, columns: 3)
 let packed = try b.packForDots()
 let c = try a.dotsPacked(packed) // returns Tensor<Float64>
 ```
@@ -226,15 +226,15 @@ They are useful when the right-hand side is reused across many query batches.
 ```swift
 import NumKong
 
-let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, cols: 3)
-let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, cols: 3)
+let a = try Tensor<Float32>.fromArray([1, 2, 3, 4, 5, 6], rows: 2, columns: 3)
+let b = try Tensor<Float32>.fromArray([7, 8, 9, 1, 0, 1], rows: 2, columns: 3)
 
 let packed = try b.packForDots()           // PackedMatrix<Float32>, owned
 let dots   = try a.dotsPacked(packed)      // Tensor<Float64>, 2x2
 let angs   = try a.angularsPacked(packed)  // Tensor<Float64>, 2x2
 let eucs   = try a.euclideansPacked(packed)// Tensor<Float64>, 2x2
 
-assert(dots.rows == 2 && dots.cols == 2)
+assert(dots.rows == 2 && dots.columns == 2)
 ```
 
 The free-function API (`dots_packed`, `angulars_packed`, etc.) accepts `MatrixView`, `PackedMatrix`, and `MatrixSpan` directly for cases where you need manual buffer management — see the verbosity comparison in the Tensors section above.
@@ -251,13 +251,13 @@ let vectors = try Tensor<Float32>.fromArray([
     1, 0, 0,
     0, 1, 0,
     0, 0, 1,
-], rows: 3, cols: 3)
+], rows: 3, columns: 3)
 
 let gram = try vectors.dotsSymmetric()       // Tensor<Float64>, 3x3
 let dists = try vectors.euclideansSymmetric()// Tensor<Float64>, 3x3
 let angs  = try vectors.angularsSymmetric()  // Tensor<Float64>, 3x3
 
-assert(gram.rows == 3 && gram.cols == 3)
+assert(gram.rows == 3 && gram.columns == 3)
 ```
 
 The free-function form (`dots_symmetric`, `angulars_symmetric`, etc.) exposes `rowStart` and `rowCount` parameters for external partitioning.
@@ -272,12 +272,12 @@ import NumKong
 
 // Eight binary vectors, each 16 bits wide (2 x U1x8 per row)
 let rows = 8
-let cols = 2
-var rawBits = [U1x8](repeating: U1x8(bitPattern: 0b10101010), count: rows * cols)
+let columns = 2
+var rawBits = [U1x8](repeating: U1x8(bitPattern: 0b10101010), count: rows * columns)
 
 let t = try rawBits.withUnsafeMutableBufferPointer { buf -> Tensor<U1x8> in
     let data = Array(buf)
-    return try Tensor<U1x8>.fromArray(data, rows: rows, cols: cols)
+    return try Tensor<U1x8>.fromArray(data, rows: rows, columns: columns)
 }
 
 let packed = try PackedMatrix<U1x8>(packing: t.view())
@@ -288,8 +288,8 @@ let hammings = try t.hammingsPacked(packed)  // Tensor<UInt32>
 // Symmetric all-pairs Jaccard distances: shape [8, 8]
 let jaccards = try t.jaccardsSymmetric()     // Tensor<Float32>
 
-assert(hammings.rows == rows && hammings.cols == rows)
-assert(jaccards.rows == rows && jaccards.cols == rows)
+assert(hammings.rows == rows && hammings.columns == rows)
+assert(jaccards.rows == rows && jaccards.columns == rows)
 ```
 
 Free-function forms are also available:
@@ -313,10 +313,10 @@ That is not a standard matrix multiply.
 import NumKong
 
 // 4 query tokens, each 16-dimensional
-let queries = try Tensor<Float32>.full(rows: 4, cols: 16, value: 1.0)
+let queries = try Tensor<Float32>.full(rows: 4, columns: 16, value: 1.0)
 
 // 8 document tokens, each 16-dimensional
-let docs = try Tensor<Float32>.full(rows: 8, cols: 16, value: 1.0)
+let docs = try Tensor<Float32>.full(rows: 8, columns: 16, value: 1.0)
 
 let queryPacked = try queries.maxSimPack()  // MaxSimPackedMatrix<Float32>
 let docPacked   = try docs.maxSimPack()     // MaxSimPackedMatrix<Float32>

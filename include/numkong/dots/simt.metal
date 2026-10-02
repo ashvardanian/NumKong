@@ -212,7 +212,7 @@ struct e2m1x2_t {
 
 /** The launch record of a pack, laid out as the C launcher's record of the same name. */
 struct nk_cross_pack_arguments_metal_t {
-    ulong b_stride_bytes, depth_bytes, row_bytes, capability;
+    ulong b_stride, depth_bytes, row_bytes, capability;
     uint column_count, depth, depth_padded_values, columns_begin, columns_end;
 };
 
@@ -243,7 +243,7 @@ void nk_cross_pack_metal_(device uchar const *b, device uchar *b_packed,
     uint const column = arguments.columns_begin + column_first;
     if (column >= arguments.columns_end) return;
     device uchar *rows = b_packed + sizeof(nk_cross_packed_buffer_header_t);
-    device uchar const *source = b + column * arguments.b_stride_bytes;
+    device uchar const *source = b + column * arguments.b_stride;
     device uchar *destination = rows + column * arguments.row_bytes;
     for (ulong byte = lane; byte < arguments.row_bytes; byte += 32)
         destination[byte] = byte < arguments.depth_bytes ? source[byte] : 0;

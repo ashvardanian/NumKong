@@ -175,8 +175,8 @@ test("Jensen-Shannon", () => {
 test("Matrix construction and toTypedArray", () => {
   const matrix = new numkong.Matrix(2, 3, numkong.DType.F32);
   assert.strictEqual(matrix.rows, 2);
-  assert.strictEqual(matrix.cols, 3);
-  assert.strictEqual(matrix.rowStride, 3 * 4); // 3 cols * 4 bytes
+  assert.strictEqual(matrix.columns, 3);
+  assert.strictEqual(matrix.rowStride, 3 * 4); // 3 columns * 4 bytes
   const arr = matrix.toTypedArray();
   assert(arr instanceof Float32Array);
   assert.strictEqual(arr.length, 6);
@@ -186,7 +186,7 @@ test("Matrix.fromTypedArray", () => {
   const data = new Float32Array([1, 2, 3, 4, 5, 6]);
   const matrix = numkong.Matrix.fromTypedArray(data, 2, 3);
   assert.strictEqual(matrix.rows, 2);
-  assert.strictEqual(matrix.cols, 3);
+  assert.strictEqual(matrix.columns, 3);
   const arr = matrix.toTypedArray();
   assertAlmostEqual(arr[0], 1.0, 0.001);
   assertAlmostEqual(arr[5], 6.0, 0.001);
@@ -223,7 +223,7 @@ test("Matrix resize within capacity, reserve, and clear", () => {
   assert.strictEqual(m.capacity, 16);
   assert.strictEqual(m.tryResize(2, 4), true);
   assert.strictEqual(m.rows, 2);
-  assert.strictEqual(m.cols, 4);
+  assert.strictEqual(m.columns, 4);
   assert.strictEqual(m.rowStride, 4 * 4); // C-contiguous strides re-derived
   assert.strictEqual(m.toTypedArray().length, 8);
   assert.strictEqual(m.tryResize(5, 4), false); // 20 > 16, unchanged
@@ -234,7 +234,7 @@ test("Matrix resize within capacity, reserve, and clear", () => {
   assert.strictEqual(m.rows, 8);
   m.clear();
   assert.strictEqual(m.rows, 0);
-  assert.strictEqual(m.cols, 0);
+  assert.strictEqual(m.columns, 0);
 });
 
 test("Packed GEMM (dotsPacked)", () => {
@@ -246,13 +246,13 @@ test("Packed GEMM (dotsPacked)", () => {
   const matB = numkong.Matrix.fromTypedArray(bData, 5, 3, numkong.DType.F32);
 
   const packed = numkong.dotsPack(matB);
-  assert.strictEqual(packed.width, 5);
+  assert.strictEqual(packed.columns, 5);
   assert.strictEqual(packed.depth, 3);
   assert.strictEqual(packed.disposed, false);
 
   const result = numkong.dotsPacked(matA, packed);
   assert.strictEqual(result.rows, 4);
-  assert.strictEqual(result.cols, 5);
+  assert.strictEqual(result.columns, 5);
 
   const resultArr = result.toTypedArray();
 
@@ -296,7 +296,7 @@ test("Symmetric GEMM (dotsSymmetric) — upper triangle", () => {
   const mat = numkong.Matrix.fromTypedArray(mData, 4, 3, numkong.DType.F32);
   const result = numkong.dotsSymmetric(mat);
   assert.strictEqual(result.rows, 4);
-  assert.strictEqual(result.cols, 4);
+  assert.strictEqual(result.columns, 4);
 
   const arr = result.toTypedArray();
   // Diagonal = self-dot-products

@@ -1212,27 +1212,19 @@ NUMKONG_INLINE nk_f32_t nk_block_amax_f32_neon_(nk_f32_t const *block, nk_size_t
     return result;
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                     void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_cast_elementwise_neon_(from, from_type, n, to, to_type);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_cast_block_scaled_neon(                                                             //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+NUMKONG_INLINE void nk_cast_block_scaled_neon_(void const *from, nk_u8_t const *from_scales,
+                                               nk_f32_t const *from_tensor_scale,           //
+                                               nk_block_scaled_format_t const *from_format, //
+                                               void *to, nk_u8_t *to_scales, nk_f32_t *to_tensor_scale,
+                                               nk_block_scaled_format_t const *to_format, //
+                                               nk_size_t count) {
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     if (from_plain && to_plain) {
         nk_cast_elementwise_neon_(from, from_format->element_dtype, count, to, to_format->element_dtype);
-        return nk_success_k;
+        return;
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -1241,25 +1233,23 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_neon(                              
 
     nk_f32_t from_tensor_scale_f32 = 1.0f;
     if (from_tensor_scale != NUMKONG_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
-        from_tensor_scale_f32 = from_tensor_scale->f32;
+        from_tensor_scale_f32 = *from_tensor_scale;
 
     nk_f32_t to_tensor_scale_f32 = 1.0f;
     int to_has_tensor_scale = (!to_plain && to_tensor_scale != NUMKONG_NULL &&
                                to_format->tensor_scale_dtype == nk_f32_k);
     if (to_has_tensor_scale) {
-        to_tensor_scale_f32 = to_tensor_scale->f32;
+        to_tensor_scale_f32 = *to_tensor_scale;
         if (to_tensor_scale_f32 == 0.0f) {
             nk_cast_block_scaled_through_f32_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
                                               to_tensor_scale, to_format, count);
-            return nk_success_k;
+            return;
         }
     }
 
     nk_f32_t scratch[32];
     nk_size_t from_bits_per_element = nk_dtype_bits(from_format->element_dtype);
     nk_size_t to_bits_per_element = nk_dtype_bits(to_format->element_dtype);
-    nk_u8_t const *from_scales_bytes = (nk_u8_t const *)from_scales;
-    nk_u8_t *to_scales_bytes = (nk_u8_t *)to_scales;
 
     for (nk_size_t chunk_start = 0; chunk_start < count; chunk_start += chunk) {
         nk_size_t chunk_count = (chunk_start + chunk <= count) ? chunk : (count - chunk_start);
@@ -1272,7 +1262,7 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_neon(                              
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
                 nk_size_t valid = (chunk_count - b) < from_block ? (chunk_count - b) : from_block;
                 nk_size_t block_idx = (chunk_start + b) / from_block;
-                nk_u8_t raw = from_scales_bytes[block_idx];
+                nk_u8_t raw = from_scales[block_idx];
                 nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
@@ -1300,7 +1290,7 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_neon(                              
                 nk_u8_t raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale_f32,
                                                                    to_format->scale_dtype);
                 nk_size_t block_idx = (chunk_start + b) / to_block;
-                to_scales_bytes[block_idx] = raw;
+                to_scales[block_idx] = raw;
                 nk_f32_t effective_scale = nk_block_scaled_decode_scale_serial_(raw, to_format->scale_dtype) *
                                            to_tensor_scale_f32;
                 nk_f32_t reciprocal = effective_scale > 0 ? (1.0f / effective_scale) : 0.0f;
@@ -1324,6 +1314,17 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_neon(                              
             }
         }
     }
+}
+
+#if NUMKONG_TARGET_NEON
+NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
+    nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
+    nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+    nk_cast_block_scaled_neon_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
+                               target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_NEON

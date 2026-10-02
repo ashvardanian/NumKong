@@ -597,7 +597,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         VectorView {
             data: self.data.as_ptr() as *const Scalar,
             dims: self.dims,
-            stride_bytes: core::mem::size_of::<Scalar>() as isize,
+            stride: core::mem::size_of::<Scalar>() as isize,
             allocator: &self.alloc,
             _marker: PhantomData,
         }
@@ -609,7 +609,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
         VectorSpan {
             data: self.data.as_ptr(),
             dims: self.dims,
-            stride_bytes: core::mem::size_of::<Scalar>() as isize,
+            stride: core::mem::size_of::<Scalar>() as isize,
             allocator: &self.alloc,
             _marker: PhantomData,
         }
@@ -710,7 +710,7 @@ impl<Scalar: StorageElement, Alloc: Allocator> Vector<Scalar, Alloc> {
     {
         VectorSpanIterator {
             data: self.data.as_ptr(),
-            stride_bytes: core::mem::size_of::<Scalar>() as isize,
+            stride: core::mem::size_of::<Scalar>() as isize,
             front: 0,
             back: self.dims,
             _marker: PhantomData,
@@ -840,7 +840,7 @@ impl<Scalar: StorageElement> Default for Vector<Scalar, Global> {
 pub struct VectorView<'a, Scalar: StorageElement, Alloc = Global> {
     data: *const Scalar,
     dims: usize,
-    stride_bytes: isize,
+    stride: isize,
     /// The allocator of the vector this view borrows.
     allocator: &'a Alloc,
     _marker: PhantomData<&'a Scalar>,
@@ -861,10 +861,10 @@ impl<'a, Scalar: StorageElement> VectorView<'a, Scalar> {
     /// # Safety
     /// - `data` must be valid for reads of `dims` elements at the given stride.
     /// - The pointed-to memory must outlive `'a`.
-    /// - `stride_bytes` must be non-zero for non-empty views.
+    /// - `stride` must be non-zero for non-empty views.
     #[inline]
-    pub unsafe fn from_raw_parts(data: *const Scalar, dims: usize, stride_bytes: isize) -> Self {
-        Self::from_raw_parts_in(data, dims, stride_bytes, &GLOBAL)
+    pub unsafe fn from_raw_parts(data: *const Scalar, dims: usize, stride: isize) -> Self {
+        Self::from_raw_parts_in(data, dims, stride, &GLOBAL)
     }
 }
 
@@ -874,16 +874,11 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
     /// # Safety
     /// The same as for [`VectorView::from_raw_parts`].
     #[inline]
-    pub unsafe fn from_raw_parts_in(
-        data: *const Scalar,
-        dims: usize,
-        stride_bytes: isize,
-        allocator: &'a Alloc,
-    ) -> Self {
+    pub unsafe fn from_raw_parts_in(data: *const Scalar, dims: usize, stride: isize, allocator: &'a Alloc) -> Self {
         Self {
             data,
             dims,
-            stride_bytes,
+            stride,
             allocator,
             _marker: PhantomData,
         }
@@ -907,11 +902,11 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
 
     /// Stride in bytes between consecutive elements.
     #[inline]
-    pub fn stride_bytes(&self) -> isize { self.stride_bytes }
+    pub fn stride_bytes(&self) -> isize { self.stride }
 
     /// Returns true if elements are stored contiguously (stride == sizeof(Scalar)).
     #[inline]
-    pub fn is_contiguous(&self) -> bool { self.stride_bytes == core::mem::size_of::<Scalar>() as isize }
+    pub fn is_contiguous(&self) -> bool { self.stride == core::mem::size_of::<Scalar>() as isize }
 
     /// Get the underlying pointer.
     #[inline]
@@ -942,9 +937,8 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
         })?;
         let location = Scalar::locate_dim(i);
         // SAFETY: stride * value_index stays within allocation
-        let ptr = unsafe {
-            (self.data as *const u8).offset(self.stride_bytes * location.value_index as isize) as *const Scalar
-        };
+        let ptr =
+            unsafe { (self.data as *const u8).offset(self.stride * location.value_index as isize) as *const Scalar };
         Ok(unsafe { location.read_from(ptr) })
     }
 
@@ -956,11 +950,11 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
         if self.dims == 0 {
             return *self;
         }
-        let last_offset = self.stride_bytes * (self.dims as isize - 1);
+        let last_offset = self.stride * (self.dims as isize - 1);
         Self {
             data: unsafe { (self.data as *const u8).offset(last_offset) as *const Scalar },
             dims: self.dims,
-            stride_bytes: -self.stride_bytes,
+            stride: -self.stride,
             allocator: self.allocator,
             _marker: PhantomData,
         }
@@ -989,11 +983,11 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
         } else {
             0
         };
-        let new_data = unsafe { (self.data as *const u8).offset(self.stride_bytes * start as isize) as *const Scalar };
+        let new_data = unsafe { (self.data as *const u8).offset(self.stride * start as isize) as *const Scalar };
         Ok(Self {
             data: new_data,
             dims: count,
-            stride_bytes: self.stride_bytes * step,
+            stride: self.stride * step,
             allocator: self.allocator,
             _marker: PhantomData,
         })
@@ -1006,7 +1000,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
     {
         VectorViewIterator {
             data: self.data,
-            stride_bytes: self.stride_bytes,
+            stride: self.stride,
             front: 0,
             back: self.dims,
             _marker: PhantomData,
@@ -1032,7 +1026,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorView<'a, Scalar, Alloc>
 pub struct VectorSpan<'a, Scalar: StorageElement, Alloc = Global> {
     data: *mut Scalar,
     dims: usize,
-    stride_bytes: isize,
+    stride: isize,
     /// The allocator of the vector this span borrows.
     allocator: &'a Alloc,
     _marker: PhantomData<&'a mut Scalar>,
@@ -1048,11 +1042,11 @@ impl<'a, Scalar: StorageElement> VectorSpan<'a, Scalar> {
     /// # Safety
     /// - `data` must be valid for reads and writes of `dims` elements at the given stride.
     /// - The pointed-to memory must outlive `'a`.
-    /// - `stride_bytes` must be non-zero for non-empty views.
+    /// - `stride` must be non-zero for non-empty views.
     /// - No other references to the memory may exist for the duration of `'a`.
     #[inline]
-    pub unsafe fn from_raw_parts(data: *mut Scalar, dims: usize, stride_bytes: isize) -> Self {
-        Self::from_raw_parts_in(data, dims, stride_bytes, &GLOBAL)
+    pub unsafe fn from_raw_parts(data: *mut Scalar, dims: usize, stride: isize) -> Self {
+        Self::from_raw_parts_in(data, dims, stride, &GLOBAL)
     }
 }
 
@@ -1062,11 +1056,11 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
     /// # Safety
     /// The same as for [`VectorSpan::from_raw_parts`].
     #[inline]
-    pub unsafe fn from_raw_parts_in(data: *mut Scalar, dims: usize, stride_bytes: isize, allocator: &'a Alloc) -> Self {
+    pub unsafe fn from_raw_parts_in(data: *mut Scalar, dims: usize, stride: isize, allocator: &'a Alloc) -> Self {
         Self {
             data,
             dims,
-            stride_bytes,
+            stride,
             allocator,
             _marker: PhantomData,
         }
@@ -1090,11 +1084,11 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
 
     /// Stride in bytes.
     #[inline]
-    pub fn stride_bytes(&self) -> isize { self.stride_bytes }
+    pub fn stride_bytes(&self) -> isize { self.stride }
 
     /// Returns true if contiguous.
     #[inline]
-    pub fn is_contiguous(&self) -> bool { self.stride_bytes == core::mem::size_of::<Scalar>() as isize }
+    pub fn is_contiguous(&self) -> bool { self.stride == core::mem::size_of::<Scalar>() as isize }
 
     /// Get the underlying pointer.
     #[inline]
@@ -1109,7 +1103,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
         VectorView {
             data: self.data,
             dims: self.dims,
-            stride_bytes: self.stride_bytes,
+            stride: self.stride,
             allocator: self.allocator,
             _marker: PhantomData,
         }
@@ -1139,8 +1133,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
         })?;
         let location = Scalar::locate_dim(i);
         // SAFETY: stride * value_index stays within allocation
-        let ptr =
-            unsafe { (self.data as *mut u8).offset(self.stride_bytes * location.value_index as isize) as *mut Scalar };
+        let ptr = unsafe { (self.data as *mut u8).offset(self.stride * location.value_index as isize) as *mut Scalar };
         unsafe { location.write_into(ptr, value) };
         Ok(())
     }
@@ -1172,7 +1165,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
     {
         VectorViewIterator {
             data: self.data,
-            stride_bytes: self.stride_bytes,
+            stride: self.stride,
             front: 0,
             back: self.dims,
             _marker: PhantomData,
@@ -1186,7 +1179,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> VectorSpan<'a, Scalar, Alloc>
     {
         VectorSpanIterator {
             data: self.data,
-            stride_bytes: self.stride_bytes,
+            stride: self.stride,
             front: 0,
             back: self.dims,
             _marker: PhantomData,
@@ -1341,7 +1334,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for VectorSpan<'
             return;
         }
         let element_size = core::mem::size_of::<Scalar>() as isize;
-        if self.stride_bytes == element_size {
+        if self.stride == element_size {
             // Contiguous fast path.
             unsafe {
                 core::ptr::write_bytes(self.data, 0, storage_count);
@@ -1351,7 +1344,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for VectorSpan<'
         // Strided: zero one element at a time.
         for storage_index in 0..storage_count {
             unsafe {
-                let ptr = (self.data as *mut u8).offset(self.stride_bytes * storage_index as isize) as *mut Scalar;
+                let ptr = (self.data as *mut u8).offset(self.stride * storage_index as isize) as *mut Scalar;
                 core::ptr::write_bytes(ptr, 0, 1);
             }
         }
@@ -1377,7 +1370,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for VectorSpan<'
             return;
         }
         let element_size = core::mem::size_of::<Scalar>() as isize;
-        if self.stride_bytes == element_size {
+        if self.stride == element_size {
             // Contiguous fast path.
             if core::mem::size_of::<Scalar>() == 1 {
                 unsafe {
@@ -1393,7 +1386,7 @@ impl<'a, Scalar: StorageElement, Alloc: Allocator> Fill<Scalar> for VectorSpan<'
         // Strided typed broadcast.
         for storage_index in 0..storage_count {
             unsafe {
-                let ptr = (self.data as *mut u8).offset(self.stride_bytes * storage_index as isize) as *mut Scalar;
+                let ptr = (self.data as *mut u8).offset(self.stride * storage_index as isize) as *mut Scalar;
                 core::ptr::write(ptr, value);
             }
         }
@@ -1416,7 +1409,7 @@ impl<'a, 'b, Scalar: StorageElement, Alloc: Allocator, SourceAlloc: Allocator>
         }
         let storage_count = Scalar::dimensions_to_values(self.dims);
         let element_size = core::mem::size_of::<Scalar>() as isize;
-        if self.stride_bytes == element_size && source.stride_bytes() == element_size {
+        if self.stride == element_size && source.stride_bytes() == element_size {
             unsafe {
                 core::ptr::copy_nonoverlapping(source.as_ptr(), self.data, storage_count);
             }
@@ -1425,7 +1418,7 @@ impl<'a, 'b, Scalar: StorageElement, Alloc: Allocator, SourceAlloc: Allocator>
         for storage_index in 0..storage_count {
             unsafe {
                 let destination_ptr =
-                    (self.data as *mut u8).offset(self.stride_bytes * storage_index as isize) as *mut Scalar;
+                    (self.data as *mut u8).offset(self.stride * storage_index as isize) as *mut Scalar;
                 let source_ptr = (source.as_ptr() as *const u8).offset(source.stride_bytes() * storage_index as isize)
                     as *const Scalar;
                 core::ptr::write(destination_ptr, *source_ptr);
@@ -1446,7 +1439,7 @@ impl<'a, 'b, Scalar: StorageElement, Alloc: Allocator, SourceAlloc: Allocator>
 /// Implements `ExactSizeIterator`, `FusedIterator`, and `DoubleEndedIterator`.
 pub struct VectorViewIterator<'a, Scalar: FloatConvertible> {
     data: *const Scalar,
-    stride_bytes: isize,
+    stride: isize,
     front: usize,
     back: usize,
     _marker: PhantomData<&'a Scalar>,
@@ -1465,9 +1458,8 @@ impl<'a, Scalar: FloatConvertible> Iterator for VectorViewIterator<'a, Scalar> {
         }
         let location = Scalar::locate_dim(self.front);
         // SAFETY: value_index < values, stride * value_index within allocation
-        let ptr = unsafe {
-            (self.data as *const u8).offset(self.stride_bytes * location.value_index as isize) as *const Scalar
-        };
+        let ptr =
+            unsafe { (self.data as *const u8).offset(self.stride * location.value_index as isize) as *const Scalar };
         let scalar = unsafe { location.read_from(ptr) };
         self.front += 1;
         Some(DimRef::new(scalar))
@@ -1491,9 +1483,8 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorViewIterator<'a
         }
         self.back -= 1;
         let location = Scalar::locate_dim(self.back);
-        let ptr = unsafe {
-            (self.data as *const u8).offset(self.stride_bytes * location.value_index as isize) as *const Scalar
-        };
+        let ptr =
+            unsafe { (self.data as *const u8).offset(self.stride * location.value_index as isize) as *const Scalar };
         Some(DimRef::new(unsafe { location.read_from(ptr) }))
     }
 }
@@ -1505,7 +1496,7 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorViewIterator<'a
 /// Implements `ExactSizeIterator`, `FusedIterator`, and `DoubleEndedIterator`.
 pub struct VectorSpanIterator<'a, Scalar: FloatConvertible> {
     data: *mut Scalar,
-    stride_bytes: isize,
+    stride: isize,
     front: usize,
     back: usize,
     _marker: PhantomData<&'a mut Scalar>,
@@ -1520,8 +1511,7 @@ impl<'a, Scalar: FloatConvertible> Iterator for VectorSpanIterator<'a, Scalar> {
             return None;
         }
         let location = Scalar::locate_dim(self.front);
-        let ptr =
-            unsafe { (self.data as *mut u8).offset(self.stride_bytes * location.value_index as isize) as *mut Scalar };
+        let ptr = unsafe { (self.data as *mut u8).offset(self.stride * location.value_index as isize) as *mut Scalar };
         let scalar = unsafe { location.read_from(ptr) };
         self.front += 1;
         Some(unsafe { DimMut::new(ptr, location.sub_index, scalar) })
@@ -1545,8 +1535,7 @@ impl<'a, Scalar: FloatConvertible> DoubleEndedIterator for VectorSpanIterator<'a
         }
         self.back -= 1;
         let location = Scalar::locate_dim(self.back);
-        let ptr =
-            unsafe { (self.data as *mut u8).offset(self.stride_bytes * location.value_index as isize) as *mut Scalar };
+        let ptr = unsafe { (self.data as *mut u8).offset(self.stride * location.value_index as isize) as *mut Scalar };
         let scalar = unsafe { location.read_from(ptr) };
         Some(unsafe { DimMut::new(ptr, location.sub_index, scalar) })
     }

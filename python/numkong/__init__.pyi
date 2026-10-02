@@ -63,10 +63,10 @@ _ComplexTypeName = Literal[
 _BlockScaledTypeName = Literal[
     "nvfp4",
     "mxfp4",
-    "mxfp6_e2m3",
-    "mxfp6_e3m2",
-    "mxfp8_e4m3",
-    "mxfp8_e5m2",
+    "mxfp6e2m3",
+    "mxfp6e3m2",
+    "mxfp8e4m3",
+    "mxfp8e5m2",
     "mxint8",
 ]
 _MetricName = Literal[
@@ -549,8 +549,8 @@ class PackedMatrix:
     """
 
     @property
-    def width(self) -> int:
-        """Number of rows in the original matrix."""
+    def columns(self) -> int:
+        """Number of packed vectors, the columns of the result."""
         ...
 
     @property
@@ -570,13 +570,13 @@ class PackedMatrix:
 
     @property
     def shape(self) -> tuple[int, int]:
-        """Dimensions (width, depth) read from the packed buffer header."""
+        """Dimensions (columns, depth) read from the packed buffer header."""
         ...
 
     @classmethod
     def pack_size(
         cls,
-        width: int,
+        columns: int,
         depth: int,
         /,
         dtype: _IntegralTypeName | _FloatTypeName | _ComplexTypeName | _MiniFloatType,
@@ -1328,22 +1328,20 @@ def rmsnorm(
     *,
     out: _BufferType | None = None,
     groups: int = 1,
-    eps: float = 1e-6,
-    input_scale: float = 1.0,
+    epsilon: float = 1e-6,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None:
-    """Grouped RMSNorm, `y = x * rsqrt(mean(x^2) + eps) * gamma`, in place unless `out` is given.
+    """Grouped RMSNorm, `y = x * rsqrt(mean(x^2) + epsilon) * gamma`, in place unless `out` is given.
 
     Each row, spanning all axes but the last, holds `groups` independent sub-vectors of length
     `x.shape[-1] // groups`, normalized separately.
 
     Args:
         x: Input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
-        gamma: Per-column float32 gain of length `cols`, defaulting to unit scale.
+        gamma: Per-column float32 gain of length `columns`, defaulting to unit scale.
         out: Output buffer, same shape and dtype as `x`, may alias `x`.
         groups: Independent sub-vectors per row.
-        eps: Variance epsilon.
-        input_scale: Scale folded onto each loaded element.
+        epsilon: Variance epsilon. For e4m3, pass it in code units and fold the output scale into `gamma`.
     """
     ...
 
@@ -1353,18 +1351,21 @@ def swiglu(
     up: _BufferType | None = None,
     *,
     out: _BufferType | None = None,
-    input_scale: float = 1.0,
+    gate_scale: float = 1.0,
+    output_scale: float = 1.0,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor | None:
-    """Fused SwiGLU, `y = silu(input_scale * gate) * (input_scale * up)`, in place unless `out` is given.
+    """Fused SwiGLU, `y = silu(gate) * up`, in place unless `out` is given.
 
-    With `up` omitted this reduces to plain SiLU, `y = silu(input_scale * gate)`.
+    The gate is read at `gate_scale * gate` and the result is multiplied by `output_scale`.
+    With `up` omitted this reduces to plain SiLU.
 
     Args:
         gate: Gate input of dtype float32, bfloat16, or e4m3, with a contiguous last axis.
         up: Up input, same shape and dtype as `gate`, defaulting to plain SiLU.
         out: Output buffer, same shape and dtype as `gate`, may alias `gate`.
-        input_scale: Scale folded onto each loaded element.
+        gate_scale: Tensor scale of `gate`.
+        output_scale: Multiplier on the result.
     """
     ...
 
@@ -1574,7 +1575,6 @@ def attention_rope(
     depth: int,
     *,
     out: _BufferType | None = None,
-    input_scale: float = 1.0,
     **dispatch: Unpack[_Dispatch],
 ) -> None:
     """Rotate every channel pair of each head by the per-token angle grids, in place unless `out` is given.
@@ -1586,7 +1586,6 @@ def attention_rope(
         head_count: Number of heads per token.
         depth: Even number of channels per head.
         out: Output, same shape and dtype as `x`, may alias `x`, defaulting to `x`.
-        input_scale: Scale folded onto each loaded element.
     """
     ...
 

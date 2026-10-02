@@ -481,29 +481,30 @@ cleanup:
     return return_obj;
 }
 
-char const doc_rmsnorm[] =                                                                              //
-    "Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma.\n\n"                                      //
-    "Each row, spanning all axes but the last, holds `groups` independent `cols`-vectors, normalized\n" //
-    "separately, where `cols = x.shape[-1] // groups`.\n\n"                                             //
-    "Args:\n"                                                                                           //
-    "    x (Tensor): Input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"                //
-    "    gamma (Tensor, optional): Per-column float32 gain of length `cols`; None for unit scale.\n"    //
-    "    out (Tensor, optional): Output buffer (same shape/dtype as x); may alias x.\n"                 //
-    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                      //
-    "    eps (float, optional): Variance epsilon, 1e-6 by default.\n"                                   //
-    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n"     //
-    "Returns:\n"                                                                                        //
-    "    Tensor: The result if `out` is not provided.\n"                                                //
-    "    None: If `out` is provided, an in-place operation.\n\n"                                        //
-    "Signature:\n"                                                                                      //
-    "    >>> def rmsnorm(x, gamma=None, /, *, out, groups, eps, input_scale) -> Optional[Tensor]: ...";
+char const doc_rmsnorm[] =                                                                                 //
+    "Grouped RMSNorm: y = x * rsqrt(mean(x^2) + epsilon) * gamma.\n\n"                                     //
+    "Each row, spanning all axes but the last, holds `groups` independent `columns`-vectors, normalized\n" //
+    "separately, where `columns = x.shape[-1] // groups`.\n\n"                                             //
+    "Args:\n"                                                                                              //
+    "    x (Tensor): Input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"                   //
+    "    gamma (Tensor, optional): Per-column float32 gain of length `columns`; None for unit scale.\n"    //
+    "    out (Tensor, optional): Output buffer (same shape/dtype as x); may alias x.\n"                    //
+    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                         //
+    "    epsilon (float, optional): Variance epsilon, 1e-6 by default.\n\n"                                //
+    "Notes:\n"                                                                                             //
+    "    For e4m3, pass epsilon in code units and fold the output scale into gamma.\n\n"                   //
+    "Returns:\n"                                                                                           //
+    "    Tensor: The result if `out` is not provided.\n"                                                   //
+    "    None: If `out` is provided, an in-place operation.\n\n"                                           //
+    "Signature:\n"                                                                                         //
+    "    >>> def rmsnorm(x, gamma=None, /, *, out, groups, epsilon) -> Optional[Tensor]: ...";
 
 PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                       PyObject *args_names_tuple) {
     nk_unused_(self);
     PyObject *return_obj = NULL;
     PyObject *x_obj = NULL, *gamma_obj = NULL, *out_obj = NULL;
-    PyObject *groups_obj = NULL, *eps_obj = NULL, *input_scale_obj = NULL;
+    PyObject *groups_obj = NULL, *epsilon_value = NULL;
     nk_capability_t capabilities = default_capabilities;
     void *stream = NULL;
 
@@ -516,8 +517,8 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 8) {
-        PyErr_Format(PyExc_TypeError, "Function expects 1-8 arguments, got %zd", args_count);
+    if (args_count < 1 || args_count > 7) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-7 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -532,13 +533,12 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
         if (PyUnicode_CompareWithASCIIString(key, "gamma") == 0 && !gamma_obj) gamma_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "groups") == 0 && !groups_obj) groups_obj = value;
-        else if (PyUnicode_CompareWithASCIIString(key, "eps") == 0 && !eps_obj) eps_obj = value;
-        else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !input_scale_obj) input_scale_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "epsilon") == 0 && !epsilon_value) epsilon_value = value;
         else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
 
     nk_size_t groups = 1;
-    nk_f32_t eps = 1e-6f, input_scale = 1.0f;
+    nk_f32_t epsilon = 1e-6f;
     if (groups_obj) {
         long g = PyLong_AsLong(groups_obj);
         if (g <= 0) {
@@ -547,15 +547,10 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
         }
         groups = (nk_size_t)g;
     }
-    if (eps_obj) {
-        double e = PyFloat_AsDouble(eps_obj);
+    if (epsilon_value) {
+        double e = PyFloat_AsDouble(epsilon_value);
         if (PyErr_Occurred()) return NULL;
-        eps = (nk_f32_t)e;
-    }
-    if (input_scale_obj) {
-        double s = PyFloat_AsDouble(input_scale_obj);
-        if (PyErr_Occurred()) return NULL;
-        input_scale = (nk_f32_t)s;
+        epsilon = (nk_f32_t)e;
     }
     if (gamma_obj == Py_None) gamma_obj = NULL;
 
@@ -580,7 +575,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
         PyErr_Format(PyExc_ValueError, "last axis (%zu) not divisible by groups (%zu)", (size_t)width, (size_t)groups);
         goto cleanup;
     }
-    nk_size_t const cols = width / groups;
+    nk_size_t const columns = width / groups;
     nk_size_t rows = 1;
     for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
     for (int d = 0; d + 2 < ndim; ++d) {
@@ -589,7 +584,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
             goto cleanup;
         }
     }
-    nk_size_t const x_stride_bytes = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+    nk_size_t const x_stride = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
 
     nk_f32_t const *gamma_ptr = NULL;
     if (gamma_obj) {
@@ -601,8 +596,8 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
             goto cleanup;
         }
         nk_size_t glen = gamma_buffer.ndim >= 1 ? (nk_size_t)gamma_buffer.shape[gamma_buffer.ndim - 1] : 0;
-        if (glen != cols || (size_t)gamma_buffer.strides[gamma_buffer.ndim - 1] != sizeof(nk_f32_t)) {
-            PyErr_Format(PyExc_ValueError, "gamma must be contiguous float32 of length cols=%zu", (size_t)cols);
+        if (glen != columns || (size_t)gamma_buffer.strides[gamma_buffer.ndim - 1] != sizeof(nk_f32_t)) {
+            PyErr_Format(PyExc_ValueError, "gamma must be contiguous float32 of length columns=%zu", (size_t)columns);
             goto cleanup;
         }
         gamma_ptr = (nk_f32_t const *)gamma_buffer.buf;
@@ -623,12 +618,12 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
                                  &result_data, result_strides, &contiguous_tail, &return_obj))
         goto cleanup;
-    nk_size_t const y_stride_bytes = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+    nk_size_t const y_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        nk_status_t const status = kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, cols, x_stride_bytes,
-                                          y_stride_bytes, eps, input_scale, stream);
+        nk_status_t const status = kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, columns, x_stride,
+                                          y_stride, epsilon, stream);
         PyEval_RestoreThread(gil);
         if (!check_status(status)) Py_CLEAR(return_obj);
     }
@@ -639,25 +634,27 @@ cleanup:
     return return_obj;
 }
 
-char const doc_swiglu[] =                                                                           //
-    "Fused SwiGLU: y = silu(input_scale * gate) * (input_scale * up).\n\n"                          //
-    "With up=None this reduces to plain SiLU: y = silu(input_scale * gate).\n\n"                    //
-    "Args:\n"                                                                                       //
-    "    gate (Tensor): Gate input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n"    //
-    "    up (Tensor, optional): Up input, same shape/dtype as gate; None for plain SiLU.\n"         //
-    "    out (Tensor, optional): Output buffer (same shape/dtype as gate); may alias gate.\n"       //
-    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n" //
-    "Returns:\n"                                                                                    //
-    "    Tensor: The result if `out` is not provided.\n"                                            //
-    "    None: If `out` is provided, an in-place operation.\n\n"                                    //
-    "Signature:\n"                                                                                  //
-    "    >>> def swiglu(gate, up=None, /, *, out, input_scale) -> Optional[Tensor]: ...";
+char const doc_swiglu[] =                                                                        //
+    "Fused SwiGLU: y = silu(gate_scale * gate) * up * output_scale.\n\n"                         //
+    "With up=None this reduces to plain SiLU: y = silu(gate_scale * gate) * output_scale.\n\n"   //
+    "Args:\n"                                                                                    //
+    "    gate (Tensor): Gate input of dtype float32, bfloat16, or e4m3; last axis contiguous.\n" //
+    "    up (Tensor, optional): Up input, same shape/dtype as gate; None for plain SiLU.\n"      //
+    "    out (Tensor, optional): Output buffer (same shape/dtype as gate); may alias gate.\n"    //
+    "    gate_scale (float, optional): Tensor scale of gate, 1.0 by default.\n"                  //
+    "    output_scale (float, optional): Multiplier on the result, 1.0 by default.\n\n"          //
+    "Returns:\n"                                                                                 //
+    "    Tensor: The result if `out` is not provided.\n"                                         //
+    "    None: If `out` is provided, an in-place operation.\n\n"                                 //
+    "Signature:\n"                                                                               //
+    "    >>> def swiglu(gate, up=None, /, *, out, gate_scale, output_scale)\n"                   //
+    "    ...     -> Optional[Tensor]: ...";
 
 PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                      PyObject *args_names_tuple) {
     nk_unused_(self);
     PyObject *return_obj = NULL;
-    PyObject *gate_obj = NULL, *up_obj = NULL, *out_obj = NULL, *input_scale_obj = NULL;
+    PyObject *gate_obj = NULL, *up_obj = NULL, *out_obj = NULL, *gate_scale_value = NULL, *output_scale_value = NULL;
     nk_capability_t capabilities = default_capabilities;
     void *stream = NULL;
 
@@ -670,8 +667,8 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 1 || args_count > 6) {
-        PyErr_Format(PyExc_TypeError, "Function expects 1-6 arguments, got %zd", args_count);
+    if (args_count < 1 || args_count > 7) {
+        PyErr_Format(PyExc_TypeError, "Function expects 1-7 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 2) {
@@ -685,16 +682,24 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
         PyObject *const value = args[p];
         if (PyUnicode_CompareWithASCIIString(key, "up") == 0 && !up_obj) up_obj = value;
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
-        else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !input_scale_obj) input_scale_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "gate_scale") == 0 && !gate_scale_value)
+            gate_scale_value = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "output_scale") == 0 && !output_scale_value)
+            output_scale_value = value;
         else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
     if (up_obj == Py_None) up_obj = NULL;
 
-    nk_f32_t input_scale = 1.0f;
-    if (input_scale_obj) {
-        double s = PyFloat_AsDouble(input_scale_obj);
+    nk_f32_t gate_scale = 1.0f, output_scale = 1.0f;
+    if (gate_scale_value) {
+        double s = PyFloat_AsDouble(gate_scale_value);
         if (PyErr_Occurred()) return NULL;
-        input_scale = (nk_f32_t)s;
+        gate_scale = (nk_f32_t)s;
+    }
+    if (output_scale_value) {
+        double s = PyFloat_AsDouble(output_scale_value);
+        if (PyErr_Occurred()) return NULL;
+        output_scale = (nk_f32_t)s;
     }
 
     if (!nk_get_buffer(gate_obj, &gate_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &gate_backing)) return NULL;
@@ -709,7 +714,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     }
     int const ndim = gate_buffer.ndim;
     size_t const elem = nk_dtype_bytes_per_value(dtype);
-    nk_size_t const cols = (nk_size_t)gate_buffer.shape[ndim - 1];
+    nk_size_t const columns = (nk_size_t)gate_buffer.shape[ndim - 1];
     if ((size_t)gate_buffer.strides[ndim - 1] != elem) {
         PyErr_SetString(PyExc_ValueError, "swiglu requires the last axis to be contiguous");
         goto cleanup;
@@ -722,10 +727,10 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
             goto cleanup;
         }
     }
-    nk_size_t const gate_stride_bytes = ndim >= 2 ? (nk_size_t)gate_buffer.strides[ndim - 2] : 0;
+    nk_size_t const gate_stride = ndim >= 2 ? (nk_size_t)gate_buffer.strides[ndim - 2] : 0;
 
     void const *up_ptr = NUMKONG_NULL;
-    nk_size_t up_stride_bytes = 0;
+    nk_size_t up_stride = 0;
     if (up_obj) {
         if (!nk_get_buffer(up_obj, &up_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &up_backing)) goto cleanup;
         have_up = 1;
@@ -739,7 +744,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
             goto cleanup;
         }
         up_ptr = up_buffer.buf;
-        up_stride_bytes = ndim >= 2 ? (nk_size_t)up_buffer.strides[ndim - 2] : 0;
+        up_stride = ndim >= 2 ? (nk_size_t)up_buffer.strides[ndim - 2] : 0;
     }
 
     nk_each_swiglu_punned_t kernel = NULL;
@@ -757,12 +762,12 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
                                  &result_data, result_strides, &contiguous_tail, &return_obj))
         goto cleanup;
-    nk_size_t const y_stride_bytes = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+    nk_size_t const y_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
 
     {
         PyThreadState *gil = PyEval_SaveThread();
-        nk_status_t const status = kernel(gate_buffer.buf, up_ptr, result_data, rows, cols, gate_stride_bytes,
-                                          up_stride_bytes, y_stride_bytes, input_scale, stream);
+        nk_status_t const status = kernel(gate_buffer.buf, up_ptr, result_data, rows, columns, gate_stride, up_stride,
+                                          y_stride, gate_scale, output_scale, stream);
         PyEval_RestoreThread(gil);
         if (!check_status(status)) Py_CLEAR(return_obj);
     }

@@ -57,8 +57,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_genoa(void const *packed, nk
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_genoa( //
-    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
-    void *stream) {
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
 
     nk_size_t const element_bytes = sizeof(nk_bf16_t);
@@ -69,10 +68,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_genoa( //
     nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
     nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
     char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride_bytes;
+    nk_size_t const original_stride = header->original_stride;
 
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride_in_bytes;
+        char const *source_row = (char const *)vectors + vector_index * stride;
         nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
                                    (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
                                    &metadata[vector_index]);

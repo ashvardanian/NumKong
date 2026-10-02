@@ -69,7 +69,6 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_attention_packed_shape_k:
     case nk_kernel_attention_rope_k: return nk_attention_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_cast_k:
-    case nk_kernel_cast_block_scaled_k: return nk_cast_find_kernel(kind, dtype, capabilities, kernel, capability);
     default: *kernel = NUMKONG_NULL, *capability = 0; return nk_missing_kernel_k;
     }
 }

@@ -459,7 +459,8 @@ On Arm, ARMv8.4-A adds __FMLAL/FMLAL2__ instructions for fused Float16 → Float
 > __Block scaling.__
 > NumKong's kernels treat each element independently, so E2M1, E3M2, and E2M3 inputs carry no block scale into dot products or distances.
 > Block scaling couples elements through a shared exponent per block, introducing structural bias into a fundamentally uniform operation.
-> `nk_cast_block_scaled_best` converts between plain buffers and the MXFP4, MXFP6, MXFP8, MXINT8, and NVFP4 layouts, deriving or applying the scales.
+> `nk_cast_best` converts between plain buffers and the MXFP4, MXFP6, MXFP8, MXINT8, and NVFP4 layouts, deriving or applying the scales.
+> Block-scaled sides pass a composite dtype like `nk_nvfp4_k` and a pointer to an `nk_nvfp4_cref_t` source or `nk_nvfp4_ref_t` destination holding the codes, the scale bytes, and for NVFP4 a per-tensor `nk_f32_t`.
 
 > __FNUZ variants.__
 > AMD MI300 (CDNA 3) uses FNUZ encoding (negative-zero-is-NaN) rather than the OCP standard.

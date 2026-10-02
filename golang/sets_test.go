@@ -36,30 +36,30 @@ func TestHammingsSymmetricU1(t *testing.T) {
 }
 
 func TestHammingsPackedU1(t *testing.T) {
-	rows, cols, depth := 2, 2, 8
+	rows, columns, depth := 2, 2, 8
 	v := []byte{0xFF, 0x0F} // 2 row vectors
 	b := []byte{0x00, 0x0F} // 2 column vectors to pack
 
-	bPacked := numkong.NewDotsPackedMatrixU1(b, cols, depth)
+	bPacked := numkong.NewDotsPackedMatrixU1(b, columns, depth)
 
-	result := make([]uint32, rows*cols)
+	result := make([]uint32, rows*columns)
 	numkong.HammingsPackedU1(v, bPacked, result, rows)
 
 	// v[0]=0xFF vs b[0]=0x00: 8 bits differ
-	if result[0*cols+0] != 8 {
-		t.Errorf("HammingsPackedU1[0][0]: expected 8, got %v", result[0*cols+0])
+	if result[0*columns+0] != 8 {
+		t.Errorf("HammingsPackedU1[0][0]: expected 8, got %v", result[0*columns+0])
 	}
 	// v[0]=0xFF vs b[1]=0x0F: 4 bits differ
-	if result[0*cols+1] != 4 {
-		t.Errorf("HammingsPackedU1[0][1]: expected 4, got %v", result[0*cols+1])
+	if result[0*columns+1] != 4 {
+		t.Errorf("HammingsPackedU1[0][1]: expected 4, got %v", result[0*columns+1])
 	}
 	// v[1]=0x0F vs b[0]=0x00: 4 bits differ
-	if result[1*cols+0] != 4 {
-		t.Errorf("HammingsPackedU1[1][0]: expected 4, got %v", result[1*cols+0])
+	if result[1*columns+0] != 4 {
+		t.Errorf("HammingsPackedU1[1][0]: expected 4, got %v", result[1*columns+0])
 	}
 	// v[1]=0x0F vs b[1]=0x0F: 0 bits differ
-	if result[1*cols+1] != 0 {
-		t.Errorf("HammingsPackedU1[1][1]: expected 0, got %v", result[1*cols+1])
+	if result[1*columns+1] != 0 {
+		t.Errorf("HammingsPackedU1[1][1]: expected 0, got %v", result[1*columns+1])
 	}
 }
 
@@ -82,21 +82,21 @@ func TestJaccardsSymmetricU1(t *testing.T) {
 }
 
 func TestJaccardsPackedU1(t *testing.T) {
-	rows, cols, depth := 2, 2, 8
+	rows, columns, depth := 2, 2, 8
 	v := []byte{0xFF, 0x0F}
 	b := []byte{0x00, 0xFF}
 
-	bPacked := numkong.NewDotsPackedMatrixU1(b, cols, depth)
+	bPacked := numkong.NewDotsPackedMatrixU1(b, columns, depth)
 
-	result := make([]float32, rows*cols)
+	result := make([]float32, rows*columns)
 	numkong.JaccardsPackedU1(v, bPacked, result, rows)
 
 	// v[0]=0xFF vs b[1]=0xFF: identical → Jaccard distance = 0
-	if math.Abs(float64(result[0*cols+1])) > 0.01 {
-		t.Errorf("JaccardsPackedU1[0][1]: expected ~0, got %v", result[0*cols+1])
+	if math.Abs(float64(result[0*columns+1])) > 0.01 {
+		t.Errorf("JaccardsPackedU1[0][1]: expected ~0, got %v", result[0*columns+1])
 	}
 	// v[0]=0xFF vs b[0]=0x00: Jaccard distance = 1
-	if math.Abs(float64(result[0*cols+0])-1.0) > 0.01 {
-		t.Errorf("JaccardsPackedU1[0][0]: expected ~1, got %v", result[0*cols+0])
+	if math.Abs(float64(result[0*columns+0])-1.0) > 0.01 {
+		t.Errorf("JaccardsPackedU1[0][0]: expected ~1, got %v", result[0*columns+0])
 	}
 }

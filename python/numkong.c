@@ -445,10 +445,10 @@ nk_dtype_t py_string_to_nk_dtype(char const *name, Py_ssize_t len) {
         if (same_literal_(name, len, "complex128")) return nk_f64c_k;
         if (same_literal_(name, len, "bcomplex32")) return nk_bf16c_k;
         // Composite block-scaled MXFP6 / MXFP8 variants
-        if (same_literal_(name, len, "mxfp6_e2m3")) return nk_mxfp6_e2m3_k;
-        if (same_literal_(name, len, "mxfp6_e3m2")) return nk_mxfp6_e3m2_k;
-        if (same_literal_(name, len, "mxfp8_e4m3")) return nk_mxfp8_e4m3_k;
-        if (same_literal_(name, len, "mxfp8_e5m2")) return nk_mxfp8_e5m2_k;
+        if (same_literal_(name, len, "mxfp6e2m3")) return nk_mxfp6e2m3_k;
+        if (same_literal_(name, len, "mxfp6e3m2")) return nk_mxfp6e3m2_k;
+        if (same_literal_(name, len, "mxfp8e4m3")) return nk_mxfp8e4m3_k;
+        if (same_literal_(name, len, "mxfp8e5m2")) return nk_mxfp8e5m2_k;
         break;
 
     case 11:
@@ -880,7 +880,7 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
             PyBuffer_Release(buffer);
             return 0;
         }
-        parsed->cols = buffer->shape[0];
+        parsed->columns = buffer->shape[0];
         parsed->rows = 1;
         parsed->row_stride = 0;
     }
@@ -893,7 +893,7 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
             PyBuffer_Release(buffer);
             return 0;
         }
-        parsed->cols = buffer->shape[1];
+        parsed->columns = buffer->shape[1];
         parsed->rows = buffer->shape[0];
         parsed->row_stride = buffer->strides[0];
     }

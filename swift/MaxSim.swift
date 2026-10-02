@@ -48,14 +48,14 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
 
     /// Packs a matrix view into the MaxSim-optimized layout.
     public convenience init(packing matrix: MatrixView<Element>) throws {
-        guard matrix.rows > 0 && matrix.cols > 0 else {
+        guard matrix.rows > 0 && matrix.columns > 0 else {
             throw NumKongMatrixError.invalidDimensions
         }
-        let bytes = try Element._nk_maxsim_pack_size(matrix.rows, matrix.cols)
+        let bytes = try Element._nk_maxsim_pack_size(matrix.rows, matrix.columns)
         guard bytes > 0 else { throw NumKongMatrixError.packedBufferTooSmall }
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
-        self.init(vectors: matrix.rows, depth: matrix.cols, byteCount: bytes, rawPointer: ptr)
-        try Element._nk_maxsim_pack(matrix.baseAddress, matrix.rows, matrix.cols, matrix.rowStrideBytes, ptr)
+        self.init(vectors: matrix.rows, depth: matrix.columns, byteCount: bytes, rawPointer: ptr)
+        try Element._nk_maxsim_pack(matrix.baseAddress, matrix.rows, matrix.columns, matrix.rowStrideBytes, ptr)
     }
 
     /// Computes the MaxSim score between this query and a document's packed matrix.

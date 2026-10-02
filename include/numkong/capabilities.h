@@ -403,7 +403,7 @@ typedef enum {
     /** Fused SwiGLU: y = silu(gate) ⊙ up (up = NULL → SiLU). */
     nk_kernel_each_swiglu_k = 'W',
 
-    /** Grouped RMSNorm: y = x · rsqrt(mean(x²) + eps) · γ. */
+    /** Grouped RMSNorm: y = x · rsqrt(mean(x²) + epsilon) · γ. */
     nk_kernel_each_rmsnorm_k = 'H',
 
     /** Element-wise sine. */
@@ -492,9 +492,6 @@ typedef enum {
 
     /** Type casting from one type to another. */
     nk_kernel_cast_k = '-',
-
-    /** Block-scaled cast (MX / NVFP4 encode / decode / transcode). */
-    nk_kernel_cast_block_scaled_k = '~',
 } nk_kernel_kind_t;
 
 /** Canonical name of a kernel kind - the spelling bindings parse and interchange formats carry;
@@ -555,7 +552,6 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_attention_packed_shape_k: return "attention_packed_shape";
     case nk_kernel_attention_rope_k: return "attention_rope";
     case nk_kernel_cast_k: return "cast";
-    case nk_kernel_cast_block_scaled_k: return "cast_block_scaled";
     default: return "unknown";
     }
 }
@@ -617,7 +613,6 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "attention_packed_shape")) return nk_kernel_attention_packed_shape_k;
     if (nk_same_literal_(name, length, "attention_rope")) return nk_kernel_attention_rope_k;
     if (nk_same_literal_(name, length, "cast")) return nk_kernel_cast_k;
-    if (nk_same_literal_(name, length, "cast_block_scaled")) return nk_kernel_cast_block_scaled_k;
     return nk_kernel_unknown_k;
 }
 
@@ -654,52 +649,49 @@ typedef nk_status_t (*nk_metric_mesh_punned_t)(void const *a, void const *b, nk_
                                                void *b_centroid, void *rotation, void *scale, void *result,
                                                void *stream);
 
-typedef nk_status_t (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes, void *sum,
+typedef nk_status_t (*nk_reduce_moments_punned_t)(void const *data, nk_size_t count, nk_size_t stride, void *sum,
                                                   void *sumsq, void *stream);
 
-typedef nk_status_t (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride_bytes,
-                                                 void *min_value, nk_size_t *min_index, void *max_value,
-                                                 nk_size_t *max_index, void *stream);
+typedef nk_status_t (*nk_reduce_minmax_punned_t)(void const *data, nk_size_t count, nk_size_t stride, void *min_value,
+                                                 nk_size_t *min_index, void *max_value, nk_size_t *max_index,
+                                                 void *stream);
 
 typedef nk_status_t (*nk_each_rmsnorm_punned_t)(void const *x, void const *gamma, void *y, nk_size_t rows,
-                                                nk_size_t groups, nk_size_t cols, nk_size_t x_stride_bytes,
-                                                nk_size_t y_stride_bytes, nk_f32_t eps, nk_f32_t input_scale,
-                                                void *stream);
+                                                nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                nk_size_t y_stride, nk_f32_t epsilon, void *stream);
 
 typedef nk_status_t (*nk_each_swiglu_punned_t)(void const *gate, void const *up, void *y, nk_size_t rows,
-                                               nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes,
-                                               nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream);
+                                               nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
+                                               nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
+                                               void *stream);
 
 /** Pack sizes are host arithmetic, so they take no stream. */
 typedef nk_status_t (*nk_dots_pack_size_punned_t)(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 
-typedef nk_status_t (*nk_dots_packed_shape_punned_t)(void const *packed, nk_size_t *width, nk_size_t *depth,
+typedef nk_status_t (*nk_dots_packed_shape_punned_t)(void const *packed, nk_size_t *columns, nk_size_t *depth,
                                                      void *stream);
 
-typedef nk_status_t (*nk_dots_pack_punned_t)(void const *b, void const *b_scales, nk_size_t columns, nk_size_t depth,
-                                             nk_size_t b_stride_bytes, nk_size_t b_scales_stride_bytes, void *b_packed,
-                                             nk_size_t columns_begin, nk_size_t columns_end, void *stream);
+typedef nk_status_t (*nk_dots_pack_punned_t)(void const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride,
+                                             void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
+                                             void *stream);
 
 typedef nk_status_t (*nk_maxsim_pack_punned_t)(void const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                               nk_size_t stride_bytes, void *packed, void *stream);
+                                               nk_size_t stride, void *packed, void *stream);
 
-typedef nk_status_t (*nk_dots_packed_punned_t)(void const *a, void const *a_scales, void const *b_packed, void *c,
-                                               nk_size_t rows, nk_size_t columns, nk_size_t depth,
-                                               nk_size_t a_stride_bytes, nk_size_t a_scales_stride_bytes,
-                                               nk_size_t c_stride_bytes, void *stream);
+typedef nk_status_t (*nk_dots_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
+                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
+                                               nk_size_t c_stride, void *stream);
 
-typedef nk_status_t (*nk_dots_symmetric_punned_t)(void const *vectors, void const *vector_scales,
-                                                  nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_bytes,
-                                                  nk_size_t scales_stride_bytes, void *result,
-                                                  nk_size_t result_stride_bytes, nk_size_t row_start,
-                                                  nk_size_t row_count, void *stream);
+typedef nk_status_t (*nk_dots_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
+                                                  nk_size_t stride, void *result, nk_size_t result_stride,
+                                                  nk_size_t row_start, nk_size_t row_count, void *stream);
 
 /** Bit vectors have no scaled form, so the set batches keep their unscaled shapes. */
 typedef nk_status_t (*nk_sets_packed_punned_t)(void const *a, void const *b_packed, void *c, nk_size_t rows,
-                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride_bytes,
-                                               nk_size_t c_stride_bytes, void *stream);
+                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
+                                               nk_size_t c_stride, void *stream);
 typedef nk_status_t (*nk_sets_symmetric_punned_t)(void const *vectors, nk_size_t vectors_count, nk_size_t depth,
-                                                  nk_size_t stride_bytes, void *result, nk_size_t result_stride_bytes,
+                                                  nk_size_t stride, void *result, nk_size_t result_stride,
                                                   nk_size_t row_start, nk_size_t row_count, void *stream);
 
 typedef nk_sets_packed_punned_t nk_hammings_packed_punned_t;
@@ -711,51 +703,43 @@ typedef nk_dots_symmetric_punned_t nk_angulars_symmetric_punned_t;
 typedef nk_dots_packed_punned_t nk_euclideans_packed_punned_t;
 typedef nk_dots_symmetric_punned_t nk_euclideans_symmetric_punned_t;
 
-typedef nk_status_t (*nk_maxsim_packed_punned_t)(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                                 nk_size_t document_count, nk_size_t depth, void *result, void *stream);
+typedef nk_status_t (*nk_maxsim_packed_punned_t)(void const *query_packed, void const *document_packed,
+                                                 nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                 void *result, void *stream);
 
-typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *heads, nk_size_t *depth,
+typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *head_count, nk_size_t *depth,
                                                           nk_size_t *segments, void *stream);
 
 /** Pack sizes are host arithmetic, so they take no stream. */
-typedef nk_status_t (*nk_attention_pack_size_punned_t)(nk_size_t num_kv_heads, nk_size_t head_dim,
+typedef nk_status_t (*nk_attention_pack_size_punned_t)(nk_size_t key_value_head_count, nk_size_t depth,
                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
                                                        nk_size_t *bytes);
 
-typedef nk_status_t (*nk_attention_pack_punned_t)(void const *k, void const *k_scales, void const *v,
-                                                  void const *v_scales, nk_size_t num_kv_heads, nk_size_t head_dim,
-                                                  nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-                                                  nk_size_t segment_count, nk_size_t k_stride_bytes,
-                                                  nk_size_t k_scales_stride_bytes, nk_size_t v_stride_bytes,
-                                                  nk_size_t v_scales_stride_bytes, void *key_value_packed,
+typedef nk_status_t (*nk_attention_pack_punned_t)(void const *keys, void const *values, nk_size_t key_value_head_count,
+                                                  nk_size_t depth, nk_u32_t const *segment_offsets,
+                                                  nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                  nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed,
                                                   nk_size_t task_begin, nk_size_t task_end, void *stream);
 
 typedef nk_status_t (*nk_attention_bidirectional_packed_punned_t)(
-    void const *q, void const *q_scales, void const *key_value_packed, void *output, nk_size_t num_heads,
-    nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride_bytes,
-    nk_size_t q_scales_stride_bytes, nk_size_t o_stride_bytes, nk_f32_t scale, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+    void const *queries, void const *key_value_packed, void *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
 
-typedef nk_status_t (*nk_attention_causal_packed_punned_t)(
-    void const *q, void const *q_scales, void const *key_value_packed, void *output, nk_size_t num_heads,
-    nk_size_t num_kv_heads, nk_size_t head_dim, nk_u32_t const *query_offsets, nk_size_t q_stride_bytes,
-    nk_size_t q_scales_stride_bytes, nk_size_t o_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset,
-    nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream);
+typedef nk_status_t (*nk_attention_causal_packed_punned_t)(void const *queries, void const *key_value_packed,
+                                                           void *output, nk_size_t head_count,
+                                                           nk_size_t key_value_head_count, nk_size_t depth,
+                                                           nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                           nk_size_t output_stride, nk_f32_t scale,
+                                                           nk_i64_t diagonal_offset, nk_size_t window,
+                                                           nk_size_t task_start, nk_size_t task_count, void *stream);
 
 typedef nk_status_t (*nk_attention_rope_punned_t)(void const *x, void const *cos, void const *sin, void *y,
                                                   nk_size_t rows, nk_size_t head_count, nk_size_t depth,
-                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
-                                                  nk_f32_t input_scale, void *stream);
+                                                  nk_size_t x_stride, nk_size_t y_stride, void *stream);
 
-typedef nk_status_t (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
-                                               nk_dtype_t to_type, void *stream);
-
-typedef nk_status_t (*nk_kernel_cast_block_scaled_punned_t)(                                  //
-    void const *from, void const *from_scales,                                                //
-    nk_scalar_buffer_t const *from_tensor_scale, nk_block_scaled_format_t const *from_format, //
-    void *to, void *to_scales,                                                                //
-    nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format,           //
-    nk_size_t count, void *stream);
+typedef nk_status_t (*nk_kernel_cast_punned_t)(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                               nk_size_t count, void *stream);
 
 /** Any kernel, cast back to its kind's signature before the call. */
 typedef void (*nk_kernel_punned_t)(void);

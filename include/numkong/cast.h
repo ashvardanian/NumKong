@@ -54,23 +54,49 @@ typedef void (*nk_f32_to_bf16_punned_t)(nk_f32_t const *, nk_bf16_t *);
 typedef void (*nk_f32_to_u8_punned_t)(nk_f32_t const *, nk_u8_t *);
 
 /**
- *  @brief Elementwise type-casting for arrays of entries.
+ *  @brief Elementwise type-casting for arrays of entries, plain or block-scaled.
  *
- *  @param[in] from The immutable input source array containing @p n elements of @p from_type type.
- *  @param[in] from_type The type of elements in the immutable source array.
- *  @param[in] n Counts dimensions, a multiple of the values per byte.
- *  @param[in] to The mutable output array containing @p n elements of @p to_type type.
- *  @param[in] to_type The type of elements in the mutable target array.
+ *  A block-scaled dtype is one of the composites, like @c nk_mxfp8e4m3_k or @c nk_nvfp4_k, whose
+ *  element dtype, scale dtype and block size @c nk_block_scaled_format_of_dtype derives:
+ *
+ *  @verbatim
+ *      Source          Destination     Action
+ *      plain           plain           elementwise conversion
+ *      plain           block-scaled    encodes: per-block amax, derived scale, quantization
+ *      block-scaled    plain           decodes: reads the scale, dequantizes to the plain dtype
+ *      block-scaled    block-scaled    transcodes: decode → encode
+ *  @endverbatim
+ *
+ *  @param[in] from The @p count source elements, or an @c nk_<format>_cref_t if block-scaled.
+ *  @param[in] from_dtype The type of elements in the immutable source array.
+ *  @param[out] to The @p count target elements, or an @c nk_<format>_ref_t if block-scaled.
+ *  @param[in] to_dtype The type of elements in the mutable target array.
+ *  @param[in] count Logical elements, a multiple of both block sizes if either is block-scaled.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *
+ *  Codes and scales are contiguous runs. A destination NVFP4 @c tensor_scale holding a non-zero
+ *  value is applied as is; holding zero, it receives the tensor scale that the kernel derives from
+ *  the source data it encodes.
  */
-NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                     nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, nk_capability_t capabilities, void *stream);
 
-/** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                       nk_dtype_t to_type, void *stream);
+/**
+ *  @copydoc nk_cast_best
+ *
+ *  The serial reference runs one loop for every direction, and reuses the element codec for every
+ *  element dtype, packed E2M1 included:
+ *
+ *  @verbatim
+ *      for each chunk of lcm(from_block, to_block) elements:
+ *          decode the chunk into an f32 scratch buffer, applying source scales if block-scaled
+ *          encode the scratch buffer into the destination, deriving amax and scales if block-scaled
+ *  @endverbatim
+ */
+NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                       nk_size_t count, void *stream);
 
 /**
  *  @brief Scalar conversion from @c f16 to @c f32, covering every IEEE 754 edge case.
@@ -349,88 +375,34 @@ NUMKONG_API void nk_mxfp4_to_f32x32_serial(nk_mxfp4_t const *src, nk_f32_t *dest
 NUMKONG_API void nk_f32x32_to_mxfp4_serial(nk_f32_t const *src, nk_mxfp4_t *dest);
 
 /** Decode one MXFP6 E2M3 block (32 elements) to f32. */
-NUMKONG_API void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp6e2m3_to_f32x32_serial(nk_mxfp6e2m3_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP6 E2M3 block. */
-NUMKONG_API void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2m3_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp6e2m3_serial(nk_f32_t const *src, nk_mxfp6e2m3_t *dest);
 
 /** Decode one MXFP6 E3M2 block (32 elements) to f32. */
-NUMKONG_API void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp6e3m2_to_f32x32_serial(nk_mxfp6e3m2_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP6 E3M2 block. */
-NUMKONG_API void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3m2_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp6e3m2_serial(nk_f32_t const *src, nk_mxfp6e3m2_t *dest);
 
 /** Decode one MXFP8 E4M3 block (32 elements) to f32. */
-NUMKONG_API void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp8e4m3_to_f32x32_serial(nk_mxfp8e4m3_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP8 E4M3 block. */
-NUMKONG_API void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4m3_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp8e4m3_serial(nk_f32_t const *src, nk_mxfp8e4m3_t *dest);
 
 /** Decode one MXFP8 E5M2 block (32 elements) to f32. */
-NUMKONG_API void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f32_t *dest);
+NUMKONG_API void nk_mxfp8e5m2_to_f32x32_serial(nk_mxfp8e5m2_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXFP8 E5M2 block. */
-NUMKONG_API void nk_f32x32_to_mxfp8_e5m2_serial(nk_f32_t const *src, nk_mxfp8_e5m2_t *dest);
+NUMKONG_API void nk_f32x32_to_mxfp8e5m2_serial(nk_f32_t const *src, nk_mxfp8e5m2_t *dest);
 
 /** Decode one MXINT8 block (32 elements) to f32. */
 NUMKONG_API void nk_mxint8_to_f32x32_serial(nk_mxint8_t const *src, nk_f32_t *dest);
 
 /** Encode 32 f32 values into one MXINT8 block. */
 NUMKONG_API void nk_f32x32_to_mxint8_serial(nk_f32_t const *src, nk_mxint8_t *dest);
-
-/**
- *  @brief Unified cast between plain and block-scaled layouts, or between two block-scaled ones.
- *
- *  The direction follows from the format descriptors:
- *
- *  @verbatim
- *      Source          Destination     Action
- *      plain           plain           delegates to the elementwise cast
- *      plain           block-scaled    encodes: per-block amax, derived scale, quantization
- *      block-scaled    plain           decodes: reads the scale, dequantizes to the plain dtype
- *      block-scaled    block-scaled    transcodes: decode → encode
- *  @endverbatim
- *
- *  @param[in] from Source element bytes.
- *  @param[in] from_scales One scale byte per block, NULL when @p from_format is plain.
- *  @param[in] from_tensor_scale Per-tensor multiplier, NULL when @p from_format has none.
- *  @param[in] from_format Source layout descriptor, `nk_plain(dtype)` for plain data.
- *  @param[out] to Destination element bytes.
- *  @param[out] to_scales One scale byte per block, NULL when @p to_format is plain.
- *  @param[inout] to_tensor_scale Per-tensor multiplier, NULL when @p to_format has none.
- *  @param[in] to_format Destination layout descriptor.
- *  @param[in] count Logical element count, a multiple of both block sizes.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
- *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
- *
- *  A non-NULL @p to_tensor_scale holding a non-zero value is applied as is; holding zero on encode,
- *  it receives the tensor scale the kernel derives from the data.
- */
-NUMKONG_API nk_status_t nk_cast_block_scaled_best(void const *from, void const *from_scales,
-                                                  nk_scalar_buffer_t const *from_tensor_scale,
-                                                  nk_block_scaled_format_t const *from_format, void *to,
-                                                  void *to_scales, nk_scalar_buffer_t *to_tensor_scale,
-                                                  nk_block_scaled_format_t const *to_format, nk_size_t count,
-                                                  nk_capability_t capabilities, void *stream);
-
-/**
- *  @copydoc nk_cast_block_scaled_best
- *
- *  The serial reference runs one loop for encode, decode and transcode, and reuses the element
- *  codec of @c nk_cast_serial for every element dtype, packed E2M1 included:
- *
- *  @verbatim
- *      for each chunk of lcm(from_block, to_block) elements:
- *          decode the chunk into an f32 scratch buffer, applying source scales if block-scaled
- *          encode the scratch buffer into the destination, deriving amax and scales if block-scaled
- *  @endverbatim
- */
-NUMKONG_API nk_status_t nk_cast_block_scaled_serial(                                                           //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream);
 
 /** Number of element storage bytes needed for @p count logical elements of @p format. */
 NUMKONG_API nk_size_t nk_block_scaled_elements_size(nk_size_t count, nk_block_scaled_format_t format);
@@ -444,18 +416,8 @@ NUMKONG_API void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
 NUMKONG_API void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest);
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                     void *stream);
-
-/** @copydoc nk_cast_block_scaled_best
- *
- *  Reduces amax over f32x4 and multiplies by a broadcast reciprocal around the NEON element
- *  codec hub, as @c nk_cast_neon already packs E2M1, E4M3 and the other element formats. */
-NUMKONG_API nk_status_t nk_cast_block_scaled_neon(                                                             //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream);
+NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_HASWELL
@@ -464,58 +426,26 @@ NUMKONG_API void nk_f16_to_f32_haswell(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
 NUMKONG_API void nk_f32_to_f16_haswell(nk_f32_t const *src, nk_f16_t *dest);
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                        nk_dtype_t to_type, void *stream);
-
-/** @copydoc nk_cast_block_scaled_best
- *
- *  Uses an AVX2 amax and a broadcast reciprocal multiply around the serial element codec hub,
- *  mirroring @c nk_cast_block_scaled_skylake at 8 lanes. */
-NUMKONG_API nk_status_t nk_cast_block_scaled_haswell(                                                          //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream);
+NUMKONG_API nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                        nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                        nk_dtype_t to_type, void *stream);
-
-/** @copydoc nk_cast_block_scaled_best
- *
- *  Uses an AVX-512 amax and a broadcast reciprocal multiply around the serial element codec hub,
- *  which vectorizes the dominant scale-derivation cost for MXFP8, MXFP6, MXFP4, MXINT8 and NVFP4
- *  without duplicating per-format packing logic. */
-NUMKONG_API nk_status_t nk_cast_block_scaled_skylake(                                                          //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream);
+NUMKONG_API nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                        nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_icelake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                        nk_dtype_t to_type, void *stream);
-
-/** @copydoc nk_cast_block_scaled_best
- *
- *  Mirrors @c nk_cast_block_scaled_skylake but routes the element codec through
- *  @c nk_cast_icelake, whose 32-wide BF16-LUT decodes of FP4 and FP6 replace Skylake's per-32-bit
- *  permutes, while the f32 scale derivation reuses the Skylake amax and reciprocal multiply. */
-NUMKONG_API nk_status_t nk_cast_block_scaled_icelake(                                                          //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream);
+NUMKONG_API nk_status_t nk_cast_icelake(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                        nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_SAPPHIRE
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                         nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                         nk_size_t count, void *stream);
 /** @copydoc nk_f16_to_f32_best */
 NUMKONG_API void nk_f16_to_f32_sapphire(nk_f16_t const *src, nk_f32_t *dest);
 /** @copydoc nk_f32_to_f16_best */
@@ -524,14 +454,14 @@ NUMKONG_API void nk_f32_to_f16_sapphire(nk_f32_t const *src, nk_f16_t *dest);
 
 #if NUMKONG_TARGET_RVV
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                    void *stream);
+NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                    nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 #if NUMKONG_TARGET_POWERVSX
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                         nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                         nk_size_t count, void *stream);
 
 /** @copydoc nk_f16_to_f32_best
  *
@@ -546,25 +476,16 @@ NUMKONG_API void nk_f32_to_f16_powervsx(nk_f32_t const *src, nk_f16_t *dest);
 
 #if NUMKONG_TARGET_V128RELAXED
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                            nk_dtype_t to_type, void *stream);
+NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                            nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
  *  every operand is device memory of the vendor their capability names. */
 #if NUMKONG_TARGET_CUDA
 /** @copydoc nk_cast_best */
-NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                     void *stream);
-
-/** @copydoc nk_cast_block_scaled_best
- *
- *  The formats stay in host memory, while both tensor scales are device memory like the rest. */
-NUMKONG_API nk_status_t nk_cast_block_scaled_cuda(                                                             //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream);
+NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_CUDA
 
 /**
@@ -658,21 +579,9 @@ NUMKONG_API void nk_f32_to_e2m3_best(nk_f32_t const *source, nk_e2m3_t *destinat
     nk_f32_to_e2m3_serial(source, destination);
 }
 
-NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                     nk_capability_t capabilities, void *stream) {
-    nk_unused_(from), nk_unused_(from_type), nk_unused_(n), nk_unused_(to), nk_unused_(to_type),
-        nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
-NUMKONG_API nk_status_t nk_cast_block_scaled_best(void const *from, void const *from_scales,
-                                                  nk_scalar_buffer_t const *from_tensor_scale,
-                                                  nk_block_scaled_format_t const *from_format, void *to,
-                                                  void *to_scales, nk_scalar_buffer_t *to_tensor_scale,
-                                                  nk_block_scaled_format_t const *to_format, nk_size_t count,
-                                                  nk_capability_t capabilities, void *stream) {
-    nk_unused_(from), nk_unused_(from_scales), nk_unused_(from_tensor_scale), nk_unused_(from_format), nk_unused_(to),
-        nk_unused_(to_scales), nk_unused_(to_tensor_scale), nk_unused_(to_format), nk_unused_(count),
+NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, nk_capability_t capabilities, void *stream) {
+    nk_unused_(from), nk_unused_(from_dtype), nk_unused_(to), nk_unused_(to_dtype), nk_unused_(count),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }

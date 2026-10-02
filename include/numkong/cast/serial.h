@@ -2264,28 +2264,6 @@ NUMKONG_INLINE void nk_cast_elementwise_(void const *from, nk_dtype_t from_type,
     }
 }
 
-#if NUMKONG_TARGET_SERIAL
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((noinline)), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
-#endif
-
-NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                       nk_dtype_t to_type, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_cast_elementwise_(from, from_type, n, to, to_type);
-    return nk_success_k;
-}
-
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-#endif // NUMKONG_TARGET_SERIAL
-
 /** Maximum representable magnitude for each block-scaled element dtype (OCP MX / NVFP4 spec). */
 NUMKONG_CONSTEXPR nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) {
     switch (element_dtype) {
@@ -2398,7 +2376,7 @@ NUMKONG_API void nk_f32x32_to_mxfp4_serial(nk_f32_t const *src, nk_mxfp4_t *dest
     }
 }
 
-NUMKONG_API void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp6e2m3_to_f32x32_serial(nk_mxfp6e2m3_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
@@ -2407,7 +2385,7 @@ NUMKONG_API void nk_mxfp6_e2m3_to_f32x32_serial(nk_mxfp6_e2m3_t const *src, nk_f
     }
 }
 
-NUMKONG_API void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2m3_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp6e2m3_serial(nk_f32_t const *src, nk_mxfp6e2m3_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 7.5f);
     nk_f32_t scale_f32;
@@ -2419,7 +2397,7 @@ NUMKONG_API void nk_f32x32_to_mxfp6_e2m3_serial(nk_f32_t const *src, nk_mxfp6_e2
     }
 }
 
-NUMKONG_API void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp6e3m2_to_f32x32_serial(nk_mxfp6e3m2_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
@@ -2428,7 +2406,7 @@ NUMKONG_API void nk_mxfp6_e3m2_to_f32x32_serial(nk_mxfp6_e3m2_t const *src, nk_f
     }
 }
 
-NUMKONG_API void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3m2_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp6e3m2_serial(nk_f32_t const *src, nk_mxfp6e3m2_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 28.0f);
     nk_f32_t scale_f32;
@@ -2440,7 +2418,7 @@ NUMKONG_API void nk_f32x32_to_mxfp6_e3m2_serial(nk_f32_t const *src, nk_mxfp6_e3
     }
 }
 
-NUMKONG_API void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp8e4m3_to_f32x32_serial(nk_mxfp8e4m3_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
@@ -2449,7 +2427,7 @@ NUMKONG_API void nk_mxfp8_e4m3_to_f32x32_serial(nk_mxfp8_e4m3_t const *src, nk_f
     }
 }
 
-NUMKONG_API void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4m3_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp8e4m3_serial(nk_f32_t const *src, nk_mxfp8e4m3_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 448.0f);
     nk_f32_t scale_f32;
@@ -2461,7 +2439,7 @@ NUMKONG_API void nk_f32x32_to_mxfp8_e4m3_serial(nk_f32_t const *src, nk_mxfp8_e4
     }
 }
 
-NUMKONG_API void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f32_t *dest) {
+NUMKONG_API void nk_mxfp8e5m2_to_f32x32_serial(nk_mxfp8e5m2_t const *src, nk_f32_t *dest) {
     nk_f32_t scale_f32;
     nk_ue8m0_to_f32_(&src->scale_, &scale_f32);
     for (nk_size_t i = 0; i < 32; ++i) {
@@ -2470,7 +2448,7 @@ NUMKONG_API void nk_mxfp8_e5m2_to_f32x32_serial(nk_mxfp8_e5m2_t const *src, nk_f
     }
 }
 
-NUMKONG_API void nk_f32x32_to_mxfp8_e5m2_serial(nk_f32_t const *src, nk_mxfp8_e5m2_t *dest) {
+NUMKONG_API void nk_f32x32_to_mxfp8e5m2_serial(nk_f32_t const *src, nk_mxfp8e5m2_t *dest) {
     nk_f32_t block_amax = nk_block_amax_f32_serial_(src, 32);
     dest->scale_ = nk_f32_block_amax_to_ue8m0_serial_(block_amax, 57344.0f);
     nk_f32_t scale_f32;
@@ -2517,14 +2495,36 @@ NUMKONG_API nk_size_t nk_block_scaled_scales_size(nk_size_t count, nk_block_scal
 #endif
 #endif // NUMKONG_TARGET_SERIAL
 
+/** The codes, scales and tensor scale behind @p operand of @p dtype, a plain pointer with none for
+ *  plain dtypes. Every MX reference shares the layout of @c nk_mxfp4_cref_t, and the pointers are
+ *  never read, only compared. */
+typedef struct {
+    void *codes;
+    nk_u8_t *scales;
+    nk_f32_t *tensor_scale;
+} nk_cast_operand_t;
+
+NUMKONG_INLINE nk_cast_operand_t nk_cast_operand_(nk_dtype_t dtype, void const *operand) {
+    nk_cast_operand_t unpacked = {(void *)operand, NUMKONG_NULL, NUMKONG_NULL};
+    if (dtype == nk_nvfp4_k) {
+        nk_nvfp4_ref_t const *reference = (nk_nvfp4_ref_t const *)operand;
+        unpacked.codes = reference->elements, unpacked.scales = (nk_u8_t *)reference->scales;
+        unpacked.tensor_scale = reference->tensor_scale;
+    }
+    else if (nk_dtype_is_block_scaled(dtype)) {
+        nk_mxfp4_ref_t const *reference = (nk_mxfp4_ref_t const *)operand;
+        unpacked.codes = reference->elements, unpacked.scales = (nk_u8_t *)reference->scales;
+    }
+    return unpacked;
+}
+
 /** Converts @p count values between plain and block-scaled formats, a chunk of blocks at a time
  *  through an F32 scratch, deriving a zero destination tensor scale from the source amax. */
-NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                                                         //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
+NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                                                  //
+    void const *from, nk_u8_t const *from_scales, nk_f32_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                        //
+    void *to, nk_u8_t *to_scales, nk_f32_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count) {
-
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
@@ -2541,7 +2541,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                          
     // Global multipliers (NVFP4 tensor-scale). Absent → identity.
     nk_f32_t from_tensor_scale_f32 = 1.0f;
     if (from_tensor_scale != NUMKONG_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
-        from_tensor_scale_f32 = from_tensor_scale->f32;
+        from_tensor_scale_f32 = *from_tensor_scale;
 
     // If a non-plain destination has a zero-initialised tensor_scale pointer, derive it from the tensor
     // amax so block scales stay within the scale dtype's range (NVFP4 calibration convention).
@@ -2549,7 +2549,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                          
     int to_has_tensor_scale = (!to_plain && to_tensor_scale != NUMKONG_NULL &&
                                to_format->tensor_scale_dtype == nk_f32_k);
     if (to_has_tensor_scale) {
-        to_tensor_scale_f32 = to_tensor_scale->f32;
+        to_tensor_scale_f32 = *to_tensor_scale;
         if (to_tensor_scale_f32 == 0.0f) {
             nk_f32_t tensor_amax = 0.0f;
             // Scan source (may be plain or block-scaled) to find tensor_scale amax.
@@ -2561,7 +2561,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                          
                 nk_cast_elementwise_(src, from_format->element_dtype, block_count, block_f32, nk_f32_k);
                 nk_f32_t src_scale = 1.0f;
                 if (!from_plain) {
-                    nk_u8_t raw = ((nk_u8_t const *)from_scales)[i / from_block];
+                    nk_u8_t raw = from_scales[i / from_block];
                     src_scale = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
                                 from_tensor_scale_f32;
                 }
@@ -2575,15 +2575,13 @@ NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                          
             nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
             nk_f32_t scale_max = (to_format->scale_dtype == nk_ue4m3_k) ? 448.0f : 1.0f;
             to_tensor_scale_f32 = tensor_amax > 0 ? tensor_amax / (element_max * scale_max) : 1.0f;
-            to_tensor_scale->f32 = to_tensor_scale_f32;
+            *to_tensor_scale = to_tensor_scale_f32;
         }
     }
 
     nk_f32_t scratch[32]; // max block_size
     nk_size_t from_bits_per_element = nk_dtype_bits(from_format->element_dtype);
     nk_size_t to_bits_per_element = nk_dtype_bits(to_format->element_dtype);
-    nk_u8_t const *from_scales_bytes = (nk_u8_t const *)from_scales;
-    nk_u8_t *to_scales_bytes = (nk_u8_t *)to_scales;
 
     for (nk_size_t chunk_start = 0; chunk_start < count; chunk_start += chunk) {
         nk_size_t chunk_count = (chunk_start + chunk <= count) ? chunk : (count - chunk_start);
@@ -2597,7 +2595,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                          
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
                 nk_size_t valid = (chunk_count - b) < from_block ? (chunk_count - b) : from_block;
                 nk_size_t block_idx = (chunk_start + b) / from_block;
-                nk_u8_t raw = from_scales_bytes[block_idx];
+                nk_u8_t raw = from_scales[block_idx];
                 nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
@@ -2621,7 +2619,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                          
                 nk_u8_t raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale_f32,
                                                                    to_format->scale_dtype);
                 nk_size_t block_idx = (chunk_start + b) / to_block;
-                to_scales_bytes[block_idx] = raw;
+                to_scales[block_idx] = raw;
                 // Recover the exact effective scale after rounding to apply the reciprocal.
                 nk_f32_t effective_scale = nk_block_scaled_decode_scale_serial_(raw, to_format->scale_dtype) *
                                            to_tensor_scale_f32;
@@ -2651,14 +2649,14 @@ NUMKONG_INLINE void nk_cast_block_scaled_through_f32_(                          
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API nk_status_t nk_cast_block_scaled_serial(                                                           //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream) {
+NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                       nk_size_t count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cast_block_scaled_through_f32_(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale,
-                                      to_format, count);
+    nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
+    nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
+    nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+    nk_cast_block_scaled_through_f32_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
+                                      target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;
 }
 

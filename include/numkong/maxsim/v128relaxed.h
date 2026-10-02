@@ -128,10 +128,9 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_v128relaxed(void const *pack
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_v128relaxed(nk_bf16_t const *vectors, nk_size_t vector_count,
-                                                        nk_size_t depth, nk_size_t stride_in_bytes, void *packed,
-                                                        void *stream) {
+                                                        nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_maxsim_pack_bf16_v128_(vectors, vector_count, depth, stride_in_bytes, packed);
+    nk_maxsim_pack_bf16_v128_(vectors, vector_count, depth, stride, packed);
     return nk_success_k;
 }
 
@@ -149,9 +148,9 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_v128relaxed(void const *packe
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_v128relaxed(nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride_in_bytes, void *packed, void *stream) {
+                                                       nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_maxsim_pack_f32_v128_(vectors, vector_count, depth, stride_in_bytes, packed);
+    nk_maxsim_pack_f32_v128_(vectors, vector_count, depth, stride, packed);
     return nk_success_k;
 }
 
@@ -169,9 +168,9 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_v128relaxed(void const *packe
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_v128relaxed(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
-                                                       nk_size_t stride_in_bytes, void *packed, void *stream) {
+                                                       nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_maxsim_pack_f16_v128_(vectors, vector_count, depth, stride_in_bytes, packed);
+    nk_maxsim_pack_f16_v128_(vectors, vector_count, depth, stride, packed);
     return nk_success_k;
 }
 

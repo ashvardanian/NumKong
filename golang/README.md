@@ -241,29 +241,29 @@ import (
 )
 
 func main() {
-	height, width, depth := 4, 8, 16
-	a := make([]float32, height*depth) // 4 query vectors of dimension 16
-	b := make([]float32, width*depth)  // 8 database vectors of dimension 16
+	rows, columns, depth := 4, 8, 16
+	a := make([]float32, rows*depth) // 4 query vectors of dimension 16
+	b := make([]float32, columns*depth)  // 8 database vectors of dimension 16
 
 	// Fill with sample data
 	for i := range a { a[i] = float32(i % 7) }
 	for i := range b { b[i] = float32(i % 5) }
 
 	// Pack the right-hand side (once, reuse across batches)
-	bPacked := nk.NewDotsPackedMatrixF32(b, width, depth)
+	bPacked := nk.NewDotsPackedMatrixF32(b, columns, depth)
 
 	// Compute A × Bᵀ
-	c := make([]float64, height*width)
-	nk.DotsPackedF32(a, bPacked, c, height)
+	c := make([]float64, rows*columns)
+	nk.DotsPackedF32(a, bPacked, c, rows)
 
 	// Angular and Euclidean distances use the same DotsPackedMatrix
-	angDist := make([]float64, height*width)
-	nk.AngularsPackedF32(a, bPacked, angDist, height)
+	angDist := make([]float64, rows*columns)
+	nk.AngularsPackedF32(a, bPacked, angDist, rows)
 
-	eucDist := make([]float64, height*width)
-	nk.EuclideansPackedF32(a, bPacked, eucDist, height)
+	eucDist := make([]float64, rows*columns)
+	nk.EuclideansPackedF32(a, bPacked, eucDist, rows)
 
-	fmt.Println(c[:width]) // first row of the result matrix
+	fmt.Println(c[:columns]) // first row of the result matrix
 }
 ```
 
@@ -334,16 +334,16 @@ func main() {
 	for i := range vectors { vectors[i] = byte(i * 37) }
 
 	// Pack for batch queries
-	cols := 2
-	queryVectors := vectors[:cols*bytesPerVec]
-	queryPacked := nk.NewDotsPackedMatrixU1(queryVectors, cols, depth)
+	columns := 2
+	queryVectors := vectors[:columns*bytesPerVec]
+	queryPacked := nk.NewDotsPackedMatrixU1(queryVectors, columns, depth)
 
-	// Hamming distances: n database vectors × cols query vectors
-	hammingResult := make([]uint32, n*cols)
+	// Hamming distances: n database vectors × columns query vectors
+	hammingResult := make([]uint32, n*columns)
 	nk.HammingsPackedU1(vectors, queryPacked, hammingResult, n)
 
 	// Jaccard distances
-	jaccardResult := make([]float32, n*cols)
+	jaccardResult := make([]float32, n*columns)
 	nk.JaccardsPackedU1(vectors, queryPacked, jaccardResult, n)
 
 	// Symmetric Hamming distance matrix
@@ -354,7 +354,7 @@ func main() {
 	jaccardSym := make([]float32, n*n)
 	nk.JaccardsSymmetricU1(vectors, n, depth, jaccardSym)
 
-	fmt.Println("hamming packed:", hammingResult[:cols])
+	fmt.Println("hamming packed:", hammingResult[:columns])
 	fmt.Println("jaccard symmetric[0,1]:", jaccardSym[1])
 }
 ```
@@ -410,28 +410,28 @@ import (
 )
 
 func main() {
-	width, depth, totalQueries := 1024, 128, 10000
+	columns, depth, totalQueries := 1024, 128, 10000
 
-	db := make([]float32, width*depth)
+	db := make([]float32, columns*depth)
 	queries := make([]float32, totalQueries*depth)
 	for i := range db { db[i] = float32(i%7) * 0.1 }
 	for i := range queries { queries[i] = float32(i%11) * 0.1 }
 
-	dbPacked := nk.NewDotsPackedMatrixF32(db, width, depth)
+	dbPacked := nk.NewDotsPackedMatrixF32(db, columns, depth)
 
 	// Create a reusable pool (defaults to GOMAXPROCS workers)
 	pool := nk.NewWorkerPool(8)
 	defer pool.Close()
 
 	// Packed batch operations dispatch to the pool
-	results := make([]float64, totalQueries*width)
+	results := make([]float64, totalQueries*columns)
 	dbPacked.DotsF32WithPool(queries, results, totalQueries, pool)
 
 	// Angular and Euclidean distances use the same pool
-	angResults := make([]float64, totalQueries*width)
+	angResults := make([]float64, totalQueries*columns)
 	dbPacked.AngularsF32WithPool(queries, angResults, totalQueries, pool)
 
-	fmt.Println("first result row:", results[:width])
+	fmt.Println("first result row:", results[:columns])
 }
 ```
 
@@ -455,7 +455,7 @@ go func() {
 	enabled, _ := nk.CPU().CapabilitiesEnabled()
 	unlock, _ := nk.CPU().ConfigureThread(enabled) // lock thread + configure SIMD
 	defer unlock()                                 // release the OS thread on return
-	nk.DotsPackedF32(queries, dbPacked, results, height)
+	nk.DotsPackedF32(queries, dbPacked, results, rows)
 }()
 ```
 

@@ -73,12 +73,12 @@ def precise_matmul(left, right_transposed, dtype=None):
     """High-precision left @ right_transposedᵀ via Decimal. Returns 2D numpy array."""
     with precise_decimal(dtype) as (upcast, _sqrt, _ln):
         rows, _depth = left.shape
-        cols = right_transposed.shape[0]
-        result = np.empty((rows, cols), dtype=np.float64)
-        right_rows = [[upcast(x) for x in right_transposed[col]] for col in range(cols)]
+        columns = right_transposed.shape[0]
+        result = np.empty((rows, columns), dtype=np.float64)
+        right_rows = [[upcast(x) for x in right_transposed[col]] for col in range(columns)]
         for row in range(rows):
             left_values = [upcast(x) for x in left[row]]
-            for col in range(cols):
+            for col in range(columns):
                 result[row, col] = float(
                     sum(left_value * right_value for left_value, right_value in zip(left_values, right_rows[col]))
                 )
@@ -333,9 +333,9 @@ def test_dots_pack_and_packed(
 @pytest.mark.parametrize("numpy_dtype", ["float64", "float32", "float16"])
 def test_dots_pack_infers_dtype(numpy_dtype, np_rng: np.random.Generator):
     """dots_pack() without explicit dtype should infer from the input array."""
-    height, width, depth = 4, 8, 32
-    a, _ = make_random((height, depth), numpy_dtype, np_rng)
-    b, _ = make_random((width, depth), numpy_dtype, np_rng)
+    rows, columns, depth = 4, 8, 32
+    a, _ = make_random((rows, depth), numpy_dtype, np_rng)
+    b, _ = make_random((columns, depth), numpy_dtype, np_rng)
 
     packed = nk.dots_pack(b)  # no dtype= argument
     result = np.asarray(nk.dots_packed(a, packed))
@@ -348,12 +348,12 @@ def test_dots_pack_infers_dtype(numpy_dtype, np_rng: np.random.Generator):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_dots_pack_matmul_operator(capability: str, np_rng: np.random.Generator):
     """Test the @ operator with a PackedMatrix (Tensor @ PackedMatrix)."""
-    height, width, depth = 8, 16, 64
-    a_matrix, _ = make_random((height, depth), "float32", np_rng)
-    b_matrix, _ = make_random((width, depth), "float32", np_rng)
+    rows, columns, depth = 8, 16, 64
+    a_matrix, _ = make_random((rows, depth), "float32", np_rng)
+    b_matrix, _ = make_random((columns, depth), "float32", np_rng)
 
     keep_one_capability(capability)
-    a_tensor = nk.zeros((height, depth), dtype="float32")
+    a_tensor = nk.zeros((rows, depth), dtype="float32")
     a_tensor_view = np.asarray(a_tensor)
     np.copyto(a_tensor_view, a_matrix)
 

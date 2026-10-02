@@ -36,12 +36,13 @@ typedef struct {
     unsigned char const *gate;
     unsigned char const *up;
     unsigned char *y;
-    nk_size_t cols;
+    nk_size_t columns;
     nk_size_t count;
-    nk_size_t gate_stride_bytes;
-    nk_size_t up_stride_bytes;
-    nk_size_t y_stride_bytes;
-    nk_f32_t input_scale;
+    nk_size_t gate_stride;
+    nk_size_t up_stride;
+    nk_size_t y_stride;
+    nk_f32_t gate_scale;
+    nk_f32_t output_scale;
 } nk_each_swiglu_arguments_t;
 
 /** Everything one element-wise scale, sum, blend or FMA shares, passed by value as the kernels'
@@ -68,18 +69,17 @@ NUMKONG_INLINE nk_status_t nk_each_launch_(void const *kernel, nk_size_t count, 
 }
 
 NUMKONG_INLINE nk_status_t nk_each_swiglu_launch_(void const *kernel, nk_size_t value_bytes, void const *gate,
-                                                  void const *up, void *y, nk_size_t rows, nk_size_t cols,
-                                                  nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes,
-                                                  nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
-    if ((((nk_size_t)gate) | gate_stride_bytes | ((nk_size_t)up) | (up ? up_stride_bytes : 0) | ((nk_size_t)y) |
-         y_stride_bytes) &
+                                                  void const *up, void *y, nk_size_t rows, nk_size_t columns,
+                                                  nk_size_t gate_stride, nk_size_t up_stride, nk_size_t y_stride,
+                                                  nk_f32_t gate_scale, nk_f32_t output_scale, void *stream) {
+    if ((((nk_size_t)gate) | gate_stride | ((nk_size_t)up) | (up ? up_stride : 0) | ((nk_size_t)y) | y_stride) &
         (value_bytes - 1))
         return nk_misaligned_k;
     nk_each_swiglu_arguments_t arguments;
     arguments.gate = (unsigned char const *)gate, arguments.up = (unsigned char const *)up;
-    arguments.y = (unsigned char *)y, arguments.cols = cols, arguments.count = rows * cols;
-    arguments.gate_stride_bytes = gate_stride_bytes, arguments.up_stride_bytes = up_stride_bytes;
-    arguments.y_stride_bytes = y_stride_bytes, arguments.input_scale = input_scale;
+    arguments.y = (unsigned char *)y, arguments.columns = columns, arguments.count = rows * columns;
+    arguments.gate_stride = gate_stride, arguments.up_stride = up_stride, arguments.y_stride = y_stride;
+    arguments.gate_scale = gate_scale, arguments.output_scale = output_scale;
     return nk_each_launch_(kernel, arguments.count, &arguments, stream);
 }
 
@@ -100,33 +100,34 @@ NUMKONG_INLINE nk_status_t nk_each_elementwise_launch_(void const *kernel, nk_si
 
 /** Generates the SwiGLU kernel of @p input_type and its host entry point for @p isa_suffix, after
  *  @c nk_define_each_swiglu_ of the serial backend. */
-#define nk_define_device_each_swiglu_(input_type, isa_suffix, load_and_convert, convert_and_store)                    \
-    static __global__ void nk_each_swiglu_##input_type##_##isa_suffix##_kernel_(                                      \
-        nk_each_swiglu_arguments_t arguments) {                                                                       \
-        nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;                                                   \
-        for (nk_size_t cell = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; cell < arguments.count;               \
-             cell += stride) {                                                                                        \
-            nk_size_t const row = cell / arguments.cols, col = cell % arguments.cols;                                 \
-            nk_f32_t gate_value, up_value;                                                                            \
-            load_and_convert((nk_##input_type##_t const *)(arguments.gate + row * arguments.gate_stride_bytes) + col, \
-                             &gate_value);                                                                            \
-            gate_value *= arguments.input_scale;                                                                      \
-            nk_f32_t result = gate_value / (1.0f + expf(-gate_value));                                                \
-            if (arguments.up) {                                                                                       \
-                load_and_convert((nk_##input_type##_t const *)(arguments.up + row * arguments.up_stride_bytes) + col, \
-                                 &up_value);                                                                          \
-                result *= up_value * arguments.input_scale;                                                           \
-            }                                                                                                         \
-            convert_and_store(&result, (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride_bytes) + col);  \
-        }                                                                                                             \
-    }                                                                                                                 \
-    NUMKONG_API nk_status_t nk_each_swiglu_##input_type##_##isa_suffix(                                               \
-        nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows,       \
-        nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,             \
-        nk_f32_t input_scale, void *stream) {                                                                         \
-        return nk_each_swiglu_launch_((void const *)&nk_each_swiglu_##input_type##_##isa_suffix##_kernel_,            \
-                                      sizeof(nk_##input_type##_t), gate, up, y, rows, cols, gate_stride_bytes,        \
-                                      up_stride_bytes, y_stride_bytes, input_scale, stream);                          \
+#define nk_define_device_each_swiglu_(input_type, isa_suffix, load_and_convert, convert_and_store)                     \
+    static __global__ void nk_each_swiglu_##input_type##_##isa_suffix##_kernel_(                                       \
+        nk_each_swiglu_arguments_t arguments) {                                                                        \
+        nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;                                                    \
+        for (nk_size_t cell = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; cell < arguments.count;                \
+             cell += stride) {                                                                                         \
+            nk_size_t const row = cell / arguments.columns, col = cell % arguments.columns;                            \
+            nk_f32_t gate_value, up_value;                                                                             \
+            load_and_convert((nk_##input_type##_t const *)(arguments.gate + row * arguments.gate_stride) + col,        \
+                             &gate_value);                                                                             \
+            gate_value *= arguments.gate_scale;                                                                        \
+            nk_f32_t result = gate_value / (1.0f + expf(-gate_value));                                                 \
+            if (arguments.up) {                                                                                        \
+                load_and_convert((nk_##input_type##_t const *)(arguments.up + row * arguments.up_stride) + col,        \
+                                 &up_value);                                                                           \
+                result *= up_value;                                                                                    \
+            }                                                                                                          \
+            result *= arguments.output_scale;                                                                          \
+            convert_and_store(&result, (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride) + col);         \
+        }                                                                                                              \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_each_swiglu_##input_type##_##isa_suffix(                                                \
+        nk_##input_type##_t const *gate, nk_##input_type##_t const *up, nk_##input_type##_t *y, nk_size_t rows,        \
+        nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,        \
+        nk_f32_t output_scale, void *stream) {                                                                         \
+        return nk_each_swiglu_launch_((void const *)&nk_each_swiglu_##input_type##_##isa_suffix##_kernel_,             \
+                                      sizeof(nk_##input_type##_t), gate, up, y, rows, columns, gate_stride, up_stride, \
+                                      y_stride, gate_scale, output_scale, stream);                                     \
     }
 
 /** Generates the element-wise sum kernel of @p input_type and its host entry point for
@@ -235,19 +236,18 @@ typedef struct {
     nk_f32_t const *gamma;
     unsigned char *y;
     nk_size_t groups;
-    nk_size_t cols;
+    nk_size_t columns;
     nk_size_t vectors;
-    nk_size_t x_stride_bytes;
-    nk_size_t y_stride_bytes;
-    nk_f32_t eps;
-    nk_f32_t input_scale;
+    nk_size_t x_stride;
+    nk_size_t y_stride;
+    nk_f32_t epsilon;
 } nk_each_rmsnorm_arguments_t;
 
 /** Merges every thread's compensated @p sum and @p compensation across the block through
- *  @p partials, two values per thread, and returns the mean square of @p count values descaled by
- *  @p input_scale to every thread, rounded once by thread 0 in F64. */
-NUMKONG_DEVICE nk_f32_t nk_each_block_mean_square_simt_(nk_f32_t sum, nk_f32_t compensation, nk_f32_t input_scale,
-                                                        nk_size_t count, nk_f32_t *partials) {
+ *  @p partials, two values per thread, and returns the mean square of @p count values
+ *  to every thread, rounded once by thread 0 in F64. */
+NUMKONG_DEVICE nk_f32_t nk_each_block_mean_square_simt_(nk_f32_t sum, nk_f32_t compensation, nk_size_t count,
+                                                        nk_f32_t *partials) {
     nk_f32_t *compensations = partials + blockDim.x;
     partials[threadIdx.x] = sum, compensations[threadIdx.x] = compensation;
     __syncthreads();
@@ -259,8 +259,7 @@ NUMKONG_DEVICE nk_f32_t nk_each_block_mean_square_simt_(nk_f32_t sum, nk_f32_t c
         __syncthreads();
     }
     if (threadIdx.x == 0)
-        partials[0] = (nk_f32_t)(((nk_f64_t)partials[0] + (nk_f64_t)compensations[0]) * (nk_f64_t)input_scale *
-                                 (nk_f64_t)input_scale / (nk_f64_t)count);
+        partials[0] = (nk_f32_t)(((nk_f64_t)partials[0] + (nk_f64_t)compensations[0]) / (nk_f64_t)count);
     __syncthreads();
     nk_f32_t const mean_square = partials[0];
     __syncthreads();
@@ -270,17 +269,15 @@ NUMKONG_DEVICE nk_f32_t nk_each_block_mean_square_simt_(nk_f32_t sum, nk_f32_t c
 /** Validates the contract and launches one block per normalized vector, at most 2³⁰ of them. */
 NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_(void const *kernel, nk_size_t value_bytes, void const *x,
                                                    nk_f32_t const *gamma, void *y, nk_size_t rows, nk_size_t groups,
-                                                   nk_size_t cols, nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
-                                                   nk_f32_t eps, nk_f32_t input_scale, void *stream) {
-    if ((((nk_size_t)x) | x_stride_bytes | ((nk_size_t)y) | y_stride_bytes) & (value_bytes - 1) ||
-        ((nk_size_t)gamma & 3))
+                                                   nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride,
+                                                   nk_f32_t epsilon, void *stream) {
+    if ((((nk_size_t)x) | x_stride | ((nk_size_t)y) | y_stride) & (value_bytes - 1) || ((nk_size_t)gamma & 3))
         return nk_misaligned_k;
     nk_each_rmsnorm_arguments_t arguments;
     arguments.x = (unsigned char const *)x, arguments.gamma = gamma, arguments.y = (unsigned char *)y;
-    arguments.groups = groups, arguments.cols = cols, arguments.vectors = rows * groups;
-    arguments.x_stride_bytes = x_stride_bytes, arguments.y_stride_bytes = y_stride_bytes;
-    arguments.eps = eps, arguments.input_scale = input_scale;
-    if (arguments.vectors == 0 || cols == 0) return nk_success_k;
+    arguments.groups = groups, arguments.columns = columns, arguments.vectors = rows * groups;
+    arguments.x_stride = x_stride, arguments.y_stride = y_stride, arguments.epsilon = epsilon;
+    if (arguments.vectors == 0 || columns == 0) return nk_success_k;
     nk_size_t const blocks_limit = (nk_size_t)1 << 30;
     void *launch_arguments[1];
     launch_arguments[0] = &arguments;
@@ -295,35 +292,33 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_(void const *kernel, nk_size_t
         nk_each_rmsnorm_arguments_t arguments) {                                                                       \
         __shared__ nk_f32_t partials[2 * nk_each_threads_simt_k];                                                      \
         for (nk_size_t vector = blockIdx.x; vector < arguments.vectors; vector += gridDim.x) {                         \
-            nk_size_t const row = vector / arguments.groups, first = vector % arguments.groups * arguments.cols;       \
-            nk_##input_type##_t const *x =                                                                             \
-                (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride_bytes) + first;                   \
-            nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride_bytes) + first;    \
+            nk_size_t const row = vector / arguments.groups, first = vector % arguments.groups * arguments.columns;    \
+            nk_##input_type##_t const *x = (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride) +     \
+                                           first;                                                                      \
+            nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride) + first;          \
             nk_f32_t sum_squares = 0, compensation = 0, value;                                                         \
-            for (nk_size_t col = threadIdx.x; col < arguments.cols; col += blockDim.x) {                               \
+            for (nk_size_t col = threadIdx.x; col < arguments.columns; col += blockDim.x) {                            \
                 load_and_convert(x + col, &value);                                                                     \
                 nk_f32_t const square = nk_f32_mul_rn_simt_(value, value);                                             \
                 compensation += fmaf(value, value, -square);                                                           \
                 nk_f32_two_sum_simt_(square, &sum_squares, &compensation);                                             \
             }                                                                                                          \
-            nk_f32_t const mean_square = nk_each_block_mean_square_simt_(                                              \
-                sum_squares, compensation, arguments.input_scale, arguments.cols, partials);                           \
-            nk_f32_t const inverse_rms = 1.0f / sqrtf(mean_square + arguments.eps);                                    \
-            for (nk_size_t col = threadIdx.x; col < arguments.cols; col += blockDim.x) {                               \
+            nk_f32_t const mean_square = nk_each_block_mean_square_simt_(sum_squares, compensation, arguments.columns, \
+                                                                         partials);                                    \
+            nk_f32_t const inverse_rms = 1.0f / sqrtf(mean_square + arguments.epsilon);                                \
+            for (nk_size_t col = threadIdx.x; col < arguments.columns; col += blockDim.x) {                            \
                 load_and_convert(x + col, &value);                                                                     \
-                nk_f32_t const result = value * arguments.input_scale * inverse_rms *                                  \
-                                        (arguments.gamma ? arguments.gamma[col] : 1.0f);                               \
+                nk_f32_t const result = value * inverse_rms * (arguments.gamma ? arguments.gamma[col] : 1.0f);         \
                 convert_and_store(&result, y + col);                                                                   \
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_each_rmsnorm_##input_type##_##isa_suffix(                                               \
         nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##input_type##_t *y, nk_size_t rows, nk_size_t groups, \
-        nk_size_t cols, nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps, nk_f32_t input_scale,        \
-        void *stream) {                                                                                                \
+        nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon, void *stream) {                   \
         return nk_each_rmsnorm_launch_((void const *)&nk_each_rmsnorm_##input_type##_##isa_suffix##_kernel_,           \
-                                       sizeof(nk_##input_type##_t), x, gamma, y, rows, groups, cols, x_stride_bytes,   \
-                                       y_stride_bytes, eps, input_scale, stream);                                      \
+                                       sizeof(nk_##input_type##_t), x, gamma, y, rows, groups, columns, x_stride,      \
+                                       y_stride, epsilon, stream);                                                     \
     }
 
 #if NUMKONG_TARGET_CUDA

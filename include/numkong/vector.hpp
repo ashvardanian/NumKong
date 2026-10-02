@@ -331,20 +331,20 @@ struct vector_view {
   private:
     char const *data_ = nullptr;
     size_type dimensions_ = 0;
-    difference_type stride_bytes_ = 0;
+    difference_type stride_ = 0;
 
   public:
     constexpr vector_view() noexcept = default;
 
     template <std::unsigned_integral dims_type_, std::integral stride_type_>
-    constexpr vector_view(char const *data, dims_type_ dims, stride_type_ stride_bytes) noexcept
-        : data_(data), dimensions_(resolve_extent_(dims)), stride_bytes_(resolve_stride_(stride_bytes)) {}
+    constexpr vector_view(char const *data, dims_type_ dims, stride_type_ stride) noexcept
+        : data_(data), dimensions_(resolve_extent_(dims)), stride_(resolve_stride_(stride)) {}
 
     /** Construct from contiguous typed pointer. */
     template <std::unsigned_integral dims_type_>
     constexpr vector_view(value_type const *data, dims_type_ dims) noexcept
         : data_(reinterpret_cast<char const *>(data)), dimensions_(resolve_extent_(dims)),
-          stride_bytes_(static_cast<difference_type>(sizeof(value_type))) {}
+          stride_(static_cast<difference_type>(sizeof(value_type))) {}
 
     /** Number of logical dimensions. */
     constexpr size_type size() const noexcept { return dimensions_; }
@@ -357,11 +357,11 @@ struct vector_view {
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** Stride in bytes between consecutive elements. */
-    constexpr difference_type stride_bytes() const noexcept { return stride_bytes_; }
+    constexpr difference_type stride_bytes() const noexcept { return stride_; }
 
     /** True if elements are stored contiguously. */
     constexpr bool is_contiguous() const noexcept {
-        return stride_bytes_ == static_cast<difference_type>(sizeof(value_type));
+        return stride_ == static_cast<difference_type>(sizeof(value_type));
     }
 
     /** Raw byte pointer to the first element. */
@@ -389,10 +389,10 @@ struct vector_view {
             auto sub_index = i % dims_per_value;
             using raw_type = typename raw_pod_type<value_type>::type;
             auto *base = const_cast<raw_type *>(
-                reinterpret_cast<raw_type const *>(data_ + static_cast<difference_type>(value_index) * stride_bytes_));
+                reinterpret_cast<raw_type const *>(data_ + static_cast<difference_type>(value_index) * stride_));
             return sub_byte_ref<value_type>(base, sub_index).get();
         }
-        else { return *reinterpret_cast<value_type const *>(data_ + static_cast<difference_type>(i) * stride_bytes_); }
+        else { return *reinterpret_cast<value_type const *>(data_ + static_cast<difference_type>(i) * stride_); }
     }
 
     /** Sub-slice via range. */
@@ -400,7 +400,7 @@ struct vector_view {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
-        return {data_ + static_cast<difference_type>(start) * stride_bytes_, count, stride_bytes_ * r.step};
+        return {data_ + static_cast<difference_type>(start) * stride_, count, stride_ * r.step};
     }
 
     /** Select all elements (identity). */
@@ -410,7 +410,7 @@ struct vector_view {
      *  the returned view visits elements in reverse order. */
     constexpr vector_view rev() const noexcept {
         if (dimensions_ == 0) return *this;
-        return {data_ + static_cast<difference_type>(dimensions_ - 1) * stride_bytes_, dimensions_, -stride_bytes_};
+        return {data_ + static_cast<difference_type>(dimensions_ - 1) * stride_, dimensions_, -stride_};
     }
 
     /** Dimension iterator to beginning. */
@@ -447,20 +447,20 @@ struct vector_span {
   private:
     char *data_ = nullptr;
     size_type dimensions_ = 0;
-    difference_type stride_bytes_ = 0;
+    difference_type stride_ = 0;
 
   public:
     constexpr vector_span() noexcept = default;
 
     template <std::unsigned_integral dims_type_, std::integral stride_type_>
-    constexpr vector_span(char *data, dims_type_ dims, stride_type_ stride_bytes) noexcept
-        : data_(data), dimensions_(resolve_extent_(dims)), stride_bytes_(resolve_stride_(stride_bytes)) {}
+    constexpr vector_span(char *data, dims_type_ dims, stride_type_ stride) noexcept
+        : data_(data), dimensions_(resolve_extent_(dims)), stride_(resolve_stride_(stride)) {}
 
     /** Construct from contiguous typed pointer. */
     template <std::unsigned_integral dims_type_>
     constexpr vector_span(value_type *data, dims_type_ dims) noexcept
         : data_(reinterpret_cast<char *>(data)), dimensions_(resolve_extent_(dims)),
-          stride_bytes_(static_cast<difference_type>(sizeof(value_type))) {}
+          stride_(static_cast<difference_type>(sizeof(value_type))) {}
 
     /** Number of logical dimensions. */
     constexpr size_type size() const noexcept { return dimensions_; }
@@ -473,11 +473,11 @@ struct vector_span {
     constexpr explicit operator bool() const noexcept { return !empty(); }
 
     /** Stride in bytes. */
-    constexpr difference_type stride_bytes() const noexcept { return stride_bytes_; }
+    constexpr difference_type stride_bytes() const noexcept { return stride_; }
 
     /** True if contiguous. */
     constexpr bool is_contiguous() const noexcept {
-        return stride_bytes_ == static_cast<difference_type>(sizeof(value_type));
+        return stride_ == static_cast<difference_type>(sizeof(value_type));
     }
 
     /** Raw byte pointer. */
@@ -496,7 +496,7 @@ struct vector_span {
 
     /** Implicit conversion to const view. */
     constexpr operator vector_view<value_type>() const noexcept {
-        return {static_cast<char const *>(data_), dimensions_, stride_bytes_};
+        return {static_cast<char const *>(data_), dimensions_, stride_};
     }
 
     /** Mutable integral indexing. Signed negatives wrap from end. */
@@ -509,11 +509,10 @@ struct vector_span {
             auto value_index = i / dims_per_value;
             auto sub_index = i % dims_per_value;
             using raw_type = typename raw_pod_type<value_type>::type;
-            auto *base = reinterpret_cast<raw_type *>(data_ +
-                                                      static_cast<difference_type>(value_index) * stride_bytes_);
+            auto *base = reinterpret_cast<raw_type *>(data_ + static_cast<difference_type>(value_index) * stride_);
             return sub_byte_ref<value_type>(base, sub_index);
         }
-        else { return *reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(i) * stride_bytes_); }
+        else { return *reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(i) * stride_); }
     }
 
     /** Sub-slice via range. */
@@ -521,7 +520,7 @@ struct vector_span {
         size_type start, stop;
         resolve_range_(r, dimensions_, start, stop);
         auto count = range_extent_(start, stop, r.step);
-        return {data_ + static_cast<difference_type>(start) * stride_bytes_, count, stride_bytes_ * r.step};
+        return {data_ + static_cast<difference_type>(start) * stride_, count, stride_ * r.step};
     }
 
     /** Select all elements. */
@@ -557,7 +556,7 @@ struct vector_span {
                 return status_t::success_k;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index)
-                std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_), 0,
+                std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_), 0,
                             sizeof(value_type));
             return status_t::success_k;
         }
@@ -586,9 +585,8 @@ struct vector_span {
                     return status_t::success_k;
                 }
                 for (size_type element_index = 0; element_index < dimensions_; ++element_index)
-                    std::memset(
-                        static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_bytes_),
-                        byte_pattern, sizeof(value_type));
+                    std::memset(static_cast<void *>(data_ + static_cast<difference_type>(element_index) * stride_),
+                                byte_pattern, sizeof(value_type));
                 return status_t::success_k;
             }
         }
@@ -600,8 +598,8 @@ struct vector_span {
                 return status_t::success_k;
             }
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
-                auto *target = reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) *
-                                                                          stride_bytes_);
+                auto *target = reinterpret_cast<value_type *>(data_ +
+                                                              static_cast<difference_type>(element_index) * stride_);
                 *target = value;
             }
             return status_t::success_k;
@@ -629,12 +627,12 @@ struct vector_span {
                             dimensions_ * sizeof(value_type));
                 return status_t::success_k;
             }
-            auto input_stride_bytes = input.stride_bytes();
+            auto input_stride = input.stride_bytes();
             for (size_type element_index = 0; element_index < dimensions_; ++element_index) {
-                auto *target = reinterpret_cast<value_type *>(data_ + static_cast<difference_type>(element_index) *
-                                                                          stride_bytes_);
+                auto *target = reinterpret_cast<value_type *>(data_ +
+                                                              static_cast<difference_type>(element_index) * stride_);
                 auto const *source = reinterpret_cast<value_type const *>(
-                    input.byte_data() + static_cast<difference_type>(element_index) * input_stride_bytes);
+                    input.byte_data() + static_cast<difference_type>(element_index) * input_stride);
                 *target = *source;
             }
             return status_t::success_k;

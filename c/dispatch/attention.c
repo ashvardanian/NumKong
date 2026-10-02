@@ -591,19 +591,18 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_attention_pack_bf16_best(
-    nk_bf16_t const *keys, void const *key_scales, nk_bf16_t const *values, void const *value_scales,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t key_scales_stride_bytes,
-    nk_size_t value_stride_bytes, nk_size_t value_scales_stride_bytes, void *key_value_packed, nk_size_t task_begin,
-    nk_size_t task_end, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_attention_pack_bf16_best(nk_bf16_t const *keys, nk_bf16_t const *values,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                    nk_size_t segment_count, nk_size_t key_stride,
+                                                    nk_size_t value_stride, void *key_value_packed,
+                                                    nk_size_t task_begin, nk_size_t task_end,
+                                                    nk_capability_t capabilities, void *stream) {
     nk_attention_pack_punned_t const kernel = (nk_attention_pack_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_pack_bf16_capabilities());
-    return kernel
-               ? kernel(keys, key_scales, values, value_scales, key_value_head_count, depth, segment_offsets,
-                        segment_lengths, segment_count, key_stride_bytes, key_scales_stride_bytes, value_stride_bytes,
-                        value_scales_stride_bytes, key_value_packed, task_begin, task_end, stream)
-               : nk_missing_kernel_k;
+    return kernel ? kernel(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                           key_stride, value_stride, key_value_packed, task_begin, task_end, stream)
+                  : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) {
@@ -692,19 +691,18 @@ static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) 
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_attention_pack_e4m3_best(
-    nk_e4m3_t const *keys, void const *key_scales, nk_e4m3_t const *values, void const *value_scales,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
-    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t key_scales_stride_bytes,
-    nk_size_t value_stride_bytes, nk_size_t value_scales_stride_bytes, void *key_value_packed, nk_size_t task_begin,
-    nk_size_t task_end, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_attention_pack_e4m3_best(nk_e4m3_t const *keys, nk_e4m3_t const *values,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                    nk_size_t segment_count, nk_size_t key_stride,
+                                                    nk_size_t value_stride, void *key_value_packed,
+                                                    nk_size_t task_begin, nk_size_t task_end,
+                                                    nk_capability_t capabilities, void *stream) {
     nk_attention_pack_punned_t const kernel = (nk_attention_pack_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_pack_e4m3_capabilities());
-    return kernel
-               ? kernel(keys, key_scales, values, value_scales, key_value_head_count, depth, segment_offsets,
-                        segment_lengths, segment_count, key_stride_bytes, key_scales_stride_bytes, value_stride_bytes,
-                        value_scales_stride_bytes, key_value_packed, task_begin, task_end, stream)
-               : nk_missing_kernel_k;
+    return kernel ? kernel(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                           key_stride, value_stride, key_value_packed, task_begin, task_end, stream)
+                  : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
@@ -778,21 +776,17 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_attention_pack_i8_best(nk_i8_t const *keys, void const *key_scales, nk_i8_t const *values,
-                                                  void const *value_scales, nk_size_t key_value_head_count,
-                                                  nk_size_t depth, nk_u32_t const *segment_offsets,
-                                                  nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                  nk_size_t key_stride_bytes, nk_size_t key_scales_stride_bytes,
-                                                  nk_size_t value_stride_bytes, nk_size_t value_scales_stride_bytes,
+NUMKONG_API nk_status_t nk_attention_pack_i8_best(nk_i8_t const *keys, nk_i8_t const *values,
+                                                  nk_size_t key_value_head_count, nk_size_t depth,
+                                                  nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                  nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
                                                   void *key_value_packed, nk_size_t task_begin, nk_size_t task_end,
                                                   nk_capability_t capabilities, void *stream) {
     nk_attention_pack_punned_t const kernel = (nk_attention_pack_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_pack_i8_capabilities());
-    return kernel
-               ? kernel(keys, key_scales, values, value_scales, key_value_head_count, depth, segment_offsets,
-                        segment_lengths, segment_count, key_stride_bytes, key_scales_stride_bytes, value_stride_bytes,
-                        value_scales_stride_bytes, key_value_packed, task_begin, task_end, stream)
-               : nk_missing_kernel_k;
+    return kernel ? kernel(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                           key_stride, value_stride, key_value_packed, task_begin, task_end, stream)
+                  : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_attention_bidirectional_packed_bf16_capabilities(void) {
@@ -870,15 +864,14 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_bf16_cap
 }
 
 NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_best(
-    nk_bf16_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
-    nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities, void *stream) {
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities,
+    void *stream) {
     nk_attention_bidirectional_packed_punned_t const kernel = (nk_attention_bidirectional_packed_punned_t)
         nk_kernel_pick_(capabilities, nk_attention_bidirectional_packed_bf16_capabilities());
-    return kernel ? kernel(queries, query_scales, key_value_packed, output, head_count, key_value_head_count, depth,
-                           query_offsets, query_stride_bytes, query_scales_stride_bytes, output_stride_bytes, scale,
-                           task_start, task_count, stream)
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride, output_stride, scale, task_start, task_count, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -957,16 +950,14 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_bf16_capabiliti
 }
 
 NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_best(
-    nk_bf16_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count,
-    nk_capability_t capabilities, void *stream) {
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
     nk_attention_causal_packed_punned_t const kernel = (nk_attention_causal_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_causal_packed_bf16_capabilities());
-    return kernel ? kernel(queries, query_scales, key_value_packed, output, head_count, key_value_head_count, depth,
-                           query_offsets, query_stride_bytes, query_scales_stride_bytes, output_stride_bytes, scale,
-                           diagonal_offset, window, task_start, task_count, stream)
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride, output_stride, scale, diagonal_offset, window, task_start, task_count, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1057,15 +1048,14 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_e4m3_cap
 }
 
 NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_best(
-    nk_e4m3_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
-    nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities, void *stream) {
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities,
+    void *stream) {
     nk_attention_bidirectional_packed_punned_t const kernel = (nk_attention_bidirectional_packed_punned_t)
         nk_kernel_pick_(capabilities, nk_attention_bidirectional_packed_e4m3_capabilities());
-    return kernel ? kernel(queries, query_scales, key_value_packed, output, head_count, key_value_head_count, depth,
-                           query_offsets, query_stride_bytes, query_scales_stride_bytes, output_stride_bytes, scale,
-                           task_start, task_count, stream)
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride, output_stride, scale, task_start, task_count, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1156,16 +1146,14 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_e4m3_capabiliti
 }
 
 NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_best(
-    nk_e4m3_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count,
-    nk_capability_t capabilities, void *stream) {
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
     nk_attention_causal_packed_punned_t const kernel = (nk_attention_causal_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_causal_packed_e4m3_capabilities());
-    return kernel ? kernel(queries, query_scales, key_value_packed, output, head_count, key_value_head_count, depth,
-                           query_offsets, query_stride_bytes, query_scales_stride_bytes, output_stride_bytes, scale,
-                           diagonal_offset, window, task_start, task_count, stream)
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride, output_stride, scale, diagonal_offset, window, task_start, task_count, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1240,16 +1228,17 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_i8_capab
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_best(
-    nk_i8_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
-    nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_best(nk_i8_t const *queries, void const *key_value_packed,
+                                                                  nk_f32_t *output, nk_size_t head_count,
+                                                                  nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                                  nk_size_t output_stride, nk_f32_t scale,
+                                                                  nk_size_t task_start, nk_size_t task_count,
+                                                                  nk_capability_t capabilities, void *stream) {
     nk_attention_bidirectional_packed_punned_t const kernel = (nk_attention_bidirectional_packed_punned_t)
         nk_kernel_pick_(capabilities, nk_attention_bidirectional_packed_i8_capabilities());
-    return kernel ? kernel(queries, query_scales, key_value_packed, output, head_count, key_value_head_count, depth,
-                           query_offsets, query_stride_bytes, query_scales_stride_bytes, output_stride_bytes, scale,
-                           task_start, task_count, stream)
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride, output_stride, scale, task_start, task_count, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1325,16 +1314,14 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_i8_capabilities
 }
 
 NUMKONG_API nk_status_t nk_attention_causal_packed_i8_best(
-    nk_i8_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output,
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale,
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count,
-    nk_capability_t capabilities, void *stream) {
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
+    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
     nk_attention_causal_packed_punned_t const kernel = (nk_attention_causal_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_causal_packed_i8_capabilities());
-    return kernel ? kernel(queries, query_scales, key_value_packed, output, head_count, key_value_head_count, depth,
-                           query_offsets, query_stride_bytes, query_scales_stride_bytes, output_stride_bytes, scale,
-                           diagonal_offset, window, task_start, task_count, stream)
+    return kernel ? kernel(queries, key_value_packed, output, head_count, key_value_head_count, depth, query_offsets,
+                           query_stride, output_stride, scale, diagonal_offset, window, task_start, task_count, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -1370,12 +1357,11 @@ static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
 
 NUMKONG_API nk_status_t nk_attention_rope_f32_best(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                    nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
-                                                   nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
-                                                   nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+                                                   nk_size_t x_stride, nk_size_t y_stride, nk_capability_t capabilities,
+                                                   void *stream) {
     nk_attention_rope_punned_t const kernel = (nk_attention_rope_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_rope_f32_capabilities());
-    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride_bytes, y_stride_bytes, input_scale, stream)
-                  : nk_missing_kernel_k;
+    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride, y_stride, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) {
@@ -1410,12 +1396,11 @@ static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) 
 
 NUMKONG_API nk_status_t nk_attention_rope_bf16_best(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                     nk_bf16_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
-                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+                                                    nk_size_t x_stride, nk_size_t y_stride,
+                                                    nk_capability_t capabilities, void *stream) {
     nk_attention_rope_punned_t const kernel = (nk_attention_rope_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_rope_bf16_capabilities());
-    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride_bytes, y_stride_bytes, input_scale, stream)
-                  : nk_missing_kernel_k;
+    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride, y_stride, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) {
@@ -1450,12 +1435,11 @@ static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) 
 
 NUMKONG_API nk_status_t nk_attention_rope_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                     nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
-                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
-                                                    nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+                                                    nk_size_t x_stride, nk_size_t y_stride,
+                                                    nk_capability_t capabilities, void *stream) {
     nk_attention_rope_punned_t const kernel = (nk_attention_rope_punned_t)nk_kernel_pick_(
         capabilities, nk_attention_rope_e4m3_capabilities());
-    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride_bytes, y_stride_bytes, input_scale, stream)
-                  : nk_missing_kernel_k;
+    return kernel ? kernel(x, cos, sin, y, rows, head_count, depth, x_stride, y_stride, stream) : nk_missing_kernel_k;
 }
 
 NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,

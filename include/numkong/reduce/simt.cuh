@@ -44,7 +44,7 @@ enum { nk_reduce_threads_simt_k = 1024, nk_reduce_batch_simt_k = 8 };
 typedef struct {
     unsigned char const *data;
     nk_size_t count;
-    nk_size_t stride_bytes;
+    nk_size_t stride;
     void *first;
     nk_size_t *first_index;
     void *second;
@@ -55,14 +55,13 @@ typedef struct {
 /** The arguments of a reduction over @p data, flagging whether every value is aligned to its
  *  @p value_bytes. */
 NUMKONG_INLINE nk_reduce_arguments_t nk_reduce_arguments_simt_(nk_size_t value_bytes, void const *data, nk_size_t count,
-                                                               nk_size_t stride_bytes, void *first,
-                                                               nk_size_t *first_index, void *second,
-                                                               nk_size_t *second_index) {
+                                                               nk_size_t stride, void *first, nk_size_t *first_index,
+                                                               void *second, nk_size_t *second_index) {
     nk_reduce_arguments_t arguments;
-    arguments.data = (unsigned char const *)data, arguments.count = count, arguments.stride_bytes = stride_bytes;
+    arguments.data = (unsigned char const *)data, arguments.count = count, arguments.stride = stride;
     arguments.first = first, arguments.first_index = first_index;
     arguments.second = second, arguments.second_index = second_index;
-    arguments.aligned = !(((nk_size_t)data | stride_bytes) & (value_bytes - 1));
+    arguments.aligned = !(((nk_size_t)data | stride) & (value_bytes - 1));
     return arguments;
 }
 
@@ -144,15 +143,15 @@ NUMKONG_DEVICE nk_u64_t nk_reduce_load_simt_(unsigned char const *address, unsig
  *  sign-extended, and U1 bits counted from the least significant, like the serial kernels. */
 NUMKONG_DEVICE nk_u64_t nk_reduce_raw_simt_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments, nk_size_t index) {
     unsigned char const *data = arguments->data;
-    nk_size_t const stride_bytes = arguments->stride_bytes;
+    nk_size_t const stride = arguments->stride;
     switch (dtype) {
-    case nk_i4_k: return (nk_u8_t)nk_i4x2_get_(data[index / 2 * stride_bytes], (int)(index & 1));
+    case nk_i4_k: return (nk_u8_t)nk_i4x2_get_(data[index / 2 * stride], (int)(index & 1));
     case nk_u4_k:
-    case nk_e2m1_k: return nk_u4x2_get_(data[index / 2 * stride_bytes], (int)(index & 1));
-    case nk_u1_k: return (data[index / 8 * stride_bytes] >> (index % 8)) & 1u;
+    case nk_e2m1_k: return nk_u4x2_get_(data[index / 2 * stride], (int)(index & 1));
+    case nk_u1_k: return (data[index / 8 * stride] >> (index % 8)) & 1u;
     default:
-        return nk_reduce_load_simt_(data + index * stride_bytes,
-                                    (unsigned)(nk_dtype_bits(dtype) / NUMKONG_BITS_PER_BYTE), arguments->aligned);
+        return nk_reduce_load_simt_(data + index * stride, (unsigned)(nk_dtype_bits(dtype) / NUMKONG_BITS_PER_BYTE),
+                                    arguments->aligned);
     }
 }
 
@@ -583,43 +582,42 @@ NUMKONG_DEVICE void nk_reduce_pairs_moments_simt_(nk_dtype_t dtype, nk_reduce_ar
 
 /** Generates the moments kernel of @p input_type and its host entry point for @p isa_suffix,
  *  summing through the @p family of @c nk_reduce_<family>_moments_simt_. */
-#define nk_define_device_reduce_moments_(input_type, input_value_type, family, sum_type, sumsq_type, isa_suffix)       \
-    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                                 \
-        nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                     \
-        nk_reduce_##family##_moments_simt_(nk_##input_type##_k, &arguments);                                           \
-    }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_reduce_moments_##input_type##_##isa_suffix(                                             \
-        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride_bytes, nk_##sum_type##_t *sum,        \
-        nk_##sumsq_type##_t *sumsq, void *stream) {                                                                    \
-        return nk_reduce_moments_launch_simt_(                                                                         \
-            (void const *)&nk_reduce_moments_##input_type##_##isa_suffix##_kernel_,                                    \
-            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride_bytes, sum, NUMKONG_NULL, \
-                                      sumsq, NUMKONG_NULL),                                                            \
-            sizeof(nk_##sum_type##_t), sizeof(nk_##sumsq_type##_t), stream);                                           \
+#define nk_define_device_reduce_moments_(input_type, input_value_type, family, sum_type, sumsq_type, isa_suffix) \
+    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                           \
+        nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {               \
+        nk_reduce_##family##_moments_simt_(nk_##input_type##_k, &arguments);                                     \
+    }                                                                                                            \
+    NUMKONG_API nk_status_t nk_reduce_moments_##input_type##_##isa_suffix(                                       \
+        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##sum_type##_t *sum,        \
+        nk_##sumsq_type##_t *sumsq, void *stream) {                                                              \
+        return nk_reduce_moments_launch_simt_(                                                                   \
+            (void const *)&nk_reduce_moments_##input_type##_##isa_suffix##_kernel_,                              \
+            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, sum, NUMKONG_NULL, \
+                                      sumsq, NUMKONG_NULL),                                                      \
+            sizeof(nk_##sum_type##_t), sizeof(nk_##sumsq_type##_t), stream);                                     \
     }
 
 /** Generates the min/max kernel of @p input_type and its host entry point for @p isa_suffix, its
  *  sides starting from the serial kernels' @p min_sentinel and @p max_sentinel bits. */
-#define nk_define_device_reduce_minmax_(input_type, input_value_type, output_type, min_sentinel, max_sentinel,        \
-                                        isa_suffix)                                                                   \
-    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                                \
-        nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                     \
-        nk_reduce_minmax_simt_(nk_##input_type##_k, &arguments);                                                      \
-    }                                                                                                                 \
-    static __global__ void nk_reduce_minmax_##input_type##_##isa_suffix##_finish_kernel_(                             \
-        nk_reduce_arguments_t arguments) {                                                                            \
-        nk_reduce_minmax_finish_simt_(nk_##input_type##_k, min_sentinel, max_sentinel, &arguments);                   \
-    }                                                                                                                 \
-    NUMKONG_API nk_status_t nk_reduce_minmax_##input_type##_##isa_suffix(                                             \
-        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride_bytes,                               \
-        nk_##output_type##_t *min_value, nk_size_t *min_index, nk_##output_type##_t *max_value, nk_size_t *max_index, \
-        void *stream) {                                                                                               \
-        return nk_reduce_minmax_launch_simt_(                                                                         \
-            (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_,                                    \
-            (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_finish_kernel_,                             \
-            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride_bytes, min_value,        \
-                                      min_index, max_value, max_index),                                               \
-            stream);                                                                                                  \
+#define nk_define_device_reduce_minmax_(input_type, input_value_type, output_type, min_sentinel, max_sentinel,      \
+                                        isa_suffix)                                                                 \
+    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                              \
+        nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                   \
+        nk_reduce_minmax_simt_(nk_##input_type##_k, &arguments);                                                    \
+    }                                                                                                               \
+    static __global__ void nk_reduce_minmax_##input_type##_##isa_suffix##_finish_kernel_(                           \
+        nk_reduce_arguments_t arguments) {                                                                          \
+        nk_reduce_minmax_finish_simt_(nk_##input_type##_k, min_sentinel, max_sentinel, &arguments);                 \
+    }                                                                                                               \
+    NUMKONG_API nk_status_t nk_reduce_minmax_##input_type##_##isa_suffix(                                           \
+        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##output_type##_t *min_value,  \
+        nk_size_t *min_index, nk_##output_type##_t *max_value, nk_size_t *max_index, void *stream) {                \
+        return nk_reduce_minmax_launch_simt_(                                                                       \
+            (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_,                                  \
+            (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_finish_kernel_,                           \
+            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, min_value, min_index, \
+                                      max_value, max_index),                                                        \
+            stream);                                                                                                \
     }
 
 #if NUMKONG_TARGET_CUDA

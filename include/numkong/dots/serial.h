@@ -117,8 +117,14 @@ typedef struct {
     /** Padded depth in storage values: bytes for i4 and u4, values for i8 and f32. */
     nk_u32_t depth_padded_values;
 
+    /** Bytes between the scale rows that follow the packed rows of a block-scaled dtype, else 0. */
+    nk_u32_t scales_stride;
+
+    /** The packed operand's tensor scale, 1 when it has none, which every product multiplies in. */
+    nk_f32_t tensor_scale;
+
     /** Zeroed; pads the header to 64 bytes. */
-    nk_u32_t reserved[11];
+    nk_u32_t reserved[9];
 
     /** The capability that packed the buffer, which every consumer checks. */
     nk_capability_t capability;
@@ -131,11 +137,133 @@ typedef struct {
 NUMKONG_INLINE nk_size_t nk_cross_padded_values_(nk_size_t depth, nk_size_t depth_simd_dimensions,
                                                  nk_size_t dimensions_per_value, nk_size_t value_bytes) {
     nk_size_t values = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions) / dimensions_per_value;
-    nk_size_t const stride_bytes = values * value_bytes;
-    if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0)
-        values += depth_simd_dimensions / dimensions_per_value;
+    nk_size_t const stride = values * value_bytes;
+    if ((stride & (stride - 1)) == 0 && stride > 0) values += depth_simd_dimensions / dimensions_per_value;
     return values;
 }
+
+/** Blocks of scales in a row of @p depth elements of @p dtype, zero for plain dtypes. */
+NUMKONG_CONSTEXPR nk_size_t nk_cross_scale_blocks_(nk_dtype_t dtype, nk_size_t depth) {
+    nk_size_t const block_size = nk_block_scaled_format_of_dtype(dtype).block_size;
+    return block_size ? depth / block_size : 0;
+}
+
+/** Whether @p depth spans whole blocks of @p dtype, as every block-scaled kernel requires; true for
+ *  plain dtypes. */
+NUMKONG_CONSTEXPR int nk_cross_whole_blocks_(nk_dtype_t dtype, nk_size_t depth) {
+    nk_size_t const block_size = nk_block_scaled_format_of_dtype(dtype).block_size;
+    return block_size == 0 || depth % block_size == 0;
+}
+
+/** Bytes between scale rows of @p depth elements of @p dtype, one byte per block rounded up to 16
+ *  so every row starts where a tensor-memory copy can load it; zero for plain dtypes. */
+NUMKONG_CONSTEXPR nk_size_t nk_cross_scales_stride_(nk_dtype_t dtype, nk_size_t depth) {
+    nk_size_t const blocks = nk_cross_scale_blocks_(dtype, depth);
+    return blocks ? nk_size_round_up_to_multiple_(blocks, 16) : 0;
+}
+
+/** Element @p index of a block-scaled row of @p element_dtype, without its scale. E2M1 rows hold
+ *  element 0 in the high nibble, as @c nk_cast writes them. */
+NUMKONG_INLINE nk_f64_t nk_cross_scaled_element_serial_(nk_dtype_t element_dtype, nk_u8_t const *row, nk_size_t index) {
+    nk_f32_t value;
+    if (element_dtype == nk_e2m1_k)
+        return 0.5 * nk_e2m1_nibble_to_i8x2_serial_((nk_u8_t)(row[index / 2] >> (index & 1 ? 0 : 4)));
+    if (element_dtype == nk_e4m3_k) nk_e4m3_to_f32_((nk_e4m3_t const *)row + index, &value);
+    else nk_e5m2_to_f32_((nk_e5m2_t const *)row + index, &value);
+    return value;
+}
+
+/*  The operand each generated entry point takes, by the input type name it is generated for: an
+ *  element pointer for plain dtypes, and a reference to codes and scales for block-scaled ones. */
+typedef nk_f64_t nk_cross_f64_operand_t;
+typedef nk_f32_t nk_cross_f32_operand_t;
+typedef nk_f16_t nk_cross_f16_operand_t;
+typedef nk_bf16_t nk_cross_bf16_operand_t;
+typedef nk_e4m3_t nk_cross_e4m3_operand_t;
+typedef nk_e5m2_t nk_cross_e5m2_operand_t;
+typedef nk_e2m3_t nk_cross_e2m3_operand_t;
+typedef nk_e3m2_t nk_cross_e3m2_operand_t;
+typedef nk_e2m1x2_t nk_cross_e2m1_operand_t;
+typedef nk_i8_t nk_cross_i8_operand_t;
+typedef nk_u8_t nk_cross_u8_operand_t;
+typedef nk_i4x2_t nk_cross_i4_operand_t;
+typedef nk_u4x2_t nk_cross_u4_operand_t;
+typedef nk_u1x8_t nk_cross_u1_operand_t;
+typedef nk_nvfp4_cref_t nk_cross_nvfp4_operand_t;
+typedef nk_mxfp4_cref_t nk_cross_mxfp4_operand_t;
+typedef nk_mxfp8e4m3_cref_t nk_cross_mxfp8e4m3_operand_t;
+typedef nk_mxfp8e5m2_cref_t nk_cross_mxfp8e5m2_operand_t;
+
+/** One operand unpacked: its codes, and for block-scaled dtypes its scales, their row stride and
+ *  its tensor scale, which stays a pointer so GPU entry points never read device memory. */
+typedef struct {
+    void const *elements;
+    nk_u8_t const *scales;
+    nk_size_t scales_stride;
+    nk_f32_t const *tensor_scale;
+} nk_cross_operand_t;
+
+/** Unpacks @p operand of @p dtype, whose rows of codes are @p stride bytes apart, folding to a
+ *  plain pointer copy for plain dtypes. Every MX reference shares @c nk_mxfp4_cref_t's layout. */
+NUMKONG_INLINE nk_cross_operand_t nk_cross_operand_(nk_dtype_t dtype, void const *operand, nk_size_t stride) {
+    nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(dtype);
+    nk_cross_operand_t unpacked = {operand, NUMKONG_NULL, 0, NUMKONG_NULL};
+    if (dtype == nk_nvfp4_k) {
+        nk_nvfp4_cref_t const *reference = (nk_nvfp4_cref_t const *)operand;
+        unpacked.elements = reference->elements, unpacked.scales = reference->scales;
+        unpacked.tensor_scale = reference->tensor_scale;
+    }
+    else if (format.block_size) {
+        nk_mxfp4_cref_t const *reference = (nk_mxfp4_cref_t const *)operand;
+        unpacked.elements = reference->elements, unpacked.scales = reference->scales;
+    }
+    nk_assert_(!format.block_size || stride % format.block_bytes == 0);
+    if (format.block_size) unpacked.scales_stride = stride / format.block_bytes;
+    return unpacked;
+}
+
+/** The value behind @p tensor_scale, 1 when it is null. */
+NUMKONG_INLINE nk_f32_t nk_cross_tensor_scale_(nk_f32_t const *tensor_scale) {
+    return tensor_scale ? *tensor_scale : 1;
+}
+
+/** Multiplies @p count F32 results by @p factor, skipped when it is 1, as for plain dtypes. */
+NUMKONG_INLINE void nk_cross_scale_results_(nk_f32_t *results, nk_size_t count, nk_f32_t factor) {
+    if (factor != 1)
+        for (nk_size_t index = 0; index != count; ++index) results[index] *= factor;
+}
+
+/** Squared norm of one block-scaled row of @p dtype times @p tensor_scale squared, exact per
+ *  block in F64 and rounded once. */
+NUMKONG_INLINE nk_f32_t nk_cross_scaled_sumsq_serial_(nk_dtype_t dtype, void const *row, void const *scales,
+                                                      nk_f64_t tensor_scale, nk_size_t depth) {
+    nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(dtype);
+    nk_f64_t sum = 0;
+    for (nk_size_t block = 0; block * format.block_size < depth; ++block) {
+        nk_f64_t block_sum = 0;
+        for (nk_size_t index = block * format.block_size; index != (block + 1) * format.block_size; ++index) {
+            nk_f64_t const value = nk_cross_scaled_element_serial_(format.element_dtype, (nk_u8_t const *)row, index);
+            block_sum += value * value;
+        }
+        nk_f64_t const scale = nk_block_scaled_decode_scale_serial_(((nk_u8_t const *)scales)[block],
+                                                                    format.scale_dtype);
+        sum += block_sum * scale * scale;
+    }
+    return (nk_f32_t)(sum * tensor_scale * tensor_scale);
+}
+
+/** The scale row of packed column @p column, among the scale rows between a pack's packed rows and
+ *  its norms. */
+NUMKONG_INLINE nk_u8_t const *nk_cross_packed_scales_(void const *b_packed, nk_size_t packed_value_bytes,
+                                                      nk_size_t column) {
+    nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed;
+    return (nk_u8_t const *)b_packed + sizeof(nk_cross_packed_buffer_header_t) +
+           (nk_size_t)header->column_count * header->depth_padded_values * packed_value_bytes +
+           column * header->scales_stride;
+}
+
+/** The binder of plain dtypes, whose states read no scales. */
+#define nk_cross_unscaled_(state, a_scales, b_scales) ((void)0)
 
 /*  Norm helpers that @c nk_define_cross_pack_ uses to append per-column norms to packed buffers.
  *  Each computes the norm, sum-of-squares or popcount, of a contiguous row with the serial
@@ -313,17 +441,18 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                        \
                                                                                                                \
         /* Calculate stride in bytes for power-of-2 check */                                                   \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);               \
+        nk_size_t const stride = depth_values_padded * sizeof(nk_##packed_value_type##_t);                     \
                                                                                                                \
         /* Break power-of-2 strides for cache associativity */                                                 \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                    \
+        if ((stride & (stride - 1)) == 0 && stride > 0) {                                                      \
             /* Add one SIMD step worth of storage values */                                                    \
             depth_values_padded += depth_simd_dimensions / dimensions_per_value;                               \
         }                                                                                                      \
                                                                                                                \
-        /* Return total buffer size (packed data + per-column norms) */                                        \
+        /* Return total buffer size (packed data + block scales + per-column norms) */                         \
         *bytes = sizeof(nk_cross_packed_buffer_header_t) +                                                     \
                  column_count * depth_values_padded * sizeof(nk_##packed_value_type##_t) +                     \
+                 column_count * nk_cross_scales_stride_(nk_##input_type_name##_k, depth) +                     \
                  column_count * sizeof(nk_##norm_value_type##_t);                                              \
         return nk_success_k;                                                                                   \
     }
@@ -339,11 +468,11 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
  */
 #define nk_define_cross_packed_shape_(api_name, input_type_name, isa_suffix)                               \
     NUMKONG_API nk_status_t nk_##api_name##_packed_shape_##input_type_name##_##isa_suffix(                 \
-        void const *b_packed, nk_size_t *width, nk_size_t *depth, void *stream) {                          \
+        void const *b_packed, nk_size_t *columns, nk_size_t *depth, void *stream) {                        \
         nk_assert_(stream == NUMKONG_NULL);                                                                \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed; \
         if (header->capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;                      \
-        *width = header->column_count;                                                                     \
+        *columns = header->column_count;                                                                   \
         *depth = header->depth_dimensions;                                                                 \
         return nk_success_k;                                                                               \
     }
@@ -365,15 +494,19 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                               load_fn, partial_load_fn, store_fn, partial_store_fn, simd_width, norm_value_type,      \
                               compute_norm_fn, depth_simd_dimensions, dimensions_per_value)                           \
     NUMKONG_API nk_status_t nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                    \
-        nk_##input_value_type##_t const *b, void const *b_scales, nk_size_t column_count, nk_size_t depth,            \
-        nk_size_t b_stride_in_bytes, nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin,              \
-        nk_size_t columns_end, void *stream) {                                                                        \
-        nk_assert_(stream == NUMKONG_NULL && b_scales == NUMKONG_NULL && b_scales_stride == 0);                       \
-        nk_assert_(depth % dimensions_per_value == 0);                                                                \
+        nk_cross_##input_type_name##_operand_t const *b_operand, nk_size_t column_count, nk_size_t depth,             \
+        nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {           \
+        nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_##input_type_name##_k, b_operand, b_stride);       \
+        nk_##input_value_type##_t const *b = (nk_##input_value_type##_t const *)b_unpacked.elements;                  \
+        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                     \
+        nk_size_t const blocks = nk_cross_scale_blocks_(nk_##input_type_name##_k, depth);                             \
+        nk_f32_t const tensor_scale = nk_cross_tensor_scale_(b_unpacked.tensor_scale);                                \
+        nk_assert_(stream == NUMKONG_NULL);                                                                           \
+        nk_assert_(depth % dimensions_per_value == 0 && nk_cross_whole_blocks_(nk_##input_type_name##_k, depth));     \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
         nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                               \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                      \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0)                                             \
+        nk_size_t const stride = depth_values_padded * sizeof(nk_##packed_value_type##_t);                            \
+        if ((stride & (stride - 1)) == 0 && stride > 0)                                                               \
             depth_values_padded += depth_simd_dimensions / dimensions_per_value;                                      \
         nk_size_t const depth_in_values = depth / dimensions_per_value;                                               \
                                                                                                                       \
@@ -382,8 +515,10 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
             header->column_count = (nk_u32_t)column_count;                                                            \
             header->depth_dimensions = (nk_u32_t)depth;                                                               \
             header->depth_padded_values = (nk_u32_t)depth_values_padded;                                              \
+            header->scales_stride = (nk_u32_t)scales_stride;                                                          \
+            header->tensor_scale = tensor_scale;                                                                      \
             header->capability = nk_cap_##isa_suffix##_k;                                                             \
-            for (nk_size_t reserved_index = 0; reserved_index < 11; reserved_index++)                                 \
+            for (nk_size_t reserved_index = 0; reserved_index < 9; reserved_index++)                                  \
                 header->reserved[reserved_index] = 0;                                                                 \
         }                                                                                                             \
                                                                                                                       \
@@ -394,7 +529,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                                                                                                       \
         for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
-                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
+                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride);                       \
             nk_##packed_value_type##_t *destination_row = packed + column_index * depth_values_padded;                \
             for (nk_size_t chunk = 0; chunk < full_chunks; ++chunk) {                                                 \
                 vec_type vec;                                                                                         \
@@ -410,11 +545,20 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         }                                                                                                             \
                                                                                                                       \
         nk_size_t const total_values = column_count * depth_values_padded;                                            \
-        nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(packed + total_values);                        \
+        nk_u8_t *scales = (nk_u8_t *)(packed + total_values);                                                         \
+        nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(scales + column_count * scales_stride);        \
         for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
-                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
-            norms[column_index] = compute_norm_fn(source_row, depth, nk_cap_##isa_suffix##_k);                        \
+                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride);                       \
+            if (!scales_stride) {                                                                                     \
+                norms[column_index] = compute_norm_fn(source_row, depth, nk_cap_##isa_suffix##_k);                    \
+                continue;                                                                                             \
+            }                                                                                                         \
+            nk_u8_t const *source_scales = b_unpacked.scales + column_index * b_unpacked.scales_stride;               \
+            for (nk_size_t byte = 0; byte != scales_stride; ++byte)                                                   \
+                scales[column_index * scales_stride + byte] = byte < blocks ? source_scales[byte] : 0;                \
+            norms[column_index] = (nk_##norm_value_type##_t)nk_cross_scaled_sumsq_serial_(                            \
+                nk_##input_type_name##_k, source_row, source_scales, tensor_scale, depth);                            \
         }                                                                                                             \
         return nk_success_k;                                                                                          \
     }
@@ -433,8 +577,8 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {                                               \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);           \
         nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                            \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                   \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0) {                                        \
+        nk_size_t const stride = depth_values_padded * sizeof(nk_##packed_value_type##_t);                         \
+        if ((stride & (stride - 1)) == 0 && stride > 0) {                                                          \
             depth_values_padded += depth_simd_dimensions / dimensions_per_value;                                   \
         }                                                                                                          \
         *bytes = sizeof(nk_cross_packed_buffer_header_t) +                                                         \
@@ -453,14 +597,13 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                           sum_value_type, norm_value_type, compute_moments_fn, depth_simd_dimensions, \
                                           dimensions_per_value)                                                       \
     NUMKONG_API nk_status_t nk_##api_name##_pack_##input_type_name##_##isa_suffix(                                    \
-        nk_##input_value_type##_t const *b, void const *b_scales, nk_size_t column_count, nk_size_t depth,            \
-        nk_size_t b_stride_in_bytes, nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin,              \
-        nk_size_t columns_end, void *stream) {                                                                        \
-        nk_assert_(stream == NUMKONG_NULL && b_scales == NUMKONG_NULL && b_scales_stride == 0);                       \
+        nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride,              \
+        void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {                               \
+        nk_assert_(stream == NUMKONG_NULL);                                                                           \
         nk_size_t depth_dimensions_padded = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions);              \
         nk_size_t depth_values_padded = depth_dimensions_padded / dimensions_per_value;                               \
-        nk_size_t const stride_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                      \
-        if ((stride_bytes & (stride_bytes - 1)) == 0 && stride_bytes > 0)                                             \
+        nk_size_t const stride = depth_values_padded * sizeof(nk_##packed_value_type##_t);                            \
+        if ((stride & (stride - 1)) == 0 && stride > 0)                                                               \
             depth_values_padded += depth_simd_dimensions / dimensions_per_value;                                      \
         nk_size_t const depth_in_values = depth / dimensions_per_value;                                               \
                                                                                                                       \
@@ -470,7 +613,9 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
             header->depth_dimensions = (nk_u32_t)depth;                                                               \
             header->depth_padded_values = (nk_u32_t)depth_values_padded;                                              \
             header->capability = nk_cap_##isa_suffix##_k;                                                             \
-            for (nk_size_t reserved_index = 0; reserved_index < 11; reserved_index++)                                 \
+            header->scales_stride = 0;                                                                                \
+            header->tensor_scale = 1;                                                                                 \
+            for (nk_size_t reserved_index = 0; reserved_index < 9; reserved_index++)                                  \
                 header->reserved[reserved_index] = 0;                                                                 \
         }                                                                                                             \
                                                                                                                       \
@@ -481,7 +626,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                                                                                                       \
         for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
-                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
+                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride);                       \
             nk_##packed_value_type##_t *destination_row = packed + column_index * depth_values_padded;                \
             for (nk_size_t chunk = 0; chunk < full_chunks; ++chunk) {                                                 \
                 vec_type vec;                                                                                         \
@@ -501,12 +646,53 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_##sum_value_type##_t *col_sums = (nk_##sum_value_type##_t *)(norms + column_count);                        \
         for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
-                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride_in_bytes);              \
+                (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride);                       \
             compute_moments_fn(source_row, depth, &col_sums[column_index], &norms[column_index],                      \
                                nk_cap_##isa_suffix##_k);                                                              \
         }                                                                                                             \
         return nk_success_k;                                                                                          \
     }
+
+/** Points each state of a 4 × 4 tile at its A row's and its packed B column's scales, rows and
+ *  columns past the tile's edge repeating its first; a no-op for plain dtypes' binder. */
+#define nk_cross_bind_tile_(bind_scales_fn, tiles, a_scales, a_scales_stride, first_row, rows, b_packed_buffer, \
+                            packed_value_type, first_column, columns)                                           \
+    for (nk_size_t bind_row = 0; bind_row != 4; ++bind_row)                                                     \
+        for (nk_size_t bind_column = 0; bind_column != 4; ++bind_column)                                        \
+    bind_scales_fn(                                                                                             \
+        &(tiles)[bind_row][bind_column],                                                                        \
+        (nk_u8_t const *)(a_scales) + ((first_row) + (bind_row < (rows) ? bind_row : 0)) * (a_scales_stride),   \
+        nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t),                            \
+                                (first_column) + (bind_column < (columns) ? bind_column : 0)))
+
+/** Points eight states of one A row at its scales and at eight consecutive packed B columns'. */
+#define nk_cross_bind_row_(bind_scales_fn, a_scales, a_scales_stride, row, b_packed_buffer, packed_value_type,        \
+                           first_column, state_0, state_1, state_2, state_3, state_4, state_5, state_6, state_7)      \
+    do {                                                                                                              \
+        bind_scales_fn(&state_0, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                             \
+                       nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column))); \
+        bind_scales_fn(                                                                                               \
+            &state_1, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                                        \
+            nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column) + 1));        \
+        bind_scales_fn(                                                                                               \
+            &state_2, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                                        \
+            nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column) + 2));        \
+        bind_scales_fn(                                                                                               \
+            &state_3, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                                        \
+            nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column) + 3));        \
+        bind_scales_fn(                                                                                               \
+            &state_4, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                                        \
+            nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column) + 4));        \
+        bind_scales_fn(                                                                                               \
+            &state_5, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                                        \
+            nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column) + 5));        \
+        bind_scales_fn(                                                                                               \
+            &state_6, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                                        \
+            nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column) + 6));        \
+        bind_scales_fn(                                                                                               \
+            &state_7, (nk_u8_t const *)(a_scales) + (row) * (a_scales_stride),                                        \
+            nk_cross_packed_scales_(b_packed_buffer, sizeof(nk_##packed_value_type##_t), (first_column) + 7));        \
+    } while (0)
 
 /**
  *  @brief Generates optimized GEMM implementation: C = A × Bᵀ with pre-packed B matrix.
@@ -588,7 +774,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
  *  @code{.c}
  *  nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(
  *      A_matrix, B_packed_buffer, C_matrix, row_count, column_count, depth,
- *      A_stride_bytes, C_stride_bytes)
+ *      A_stride, C_stride)
  *  @endcode
  *
  *  @param[in] api_name Operation family, dots/hammings/jaccards, for codegen namespace.
@@ -607,7 +793,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
  *  @param[in] partial_load_b_vec_fn Partial B load for remainder.
  *  @param[in] inner_product_fn Inner product accumulate.
  *  @param[in] reduce_accumulators_fn Reduce 4 accumulators.
- *  @param[in] store_fn Full-width store for results.
+ *  @param[in] store_fn Full-columns store for results.
  *  @param[in] partial_store_fn Partial store for results.
  *  @param[in] depth_simd_dimensions SIMD vector width in logical dimensions, e.g. 8 for f32 on
  *      AVX2, 128 for u1 on serial.
@@ -622,13 +808,15 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
  */
 #define nk_define_cross_packed_(api_name, input_type_name, isa_suffix, input_value_type, packed_value_type,            \
                                 result_value_type, vec_type, state_type, result_vec_type, init_accumulator_fn,         \
-                                load_a_vec_fn, partial_load_a_vec_fn, load_b_vec_fn, partial_load_b_vec_fn,            \
-                                inner_product_fn, reduce_accumulators_fn, store_fn, partial_store_fn,                  \
-                                depth_simd_dimensions, dimensions_per_value)                                           \
+                                bind_scales_fn, load_a_vec_fn, partial_load_a_vec_fn, load_b_vec_fn,                   \
+                                partial_load_b_vec_fn, inner_product_fn, reduce_accumulators_fn, store_fn,             \
+                                partial_store_fn, depth_simd_dimensions, dimensions_per_value)                         \
     NUMKONG_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                            \
-        nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
-        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
-        nk_size_t c_stride_in_bytes) {                                                                                 \
+        nk_##input_value_type##_t const *a_matrix, void const *a_scales, void const *b_packed_buffer,                  \
+        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
+        nk_size_t a_stride, nk_size_t a_scales_stride, nk_size_t c_stride) {                                           \
+        nk_unused_(a_scales);                                                                                          \
+        nk_unused_(a_scales_stride);                                                                                   \
         /* Read padded depth from header for correct stride calculation */                                             \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
         nk_size_t const depth_padded = header->depth_padded_values;                                                    \
@@ -651,7 +839,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         /* Zero output matrix */                                                                                       \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
-                                                                               row_index * c_stride_in_bytes);         \
+                                                                               row_index * c_stride);                  \
             for (nk_size_t column_index = 0; column_index < column_count; ++column_index) c_row[column_index] = 0;     \
         }                                                                                                              \
                                                                                                                        \
@@ -701,20 +889,23 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         init_accumulator_fn(&accumulator_tiles[3][0]), init_accumulator_fn(&accumulator_tiles[3][1]),  \
                             init_accumulator_fn(&accumulator_tiles[3][2]),                                             \
                             init_accumulator_fn(&accumulator_tiles[3][3]);                                             \
+                        nk_cross_bind_tile_(bind_scales_fn, accumulator_tiles, a_scales, a_scales_stride,              \
+                                            tile_row_start_index, 4, b_packed_buffer, packed_value_type,               \
+                                            tile_column_start_index, 4);                                               \
                                                                                                                        \
                         /* A row pointers */                                                                           \
                         nk_##input_value_type##_t const *a_row_ptr_0 =                                                 \
                             (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tile_row_start_index + 0) * a_stride_in_bytes);       \
+                                                                (tile_row_start_index + 0) * a_stride);                \
                         nk_##input_value_type##_t const *a_row_ptr_1 =                                                 \
                             (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tile_row_start_index + 1) * a_stride_in_bytes);       \
+                                                                (tile_row_start_index + 1) * a_stride);                \
                         nk_##input_value_type##_t const *a_row_ptr_2 =                                                 \
                             (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tile_row_start_index + 2) * a_stride_in_bytes);       \
+                                                                (tile_row_start_index + 2) * a_stride);                \
                         nk_##input_value_type##_t const *a_row_ptr_3 =                                                 \
                             (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tile_row_start_index + 3) * a_stride_in_bytes);       \
+                                                                (tile_row_start_index + 3) * a_stride);                \
                                                                                                                        \
                         /* Tight inner loop: full depth with simple depth_index addressing */                          \
                         vec_type a_vector_0, a_vector_1, a_vector_2, a_vector_3;                                       \
@@ -767,33 +958,29 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             inner_product_fn(&accumulator_tiles[3][3], a_vector_3, b_vector_3,                         \
                                              depth_index * dimensions_per_value, depth_simd_dimensions);               \
                         }                                                                                              \
-                        /* Finalize and store register_rows x register_cols results                                    \
+                        /* Finalize and store register_rows x register_columns results                                 \
                          * using a batched 4-way reduction */                                                          \
                         result_vec_type result_vector;                                                                 \
                         nk_##result_value_type##_t *c_row_ptr_0 =                                                      \
-                            (nk_##result_value_type##_t *)((char *)c_matrix +                                          \
-                                                           (tile_row_start_index + 0) * c_stride_in_bytes);            \
+                            (nk_##result_value_type##_t *)((char *)c_matrix + (tile_row_start_index + 0) * c_stride);  \
                         reduce_accumulators_fn(&accumulator_tiles[0][0], &accumulator_tiles[0][1],                     \
                                                &accumulator_tiles[0][2], &accumulator_tiles[0][3], depth,              \
                                                &result_vector);                                                        \
                         store_fn(&result_vector, c_row_ptr_0 + tile_column_start_index);                               \
                         nk_##result_value_type##_t *c_row_ptr_1 =                                                      \
-                            (nk_##result_value_type##_t *)((char *)c_matrix +                                          \
-                                                           (tile_row_start_index + 1) * c_stride_in_bytes);            \
+                            (nk_##result_value_type##_t *)((char *)c_matrix + (tile_row_start_index + 1) * c_stride);  \
                         reduce_accumulators_fn(&accumulator_tiles[1][0], &accumulator_tiles[1][1],                     \
                                                &accumulator_tiles[1][2], &accumulator_tiles[1][3], depth,              \
                                                &result_vector);                                                        \
                         store_fn(&result_vector, c_row_ptr_1 + tile_column_start_index);                               \
                         nk_##result_value_type##_t *c_row_ptr_2 =                                                      \
-                            (nk_##result_value_type##_t *)((char *)c_matrix +                                          \
-                                                           (tile_row_start_index + 2) * c_stride_in_bytes);            \
+                            (nk_##result_value_type##_t *)((char *)c_matrix + (tile_row_start_index + 2) * c_stride);  \
                         reduce_accumulators_fn(&accumulator_tiles[2][0], &accumulator_tiles[2][1],                     \
                                                &accumulator_tiles[2][2], &accumulator_tiles[2][3], depth,              \
                                                &result_vector);                                                        \
                         store_fn(&result_vector, c_row_ptr_2 + tile_column_start_index);                               \
                         nk_##result_value_type##_t *c_row_ptr_3 =                                                      \
-                            (nk_##result_value_type##_t *)((char *)c_matrix +                                          \
-                                                           (tile_row_start_index + 3) * c_stride_in_bytes);            \
+                            (nk_##result_value_type##_t *)((char *)c_matrix + (tile_row_start_index + 3) * c_stride);  \
                         reduce_accumulators_fn(&accumulator_tiles[3][0], &accumulator_tiles[3][1],                     \
                                                &accumulator_tiles[3][2], &accumulator_tiles[3][3], depth,              \
                                                &result_vector);                                                        \
@@ -804,9 +991,11 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         }                                                                                                              \
     }                                                                                                                  \
     NUMKONG_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                        \
-        nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
-        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
-        nk_size_t c_stride_in_bytes) {                                                                                 \
+        nk_##input_value_type##_t const *a_matrix, void const *a_scales, void const *b_packed_buffer,                  \
+        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
+        nk_size_t a_stride, nk_size_t a_scales_stride, nk_size_t c_stride) {                                           \
+        nk_unused_(a_scales);                                                                                          \
+        nk_unused_(a_scales_stride);                                                                                   \
         /* Read padded depth from header for correct stride calculation */                                             \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
         nk_size_t const depth_padded = header->depth_padded_values; /* in storage values */                            \
@@ -830,7 +1019,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         /* Zero output matrix */                                                                                       \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
-                                                                               row_index * c_stride_in_bytes);         \
+                                                                               row_index * c_stride);                  \
             for (nk_size_t column_index = 0; column_index < column_count; ++column_index) c_row[column_index] = 0;     \
         }                                                                                                              \
                                                                                                                        \
@@ -880,11 +1069,14 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             init_accumulator_fn(&accumulator_2), init_accumulator_fn(&accumulator_3),                  \
                             init_accumulator_fn(&accumulator_4), init_accumulator_fn(&accumulator_5),                  \
                             init_accumulator_fn(&accumulator_6), init_accumulator_fn(&accumulator_7);                  \
+                        nk_cross_bind_row_(bind_scales_fn, a_scales, a_scales_stride, row_index, b_packed_buffer,      \
+                                           packed_value_type, tile_column_start_index, accumulator_0, accumulator_1,   \
+                                           accumulator_2, accumulator_3, accumulator_4, accumulator_5, accumulator_6,  \
+                                           accumulator_7);                                                             \
                                                                                                                        \
                         /* A row pointer */                                                                            \
                         nk_##input_value_type##_t const *a_row_ptr =                                                   \
-                            (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                row_index * a_stride_in_bytes);                        \
+                            (nk_##input_value_type##_t const *)((char const *)a_matrix + row_index * a_stride);        \
                                                                                                                        \
                         /* Tight inner loop: full depth with simple depth_index addressing */                          \
                         vec_type a_vector;                                                                             \
@@ -926,8 +1118,8 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                                                                                                        \
                         /* Finalize and store 1 × 8 results using two 4-way reductions */                              \
                         result_vec_type result_vector;                                                                 \
-                        nk_##result_value_type##_t *c_row_ptr =                                                        \
-                            (nk_##result_value_type##_t *)((char *)c_matrix + row_index * c_stride_in_bytes);          \
+                        nk_##result_value_type##_t *c_row_ptr = (nk_##result_value_type##_t *)((char *)c_matrix +      \
+                                                                                               row_index * c_stride);  \
                         /* First 4 columns */                                                                          \
                         reduce_accumulators_fn(&accumulator_0, &accumulator_1, &accumulator_2, &accumulator_3, depth,  \
                                                &result_vector);                                                        \
@@ -941,16 +1133,16 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                   \
+    NUMKONG_INLINE nk_status_t nk_##api_name##_packed_##input_type_name##_##isa_suffix##_(                             \
         nk_##input_value_type##_t const *a_matrix, void const *a_scales, void const *b_packed_buffer,                  \
         nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
-        nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {           \
-        nk_assert_(stream == NUMKONG_NULL && a_scales == NUMKONG_NULL && a_scales_stride == 0);                        \
+        nk_size_t a_stride, nk_size_t a_scales_stride, nk_size_t c_stride) {                                           \
+        nk_assert_((a_scales != NUMKONG_NULL) == (nk_cross_scales_stride_(nk_##input_type_name##_k, depth) != 0));     \
         /* Read padded depth from header for correct stride calculation */                                             \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
         if (header->capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;                                  \
         nk_assert_(header->column_count == column_count && header->depth_dimensions == depth &&                        \
-                   depth % dimensions_per_value == 0);                                                                 \
+                   depth % dimensions_per_value == 0 && nk_cross_whole_blocks_(nk_##input_type_name##_k, depth));      \
         nk_size_t const depth_padded = header->depth_padded_values;                                                    \
                                                                                                                        \
         /* Cache blocking parameters (hardcoded for optimal L1/L2/L3 utilization) */                                   \
@@ -962,22 +1154,22 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         /* Use 1 × 8 kernel when columns are aligned to 8 and many columns relative to rows */                         \
         if (column_count % 8 == 0 && column_count >= row_count * 2 && depth % depth_simd_dimensions == 0) {            \
             nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                                    \
-                a_matrix, b_packed_buffer, c_matrix, row_count, column_count, depth, a_stride_in_bytes,                \
-                c_stride_in_bytes);                                                                                    \
+                a_matrix, a_scales, b_packed_buffer, c_matrix, row_count, column_count, depth, a_stride,               \
+                a_scales_stride, c_stride);                                                                            \
             return nk_success_k;                                                                                       \
         }                                                                                                              \
         /* Use 4 × 4 kernel when dimensions are 4-aligned */                                                           \
         if (row_count % 4 == 0 && column_count % 4 == 0 && depth % depth_simd_dimensions == 0) {                       \
-            nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(a_matrix, b_packed_buffer, c_matrix,    \
-                                                                               row_count, column_count, depth,         \
-                                                                               a_stride_in_bytes, c_stride_in_bytes);  \
+            nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                                        \
+                a_matrix, a_scales, b_packed_buffer, c_matrix, row_count, column_count, depth, a_stride,               \
+                a_scales_stride, c_stride);                                                                            \
             return nk_success_k;                                                                                       \
         }                                                                                                              \
                                                                                                                        \
         /* Zero output matrix */                                                                                       \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
-                                                                               row_index * c_stride_in_bytes);         \
+                                                                               row_index * c_stride);                  \
             for (nk_size_t column_index = 0; column_index < column_count; ++column_index) c_row[column_index] = 0;     \
         }                                                                                                              \
                                                                                                                        \
@@ -1033,7 +1225,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         if (tile_row_start_index + tile_row_count > row_block_end_index)                               \
                             tile_row_count = row_block_end_index - tile_row_start_index;                               \
                                                                                                                        \
-                        /* Initialize register_rows x register_cols accumulator states */                              \
+                        /* Initialize register_rows x register_columns accumulator states */                           \
                         state_type accumulator_tiles[4][4];                                                            \
                         for (nk_size_t r = 0; r < tile_row_count; ++r) {                                               \
                             init_accumulator_fn(&accumulator_tiles[r][0]);                                             \
@@ -1041,25 +1233,28 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             init_accumulator_fn(&accumulator_tiles[r][2]);                                             \
                             init_accumulator_fn(&accumulator_tiles[r][3]);                                             \
                         }                                                                                              \
+                        nk_cross_bind_tile_(bind_scales_fn, accumulator_tiles, a_scales, a_scales_stride,              \
+                                            tile_row_start_index, tile_row_count, b_packed_buffer, packed_value_type,  \
+                                            tile_column_start_index, tile_column_count);                               \
                                                                                                                        \
                         /* A row pointers */                                                                           \
                         nk_##input_value_type##_t const *a_row_ptr_0 =                                                 \
                             (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tile_row_start_index + 0) * a_stride_in_bytes);       \
+                                                                (tile_row_start_index + 0) * a_stride);                \
                         nk_##input_value_type##_t const *a_row_ptr_1 =                                                 \
                             (tile_row_count > 1)                                                                       \
                                 ? (nk_##input_value_type##_t const *)((char const *)a_matrix +                         \
-                                                                      (tile_row_start_index + 1) * a_stride_in_bytes)  \
+                                                                      (tile_row_start_index + 1) * a_stride)           \
                                 : a_row_ptr_0;                                                                         \
                         nk_##input_value_type##_t const *a_row_ptr_2 =                                                 \
                             (tile_row_count > 2)                                                                       \
                                 ? (nk_##input_value_type##_t const *)((char const *)a_matrix +                         \
-                                                                      (tile_row_start_index + 2) * a_stride_in_bytes)  \
+                                                                      (tile_row_start_index + 2) * a_stride)           \
                                 : a_row_ptr_0;                                                                         \
                         nk_##input_value_type##_t const *a_row_ptr_3 =                                                 \
                             (tile_row_count > 3)                                                                       \
                                 ? (nk_##input_value_type##_t const *)((char const *)a_matrix +                         \
-                                                                      (tile_row_start_index + 3) * a_stride_in_bytes)  \
+                                                                      (tile_row_start_index + 3) * a_stride)           \
                                 : a_row_ptr_0;                                                                         \
                                                                                                                        \
                         /* Tight inner loop: k values with simple ptr+k addressing */                                  \
@@ -1162,7 +1357,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                              aligned_depth * dimensions_per_value, remainder_dimensions);              \
                         }                                                                                              \
                                                                                                                        \
-                        /* Finalize and store register_rows x register_cols results                                    \
+                        /* Finalize and store register_rows x register_columns results                                 \
                          * using a batched 4-way reduction */                                                          \
                         for (nk_size_t r = 0; r < tile_row_count; ++r) {                                               \
                             result_vec_type result_vector;                                                             \
@@ -1172,13 +1367,29 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                                                                                                        \
                             nk_##result_value_type##_t *c_row =                                                        \
                                 (nk_##result_value_type##_t *)((char *)c_matrix +                                      \
-                                                               (tile_row_start_index + r) * c_stride_in_bytes);        \
+                                                               (tile_row_start_index + r) * c_stride);                 \
                             partial_store_fn(&result_vector, c_row + tile_column_start_index, tile_column_count);      \
                         }                                                                                              \
                     }                                                                                                  \
                 }                                                                                                      \
             }                                                                                                          \
         }                                                                                                              \
+        return nk_success_k;                                                                                           \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                   \
+        nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
+        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
+        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                        \
+        nk_assert_(stream == NUMKONG_NULL);                                                                            \
+        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);                 \
+        nk_status_t const status = nk_##api_name##_packed_##input_type_name##_##isa_suffix##_(                         \
+            (nk_##input_value_type##_t const *)a.elements, a.scales, b_packed_buffer, c_matrix, row_count,             \
+            column_count, depth, a_stride, a.scales_stride, c_stride);                                                 \
+        if (status != nk_success_k || !a.scales) return status;                                                        \
+        nk_f32_t const factor = nk_cross_tensor_scale_(a.tensor_scale) *                                               \
+                                ((nk_cross_packed_buffer_header_t const *)b_packed_buffer)->tensor_scale;              \
+        for (nk_size_t row_index = 0; row_index != row_count; ++row_index)                                             \
+            nk_cross_scale_results_((nk_f32_t *)((char *)c_matrix + row_index * c_stride), column_count, factor);      \
         return nk_success_k;                                                                                           \
     }
 
@@ -1203,8 +1414,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
     load_sum_fn, partial_load_sum_fn, compute_a_sum_fn, depth_simd_dimensions, dimensions_per_value)                   \
     NUMKONG_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                            \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
-        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
-        nk_size_t c_stride_in_bytes) {                                                                                 \
+        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {        \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
         nk_size_t const depth_padded = header->depth_padded_values;                                                    \
         nk_##packed_value_type##_t const *packed_data =                                                                \
@@ -1225,7 +1435,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
-                                                                               row_index * c_stride_in_bytes);         \
+                                                                               row_index * c_stride);                  \
             for (nk_size_t ci = 0; ci < column_count; ++ci) c_row[ci] = 0;                                             \
         }                                                                                                              \
         for (nk_size_t cb = 0; cb < column_count; cb += column_block_size) {                                           \
@@ -1253,17 +1463,13 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         init_accumulator_fn(&acc[3][0]), init_accumulator_fn(&acc[3][1]),                              \
                             init_accumulator_fn(&acc[3][2]), init_accumulator_fn(&acc[3][3]);                          \
                         nk_##input_value_type##_t const *a_row_ptr_0 =                                                 \
-                            (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tr + 0) * a_stride_in_bytes);                         \
+                            (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 0) * a_stride);         \
                         nk_##input_value_type##_t const *a_row_ptr_1 =                                                 \
-                            (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tr + 1) * a_stride_in_bytes);                         \
+                            (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 1) * a_stride);         \
                         nk_##input_value_type##_t const *a_row_ptr_2 =                                                 \
-                            (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tr + 2) * a_stride_in_bytes);                         \
+                            (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 2) * a_stride);         \
                         nk_##input_value_type##_t const *a_row_ptr_3 =                                                 \
-                            (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tr + 3) * a_stride_in_bytes);                         \
+                            (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 3) * a_stride);         \
                         /* Precompute A row sums (no-op for i8/u8, real for i4) */                                     \
                         nk_##sum_value_type##_t a_sums[4];                                                             \
                         a_sums[0] = compute_a_sum_fn(a_row_ptr_0, depth, nk_cap_##isa_suffix##_k);                     \
@@ -1302,8 +1508,8 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         for (nk_size_t r = 0; r < register_row_count; ++r) {                                           \
                             compensated_finalize_fn(&acc[r][0], &acc[r][1], &acc[r][2], &acc[r][3], depth, a_sums[r],  \
                                                     &b_sum_vec, &result_vector);                                       \
-                            nk_##result_value_type##_t *c_row =                                                        \
-                                (nk_##result_value_type##_t *)((char *)c_matrix + (tr + r) * c_stride_in_bytes);       \
+                            nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +      \
+                                                                                               (tr + r) * c_stride);   \
                             store_fn(&result_vector, c_row + tc);                                                      \
                         }                                                                                              \
                     }                                                                                                  \
@@ -1313,8 +1519,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
     }                                                                                                                  \
     NUMKONG_INLINE void nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                        \
         nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
-        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
-        nk_size_t c_stride_in_bytes) {                                                                                 \
+        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {        \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
         nk_size_t const depth_padded = header->depth_padded_values;                                                    \
         nk_##packed_value_type##_t const *packed_data =                                                                \
@@ -1333,7 +1538,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
-                                                                               row_index * c_stride_in_bytes);         \
+                                                                               row_index * c_stride);                  \
             for (nk_size_t ci = 0; ci < column_count; ++ci) c_row[ci] = 0;                                             \
         }                                                                                                              \
         for (nk_size_t cb = 0; cb < column_count; cb += column_block_size) {                                           \
@@ -1359,7 +1564,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             init_accumulator_fn(&s3), init_accumulator_fn(&s4), init_accumulator_fn(&s5),              \
                             init_accumulator_fn(&s6), init_accumulator_fn(&s7);                                        \
                         nk_##input_value_type##_t const *a_row =                                                       \
-                            (nk_##input_value_type##_t const *)((char const *)a_matrix + ri * a_stride_in_bytes);      \
+                            (nk_##input_value_type##_t const *)((char const *)a_matrix + ri * a_stride);               \
                         nk_##sum_value_type##_t a_sum_val = compute_a_sum_fn(a_row, depth, nk_cap_##isa_suffix##_k);   \
                         vec_type av;                                                                                   \
                         vec_type bv0, bv1, bv2, bv3, bv4, bv5, bv6, bv7;                                               \
@@ -1380,7 +1585,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         }                                                                                              \
                         result_vec_type rv;                                                                            \
                         nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +          \
-                                                                                           ri * c_stride_in_bytes);    \
+                                                                                           ri * c_stride);             \
                         compensated_finalize_fn(&s0, &s1, &s2, &s3, depth, a_sum_val, &b_sum_low, &rv);                \
                         store_fn(&rv, c_row + tc);                                                                     \
                         compensated_finalize_fn(&s4, &s5, &s6, &s7, depth, a_sum_val, &b_sum_high, &rv);               \
@@ -1391,10 +1596,10 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         }                                                                                                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_packed_##input_type_name##_##isa_suffix(                                   \
-        nk_##input_value_type##_t const *a_matrix, void const *a_scales, void const *b_packed_buffer,                  \
-        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
-        nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {           \
-        nk_assert_(stream == NUMKONG_NULL && a_scales == NUMKONG_NULL && a_scales_stride == 0);                        \
+        nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
+        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,          \
+        void *stream) {                                                                                                \
+        nk_assert_(stream == NUMKONG_NULL);                                                                            \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
         if (header->capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;                                  \
         nk_size_t const depth_padded = header->depth_padded_values;                                                    \
@@ -1405,14 +1610,12 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_unused_(register_column_count);                                                                             \
         if (column_count % 8 == 0 && column_count >= row_count * 2 && depth % depth_simd_dimensions == 0) {            \
             nk_##api_name##_packed_##input_type_name##_##isa_suffix##_1x8_aligned_(                                    \
-                a_matrix, b_packed_buffer, c_matrix, row_count, column_count, depth, a_stride_in_bytes,                \
-                c_stride_in_bytes);                                                                                    \
+                a_matrix, b_packed_buffer, c_matrix, row_count, column_count, depth, a_stride, c_stride);              \
             return nk_success_k;                                                                                       \
         }                                                                                                              \
         if (row_count % 4 == 0 && column_count % 4 == 0 && depth % depth_simd_dimensions == 0) {                       \
-            nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(a_matrix, b_packed_buffer, c_matrix,    \
-                                                                               row_count, column_count, depth,         \
-                                                                               a_stride_in_bytes, c_stride_in_bytes);  \
+            nk_##api_name##_packed_##input_type_name##_##isa_suffix##_aligned_(                                        \
+                a_matrix, b_packed_buffer, c_matrix, row_count, column_count, depth, a_stride, c_stride);              \
             return nk_success_k;                                                                                       \
         }                                                                                                              \
         /* Generic fallback with partial loads and compensated finalize */                                             \
@@ -1432,7 +1635,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_size_t const depth_step_values = depth_simd_dimensions / dimensions_per_value;                              \
         for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                            \
             nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +                      \
-                                                                               row_index * c_stride_in_bytes);         \
+                                                                               row_index * c_stride);                  \
             for (nk_size_t ci = 0; ci < column_count; ++ci) c_row[ci] = 0;                                             \
         }                                                                                                              \
         for (nk_size_t cb = 0; cb < column_count; cb += column_block_size) {                                           \
@@ -1467,20 +1670,19 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             init_accumulator_fn(&acc[rr][3]);                                                          \
                         }                                                                                              \
                         nk_##input_value_type##_t const *arp0 =                                                        \
-                            (nk_##input_value_type##_t const *)((char const *)a_matrix +                               \
-                                                                (tr + 0) * a_stride_in_bytes);                         \
+                            (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 0) * a_stride);         \
                         nk_##input_value_type##_t const *arp1 =                                                        \
-                            (tile_row_count > 1) ? (nk_##input_value_type##_t const *)((char const *)a_matrix +        \
-                                                                                       (tr + 1) * a_stride_in_bytes)   \
-                                                 : arp0;                                                               \
+                            (tile_row_count > 1)                                                                       \
+                                ? (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 1) * a_stride)    \
+                                : arp0;                                                                                \
                         nk_##input_value_type##_t const *arp2 =                                                        \
-                            (tile_row_count > 2) ? (nk_##input_value_type##_t const *)((char const *)a_matrix +        \
-                                                                                       (tr + 2) * a_stride_in_bytes)   \
-                                                 : arp0;                                                               \
+                            (tile_row_count > 2)                                                                       \
+                                ? (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 2) * a_stride)    \
+                                : arp0;                                                                                \
                         nk_##input_value_type##_t const *arp3 =                                                        \
-                            (tile_row_count > 3) ? (nk_##input_value_type##_t const *)((char const *)a_matrix +        \
-                                                                                       (tr + 3) * a_stride_in_bytes)   \
-                                                 : arp0;                                                               \
+                            (tile_row_count > 3)                                                                       \
+                                ? (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 3) * a_stride)    \
+                                : arp0;                                                                                \
                         nk_##sum_value_type##_t a_sums[4];                                                             \
                         a_sums[0] = compute_a_sum_fn(arp0, depth, nk_cap_##isa_suffix##_k);                            \
                         a_sums[1] = (tile_row_count > 1) ? compute_a_sum_fn(arp1, depth, nk_cap_##isa_suffix##_k) : 0; \
@@ -1559,8 +1761,8 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             result_vec_type rv;                                                                        \
                             compensated_finalize_fn(&acc[rr][0], &acc[rr][1], &acc[rr][2], &acc[rr][3], depth,         \
                                                     a_sums[rr], &b_sum_vec, &rv);                                      \
-                            nk_##result_value_type##_t *c_row =                                                        \
-                                (nk_##result_value_type##_t *)((char *)c_matrix + (tr + rr) * c_stride_in_bytes);      \
+                            nk_##result_value_type##_t *c_row = (nk_##result_value_type##_t *)((char *)c_matrix +      \
+                                                                                               (tr + rr) * c_stride);  \
                             partial_store_fn(&rv, c_row + tc, tile_col_count);                                         \
                         }                                                                                              \
                     }                                                                                                  \
@@ -1616,12 +1818,12 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         for (nk_size_t tile_row_start = 0; tile_row_start < macro_size; tile_row_start += 4) {                         \
             for (nk_size_t tile_col_start = tile_row_start; tile_col_start < macro_size; tile_col_start += 4) {        \
                 nk_size_t tile_rows = (tile_row_start + 4 <= macro_size) ? 4 : (macro_size - tile_row_start);          \
-                nk_size_t tile_cols = (tile_col_start + 4 <= macro_size) ? 4 : (macro_size - tile_col_start);          \
+                nk_size_t tile_columns = (tile_col_start + 4 <= macro_size) ? 4 : (macro_size - tile_col_start);       \
                 int is_diag = (tile_row_start == tile_col_start);                                                      \
                 NUMKONG_ALIGN64_ state_type accumulators[4][7];                                                        \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     nk_size_t init_start = is_diag ? row : 0;                                                          \
-                    nk_size_t init_end = is_diag ? (row + 4) : tile_cols;                                              \
+                    nk_size_t init_end = is_diag ? (row + 4) : tile_columns;                                           \
                     for (nk_size_t col = init_start; col < init_end; col++) {                                          \
                         init_accumulator_fn(&accumulators[row][col]);                                                  \
                     }                                                                                                  \
@@ -1639,9 +1841,9 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                 }                                                                                                      \
                 else {                                                                                                 \
                     col_ptrs[0] = vector_base_ptrs[tile_col_start + 0];                                                \
-                    col_ptrs[1] = (tile_cols > 1) ? vector_base_ptrs[tile_col_start + 1] : col_ptrs[0];                \
-                    col_ptrs[2] = (tile_cols > 2) ? vector_base_ptrs[tile_col_start + 2] : col_ptrs[0];                \
-                    col_ptrs[3] = (tile_cols > 3) ? vector_base_ptrs[tile_col_start + 3] : col_ptrs[0];                \
+                    col_ptrs[1] = (tile_columns > 1) ? vector_base_ptrs[tile_col_start + 1] : col_ptrs[0];             \
+                    col_ptrs[2] = (tile_columns > 2) ? vector_base_ptrs[tile_col_start + 2] : col_ptrs[0];             \
+                    col_ptrs[3] = (tile_columns > 3) ? vector_base_ptrs[tile_col_start + 3] : col_ptrs[0];             \
                 }                                                                                                      \
                 vec_type row_vecs[4], col_vecs[4];                                                                     \
                 for (nk_size_t di = 0; di < aligned_depth; di += depth_step_values) {                                  \
@@ -1661,7 +1863,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         col_vecs[2] = row_vecs[2];                                                                     \
                         col_vecs[3] = row_vecs[3];                                                                     \
                     }                                                                                                  \
-                    if (tile_rows == 4 && tile_cols == 4 && is_diag) {                                                 \
+                    if (tile_rows == 4 && tile_columns == 4 && is_diag) {                                              \
                         /* Upper triangle: 10 FMAs */                                                                  \
                         inner_product_fn(&accumulators[0][0], row_vecs[0], col_vecs[0], di * dimensions_per_value,     \
                                          depth_simd_dimensions);                                                       \
@@ -1684,7 +1886,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         inner_product_fn(&accumulators[3][3], row_vecs[3], col_vecs[3], di * dimensions_per_value,     \
                                          depth_simd_dimensions);                                                       \
                     }                                                                                                  \
-                    else if (tile_rows == 4 && tile_cols == 4) {                                                       \
+                    else if (tile_rows == 4 && tile_columns == 4) {                                                    \
                         /* Full 4×4 rectangle: 16 FMAs */                                                              \
                         inner_product_fn(&accumulators[0][0], row_vecs[0], col_vecs[0], di * dimensions_per_value,     \
                                          depth_simd_dimensions);                                                       \
@@ -1722,7 +1924,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     else {                                                                                             \
                         for (nk_size_t row = 0; row < tile_rows; row++) {                                              \
                             nk_size_t col_start = is_diag ? row : 0;                                                   \
-                            nk_size_t col_end = is_diag ? (row < 4 ? 4 : tile_cols) : tile_cols;                       \
+                            nk_size_t col_end = is_diag ? (row < 4 ? 4 : tile_columns) : tile_columns;                 \
                             for (nk_size_t col = col_start; col < col_end; col++)                                      \
                                 inner_product_fn(&accumulators[row][col], row_vecs[row], col_vecs[col],                \
                                                  di * dimensions_per_value, depth_simd_dimensions);                    \
@@ -1746,7 +1948,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         col_vecs[2] = row_vecs[2];                                                                     \
                         col_vecs[3] = row_vecs[3];                                                                     \
                     }                                                                                                  \
-                    if (tile_rows == 4 && tile_cols == 4 && is_diag) {                                                 \
+                    if (tile_rows == 4 && tile_columns == 4 && is_diag) {                                              \
                         inner_product_fn(&accumulators[0][0], row_vecs[0], col_vecs[0],                                \
                                          aligned_depth * dimensions_per_value, remainder_dimensions);                  \
                         inner_product_fn(&accumulators[0][1], row_vecs[0], col_vecs[1],                                \
@@ -1768,7 +1970,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         inner_product_fn(&accumulators[3][3], row_vecs[3], col_vecs[3],                                \
                                          aligned_depth * dimensions_per_value, remainder_dimensions);                  \
                     }                                                                                                  \
-                    else if (tile_rows == 4 && tile_cols == 4) {                                                       \
+                    else if (tile_rows == 4 && tile_columns == 4) {                                                    \
                         inner_product_fn(&accumulators[0][0], row_vecs[0], col_vecs[0],                                \
                                          aligned_depth * dimensions_per_value, remainder_dimensions);                  \
                         inner_product_fn(&accumulators[0][1], row_vecs[0], col_vecs[1],                                \
@@ -1805,7 +2007,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     else {                                                                                             \
                         for (nk_size_t row = 0; row < tile_rows; row++) {                                              \
                             nk_size_t col_start = is_diag ? row : 0;                                                   \
-                            nk_size_t col_end = is_diag ? (row < 4 ? 4 : tile_cols) : tile_cols;                       \
+                            nk_size_t col_end = is_diag ? (row < 4 ? 4 : tile_columns) : tile_columns;                 \
                             for (nk_size_t col = col_start; col < col_end; col++)                                      \
                                 inner_product_fn(&accumulators[row][col], row_vecs[row], col_vecs[col],                \
                                                  aligned_depth * dimensions_per_value, remainder_dimensions);          \
@@ -1814,16 +2016,17 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                 }                                                                                                      \
                 nk_##sum_value_type##_t row_sums[4] = {0}, col_sums_arr[4] = {0};                                      \
                 for (nk_size_t r = 0; r < tile_rows; r++) row_sums[r] = precomputed_sums[tile_row_start + r];          \
-                for (nk_size_t c = 0; c < tile_cols; c++)                                                              \
+                for (nk_size_t c = 0; c < tile_columns; c++)                                                           \
                     col_sums_arr[c] = is_diag ? row_sums[c] : precomputed_sums[tile_col_start + c];                    \
                 /* Build column sums as SIMD vector — for diagonal tiles, shift per row */                             \
                 result_vec_type col_sum_vec;                                                                           \
-                if (!is_diag) partial_load_sum_fn(col_sums_arr, &col_sum_vec, tile_cols);                              \
+                if (!is_diag) partial_load_sum_fn(col_sums_arr, &col_sum_vec, tile_columns);                           \
                 /* Finalize with compensation */                                                                       \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     if (is_diag) {                                                                                     \
                         nk_##sum_value_type##_t shifted[4] = {0};                                                      \
-                        for (nk_size_t c = 0; c < 4 && (row + c) < tile_cols; c++) shifted[c] = col_sums_arr[row + c]; \
+                        for (nk_size_t c = 0; c < 4 && (row + c) < tile_columns; c++)                                  \
+                            shifted[c] = col_sums_arr[row + c];                                                        \
                         partial_load_sum_fn(shifted, &col_sum_vec, 4);                                                 \
                     }                                                                                                  \
                     result_vec_type rv;                                                                                \
@@ -1833,7 +2036,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         depth, row_sums[row], &col_sum_vec, &rv);                                                      \
                     nk_size_t global_row = i_macro + tile_row_start + row;                                             \
                     nk_size_t global_col_start = i_macro + tile_col_start + (is_diag ? row : 0);                       \
-                    nk_size_t store_count = is_diag ? (tile_cols - row) : tile_cols;                                   \
+                    nk_size_t store_count = is_diag ? (tile_columns - row) : tile_columns;                             \
                     nk_##result_value_type##_t *dest = result + global_row * result_stride_values + global_col_start;  \
                     partial_store_fn(&rv, dest, store_count);                                                          \
                 }                                                                                                      \
@@ -1856,20 +2059,20 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         for (nk_size_t tile_row_start = 0; tile_row_start < macro_i_size; tile_row_start += 4) {                       \
             for (nk_size_t tile_col_start = 0; tile_col_start < macro_j_size; tile_col_start += 4) {                   \
                 nk_size_t tile_rows = (tile_row_start + 4 <= macro_i_size) ? 4 : (macro_i_size - tile_row_start);      \
-                nk_size_t tile_cols = (tile_col_start + 4 <= macro_j_size) ? 4 : (macro_j_size - tile_col_start);      \
+                nk_size_t tile_columns = (tile_col_start + 4 <= macro_j_size) ? 4 : (macro_j_size - tile_col_start);   \
                 /* Determine if this tile should compute sums — predictable branches */                                \
                 int compute_row_sums_flag = (tile_col_start == 0);                                                     \
                 int compute_col_sums_flag = (tile_row_start == 0);                                                     \
                 /* Initialize 4×4 dot accumulators */                                                                  \
                 NUMKONG_ALIGN64_ state_type accumulators[4][4];                                                        \
                 for (nk_size_t row = 0; row < tile_rows; row++)                                                        \
-                    for (nk_size_t col = 0; col < tile_cols; col++) init_accumulator_fn(&accumulators[row][col]);      \
+                    for (nk_size_t col = 0; col < tile_columns; col++) init_accumulator_fn(&accumulators[row][col]);   \
                 /* Initialize sum accumulators (only when needed) */                                                   \
                 sum_state_type rsum[4], csum[4];                                                                       \
                 if (compute_row_sums_flag)                                                                             \
                     for (nk_size_t r = 0; r < tile_rows; r++) init_sum_fn(&rsum[r]);                                   \
                 if (compute_col_sums_flag)                                                                             \
-                    for (nk_size_t c = 0; c < tile_cols; c++) init_sum_fn(&csum[c]);                                   \
+                    for (nk_size_t c = 0; c < tile_columns; c++) init_sum_fn(&csum[c]);                                \
                 /* Setup pointers (hoist outside depth loop) */                                                        \
                 nk_##input_value_type##_t const *row_ptrs[4], *col_ptrs[4];                                            \
                 row_ptrs[0] = row_ptrs_macro[tile_row_start + 0];                                                      \
@@ -1877,9 +2080,9 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                 row_ptrs[2] = (tile_rows > 2) ? row_ptrs_macro[tile_row_start + 2] : row_ptrs[0];                      \
                 row_ptrs[3] = (tile_rows > 3) ? row_ptrs_macro[tile_row_start + 3] : row_ptrs[0];                      \
                 col_ptrs[0] = col_ptrs_macro[tile_col_start + 0];                                                      \
-                col_ptrs[1] = (tile_cols > 1) ? col_ptrs_macro[tile_col_start + 1] : col_ptrs[0];                      \
-                col_ptrs[2] = (tile_cols > 2) ? col_ptrs_macro[tile_col_start + 2] : col_ptrs[0];                      \
-                col_ptrs[3] = (tile_cols > 3) ? col_ptrs_macro[tile_col_start + 3] : col_ptrs[0];                      \
+                col_ptrs[1] = (tile_columns > 1) ? col_ptrs_macro[tile_col_start + 1] : col_ptrs[0];                   \
+                col_ptrs[2] = (tile_columns > 2) ? col_ptrs_macro[tile_col_start + 2] : col_ptrs[0];                   \
+                col_ptrs[3] = (tile_columns > 3) ? col_ptrs_macro[tile_col_start + 3] : col_ptrs[0];                   \
                 /* Depth loop — innermost, 16 FMAs + up to 8 SADs per iteration */                                     \
                 vec_type row_vecs[4], col_vecs[4];                                                                     \
                 for (nk_size_t di = 0; di < aligned_depth; di += depth_step_values) {                                  \
@@ -1892,7 +2095,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     load_vec_fn(col_ptrs[2] + di, &col_vecs[2]);                                                       \
                     load_vec_fn(col_ptrs[3] + di, &col_vecs[3]);                                                       \
                     nk_size_t vector_offset = di * dimensions_per_value;                                               \
-                    if (tile_rows == 4 && tile_cols == 4) {                                                            \
+                    if (tile_rows == 4 && tile_columns == 4) {                                                         \
                         inner_product_fn(&accumulators[0][0], row_vecs[0], col_vecs[0], vector_offset,                 \
                                          depth_simd_dimensions);                                                       \
                         inner_product_fn(&accumulators[0][1], row_vecs[0], col_vecs[1], vector_offset,                 \
@@ -1928,7 +2131,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     }                                                                                                  \
                     else {                                                                                             \
                         for (nk_size_t row = 0; row < tile_rows; row++)                                                \
-                            for (nk_size_t col = 0; col < tile_cols; col++)                                            \
+                            for (nk_size_t col = 0; col < tile_columns; col++)                                         \
                                 inner_product_fn(&accumulators[row][col], row_vecs[row], col_vecs[col], vector_offset, \
                                                  depth_simd_dimensions);                                               \
                     }                                                                                                  \
@@ -1942,9 +2145,9 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     }                                                                                                  \
                     if (compute_col_sums_flag) {                                                                       \
                         update_sum_fn(&csum[0], col_vecs[0]);                                                          \
-                        if (tile_cols > 1) update_sum_fn(&csum[1], col_vecs[1]);                                       \
-                        if (tile_cols > 2) update_sum_fn(&csum[2], col_vecs[2]);                                       \
-                        if (tile_cols > 3) update_sum_fn(&csum[3], col_vecs[3]);                                       \
+                        if (tile_columns > 1) update_sum_fn(&csum[1], col_vecs[1]);                                    \
+                        if (tile_columns > 2) update_sum_fn(&csum[2], col_vecs[2]);                                    \
+                        if (tile_columns > 3) update_sum_fn(&csum[3], col_vecs[3]);                                    \
                     }                                                                                                  \
                 }                                                                                                      \
                 /* Handle remainder depth */                                                                           \
@@ -1959,7 +2162,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     partial_load_vec_fn(col_ptrs[3] + aligned_depth, &col_vecs[3], remainder_dimensions);              \
                     nk_size_t vector_offset = aligned_depth * dimensions_per_value;                                    \
                     for (nk_size_t row = 0; row < tile_rows; row++)                                                    \
-                        for (nk_size_t col = 0; col < tile_cols; col++)                                                \
+                        for (nk_size_t col = 0; col < tile_columns; col++)                                             \
                             inner_product_fn(&accumulators[row][col], row_vecs[row], col_vecs[col], vector_offset,     \
                                              remainder_dimensions);                                                    \
                     if (compute_row_sums_flag) {                                                                       \
@@ -1970,9 +2173,9 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     }                                                                                                  \
                     if (compute_col_sums_flag) {                                                                       \
                         update_sum_fn(&csum[0], col_vecs[0]);                                                          \
-                        if (tile_cols > 1) update_sum_fn(&csum[1], col_vecs[1]);                                       \
-                        if (tile_cols > 2) update_sum_fn(&csum[2], col_vecs[2]);                                       \
-                        if (tile_cols > 3) update_sum_fn(&csum[3], col_vecs[3]);                                       \
+                        if (tile_columns > 1) update_sum_fn(&csum[1], col_vecs[1]);                                    \
+                        if (tile_columns > 2) update_sum_fn(&csum[2], col_vecs[2]);                                    \
+                        if (tile_columns > 3) update_sum_fn(&csum[3], col_vecs[3]);                                    \
                     }                                                                                                  \
                 }                                                                                                      \
                 /* Finalize and cache sums */                                                                          \
@@ -1980,13 +2183,13 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     for (nk_size_t r = 0; r < tile_rows; r++)                                                          \
                         row_sums[tile_row_start + r] = finalize_sum_fn(&rsum[r], padded_depth_dimensions);             \
                 if (compute_col_sums_flag)                                                                             \
-                    for (nk_size_t c = 0; c < tile_cols; c++)                                                          \
+                    for (nk_size_t c = 0; c < tile_columns; c++)                                                       \
                         col_sums[tile_col_start + c] = finalize_sum_fn(&csum[c], padded_depth_dimensions);             \
                 /* Build col_sum SIMD vector once (constant across rows) */                                            \
                 nk_##sum_value_type##_t cs_arr[4] = {0};                                                               \
-                for (nk_size_t c = 0; c < tile_cols; c++) cs_arr[c] = col_sums[tile_col_start + c];                    \
+                for (nk_size_t c = 0; c < tile_columns; c++) cs_arr[c] = col_sums[tile_col_start + c];                 \
                 result_vec_type cs_vec;                                                                                \
-                partial_load_sum_fn(cs_arr, &cs_vec, tile_cols);                                                       \
+                partial_load_sum_fn(cs_arr, &cs_vec, tile_columns);                                                    \
                 /* Compensated finalize + store */                                                                     \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     result_vec_type rv;                                                                                \
@@ -1996,18 +2199,18 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                     nk_##result_value_type##_t *dest = result +                                                        \
                                                        (i_macro + tile_row_start + row) * result_stride_values +       \
                                                        (j_macro + tile_col_start);                                     \
-                    partial_store_fn(&rv, dest, tile_cols);                                                            \
+                    partial_store_fn(&rv, dest, tile_columns);                                                         \
                 }                                                                                                      \
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                \
-        nk_##input_value_type##_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth, \
-        nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_##result_value_type##_t *result,                        \
-        nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {                    \
-        nk_assert_(stream == NUMKONG_NULL && vector_scales == NUMKONG_NULL && scales_stride == 0);                     \
-        nk_assert_(stride_in_bytes % sizeof(nk_##input_value_type##_t) == 0 &&                                         \
-                   stride_in_bytes >=                                                                                  \
+        nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride,          \
+        nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,         \
+        void *stream) {                                                                                                \
+        nk_assert_(stream == NUMKONG_NULL);                                                                            \
+        nk_assert_(stride % sizeof(nk_##input_value_type##_t) == 0 &&                                                  \
+                   stride >=                                                                                           \
                        nk_size_divide_round_up_(depth, dimensions_per_value) * sizeof(nk_##input_value_type##_t));     \
         nk_size_t const macro_tile_size = 32;                                                                          \
         nk_size_t const row_block_size = 128;     /* L2 cache blocking */                                              \
@@ -2018,7 +2221,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_size_t const remainder_depth = depth_in_values - aligned_depth;                                             \
         nk_size_t const remainder_dimensions = depth - depth_dimensions_aligned;                                       \
         nk_size_t const depth_step = depth_simd_dimensions / dimensions_per_value;                                     \
-        nk_size_t const result_stride_values = result_stride_in_bytes / sizeof(nk_##result_value_type##_t);            \
+        nk_size_t const result_stride_values = result_stride / sizeof(nk_##result_value_type##_t);                     \
         nk_size_t const row_end = (row_start + row_count < vectors_count) ? (row_start + row_count) : vectors_count;   \
                                                                                                                        \
         /* Process the upper triangle with L3/L2/L1 blocking: column                                                   \
@@ -2047,11 +2250,11 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         nk_##input_value_type##_t const *vec_ptrs_j[32];                                               \
                         for (nk_size_t k = 0; k < macro_i_size; k++)                                                   \
                             vec_ptrs_i[k] = (nk_##input_value_type##_t const *)((char const *)vectors +                \
-                                                                                (i_macro + k) * stride_in_bytes);      \
+                                                                                (i_macro + k) * stride);               \
                         for (nk_size_t k = macro_i_size; k < 32; k++) vec_ptrs_i[k] = vec_ptrs_i[0];                   \
                         for (nk_size_t k = 0; k < macro_j_size; k++)                                                   \
                             vec_ptrs_j[k] = (nk_##input_value_type##_t const *)((char const *)vectors +                \
-                                                                                (j_macro + k) * stride_in_bytes);      \
+                                                                                (j_macro + k) * stride);               \
                         for (nk_size_t k = macro_j_size; k < 32; k++) vec_ptrs_j[k] = vec_ptrs_j[0];                   \
                                                                                                                        \
                         /* A diagonal tile is a triangle, plus a rectangle when the row range ends early */            \
@@ -2160,12 +2363,12 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
  *  @sa include/numkong/cast/serial.h for load/store function implementations
  */
 #define nk_define_cross_symmetric_(api_name, input_type_name, isa_suffix, input_value_type, result_value_type,         \
-                                   vec_type, state_type, result_vec_type, init_accumulator_fn, load_vec_fn,            \
-                                   partial_load_vec_fn, inner_product_fn, reduce_accumulators_fn, store_fn,            \
-                                   partial_store_fn, depth_simd_dimensions, dimensions_per_value)                      \
+                                   vec_type, state_type, result_vec_type, init_accumulator_fn, bind_scales_fn,         \
+                                   load_vec_fn, partial_load_vec_fn, inner_product_fn, reduce_accumulators_fn,         \
+                                   store_fn, partial_store_fn, depth_simd_dimensions, dimensions_per_value)            \
     NUMKONG_INLINE void nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                        \
-        nk_##input_value_type##_t const **vector_base_ptrs, nk_size_t i_macro, nk_size_t macro_size,                   \
-        nk_size_t aligned_depth, nk_size_t remainder_depth, nk_size_t remainder_dimensions,                            \
+        nk_##input_value_type##_t const **vector_base_ptrs, nk_u8_t const **scale_base_ptrs, nk_size_t i_macro,        \
+        nk_size_t macro_size, nk_size_t aligned_depth, nk_size_t remainder_depth, nk_size_t remainder_dimensions,      \
         nk_size_t depth_step_values, nk_size_t dimensions_per_value_runtime, nk_##result_value_type##_t *result,       \
         nk_size_t result_stride_values, nk_size_t finalizer_batch_size, nk_size_t depth) {                             \
                                                                                                                        \
@@ -2191,6 +2394,12 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         init_accumulator_fn(&accumulators[row][column]);                                               \
                     }                                                                                                  \
                 }                                                                                                      \
+                nk_unused_(scale_base_ptrs);                                                                           \
+                for (nk_size_t row = 0; row != 4; ++row)                                                               \
+                    for (nk_size_t column = 0; column != 7; ++column)                                                  \
+                        bind_scales_fn(&accumulators[row][column],                                                     \
+                                       scale_base_ptrs[tile_row_start + (row < tile_rows ? row : 0)],                  \
+                                       scale_base_ptrs[tile_column_start + (column < tile_columns ? column : 0)]);     \
                                                                                                                        \
                 /* Setup pointers (hoist outside depth loop) - always safe even for partial tiles */                   \
                 nk_##input_value_type##_t const *row_ptrs[4];                                                          \
@@ -2347,10 +2556,11 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
     }                                                                                                                  \
     NUMKONG_INLINE void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_offdiagonal_(                     \
         nk_##input_value_type##_t const **vector_base_ptrs_i, nk_##input_value_type##_t const **vector_base_ptrs_j,    \
-        nk_size_t i_macro, nk_size_t j_macro, nk_size_t macro_i_size, nk_size_t macro_j_size, nk_size_t aligned_depth, \
-        nk_size_t remainder_depth, nk_size_t remainder_dimensions, nk_size_t depth_step_values,                        \
-        nk_size_t dimensions_per_value_runtime, nk_##result_value_type##_t *result, nk_size_t result_stride_values,    \
-        nk_size_t finalizer_batch_size, nk_size_t depth) {                                                             \
+        nk_u8_t const **scale_base_ptrs_i, nk_u8_t const **scale_base_ptrs_j, nk_size_t i_macro, nk_size_t j_macro,    \
+        nk_size_t macro_i_size, nk_size_t macro_j_size, nk_size_t aligned_depth, nk_size_t remainder_depth,            \
+        nk_size_t remainder_dimensions, nk_size_t depth_step_values, nk_size_t dimensions_per_value_runtime,           \
+        nk_##result_value_type##_t *result, nk_size_t result_stride_values, nk_size_t finalizer_batch_size,            \
+        nk_size_t depth) {                                                                                             \
                                                                                                                        \
         nk_unused_(dimensions_per_value_runtime);                                                                      \
         nk_unused_(finalizer_batch_size);                                                                              \
@@ -2371,6 +2581,13 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         init_accumulator_fn(&accumulators[row][column]);                                               \
                     }                                                                                                  \
                 }                                                                                                      \
+                nk_unused_(scale_base_ptrs_i);                                                                         \
+                nk_unused_(scale_base_ptrs_j);                                                                         \
+                for (nk_size_t row = 0; row != 4; ++row)                                                               \
+                    for (nk_size_t column = 0; column != 4; ++column)                                                  \
+                        bind_scales_fn(&accumulators[row][column],                                                     \
+                                       scale_base_ptrs_i[tile_row_start + (row < tile_rows ? row : 0)],                \
+                                       scale_base_ptrs_j[tile_column_start + (column < tile_columns ? column : 0)]);   \
                                                                                                                        \
                 /* Setup pointers (hoist outside depth loop) - always safe even for partial tiles */                   \
                 nk_##input_value_type##_t const *row_ptrs[4];                                                          \
@@ -2484,14 +2701,15 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
             }                                                                                                          \
         }                                                                                                              \
     }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                \
+    NUMKONG_INLINE void nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_(                                 \
         nk_##input_value_type##_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth, \
-        nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_##result_value_type##_t *result,                        \
-        nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {                    \
-        nk_assert_(stream == NUMKONG_NULL && vector_scales == NUMKONG_NULL && scales_stride == 0);                     \
-        nk_assert_(depth % dimensions_per_value == 0);                                                                 \
-        nk_assert_(stride_in_bytes % sizeof(nk_##input_value_type##_t) == 0 &&                                         \
-                   stride_in_bytes >=                                                                                  \
+        nk_size_t stride, nk_size_t scales_stride, nk_##result_value_type##_t *result, nk_size_t result_stride,        \
+        nk_size_t row_start, nk_size_t row_count) {                                                                    \
+        nk_assert_((vector_scales != NUMKONG_NULL) ==                                                                  \
+                   (nk_cross_scales_stride_(nk_##input_type_name##_k, depth) != 0));                                   \
+        nk_assert_(depth % dimensions_per_value == 0 && nk_cross_whole_blocks_(nk_##input_type_name##_k, depth));      \
+        nk_assert_(stride % sizeof(nk_##input_value_type##_t) == 0 &&                                                  \
+                   stride >=                                                                                           \
                        nk_size_divide_round_up_(depth, dimensions_per_value) * sizeof(nk_##input_value_type##_t));     \
         nk_size_t const macro_tile_size = 32;                                                                          \
         nk_size_t const finalizer_batch_size = 4;                                                                      \
@@ -2499,8 +2717,8 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         nk_size_t const column_block_size = 2048; /* L3 cache blocking */                                              \
                                                                                                                        \
         /* Stride and depth calculations */                                                                            \
-        nk_size_t const vectors_stride_values = stride_in_bytes / sizeof(nk_##input_value_type##_t);                   \
-        nk_size_t const result_stride_values = result_stride_in_bytes / sizeof(nk_##result_value_type##_t);            \
+        nk_size_t const vectors_stride_values = stride / sizeof(nk_##input_value_type##_t);                            \
+        nk_size_t const result_stride_values = result_stride / sizeof(nk_##result_value_type##_t);                     \
         nk_size_t const depth_dimensions_aligned = (depth / depth_simd_dimensions) * depth_simd_dimensions;            \
         nk_size_t const aligned_depth = depth_dimensions_aligned / dimensions_per_value;                               \
         nk_size_t const depth_in_values = depth / dimensions_per_value;                                                \
@@ -2540,24 +2758,52 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                         for (nk_size_t j = 0; j < macro_j_size; j++) {                                                 \
                             vector_base_ptrs_j[j] = vectors + (j_macro + j) * vectors_stride_values;                   \
                         }                                                                                              \
+                        nk_u8_t const *scale_base_ptrs_i[32], *scale_base_ptrs_j[32];                                  \
+                        for (nk_size_t i = 0; i < 32; i++)                                                             \
+                            scale_base_ptrs_i[i] = vector_scales                                                       \
+                                                       ? (nk_u8_t const *)vector_scales +                              \
+                                                             (i_macro + nk_min_of_two(i, macro_i_size - 1)) *          \
+                                                                 scales_stride                                         \
+                                                       : NUMKONG_NULL,                                                 \
+                            scale_base_ptrs_j[i] = vector_scales                                                       \
+                                                       ? (nk_u8_t const *)vector_scales +                              \
+                                                             (j_macro + nk_min_of_two(i, macro_j_size - 1)) *          \
+                                                                 scales_stride                                         \
+                                                       : NUMKONG_NULL;                                                 \
                                                                                                                        \
                         /* A diagonal tile is a triangle, plus a rectangle when the row range ends early */            \
                         nk_size_t const skipped_columns = (i_macro == j_macro) ? macro_i_size : 0;                     \
                         if (i_macro == j_macro)                                                                        \
                             nk_##api_name##_symmetric_diagonal_##input_type_name##_##isa_suffix##_(                    \
-                                vector_base_ptrs_i, i_macro, macro_i_size, aligned_depth, remainder_depth,             \
-                                remainder_dimensions, depth_step_values, dimensions_per_value, result,                 \
-                                result_stride_values, finalizer_batch_size, depth);                                    \
+                                vector_base_ptrs_i, scale_base_ptrs_i, i_macro, macro_i_size, aligned_depth,           \
+                                remainder_depth, remainder_dimensions, depth_step_values, dimensions_per_value,        \
+                                result, result_stride_values, finalizer_batch_size, depth);                            \
                         if (skipped_columns < macro_j_size)                                                            \
                             nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_offdiagonal##_(               \
-                                vector_base_ptrs_i, vector_base_ptrs_j + skipped_columns, i_macro,                     \
-                                j_macro + skipped_columns, macro_i_size, macro_j_size - skipped_columns,               \
-                                aligned_depth, remainder_depth, remainder_dimensions, depth_step_values,               \
-                                dimensions_per_value, result, result_stride_values, finalizer_batch_size, depth);      \
+                                vector_base_ptrs_i, vector_base_ptrs_j + skipped_columns, scale_base_ptrs_i,           \
+                                scale_base_ptrs_j + skipped_columns, i_macro, j_macro + skipped_columns, macro_i_size, \
+                                macro_j_size - skipped_columns, aligned_depth, remainder_depth, remainder_dimensions,  \
+                                depth_step_values, dimensions_per_value, result, result_stride_values,                 \
+                                finalizer_batch_size, depth);                                                          \
                     }                                                                                                  \
                 }                                                                                                      \
             }                                                                                                          \
         }                                                                                                              \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##api_name##_symmetric_##input_type_name##_##isa_suffix(                                \
+        nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vectors_count, nk_size_t depth,       \
+        nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t row_start,            \
+        nk_size_t row_count, void *stream) {                                                                           \
+        nk_assert_(stream == NUMKONG_NULL);                                                                            \
+        nk_cross_operand_t const vectors = nk_cross_operand_(nk_##input_type_name##_k, vectors_operand, stride);       \
+        nk_##api_name##_symmetric_##input_type_name##_##isa_suffix##_(                                                 \
+            (nk_##input_value_type##_t const *)vectors.elements, vectors.scales, vectors_count, depth, stride,         \
+            vectors.scales_stride, result, result_stride, row_start, row_count);                                       \
+        nk_f32_t const tensor_scale = nk_cross_tensor_scale_(vectors.tensor_scale);                                    \
+        nk_size_t const row_end = nk_min_of_two(row_start + row_count, vectors_count);                                 \
+        for (nk_size_t row_index = row_start; row_index < row_end; ++row_index)                                        \
+            nk_cross_scale_results_((nk_f32_t *)((char *)result + row_index * result_stride) + row_index,              \
+                                    vectors_count - row_index, tensor_scale * tensor_scale);                           \
         return nk_success_k;                                                                                           \
     }
 
@@ -2597,14 +2843,15 @@ nk_define_cross_pack_(dots, f64, serial, f64, f64, nk_b128_vec_t, nk_load_b128_s
                       /*simd_width=*/2, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f64_,
                       /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, f64, serial, f64, f64, nk_b128_vec_t, nk_dot_f64x2_state_serial_t, nk_b256_vec_t,
-                           nk_dot_f64x2_init_serial, nk_load_b128_serial_, nk_partial_load_b64x2_serial_,
-                           nk_dot_f64x2_update_serial, nk_dot_f64x2_finalize_serial, nk_store_b256_serial_,
-                           nk_partial_store_b64x4_serial_,
+                           nk_dot_f64x2_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b64x2_serial_, nk_dot_f64x2_update_serial, nk_dot_f64x2_finalize_serial,
+                           nk_store_b256_serial_, nk_partial_store_b64x4_serial_,
                            /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f64, serial, f64, f64, f64, nk_b128_vec_t, nk_dot_f64x2_state_serial_t, nk_b256_vec_t,
-                        nk_dot_f64x2_init_serial, nk_load_b128_serial_, nk_partial_load_b64x2_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b64x2_serial_, nk_dot_f64x2_update_serial,
-                        nk_dot_f64x2_finalize_serial, nk_store_b256_serial_, nk_partial_store_b64x4_serial_,
+                        nk_dot_f64x2_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b64x2_serial_, nk_load_b128_serial_, nk_partial_load_b64x2_serial_,
+                        nk_dot_f64x2_update_serial, nk_dot_f64x2_finalize_serial, nk_store_b256_serial_,
+                        nk_partial_store_b64x4_serial_,
                         /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 
 /* F32 GEMM: depth_simd_dimensions=4 (4 f32s = 16 bytes) */
@@ -2616,14 +2863,15 @@ nk_define_cross_pack_(dots, f32, serial, f32, f32, nk_b128_vec_t, nk_load_b128_s
                       /*simd_width=*/4, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f32_,
                       /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, f32, serial, f32, f64, nk_b128_vec_t, nk_dot_f32x4_state_serial_t, nk_b256_vec_t,
-                           nk_dot_f32x4_init_serial, nk_load_b128_serial_, nk_partial_load_b32x4_serial_,
-                           nk_dot_f32x4_update_serial, nk_dot_f32x4_finalize_serial, nk_store_b256_serial_,
-                           nk_partial_store_b64x4_serial_,
+                           nk_dot_f32x4_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b32x4_serial_, nk_dot_f32x4_update_serial, nk_dot_f32x4_finalize_serial,
+                           nk_store_b256_serial_, nk_partial_store_b64x4_serial_,
                            /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f32, serial, f32, f32, f64, nk_b128_vec_t, nk_dot_f32x4_state_serial_t, nk_b256_vec_t,
-                        nk_dot_f32x4_init_serial, nk_load_b128_serial_, nk_partial_load_b32x4_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b32x4_serial_, nk_dot_f32x4_update_serial,
-                        nk_dot_f32x4_finalize_serial, nk_store_b256_serial_, nk_partial_store_b64x4_serial_,
+                        nk_dot_f32x4_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b32x4_serial_, nk_load_b128_serial_, nk_partial_load_b32x4_serial_,
+                        nk_dot_f32x4_update_serial, nk_dot_f32x4_finalize_serial, nk_store_b256_serial_,
+                        nk_partial_store_b64x4_serial_,
                         /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 
 /* F16 packed GEMM: pre-upcast B to f32 and process 4 logical dimensions per 128-bit step. */
@@ -2635,15 +2883,15 @@ nk_define_cross_pack_(dots, f16, serial, f16, f32, nk_b128_vec_t, nk_load_f16x4_
                       /*simd_width=*/4, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_,
                       /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, f16, serial, f16, f32, nk_b128_vec_t, nk_dot_f16x8_state_serial_t, nk_b128_vec_t,
-                           nk_dot_f16x8_init_serial, nk_load_b128_serial_, nk_partial_load_b16x8_serial_,
-                           nk_dot_f16x8_update_serial, nk_dot_f16x8_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_f16x8_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b16x8_serial_, nk_dot_f16x8_update_serial, nk_dot_f16x8_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f16, serial, f16, f32, f32, nk_b128_vec_t, nk_dot_through_f32x4_state_serial_t,
-                        nk_b128_vec_t, nk_dot_through_f32x4_init_serial, nk_load_f16x4_to_f32x4_serial_,
-                        nk_partial_load_f16x4_to_f32x4_serial_, nk_load_b128_serial_, nk_partial_load_b32x4_serial_,
-                        nk_dot_through_f32x4_update_serial, nk_dot_through_f32x4_finalize_serial, nk_store_b128_serial_,
-                        nk_partial_store_b32x4_serial_,
+                        nk_b128_vec_t, nk_dot_through_f32x4_init_serial, nk_cross_unscaled_,
+                        nk_load_f16x4_to_f32x4_serial_, nk_partial_load_f16x4_to_f32x4_serial_, nk_load_b128_serial_,
+                        nk_partial_load_b32x4_serial_, nk_dot_through_f32x4_update_serial,
+                        nk_dot_through_f32x4_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 
 /* BF16 GEMM: depth_simd_dimensions=8 (8 bf16s = 16 bytes), F32 accumulator */
@@ -2655,14 +2903,15 @@ nk_define_cross_pack_(dots, bf16, serial, bf16, bf16, nk_b128_vec_t, nk_load_b12
                       /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_,
                       /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, bf16, serial, bf16, f32, nk_b128_vec_t, nk_dot_bf16x8_state_serial_t, nk_b128_vec_t,
-                           nk_dot_bf16x8_init_serial, nk_load_b128_serial_, nk_partial_load_b16x8_serial_,
-                           nk_dot_bf16x8_update_serial, nk_dot_bf16x8_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_bf16x8_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b16x8_serial_, nk_dot_bf16x8_update_serial, nk_dot_bf16x8_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, bf16, serial, bf16, bf16, f32, nk_b128_vec_t, nk_dot_bf16x8_state_serial_t, nk_b128_vec_t,
-                        nk_dot_bf16x8_init_serial, nk_load_b128_serial_, nk_partial_load_b16x8_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b16x8_serial_, nk_dot_bf16x8_update_serial,
-                        nk_dot_bf16x8_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_dot_bf16x8_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b16x8_serial_, nk_load_b128_serial_, nk_partial_load_b16x8_serial_,
+                        nk_dot_bf16x8_update_serial, nk_dot_bf16x8_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 
 /* I8 GEMM: depth_simd_dimensions=16 (16 i8s = 16 bytes), I32 accumulator */
@@ -2674,14 +2923,15 @@ nk_define_cross_pack_(dots, i8, serial, i8, i8, nk_b128_vec_t, nk_load_b128_seri
                       /*norm_value_type=*/u32, nk_dots_reduce_sumsq_i8_, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, i8, serial, i8, i32, nk_b128_vec_t, nk_dot_i8x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_i8x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                           nk_dot_i8x16_update_serial, nk_dot_i8x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_i8x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_i8x16_update_serial, nk_dot_i8x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, i8, serial, i8, i8, i32, nk_b128_vec_t, nk_dot_i8x16_state_serial_t, nk_b128_vec_t,
-                        nk_dot_i8x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b8x16_serial_, nk_dot_i8x16_update_serial,
-                        nk_dot_i8x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_dot_i8x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_i8x16_update_serial, nk_dot_i8x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* U8 GEMM: depth_simd_dimensions=16 (16 u8s = 16 bytes), U32 accumulator */
@@ -2693,14 +2943,15 @@ nk_define_cross_pack_(dots, u8, serial, u8, u8, nk_b128_vec_t, nk_load_b128_seri
                       /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u8_, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, u8, serial, u8, u32, nk_b128_vec_t, nk_dot_u8x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_u8x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                           nk_dot_u8x16_update_serial, nk_dot_u8x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_u8x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_u8x16_update_serial, nk_dot_u8x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, u8, serial, u8, u8, u32, nk_b128_vec_t, nk_dot_u8x16_state_serial_t, nk_b128_vec_t,
-                        nk_dot_u8x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b8x16_serial_, nk_dot_u8x16_update_serial,
-                        nk_dot_u8x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_dot_u8x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_u8x16_update_serial, nk_dot_u8x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* E4M3 GEMM: depth_simd_dimensions=16 (16 e4m3s = 16 bytes), F32 accumulator */
@@ -2712,14 +2963,15 @@ nk_define_cross_pack_(dots, e4m3, serial, e4m3, e4m3, nk_b128_vec_t, nk_load_b12
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e4m3, serial, e4m3, f32, nk_b128_vec_t, nk_dot_e4m3x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_e4m3x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                           nk_dot_e4m3x16_update_serial, nk_dot_e4m3x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_e4m3x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_e4m3x16_update_serial, nk_dot_e4m3x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e4m3, serial, e4m3, e4m3, f32, nk_b128_vec_t, nk_dot_e4m3x16_state_serial_t,
-                        nk_b128_vec_t, nk_dot_e4m3x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b8x16_serial_, nk_dot_e4m3x16_update_serial,
-                        nk_dot_e4m3x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_b128_vec_t, nk_dot_e4m3x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_e4m3x16_update_serial, nk_dot_e4m3x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* E5M2 GEMM: depth_simd_dimensions=16 (16 e5m2s = 16 bytes), F32 accumulator */
@@ -2731,14 +2983,53 @@ nk_define_cross_pack_(dots, e5m2, serial, e5m2, e5m2, nk_b128_vec_t, nk_load_b12
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e5m2, serial, e5m2, f32, nk_b128_vec_t, nk_dot_e5m2x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_e5m2x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                           nk_dot_e5m2x16_update_serial, nk_dot_e5m2x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_e5m2x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_e5m2x16_update_serial, nk_dot_e5m2x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e5m2, serial, e5m2, e5m2, f32, nk_b128_vec_t, nk_dot_e5m2x16_state_serial_t,
-                        nk_b128_vec_t, nk_dot_e5m2x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b8x16_serial_, nk_dot_e5m2x16_update_serial,
-                        nk_dot_e5m2x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_b128_vec_t, nk_dot_e5m2x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_e5m2x16_update_serial, nk_dot_e5m2x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
+                        /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+
+/* MXFP8 GEMM: the FP8 steps above, two 16-value steps per UE8M0-scaled block of 32 */
+nk_define_cross_pack_size_(dots, mxfp8e4m3, serial, e4m3, e4m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
+                           /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, mxfp8e4m3, serial)
+nk_define_cross_pack_(dots, mxfp8e4m3, serial, e4m3, e4m3, nk_b128_vec_t, nk_load_b128_serial_,
+                      nk_partial_load_b8x16_serial_, nk_store_b128_serial_, nk_partial_store_b8x16_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_,
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_symmetric_(dots, mxfp8e4m3, serial, e4m3, f32, nk_b128_vec_t, nk_dot_scaled_state_serial_t,
+                           nk_b128_vec_t, nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_mxfp8e4m3x16_update_serial,
+                           nk_dot_scaled_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_packed_(dots, mxfp8e4m3, serial, e4m3, e4m3, f32, nk_b128_vec_t, nk_dot_scaled_state_serial_t,
+                        nk_b128_vec_t, nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_mxfp8e4m3x16_update_serial, nk_dot_scaled_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
+                        /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_pack_size_(dots, mxfp8e5m2, serial, e5m2, e5m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
+                           /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_(dots, mxfp8e5m2, serial)
+nk_define_cross_pack_(dots, mxfp8e5m2, serial, e5m2, e5m2, nk_b128_vec_t, nk_load_b128_serial_,
+                      nk_partial_load_b8x16_serial_, nk_store_b128_serial_, nk_partial_store_b8x16_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_,
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_symmetric_(dots, mxfp8e5m2, serial, e5m2, f32, nk_b128_vec_t, nk_dot_scaled_state_serial_t,
+                           nk_b128_vec_t, nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_mxfp8e5m2x16_update_serial,
+                           nk_dot_scaled_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_packed_(dots, mxfp8e5m2, serial, e5m2, e5m2, f32, nk_b128_vec_t, nk_dot_scaled_state_serial_t,
+                        nk_b128_vec_t, nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_mxfp8e5m2x16_update_serial, nk_dot_scaled_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* E2M3 GEMM: depth_simd_dimensions=16 (16 e2m3s = 16 bytes), F32 accumulator */
@@ -2750,14 +3041,15 @@ nk_define_cross_pack_(dots, e2m3, serial, e2m3, e2m3, nk_b128_vec_t, nk_load_b12
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e2m3, serial, e2m3, f32, nk_b128_vec_t, nk_dot_e2m3x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_e2m3x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                           nk_dot_e2m3x16_update_serial, nk_dot_e2m3x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_e2m3x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_e2m3x16_update_serial, nk_dot_e2m3x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e2m3, serial, e2m3, e2m3, f32, nk_b128_vec_t, nk_dot_e2m3x16_state_serial_t,
-                        nk_b128_vec_t, nk_dot_e2m3x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b8x16_serial_, nk_dot_e2m3x16_update_serial,
-                        nk_dot_e2m3x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_b128_vec_t, nk_dot_e2m3x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_e2m3x16_update_serial, nk_dot_e2m3x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* E2M1 GEMM: depth_simd_dimensions=16, 8 bytes = 16 nibbles, doubled values in I32 accumulator */
@@ -2769,14 +3061,53 @@ nk_define_cross_pack_(dots, e2m1, serial, e2m1x2, e2m1x2, nk_b128_vec_t, nk_load
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, e2m1, serial, e2m1x2, f32, nk_b64_vec_t, nk_dot_e2m1x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
-                           nk_dot_e2m1x16_update_serial, nk_dot_e2m1x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_e2m1x16_init_serial, nk_cross_unscaled_, nk_load_b64_serial_,
+                           nk_partial_load_b4x16_serial_, nk_dot_e2m1x16_update_serial, nk_dot_e2m1x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, e2m1, serial, e2m1x2, e2m1x2, f32, nk_b64_vec_t, nk_dot_e2m1x16_state_serial_t,
-                        nk_b128_vec_t, nk_dot_e2m1x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
-                        nk_load_b64_serial_, nk_partial_load_b4x16_serial_, nk_dot_e2m1x16_update_serial,
-                        nk_dot_e2m1x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_b128_vec_t, nk_dot_e2m1x16_init_serial, nk_cross_unscaled_, nk_load_b64_serial_,
+                        nk_partial_load_b4x16_serial_, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
+                        nk_dot_e2m1x16_update_serial, nk_dot_e2m1x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
+                        /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+
+/* NVFP4 and MXFP4 GEMM: the E2M1 steps above, each step's exact sum times its block's scales */
+nk_define_cross_pack_size_(dots, nvfp4, serial, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
+                           /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_(dots, nvfp4, serial)
+nk_define_cross_pack_(dots, nvfp4, serial, e2m1x2, e2m1x2, nk_b128_vec_t, nk_load_b128_serial_,
+                      nk_partial_load_b8x16_serial_, nk_store_b128_serial_, nk_partial_store_b8x16_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+nk_define_cross_symmetric_(dots, nvfp4, serial, e2m1x2, f32, nk_b64_vec_t, nk_dot_scaled_state_serial_t, nk_b128_vec_t,
+                           nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b64_serial_,
+                           nk_partial_load_b4x16_serial_, nk_dot_nvfp4x16_update_serial, nk_dot_scaled_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+nk_define_cross_packed_(dots, nvfp4, serial, e2m1x2, e2m1x2, f32, nk_b64_vec_t, nk_dot_scaled_state_serial_t,
+                        nk_b128_vec_t, nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b64_serial_,
+                        nk_partial_load_b4x16_serial_, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
+                        nk_dot_nvfp4x16_update_serial, nk_dot_scaled_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
+                        /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+nk_define_cross_pack_size_(dots, mxfp4, serial, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
+                           /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_(dots, mxfp4, serial)
+nk_define_cross_pack_(dots, mxfp4, serial, e2m1x2, e2m1x2, nk_b128_vec_t, nk_load_b128_serial_,
+                      nk_partial_load_b8x16_serial_, nk_store_b128_serial_, nk_partial_store_b8x16_serial_,
+                      /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+nk_define_cross_symmetric_(dots, mxfp4, serial, e2m1x2, f32, nk_b64_vec_t, nk_dot_scaled_state_serial_t, nk_b128_vec_t,
+                           nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b64_serial_,
+                           nk_partial_load_b4x16_serial_, nk_dot_mxfp4x16_update_serial, nk_dot_scaled_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
+nk_define_cross_packed_(dots, mxfp4, serial, e2m1x2, e2m1x2, f32, nk_b64_vec_t, nk_dot_scaled_state_serial_t,
+                        nk_b128_vec_t, nk_dot_scaled_init_serial, nk_dot_scaled_bind_serial_, nk_load_b64_serial_,
+                        nk_partial_load_b4x16_serial_, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
+                        nk_dot_mxfp4x16_update_serial, nk_dot_scaled_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 
 /* E3M2 GEMM: depth_simd_dimensions=16 (16 e3m2s = 16 bytes), F32 accumulator */
@@ -2788,14 +3119,15 @@ nk_define_cross_pack_(dots, e3m2, serial, e3m2, e3m2, nk_b128_vec_t, nk_load_b12
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e3m2_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, e3m2, serial, e3m2, f32, nk_b128_vec_t, nk_dot_e3m2x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_e3m2x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                           nk_dot_e3m2x16_update_serial, nk_dot_e3m2x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_e3m2x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b8x16_serial_, nk_dot_e3m2x16_update_serial, nk_dot_e3m2x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e3m2, serial, e3m2, e3m2, f32, nk_b128_vec_t, nk_dot_e3m2x16_state_serial_t,
-                        nk_b128_vec_t, nk_dot_e3m2x16_init_serial, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b8x16_serial_, nk_dot_e3m2x16_update_serial,
-                        nk_dot_e3m2x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_b128_vec_t, nk_dot_e3m2x16_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b8x16_serial_, nk_load_b128_serial_, nk_partial_load_b8x16_serial_,
+                        nk_dot_e3m2x16_update_serial, nk_dot_e3m2x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* U4 GEMM: u4x2 for both A and B */
@@ -2808,14 +3140,15 @@ nk_define_cross_pack_(dots, u4, serial, u4x2, u4x2, nk_b128_vec_t, nk_load_b128_
                       /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u4_, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, u4, serial, u4x2, u32, nk_b64_vec_t, nk_dot_u4x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_u4x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
-                           nk_dot_u4x16_update_serial, nk_dot_u4x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_u4x16_init_serial, nk_cross_unscaled_, nk_load_b64_serial_,
+                           nk_partial_load_b4x16_serial_, nk_dot_u4x16_update_serial, nk_dot_u4x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, u4, serial, u4x2, u4x2, u32, nk_b64_vec_t, nk_dot_u4x16_state_serial_t, nk_b128_vec_t,
-                        nk_dot_u4x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
-                        nk_load_b64_serial_, nk_partial_load_b4x16_serial_, nk_dot_u4x16_update_serial,
-                        nk_dot_u4x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_dot_u4x16_init_serial, nk_cross_unscaled_, nk_load_b64_serial_,
+                        nk_partial_load_b4x16_serial_, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
+                        nk_dot_u4x16_update_serial, nk_dot_u4x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 
 /* I4 GEMM: i4x2 for both A and B */
@@ -2828,14 +3161,15 @@ nk_define_cross_pack_(dots, i4, serial, i4x2, i4x2, nk_b128_vec_t, nk_load_b128_
                       /*norm_value_type=*/u32, nk_dots_reduce_sumsq_i4_, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/2)
 nk_define_cross_symmetric_(dots, i4, serial, i4x2, i32, nk_b64_vec_t, nk_dot_i4x16_state_serial_t, nk_b128_vec_t,
-                           nk_dot_i4x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
-                           nk_dot_i4x16_update_serial, nk_dot_i4x16_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_i4x16_init_serial, nk_cross_unscaled_, nk_load_b64_serial_,
+                           nk_partial_load_b4x16_serial_, nk_dot_i4x16_update_serial, nk_dot_i4x16_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, i4, serial, i4x2, i4x2, i32, nk_b64_vec_t, nk_dot_i4x16_state_serial_t, nk_b128_vec_t,
-                        nk_dot_i4x16_init_serial, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
-                        nk_load_b64_serial_, nk_partial_load_b4x16_serial_, nk_dot_i4x16_update_serial,
-                        nk_dot_i4x16_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_dot_i4x16_init_serial, nk_cross_unscaled_, nk_load_b64_serial_,
+                        nk_partial_load_b4x16_serial_, nk_load_b64_serial_, nk_partial_load_b4x16_serial_,
+                        nk_dot_i4x16_update_serial, nk_dot_i4x16_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/2)
 
 /* U1 GEMM: u1x8 for both A and B */
@@ -2848,14 +3182,15 @@ nk_define_cross_pack_(dots, u1, serial, u1x8, u1x8, nk_b128_vec_t, nk_load_b128_
                       /*norm_value_type=*/u32, nk_dots_reduce_sum_u1_, /*depth_simd_dimensions=*/128,
                       /*dimensions_per_value=*/8)
 nk_define_cross_symmetric_(dots, u1, serial, u1x8, u32, nk_b128_vec_t, nk_dot_u1x128_state_serial_t, nk_b128_vec_t,
-                           nk_dot_u1x128_init_serial, nk_load_b128_serial_, nk_partial_load_b1x128_serial_,
-                           nk_dot_u1x128_update_serial, nk_dot_u1x128_finalize_serial, nk_store_b128_serial_,
-                           nk_partial_store_b32x4_serial_,
+                           nk_dot_u1x128_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                           nk_partial_load_b1x128_serial_, nk_dot_u1x128_update_serial, nk_dot_u1x128_finalize_serial,
+                           nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
                            /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8)
 nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot_u1x128_state_serial_t, nk_b128_vec_t,
-                        nk_dot_u1x128_init_serial, nk_load_b128_serial_, nk_partial_load_b1x128_serial_,
-                        nk_load_b128_serial_, nk_partial_load_b1x128_serial_, nk_dot_u1x128_update_serial,
-                        nk_dot_u1x128_finalize_serial, nk_store_b128_serial_, nk_partial_store_b32x4_serial_,
+                        nk_dot_u1x128_init_serial, nk_cross_unscaled_, nk_load_b128_serial_,
+                        nk_partial_load_b1x128_serial_, nk_load_b128_serial_, nk_partial_load_b1x128_serial_,
+                        nk_dot_u1x128_update_serial, nk_dot_u1x128_finalize_serial, nk_store_b128_serial_,
+                        nk_partial_store_b32x4_serial_,
                         /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8)
 
 #if defined(NDEBUG)
@@ -2874,71 +3209,64 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
 
 #endif // NUMKONG_TARGET_SERIAL
 
-/** Spatial metrics forward block scales to their dot products; bit-set metrics have no scaled form,
- *  so their signatures leave the scales out and their dot products get none. */
-#define nk_cross_scaled_angular_(...)   __VA_ARGS__
-#define nk_cross_scaled_euclidean_(...) __VA_ARGS__
-#define nk_cross_scaled_hamming_(...)
-#define nk_cross_scaled_jaccard_(...)
-#define nk_cross_unscaled_angular_(...)
-#define nk_cross_unscaled_euclidean_(...)
-#define nk_cross_unscaled_hamming_(...) __VA_ARGS__
-#define nk_cross_unscaled_jaccard_(...) __VA_ARGS__
+/** Squared norm of row @p row_index of @p operand: through @p compute_norm_fn for plain dtypes, and
+ *  from its codes, block scales and tensor scale for block-scaled ones. */
+#define nk_cross_row_norm_(norm_value_type, compute_norm_fn, input_type_name, row, depth, isa_suffix, operand,       \
+                           row_index)                                                                                \
+    ((operand).scales ? (nk_##norm_value_type##_t)nk_cross_scaled_sumsq_serial_(                                     \
+                            nk_##input_type_name##_k, row, (operand).scales + (row_index) * (operand).scales_stride, \
+                            nk_cross_tensor_scale_((operand).tensor_scale), depth)                                   \
+                      : compute_norm_fn(row, depth, nk_cap_##isa_suffix##_k))
 
-#define nk_define_cross_normalized_packed_(metric_name, input_type_name, isa_suffix, input_value_type,             \
-                                           packed_value_type, dot_result_type, norm_value_type, final_result_type, \
-                                           vec_type, dots_packed_fn, from_dot_fn, compute_norm_fn, load_fn,        \
-                                           partial_load_fn, store_fn, partial_store_fn, dimensions_per_value)      \
-    NUMKONG_API nk_status_t nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                           \
-        nk_##input_value_type##_t const *a_matrix,                                                                 \
-        nk_cross_scaled_##metric_name##_(void const *a_scales, ) void const *b_packed_buffer,                      \
-        nk_##final_result_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,        \
-        nk_size_t a_stride_in_bytes,                                                                               \
-        nk_cross_scaled_##metric_name##_(nk_size_t a_scales_stride, ) nk_size_t c_stride_in_bytes, void *stream) { \
-        nk_assert_(stream == NUMKONG_NULL);                                                                        \
-        nk_status_t const status = dots_packed_fn(                                                                 \
-            a_matrix,                                                                                              \
-            nk_cross_scaled_##metric_name##_(a_scales, ) nk_cross_unscaled_##metric_name##_(NUMKONG_NULL, )        \
-                b_packed_buffer,                                                                                   \
-            (nk_##dot_result_type##_t *)c_matrix, row_count, column_count, depth, a_stride_in_bytes,               \
-            nk_cross_scaled_##metric_name##_(a_scales_stride, ) nk_cross_unscaled_##metric_name##_(0, )            \
-                c_stride_in_bytes,                                                                                 \
-            stream);                                                                                               \
-        if (status != nk_success_k) return status;                                                                 \
-                                                                                                                   \
-        nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;  \
-        nk_size_t depth_padded = header->depth_padded_values;                                                      \
-        nk_##norm_value_type##_t const *b_norms =                                                                  \
-            (nk_##norm_value_type##_t const *)((char const *)b_packed_buffer +                                     \
-                                               sizeof(nk_cross_packed_buffer_header_t) +                           \
-                                               column_count * depth_padded * sizeof(nk_##packed_value_type##_t));  \
-                                                                                                                   \
-        for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                        \
-            nk_##input_value_type##_t const *a_row =                                                               \
-                (nk_##input_value_type##_t const *)((char const *)a_matrix + row_index * a_stride_in_bytes);       \
-            nk_##dot_result_type##_t query_norm = compute_norm_fn(a_row, depth, nk_cap_##isa_suffix##_k);          \
-            nk_##dot_result_type##_t *r_row_dots = (nk_##dot_result_type##_t *)((char *)c_matrix +                 \
-                                                                                row_index * c_stride_in_bytes);    \
-            nk_##final_result_type##_t *r_row_out = (nk_##final_result_type##_t *)((char *)c_matrix +              \
-                                                                                   row_index * c_stride_in_bytes); \
-                                                                                                                   \
-            nk_size_t column_index = 0;                                                                            \
-            for (; column_index + 4 <= column_count; column_index += 4) {                                          \
-                vec_type dots_vec, norms_vec, results_vec;                                                         \
-                load_fn(r_row_dots + column_index, &dots_vec);                                                     \
-                load_fn(b_norms + column_index, &norms_vec);                                                       \
-                from_dot_fn(&dots_vec, query_norm, &norms_vec, &results_vec);                                      \
-                store_fn(&results_vec, r_row_out + column_index);                                                  \
-            }                                                                                                      \
-            if (column_index < column_count) {                                                                     \
-                vec_type dots_vec = {{0}}, norms_vec = {{0}}, results_vec;                                         \
-                partial_load_fn(r_row_dots + column_index, &dots_vec, column_count - column_index);                \
-                partial_load_fn(b_norms + column_index, &norms_vec, column_count - column_index);                  \
-                from_dot_fn(&dots_vec, query_norm, &norms_vec, &results_vec);                                      \
-                partial_store_fn(&results_vec, r_row_out + column_index, column_count - column_index);             \
-            }                                                                                                      \
-        }                                                                                                          \
-        return nk_success_k;                                                                                       \
+#define nk_define_cross_normalized_packed_(metric_name, input_type_name, isa_suffix, input_value_type,              \
+                                           packed_value_type, dot_result_type, norm_value_type, final_result_type,  \
+                                           vec_type, dots_packed_fn, from_dot_fn, compute_norm_fn, load_fn,         \
+                                           partial_load_fn, store_fn, partial_store_fn, dimensions_per_value)       \
+    NUMKONG_API nk_status_t nk_##metric_name##s_packed_##input_type_name##_##isa_suffix(                            \
+        nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                       \
+        nk_##final_result_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,         \
+        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                     \
+        nk_assert_(stream == NUMKONG_NULL);                                                                         \
+        nk_status_t const status = dots_packed_fn(a_operand, b_packed_buffer, (nk_##dot_result_type##_t *)c_matrix, \
+                                                  row_count, column_count, depth, a_stride, c_stride, stream);      \
+        if (status != nk_success_k) return status;                                                                  \
+        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);              \
+                                                                                                                    \
+        nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;   \
+        nk_size_t depth_padded = header->depth_padded_values;                                                       \
+        nk_##norm_value_type##_t const *b_norms =                                                                   \
+            (nk_##norm_value_type##_t const *)((char const *)b_packed_buffer +                                      \
+                                               sizeof(nk_cross_packed_buffer_header_t) +                            \
+                                               column_count * depth_padded * sizeof(nk_##packed_value_type##_t) +   \
+                                               column_count * header->scales_stride);                               \
+                                                                                                                    \
+        for (nk_size_t row_index = 0; row_index < row_count; ++row_index) {                                         \
+            nk_##input_value_type##_t const *a_row = (nk_##input_value_type##_t const *)((char const *)a.elements + \
+                                                                                         row_index * a_stride);     \
+            nk_##dot_result_type##_t query_norm = nk_cross_row_norm_(                                               \
+                norm_value_type, compute_norm_fn, input_type_name, a_row, depth, isa_suffix, a, row_index);         \
+            nk_##dot_result_type##_t *r_row_dots = (nk_##dot_result_type##_t *)((char *)c_matrix +                  \
+                                                                                row_index * c_stride);              \
+            nk_##final_result_type##_t *r_row_out = (nk_##final_result_type##_t *)((char *)c_matrix +               \
+                                                                                   row_index * c_stride);           \
+                                                                                                                    \
+            nk_size_t column_index = 0;                                                                             \
+            for (; column_index + 4 <= column_count; column_index += 4) {                                           \
+                vec_type dots_vec, norms_vec, results_vec;                                                          \
+                load_fn(r_row_dots + column_index, &dots_vec);                                                      \
+                load_fn(b_norms + column_index, &norms_vec);                                                        \
+                from_dot_fn(&dots_vec, query_norm, &norms_vec, &results_vec);                                       \
+                store_fn(&results_vec, r_row_out + column_index);                                                   \
+            }                                                                                                       \
+            if (column_index < column_count) {                                                                      \
+                vec_type dots_vec = {{0}}, norms_vec = {{0}}, results_vec;                                          \
+                partial_load_fn(r_row_dots + column_index, &dots_vec, column_count - column_index);                 \
+                partial_load_fn(b_norms + column_index, &norms_vec, column_count - column_index);                   \
+                from_dot_fn(&dots_vec, query_norm, &norms_vec, &results_vec);                                       \
+                partial_store_fn(&results_vec, r_row_out + column_index, column_count - column_index);              \
+            }                                                                                                       \
+        }                                                                                                           \
+        return nk_success_k;                                                                                        \
     }
 
 #define nk_define_cross_normalized_symmetric_(metric_name, input_type_name, isa_suffix, input_value_type,           \
@@ -2946,30 +3274,25 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
                                               dots_symmetric_fn, from_dot_fn, compute_norm_fn, load_fn,             \
                                               partial_load_fn, store_fn, partial_store_fn, dimensions_per_value)    \
     NUMKONG_API nk_status_t nk_##metric_name##s_symmetric_##input_type_name##_##isa_suffix(                         \
-        nk_##input_value_type##_t const *vectors,                                                                   \
-        nk_cross_scaled_##metric_name##_(void const *vector_scales, ) nk_size_t vectors_count, nk_size_t depth,     \
-        nk_size_t stride_in_bytes,                                                                                  \
-        nk_cross_scaled_##metric_name##_(nk_size_t scales_stride, ) nk_##final_result_type##_t *result,             \
-        nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {                 \
+        nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vectors_count, nk_size_t depth,    \
+        nk_size_t stride, nk_##final_result_type##_t *result, nk_size_t result_stride, nk_size_t row_start,         \
+        nk_size_t row_count, void *stream) {                                                                        \
         nk_assert_(stream == NUMKONG_NULL);                                                                         \
         row_count = row_start < vectors_count ? nk_min_of_two(row_count, vectors_count - row_start) : 0;            \
-        nk_status_t const status = dots_symmetric_fn(                                                               \
-            vectors,                                                                                                \
-            nk_cross_scaled_##metric_name##_(vector_scales, ) nk_cross_unscaled_##metric_name##_(NUMKONG_NULL, )    \
-                vectors_count,                                                                                      \
-            depth, stride_in_bytes,                                                                                 \
-            nk_cross_scaled_##metric_name##_(scales_stride, )                                                       \
-                nk_cross_unscaled_##metric_name##_(0, )(nk_##dot_result_type##_t *) result,                         \
-            result_stride_in_bytes, row_start, row_count, stream);                                                  \
+        nk_status_t const status = dots_symmetric_fn(vectors_operand, vectors_count, depth, stride,                 \
+                                                     (nk_##dot_result_type##_t *)result, result_stride, row_start,  \
+                                                     row_count, stream);                                            \
         if (status != nk_success_k) return status;                                                                  \
+        nk_cross_operand_t const vectors = nk_cross_operand_(nk_##input_type_name##_k, vectors_operand, stride);    \
                                                                                                                     \
         /* Cache row norms in the result diagonal (O(row_count) calls) */                                           \
         for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {                     \
             nk_##input_value_type##_t const *row_vector =                                                           \
-                (nk_##input_value_type##_t const *)((char const *)vectors + row_index * stride_in_bytes);           \
+                (nk_##input_value_type##_t const *)((char const *)vectors.elements + row_index * stride);           \
             nk_##norm_value_type##_t *row_diag = (nk_##norm_value_type##_t *)((char *)result +                      \
-                                                                              row_index * result_stride_in_bytes);  \
-            row_diag[row_index] = compute_norm_fn(row_vector, depth, nk_cap_##isa_suffix##_k);                      \
+                                                                              row_index * result_stride);           \
+            row_diag[row_index] = nk_cross_row_norm_(norm_value_type, compute_norm_fn, input_type_name, row_vector, \
+                                                     depth, isa_suffix, vectors, row_index);                        \
         }                                                                                                           \
                                                                                                                     \
         /* Column-first post-processing with 256-element norm cache */                                              \
@@ -2981,16 +3304,17 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
             /* Pre-compute norms for this column chunk — each column visited exactly once */                        \
             for (nk_size_t col = column_chunk_start; col < column_chunk_end; ++col) {                               \
                 nk_##input_value_type##_t const *column_vector =                                                    \
-                    (nk_##input_value_type##_t const *)((char const *)vectors + col * stride_in_bytes);             \
-                column_norms[col - column_chunk_start] = compute_norm_fn(column_vector, depth,                      \
-                                                                         nk_cap_##isa_suffix##_k);                  \
+                    (nk_##input_value_type##_t const *)((char const *)vectors.elements + col * stride);             \
+                column_norms[col - column_chunk_start] = nk_cross_row_norm_(norm_value_type, compute_norm_fn,       \
+                                                                            input_type_name, column_vector, depth,  \
+                                                                            isa_suffix, vectors, col);              \
             }                                                                                                       \
                                                                                                                     \
             /* Sweep assigned rows against this column chunk */                                                     \
             for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {                 \
                 nk_size_t j_start = row_index + 1 > column_chunk_start ? row_index + 1 : column_chunk_start;        \
                 if (j_start >= column_chunk_end) continue;                                                          \
-                char *row_ptr = (char *)result + row_index * result_stride_in_bytes;                                \
+                char *row_ptr = (char *)result + row_index * result_stride;                                         \
                 nk_##norm_value_type##_t sumsq_i = ((nk_##norm_value_type##_t *)row_ptr)[row_index];                \
                 nk_##dot_result_type##_t *r_dots = (nk_##dot_result_type##_t *)row_ptr;                             \
                 nk_##final_result_type##_t *r_out = (nk_##final_result_type##_t *)row_ptr;                          \
@@ -3019,7 +3343,7 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
         /* Zero diagonals */                                                                                        \
         for (nk_size_t row_index = row_start; row_index < row_start + row_count; ++row_index) {                     \
             nk_##final_result_type##_t *r_out = (nk_##final_result_type##_t *)((char *)result +                     \
-                                                                               row_index * result_stride_in_bytes); \
+                                                                               row_index * result_stride);          \
             r_out[row_index] = 0;                                                                                   \
         }                                                                                                           \
         return nk_success_k;                                                                                        \

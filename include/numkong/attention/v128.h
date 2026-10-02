@@ -58,11 +58,11 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_v128_(nk_size_t key_value_head_c
 
 /** Raw strided-row repack, recording the packing @p capability: source encoding is preserved,
  *  tails zero-padded, 16-byte chunks. */
-NUMKONG_INLINE void nk_attention_pack_v128_(                                           //
-    void const *keys, void const *values, nk_size_t element_bytes,                     //
-    nk_size_t key_value_head_count, nk_size_t depth,                                   //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
-    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
+NUMKONG_INLINE void nk_attention_pack_v128_(                               //
+    void const *keys, void const *values, nk_size_t element_bytes,         //
+    nk_size_t key_value_head_count, nk_size_t depth,                       //
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,      //
+    nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, //
     void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, nk_capability_t capability) {
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
@@ -88,9 +88,9 @@ NUMKONG_INLINE void nk_attention_pack_v128_(                                    
         char *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
         char *values_plane = keys_plane + key_value_head_count * plane_bytes;
         for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
-            char const *keys_row = (char const *)keys + (position_first + position_idx) * key_stride_bytes +
+            char const *keys_row = (char const *)keys + (position_first + position_idx) * key_stride +
                                    key_value_head_idx * row_bytes;
-            char const *values_row = (char const *)values + (position_first + position_idx) * value_stride_bytes +
+            char const *values_row = (char const *)values + (position_first + position_idx) * value_stride +
                                      key_value_head_idx * row_bytes;
             char *keys_destination = keys_plane + position_idx * padded_row_bytes;
             char *values_destination = values_plane + position_idx * padded_row_bytes;

@@ -1306,6 +1306,105 @@ NUMKONG_INLINE void nk_dot_e3m2x64_finalize_skylake(                            
 
 #pragma endregion I8 and U8 Integers
 
+#pragma region Block Scaled Floats
+
+/** Decodes 16 E2M1 nibbles, element 0 in the high nibble of the first byte, into 16 floats. */
+NUMKONG_INLINE void nk_load_e2m1x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
+    __m128i const bytes_u8x16 = _mm_loadl_epi64((__m128i const *)src);
+    __m512i const doubled_u32x16 = _mm512_cvtepu8_epi32(_mm_unpacklo_epi8(bytes_u8x16, bytes_u8x16));
+    __m512i const shifts_u32x16 = _mm512_set_epi32(0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4);
+    __m512i const codes_u32x16 = _mm512_and_si512(_mm512_srlv_epi32(doubled_u32x16, shifts_u32x16),
+                                                  _mm512_set1_epi32(0x0F));
+    __m512 const magnitudes_f32x16 = _mm512_set_ps(-6.0f, -4.0f, -3.0f, -2.0f, -1.5f, -1.0f, -0.5f, -0.0f, 6.0f, 4.0f,
+                                                   3.0f, 2.0f, 1.5f, 1.0f, 0.5f, 0.0f);
+    dst->zmm_ps = _mm512_permutexvar_ps(codes_u32x16, magnitudes_f32x16);
+}
+
+/** Decodes the first @p n of 16 E2M1 nibbles into floats, the rest as zeros. */
+NUMKONG_INLINE void nk_partial_load_e2m1x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst, nk_size_t n) {
+    nk_u8_t bytes[8] = {0};
+    for (nk_size_t byte = 0; byte != (n + 1) / 2; ++byte) bytes[byte] = ((nk_u8_t const *)src)[byte];
+    if (n & 1) bytes[n / 2] &= 0xF0;
+    nk_load_e2m1x16_to_f32x16_skylake_(bytes, dst);
+}
+
+/** Loads 16 E5M2 values as floats. */
+NUMKONG_INLINE void nk_load_e5m2x16_to_f32x16_skylake_(void const *src, nk_b512_vec_t *dst) {
+    dst->zmm_ps = nk_e5m2x16_to_f32x16_skylake_(_mm_loadu_si128((__m128i const *)src));
+}
+
+/** Block-scaled state: the through-F32 sum of every 16-value step times both of its block's scales,
+ *  and the scale rows of the A row and B column it pairs, bound once per tile. */
+typedef struct nk_dot_scaled_state_skylake_t {
+    nk_dot_through_f32_state_skylake_t_ sums;
+    nk_u8_t const *a_scales;
+    nk_u8_t const *b_scales;
+} nk_dot_scaled_state_skylake_t;
+
+NUMKONG_INLINE void nk_dot_scaled_init_skylake(nk_dot_scaled_state_skylake_t *state) {
+    nk_dot_through_f32_init_skylake_(&state->sums);
+}
+
+NUMKONG_INLINE void nk_dot_scaled_bind_skylake_(nk_dot_scaled_state_skylake_t *state, nk_u8_t const *a_scales,
+                                                nk_u8_t const *b_scales) {
+    state->a_scales = a_scales, state->b_scales = b_scales;
+}
+
+/** Decodes one UE8M0 scale from its exponent bits without branches: 0x00 to zero, 0xFF to a NaN. */
+NUMKONG_INLINE nk_f32_t nk_ue8m0_to_f32_skylake_(nk_ue8m0_t code) {
+    nk_fui32_t bits;
+    bits.u = ((nk_u32_t)code << 23) | ((nk_u32_t)(code == 0xFF) << 22);
+    return bits.f;
+}
+
+/** Adds 16 decoded products, scaling each operand by its own block scale, as a product of two
+ *  UE8M0 scales would flush or overflow F32 at the extremes. */
+NUMKONG_INLINE void nk_dot_scaled_update_skylake_(nk_dot_scaled_state_skylake_t *state, nk_b512_vec_t a,
+                                                  nk_b512_vec_t b, nk_f32_t a_scale, nk_f32_t b_scale) {
+    state->sums.sum_f32x16 = _mm512_fmadd_ps(_mm512_mul_ps(a.zmm_ps, _mm512_set1_ps(a_scale)),
+                                             _mm512_mul_ps(b.zmm_ps, _mm512_set1_ps(b_scale)), state->sums.sum_f32x16);
+}
+
+/** One 16-value step of an NVFP4 product: one step per UE4M3-scaled block of 16. */
+NUMKONG_INLINE void nk_dot_nvfp4x16_update_skylake(nk_dot_scaled_state_skylake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
+    nk_unused_(active_dimensions);
+    nk_f32_t a_scale, b_scale;
+    nk_ue4m3_to_f32_(state->a_scales + depth_offset / 16, &a_scale);
+    nk_ue4m3_to_f32_(state->b_scales + depth_offset / 16, &b_scale);
+    nk_dot_scaled_update_skylake_(state, a, b, a_scale, b_scale);
+}
+
+/** One 16-value step of an MXFP4 product: two steps per UE8M0-scaled block of 32. */
+NUMKONG_INLINE void nk_dot_mxfp4x16_update_skylake(nk_dot_scaled_state_skylake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
+    nk_unused_(active_dimensions);
+    nk_dot_scaled_update_skylake_(state, a, b, nk_ue8m0_to_f32_skylake_(state->a_scales[depth_offset / 32]),
+                                  nk_ue8m0_to_f32_skylake_(state->b_scales[depth_offset / 32]));
+}
+
+/** One 16-value step of an MXFP8 product of either FP8 kind, which the loads decode: two steps per
+ *  UE8M0-scaled block of 32. */
+NUMKONG_INLINE void nk_dot_mxfp8x16_update_skylake(nk_dot_scaled_state_skylake_t *state, nk_b512_vec_t a,
+                                                   nk_b512_vec_t b, nk_size_t depth_offset,
+                                                   nk_size_t active_dimensions) {
+    nk_unused_(active_dimensions);
+    nk_dot_scaled_update_skylake_(state, a, b, nk_ue8m0_to_f32_skylake_(state->a_scales[depth_offset / 32]),
+                                  nk_ue8m0_to_f32_skylake_(state->b_scales[depth_offset / 32]));
+}
+
+NUMKONG_INLINE void nk_dot_scaled_finalize_skylake(                                             //
+    nk_dot_scaled_state_skylake_t const *state_a, nk_dot_scaled_state_skylake_t const *state_b, //
+    nk_dot_scaled_state_skylake_t const *state_c, nk_dot_scaled_state_skylake_t const *state_d, //
+    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_dot_through_f32_finalize_skylake_(&state_a->sums, &state_b->sums, &state_c->sums, &state_d->sums,
+                                         total_dimensions, result);
+}
+
+#pragma endregion Block Scaled Floats
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

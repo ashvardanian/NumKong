@@ -32,9 +32,9 @@ template <numeric_dtype from_type_, numeric_dtype to_type_>
 status_t cast(from_type_ const *from, std::size_t n, to_type_ *to,
               nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) noexcept {
     if (!capabilities)
-        return static_cast<status_t>(nk_cast_serial(from, from_type_::dtype(), n, to, to_type_::dtype(), stream));
+        return static_cast<status_t>(nk_cast_serial(from, from_type_::dtype(), to, to_type_::dtype(), n, stream));
     return static_cast<status_t>(
-        nk_cast_best(from, from_type_::dtype(), n, to, to_type_::dtype(), capabilities, stream));
+        nk_cast_best(from, from_type_::dtype(), to, to_type_::dtype(), n, capabilities, stream));
 }
 
 /** Elementwise type-cast of one run into another of equal dimensions; @c unexpected_dimensions_k
@@ -65,9 +65,9 @@ status_t cast(from_vector_type_ const &from, to_vector_type_ &&to,
 struct block_scaled_operand_ {
     void *elements = nullptr;
     void *scales = nullptr;
-    nk_scalar_buffer_t tensor_scale = {};
+    nk_f32_t tensor_scale = 0.0f;
     bool has_tensor_scale = false;
-    nk_block_scaled_format_t format = nk_plain(nk_f32_k);
+    nk_dtype_t dtype = nk_f32_k;
 };
 
 /** A plain contiguous f32 side. */
@@ -84,24 +84,32 @@ block_scaled_operand_ scaled_operand_(void const *elements, void const *scales, 
     block_scaled_operand_ operand;
     operand.elements = const_cast<void *>(elements);
     operand.scales = const_cast<void *>(scales);
-    operand.tensor_scale.f32 = tensor_scale;
+    operand.tensor_scale = tensor_scale;
     operand.has_tensor_scale = format_::has_tensor_scale();
-    operand.format = nk_block_scaled_format_of_dtype(format_::dtype());
+    operand.dtype = format_::dtype();
     return operand;
 }
 
-/** The one place the block-scaled C kernel is invoked; no capability runs the serial reference. */
-inline status_t block_scaled_cast_(block_scaled_operand_ const &source, block_scaled_operand_ &destination,
-                                   std::size_t count, nk_capability_t capabilities, void *stream) noexcept {
-    nk_scalar_buffer_t const *source_scale = source.has_tensor_scale ? &source.tensor_scale : nullptr;
-    nk_scalar_buffer_t *destination_scale = destination.has_tensor_scale ? &destination.tensor_scale : nullptr;
+/** Every block-scaled reference starts as the NVFP4 one does; MX formats never read the scale. */
+struct block_scaled_reference_ {
+    void *elements;
+    void *scales;
+    nk_f32_t *tensor_scale;
+};
+
+/** The one place the cast kernel is invoked on block-scaled operands; no capability runs the serial
+ *  reference. */
+inline status_t block_scaled_cast_(block_scaled_operand_ &source, block_scaled_operand_ &destination, std::size_t count,
+                                   nk_capability_t capabilities, void *stream) noexcept {
+    block_scaled_reference_ source_reference = {source.elements, source.scales,
+                                                source.has_tensor_scale ? &source.tensor_scale : nullptr};
+    block_scaled_reference_ destination_reference = {
+        destination.elements, destination.scales, destination.has_tensor_scale ? &destination.tensor_scale : nullptr};
+    void const *from = source.scales ? static_cast<void const *>(&source_reference) : source.elements;
+    void *to = destination.scales ? static_cast<void *>(&destination_reference) : destination.elements;
     if (!capabilities)
-        return static_cast<status_t>(nk_cast_block_scaled_serial(
-            source.elements, source.scales, source_scale, &source.format, destination.elements, destination.scales,
-            destination_scale, &destination.format, count, stream));
-    return static_cast<status_t>(nk_cast_block_scaled_best(source.elements, source.scales, source_scale, &source.format,
-                                                           destination.elements, destination.scales, destination_scale,
-                                                           &destination.format, count, capabilities, stream));
+        return static_cast<status_t>(nk_cast_serial(from, source.dtype, to, destination.dtype, count, stream));
+    return static_cast<status_t>(nk_cast_best(from, source.dtype, to, destination.dtype, count, capabilities, stream));
 }
 
 /** Writes a destination span's per-tensor scale slot from the derived value, NVFP4 only. */
@@ -109,7 +117,7 @@ template <typename format_>
 void store_derived_tensor_scale_(scaled_tensor_span<format_> const &destination,
                                  block_scaled_operand_ const &operand) noexcept {
     if constexpr (format_::has_tensor_scale())
-        if (destination.tensor_scale_slot()) *destination.tensor_scale_slot() = operand.tensor_scale.f32;
+        if (destination.tensor_scale_slot()) *destination.tensor_scale_slot() = operand.tensor_scale;
 }
 
 /**

@@ -52,7 +52,7 @@ def dots_symmetric(a: np.ndarray) -> np.ndarray:
 ### B Matrix Pre-Packing with Stride Breaking
 
 `nk_dots_pack_f32_serial`, `nk_dots_pack_f32_haswell`, `nk_dots_pack_bf16_haswell`, `nk_dots_pack_i8_haswell` pre-pack the B matrix into a contiguous buffer optimized for streaming access during GEMM.
-Power-of-2 stride detection — when `stride_bytes & (stride_bytes - 1) == 0` — adds `depth_simd_dimensions` padding to avoid cache associativity conflicts on set-associative caches.
+Power-of-2 stride detection — when `stride & (stride - 1) == 0` — adds `depth_simd_dimensions` padding to avoid cache associativity conflicts on set-associative caches.
 Type conversion is amortized into the pack step: BFloat16 → Float32, Float16 → Float32, and Float8 → Float32 conversions happen once during packing instead of per-row during GEMM.
 A 64-byte header stores metadata: column count, depth dimensions, and padded depth.
 Row grouping (`group_size=16`) zero-pads partial groups at matrix edges for uniform SIMD processing.

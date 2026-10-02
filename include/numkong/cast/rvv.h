@@ -764,11 +764,13 @@ NUMKONG_INLINE vuint8m1_t nk_f32m4_to_e5m2m1_rvv_(vfloat32m4_t f32_f32m4, nk_siz
 #pragma region Unified Cast Dispatcher
 
 #if NUMKONG_TARGET_RVV
-NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_size_t count, void *to,
-                                    nk_dtype_t to_type, void *stream) {
+NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                    nk_size_t count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype))
+        return nk_cast_serial(from, from_dtype, to, to_dtype, count, stream);
     // bf16 → f32
-    if (from_type == nk_bf16_k && to_type == nk_f32_k) {
+    if (from_dtype == nk_bf16_k && to_dtype == nk_f32_k) {
         nk_bf16_t const *source = (nk_bf16_t const *)from;
         nk_f32_t *destination = (nk_f32_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -782,7 +784,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // f32 → bf16
-    if (from_type == nk_f32_k && to_type == nk_bf16_k) {
+    if (from_dtype == nk_f32_k && to_dtype == nk_bf16_k) {
         nk_f32_t const *source = (nk_f32_t const *)from;
         nk_bf16_t *destination = (nk_bf16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -796,7 +798,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // f16 → f32
-    if (from_type == nk_f16_k && to_type == nk_f32_k) {
+    if (from_dtype == nk_f16_k && to_dtype == nk_f32_k) {
         nk_f16_t const *source = (nk_f16_t const *)from;
         nk_f32_t *destination = (nk_f32_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -810,7 +812,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // f32 → f16
-    if (from_type == nk_f32_k && to_type == nk_f16_k) {
+    if (from_dtype == nk_f32_k && to_dtype == nk_f16_k) {
         nk_f32_t const *source = (nk_f32_t const *)from;
         nk_f16_t *destination = (nk_f16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -824,7 +826,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e4m3 → f32
-    if (from_type == nk_e4m3_k && to_type == nk_f32_k) {
+    if (from_dtype == nk_e4m3_k && to_dtype == nk_f32_k) {
         nk_e4m3_t const *source = (nk_e4m3_t const *)from;
         nk_f32_t *destination = (nk_f32_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -838,7 +840,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e5m2 → f32
-    if (from_type == nk_e5m2_k && to_type == nk_f32_k) {
+    if (from_dtype == nk_e5m2_k && to_dtype == nk_f32_k) {
         nk_e5m2_t const *source = (nk_e5m2_t const *)from;
         nk_f32_t *destination = (nk_f32_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -852,7 +854,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e2m3 → f32
-    if (from_type == nk_e2m3_k && to_type == nk_f32_k) {
+    if (from_dtype == nk_e2m3_k && to_dtype == nk_f32_k) {
         nk_e2m3_t const *source = (nk_e2m3_t const *)from;
         nk_f32_t *destination = (nk_f32_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -866,7 +868,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e3m2 → f32
-    if (from_type == nk_e3m2_k && to_type == nk_f32_k) {
+    if (from_dtype == nk_e3m2_k && to_dtype == nk_f32_k) {
         nk_e3m2_t const *source = (nk_e3m2_t const *)from;
         nk_f32_t *destination = (nk_f32_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -880,7 +882,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e4m3 → bf16
-    if (from_type == nk_e4m3_k && to_type == nk_bf16_k) {
+    if (from_dtype == nk_e4m3_k && to_dtype == nk_bf16_k) {
         nk_e4m3_t const *source = (nk_e4m3_t const *)from;
         nk_bf16_t *destination = (nk_bf16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -894,7 +896,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e5m2 → bf16
-    if (from_type == nk_e5m2_k && to_type == nk_bf16_k) {
+    if (from_dtype == nk_e5m2_k && to_dtype == nk_bf16_k) {
         nk_e5m2_t const *source = (nk_e5m2_t const *)from;
         nk_bf16_t *destination = (nk_bf16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -908,7 +910,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e2m3 → bf16
-    if (from_type == nk_e2m3_k && to_type == nk_bf16_k) {
+    if (from_dtype == nk_e2m3_k && to_dtype == nk_bf16_k) {
         nk_e2m3_t const *source = (nk_e2m3_t const *)from;
         nk_bf16_t *destination = (nk_bf16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -922,7 +924,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e3m2 → bf16
-    if (from_type == nk_e3m2_k && to_type == nk_bf16_k) {
+    if (from_dtype == nk_e3m2_k && to_dtype == nk_bf16_k) {
         nk_e3m2_t const *source = (nk_e3m2_t const *)from;
         nk_bf16_t *destination = (nk_bf16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -936,7 +938,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e4m3 → f16
-    if (from_type == nk_e4m3_k && to_type == nk_f16_k) {
+    if (from_dtype == nk_e4m3_k && to_dtype == nk_f16_k) {
         nk_e4m3_t const *source = (nk_e4m3_t const *)from;
         nk_f16_t *destination = (nk_f16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -950,7 +952,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e2m3 → f16
-    if (from_type == nk_e2m3_k && to_type == nk_f16_k) {
+    if (from_dtype == nk_e2m3_k && to_dtype == nk_f16_k) {
         nk_e2m3_t const *source = (nk_e2m3_t const *)from;
         nk_f16_t *destination = (nk_f16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -964,7 +966,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // e3m2 → f16
-    if (from_type == nk_e3m2_k && to_type == nk_f16_k) {
+    if (from_dtype == nk_e3m2_k && to_dtype == nk_f16_k) {
         nk_e3m2_t const *source = (nk_e3m2_t const *)from;
         nk_f16_t *destination = (nk_f16_t *)to;
         for (nk_size_t vector_length; count > 0;
@@ -978,7 +980,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // i4 → i8
-    if (from_type == nk_i4_k && to_type == nk_i8_k) {
+    if (from_dtype == nk_i4_k && to_dtype == nk_i8_k) {
         nk_i4x2_t const *source = (nk_i4x2_t const *)from;
         nk_i8_t *destination = (nk_i8_t *)to;
         nk_size_t n_bytes = count / NUMKONG_NIBBLES_PER_BYTE;
@@ -993,7 +995,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // u4 → u8
-    if (from_type == nk_u4_k && to_type == nk_u8_k) {
+    if (from_dtype == nk_u4_k && to_dtype == nk_u8_k) {
         nk_u4x2_t const *source = (nk_u4x2_t const *)from;
         nk_u8_t *destination = (nk_u8_t *)to;
         nk_size_t n_bytes = count / NUMKONG_NIBBLES_PER_BYTE;
@@ -1008,7 +1010,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // i8 → i4
-    if (from_type == nk_i8_k && to_type == nk_i4_k) {
+    if (from_dtype == nk_i8_k && to_dtype == nk_i4_k) {
         nk_i8_t const *source = (nk_i8_t const *)from;
         nk_i4x2_t *destination = (nk_i4x2_t *)to;
         nk_size_t n_bytes = count / NUMKONG_NIBBLES_PER_BYTE;
@@ -1025,7 +1027,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // u8 → u4
-    if (from_type == nk_u8_k && to_type == nk_u4_k) {
+    if (from_dtype == nk_u8_k && to_dtype == nk_u4_k) {
         nk_u8_t const *source = (nk_u8_t const *)from;
         nk_u4x2_t *destination = (nk_u4x2_t *)to;
         nk_size_t n_bytes = count / NUMKONG_NIBBLES_PER_BYTE;
@@ -1042,7 +1044,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_type, nk_s
     }
 
     // Fallback to serial for unimplemented conversions
-    nk_cast_elementwise_(from, from_type, count, to, to_type);
+    nk_cast_elementwise_(from, from_dtype, count, to, to_dtype);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_RVV

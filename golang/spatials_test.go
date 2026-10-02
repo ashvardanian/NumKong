@@ -13,21 +13,21 @@ import (
 )
 
 func TestAngularsPackedF64(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []float64{1, 2, 3, 4, 5, 6}
 	b := []float64{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixF64(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF64(b, columns, depth)
 
-	result := make([]float64, height*width)
-	numkong.AngularsPackedF64(a, bPacked, result, height)
+	result := make([]float64, rows*columns)
+	numkong.AngularsPackedF64(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.AngularF64(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(got-expected) > 0.01 {
 				t.Errorf("AngularsPackedF64[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -36,21 +36,21 @@ func TestAngularsPackedF64(t *testing.T) {
 }
 
 func TestAngularsPackedF32(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []float32{1, 2, 3, 4, 5, 6}
 	b := []float32{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixF32(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF32(b, columns, depth)
 
-	result := make([]float64, height*width)
-	numkong.AngularsPackedF32(a, bPacked, result, height)
+	result := make([]float64, rows*columns)
+	numkong.AngularsPackedF32(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.AngularF32(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(got-expected) > 0.01 {
 				t.Errorf("AngularsPackedF32[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -59,21 +59,21 @@ func TestAngularsPackedF32(t *testing.T) {
 }
 
 func TestAngularsPackedI8(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []int8{1, 2, 3, 4, 5, 6}
 	b := []int8{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixI8(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixI8(b, columns, depth)
 
-	result := make([]float32, height*width)
-	numkong.AngularsPackedI8(a, bPacked, result, height)
+	result := make([]float32, rows*columns)
+	numkong.AngularsPackedI8(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.AngularI8(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(float64(got-expected)) > 0.01 {
 				t.Errorf("AngularsPackedI8[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -82,21 +82,21 @@ func TestAngularsPackedI8(t *testing.T) {
 }
 
 func TestAngularsPackedU8(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []uint8{1, 2, 3, 4, 5, 6}
 	b := []uint8{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixU8(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixU8(b, columns, depth)
 
-	result := make([]float32, height*width)
-	numkong.AngularsPackedU8(a, bPacked, result, height)
+	result := make([]float32, rows*columns)
+	numkong.AngularsPackedU8(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.AngularU8(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(float64(got-expected)) > 0.01 {
 				t.Errorf("AngularsPackedU8[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -105,21 +105,21 @@ func TestAngularsPackedU8(t *testing.T) {
 }
 
 func TestEuclideansPackedF64(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []float64{1, 2, 3, 4, 5, 6}
 	b := []float64{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixF64(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF64(b, columns, depth)
 
-	result := make([]float64, height*width)
-	numkong.EuclideansPackedF64(a, bPacked, result, height)
+	result := make([]float64, rows*columns)
+	numkong.EuclideansPackedF64(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.EuclideanF64(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(got-expected) > 0.01 {
 				t.Errorf("EuclideansPackedF64[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -128,21 +128,21 @@ func TestEuclideansPackedF64(t *testing.T) {
 }
 
 func TestEuclideansPackedF32(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []float32{1, 2, 3, 4, 5, 6}
 	b := []float32{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixF32(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF32(b, columns, depth)
 
-	result := make([]float64, height*width)
-	numkong.EuclideansPackedF32(a, bPacked, result, height)
+	result := make([]float64, rows*columns)
+	numkong.EuclideansPackedF32(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.EuclideanF32(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(got-expected) > 0.01 {
 				t.Errorf("EuclideansPackedF32[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -151,21 +151,21 @@ func TestEuclideansPackedF32(t *testing.T) {
 }
 
 func TestEuclideansPackedI8(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []int8{1, 2, 3, 4, 5, 6}
 	b := []int8{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixI8(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixI8(b, columns, depth)
 
-	result := make([]float32, height*width)
-	numkong.EuclideansPackedI8(a, bPacked, result, height)
+	result := make([]float32, rows*columns)
+	numkong.EuclideansPackedI8(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.EuclideanI8(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(float64(got-expected)) > 0.01 {
 				t.Errorf("EuclideansPackedI8[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}
@@ -174,21 +174,21 @@ func TestEuclideansPackedI8(t *testing.T) {
 }
 
 func TestEuclideansPackedU8(t *testing.T) {
-	height, width, depth := 2, 2, 3
+	rows, columns, depth := 2, 2, 3
 	a := []uint8{1, 2, 3, 4, 5, 6}
 	b := []uint8{7, 8, 9, 1, 0, 1}
 
-	bPacked := numkong.NewDotsPackedMatrixU8(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixU8(b, columns, depth)
 
-	result := make([]float32, height*width)
-	numkong.EuclideansPackedU8(a, bPacked, result, height)
+	result := make([]float32, rows*columns)
+	numkong.EuclideansPackedU8(a, bPacked, result, rows)
 
-	for i := 0; i < height; i++ {
-		for j := 0; j < width; j++ {
+	for i := 0; i < rows; i++ {
+		for j := 0; j < columns; j++ {
 			aVec := a[i*depth : (i+1)*depth]
 			bVec := b[j*depth : (j+1)*depth]
 			expected := numkong.EuclideanU8(aVec, bVec)
-			got := result[i*width+j]
+			got := result[i*columns+j]
 			if math.Abs(float64(got-expected)) > 0.01 {
 				t.Errorf("EuclideansPackedU8[%d][%d]: expected %v, got %v", i, j, expected, got)
 			}

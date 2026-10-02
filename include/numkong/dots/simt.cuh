@@ -69,11 +69,13 @@ enum {
     nk_cross_slab_simt_k = 16,
     nk_cross_loads_simt_k = nk_cross_tile_simt_k * nk_cross_slab_simt_k / nk_cross_threads_simt_k,
     nk_cross_grid_side_simt_k = nk_cross_tile_simt_k / nk_cross_thread_tile_simt_k,
-    // Both baseline tiles launch that shape, named after each tile for the generators' pastes.
+    // Every baseline tile launches that shape, named after each tile for the generators' pastes.
     nk_cross_threads_simt_f64_k = nk_cross_threads_simt_k,
     nk_cross_tile_simt_f64_k = nk_cross_tile_simt_k,
     nk_cross_threads_simt_b32_k = nk_cross_threads_simt_k,
     nk_cross_tile_simt_b32_k = nk_cross_tile_simt_k,
+    nk_cross_threads_simt_scaled_k = nk_cross_threads_simt_k,
+    nk_cross_tile_simt_scaled_k = nk_cross_tile_simt_k,
     nk_cross_pack_groups_k = 8,
 };
 
@@ -176,6 +178,19 @@ typedef struct {
     /** Bytes between rows of C. */
     nk_size_t c_stride;
 
+    /** One scale byte per block of each A row, or NULL for plain dtypes. */
+    unsigned char const *a_scales;
+
+    /** One scale byte per block of each B row: the pack's scale rows, or the vectors' for
+     *  @c symmetric. */
+    unsigned char const *b_scales;
+
+    /** Bytes between scale rows of A and of B. */
+    nk_size_t a_scales_stride, b_scales_stride;
+
+    /** Tensor scales of A and of B in device memory, or NULL for 1. */
+    nk_f32_t const *a_tensor_scale, *b_tensor_scale;
+
     /** 64-byte slabs of depth, which the tensor tiles count in. */
     nk_size_t depth_slabs;
 
@@ -243,43 +258,56 @@ NUMKONG_INLINE nk_size_t nk_device_cross_padded_values_(nk_size_t depth, nk_size
 
 /** Validates the contract and launches as many blocks of @p kernel as stay resident, each walking
  *  @p tile × @p tile output tiles with a stride of the grid. @p b_norms holds the packed column
- *  norms a @c packed metric reads, or is null. */
-NUMKONG_INLINE nk_status_t nk_cross_launch_(void const *kernel, unsigned tile, unsigned threads, void const *a,
-                                            void const *b, void const *b_norms, void *c, nk_size_t result_bytes,
-                                            nk_size_t row_start, nk_size_t row_end, nk_size_t column_count,
-                                            nk_size_t depth, nk_size_t depth_bytes, nk_size_t a_stride,
+ *  norms a @c packed metric reads, or is null. @p block_size is the block of a block-scaled dtype,
+ *  whose @p depth it must divide and whose operands must carry scales, or zero for plain dtypes.
+ *  Codes need 16-byte rows, while scales may sit at any byte, as dense rows of them do. */
+NUMKONG_INLINE nk_status_t nk_cross_launch_(void const *kernel, unsigned tile, unsigned threads,
+                                            nk_cross_operand_t const *a, nk_cross_operand_t const *b,
+                                            void const *b_norms, void *c, nk_size_t result_bytes, nk_size_t row_start,
+                                            nk_size_t row_end, nk_size_t column_count, nk_size_t depth,
+                                            nk_size_t block_size, nk_size_t depth_bytes, nk_size_t a_stride,
                                             nk_size_t b_stride, nk_size_t c_stride, void *stream) {
-    if ((((nk_size_t)a) | a_stride | ((nk_size_t)b) | b_stride) & 15 ||
+    if (block_size && (depth % block_size || !a->scales || !b->scales)) return nk_unexpected_dimensions_k;
+    if ((((nk_size_t)a->elements) | a_stride | ((nk_size_t)b->elements) | b_stride) & 15 ||
         (((nk_size_t)c) | c_stride) & (result_bytes - 1))
         return nk_misaligned_k;
     if (row_end <= row_start || column_count == 0) return nk_success_k;
     nk_size_t const column_tiles = nk_size_divide_round_up_(column_count, tile);
     nk_size_t const tiles = nk_size_divide_round_up_(row_end - row_start, tile) * column_tiles;
     nk_cross_tile_arguments_t arguments;
-    arguments.a = (unsigned char const *)a, arguments.b = (unsigned char const *)b, arguments.c = c;
+    arguments.a = (unsigned char const *)a->elements, arguments.b = (unsigned char const *)b->elements;
+    arguments.c = c;
     arguments.row_start = row_start, arguments.row_end = row_end, arguments.column_count = column_count;
     arguments.depth = depth, arguments.depth_bytes = depth_bytes, arguments.a_stride = a_stride;
     arguments.b_stride = b_stride;
     arguments.c_stride = c_stride, arguments.column_tiles = column_tiles, arguments.tiles = tiles;
     arguments.depth_slabs = nk_size_divide_round_up_(depth_bytes, 64);
     arguments.b_norms = b_norms;
+    arguments.a_scales = a->scales, arguments.b_scales = b->scales;
+    arguments.a_scales_stride = a->scales_stride, arguments.b_scales_stride = b->scales_stride;
+    arguments.a_tensor_scale = a->tensor_scale, arguments.b_tensor_scale = b->tensor_scale;
     return nk_device_launch_resident_(kernel, threads, 0, 0, tiles, &arguments, stream);
 }
 
 /** Launches @p kernel with one 32-lane group per packed column, walked with a grid stride, which
- *  records the packing @p capability. */
-NUMKONG_INLINE nk_status_t nk_cross_pack_launch_(void const *kernel, void const *b, nk_size_t column_count,
-                                                 nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,
-                                                 void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
-                                                 nk_size_t depth_values_padded, nk_capability_t capability,
-                                                 void *stream) {
+ *  records the packing @p capability and the tensor scale of @p b. */
+NUMKONG_INLINE nk_status_t nk_cross_pack_launch_(void const *kernel, nk_cross_operand_t const *b,
+                                                 nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,
+                                                 nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
+                                                 nk_size_t columns_end, nk_size_t depth_values_padded,
+                                                 nk_capability_t capability, nk_size_t scales_stride, void *stream) {
     nk_size_t const columns = columns_end > columns_begin ? columns_end - columns_begin : 0;
     nk_size_t const needed = nk_size_divide_round_up_(columns, nk_cross_pack_groups_k);
     nk_size_t const blocks = needed == 0 ? 1 : needed < 65535 ? needed : 65535;
-    void *arguments[10];
-    arguments[0] = &b, arguments[1] = &column_count, arguments[2] = &depth, arguments[3] = &depth_bytes;
+    void const *elements = b->elements;
+    nk_u8_t const *scale_values = b->scales;
+    nk_size_t scale_values_stride = b->scales_stride;
+    nk_f32_t const *tensor_scale = b->tensor_scale;
+    void *arguments[14];
+    arguments[0] = &elements, arguments[1] = &column_count, arguments[2] = &depth, arguments[3] = &depth_bytes;
     arguments[4] = &b_stride, arguments[5] = &b_packed, arguments[6] = &columns_begin, arguments[7] = &columns_end;
-    arguments[8] = &depth_values_padded, arguments[9] = &capability;
+    arguments[8] = &depth_values_padded, arguments[9] = &capability, arguments[10] = &scale_values;
+    arguments[11] = &scale_values_stride, arguments[12] = &tensor_scale, arguments[13] = &scales_stride;
     return nk_device_launch_(kernel, blocks, nk_cross_pack_groups_k * 32, arguments, 0, stream);
 }
 
@@ -607,6 +635,26 @@ nk_define_device_lane_sumsq_(e4m3)
 nk_define_device_lane_sumsq_(e3m2)
 nk_define_device_lane_sumsq_(e2m3)
 nk_define_device_lane_sumsq_(e2m1)
+
+/** The sum of squares of a block-scaled row of @p dtype over its blocks first + step × k below
+ *  @p depth, each block summed in F32 and taking its scale times @p tensor_scale squared once, in
+ *  F64 so no UE8M0 extreme overflows: a lane's share for the pack, or a whole row. */
+NUMKONG_DEVICE nk_f64_t nk_cross_scaled_sumsq_simt_(nk_dtype_t dtype, unsigned char const *row,
+                                                    unsigned char const *scales, nk_f64_t tensor_scale, nk_size_t depth,
+                                                    nk_size_t first, nk_size_t step) {
+    nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(dtype);
+    nk_f64_t sum = 0;
+    for (nk_size_t block = first; block * format.block_size < depth; block += step) {
+        nk_f32_t block_sum = 0;
+        for (nk_size_t index = block * format.block_size; index != (block + 1) * format.block_size; ++index) {
+            nk_f32_t const value = nk_cross_load_f32_(format.element_dtype, row, index);
+            block_sum = __fmaf_rn(value, value, block_sum);
+        }
+        nk_f64_t const scale = nk_block_scaled_decode_scale_serial_(scales[block], format.scale_dtype) * tensor_scale;
+        sum += block_sum * scale * scale;
+    }
+    return sum;
+}
 
 #undef nk_define_device_lane_sumsq_
 
@@ -1148,6 +1196,98 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
 
 #pragma endregion Baseline Tile
 
+#pragma region Scaled Tile
+
+/** Decodes the scale of block @p block of row `first + threadIdx.x` times @p tensor_scale into
+ *  @p scales, zero past @p rows. */
+NUMKONG_DEVICE void nk_cross_stage_scale_simt_(nk_block_scaled_format_t format, unsigned char const *row_scales,
+                                               nk_size_t scales_stride, nk_f32_t tensor_scale, nk_size_t first,
+                                               nk_size_t rows, nk_size_t block, nk_f32_t *scales) {
+    nk_size_t const row = first + threadIdx.x;
+    scales[threadIdx.x] = row < rows ? nk_block_scaled_decode_scale_serial_(row_scales[row * scales_stride + block],
+                                                                            format.scale_dtype) *
+                                           tensor_scale
+                                     : 0;
+}
+
+/** The GEMM of a block-scaled @p dtype, each block walking 64 × 64 output tiles with a stride of
+ *  the grid. Every 16-element slab lies inside one block, so its products gather in F32 partial
+ *  sums that take both scales once the block ends. */
+NUMKONG_DEVICE void nk_cross_tile_simt_scaled_(nk_dtype_t dtype, nk_cross_triangle_t triangle, nk_cross_metric_t metric,
+                                               nk_cross_tile_arguments_t const *arguments) {
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f32_t a_scales[nk_cross_tile_simt_k], b_scales[nk_cross_tile_simt_k];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(dtype);
+    nk_cross_accumulation_t const accumulation = nk_cross_accumulation_f32_k;
+    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
+    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+    nk_f32_t const a_tensor_scale = arguments->a_tensor_scale ? *arguments->a_tensor_scale : 1;
+    nk_f32_t const b_tensor_scale = arguments->b_tensor_scale ? *arguments->b_tensor_scale : 1;
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
+        nk_fui32_t partials[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t totals[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t unused_norms[nk_cross_loads_simt_k];
+        for (nk_size_t slab = 0; slab < arguments->depth; slab += nk_cross_slab_simt_k) {
+            nk_cross_stage_slab_simt_b32_(format.element_dtype, accumulation, triangle, nk_cross_metric_dot_k,
+                                          arguments, first_row, first_column, slab, arguments->depth, a_slab, b_slab,
+                                          unused_norms, unused_norms);
+            nk_size_t const block = slab / format.block_size;
+            if (threadIdx.x < nk_cross_tile_simt_k) {
+                nk_cross_stage_scale_simt_(format, arguments->a_scales, arguments->a_scales_stride, a_tensor_scale,
+                                           first_row, arguments->row_end, block, a_scales);
+                nk_cross_stage_scale_simt_(format, arguments->b_scales, arguments->b_scales_stride, b_tensor_scale,
+                                           first_column, arguments->column_count, block, b_scales);
+            }
+            __syncthreads();
+            nk_cross_fold_slab_simt_b32_(accumulation, a_slab, b_slab, partials);
+            if ((slab + nk_cross_slab_simt_k) % format.block_size == 0 ||
+                slab + nk_cross_slab_simt_k >= arguments->depth)
+#pragma unroll
+                for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
+#pragma unroll
+                    for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
+                        totals[row_step][column_step].f +=
+                            partials[row_step][column_step].f *
+                            a_scales[thread_row + nk_cross_grid_side_simt_k * row_step] *
+                            b_scales[thread_column + nk_cross_grid_side_simt_k * column_step];
+                        partials[row_step][column_step].f = 0;
+                    }
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            // The first barrier retires the previous tile's norm reads, the second publishes these.
+            __syncthreads();
+            if (threadIdx.x < nk_cross_tile_simt_k) {
+                nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
+                norms[0][threadIdx.x].f = row < arguments->row_end
+                                              ? (nk_f32_t)nk_cross_scaled_sumsq_simt_(
+                                                    dtype, arguments->a + row * arguments->a_stride,
+                                                    arguments->a_scales + row * arguments->a_scales_stride,
+                                                    a_tensor_scale, arguments->depth, 0, 1)
+                                              : 0;
+                if (column >= arguments->column_count) norms[1][threadIdx.x].f = 0;
+                else if (triangle == nk_cross_triangle_upper_k)
+                    norms[1][threadIdx.x].f = (nk_f32_t)nk_cross_scaled_sumsq_simt_(
+                        dtype, arguments->b + column * arguments->b_stride,
+                        arguments->b_scales + column * arguments->b_scales_stride, b_tensor_scale, arguments->depth, 0,
+                        1);
+                else norms[1][threadIdx.x].f = ((nk_f32_t const *)arguments->b_norms)[column];
+            }
+            __syncthreads();
+        }
+        nk_cross_store_tile_simt_b32_(accumulation, triangle, metric, arguments, first_row, first_column, totals,
+                                      norms);
+    }
+}
+
+#pragma endregion Scaled Tile
+
 /*  Every tile, baseline or tensor, takes its own leading arguments, then the triangle, the metric
  *  and the launch arguments, so one generator per shape serves them all: the site passes the tile's
  *  own arguments last, through the variadic tail. */
@@ -1168,7 +1308,8 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
                                                                    sizeof(nk_##packed_value_type##_t)) *               \
                                     sizeof(nk_##packed_value_type##_t);                                                \
         *bytes = sizeof(nk_cross_packed_buffer_header_t) +                                                             \
-                 column_count * (row_bytes + sizeof(nk_##norm_value_type##_t));                                        \
+                 column_count * (row_bytes + nk_cross_scales_stride_(nk_##input_type_name##_k, depth) +                \
+                                 sizeof(nk_##norm_value_type##_t));                                                    \
         return nk_success_k;                                                                                           \
     }
 
@@ -1178,13 +1319,13 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
  */
 #define nk_define_device_cross_packed_shape_(input_type_name, isa_suffix)                      \
     NUMKONG_API nk_status_t nk_dots_packed_shape_##input_type_name##_##isa_suffix(             \
-        void const *b_packed, nk_size_t *width, nk_size_t *depth, void *stream) {              \
+        void const *b_packed, nk_size_t *columns, nk_size_t *depth, void *stream) {            \
         if ((nk_size_t)b_packed & 15) return nk_misaligned_k;                                  \
         nk_cross_packed_buffer_header_t header;                                                \
         nk_status_t const status = nk_device_read_(&header, b_packed, sizeof(header), stream); \
         if (status != nk_success_k) return status;                                             \
         if (header.capability != nk_cap_##isa_suffix##_k) return nk_pack_mismatch_k;           \
-        *width = header.column_count, *depth = header.depth_dimensions;                        \
+        *columns = header.column_count, *depth = header.depth_dimensions;                      \
         return nk_success_k;                                                                   \
     }
 
@@ -1202,48 +1343,63 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
  *      @c nk_cross_pack_norm_f64_, @c nk_cross_pack_norm_f32_ or @c nk_cross_pack_norm_u32_ merges.
  *  @sa nk_define_cross_pack_ for the host original.
  */
-#define nk_define_device_cross_pack_rows_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn, \
-                                          norm_value_type, compute_norm_fn, depth_simd_dimensions,                   \
-                                          dimensions_per_value)                                                      \
-    static __global__ void nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                  \
-        unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes,                      \
-        nk_size_t b_stride_in_bytes, unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end,        \
-        nk_size_t depth_values_padded, nk_capability_t capability) {                                                 \
-        nk_size_t const row_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                        \
-        if (columns_begin == 0 && blockIdx.x == 0 && threadIdx.x == 0) {                                             \
-            nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                   \
-            header->column_count = (nk_u32_t)column_count;                                                           \
-            header->depth_dimensions = (nk_u32_t)depth;                                                              \
-            header->depth_padded_values = (nk_u32_t)depth_values_padded;                                             \
-            header->capability = capability;                                                                         \
-            for (unsigned reserved_index = 0; reserved_index < 11; ++reserved_index)                                 \
-                header->reserved[reserved_index] = 0;                                                                \
-        }                                                                                                            \
-        unsigned char *rows = b_packed + sizeof(nk_cross_packed_buffer_header_t);                                    \
-        nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(rows + column_count * row_bytes);             \
-        unsigned const lane = threadIdx.x & 31;                                                                      \
-        nk_size_t const groups = (nk_size_t)gridDim.x * (blockDim.x >> 5);                                           \
-        for (nk_size_t column = columns_begin + (nk_size_t)blockIdx.x * (blockDim.x >> 5) + (threadIdx.x >> 5);      \
-             column < columns_end; column += groups) {                                                               \
-            unsigned char const *source = b + column * b_stride_in_bytes;                                            \
-            unsigned char *destination = rows + column * row_bytes;                                                  \
-            for (nk_size_t byte = lane; byte < row_bytes; byte += 32)                                                \
-                destination[byte] = byte < depth_bytes ? load_fn(source[byte]) : 0;                                  \
-            nk_##norm_value_type##_t const norm = nk_cross_pack_norm_##norm_value_type##_(                           \
-                compute_norm_fn(source, depth, lane));                                                               \
-            if (lane == 0) norms[column] = norm;                                                                     \
-        }                                                                                                            \
-    }                                                                                                                \
-    NUMKONG_API nk_status_t nk_dots_pack_##input_type_name##_##isa_suffix(                                           \
-        nk_##input_value_type##_t const *b, void const *b_scales, nk_size_t column_count, nk_size_t depth,           \
-        nk_size_t b_stride_in_bytes, nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin,             \
-        nk_size_t columns_end, void *stream) {                                                                       \
-        nk_size_t const depth_values_padded = nk_device_cross_padded_values_(                                        \
-            depth, depth_simd_dimensions, dimensions_per_value, sizeof(nk_##packed_value_type##_t));                 \
-        nk_size_t const depth_bytes = depth / dimensions_per_value * sizeof(nk_##input_value_type##_t);              \
-        return nk_cross_pack_launch_((void const *)nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_, b,       \
-                                     column_count, depth, depth_bytes, b_stride_in_bytes, b_packed, columns_begin,   \
-                                     columns_end, depth_values_padded, nk_cap_##isa_suffix##_k, stream);             \
+#define nk_define_device_cross_pack_rows_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,   \
+                                          norm_value_type, compute_norm_fn, depth_simd_dimensions,                     \
+                                          dimensions_per_value)                                                        \
+    static __global__ void nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                    \
+        unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,    \
+        unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,        \
+        nk_capability_t capability, unsigned char const *b_scales, nk_size_t b_scales_stride,                          \
+        nk_f32_t const *b_tensor_scale, nk_size_t scales_stride) {                                                     \
+        nk_size_t const row_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                          \
+        nk_f32_t const tensor_scale = b_tensor_scale ? *b_tensor_scale : 1;                                            \
+        if (columns_begin == 0 && blockIdx.x == 0 && threadIdx.x == 0) {                                               \
+            nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                     \
+            header->column_count = (nk_u32_t)column_count;                                                             \
+            header->depth_dimensions = (nk_u32_t)depth;                                                                \
+            header->depth_padded_values = (nk_u32_t)depth_values_padded;                                               \
+            header->scales_stride = (nk_u32_t)scales_stride;                                                           \
+            header->tensor_scale = tensor_scale;                                                                       \
+            header->capability = capability;                                                                           \
+            for (unsigned reserved_index = 0; reserved_index < 9; ++reserved_index)                                    \
+                header->reserved[reserved_index] = 0;                                                                  \
+        }                                                                                                              \
+        unsigned char *rows = b_packed + sizeof(nk_cross_packed_buffer_header_t);                                      \
+        unsigned char *scales = rows + column_count * row_bytes;                                                       \
+        nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(scales + column_count * scales_stride);         \
+        unsigned const lane = threadIdx.x & 31;                                                                        \
+        nk_size_t const groups = (nk_size_t)gridDim.x * (blockDim.x >> 5);                                             \
+        for (nk_size_t column = columns_begin + (nk_size_t)blockIdx.x * (blockDim.x >> 5) + (threadIdx.x >> 5);        \
+             column < columns_end; column += groups) {                                                                 \
+            unsigned char const *source = b + column * b_stride;                                                       \
+            unsigned char *destination = rows + column * row_bytes;                                                    \
+            for (nk_size_t byte = lane; byte < row_bytes; byte += 32)                                                  \
+                destination[byte] = byte < depth_bytes ? load_fn(source[byte]) : 0;                                    \
+            unsigned char const *source_scales = b_scales + column * b_scales_stride;                                  \
+            for (nk_size_t byte = lane; byte < scales_stride; byte += 32)                                              \
+                scales[column * scales_stride + byte] = byte < nk_cross_scale_blocks_(nk_##input_type_name##_k, depth) \
+                                                            ? source_scales[byte]                                      \
+                                                            : 0;                                                       \
+            nk_##norm_value_type##_t const norm = nk_cross_pack_norm_##norm_value_type##_(                             \
+                scales_stride ? nk_cross_scaled_sumsq_simt_(nk_##input_type_name##_k, source, source_scales,           \
+                                                            tensor_scale, depth, lane, 32)                             \
+                              : compute_norm_fn(source, depth, lane));                                                 \
+            if (lane == 0) norms[column] = norm;                                                                       \
+        }                                                                                                              \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_dots_pack_##input_type_name##_##isa_suffix(                                             \
+        nk_cross_##input_type_name##_operand_t const *b_operand, nk_size_t column_count, nk_size_t depth,              \
+        nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {            \
+        nk_cross_operand_t const b = nk_cross_operand_(nk_##input_type_name##_k, b_operand, b_stride);                 \
+        nk_size_t const depth_values_padded = nk_device_cross_padded_values_(                                          \
+            depth, depth_simd_dimensions, dimensions_per_value, sizeof(nk_##packed_value_type##_t));                   \
+        nk_size_t const depth_bytes = depth / dimensions_per_value * sizeof(nk_##input_value_type##_t);                \
+        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                      \
+        if (!nk_cross_whole_blocks_(nk_##input_type_name##_k, depth) || (scales_stride && !b.scales))                  \
+            return nk_unexpected_dimensions_k;                                                                         \
+        return nk_cross_pack_launch_((void const *)nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_, &b,        \
+                                     column_count, depth, depth_bytes, b_stride, b_packed, columns_begin, columns_end, \
+                                     depth_values_padded, nk_cap_##isa_suffix##_k, scales_stride, stream);             \
     }
 
 /** The pack's size, shape reader and kernel, which always ship together, with the norm share of
@@ -1274,20 +1430,24 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
         nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_full_k, nk_cross_metric_##metric##_k, &arguments);      \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                    \
-        nk_##input_value_type##_t const *a_matrix, void const *a_scales, void const *b_packed_buffer,                  \
+        nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
         nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
-        nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {           \
+        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                        \
         nk_size_t const row_bytes = nk_device_cross_padded_values_(depth, depth_simd_dimensions, dimensions_per_value, \
                                                                    sizeof(nk_##packed_value_type##_t)) *               \
                                     sizeof(nk_##packed_value_type##_t);                                                \
-        unsigned char const *b_rows = (unsigned char const *)b_packed_buffer +                                         \
-                                      sizeof(nk_cross_packed_buffer_header_t);                                         \
-        return nk_cross_launch_((void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_,        \
-                                nk_cross_tile_##tile##_k, nk_cross_threads_##tile##_k, a_matrix, b_rows,               \
-                                b_rows + column_count * row_bytes, c_matrix, sizeof(nk_##result_value_type##_t), 0,    \
-                                row_count, column_count, depth,                                                        \
-                                depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride_in_bytes,   \
-                                row_bytes, c_stride_in_bytes, stream);                                                 \
+        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                      \
+        nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
+        nk_u8_t const *b_rows = (nk_u8_t const *)(header + 1);                                                         \
+        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);                 \
+        nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,        \
+                                      scales_stride, &header->tensor_scale};                                           \
+        return nk_cross_launch_(                                                                                       \
+            (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, nk_cross_tile_##tile##_k,  \
+            nk_cross_threads_##tile##_k, &a, &b, b_rows + column_count * (row_bytes + scales_stride), c_matrix,        \
+            sizeof(nk_##result_value_type##_t), 0, row_count, column_count, depth,                                     \
+            nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size,                                      \
+            depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream);  \
     }
 
 /**
@@ -1299,23 +1459,25 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
  *
  *  @sa nk_define_cross_symmetric_ for the host original.
  */
-#define nk_define_device_cross_symmetric_(metric, input_type_name, isa_suffix, tile, input_value_type,                 \
-                                          packed_value_type, result_value_type, depth_simd_dimensions,                 \
-                                          dimensions_per_value, ...)                                                   \
-    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                              \
-        nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {     \
-        nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_upper_k, nk_cross_metric_##metric##_k, &arguments);     \
-    }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_##metric##s_symmetric_##input_type_name##_##isa_suffix(                                 \
-        nk_##input_value_type##_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth, \
-        nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_##result_value_type##_t *result,                        \
-        nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {                    \
-        nk_size_t const row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;       \
-        return nk_cross_launch_((void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_,     \
-                                nk_cross_tile_##tile##_k, nk_cross_threads_##tile##_k, vectors, vectors, 0, result,    \
-                                sizeof(nk_##result_value_type##_t), row_start, row_end, vectors_count, depth,          \
-                                depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), stride_in_bytes,     \
-                                stride_in_bytes, result_stride_in_bytes, stream);                                      \
+#define nk_define_device_cross_symmetric_(metric, input_type_name, isa_suffix, tile, input_value_type,                \
+                                          packed_value_type, result_value_type, depth_simd_dimensions,                \
+                                          dimensions_per_value, ...)                                                  \
+    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                             \
+        nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {    \
+        nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_upper_k, nk_cross_metric_##metric##_k, &arguments);    \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_##metric##s_symmetric_##input_type_name##_##isa_suffix(                                \
+        nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vectors_count, nk_size_t depth,      \
+        nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t row_start,           \
+        nk_size_t row_count, void *stream) {                                                                          \
+        nk_size_t const row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;      \
+        nk_cross_operand_t const vectors = nk_cross_operand_(nk_##input_type_name##_k, vectors_operand, stride);      \
+        return nk_cross_launch_((void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_,    \
+                                nk_cross_tile_##tile##_k, nk_cross_threads_##tile##_k, &vectors, &vectors, 0, result, \
+                                sizeof(nk_##result_value_type##_t), row_start, row_end, vectors_count, depth,         \
+                                nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size,                 \
+                                depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), stride, stride,     \
+                                result_stride, stream);                                                               \
     }
 
 /** Both shapes of one metric on @p tile, packed and symmetric. */
@@ -1359,6 +1521,22 @@ nk_define_device_cross_pack_(i4, cuda, i4x2, i4x2, nk_load_b8_, u32, 32, 2)
 nk_define_device_cross_(dot, i4, cuda, simt_b32, i4x2, i4x2, i32, 32, 2, nk_i4_k, nk_cross_accumulation_i4x4_k)
 nk_define_device_cross_pack_(u4, cuda, u4x2, u4x2, nk_load_b8_, u32, 32, 2)
 nk_define_device_cross_(dot, u4, cuda, simt_b32, u4x2, u4x2, u32, 32, 2, nk_u4_k, nk_cross_accumulation_u4x4_k)
+nk_define_device_cross_pack_size_(nvfp4, cuda, e2m1x2, f32, 32, 2)
+nk_define_device_cross_packed_shape_(nvfp4, cuda)
+nk_define_device_cross_pack_rows_(nvfp4, cuda, e2m1x2, e2m1x2, nk_load_b8_, f32, nk_e2m1_lane_sumsq_, 32, 2)
+nk_define_device_cross_(dot, nvfp4, cuda, simt_scaled, e2m1x2, e2m1x2, f32, 32, 2, nk_nvfp4_k)
+nk_define_device_cross_pack_size_(mxfp4, cuda, e2m1x2, f32, 32, 2)
+nk_define_device_cross_packed_shape_(mxfp4, cuda)
+nk_define_device_cross_pack_rows_(mxfp4, cuda, e2m1x2, e2m1x2, nk_load_b8_, f32, nk_e2m1_lane_sumsq_, 32, 2)
+nk_define_device_cross_(dot, mxfp4, cuda, simt_scaled, e2m1x2, e2m1x2, f32, 32, 2, nk_mxfp4_k)
+nk_define_device_cross_pack_size_(mxfp8e4m3, cuda, e4m3, f32, 16, 1)
+nk_define_device_cross_packed_shape_(mxfp8e4m3, cuda)
+nk_define_device_cross_pack_rows_(mxfp8e4m3, cuda, e4m3, e4m3, nk_load_b8_, f32, nk_e4m3_lane_sumsq_, 16, 1)
+nk_define_device_cross_(dot, mxfp8e4m3, cuda, simt_scaled, e4m3, e4m3, f32, 16, 1, nk_mxfp8e4m3_k)
+nk_define_device_cross_pack_size_(mxfp8e5m2, cuda, e5m2, f32, 16, 1)
+nk_define_device_cross_packed_shape_(mxfp8e5m2, cuda)
+nk_define_device_cross_pack_rows_(mxfp8e5m2, cuda, e5m2, e5m2, nk_load_b8_, f32, nk_e5m2_lane_sumsq_, 16, 1)
+nk_define_device_cross_(dot, mxfp8e5m2, cuda, simt_scaled, e5m2, e5m2, f32, 16, 1, nk_mxfp8e5m2_k)
 #elif NUMKONG_TARGET_ROCM
 nk_define_device_cross_pack_(f64, rocm, f64, f64, nk_load_b8_, f64, 2, 1)
 nk_define_device_cross_(dot, f64, rocm, simt_f64, f64, f64, f64, 2, 1, nk_f64_k, nk_cross_accumulation_dot2_k)

@@ -229,39 +229,47 @@ NUMKONG_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
 
 #pragma region Public API
 
-NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                         nk_dtype_t to_type, void *stream) {
+NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                         nk_size_t count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype)) {
+        nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
+        nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
+        nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+        nk_cast_block_scaled_icelake_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
+                                      target.scales, target.tensor_scale, &to_format, count);
+        return nk_success_k;
+    }
     // Group 1: Conversions to f16 (e4m3 → f16, e5m2 → f16)
-    if (to_type == nk_f16_k && (from_type == nk_e4m3_k || from_type == nk_e5m2_k)) {
+    if (to_dtype == nk_f16_k && (from_dtype == nk_e4m3_k || from_dtype == nk_e5m2_k)) {
         nk_e4m3_t const *from_ptr = (nk_e4m3_t const *)from;
         nk_f16_t *to_ptr = (nk_f16_t *)to;
-        for (nk_size_t i = 0; i < n; i += 16) {
-            nk_size_t remaining = n - i;
+        for (nk_size_t i = 0; i < count; i += 16) {
+            nk_size_t remaining = count - i;
             __mmask16 mask_m16 = (remaining >= 16) ? 0xFFFF : (unsigned short)_bzhi_u32(0xFFFF, (unsigned)remaining);
             __m128i in_i8x16 = _mm_maskz_loadu_epi8(mask_m16, from_ptr + i);
-            __m256h out_f16x16 = (from_type == nk_e4m3_k) ? nk_e4m3x16_to_f16x16_sapphire_(in_i8x16)
-                                                          : nk_e5m2x16_to_f16x16_sapphire_(in_i8x16);
+            __m256h out_f16x16 = (from_dtype == nk_e4m3_k) ? nk_e4m3x16_to_f16x16_sapphire_(in_i8x16)
+                                                           : nk_e5m2x16_to_f16x16_sapphire_(in_i8x16);
             _mm256_mask_storeu_epi16(to_ptr + i, mask_m16, _mm256_castph_si256(out_f16x16));
         }
     }
 
     // Group 2: Conversions from f16 (f16 → e4m3, f16 → e5m2)
-    else if (from_type == nk_f16_k && (to_type == nk_e4m3_k || to_type == nk_e5m2_k)) {
+    else if (from_dtype == nk_f16_k && (to_dtype == nk_e4m3_k || to_dtype == nk_e5m2_k)) {
         nk_f16_t const *from_ptr = (nk_f16_t const *)from;
         nk_e4m3_t *to_ptr = (nk_e4m3_t *)to;
-        for (nk_size_t i = 0; i < n; i += 16) {
-            nk_size_t remaining = n - i;
+        for (nk_size_t i = 0; i < count; i += 16) {
+            nk_size_t remaining = count - i;
             __mmask16 mask_m16 = (remaining >= 16) ? 0xFFFF : (unsigned short)_bzhi_u32(0xFFFF, (unsigned)remaining);
             __m256h in_f16x16 = _mm256_castsi256_ph(_mm256_maskz_loadu_epi16(mask_m16, from_ptr + i));
-            __m128i out_i8x16 = (to_type == nk_e4m3_k) ? nk_f16x16_to_e4m3x16_sapphire_(in_f16x16)
-                                                       : nk_f16x16_to_e5m2x16_sapphire_(in_f16x16);
+            __m128i out_i8x16 = (to_dtype == nk_e4m3_k) ? nk_f16x16_to_e4m3x16_sapphire_(in_f16x16)
+                                                        : nk_f16x16_to_e5m2x16_sapphire_(in_f16x16);
             _mm_mask_storeu_epi8(to_ptr + i, mask_m16, out_i8x16);
         }
     }
 
     // Default: delegate to Ice for all other conversions
-    else nk_cast_elementwise_icelake_(from, from_type, n, to, to_type);
+    else nk_cast_elementwise_icelake_(from, from_dtype, count, to, to_dtype);
     return nk_success_k;
 }
 

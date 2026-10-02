@@ -459,7 +459,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
     nk_buffer_backing_t queries_backing, documents_backing;
     int have_queries = 0, have_documents = 0;
     PyObject *return_obj = NULL;
-    MaxSimPackedMatrix *q_packed = NULL, *d_packed = NULL;
+    MaxSimPackedMatrix *query_packed = NULL, *document_packed = NULL;
 
     if (!nk_get_buffer(queries_obj, &queries_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &queries_backing)) {
         PyErr_SetString(PyExc_TypeError, "queries must support buffer protocol or __array_interface__");
@@ -566,43 +566,43 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
             !check_status(size_fn(document_count, document_depth, &d_pack_size)))
             goto cleanup;
 
-        q_packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, q_pack_size);
-        if (!q_packed) {
+        query_packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, q_pack_size);
+        if (!query_packed) {
             PyErr_NoMemory();
             goto cleanup;
         }
-        q_packed->dtype = target_dtype;
-        q_packed->vectors = query_count;
-        q_packed->depth = query_depth;
-        q_packed->capabilities = capabilities;
+        query_packed->dtype = target_dtype;
+        query_packed->vectors = query_count;
+        query_packed->depth = query_depth;
+        query_packed->capabilities = capabilities;
 
-        d_packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, d_pack_size);
-        if (!d_packed) {
+        document_packed = PyObject_NewVar(MaxSimPackedMatrix, &MaxSimPackedMatrixType, d_pack_size);
+        if (!document_packed) {
             PyErr_NoMemory();
             goto cleanup;
         }
-        d_packed->dtype = target_dtype;
-        d_packed->vectors = document_count;
-        d_packed->depth = document_depth;
-        d_packed->capabilities = capabilities;
+        document_packed->dtype = target_dtype;
+        document_packed->vectors = document_count;
+        document_packed->depth = document_depth;
+        document_packed->capabilities = capabilities;
 
         PyThreadState *save = PyEval_SaveThread();
-        nk_status_t status = pack_fn(queries_buffer.buf, query_count, query_depth, query_stride, q_packed->start,
+        nk_status_t status = pack_fn(queries_buffer.buf, query_count, query_depth, query_stride, query_packed->start,
                                      stream);
         if (status == nk_success_k)
-            status = pack_fn(documents_buffer.buf, document_count, document_depth, document_stride, d_packed->start,
-                             stream);
+            status = pack_fn(documents_buffer.buf, document_count, document_depth, document_stride,
+                             document_packed->start, stream);
         PyEval_RestoreThread(save);
         if (!check_status(status)) goto cleanup;
 
-        return_obj = maxsim_result_to_py_number(kernel, stream, target_dtype, q_packed->start, d_packed->start,
-                                                query_count, document_count, query_depth);
+        return_obj = maxsim_result_to_py_number(kernel, stream, target_dtype, query_packed->start,
+                                                document_packed->start, query_count, document_count, query_depth);
     }
 
 cleanup:
     if (have_queries) PyBuffer_Release(&queries_buffer);
     if (have_documents) PyBuffer_Release(&documents_buffer);
-    Py_XDECREF(q_packed);
-    Py_XDECREF(d_packed);
+    Py_XDECREF(query_packed);
+    Py_XDECREF(document_packed);
     return return_obj;
 }

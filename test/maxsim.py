@@ -102,9 +102,9 @@ KERNELS_MAXSIM: dict[str, tuple[Callable, Callable, Callable]] = {
 }
 
 
-def _make_matrix(generator: np.random.Generator, rows, cols, dtype):
+def _make_matrix(generator: np.random.Generator, rows, columns, dtype):
     """Create a test matrix in the target dtype."""
-    raw, _ = downcast_f32_to_dtype(generator.standard_normal((rows, cols)).astype(np.float32), dtype)
+    raw, _ = downcast_f32_to_dtype(generator.standard_normal((rows, columns)).astype(np.float32), dtype)
     return make_nk(raw, dtype)
 
 

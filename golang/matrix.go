@@ -81,131 +81,131 @@ func divideRoundUp(dividend, divisor int) int { return (dividend + divisor - 1) 
 
 // region DotsPackedMatrix WithPool methods
 
-// DotsF64WithPool is [DotsPackedF64] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// DotsF64WithPool is [DotsPackedF64] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) DotsF64WithPool(a []float64, c []float64, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		DotsPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) DotsF64WithPool(a []float64, c []float64, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		DotsPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// DotsF32WithPool is [DotsPackedF32] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// DotsF32WithPool is [DotsPackedF32] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) DotsF32WithPool(a []float32, c []float64, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		DotsPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) DotsF32WithPool(a []float32, c []float64, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		DotsPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// DotsI8WithPool is [DotsPackedI8] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// DotsI8WithPool is [DotsPackedI8] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) DotsI8WithPool(a []int8, c []int32, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		DotsPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) DotsI8WithPool(a []int8, c []int32, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		DotsPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// DotsU8WithPool is [DotsPackedU8] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// DotsU8WithPool is [DotsPackedU8] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) DotsU8WithPool(a []uint8, c []uint32, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		DotsPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) DotsU8WithPool(a []uint8, c []uint32, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		DotsPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// AngularsF64WithPool is [AngularsPackedF64] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// AngularsF64WithPool is [AngularsPackedF64] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) AngularsF64WithPool(a []float64, c []float64, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		AngularsPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) AngularsF64WithPool(a []float64, c []float64, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		AngularsPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// AngularsF32WithPool is [AngularsPackedF32] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// AngularsF32WithPool is [AngularsPackedF32] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) AngularsF32WithPool(a []float32, c []float64, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		AngularsPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) AngularsF32WithPool(a []float32, c []float64, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		AngularsPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// AngularsI8WithPool is [AngularsPackedI8] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// AngularsI8WithPool is [AngularsPackedI8] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) AngularsI8WithPool(a []int8, c []float32, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		AngularsPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) AngularsI8WithPool(a []int8, c []float32, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		AngularsPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// AngularsU8WithPool is [AngularsPackedU8] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// AngularsU8WithPool is [AngularsPackedU8] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) AngularsU8WithPool(a []uint8, c []float32, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		AngularsPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) AngularsU8WithPool(a []uint8, c []float32, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		AngularsPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// EuclideansF64WithPool is [EuclideansPackedF64] with the height rows of a split across pool, each
-// of [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// EuclideansF64WithPool is [EuclideansPackedF64] with the rows rows of a split across pool, each
+// of [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) EuclideansF64WithPool(a []float64, c []float64, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		EuclideansPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) EuclideansF64WithPool(a []float64, c []float64, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		EuclideansPackedF64(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// EuclideansF32WithPool is [EuclideansPackedF32] with the height rows of a split across pool, each
-// of [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// EuclideansF32WithPool is [EuclideansPackedF32] with the rows rows of a split across pool, each
+// of [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) EuclideansF32WithPool(a []float32, c []float64, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		EuclideansPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) EuclideansF32WithPool(a []float32, c []float64, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		EuclideansPackedF32(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// EuclideansI8WithPool is [EuclideansPackedI8] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// EuclideansI8WithPool is [EuclideansPackedI8] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) EuclideansI8WithPool(a []int8, c []float32, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		EuclideansPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) EuclideansI8WithPool(a []int8, c []float32, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		EuclideansPackedI8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// EuclideansU8WithPool is [EuclideansPackedU8] with the height rows of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// EuclideansU8WithPool is [EuclideansPackedU8] with the rows rows of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) EuclideansU8WithPool(a []uint8, c []float32, height int, pool *WorkerPool) {
-	pool.run(height, func(lo, hi int) {
-		EuclideansPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+func (pm DotsPackedMatrix) EuclideansU8WithPool(a []uint8, c []float32, rows int, pool *WorkerPool) {
+	pool.run(rows, func(lo, hi int) {
+		EuclideansPackedU8(a[lo*pm.depth:hi*pm.depth], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// HammingsU1WithPool is [HammingsPackedU1] with the height vectors of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// HammingsU1WithPool is [HammingsPackedU1] with the rows vectors of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) HammingsU1WithPool(vectors []byte, c []uint32, height int, pool *WorkerPool) {
+func (pm DotsPackedMatrix) HammingsU1WithPool(vectors []byte, c []uint32, rows int, pool *WorkerPool) {
 	bytesPerVec := DimensionsToValues("u1", pm.depth)
-	pool.run(height, func(lo, hi int) {
-		HammingsPackedU1(vectors[lo*bytesPerVec:hi*bytesPerVec], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+	pool.run(rows, func(lo, hi int) {
+		HammingsPackedU1(vectors[lo*bytesPerVec:hi*bytesPerVec], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 
-// JaccardsU1WithPool is [JaccardsPackedU1] with the height vectors of a split across pool, each of
-// [DotsPackedMatrix.Depth] dimensions, while c holds at least height * [DotsPackedMatrix.Width]
+// JaccardsU1WithPool is [JaccardsPackedU1] with the rows vectors of a split across pool, each of
+// [DotsPackedMatrix.Depth] dimensions, while c holds at least rows * [DotsPackedMatrix.Columns]
 // entries.
-func (pm DotsPackedMatrix) JaccardsU1WithPool(vectors []byte, c []float32, height int, pool *WorkerPool) {
+func (pm DotsPackedMatrix) JaccardsU1WithPool(vectors []byte, c []float32, rows int, pool *WorkerPool) {
 	bytesPerVec := DimensionsToValues("u1", pm.depth)
-	pool.run(height, func(lo, hi int) {
-		JaccardsPackedU1(vectors[lo*bytesPerVec:hi*bytesPerVec], pm, c[lo*pm.width:hi*pm.width], hi-lo)
+	pool.run(rows, func(lo, hi int) {
+		JaccardsPackedU1(vectors[lo*bytesPerVec:hi*bytesPerVec], pm, c[lo*pm.columns:hi*pm.columns], hi-lo)
 	})
 }
 

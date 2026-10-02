@@ -1130,7 +1130,7 @@ def test_argreduction_on_subview(dtype: str, op: str, capability: str, np_rng: n
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is required for edge-shape tests")
-@pytest.mark.parametrize("shape", [(0,), (0, 4), (3, 0)], ids=["empty-1d", "empty-rows", "empty-cols"])
+@pytest.mark.parametrize("shape", [(0,), (0, 4), (3, 0)], ids=["empty-1d", "empty-rows", "empty-columns"])
 def test_reduction_on_empty(shape):
     """Zero-element tensors survive construction and reduction: the shape is preserved and an empty
     sum returns the additive identity (0) rather than crashing."""
@@ -1409,14 +1409,14 @@ def test_nk_dtype_numpy_roundtrip():
 def test_dots_packed_row_range(capability: str, np_rng: np.random.Generator):
     """Test dots_packed with start_row/end_row splits produce the same result."""
     keep_one_capability(capability)
-    height, depth, width = 100, 64, 50
-    left_matrix, _ = make_random((height, depth), "float32", np_rng)
-    right_matrix = np.ascontiguousarray(make_random((width, depth), "float32", np_rng)[0])
+    rows, depth, columns = 100, 64, 50
+    left_matrix, _ = make_random((rows, depth), "float32", np_rng)
+    right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32")
 
     reference = np.array(nk.dots_packed(left_matrix, right_packed))
 
-    output = nk.zeros((height, width), dtype="float64")
+    output = nk.zeros((rows, columns), dtype="float64")
     nk.dots_packed(left_matrix, right_packed, out=output, start_row=0, end_row=50)
     nk.dots_packed(left_matrix, right_packed, out=output, start_row=50, end_row=100)
 
@@ -1446,9 +1446,9 @@ def test_dots_symmetric_row_range(capability: str, np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("threads", [0, 1, 4])
-@pytest.mark.parametrize("height", [63, 64, 129])
+@pytest.mark.parametrize("rows", [63, 64, 129])
 @pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_packed_threads(threads, height, capability, np_rng: np.random.Generator):
+def test_dots_packed_threads(threads, rows, capability, np_rng: np.random.Generator):
     """Verify dots_packed and @ match the serial path across tile boundaries and thread counts.
 
     The packed row tile is 64, so heights straddling one and two tiles exercise both the whole-tile
@@ -1456,17 +1456,17 @@ def test_dots_packed_threads(threads, height, capability, np_rng: np.random.Gene
     of any prior explicit count — the num_threads() clause fix, not the poisoned global ICV.
     """
     keep_one_capability(capability)
-    depth, width = 64, 32
-    left_matrix, _ = make_random((height, depth), "float32", np_rng)
-    right_matrix = np.ascontiguousarray(make_random((width, depth), "float32", np_rng)[0])
+    depth, columns = 64, 32
+    left_matrix, _ = make_random((rows, depth), "float32", np_rng)
+    right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32")
 
     serial = np.array(nk.dots_packed(left_matrix, right_packed, threads=1))
     parallel = np.array(nk.dots_packed(left_matrix, right_packed, threads=threads))
-    assert_allclose(parallel, serial, err_msg=f"threads={threads} diverges from threads=1 at height={height}")
+    assert_allclose(parallel, serial, err_msg=f"threads={threads} diverges from threads=1 at rows={rows}")
     # the @ operator auto-threads and must match the serial result too
     at_result = np.array(make_nk(left_matrix, "float32") @ right_packed)
-    assert_allclose(at_result, serial, err_msg=f"@ diverges from threads=1 at height={height}")
+    assert_allclose(at_result, serial, err_msg=f"@ diverges from threads=1 at rows={rows}")
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1557,22 +1557,22 @@ def test_gil_free_dots_packed_threading(np_rng: np.random.Generator):
     """Test multi-threaded dots_packed with start_row/end_row."""
     _skip_unless_free_threaded()
 
-    height, depth, width = 200, 64, 50
+    rows, depth, columns = 200, 64, 50
     num_threads = min(multiprocessing.cpu_count(), 4)
-    left_matrix, _ = make_random((height, depth), "float32", np_rng)
-    right_matrix = np.ascontiguousarray(make_random((width, depth), "float32", np_rng)[0])
+    left_matrix, _ = make_random((rows, depth), "float32", np_rng)
+    right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
     right_packed = nk.dots_pack(right_matrix, dtype="float32")
 
     # Single-threaded reference
     reference = nk.dots_packed(left_matrix, right_packed)
 
     # Multi-threaded with row slicing into shared output
-    output = nk.zeros((height, width), dtype="float64")
-    rows_per_thread = height // num_threads
+    output = nk.zeros((rows, columns), dtype="float64")
+    rows_per_thread = rows // num_threads
 
     def compute_slice(thread_index):
         start_row = thread_index * rows_per_thread
-        end_row = start_row + rows_per_thread if thread_index < num_threads - 1 else height
+        end_row = start_row + rows_per_thread if thread_index < num_threads - 1 else rows
         nk.dots_packed(left_matrix, right_packed, out=output, start_row=start_row, end_row=end_row)
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_threads) as pool:
@@ -1626,10 +1626,10 @@ def test_gil_free_dots_symmetric_threading(np_rng: np.random.Generator):
 _SCALED_FORMATS = [
     ("nvfp4", 16, 0.5),
     ("mxfp4", 32, 0.5),
-    ("mxfp6_e2m3", 32, 0.125),
-    ("mxfp6_e3m2", 32, 0.25),
-    ("mxfp8_e4m3", 32, 0.125),
-    ("mxfp8_e5m2", 32, 0.25),
+    ("mxfp6e2m3", 32, 0.125),
+    ("mxfp6e3m2", 32, 0.25),
+    ("mxfp8e4m3", 32, 0.125),
+    ("mxfp8e5m2", 32, 0.25),
     ("mxint8", 32, 0.05),
 ]
 """(dtype name, block size, per-element relative resolution = 2**-mantissa_bits)."""
@@ -1674,9 +1674,9 @@ def test_scaled_tensor_roundtrip(dtype_name, block_size, relative_bound):
 def test_scaled_tensor_slicing(dtype_name, block_size, relative_bound):
     """Row and block-aligned column slices materialize to the same values as the full decode;
     a sub-block (misaligned) column range is rejected rather than silently truncated."""
-    rows, cols = 4, 4 * block_size
+    rows, columns = 4, 4 * block_size
     dense = np.asarray(
-        [[1.0 + 0.5 * (((r * 7 + c * 3) % 5) / 5.0) for c in range(cols)] for r in range(rows)],
+        [[1.0 + 0.5 * (((r * 7 + c * 3) % 5) / 5.0) for c in range(columns)] for r in range(rows)],
         dtype=np.float32,
     )
     quantized = nk.Tensor(dense).astype(dtype_name)
@@ -1753,10 +1753,10 @@ def test_tensor_construct_non_contiguous(order):
 @pytest.mark.parametrize(
     "src_dtype, dst_dtype",
     [
-        ("nvfp4", "mxfp8_e4m3"),
-        ("mxfp8_e4m3", "nvfp4"),
-        ("mxfp4", "mxfp8_e5m2"),
-        ("mxfp8_e5m2", "mxint8"),
+        ("nvfp4", "mxfp8e4m3"),
+        ("mxfp8e4m3", "nvfp4"),
+        ("mxfp4", "mxfp8e5m2"),
+        ("mxfp8e5m2", "mxint8"),
     ],
 )
 def test_scaled_tensor_transcode(src_dtype, dst_dtype):

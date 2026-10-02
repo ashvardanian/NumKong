@@ -34,25 +34,21 @@ extern "C" {
     // Batched angular distances
     fn nk_angulars_packed_f32_best(
         queries: *const f32,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_f32_best(
         vectors: *const f32,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -62,25 +58,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_f64_best(
         queries: *const f64,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_f64_best(
         vectors: *const f64,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -90,25 +82,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_f16_best(
         queries: *const u16,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_f16_best(
         vectors: *const u16,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -118,25 +106,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_bf16_best(
         queries: *const u16,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_bf16_best(
         vectors: *const u16,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -146,25 +130,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_i8_best(
         queries: *const i8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_i8_best(
         vectors: *const i8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -174,25 +154,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_u8_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_u8_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -202,25 +178,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_e4m3_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_e4m3_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -230,25 +202,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_e5m2_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_e5m2_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -258,25 +226,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_e2m3_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_e2m3_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -286,25 +250,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_e2m1_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_e2m1_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -314,25 +274,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_e3m2_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_e3m2_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -342,25 +298,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_i4_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_i4_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -370,25 +322,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_angulars_packed_u4_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_angulars_symmetric_u4_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -400,25 +348,21 @@ extern "C" {
     // Batched euclidean distances
     fn nk_euclideans_packed_f32_best(
         queries: *const f32,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_f32_best(
         vectors: *const f32,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -428,25 +372,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_f64_best(
         queries: *const f64,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_f64_best(
         vectors: *const f64,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -456,25 +396,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_f16_best(
         queries: *const u16,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_f16_best(
         vectors: *const u16,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -484,25 +420,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_bf16_best(
         queries: *const u16,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_bf16_best(
         vectors: *const u16,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -512,25 +444,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_i8_best(
         queries: *const i8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_i8_best(
         vectors: *const i8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -540,25 +468,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_u8_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_u8_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -568,25 +492,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_e4m3_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_e4m3_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -596,25 +516,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_e5m2_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_e5m2_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -624,25 +540,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_e2m3_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_e2m3_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -652,25 +564,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_e2m1_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_e2m1_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -680,25 +588,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_e3m2_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_e3m2_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -708,25 +612,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_i4_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_i4_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -736,25 +636,21 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_euclideans_packed_u4_best(
         queries: *const u8,
-        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
-        height: nk_size_t,
-        width: nk_size_t,
+        rows: nk_size_t,
+        columns: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
-        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_euclideans_symmetric_u4_best(
         vectors: *const u8,
-        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
-        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -792,15 +688,15 @@ pub trait Angulars: Dots {
     /// Computes angular distances between A rows and packed B columns.
     ///
     /// # Safety
-    /// - `a` must point to valid memory for `height * depth` elements with given stride
+    /// - `a` must point to valid memory for `rows * depth` elements with given stride
     /// - `packed` must be a buffer filled by `Dots::dots_pack`
-    /// - `c` must point to valid memory for `height` × `width` result elements with given stride
+    /// - `c` must point to valid memory for `rows` × `columns` result elements with given stride
     unsafe fn angulars_packed(
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
@@ -848,15 +744,15 @@ pub trait Euclideans: Dots {
     /// Computes euclidean distances between A rows and packed B columns.
     ///
     /// # Safety
-    /// - `a` must point to valid memory for `height * depth` elements with given stride
+    /// - `a` must point to valid memory for `rows * depth` elements with given stride
     /// - `packed` must be a buffer filled by `Dots::dots_pack`
-    /// - `c` must point to valid memory for `height` × `width` result elements with given stride
+    /// - `c` must point to valid memory for `rows` × `columns` result elements with given stride
     unsafe fn euclideans_packed(
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
@@ -886,22 +782,20 @@ impl Angulars for f32 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_f32_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -921,11 +815,9 @@ impl Angulars for f32 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_f32_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -944,22 +836,20 @@ impl Euclideans for f32 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_f32_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -979,11 +869,9 @@ impl Euclideans for f32 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_f32_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1002,22 +890,20 @@ impl Angulars for f64 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_f64_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1037,11 +923,9 @@ impl Angulars for f64 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_f64_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1060,22 +944,20 @@ impl Euclideans for f64 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_f64_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1095,11 +977,9 @@ impl Euclideans for f64 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_f64_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1118,22 +998,20 @@ impl Angulars for f16 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_f16_best(
             queries as *const u16,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1153,11 +1031,9 @@ impl Angulars for f16 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_f16_best(
             vectors as *const u16,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1176,22 +1052,20 @@ impl Euclideans for f16 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_f16_best(
             queries as *const u16,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1211,11 +1085,9 @@ impl Euclideans for f16 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_f16_best(
             vectors as *const u16,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1234,22 +1106,20 @@ impl Angulars for bf16 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_bf16_best(
             queries as *const u16,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1269,11 +1139,9 @@ impl Angulars for bf16 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_bf16_best(
             vectors as *const u16,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1292,22 +1160,20 @@ impl Euclideans for bf16 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_bf16_best(
             queries as *const u16,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1327,11 +1193,9 @@ impl Euclideans for bf16 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_bf16_best(
             vectors as *const u16,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1350,22 +1214,20 @@ impl Angulars for i8 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_i8_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1385,11 +1247,9 @@ impl Angulars for i8 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_i8_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1408,22 +1268,20 @@ impl Euclideans for i8 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_i8_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1443,11 +1301,9 @@ impl Euclideans for i8 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_i8_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1466,22 +1322,20 @@ impl Angulars for u8 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_u8_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1501,11 +1355,9 @@ impl Angulars for u8 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_u8_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1524,22 +1376,20 @@ impl Euclideans for u8 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_u8_best(
             queries,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1559,11 +1409,9 @@ impl Euclideans for u8 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_u8_best(
             vectors,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1582,22 +1430,20 @@ impl Angulars for e4m3 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_e4m3_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1617,11 +1463,9 @@ impl Angulars for e4m3 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_e4m3_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1640,22 +1484,20 @@ impl Euclideans for e4m3 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_e4m3_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1675,11 +1517,9 @@ impl Euclideans for e4m3 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_e4m3_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1698,22 +1538,20 @@ impl Angulars for e5m2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_e5m2_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1733,11 +1571,9 @@ impl Angulars for e5m2 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_e5m2_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1756,22 +1592,20 @@ impl Euclideans for e5m2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_e5m2_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1791,11 +1625,9 @@ impl Euclideans for e5m2 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_e5m2_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1814,22 +1646,20 @@ impl Angulars for e2m3 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_e2m3_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1849,11 +1679,9 @@ impl Angulars for e2m3 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_e2m3_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1872,22 +1700,20 @@ impl Angulars for e2m1x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_e2m1_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1907,11 +1733,9 @@ impl Angulars for e2m1x2 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_e2m1_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1930,22 +1754,20 @@ impl Euclideans for e2m3 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_e2m3_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1965,11 +1787,9 @@ impl Euclideans for e2m3 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_e2m3_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -1988,22 +1808,20 @@ impl Euclideans for e2m1x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_e2m1_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2023,11 +1841,9 @@ impl Euclideans for e2m1x2 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_e2m1_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2046,22 +1862,20 @@ impl Angulars for e3m2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_e3m2_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2081,11 +1895,9 @@ impl Angulars for e3m2 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_e3m2_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2104,22 +1916,20 @@ impl Euclideans for e3m2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut Self::SpatialResult,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_e3m2_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2139,11 +1949,9 @@ impl Euclideans for e3m2 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_e3m2_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2162,22 +1970,20 @@ impl Angulars for u4x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut f32,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_u4_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2196,11 +2002,9 @@ impl Angulars for u4x2 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_u4_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2217,22 +2021,20 @@ impl Euclideans for u4x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut f32,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_u4_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2251,11 +2053,9 @@ impl Euclideans for u4x2 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_u4_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2272,22 +2072,20 @@ impl Angulars for i4x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut f32,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_angulars_packed_i4_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2306,11 +2104,9 @@ impl Angulars for i4x2 {
     ) -> Result<(), TensorError> {
         nk_angulars_symmetric_i4_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2327,22 +2123,20 @@ impl Euclideans for i4x2 {
         queries: *const Self,
         packed: *const u8,
         output: *mut f32,
-        height: usize,
-        width: usize,
+        rows: usize,
+        columns: usize,
         depth: usize,
         query_stride: usize,
         output_stride: usize,
     ) -> Result<(), TensorError> {
         nk_euclideans_packed_i4_best(
             queries as *const u8,
-            core::ptr::null(),
             packed,
             output,
-            height,
-            width,
+            rows,
+            columns,
             depth,
             query_stride,
-            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2361,11 +2155,9 @@ impl Euclideans for i4x2 {
     ) -> Result<(), TensorError> {
         nk_euclideans_symmetric_i4_best(
             vectors as *const u8,
-            core::ptr::null(),
             vector_count,
             depth,
             stride,
-            0,
             result,
             result_stride,
             row_start,
@@ -2387,15 +2179,15 @@ impl<Scalar: Angulars, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::full_in(&[rows, columns], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::angulars_packed(
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2411,15 +2203,15 @@ impl<Scalar: Euclideans, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
     ) -> Result<Tensor<Scalar::SpatialResult, Alloc, MAX_RANK>, TensorError> {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        let mut output = Tensor::full_in(&[height, width], Scalar::SpatialResult::default(), self.alloc.clone())?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        let mut output = Tensor::full_in(&[rows, columns], Scalar::SpatialResult::default(), self.alloc.clone())?;
         unsafe {
             Scalar::euclideans_packed(
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2589,9 +2381,9 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
     where
         Self::Alloc: Clone,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(
-            &[height, width],
+            &[rows, columns],
             Scalar::SpatialResult::default(),
             self.allocator().clone(),
         )?;
@@ -2600,8 +2392,8 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2624,15 +2416,15 @@ pub trait AngularsPackedOps<Scalar: Angulars, const MAX_RANK: usize>: TensorRef<
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, rows, columns)?;
         unsafe {
             Scalar::angulars_packed(
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2694,8 +2486,8 @@ where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, rows, columns)?;
 
         let queries_ptr = fu::SyncConstPtr::new(self.as_ptr());
         let output_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
@@ -2703,7 +2495,7 @@ where
         let query_stride = self.stride_bytes(0) as usize;
         let output_stride = output.stride_bytes(0) as usize;
         let num_threads = pool.threads_count().max(1);
-        let rows_per_thread = height.div_ceil(num_threads);
+        let rows_per_thread = rows.div_ceil(num_threads);
 
         let failure = WorkerStatus::default();
         let failure = &failure;
@@ -2713,10 +2505,10 @@ where
                 return;
             }
             let row_start = thread_index * rows_per_thread;
-            if row_start >= height {
+            if row_start >= rows {
                 return;
             }
-            let row_end = (row_start + rows_per_thread).min(height);
+            let row_end = (row_start + rows_per_thread).min(rows);
             unsafe {
                 let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
                 let c_row =
@@ -2726,7 +2518,7 @@ where
                     packed_ptr.as_ptr(),
                     c_row,
                     row_end - row_start,
-                    width,
+                    columns,
                     depth,
                     query_stride,
                     output_stride,
@@ -2745,9 +2537,9 @@ where
     where
         Self::Alloc: Clone,
     {
-        let (height, width, _) = validate_packed_input(self, packed_right)?;
+        let (rows, columns, _) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(
-            &[height, width],
+            &[rows, columns],
             Scalar::SpatialResult::default(),
             self.allocator().clone(),
         )?;
@@ -2795,9 +2587,9 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
     where
         Self::Alloc: Clone,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(
-            &[height, width],
+            &[rows, columns],
             Scalar::SpatialResult::default(),
             self.allocator().clone(),
         )?;
@@ -2806,8 +2598,8 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2830,15 +2622,15 @@ pub trait EuclideansPackedOps<Scalar: Euclideans, const MAX_RANK: usize>: Tensor
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, rows, columns)?;
         unsafe {
             Scalar::euclideans_packed(
                 self.as_ptr(),
                 packed_right.as_ptr(),
                 output.as_mut_ptr(),
-                height,
-                width,
+                rows,
+                columns,
                 depth,
                 self.stride_bytes(0) as usize,
                 output.stride_bytes(0) as usize,
@@ -2900,8 +2692,8 @@ where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::SpatialResult, OUTPUT_MAX_RANK>,
     {
-        let (height, width, depth) = validate_packed_input(self, packed_right)?;
-        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, height, width)?;
+        let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
+        validate_matrix_output::<Scalar::SpatialResult, _, OUTPUT_MAX_RANK>(output, rows, columns)?;
 
         let queries_ptr = fu::SyncConstPtr::new(self.as_ptr());
         let output_ptr = fu::SyncMutPtr::new(output.as_mut_ptr());
@@ -2909,7 +2701,7 @@ where
         let query_stride = self.stride_bytes(0) as usize;
         let output_stride = output.stride_bytes(0) as usize;
         let num_threads = pool.threads_count().max(1);
-        let rows_per_thread = height.div_ceil(num_threads);
+        let rows_per_thread = rows.div_ceil(num_threads);
 
         let failure = WorkerStatus::default();
         let failure = &failure;
@@ -2919,10 +2711,10 @@ where
                 return;
             }
             let row_start = thread_index * rows_per_thread;
-            if row_start >= height {
+            if row_start >= rows {
                 return;
             }
-            let row_end = (row_start + rows_per_thread).min(height);
+            let row_end = (row_start + rows_per_thread).min(rows);
             unsafe {
                 let a_row = (queries_ptr.as_ptr() as *const u8).add(row_start * query_stride) as *const Scalar;
                 let c_row =
@@ -2932,7 +2724,7 @@ where
                     packed_ptr.as_ptr(),
                     c_row,
                     row_end - row_start,
-                    width,
+                    columns,
                     depth,
                     query_stride,
                     output_stride,
@@ -2951,9 +2743,9 @@ where
     where
         Self::Alloc: Clone,
     {
-        let (height, width, _) = validate_packed_input(self, packed_right)?;
+        let (rows, columns, _) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(
-            &[height, width],
+            &[rows, columns],
             Scalar::SpatialResult::default(),
             self.allocator().clone(),
         )?;
@@ -3135,35 +2927,35 @@ mod tests {
     {
         init_thread();
         let tol = Scalar::atol();
-        for &(height, width, depth) in DIMS {
+        for &(rows, columns, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::new(&b).unwrap();
             let output = a.angulars_packed(&b_packed).unwrap();
-            assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
+            assert_eq!(output.shape(), &[rows, columns], "shape @ ({rows},{columns},{depth})");
             for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
                     v.to_f64().abs() <= tol,
-                    "({height},{width},{depth})[{i}]: {} vs 0.0 (tol={tol})",
+                    "({rows},{columns},{depth})[{i}]: {} vs 0.0 (tol={tol})",
                     v.to_f64()
                 );
             }
             let mut into_tensor =
-                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[rows, columns], Scalar::SpatialResult::default()).unwrap();
             a.angulars_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_tensor.as_slice(),
-                "_into(Tensor) @ ({height},{width},{depth})"
+                "_into(Tensor) @ ({rows},{columns},{depth})"
             );
             let mut into_span_buf =
-                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[rows, columns], Scalar::SpatialResult::default()).unwrap();
             a.angulars_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_span_buf.as_slice(),
-                "_into(span) @ ({height},{width},{depth})"
+                "_into(span) @ ({rows},{columns},{depth})"
             );
         }
     }
@@ -3174,35 +2966,35 @@ mod tests {
     {
         init_thread();
         let tol = Scalar::atol();
-        for &(height, width, depth) in DIMS {
+        for &(rows, columns, depth) in DIMS {
             let depth = align_depth::<Scalar>(depth);
-            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+            let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::new(&b).unwrap();
             let output = a.euclideans_packed(&b_packed).unwrap();
-            assert_eq!(output.shape(), &[height, width], "shape @ ({height},{width},{depth})");
+            assert_eq!(output.shape(), &[rows, columns], "shape @ ({rows},{columns},{depth})");
             for (i, &v) in output.as_slice().iter().enumerate() {
                 assert!(
                     v.to_f64().abs() <= tol,
-                    "({height},{width},{depth})[{i}]: {} vs 0.0 (tol={tol})",
+                    "({rows},{columns},{depth})[{i}]: {} vs 0.0 (tol={tol})",
                     v.to_f64()
                 );
             }
             let mut into_tensor =
-                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[rows, columns], Scalar::SpatialResult::default()).unwrap();
             a.euclideans_packed_into(&b_packed, &mut into_tensor).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_tensor.as_slice(),
-                "_into(Tensor) @ ({height},{width},{depth})"
+                "_into(Tensor) @ ({rows},{columns},{depth})"
             );
             let mut into_span_buf =
-                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[rows, columns], Scalar::SpatialResult::default()).unwrap();
             a.euclideans_packed_into(&b_packed, &mut into_span_buf.span()).unwrap();
             assert_eq!(
                 output.as_slice(),
                 into_span_buf.as_slice(),
-                "_into(span) @ ({height},{width},{depth})"
+                "_into(span) @ ({rows},{columns},{depth})"
             );
         }
     }
@@ -3216,16 +3008,16 @@ mod tests {
         init_thread();
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
-        for &(height, width, depth) in DIMS {
-            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+        for &(rows, columns, depth) in DIMS {
+            let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::new(&b).unwrap();
             let serial = a.angulars_packed(&b_packed).unwrap();
             let parallel = a.angulars_packed_parallel(&b_packed, &mut pool).unwrap();
             assert_eq!(
                 serial.as_slice(),
                 parallel.as_slice(),
-                "serial != parallel @ ({height},{width},{depth})"
+                "serial != parallel @ ({rows},{columns},{depth})"
             );
         }
     }
@@ -3239,20 +3031,20 @@ mod tests {
         init_thread();
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
-        for &(height, width, depth) in DIMS {
-            let a = Tensor::<Scalar>::full(&[height, depth], Scalar::one()).unwrap();
-            let b = Tensor::<Scalar>::full(&[width, depth], Scalar::one()).unwrap();
+        for &(rows, columns, depth) in DIMS {
+            let a = Tensor::<Scalar>::full(&[rows, depth], Scalar::one()).unwrap();
+            let b = Tensor::<Scalar>::full(&[columns, depth], Scalar::one()).unwrap();
             let b_packed = DotsPackedMatrix::new(&b).unwrap();
             let serial = a.euclideans_packed(&b_packed).unwrap();
             let parallel = a.euclideans_packed_parallel(&b_packed, &mut pool).unwrap();
             assert_eq!(
                 serial.as_slice(),
                 parallel.as_slice(),
-                "serial != parallel @ ({height},{width},{depth})"
+                "serial != parallel @ ({rows},{columns},{depth})"
             );
             // Exercise _parallel_into on a span.
             let mut into_span =
-                Tensor::<Scalar::SpatialResult>::full(&[height, width], Scalar::SpatialResult::default()).unwrap();
+                Tensor::<Scalar::SpatialResult>::full(&[rows, columns], Scalar::SpatialResult::default()).unwrap();
             a.euclideans_packed_parallel_into(&b_packed, &mut into_span.span(), &mut pool)
                 .unwrap();
             assert_eq!(serial.as_slice(), into_span.as_slice(), "_parallel_into(span)");
@@ -3455,11 +3247,11 @@ mod tests {
     #[test]
     fn angulars_packed_accepts_views_and_spans() {
         init_thread();
-        let (height, width, depth) = (3usize, 4usize, 5usize);
-        let a_data: Vec<f32> = (0..height * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
-        let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]).unwrap();
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        let (rows, columns, depth) = (3usize, 4usize, 5usize);
+        let a_data: Vec<f32> = (0..rows * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
+        let b_data: Vec<f32> = (0..columns * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
+        let mut a = Tensor::<f32>::from_slice(&a_data, &[rows, depth]).unwrap();
+        let b = Tensor::<f32>::from_slice(&b_data, &[columns, depth]).unwrap();
         let packed = DotsPackedMatrix::new(&b).unwrap();
 
         let expected = a.angulars_packed(&packed).unwrap();
@@ -3473,7 +3265,7 @@ mod tests {
             expected.as_slice(),
             "span A"
         );
-        let mut into = Tensor::<f64>::full(&[height, width], 0.0).unwrap();
+        let mut into = Tensor::<f64>::full(&[rows, columns], 0.0).unwrap();
         a.view().angulars_packed_into(&packed, &mut into.span()).unwrap();
         assert_eq!(into.as_slice(), expected.as_slice(), "view A into span");
     }
@@ -3483,11 +3275,11 @@ mod tests {
     #[test]
     fn euclideans_packed_accepts_views_and_spans() {
         init_thread();
-        let (height, width, depth) = (3usize, 4usize, 5usize);
-        let a_data: Vec<f32> = (0..height * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
-        let b_data: Vec<f32> = (0..width * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
-        let mut a = Tensor::<f32>::from_slice(&a_data, &[height, depth]).unwrap();
-        let b = Tensor::<f32>::from_slice(&b_data, &[width, depth]).unwrap();
+        let (rows, columns, depth) = (3usize, 4usize, 5usize);
+        let a_data: Vec<f32> = (0..rows * depth).map(|i| i as f32 * 0.5 - 1.0).collect();
+        let b_data: Vec<f32> = (0..columns * depth).map(|i| i as f32 * 0.25 + 0.3).collect();
+        let mut a = Tensor::<f32>::from_slice(&a_data, &[rows, depth]).unwrap();
+        let b = Tensor::<f32>::from_slice(&b_data, &[columns, depth]).unwrap();
         let packed = DotsPackedMatrix::new(&b).unwrap();
 
         let expected = a.euclideans_packed(&packed).unwrap();
@@ -3501,7 +3293,7 @@ mod tests {
             expected.as_slice(),
             "span A"
         );
-        let mut into = Tensor::<f64>::full(&[height, width], 0.0).unwrap();
+        let mut into = Tensor::<f64>::full(&[rows, columns], 0.0).unwrap();
         a.view().euclideans_packed_into(&packed, &mut into.span()).unwrap();
         assert_eq!(into.as_slice(), expected.as_slice(), "view A into span");
     }

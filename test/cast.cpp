@@ -6,7 +6,7 @@
  */
 
 #include "harness.hpp"
-#include "cast.hpp" // `test_cast`, `test_cast_block_scaled`
+#include "cast.hpp" // `test_cast`, `check_block_scaled_casts`
 
 namespace ashvardanian::numkong::test {
 
@@ -37,14 +37,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_i8_to_i32_serial", test_cast<i8_t, i32_t>, nk_cast_serial);
     check("cast_u8_to_f32_serial", test_cast<u8_t, f32_t>, nk_cast_serial);
 
-    // Block-scaled round-trip: encode f32 → format → decode f32.
-    check("cast_f32_to_nvfp4_serial", test_cast_block_scaled<>, nk_cast_block_scaled_serial, nk_nvfp4);
-    check("cast_f32_to_mxfp4_serial", test_cast_block_scaled<>, nk_cast_block_scaled_serial, nk_mxfp4);
-    check("cast_f32_to_mxfp6_e2m3_serial", test_cast_block_scaled<>, nk_cast_block_scaled_serial, nk_mxfp6_e2m3);
-    check("cast_f32_to_mxfp6_e3m2_serial", test_cast_block_scaled<>, nk_cast_block_scaled_serial, nk_mxfp6_e3m2);
-    check("cast_f32_to_mxfp8_e4m3_serial", test_cast_block_scaled<>, nk_cast_block_scaled_serial, nk_mxfp8_e4m3);
-    check("cast_f32_to_mxfp8_e5m2_serial", test_cast_block_scaled<>, nk_cast_block_scaled_serial, nk_mxfp8_e5m2);
-    check("cast_f32_to_mxint8_serial", test_cast_block_scaled<>, nk_cast_block_scaled_serial, nk_mxint8);
+    check_block_scaled_casts(check, "serial", nk_cast_serial);
 
 #if !NUMKONG_HEADER_ONLY
     check.section("Type Casts Runtime Dispatch", nk_cap_serial_k);
@@ -109,16 +102,10 @@ void test_casts(error_stats_section_t &check) {
     check("cast_f32_to_u8_haswell", test_cast<f32_t, u8_t>, nk_cast_haswell);
     check("cast_f32_to_i32_haswell", test_cast<f32_t, i32_t>, nk_cast_haswell);
     check("cast_f32_to_u32_haswell", test_cast<f32_t, u32_t>, nk_cast_haswell);
-    check("cast_f32_to_nvfp4_haswell", test_cast_block_scaled<>, nk_cast_block_scaled_haswell, nk_nvfp4);
-    check("cast_f32_to_mxfp4_haswell", test_cast_block_scaled<>, nk_cast_block_scaled_haswell, nk_mxfp4);
-    check("cast_f32_to_mxfp6_e2m3_haswell", test_cast_block_scaled<>, nk_cast_block_scaled_haswell, nk_mxfp6_e2m3);
-    check("cast_f32_to_mxfp6_e3m2_haswell", test_cast_block_scaled<>, nk_cast_block_scaled_haswell, nk_mxfp6_e3m2);
-    check("cast_f32_to_mxfp8_e4m3_haswell", test_cast_block_scaled<>, nk_cast_block_scaled_haswell, nk_mxfp8_e4m3);
-    check("cast_f32_to_mxfp8_e5m2_haswell", test_cast_block_scaled<>, nk_cast_block_scaled_haswell, nk_mxfp8_e5m2);
-    check("cast_f32_to_mxint8_haswell", test_cast_block_scaled<>, nk_cast_block_scaled_haswell, nk_mxint8);
     // Verify serial fallbacks for rare paths
     check("cast_i32_to_f64_haswell", test_cast<i32_t, f64_t>, nk_cast_haswell);
     check("cast_f64_to_f32_haswell", test_cast<f64_t, f32_t>, nk_cast_haswell);
+    check_block_scaled_casts(check, "haswell", nk_cast_haswell);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -135,13 +122,6 @@ void test_casts(error_stats_section_t &check) {
     check("cast_e2m3_to_f32_skylake", test_cast<e2m3_t, f32_t>, nk_cast_skylake);
     check("cast_f32_to_e3m2_skylake", test_cast<f32_t, e3m2_t>, nk_cast_skylake);
     check("cast_e3m2_to_f32_skylake", test_cast<e3m2_t, f32_t>, nk_cast_skylake);
-    check("cast_f32_to_nvfp4_skylake", test_cast_block_scaled<>, nk_cast_block_scaled_skylake, nk_nvfp4);
-    check("cast_f32_to_mxfp4_skylake", test_cast_block_scaled<>, nk_cast_block_scaled_skylake, nk_mxfp4);
-    check("cast_f32_to_mxfp6_e2m3_skylake", test_cast_block_scaled<>, nk_cast_block_scaled_skylake, nk_mxfp6_e2m3);
-    check("cast_f32_to_mxfp6_e3m2_skylake", test_cast_block_scaled<>, nk_cast_block_scaled_skylake, nk_mxfp6_e3m2);
-    check("cast_f32_to_mxfp8_e4m3_skylake", test_cast_block_scaled<>, nk_cast_block_scaled_skylake, nk_mxfp8_e4m3);
-    check("cast_f32_to_mxfp8_e5m2_skylake", test_cast_block_scaled<>, nk_cast_block_scaled_skylake, nk_mxfp8_e5m2);
-    check("cast_f32_to_mxint8_skylake", test_cast_block_scaled<>, nk_cast_block_scaled_skylake, nk_mxint8);
     check("cast_f16_to_bf16_skylake", test_cast<f16_t, bf16_t>, nk_cast_skylake);
     check("cast_bf16_to_f16_skylake", test_cast<bf16_t, f16_t>, nk_cast_skylake);
     check("cast_e4m3_to_f16_skylake", test_cast<e4m3_t, f16_t>, nk_cast_skylake);
@@ -176,6 +156,7 @@ void test_casts(error_stats_section_t &check) {
     // Verify serial fallbacks for rare paths
     check("cast_i8_to_f64_skylake", test_cast<i8_t, f64_t>, nk_cast_skylake);
     check("cast_f64_to_bf16_skylake", test_cast<f64_t, bf16_t>, nk_cast_skylake);
+    check_block_scaled_casts(check, "skylake", nk_cast_skylake);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
@@ -194,13 +175,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_f32_to_e2m3_icelake", test_cast<f32_t, e2m3_t>, nk_cast_icelake);
     check("cast_e3m2_to_f32_icelake", test_cast<e3m2_t, f32_t>, nk_cast_icelake);
     check("cast_f32_to_e3m2_icelake", test_cast<f32_t, e3m2_t>, nk_cast_icelake);
-    check("cast_f32_to_nvfp4_icelake", test_cast_block_scaled<>, nk_cast_block_scaled_icelake, nk_nvfp4);
-    check("cast_f32_to_mxfp4_icelake", test_cast_block_scaled<>, nk_cast_block_scaled_icelake, nk_mxfp4);
-    check("cast_f32_to_mxfp6_e2m3_icelake", test_cast_block_scaled<>, nk_cast_block_scaled_icelake, nk_mxfp6_e2m3);
-    check("cast_f32_to_mxfp6_e3m2_icelake", test_cast_block_scaled<>, nk_cast_block_scaled_icelake, nk_mxfp6_e3m2);
-    check("cast_f32_to_mxfp8_e4m3_icelake", test_cast_block_scaled<>, nk_cast_block_scaled_icelake, nk_mxfp8_e4m3);
-    check("cast_f32_to_mxfp8_e5m2_icelake", test_cast_block_scaled<>, nk_cast_block_scaled_icelake, nk_mxfp8_e5m2);
-    check("cast_f32_to_mxint8_icelake", test_cast_block_scaled<>, nk_cast_block_scaled_icelake, nk_mxint8);
+    check_block_scaled_casts(check, "icelake", nk_cast_icelake);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_SAPPHIRE

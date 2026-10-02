@@ -73,21 +73,6 @@
 
 #include <stdint.h> // Clang modules on glibc would otherwise credit `uint64_t` to ACLE
 
-/** Debug builds check the library's invariants with @c nk_assert_, defaulting from @c DEBUG or
- *  @c _DEBUG. */
-#if !defined(NUMKONG_DEBUG)
-#if defined(DEBUG) || defined(_DEBUG)
-#define NUMKONG_DEBUG 1
-#else
-#define NUMKONG_DEBUG 0
-#endif
-#endif
-
-#if NUMKONG_DEBUG && __STDC_HOSTED__ && !defined(__CUDA_ARCH__) && !defined(__METAL_VERSION__)
-#include <stdio.h>  // `fprintf`, `stderr`
-#include <stdlib.h> // `abort`
-#endif
-
 /*  MSan, short for MemorySanitizer, cannot track data flow through SVE horizontal reductions like
  *  @c svaddv, which move data from vector registers to scalar registers via architecture-specific
  *  paths invisible to the compiler. @c nk_unpoison_ marks the resulting scalar as initialized so
@@ -152,6 +137,13 @@
 #define NUMKONG_CXX_STANDARD_ 0
 #endif
 
+/** Marks types whose values callers must not drop, where C++17 or C23 can say so. */
+#if NUMKONG_CXX_STANDARD_ >= 201703L || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
+#define NUMKONG_NODISCARD_ [[nodiscard]]
+#else
+#define NUMKONG_NODISCARD_
+#endif
+
 /** Internal helper that callers can fold at compile time, and that CUDA kernels can call through
  *  @c --expt-relaxed-constexpr. It is @c constexpr from C++20, except under MSVC's own front end,
  *  which rejects its intrinsics there. */
@@ -183,6 +175,78 @@
 #define NUMKONG_MAY_ALIAS_ __attribute__((may_alias))
 #else
 #define NUMKONG_MAY_ALIAS_
+#endif
+
+/** Debug builds check the library's invariants with @c nk_assert_, defaulting from @c DEBUG or
+ *  @c _DEBUG. */
+#if !defined(NUMKONG_DEBUG)
+#if defined(DEBUG) || defined(_DEBUG)
+#define NUMKONG_DEBUG 1
+#else
+#define NUMKONG_DEBUG 0
+#endif
+#endif
+
+#if NUMKONG_DEBUG && __STDC_HOSTED__ && !defined(__CUDA_ARCH__) && !defined(__METAL_VERSION__)
+#include <stdio.h>  // `fprintf`, `stderr`
+#include <stdlib.h> // `abort`
+#endif
+
+/**
+ *  @brief Similar to @c assert, the @c nk_assert_ checks library invariants in @c NUMKONG_DEBUG
+ *      builds, aborting on failure; in release it type-checks the condition without evaluating it.
+ *
+ *  @note If you want to catch it, put a breakpoint at @c abort.
+ */
+#if defined(__METAL_VERSION__)
+#define nk_assert_(condition)
+#elif NUMKONG_DEBUG && defined(__CUDA_ARCH__) // ? CUDA code for GPUs
+static __device__ __noinline__ void nk_assert_cuda_failure_(char const *condition, char const *file, int line) {
+    printf("Assertion failed: %s, in file %s, line %d\n", condition, file, line);
+    __trap();
+}
+#define nk_assert_(condition)                                                          \
+    do {                                                                               \
+        if (!(condition)) { nk_assert_cuda_failure_(#condition, __FILE__, __LINE__); } \
+    } while (0)
+#elif NUMKONG_DEBUG && __STDC_HOSTED__ // ? CPU code with LibC
+NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *condition, char const *file, int line) {
+    fprintf(stderr, "Assertion failed: %s, in file %s, line %d\n", condition, file, line);
+    abort();
+}
+#define nk_assert_(condition)                                                     \
+    do {                                                                          \
+        if (!(condition)) { nk_assert_failure_(#condition, __FILE__, __LINE__); } \
+    } while (0)
+#elif NUMKONG_DEBUG && defined(_MSC_VER) && !defined(__clang__) // ? No LibC, and MSVC has no `__builtin_trap`
+#define nk_assert_(condition)             \
+    do {                                  \
+        if (!(condition)) __debugbreak(); \
+    } while (0)
+#elif NUMKONG_DEBUG // ? No LibC: nothing to print with, so trap in place
+#define nk_assert_(condition)               \
+    do {                                    \
+        if (!(condition)) __builtin_trap(); \
+    } while (0)
+#else
+#define nk_assert_(condition) nk_unused_(sizeof(!(condition)))
+#endif
+
+/** Asserts that @p dimensions fill whole storage values of @p dtype, as the sub-byte kernels
+ *  require. */
+#define nk_assert_dims_(dimensions, dtype) nk_assert_((dimensions) % nk_dimensions_per_value(dtype) == 0)
+
+/** Compile-time assert akin to C++ @c static_assert. Uses the native assertion where available
+ *  (C++11 @c static_assert, C11 @c _Static_assert); the older-C typedef fallback must sit at file
+ *  scope to stay clear of @c -Wunused-local-typedef. */
+#if NUMKONG_CXX_STANDARD_ >= 201103L
+#define nk_static_assert_(condition, name) static_assert(condition, #name)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
+#define nk_static_assert_(condition, name) _Static_assert(condition, #name)
+#elif defined(_MSC_VER)
+#define nk_static_assert_(condition, name) static_assert(condition, #name)
+#else
+#define nk_static_assert_(condition, name) typedef char nk_static_assert_##name[(condition) ? 1 : -1]
 #endif
 
 #if defined(__has_builtin)
@@ -1141,6 +1205,10 @@ typedef nk_f64_t nk_fmax_t;
  *
  *  Includes complex type descriptors which in C code would use the real counterparts, but the
  *  independent flags contain metadata to be passed between programming language interfaces.
+ *
+ *  Block-scaled formats are composites, `element_dtype | scale_dtype`: two bits set, so they never
+ *  collide with each other or with a singleton. The scale dtype fixes the block, 16 for UE4M3 in
+ *  NVFP4 and 32 for UE8M0 in the MX family.
  */
 typedef enum {
 
@@ -1225,10 +1293,6 @@ typedef enum {
     /** UE4M3 unsigned E4M3 scale byte (NVFP4 block scale). */
     nk_ue4m3_k = 1 << 26,
 
-    // Composite block-scaled formats encoded as `element_dtype | scale_dtype`. Each OR is unique
-    // (popcount = 2) and cannot collide with any singleton (popcount = 1). Block size is implicit
-    // from the scale dtype: `ue4m3` → 16 (NVFP4), `ue8m0` → 32 (MX family).
-
     /** NVIDIA NVFP4 (block=16, f32 tensor scale). */
     nk_nvfp4_k = nk_e2m1_k | nk_ue4m3_k,
 
@@ -1236,16 +1300,16 @@ typedef enum {
     nk_mxfp4_k = nk_e2m1_k | nk_ue8m0_k,
 
     /** OCP MXFP6 (E2M3 variant, block=32). */
-    nk_mxfp6_e2m3_k = nk_e2m3_k | nk_ue8m0_k,
+    nk_mxfp6e2m3_k = nk_e2m3_k | nk_ue8m0_k,
 
     /** OCP MXFP6 (E3M2 variant, block=32). */
-    nk_mxfp6_e3m2_k = nk_e3m2_k | nk_ue8m0_k,
+    nk_mxfp6e3m2_k = nk_e3m2_k | nk_ue8m0_k,
 
     /** OCP MXFP8 (E4M3 variant, block=32). */
-    nk_mxfp8_e4m3_k = nk_e4m3_k | nk_ue8m0_k,
+    nk_mxfp8e4m3_k = nk_e4m3_k | nk_ue8m0_k,
 
     /** OCP MXFP8 (E5M2 variant, block=32). */
-    nk_mxfp8_e5m2_k = nk_e5m2_k | nk_ue8m0_k,
+    nk_mxfp8e5m2_k = nk_e5m2_k | nk_ue8m0_k,
 
     /** OCP MXINT8 (block=32). */
     nk_mxint8_k = nk_i8_k | nk_ue8m0_k,
@@ -1253,11 +1317,7 @@ typedef enum {
 
 /** Outcome of every NumKong call that can fail: zero on success, negative when nothing was
  *  written. Positive values are reserved for results written with a caveat. */
-#if NUMKONG_CXX_STANDARD_ >= 201703L || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
-typedef enum [[nodiscard]] {
-#else
-typedef enum {
-#endif
+typedef enum NUMKONG_NODISCARD_ {
 
     /** Scheduled, or finished, without error. */
     nk_success_k = 0,
@@ -1338,7 +1398,106 @@ typedef struct {
 
     /** Elements per block: 16 (NVFP4) or 32 (MX); 0 for plain. */
     nk_size_t block_size;
+
+    /** Bytes of codes per block, dividing a row stride into a scale row stride; 0 for plain. */
+    nk_size_t block_bytes;
 } nk_block_scaled_format_t;
+
+/*  References to block-scaled scalars, which kernels take in place of plain element pointers.
+ *
+ *  A reference holds what reading one scalar takes: where its code is, where its block's scale is,
+ *  and for NVFP4 the F32 scale of the whole tensor, null reading as 1. It holds no shape: rows are
+ *  the stride parameter of the call apart, in bytes of codes covering whole blocks, and rows of
+ *  scales are that stride divided by @c nk_block_scaled_format_t::block_bytes apart, so the scales
+ *  of a dense layout follow its codes. A 1-D cast reads both runs contiguously. The @c _cref_t
+ *  forms are read only, for inputs, and the @c _ref_t forms writable, for outputs a kernel
+ *  encodes. On a GPU every pointer is device-reachable. */
+
+/** A read-only NVFP4 scalar: its E2M1 code, its block's UE4M3 scale, and the tensor's F32 scale. */
+typedef struct {
+    nk_e2m1x2_t const *elements;
+    nk_ue4m3_t const *scales;
+    nk_f32_t const *tensor_scale;
+} nk_nvfp4_cref_t;
+
+/** The writable twin of @c nk_nvfp4_cref_t. */
+typedef struct {
+    nk_e2m1x2_t *elements;
+    nk_ue4m3_t *scales;
+    nk_f32_t *tensor_scale;
+} nk_nvfp4_ref_t;
+
+/** A read-only MXFP4 scalar: its E2M1 code, its block's UE8M0 scale. */
+typedef struct {
+    nk_e2m1x2_t const *elements;
+    nk_ue8m0_t const *scales;
+} nk_mxfp4_cref_t;
+
+/** The writable twin of @c nk_mxfp4_cref_t. */
+typedef struct {
+    nk_e2m1x2_t *elements;
+    nk_ue8m0_t *scales;
+} nk_mxfp4_ref_t;
+
+/** A read-only MXFP6 E2M3 scalar: its E2M3 code, its block's UE8M0 scale. */
+typedef struct {
+    nk_e2m3_t const *elements;
+    nk_ue8m0_t const *scales;
+} nk_mxfp6e2m3_cref_t;
+
+/** The writable twin of @c nk_mxfp6e2m3_cref_t. */
+typedef struct {
+    nk_e2m3_t *elements;
+    nk_ue8m0_t *scales;
+} nk_mxfp6e2m3_ref_t;
+
+/** A read-only MXFP6 E3M2 scalar: its E3M2 code, its block's UE8M0 scale. */
+typedef struct {
+    nk_e3m2_t const *elements;
+    nk_ue8m0_t const *scales;
+} nk_mxfp6e3m2_cref_t;
+
+/** The writable twin of @c nk_mxfp6e3m2_cref_t. */
+typedef struct {
+    nk_e3m2_t *elements;
+    nk_ue8m0_t *scales;
+} nk_mxfp6e3m2_ref_t;
+
+/** A read-only MXFP8 E4M3 scalar: its E4M3 code, its block's UE8M0 scale. */
+typedef struct {
+    nk_e4m3_t const *elements;
+    nk_ue8m0_t const *scales;
+} nk_mxfp8e4m3_cref_t;
+
+/** The writable twin of @c nk_mxfp8e4m3_cref_t. */
+typedef struct {
+    nk_e4m3_t *elements;
+    nk_ue8m0_t *scales;
+} nk_mxfp8e4m3_ref_t;
+
+/** A read-only MXFP8 E5M2 scalar: its E5M2 code, its block's UE8M0 scale. */
+typedef struct {
+    nk_e5m2_t const *elements;
+    nk_ue8m0_t const *scales;
+} nk_mxfp8e5m2_cref_t;
+
+/** The writable twin of @c nk_mxfp8e5m2_cref_t. */
+typedef struct {
+    nk_e5m2_t *elements;
+    nk_ue8m0_t *scales;
+} nk_mxfp8e5m2_ref_t;
+
+/** A read-only MXINT8 scalar: its I8 code, its block's UE8M0 scale. */
+typedef struct {
+    nk_i8_t const *elements;
+    nk_ue8m0_t const *scales;
+} nk_mxint8_cref_t;
+
+/** The writable twin of @c nk_mxint8_cref_t. */
+typedef struct {
+    nk_i8_t *elements;
+    nk_ue8m0_t *scales;
+} nk_mxint8_ref_t;
 
 /** The kind of number a data type holds, as @c nk_dtype_family reports it. */
 typedef enum {
@@ -1357,51 +1516,51 @@ NUMKONG_CONSTEXPR int nk_same_literal_(char const *name, nk_size_t length, char 
     return literal[position] == '\0';
 }
 
-/** `{nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16}` — NVIDIA NVFP4 (Blackwell-native). */
+/** `{nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8}` — NVIDIA NVFP4 (Blackwell-native). */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_nvfp4(void) {
-    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16};
+    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8};
     return format;
 }
 
-/** `{nk_e2m1_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP4. */
+/** `{nk_e2m1_k, nk_ue8m0_k, unknown, 32, 16}` — OCP MXFP4. */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp4(void) {
-    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 16};
     return format;
 }
 
-/** `{nk_e2m3_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP6 (E2M3 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6_e2m3(void) {
-    nk_block_scaled_format_t format = {nk_e2m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+/** `{nk_e2m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E2M3 variant). */
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e2m3(void) {
+    nk_block_scaled_format_t format = {nk_e2m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_e3m2_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP6 (E3M2 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6_e3m2(void) {
-    nk_block_scaled_format_t format = {nk_e3m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+/** `{nk_e3m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E3M2 variant). */
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e3m2(void) {
+    nk_block_scaled_format_t format = {nk_e3m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_e4m3_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP8 (E4M3 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8_e4m3(void) {
-    nk_block_scaled_format_t format = {nk_e4m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+/** `{nk_e4m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E4M3 variant). */
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e4m3(void) {
+    nk_block_scaled_format_t format = {nk_e4m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_e5m2_k, nk_ue8m0_k, unknown, 32}` — OCP MXFP8 (E5M2 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8_e5m2(void) {
-    nk_block_scaled_format_t format = {nk_e5m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+/** `{nk_e5m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E5M2 variant). */
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e5m2(void) {
+    nk_block_scaled_format_t format = {nk_e5m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{nk_i8_k, nk_ue8m0_k, unknown, 32}` — OCP MXINT8. */
+/** `{nk_i8_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXINT8. */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxint8(void) {
-    nk_block_scaled_format_t format = {nk_i8_k, nk_ue8m0_k, nk_dtype_unknown_k, 32};
+    nk_block_scaled_format_t format = {nk_i8_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
-/** `{element_dtype, unknown, unknown, 0}` — plain scalar buffer of @p element_dtype. */
+/** `{element_dtype, unknown, unknown, 0, 0}` — plain scalar buffer of @p element_dtype. */
 NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) {
-    nk_block_scaled_format_t format = {element_dtype, nk_dtype_unknown_k, nk_dtype_unknown_k, 0};
+    nk_block_scaled_format_t format = {element_dtype, nk_dtype_unknown_k, nk_dtype_unknown_k, 0, 0};
     return format;
 }
 
@@ -1411,10 +1570,10 @@ NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dt
     switch (dtype) {
     case nk_nvfp4_k: return nk_nvfp4();
     case nk_mxfp4_k: return nk_mxfp4();
-    case nk_mxfp6_e2m3_k: return nk_mxfp6_e2m3();
-    case nk_mxfp6_e3m2_k: return nk_mxfp6_e3m2();
-    case nk_mxfp8_e4m3_k: return nk_mxfp8_e4m3();
-    case nk_mxfp8_e5m2_k: return nk_mxfp8_e5m2();
+    case nk_mxfp6e2m3_k: return nk_mxfp6e2m3();
+    case nk_mxfp6e3m2_k: return nk_mxfp6e3m2();
+    case nk_mxfp8e4m3_k: return nk_mxfp8e4m3();
+    case nk_mxfp8e5m2_k: return nk_mxfp8e5m2();
     case nk_mxint8_k: return nk_mxint8();
     default: return nk_plain(dtype);
     }
@@ -1425,10 +1584,10 @@ NUMKONG_CONSTEXPR int nk_dtype_is_block_scaled(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return 1;
     case nk_mxfp4_k: return 1;
-    case nk_mxfp6_e2m3_k: return 1;
-    case nk_mxfp6_e3m2_k: return 1;
-    case nk_mxfp8_e4m3_k: return 1;
-    case nk_mxfp8_e5m2_k: return 1;
+    case nk_mxfp6e2m3_k: return 1;
+    case nk_mxfp6e3m2_k: return 1;
+    case nk_mxfp8e4m3_k: return 1;
+    case nk_mxfp8e5m2_k: return 1;
     case nk_mxint8_k: return 1;
     default: return 0;
     }
@@ -1439,10 +1598,10 @@ NUMKONG_CONSTEXPR nk_dtype_t nk_dtype_element(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return nk_e2m1_k;
     case nk_mxfp4_k: return nk_e2m1_k;
-    case nk_mxfp6_e2m3_k: return nk_e2m3_k;
-    case nk_mxfp6_e3m2_k: return nk_e3m2_k;
-    case nk_mxfp8_e4m3_k: return nk_e4m3_k;
-    case nk_mxfp8_e5m2_k: return nk_e5m2_k;
+    case nk_mxfp6e2m3_k: return nk_e2m3_k;
+    case nk_mxfp6e3m2_k: return nk_e3m2_k;
+    case nk_mxfp8e4m3_k: return nk_e4m3_k;
+    case nk_mxfp8e5m2_k: return nk_e5m2_k;
     case nk_mxint8_k: return nk_i8_k;
     default: return dtype;
     }
@@ -1453,10 +1612,10 @@ NUMKONG_CONSTEXPR nk_dtype_t nk_dtype_scale(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return nk_ue4m3_k;
     case nk_mxfp4_k: return nk_ue8m0_k;
-    case nk_mxfp6_e2m3_k: return nk_ue8m0_k;
-    case nk_mxfp6_e3m2_k: return nk_ue8m0_k;
-    case nk_mxfp8_e4m3_k: return nk_ue8m0_k;
-    case nk_mxfp8_e5m2_k: return nk_ue8m0_k;
+    case nk_mxfp6e2m3_k: return nk_ue8m0_k;
+    case nk_mxfp6e3m2_k: return nk_ue8m0_k;
+    case nk_mxfp8e4m3_k: return nk_ue8m0_k;
+    case nk_mxfp8e5m2_k: return nk_ue8m0_k;
     case nk_mxint8_k: return nk_ue8m0_k;
     default: return nk_dtype_unknown_k;
     }
@@ -1467,10 +1626,10 @@ NUMKONG_CONSTEXPR nk_size_t nk_dtype_block_size(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_nvfp4_k: return 16;
     case nk_mxfp4_k: return 32;
-    case nk_mxfp6_e2m3_k: return 32;
-    case nk_mxfp6_e3m2_k: return 32;
-    case nk_mxfp8_e4m3_k: return 32;
-    case nk_mxfp8_e5m2_k: return 32;
+    case nk_mxfp6e2m3_k: return 32;
+    case nk_mxfp6e3m2_k: return 32;
+    case nk_mxfp8e4m3_k: return 32;
+    case nk_mxfp8e5m2_k: return 32;
     case nk_mxint8_k: return 32;
     default: return 0;
     }
@@ -1493,10 +1652,10 @@ NUMKONG_CONSTEXPR nk_dtype_family_t nk_dtype_family(nk_dtype_t dtype) {
     // Composite block-scaled dtypes — family of the logical element
     case nk_nvfp4_k: return nk_dtype_family_float_k;
     case nk_mxfp4_k: return nk_dtype_family_float_k;
-    case nk_mxfp6_e2m3_k: return nk_dtype_family_float_k;
-    case nk_mxfp6_e3m2_k: return nk_dtype_family_float_k;
-    case nk_mxfp8_e4m3_k: return nk_dtype_family_float_k;
-    case nk_mxfp8_e5m2_k: return nk_dtype_family_float_k;
+    case nk_mxfp6e2m3_k: return nk_dtype_family_float_k;
+    case nk_mxfp6e3m2_k: return nk_dtype_family_float_k;
+    case nk_mxfp8e4m3_k: return nk_dtype_family_float_k;
+    case nk_mxfp8e5m2_k: return nk_dtype_family_float_k;
     case nk_mxint8_k: return nk_dtype_family_int_k;
     case nk_f64c_k: return nk_dtype_family_complex_float_k;
     case nk_f32c_k: return nk_dtype_family_complex_float_k;
@@ -1549,13 +1708,13 @@ NUMKONG_CONSTEXPR nk_size_t nk_dtype_bits(nk_dtype_t dtype) {
     // Composite block-scaled dtypes — bits of the whole block value. One "storage value"
     // is one block: `sizeof(nk_<composite>_t) * NUMKONG_BITS_PER_BYTE`. Pair with
     // `nk_dimensions_per_value` to compute storage bytes via `size_values * (bits / 8)`.
-    case nk_nvfp4_k: return 9 * NUMKONG_BITS_PER_BYTE;       // 16 × E2M1 nibbles + 1 UE4M3 scale
-    case nk_mxfp4_k: return 17 * NUMKONG_BITS_PER_BYTE;      // 32 × E2M1 nibbles + 1 UE8M0 scale
-    case nk_mxfp6_e2m3_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E2M3 + 1 UE8M0 scale
-    case nk_mxfp6_e3m2_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E3M2 + 1 UE8M0 scale
-    case nk_mxfp8_e4m3_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E4M3 + 1 UE8M0 scale
-    case nk_mxfp8_e5m2_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E5M2 + 1 UE8M0 scale
-    case nk_mxint8_k: return 33 * NUMKONG_BITS_PER_BYTE;     // 32 × i8 + 1 UE8M0 scale
+    case nk_nvfp4_k: return 9 * NUMKONG_BITS_PER_BYTE;      // 16 × E2M1 nibbles + 1 UE4M3 scale
+    case nk_mxfp4_k: return 17 * NUMKONG_BITS_PER_BYTE;     // 32 × E2M1 nibbles + 1 UE8M0 scale
+    case nk_mxfp6e2m3_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E2M3 + 1 UE8M0 scale
+    case nk_mxfp6e3m2_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E3M2 + 1 UE8M0 scale
+    case nk_mxfp8e4m3_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E4M3 + 1 UE8M0 scale
+    case nk_mxfp8e5m2_k: return 33 * NUMKONG_BITS_PER_BYTE; // 32 × E5M2 + 1 UE8M0 scale
+    case nk_mxint8_k: return 33 * NUMKONG_BITS_PER_BYTE;    // 32 × i8 + 1 UE8M0 scale
     default: return 0;
     }
 }
@@ -1609,10 +1768,10 @@ NUMKONG_CONSTEXPR char const *nk_dtype_name(nk_dtype_t dtype) {
     case nk_i64_k: return "i64";
     case nk_nvfp4_k: return "nvfp4";
     case nk_mxfp4_k: return "mxfp4";
-    case nk_mxfp6_e2m3_k: return "mxfp6_e2m3";
-    case nk_mxfp6_e3m2_k: return "mxfp6_e3m2";
-    case nk_mxfp8_e4m3_k: return "mxfp8_e4m3";
-    case nk_mxfp8_e5m2_k: return "mxfp8_e5m2";
+    case nk_mxfp6e2m3_k: return "mxfp6e2m3";
+    case nk_mxfp6e3m2_k: return "mxfp6e3m2";
+    case nk_mxfp8e4m3_k: return "mxfp8e4m3";
+    case nk_mxfp8e5m2_k: return "mxfp8e5m2";
     case nk_mxint8_k: return "mxint8";
     default: return "unknown";
     }
@@ -1649,10 +1808,10 @@ NUMKONG_CONSTEXPR nk_dtype_t nk_dtype_named(char const *name, nk_size_t length) 
     if (nk_same_literal_(name, length, "i64")) return nk_i64_k;
     if (nk_same_literal_(name, length, "nvfp4")) return nk_nvfp4_k;
     if (nk_same_literal_(name, length, "mxfp4")) return nk_mxfp4_k;
-    if (nk_same_literal_(name, length, "mxfp6_e2m3")) return nk_mxfp6_e2m3_k;
-    if (nk_same_literal_(name, length, "mxfp6_e3m2")) return nk_mxfp6_e3m2_k;
-    if (nk_same_literal_(name, length, "mxfp8_e4m3")) return nk_mxfp8_e4m3_k;
-    if (nk_same_literal_(name, length, "mxfp8_e5m2")) return nk_mxfp8_e5m2_k;
+    if (nk_same_literal_(name, length, "mxfp6e2m3")) return nk_mxfp6e2m3_k;
+    if (nk_same_literal_(name, length, "mxfp6e3m2")) return nk_mxfp6e3m2_k;
+    if (nk_same_literal_(name, length, "mxfp8e4m3")) return nk_mxfp8e4m3_k;
+    if (nk_same_literal_(name, length, "mxfp8e5m2")) return nk_mxfp8e5m2_k;
     if (nk_same_literal_(name, length, "mxint8")) return nk_mxint8_k;
     return nk_dtype_unknown_k;
 }
@@ -1666,13 +1825,13 @@ NUMKONG_CONSTEXPR nk_size_t nk_dimensions_per_value(nk_dtype_t dtype) {
     case nk_u4_k: return 2;
     case nk_e2m1_k: return 2;
     // Composite block-scaled dtypes — one value is one whole block of logical elements.
-    case nk_nvfp4_k: return 16;      // 16 nibbles per block
-    case nk_mxfp4_k: return 32;      // 32 nibbles per block
-    case nk_mxfp6_e2m3_k: return 32; // 32 E2M3 per block
-    case nk_mxfp6_e3m2_k: return 32; // 32 E3M2 per block
-    case nk_mxfp8_e4m3_k: return 32; // 32 E4M3 per block
-    case nk_mxfp8_e5m2_k: return 32; // 32 E5M2 per block
-    case nk_mxint8_k: return 32;     // 32 i8 per block
+    case nk_nvfp4_k: return 16;     // 16 nibbles per block
+    case nk_mxfp4_k: return 32;     // 32 nibbles per block
+    case nk_mxfp6e2m3_k: return 32; // 32 E2M3 per block
+    case nk_mxfp6e3m2_k: return 32; // 32 E3M2 per block
+    case nk_mxfp8e4m3_k: return 32; // 32 E4M3 per block
+    case nk_mxfp8e5m2_k: return 32; // 32 E5M2 per block
+    case nk_mxint8_k: return 32;    // 32 i8 per block
     default: return 1;
     }
 }
@@ -1795,6 +1954,7 @@ typedef struct NUMKONG_MAY_ALIAS_ {
 
 } nk_nvfp4_t;
 
+/** One OCP MXFP4 block: 32 E2M1 elements sharing a UE8M0 scale. */
 typedef struct NUMKONG_MAY_ALIAS_ {
 
     /** 32 E2M1 nibbles packed 2/byte. */
@@ -1804,86 +1964,35 @@ typedef struct NUMKONG_MAY_ALIAS_ {
     nk_ue8m0_t scale_;
 } nk_mxfp4_t;
 
+/** One OCP MXFP6 E2M3 block: 32 E2M3 elements sharing a UE8M0 scale. */
 typedef struct NUMKONG_MAY_ALIAS_ {
     nk_e2m3_t elements_[32];
     nk_ue8m0_t scale_;
-} nk_mxfp6_e2m3_t;
+} nk_mxfp6e2m3_t;
 
+/** One OCP MXFP6 E3M2 block: 32 E3M2 elements sharing a UE8M0 scale. */
 typedef struct NUMKONG_MAY_ALIAS_ {
     nk_e3m2_t elements_[32];
     nk_ue8m0_t scale_;
-} nk_mxfp6_e3m2_t;
+} nk_mxfp6e3m2_t;
 
+/** One OCP MXFP8 E4M3 block: 32 E4M3 elements sharing a UE8M0 scale. */
 typedef struct NUMKONG_MAY_ALIAS_ {
     nk_e4m3_t elements_[32];
     nk_ue8m0_t scale_;
-} nk_mxfp8_e4m3_t;
+} nk_mxfp8e4m3_t;
 
+/** One OCP MXFP8 E5M2 block: 32 E5M2 elements sharing a UE8M0 scale. */
 typedef struct NUMKONG_MAY_ALIAS_ {
     nk_e5m2_t elements_[32];
     nk_ue8m0_t scale_;
-} nk_mxfp8_e5m2_t;
+} nk_mxfp8e5m2_t;
 
+/** One OCP MXINT8 block: 32 I8 elements sharing a UE8M0 scale. */
 typedef struct NUMKONG_MAY_ALIAS_ {
     nk_i8_t elements_[32];
     nk_ue8m0_t scale_;
 } nk_mxint8_t;
-
-/**
- *  @brief Similar to @c assert, the @c nk_assert_ checks library invariants in @c NUMKONG_DEBUG
- *      builds, aborting on failure; in release it type-checks the condition without evaluating it.
- *  @note If you want to catch it, put a breakpoint at @c abort.
- */
-#if defined(__METAL_VERSION__)
-#define nk_assert_(condition)
-#elif NUMKONG_DEBUG && defined(__CUDA_ARCH__) // ? CUDA code for GPUs
-static __device__ __noinline__ void nk_assert_cuda_failure_(char const *condition, char const *file, int line) {
-    printf("Assertion failed: %s, in file %s, line %d\n", condition, file, line);
-    __trap();
-}
-#define nk_assert_(condition)                                                          \
-    do {                                                                               \
-        if (!(condition)) { nk_assert_cuda_failure_(#condition, __FILE__, __LINE__); } \
-    } while (0)
-#elif NUMKONG_DEBUG && __STDC_HOSTED__ // ? CPU code with LibC
-NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *condition, char const *file, int line) {
-    fprintf(stderr, "Assertion failed: %s, in file %s, line %d\n", condition, file, line);
-    abort();
-}
-#define nk_assert_(condition)                                                     \
-    do {                                                                          \
-        if (!(condition)) { nk_assert_failure_(#condition, __FILE__, __LINE__); } \
-    } while (0)
-#elif NUMKONG_DEBUG && defined(_MSC_VER) && !defined(__clang__) // ? No LibC, and MSVC has no `__builtin_trap`
-#define nk_assert_(condition)             \
-    do {                                  \
-        if (!(condition)) __debugbreak(); \
-    } while (0)
-#elif NUMKONG_DEBUG // ? No LibC: nothing to print with, so trap in place
-#define nk_assert_(condition)               \
-    do {                                    \
-        if (!(condition)) __builtin_trap(); \
-    } while (0)
-#else
-#define nk_assert_(condition) nk_unused_(sizeof(!(condition)))
-#endif
-
-/** Asserts that @p dimensions fill whole storage values of @p dtype, as the sub-byte kernels
- *  require. */
-#define nk_assert_dims_(dimensions, dtype) nk_assert_((dimensions) % nk_dimensions_per_value(dtype) == 0)
-
-/** Compile-time assert akin to C++ @c static_assert. Uses the native assertion where available
- *  (C++11 @c static_assert, C11 @c _Static_assert); the older-C typedef fallback must sit at file
- *  scope to stay clear of @c -Wunused-local-typedef. */
-#if NUMKONG_CXX_STANDARD_ >= 201103L
-#define nk_static_assert_(condition, name) static_assert(condition, #name)
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-#define nk_static_assert_(condition, name) _Static_assert(condition, #name)
-#elif defined(_MSC_VER)
-#define nk_static_assert_(condition, name) static_assert(condition, #name)
-#else
-#define nk_static_assert_(condition, name) typedef char nk_static_assert_##name[(condition) ? 1 : -1]
-#endif
 
 nk_static_assert_(sizeof(nk_u1x8_t) == 1, nk_u1x8_t_must_be_1_byte);
 nk_static_assert_(sizeof(nk_i4x2_t) == 1, nk_i4_t_must_be_1_byte);
@@ -1909,10 +2018,10 @@ nk_static_assert_(sizeof(nk_f16_t) == 2, nk_f16_t_must_be_2_bytes);
 nk_static_assert_(sizeof(nk_bf16_t) == 2, nk_bf16_t_must_be_2_bytes);
 nk_static_assert_(sizeof(nk_nvfp4_t) == 9, nk_nvfp4_t_must_be_9_bytes);
 nk_static_assert_(sizeof(nk_mxfp4_t) == 17, nk_mxfp4_t_must_be_17_bytes);
-nk_static_assert_(sizeof(nk_mxfp6_e2m3_t) == 33, nk_mxfp6_e2m3_t_must_be_33_bytes);
-nk_static_assert_(sizeof(nk_mxfp6_e3m2_t) == 33, nk_mxfp6_e3m2_t_must_be_33_bytes);
-nk_static_assert_(sizeof(nk_mxfp8_e4m3_t) == 33, nk_mxfp8_e4m3_t_must_be_33_bytes);
-nk_static_assert_(sizeof(nk_mxfp8_e5m2_t) == 33, nk_mxfp8_e5m2_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxfp6e2m3_t) == 33, nk_mxfp6e2m3_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxfp6e3m2_t) == 33, nk_mxfp6e3m2_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxfp8e4m3_t) == 33, nk_mxfp8e4m3_t_must_be_33_bytes);
+nk_static_assert_(sizeof(nk_mxfp8e5m2_t) == 33, nk_mxfp8e5m2_t_must_be_33_bytes);
 nk_static_assert_(sizeof(nk_mxint8_t) == 33, nk_mxint8_t_must_be_33_bytes);
 
 #define nk_assign_from_to_(src, dest) (*(dest) = *(src))

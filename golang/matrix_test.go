@@ -29,23 +29,23 @@ func TestWorkerPoolDefault(t *testing.T) {
 }
 
 func TestPackedDotsF32WithPool(t *testing.T) {
-	height, width, depth := 8, 3, 3
-	a := make([]float32, height*depth)
+	rows, columns, depth := 8, 3, 3
+	a := make([]float32, rows*depth)
 	for i := range a {
 		a[i] = float32(i%7) + 1
 	}
 	b := []float32{7, 8, 9, 10, 11, 12, 1, 0, 1}
-	bPacked := numkong.NewDotsPackedMatrixF32(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF32(b, columns, depth)
 
 	// Single-threaded reference
-	ref := make([]float64, height*width)
-	numkong.DotsPackedF32(a, bPacked, ref, height)
+	ref := make([]float64, rows*columns)
+	numkong.DotsPackedF32(a, bPacked, ref, rows)
 
 	// Pool-based
 	pool := numkong.NewWorkerPool(4)
 	defer pool.Close()
-	got := make([]float64, height*width)
-	bPacked.DotsF32WithPool(a, got, height, pool)
+	got := make([]float64, rows*columns)
+	bPacked.DotsF32WithPool(a, got, rows, pool)
 
 	for i := range ref {
 		if math.Abs(got[i]-ref[i]) > 1e-6 {
@@ -55,21 +55,21 @@ func TestPackedDotsF32WithPool(t *testing.T) {
 }
 
 func TestPackedAngularsF32WithPool(t *testing.T) {
-	height, width, depth := 6, 2, 3
-	a := make([]float32, height*depth)
+	rows, columns, depth := 6, 2, 3
+	a := make([]float32, rows*depth)
 	for i := range a {
 		a[i] = float32(i%5) + 1
 	}
 	b := []float32{1, 0, 0, 0, 1, 0}
-	bPacked := numkong.NewDotsPackedMatrixF32(b, width, depth)
+	bPacked := numkong.NewDotsPackedMatrixF32(b, columns, depth)
 
-	ref := make([]float64, height*width)
-	numkong.AngularsPackedF32(a, bPacked, ref, height)
+	ref := make([]float64, rows*columns)
+	numkong.AngularsPackedF32(a, bPacked, ref, rows)
 
 	pool := numkong.NewWorkerPool(3)
 	defer pool.Close()
-	got := make([]float64, height*width)
-	bPacked.AngularsF32WithPool(a, got, height, pool)
+	got := make([]float64, rows*columns)
+	bPacked.AngularsF32WithPool(a, got, rows, pool)
 
 	for i := range ref {
 		if math.Abs(got[i]-ref[i]) > 0.01 {
@@ -128,19 +128,19 @@ func TestSymmetricAngularsF64WithPool(t *testing.T) {
 }
 
 func TestPoolEdgeCases(t *testing.T) {
-	t.Run("height less than pool size", func(t *testing.T) {
+	t.Run("rows less than pool size", func(t *testing.T) {
 		pool := numkong.NewWorkerPool(8)
 		defer pool.Close()
-		height, width, depth := 2, 2, 3
+		rows, columns, depth := 2, 2, 3
 		a := []float32{1, 2, 3, 4, 5, 6}
 		b := []float32{7, 8, 9, 10, 11, 12}
-		bPacked := numkong.NewDotsPackedMatrixF32(b, width, depth)
+		bPacked := numkong.NewDotsPackedMatrixF32(b, columns, depth)
 
-		ref := make([]float64, height*width)
-		numkong.DotsPackedF32(a, bPacked, ref, height)
+		ref := make([]float64, rows*columns)
+		numkong.DotsPackedF32(a, bPacked, ref, rows)
 
-		got := make([]float64, height*width)
-		bPacked.DotsF32WithPool(a, got, height, pool)
+		got := make([]float64, rows*columns)
+		bPacked.DotsF32WithPool(a, got, rows, pool)
 
 		for i := range ref {
 			if math.Abs(got[i]-ref[i]) > 1e-6 {
@@ -149,19 +149,19 @@ func TestPoolEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("height equals 1", func(t *testing.T) {
+	t.Run("rows equals 1", func(t *testing.T) {
 		pool := numkong.NewWorkerPool(4)
 		defer pool.Close()
-		height, width, depth := 1, 2, 3
+		rows, columns, depth := 1, 2, 3
 		a := []float32{1, 2, 3}
 		b := []float32{7, 8, 9, 10, 11, 12}
-		bPacked := numkong.NewDotsPackedMatrixF32(b, width, depth)
+		bPacked := numkong.NewDotsPackedMatrixF32(b, columns, depth)
 
-		ref := make([]float64, height*width)
-		numkong.DotsPackedF32(a, bPacked, ref, height)
+		ref := make([]float64, rows*columns)
+		numkong.DotsPackedF32(a, bPacked, ref, rows)
 
-		got := make([]float64, height*width)
-		bPacked.DotsF32WithPool(a, got, height, pool)
+		got := make([]float64, rows*columns)
+		bPacked.DotsF32WithPool(a, got, rows, pool)
 
 		for i := range ref {
 			if math.Abs(got[i]-ref[i]) > 1e-6 {

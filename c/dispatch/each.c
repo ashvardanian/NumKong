@@ -3205,14 +3205,14 @@ static nk_capability_kernels_t const *nk_each_swiglu_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_each_swiglu_f32_best(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
-                                                nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes,
-                                                nk_size_t y_stride_bytes, nk_f32_t input_scale,
+                                                nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
+                                                nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
                                                 nk_capability_t capabilities, void *stream) {
     nk_each_swiglu_punned_t const kernel = (nk_each_swiglu_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_each_swiglu_f32_capabilities());
-    return kernel ? kernel(gate, up, y, rows, cols, gate_stride_bytes, up_stride_bytes, y_stride_bytes, input_scale,
-                           stream)
-                  : nk_missing_kernel_k;
+    return kernel
+               ? kernel(gate, up, y, rows, columns, gate_stride, up_stride, y_stride, gate_scale, output_scale, stream)
+               : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_each_swiglu_bf16_capabilities(void) {
@@ -3256,14 +3256,14 @@ static nk_capability_kernels_t const *nk_each_swiglu_bf16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_each_swiglu_bf16_best(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
-                                                 nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
-                                                 nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+                                                 nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                 nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                 nk_f32_t output_scale, nk_capability_t capabilities, void *stream) {
     nk_each_swiglu_punned_t const kernel = (nk_each_swiglu_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_each_swiglu_bf16_capabilities());
-    return kernel ? kernel(gate, up, y, rows, cols, gate_stride_bytes, up_stride_bytes, y_stride_bytes, input_scale,
-                           stream)
-                  : nk_missing_kernel_k;
+    return kernel
+               ? kernel(gate, up, y, rows, columns, gate_stride, up_stride, y_stride, gate_scale, output_scale, stream)
+               : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_each_swiglu_e4m3_capabilities(void) {
@@ -3307,14 +3307,14 @@ static nk_capability_kernels_t const *nk_each_swiglu_e4m3_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_each_swiglu_e4m3_best(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
-                                                 nk_size_t rows, nk_size_t cols, nk_size_t gate_stride_bytes,
-                                                 nk_size_t up_stride_bytes, nk_size_t y_stride_bytes,
-                                                 nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+                                                 nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                 nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                 nk_f32_t output_scale, nk_capability_t capabilities, void *stream) {
     nk_each_swiglu_punned_t const kernel = (nk_each_swiglu_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_each_swiglu_e4m3_capabilities());
-    return kernel ? kernel(gate, up, y, rows, cols, gate_stride_bytes, up_stride_bytes, y_stride_bytes, input_scale,
-                           stream)
-                  : nk_missing_kernel_k;
+    return kernel
+               ? kernel(gate, up, y, rows, columns, gate_stride, up_stride, y_stride, gate_scale, output_scale, stream)
+               : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_each_rmsnorm_f32_capabilities(void) {
@@ -3358,12 +3358,12 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_f32_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_each_rmsnorm_f32_best(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
-                                                 nk_size_t groups, nk_size_t cols, nk_size_t x_stride_bytes,
-                                                 nk_size_t y_stride_bytes, nk_f32_t eps, nk_f32_t input_scale,
-                                                 nk_capability_t capabilities, void *stream) {
+                                                 nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                 nk_size_t y_stride, nk_f32_t epsilon, nk_capability_t capabilities,
+                                                 void *stream) {
     nk_each_rmsnorm_punned_t const kernel = (nk_each_rmsnorm_punned_t)nk_kernel_pick_(
         capabilities, nk_each_rmsnorm_f32_capabilities());
-    return kernel ? kernel(x, gamma, y, rows, groups, cols, x_stride_bytes, y_stride_bytes, eps, input_scale, stream)
+    return kernel ? kernel(x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -3413,12 +3413,12 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_bf16_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_best(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
-                                                  nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
-                                                  nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                  nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                  nk_capability_t capabilities, void *stream) {
     nk_each_rmsnorm_punned_t const kernel = (nk_each_rmsnorm_punned_t)nk_kernel_pick_(
         capabilities, nk_each_rmsnorm_bf16_capabilities());
-    return kernel ? kernel(x, gamma, y, rows, groups, cols, x_stride_bytes, y_stride_bytes, eps, input_scale, stream)
+    return kernel ? kernel(x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -3468,12 +3468,12 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_e4m3_capabilities(void) {
 }
 
 NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_best(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
-                                                  nk_size_t rows, nk_size_t groups, nk_size_t cols,
-                                                  nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
-                                                  nk_f32_t input_scale, nk_capability_t capabilities, void *stream) {
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                  nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                  nk_capability_t capabilities, void *stream) {
     nk_each_rmsnorm_punned_t const kernel = (nk_each_rmsnorm_punned_t)nk_kernel_pick_(
         capabilities, nk_each_rmsnorm_e4m3_capabilities());
-    return kernel ? kernel(x, gamma, y, rows, groups, cols, x_stride_bytes, y_stride_bytes, eps, input_scale, stream)
+    return kernel ? kernel(x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream)
                   : nk_missing_kernel_k;
 }
 

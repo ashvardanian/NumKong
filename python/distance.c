@@ -86,7 +86,7 @@ static PyObject *implement_dense_metric( //
     if (out_obj && !parse_tensor(out_obj, &out_buffer, &out_parsed, &out_backing, nk_dtype_unknown_k)) goto cleanup;
 
     // Check dimensions
-    if (a_parsed.cols != b_parsed.cols) {
+    if (a_parsed.columns != b_parsed.columns) {
         PyErr_SetString(PyExc_ValueError, "Vector dimensions don't match");
         goto cleanup;
     }
@@ -108,13 +108,13 @@ static PyObject *implement_dense_metric( //
     if (dtype == nk_dtype_unknown_k) dtype = a_parsed.dtype;
 
     // When a dtype override reinterprets elements at a different width, rescale dimensions.
-    size_t a_cols = a_parsed.cols, b_cols = b_parsed.cols;
+    size_t a_columns = a_parsed.columns, b_columns = b_parsed.columns;
     {
         nk_size_t from_bits = (nk_size_t)a_buffer.itemsize * NUMKONG_BITS_PER_BYTE;
         nk_size_t to_bits = nk_dtype_bits(dtype);
         if (from_bits && to_bits && from_bits != to_bits) {
-            a_cols = a_cols * from_bits / to_bits;
-            b_cols = b_cols * from_bits / to_bits;
+            a_columns = a_columns * from_bits / to_bits;
+            b_columns = b_columns * from_bits / to_bits;
         }
     }
 
@@ -167,7 +167,7 @@ static PyObject *implement_dense_metric( //
     nk_dtype_t const kernel_out_dtype = nk_kernel_output_dtype(metric_kind, dtype);
     if (a_parsed.rank == 1 && b_parsed.rank == 1) {
         nk_scalar_buffer_t distance;
-        if (check_status(metric(a_parsed.data, b_parsed.data, a_cols, &distance, stream)))
+        if (check_status(metric(a_parsed.data, b_parsed.data, a_columns, &distance, stream)))
             return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
         goto cleanup;
     }
@@ -180,7 +180,7 @@ static PyObject *implement_dense_metric( //
     // all distances will be computed against that single entry.
     size_t const count_pairs = a_parsed.rows > b_parsed.rows ? a_parsed.rows : b_parsed.rows;
     char *distances_start = NULL;
-    size_t distances_stride_bytes = 0;
+    size_t distances_stride = 0;
 
     // Allocate the output matrix if it wasn't provided
     if (!out_obj) {
@@ -189,7 +189,7 @@ static PyObject *implement_dense_metric( //
         if (!distances_obj) { goto cleanup; }
         return_obj = (PyObject *)distances_obj;
         distances_start = distances_obj->data;
-        distances_stride_bytes = distances_obj->strides[0];
+        distances_stride = distances_obj->strides[0];
     }
     else {
         // The result is `count_pairs` values written along axis 0; reject an output that is rank-0
@@ -208,7 +208,7 @@ static PyObject *implement_dense_metric( //
             goto cleanup;
         }
         distances_start = out_parsed.data;
-        distances_stride_bytes = out_buffer.strides[0];
+        distances_stride = out_buffer.strides[0];
         //? Logic suggests to return `None` in in-place mode...
         //? SciPy decided differently.
         return_obj = Py_None;
@@ -225,12 +225,12 @@ static PyObject *implement_dense_metric( //
         status = metric(                      //
             a_parsed.data + i * a_row_stride, //
             b_parsed.data + i * b_row_stride, //
-            a_cols,                           //
+            a_columns,                        //
             &result, stream);
         if (status != nk_success_k) break;
 
         // Export out:
-        nk_scalar_buffer_export(&result, kernel_out_dtype, distances_start + i * distances_stride_bytes, out_dtype);
+        nk_scalar_buffer_export(&result, kernel_out_dtype, distances_start + i * distances_stride, out_dtype);
     }
 
     PyEval_RestoreThread(save);
@@ -353,7 +353,7 @@ static PyObject *implement_curved_metric( //
     // Return a scalar
     nk_dtype_t const kernel_out_dtype = nk_kernel_output_dtype(metric_kind, dtype);
     nk_scalar_buffer_t distance;
-    if (check_status(metric(a_parsed.data, b_parsed.data, c_parsed.data, a_parsed.cols, &distance, stream)))
+    if (check_status(metric(a_parsed.data, b_parsed.data, c_parsed.data, a_parsed.columns, &distance, stream)))
         return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
 
 cleanup:
@@ -441,8 +441,8 @@ static PyObject *implement_geospatial_metric( //
         goto cleanup;
     }
     // For geospatial, n is the number of coordinate pairs (shape[0] for 1D arrays)
-    size_t const n = a_lats_parsed.cols;
-    if (a_lons_parsed.cols != n || b_lats_parsed.cols != n || b_lons_parsed.cols != n) {
+    size_t const n = a_lats_parsed.columns;
+    if (a_lons_parsed.columns != n || b_lats_parsed.columns != n || b_lons_parsed.columns != n) {
         PyErr_SetString(PyExc_ValueError, "All coordinate arrays must have the same length");
         goto cleanup;
     }
@@ -481,7 +481,7 @@ static PyObject *implement_geospatial_metric( //
         distances_start = distances_obj->data;
     }
     else {
-        if (out_parsed.cols < n) {
+        if (out_parsed.columns < n) {
             PyErr_SetString(PyExc_ValueError, "Output array is too small");
             goto cleanup;
         }
@@ -557,7 +557,7 @@ static PyObject *implement_sparse_metric( //
     }
 
     nk_size_t count = 0;
-    if (check_status(metric(a_parsed.data, b_parsed.data, a_parsed.cols, b_parsed.cols, NULL, &count, stream)))
+    if (check_status(metric(a_parsed.data, b_parsed.data, a_parsed.columns, b_parsed.columns, NULL, &count, stream)))
         return_obj = PyLong_FromSize_t(count);
 
 cleanup:
@@ -632,8 +632,8 @@ typedef struct cdist_symmetric_task_t {
     char *result;
     nk_size_t vectors_count;
     nk_size_t depth;
-    nk_size_t stride_bytes;
-    nk_size_t result_stride_bytes;
+    nk_size_t stride;
+    nk_size_t result_stride;
 } cdist_symmetric_task_t;
 
 static nk_status_t cdist_symmetric_tile_(nk_size_t tile_index, void *context) {
@@ -642,8 +642,8 @@ static nk_status_t cdist_symmetric_tile_(nk_size_t tile_index, void *context) {
     nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->vectors_count)
                                     ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->vectors_count - tile_start);
-    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
-                        task->result_stride_bytes, tile_start, tile_rows, task->stream);
+    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride, task->result,
+                        task->result_stride, tile_start, tile_rows, task->stream);
 }
 
 /** Batch symmetric path: compute C = A × Aᵀ via a SIMD-optimized symmetric kernel. */
@@ -665,8 +665,8 @@ static nk_status_t cdist_batch_symmetric(                           //
     task.result = out;
     task.vectors_count = n_vectors;
     task.depth = dimensions;
-    task.stride_bytes = stride;
-    task.result_stride_bytes = out_row_stride;
+    task.stride = stride;
+    task.result_stride = out_row_stride;
     return nk_parallel_for_tiles(nk_size_divide_round_up_(n_vectors, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
                                  cdist_symmetric_tile_, &task);
 }
@@ -681,8 +681,8 @@ typedef struct cdist_packed_task_t {
     nk_size_t rows;
     nk_size_t columns;
     nk_size_t depth;
-    nk_size_t a_stride_bytes;
-    nk_size_t c_stride_bytes;
+    nk_size_t a_stride;
+    nk_size_t c_stride;
 } cdist_packed_task_t;
 
 static nk_status_t cdist_packed_tile_(nk_size_t tile_index, void *context) {
@@ -690,8 +690,8 @@ static nk_status_t cdist_packed_tile_(nk_size_t tile_index, void *context) {
     nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
     nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
                                                                                : (task->rows - row);
-    return task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes,
-                        chunk, task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes, task->stream);
+    return task->kernel(task->a + row * task->a_stride, task->b_packed, task->c + row * task->c_stride, chunk,
+                        task->columns, task->depth, task->a_stride, task->c_stride, task->stream);
 }
 
 /** Batch packed path: pack B, then compute C = A × Bᵀ via a SIMD-optimized kernel. */
@@ -734,8 +734,8 @@ static nk_status_t cdist_batch_packed(                                          
     task.rows = a_count;
     task.columns = b_count;
     task.depth = dimensions;
-    task.a_stride_bytes = a_stride;
-    task.c_stride_bytes = out_row_stride;
+    task.a_stride = a_stride;
+    task.c_stride = out_row_stride;
     status = pack_fn(b_start, b_count, dimensions, b_stride, b_packed, 0, b_count, stream);
     if (status == nk_success_k)
         status = nk_parallel_for_tiles(nk_size_divide_round_up_(a_count, NUMKONG_PARALLEL_PACKED_TILE), threads,
@@ -768,8 +768,9 @@ static PyObject *implement_cdist(                        //
     if (out_obj && !parse_tensor(out_obj, &out_buffer, &out_parsed, &out_backing, nk_dtype_unknown_k)) goto cleanup;
 
     // Check dimensions
-    if (a_parsed.cols != b_parsed.cols) {
-        PyErr_Format(PyExc_ValueError, "Vector dimensions don't match (%zu != %zu)", a_parsed.cols, b_parsed.cols);
+    if (a_parsed.columns != b_parsed.columns) {
+        PyErr_Format(PyExc_ValueError, "Vector dimensions don't match (%zu != %zu)", a_parsed.columns,
+                     b_parsed.columns);
         goto cleanup;
     }
     if (a_parsed.rows == 0 || b_parsed.rows == 0) {
@@ -791,13 +792,13 @@ static PyObject *implement_cdist(                        //
     if (dtype == nk_dtype_unknown_k) dtype = a_parsed.dtype;
 
     // When a dtype override reinterprets elements at a different width, rescale dimensions.
-    size_t a_cols = a_parsed.cols, b_cols = b_parsed.cols;
+    size_t a_columns = a_parsed.columns, b_columns = b_parsed.columns;
     {
         nk_size_t from_bits = (nk_size_t)a_buffer.itemsize * NUMKONG_BITS_PER_BYTE;
         nk_size_t to_bits = nk_dtype_bits(dtype);
         if (from_bits && to_bits && from_bits != to_bits) {
-            a_cols = a_cols * from_bits / to_bits;
-            b_cols = b_cols * from_bits / to_bits;
+            a_columns = a_columns * from_bits / to_bits;
+            b_columns = b_columns * from_bits / to_bits;
         }
     }
 
@@ -847,7 +848,7 @@ static PyObject *implement_cdist(                        //
     nk_dtype_t const kernel_out_dtype = nk_kernel_output_dtype(metric_kind, dtype);
     if (a_parsed.rank == 1 && b_parsed.rank == 1) {
         nk_scalar_buffer_t distance;
-        if (check_status(metric(a_parsed.data, b_parsed.data, a_cols, &distance, stream)))
+        if (check_status(metric(a_parsed.data, b_parsed.data, a_columns, &distance, stream)))
             return_obj = nk_scalar_buffer_to_py_number(&distance, kernel_out_dtype);
         goto cleanup;
     }
@@ -858,8 +859,8 @@ static PyObject *implement_cdist(                        //
         goto cleanup;
     }
     char *distances_start = NULL;
-    size_t distances_rows_stride_bytes = 0;
-    size_t distances_cols_stride_bytes = 0;
+    size_t distances_rows_stride = 0;
+    size_t distances_columns_stride = 0;
 
     // Allocate the output matrix if it wasn't provided
     if (!out_obj) {
@@ -869,8 +870,8 @@ static PyObject *implement_cdist(                        //
         if (!distances_obj) { goto cleanup; }
         return_obj = (PyObject *)distances_obj;
         distances_start = distances_obj->data;
-        distances_rows_stride_bytes = distances_obj->strides[0];
-        distances_cols_stride_bytes = distances_obj->strides[1];
+        distances_rows_stride = distances_obj->strides[0];
+        distances_columns_stride = distances_obj->strides[1];
     }
     else {
         if (nk_dtype_bytes_per_value(out_parsed.dtype) != nk_dtype_bytes_per_value(out_dtype)) {
@@ -882,8 +883,8 @@ static PyObject *implement_cdist(                        //
             goto cleanup;
         }
         distances_start = out_parsed.data;
-        distances_rows_stride_bytes = out_buffer.strides[0];
-        distances_cols_stride_bytes = out_buffer.strides[1];
+        distances_rows_stride = out_buffer.strides[0];
+        distances_columns_stride = out_buffer.strides[1];
         //? Logic suggests to return `None` in in-place mode...
         //? SciPy decided differently.
         return_obj = Py_None;
@@ -906,30 +907,28 @@ static PyObject *implement_cdist(                        //
     // Try symmetric batch path first (A x A^T, no packing needed)
     if (has_batch && dtype_ok && is_symmetric)
         status = cdist_batch_symmetric(symmetric_kind, dtype, capabilities, stream, a_parsed.data, a_parsed.rows,
-                                       a_cols, a_parsed.row_stride, distances_start, distances_rows_stride_bytes,
-                                       threads);
+                                       a_columns, a_parsed.row_stride, distances_start, distances_rows_stride, threads);
 
     // Symmetric kernel only writes upper triangle; mirror to lower.
     if (status == nk_success_k && is_symmetric) {
         size_t const elem_size = nk_dtype_bytes_per_value(out_dtype);
         for (size_t i = 1; i < a_parsed.rows; ++i)
             for (size_t j = 0; j < i; ++j)
-                memcpy(distances_start + i * distances_rows_stride_bytes + j * distances_cols_stride_bytes,
-                       distances_start + j * distances_rows_stride_bytes + i * distances_cols_stride_bytes, elem_size);
+                memcpy(distances_start + i * distances_rows_stride + j * distances_columns_stride,
+                       distances_start + j * distances_rows_stride + i * distances_columns_stride, elem_size);
     }
 
     // Try packed batch path (A x B_packed)
     if (has_batch && dtype_ok && !is_symmetric && status != nk_success_k)
         status = cdist_batch_packed(packed_kind, dtype, capabilities, stream, a_parsed.data, a_parsed.rows,
-                                    a_parsed.row_stride, b_parsed.data, b_parsed.rows, b_parsed.row_stride, a_cols,
-                                    distances_start, distances_rows_stride_bytes, threads);
+                                    a_parsed.row_stride, b_parsed.data, b_parsed.rows, b_parsed.row_stride, a_columns,
+                                    distances_start, distances_rows_stride, threads);
 
     // Fall back to scalar pairwise loop
     if (status != nk_success_k)
         status = cdist_pairwise_loop(metric, stream, a_parsed.data, a_parsed.rows, a_parsed.row_stride, b_parsed.data,
-                                     b_parsed.rows, b_parsed.row_stride, a_cols, kernel_out_dtype, out_dtype,
-                                     distances_start, distances_rows_stride_bytes, distances_cols_stride_bytes,
-                                     is_symmetric);
+                                     b_parsed.rows, b_parsed.row_stride, a_columns, kernel_out_dtype, out_dtype,
+                                     distances_start, distances_rows_stride, distances_columns_stride, is_symmetric);
 
     PyEval_RestoreThread(save);
     if (!check_status(status)) Py_CLEAR(return_obj);
@@ -1438,7 +1437,7 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
         goto cleanup;
     }
     // Index lengths must match their value lengths
-    if (a_idx.cols != a_val.cols || b_idx.cols != b_val.cols) {
+    if (a_idx.columns != a_val.columns || b_idx.columns != b_val.columns) {
         PyErr_SetString(PyExc_ValueError, "Index and value arrays must have the same length");
         goto cleanup;
     }
@@ -1476,7 +1475,8 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
 
     nk_scalar_buffer_t product = {0};
     nk_dtype_t product_dtype = nk_kernel_output_dtype(nk_kernel_sparse_dot_k, dispatch_dtype);
-    if (check_status(kernel(a_idx.data, b_idx.data, a_val.data, b_val.data, a_idx.cols, b_idx.cols, &product, stream)))
+    if (check_status(
+            kernel(a_idx.data, b_idx.data, a_val.data, b_val.data, a_idx.columns, b_idx.columns, &product, stream)))
         return_obj = nk_scalar_buffer_to_py_number(&product, product_dtype);
 
 cleanup:

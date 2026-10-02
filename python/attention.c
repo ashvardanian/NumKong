@@ -27,8 +27,8 @@ typedef struct attention_pack_task_t {
     nk_u32_t const *segment_offsets;
     nk_u32_t const *segment_lengths;
     nk_size_t segment_count;
-    nk_size_t key_stride_bytes;
-    nk_size_t value_stride_bytes;
+    nk_size_t key_stride;
+    nk_size_t value_stride;
     void *key_value_packed;
     void *stream;
 } attention_pack_task_t;
@@ -38,7 +38,7 @@ static nk_status_t attention_pack_tile_(nk_size_t tile_index, void *context) {
     // Window 0 initializes the blob's header and directory before the pool starts, so tile 0 is window 1.
     nk_size_t const window = tile_index + 1;
     return task->kernel(task->keys, task->values, task->key_value_head_count, task->depth, task->segment_offsets,
-                        task->segment_lengths, task->segment_count, task->key_stride_bytes, task->value_stride_bytes,
+                        task->segment_lengths, task->segment_count, task->key_stride, task->value_stride,
                         task->key_value_packed, window, window + 1, task->stream);
 }
 
@@ -51,8 +51,8 @@ typedef struct attention_arguments_t {
     nk_size_t key_value_head_count;
     nk_size_t depth;
     nk_u32_t const *query_offsets;
-    nk_size_t query_stride_bytes;
-    nk_size_t output_stride_bytes;
+    nk_size_t query_stride;
+    nk_size_t output_stride;
     nk_f32_t scale;
     void *stream;
 } attention_arguments_t;
@@ -76,7 +76,7 @@ static nk_status_t attention_bidirectional_tile_(nk_size_t tile_index, void *con
     attention_arguments_t const *arguments = &task->arguments;
     return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
                         arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
-                        arguments->query_stride_bytes, arguments->output_stride_bytes, arguments->scale, tile_index, 1,
+                        arguments->query_stride, arguments->output_stride, arguments->scale, tile_index, 1,
                         arguments->stream);
 }
 
@@ -85,8 +85,8 @@ static nk_status_t attention_causal_tile_(nk_size_t tile_index, void *context) {
     attention_arguments_t const *arguments = &task->arguments;
     return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
                         arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
-                        arguments->query_stride_bytes, arguments->output_stride_bytes, arguments->scale,
-                        task->diagonal_offset, task->window, tile_index, 1, arguments->stream);
+                        arguments->query_stride, arguments->output_stride, arguments->scale, task->diagonal_offset,
+                        task->window, tile_index, 1, arguments->stream);
 }
 
 static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
@@ -398,8 +398,8 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         task.segment_offsets = segment_offsets;
         task.segment_lengths = segment_lengths;
         task.segment_count = segment_count;
-        task.key_stride_bytes = k_stride;
-        task.value_stride_bytes = v_stride;
+        task.key_stride = k_stride;
+        task.value_stride = v_stride;
         task.key_value_packed = packed->start;
         task.stream = stream;
         nk_size_t const task_count = segment_count * heads;
@@ -507,12 +507,11 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
                      nk_dtype_python_name(packed->dtype));
         goto release_queries;
     }
-    nk_size_t query_tokens, head_count, query_stride_bytes;
-    if (!attention_parse_token_matrix(&buffers->queries, "q", packed->depth, &query_tokens, &head_count,
-                                      &query_stride_bytes))
+    nk_size_t query_tokens, head_count, query_stride;
+    if (!attention_parse_token_matrix(&buffers->queries, "q", packed->depth, &query_tokens, &head_count, &query_stride))
         goto release_queries;
     if (head_count % packed->heads) {
-        PyErr_Format(PyExc_ValueError, "num_heads %zu is not a multiple of the packed heads %zu", (size_t)head_count,
+        PyErr_Format(PyExc_ValueError, "head_count %zu is not a multiple of the packed heads %zu", (size_t)head_count,
                      (size_t)packed->heads);
         goto release_queries;
     }
@@ -561,8 +560,8 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
     arguments->key_value_head_count = packed->heads;
     arguments->depth = packed->depth;
     arguments->query_offsets = query_offsets;
-    arguments->query_stride_bytes = query_stride_bytes;
-    arguments->output_stride_bytes = row_values * sizeof(nk_f32_t);
+    arguments->query_stride = query_stride;
+    arguments->output_stride = row_values * sizeof(nk_f32_t);
     arguments->scale = scale;
     *packed_matrix = packed;
     return 1;
@@ -716,18 +715,17 @@ char const doc_attention_rope[] =                                               
     "    cos, sin (Tensor): `[rows, depth/2]` float32 angle grids, shared across heads.\n"               //
     "    head_count (int): Number of heads per token.\n"                                                 //
     "    depth (int): Even number of channels per head.\n"                                               //
-    "    out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n"           //
-    "    input_scale (float, optional): Scale folded onto each loaded element, 1.0 by default.\n\n"      //
+    "    out (Tensor, optional): Output, same shape/dtype as x; may alias x. Defaults to x.\n\n"         //
     "Returns:\n"                                                                                         //
     "    None: The result is written into `out`, or into `x` in place.\n\n"                              //
     "Signature:\n"                                                                                       //
-    "    >>> def attention_rope(x, cos, sin, head_count, depth, /, *, out, input_scale) -> None: ...";
+    "    >>> def attention_rope(x, cos, sin, head_count, depth, /, *, out) -> None: ...";
 
 PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
                              PyObject *args_names_tuple) {
     nk_unused_(self);
     PyObject *x_object = NULL, *cos_object = NULL, *sin_object = NULL, *head_count_object = NULL, *depth_object = NULL;
-    PyObject *out_object = NULL, *scale_object = NULL;
+    PyObject *out_object = NULL;
     nk_capability_t capabilities = default_capabilities;
     void *stream = NULL;
 
@@ -741,8 +739,8 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     Py_ssize_t const args_count = positional_args_count + args_names_count;
-    if (args_count < 5 || args_count > 9) {
-        PyErr_Format(PyExc_TypeError, "Function expects 5-9 arguments, got %zd", args_count);
+    if (args_count < 5 || args_count > 8) {
+        PyErr_Format(PyExc_TypeError, "Function expects 5-8 arguments, got %zd", args_count);
         return NULL;
     }
     if (positional_args_count > 5) {
@@ -759,7 +757,6 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
         if (PyUnicode_CompareWithASCIIString(key, "head_count") == 0 && !head_count_object) head_count_object = value;
         else if (PyUnicode_CompareWithASCIIString(key, "depth") == 0 && !depth_object) depth_object = value;
         else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_object) out_object = value;
-        else if (PyUnicode_CompareWithASCIIString(key, "input_scale") == 0 && !scale_object) scale_object = value;
         else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
     }
     if (!x_object || !cos_object || !sin_object || !head_count_object || !depth_object) {
@@ -772,12 +769,6 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
     if (head_count <= 0 || depth <= 0 || depth % 2) {
         PyErr_SetString(PyExc_ValueError, "head_count and depth must be positive, and depth even");
         return NULL;
-    }
-    nk_f32_t input_scale = 1.0f;
-    if (scale_object) {
-        double s = PyFloat_AsDouble(scale_object);
-        if (PyErr_Occurred()) return NULL;
-        input_scale = (nk_f32_t)s;
     }
 
     int const x_flags = out_object ? (PyBUF_STRIDES | PyBUF_FORMAT) : (PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT);
@@ -810,10 +801,10 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
             goto cleanup;
         }
     }
-    nk_size_t const x_stride_bytes = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+    nk_size_t const x_stride = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
 
     void *y_data = x_buffer.buf;
-    nk_size_t y_stride_bytes = x_stride_bytes;
+    nk_size_t y_stride = x_stride;
     if (out_object) {
         if (!nk_get_buffer(out_object, &y_buffer, PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT, &y_backing))
             goto cleanup;
@@ -832,7 +823,7 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
             goto cleanup;
         }
         y_data = y_buffer.buf;
-        y_stride_bytes = ndim >= 2 ? (nk_size_t)y_buffer.strides[ndim - 2] : 0;
+        y_stride = ndim >= 2 ? (nk_size_t)y_buffer.strides[ndim - 2] : 0;
     }
 
     if (!nk_get_buffer(cos_object, &cos_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &cos_backing)) goto cleanup;
@@ -862,7 +853,7 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
         PyThreadState *gil = PyEval_SaveThread();
         nk_status_t const status = kernel(x_buffer.buf, (nk_f32_t const *)cos_buffer.buf,
                                           (nk_f32_t const *)sin_buffer.buf, y_data, rows, (nk_size_t)head_count,
-                                          (nk_size_t)depth, x_stride_bytes, y_stride_bytes, input_scale, stream);
+                                          (nk_size_t)depth, x_stride, y_stride, stream);
         PyEval_RestoreThread(gil);
         if (!check_status(status)) goto cleanup;
     }

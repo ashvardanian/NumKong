@@ -30,7 +30,7 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObj
 /** Elementwise multiplication of two tensors or a tensor and a scalar. */
 PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
-/** Grouped RMSNorm: y = x * rsqrt(mean(x^2) + eps) * gamma. */
+/** Grouped RMSNorm: y = x * rsqrt(mean(x^2) + epsilon) * gamma. */
 PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /** Fused SwiGLU: y = silu(gate) * up, up=None gives plain SiLU. */

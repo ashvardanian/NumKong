@@ -354,10 +354,10 @@ Block-scaled formats group elements into fixed-size blocks, each carrying its ow
 | :------------- | ----: | :------ | :------ | :-------- |
 | `"nvfp4"`      |    16 | `e2m1`  | `ue4m3` | `float32` |
 | `"mxfp4"`      |    32 | `e2m1`  | `ue8m0` | …         |
-| `"mxfp6_e2m3"` |    32 | `e2m3`  | `ue8m0` | …         |
-| `"mxfp6_e3m2"` |    32 | `e3m2`  | `ue8m0` | …         |
-| `"mxfp8_e4m3"` |    32 | `e4m3`  | `ue8m0` | …         |
-| `"mxfp8_e5m2"` |    32 | `e5m2`  | `ue8m0` | …         |
+| `"mxfp6e2m3"` |    32 | `e2m3`  | `ue8m0` | …         |
+| `"mxfp6e3m2"` |    32 | `e3m2`  | `ue8m0` | …         |
+| `"mxfp8e4m3"` |    32 | `e4m3`  | `ue8m0` | …         |
+| `"mxfp8e5m2"` |    32 | `e5m2`  | `ue8m0` | …         |
 | `"mxint8"`     |    32 | `i8`    | `ue8m0` | …         |
 
 Quantization happens through the same `astype` verb used for dense casts.
@@ -397,7 +397,7 @@ assert qm.tensor_scale is None and qm.block_size == 32
 # Block-aligned slicing returns a ScaledTensor view sharing storage; both children slice in lockstep.
 X = numkong.Tensor(np.random.randn(3, 64).astype(np.float32)).astype("nvfp4")
 row = X[1]            # → ScaledTensor of shape (64,)
-cols = X[:, 16:48]    # → ScaledTensor of shape (3, 32); start/stop must be block-aligned
+columns = X[:, 16:48]  # → ScaledTensor of shape (3, 32); start/stop must be block-aligned
 materialized = row.astype("float32")
 ```
 

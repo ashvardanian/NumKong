@@ -36,7 +36,7 @@ typedef struct MatrixOrVectorView {
     char *data;
 
     /** Vector size for 1D, or column count for 2D. */
-    size_t cols;
+    size_t columns;
 
     /** Number of vectors, 1 for 1D, num rows for 2D. */
     size_t rows;

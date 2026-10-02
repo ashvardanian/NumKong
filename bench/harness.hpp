@@ -656,13 +656,13 @@ void measure_hammings_packed(                                                   
 
     // Calculate correct strides for binary data (k is in bits)
     nk_size_t values_per_row = nk::divide_round_up(k, 8);
-    nk_size_t a_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
-    nk_size_t b_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
+    nk_size_t a_stride = values_per_row * sizeof(typename input_t::raw_t);
+    nk_size_t b_stride = values_per_row * sizeof(typename input_t::raw_t);
     nk_size_t packed_bytes = 0;
     if (!succeeded(loop, packed_size_fn(n, k, &packed_bytes))) return;
 
     // Preallocate as many input sets as `input_sets_count` allows
-    bytes_t const per_set {m * a_stride_bytes + n * b_stride_bytes + packed_bytes + m * n * sizeof(raw_output_t)};
+    bytes_t const per_set {m * a_stride + n * b_stride + packed_bytes + m * n * sizeof(raw_output_t)};
     std::size_t const sets_count = input_sets_count(per_set);
 
     struct hamming_set_t {
@@ -679,16 +679,14 @@ void measure_hammings_packed(                                                   
         s.c = make_vector<output_t>(m * n);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        if (!succeeded(loop, pack_fn(s.b.raw_values_data(), nullptr, n, k, b_stride_bytes, 0, s.b_packed.data(), 0, n,
-                                     nullptr)))
-            return;
+        if (!succeeded(loop, pack_fn(s.b.raw_values_data(), n, k, b_stride, s.b_packed.data(), 0, n, nullptr))) return;
     }
 
     for (std::size_t call : loop) {
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.raw_values_data());
         if (!succeeded(loop, kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.raw_values_data(), //
-                                    m, n, k, a_stride_bytes, n * sizeof(raw_output_t), nullptr)))
+                                    m, n, k, a_stride, n * sizeof(raw_output_t), nullptr)))
             break;
     }
 
@@ -709,11 +707,11 @@ void measure_hammings_symmetric(                                                
 
     // Calculate correct strides for binary data (k is in bits)
     nk_size_t input_values_per_row = nk::divide_round_up(k, 8);
-    nk_size_t input_stride_bytes = input_values_per_row * sizeof(typename input_t::raw_t);
-    nk_size_t output_stride_bytes = n * sizeof(raw_output_t);
+    nk_size_t input_stride = input_values_per_row * sizeof(typename input_t::raw_t);
+    nk_size_t output_stride = n * sizeof(raw_output_t);
 
     // Preallocate as many input sets as `input_sets_count` allows
-    bytes_t const per_set {n * input_stride_bytes + n * n * sizeof(raw_output_t)};
+    bytes_t const per_set {n * input_stride + n * n * sizeof(raw_output_t)};
     std::size_t const sets_count = input_sets_count(per_set);
 
     struct hamming_sym_set_t {
@@ -731,8 +729,8 @@ void measure_hammings_symmetric(                                                
     for (std::size_t call : loop) {
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.raw_values_data());
-        if (!succeeded(loop, kernel(s.a.raw_values_data(), n, k, input_stride_bytes, //
-                                    s.c.raw_values_data(), output_stride_bytes, 0, n, nullptr)))
+        if (!succeeded(loop, kernel(s.a.raw_values_data(), n, k, input_stride, //
+                                    s.c.raw_values_data(), output_stride, 0, n, nullptr)))
             break;
     }
 
@@ -773,12 +771,12 @@ void measure_jaccards_packed(                                                   
     using raw_input_t = typename input_t::raw_t;
 
     nk_size_t values_per_row = nk::divide_round_up(k, 8);
-    nk_size_t a_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
-    nk_size_t b_stride_bytes = values_per_row * sizeof(typename input_t::raw_t);
+    nk_size_t a_stride = values_per_row * sizeof(typename input_t::raw_t);
+    nk_size_t b_stride = values_per_row * sizeof(typename input_t::raw_t);
     nk_size_t packed_bytes = 0;
     if (!succeeded(loop, packed_size_fn(n, k, &packed_bytes))) return;
 
-    bytes_t const per_set {m * a_stride_bytes + n * b_stride_bytes + packed_bytes + m * n * sizeof(nk_f32_t)};
+    bytes_t const per_set {m * a_stride + n * b_stride + packed_bytes + m * n * sizeof(nk_f32_t)};
     std::size_t const sets_count = input_sets_count(per_set);
 
     struct jaccards_set_t {
@@ -795,16 +793,14 @@ void measure_jaccards_packed(                                                   
         s.c.resize(m * n, 0);
         nk::fill_uniform(generator, s.a.values_data(), s.a.size_values());
         nk::fill_uniform(generator, s.b.values_data(), s.b.size_values());
-        if (!succeeded(loop, pack_fn(s.b.raw_values_data(), nullptr, n, k, b_stride_bytes, 0, s.b_packed.data(), 0, n,
-                                     nullptr)))
-            return;
+        if (!succeeded(loop, pack_fn(s.b.raw_values_data(), n, k, b_stride, s.b_packed.data(), 0, n, nullptr))) return;
     }
 
     for (std::size_t call : loop) {
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.data());
         if (!succeeded(loop, kernel(s.a.raw_values_data(), s.b_packed.data(), s.c.data(), //
-                                    m, n, k, a_stride_bytes, n * sizeof(nk_f32_t), nullptr)))
+                                    m, n, k, a_stride, n * sizeof(nk_f32_t), nullptr)))
             break;
     }
 
@@ -822,10 +818,10 @@ void measure_jaccards_symmetric(                                                
     using raw_input_t = typename input_t::raw_t;
 
     nk_size_t input_values_per_row = nk::divide_round_up(k, 8);
-    nk_size_t input_stride_bytes = input_values_per_row * sizeof(typename input_t::raw_t);
-    nk_size_t output_stride_bytes = n * sizeof(nk_f32_t);
+    nk_size_t input_stride = input_values_per_row * sizeof(typename input_t::raw_t);
+    nk_size_t output_stride = n * sizeof(nk_f32_t);
 
-    bytes_t const per_set {n * input_stride_bytes + n * n * sizeof(nk_f32_t)};
+    bytes_t const per_set {n * input_stride + n * n * sizeof(nk_f32_t)};
     std::size_t const sets_count = input_sets_count(per_set);
 
     struct jaccards_sym_set_t {
@@ -843,8 +839,8 @@ void measure_jaccards_symmetric(                                                
     for (std::size_t call : loop) {
         auto &s = sets[call & (sets_count - 1)];
         do_not_optimize(s.c.data());
-        if (!succeeded(loop, kernel(s.a.raw_values_data(), n, k, input_stride_bytes, //
-                                    s.c.data(), output_stride_bytes, 0, n, nullptr)))
+        if (!succeeded(loop, kernel(s.a.raw_values_data(), n, k, input_stride, //
+                                    s.c.data(), output_stride, 0, n, nullptr)))
             break;
     }
 

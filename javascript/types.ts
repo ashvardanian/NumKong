@@ -242,38 +242,38 @@ export class Vector extends VectorBase {
 export abstract class MatrixBase extends TensorBase {
   // Mutable so owning Matrices can `tryResize()`/`clear()` within capacity.
   rows: number;
-  cols: number;
+  columns: number;
   rowStride: number;
   colStride: number;
 
   protected constructor(
     buffer: ArrayBuffer, byteOffset: number, dtype: DType,
-    rows: number, cols: number, rowStride: number, colStride: number,
+    rows: number, columns: number, rowStride: number, colStride: number,
   ) {
     super(buffer, byteOffset, dtype);
     this.rows = rows;
-    this.cols = cols;
+    this.columns = columns;
     this.rowStride = rowStride;
     this.colStride = colStride;
   }
 
-  get length(): number { return this.rows * this.cols; }
+  get length(): number { return this.rows * this.columns; }
   get rank(): 2 { return 2; }
 }
 
 /** Owning rank-2 tensor, row-major and C-contiguous by default.
  *
  *  Strides are byte strides. Default for C-contiguous layout:
- *  rowStride = cols * bytesPerElement, colStride = bytesPerElement. */
+ *  rowStride = columns * bytesPerElement, colStride = bytesPerElement. */
 export class Matrix extends MatrixBase {
-  constructor(rows: number, cols: number, dtype: DType);
-  constructor(buffer: ArrayBuffer, byteOffset: number, dtype: DType, rows: number, cols: number, rowStride?: number, colStride?: number);
+  constructor(rows: number, columns: number, dtype: DType);
+  constructor(buffer: ArrayBuffer, byteOffset: number, dtype: DType, rows: number, columns: number, rowStride?: number, colStride?: number);
   constructor(
     rowsOrBuffer: number | ArrayBuffer,
     colsOrByteOffset: number,
     dtype: DType,
     rows?: number,
-    cols?: number,
+    columns?: number,
     rowStride?: number,
     colStride?: number,
   ) {
@@ -290,7 +290,7 @@ export class Matrix extends MatrixBase {
       super(new ArrayBuffer(r * c * bpe), 0, dtype, r, c, c * bpe, bpe);
     } else {
       const r = rows!;
-      const c = cols!;
+      const c = columns!;
       let bpe: number;
       switch (dtype) {
         case DType.F64: bpe = 8; break;
@@ -303,36 +303,36 @@ export class Matrix extends MatrixBase {
   }
 
   toString(): string {
-    return `Matrix(${this.rows}\u00d7${this.cols}, ${dtypeToString(this.dtype)})`;
+    return `Matrix(${this.rows}\u00d7${this.columns}, ${dtypeToString(this.dtype)})`;
   }
 
   [Symbol.for('nodejs.util.inspect.custom')](): string {
     return this.toString();
   }
 
-  static fromTypedArray(array: TypedArray, rows: number, cols: number, dtype?: DType): Matrix {
+  static fromTypedArray(array: TypedArray, rows: number, columns: number, dtype?: DType): Matrix {
     const d = dtype ?? inferDType(array);
     const buf = (array.buffer as ArrayBuffer).slice(array.byteOffset, array.byteOffset + array.byteLength);
-    return new Matrix(buf, 0, d, rows, cols);
+    return new Matrix(buf, 0, d, rows, columns);
   }
 
   toTypedArray(): TypedArray {
     switch (this.dtype) {
-      case DType.F64: return new Float64Array(this.buffer, this.byteOffset, this.rows * this.cols);
-      case DType.F32: return new Float32Array(this.buffer, this.byteOffset, this.rows * this.cols);
-      case DType.I32: return new Int32Array(this.buffer, this.byteOffset, this.rows * this.cols);
-      case DType.U32: return new Uint32Array(this.buffer, this.byteOffset, this.rows * this.cols);
-      case DType.F16: case DType.BF16: return new Uint16Array(this.buffer, this.byteOffset, this.rows * this.cols);
-      case DType.I8: return new Int8Array(this.buffer, this.byteOffset, this.rows * this.cols);
-      default: return new Uint8Array(this.buffer, this.byteOffset, this.rows * this.cols);
+      case DType.F64: return new Float64Array(this.buffer, this.byteOffset, this.rows * this.columns);
+      case DType.F32: return new Float32Array(this.buffer, this.byteOffset, this.rows * this.columns);
+      case DType.I32: return new Int32Array(this.buffer, this.byteOffset, this.rows * this.columns);
+      case DType.U32: return new Uint32Array(this.buffer, this.byteOffset, this.rows * this.columns);
+      case DType.F16: case DType.BF16: return new Uint16Array(this.buffer, this.byteOffset, this.rows * this.columns);
+      case DType.I8: return new Int8Array(this.buffer, this.byteOffset, this.rows * this.columns);
+      default: return new Uint8Array(this.buffer, this.byteOffset, this.rows * this.columns);
     }
   }
 
   row(index: number): VectorView {
-    return new VectorView(this.buffer, this.byteOffset + index * this.rowStride, this.cols, this.dtype);
+    return new VectorView(this.buffer, this.byteOffset + index * this.rowStride, this.columns, this.dtype);
   }
 
-  /** Allocated element capacity (>= rows*cols) — the ceiling `tryResize` honors. */
+  /** Allocated element capacity (>= rows*columns) — the ceiling `tryResize` honors. */
   get capacity(): number {
     return Math.floor((this.buffer.byteLength - this.byteOffset) / this.bytesPerElement);
   }
@@ -340,24 +340,25 @@ export class Matrix extends MatrixBase {
   /**
    *  Resize within capacity without moving storage (`row()`/`toTypedArray()` views stay valid),
    *  re-deriving C-contiguous strides.
-   *  @returns false, unchanged, if either extent is negative or `rows*cols` exceeds `capacity()`.
+   *  @returns false, unchanged, if either extent is negative or `rows*columns` exceeds
+   *  `capacity()`.
    */
-  tryResize(rows: number, cols: number): boolean {
-    if (rows < 0 || cols < 0 || rows * cols > this.capacity) return false;
+  tryResize(rows: number, columns: number): boolean {
+    if (rows < 0 || columns < 0 || rows * columns > this.capacity) return false;
     this.rows = rows;
-    this.cols = cols;
-    this.rowStride = cols * this.bytesPerElement;
+    this.columns = columns;
+    this.rowStride = columns * this.bytesPerElement;
     this.colStride = this.bytesPerElement;
     return true;
   }
 
   /** Grow the allocated capacity to at least `elements`, reallocating and copying the live
-   *  rows*cols elements. A no-op when already large enough; otherwise it invalidates any prior
+   *  rows*columns elements. A no-op when already large enough; otherwise it invalidates any prior
    *  `toTypedArray()` / `row()` view. Intended for the C-contiguous owning layout. */
   reserve(elements: number): boolean {
     if (elements <= this.capacity) return true;
     const grown = new ArrayBuffer(elements * this.bytesPerElement);
-    new Uint8Array(grown).set(new Uint8Array(this.buffer, this.byteOffset, this.rows * this.cols * this.bytesPerElement));
+    new Uint8Array(grown).set(new Uint8Array(this.buffer, this.byteOffset, this.rows * this.columns * this.bytesPerElement));
     this.buffer = grown;
     this.byteOffset = 0;
     return true;
@@ -366,7 +367,7 @@ export class Matrix extends MatrixBase {
   /** Reset to an empty 0x0 matrix while keeping the allocated capacity. */
   clear(): void {
     this.rows = 0;
-    this.cols = 0;
+    this.columns = 0;
   }
 }
 
@@ -376,16 +377,16 @@ export class Matrix extends MatrixBase {
  *  - N-API path: buffer is a V8-managed ArrayBuffer, auto-freed by GC.
  *  - WASM path: stores a heap pointer, `dispose()` calls Module._free(). */
 export class PackedMatrix {
-  readonly width: number;
+  readonly columns: number;
   readonly depth: number;
   readonly dtype: DType;
   readonly byteLength: number;
   readonly buffer: ArrayBuffer;
   private _disposed: boolean = false;
 
-  constructor(buffer: ArrayBuffer, width: number, depth: number, dtype: DType, byteLength: number) {
+  constructor(buffer: ArrayBuffer, columns: number, depth: number, dtype: DType, byteLength: number) {
     this.buffer = buffer;
-    this.width = width;
+    this.columns = columns;
     this.depth = depth;
     this.dtype = dtype;
     this.byteLength = byteLength;
@@ -395,7 +396,7 @@ export class PackedMatrix {
   get disposed(): boolean { return this._disposed; }
 
   toString(): string {
-    return `PackedMatrix(${this.width}\u00d7${this.depth}, ${dtypeToString(this.dtype)}, ${this.byteLength} bytes)`;
+    return `PackedMatrix(${this.columns}\u00d7${this.depth}, ${dtypeToString(this.dtype)}, ${this.byteLength} bytes)`;
   }
 
   [Symbol.for('nodejs.util.inspect.custom')](): string {

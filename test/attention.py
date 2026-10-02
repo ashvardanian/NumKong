@@ -58,32 +58,32 @@ def reference_attention(
     query_offsets,
     key_offsets,
     lengths,
-    num_heads,
-    num_kv_heads,
-    head_dim,
+    head_count,
+    key_value_head_count,
+    depth,
     scale,
     mode="bidirectional",
     diagonal_offset=0,
     window=None,
 ):
-    out = np.zeros((q_f64.shape[0], num_heads * head_dim), dtype=np.float64)
-    gqa = num_heads // num_kv_heads
+    out = np.zeros((q_f64.shape[0], head_count * depth), dtype=np.float64)
+    gqa = head_count // key_value_head_count
     for segment in range(len(lengths)):
         first, last = int(query_offsets[segment]), int(query_offsets[segment + 1])
         key_first, kv_len = int(key_offsets[segment]), int(lengths[segment])
         visible = visibility_mask(last - first, kv_len, mode, diagonal_offset, window)
-        for head in range(num_heads):
+        for head in range(head_count):
             kv_head = head // gqa
-            queries = q_f64[first:last, head * head_dim : (head + 1) * head_dim]
-            keys = k_f64[key_first : key_first + kv_len, kv_head * head_dim : (kv_head + 1) * head_dim]
-            values = v_f64[key_first : key_first + kv_len, kv_head * head_dim : (kv_head + 1) * head_dim]
+            queries = q_f64[first:last, head * depth : (head + 1) * depth]
+            keys = k_f64[key_first : key_first + kv_len, kv_head * depth : (kv_head + 1) * depth]
+            values = v_f64[key_first : key_first + kv_len, kv_head * depth : (kv_head + 1) * depth]
             scores = np.where(visible, queries @ keys.T * scale, -np.inf)
             row_max = scores.max(axis=1, keepdims=True, initial=-np.inf)
             shifted = np.where(visible, scores - np.where(np.isfinite(row_max), row_max, 0.0), 0.0)
             probabilities = np.where(visible, np.exp(shifted), 0.0)
             sums = probabilities.sum(axis=1, keepdims=True)
             probabilities = np.divide(probabilities, sums, out=np.zeros_like(probabilities), where=sums > 0)
-            out[first:last, head * head_dim : (head + 1) * head_dim] = probabilities @ values
+            out[first:last, head * depth : (head + 1) * depth] = probabilities @ values
     return out
 
 
@@ -101,24 +101,24 @@ def mode_masks(mode):
 
 @pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
 @pytest.mark.parametrize("scenario", SCENARIOS.keys())
-@pytest.mark.parametrize("head_dim", [64, 128])
+@pytest.mark.parametrize("depth", [64, 128])
 @pytest.mark.parametrize("threads", [1, 0])
 @pytest.mark.parametrize("mode", ATTENTION_MODES)
-def test_attention_packed(dtype, tolerance, scenario, head_dim, threads, mode, np_rng: np.random.Generator):
+def test_attention_packed(dtype, tolerance, scenario, depth, threads, mode, np_rng: np.random.Generator):
     lengths = SCENARIOS[scenario]
     offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
-    tokens, num_heads, num_kv_heads = int(offsets[-1]), 4, 2
-    scale = 1.0 / np.sqrt(head_dim)
+    tokens, head_count, key_value_head_count = int(offsets[-1]), 4, 2
+    scale = 1.0 / np.sqrt(depth)
 
-    q_f32 = (np_rng.standard_normal((tokens, num_heads * head_dim)) * 0.3).astype(np.float32)
-    k_f32 = (np_rng.standard_normal((tokens, num_kv_heads * head_dim)) * 0.3).astype(np.float32)
-    v_f32 = (np_rng.standard_normal((tokens, num_kv_heads * head_dim)) * 0.3).astype(np.float32)
+    q_f32 = (np_rng.standard_normal((tokens, head_count * depth)) * 0.3).astype(np.float32)
+    k_f32 = (np_rng.standard_normal((tokens, key_value_head_count * depth)) * 0.3).astype(np.float32)
+    v_f32 = (np_rng.standard_normal((tokens, key_value_head_count * depth)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=head_dim, threads=threads)
+    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth, threads=threads)
     assert kv.segments == len(lengths)
-    assert kv.heads == num_kv_heads
-    assert kv.depth == head_dim
+    assert kv.heads == key_value_head_count
+    assert kv.depth == depth
     assert kv.tokens == tokens
 
     rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
@@ -126,7 +126,17 @@ def test_attention_packed(dtype, tolerance, scenario, head_dim, threads, mode, n
         out = run_attention(q, kv, offsets, mode, diagonal_offset, window, threads=threads)
         result = np.from_dlpack(out)
         expected = reference_attention(
-            *rounded, offsets, offsets, lengths, num_heads, num_kv_heads, head_dim, scale, mode, diagonal_offset, window
+            *rounded,
+            offsets,
+            offsets,
+            lengths,
+            head_count,
+            key_value_head_count,
+            depth,
+            scale,
+            mode,
+            diagonal_offset,
+            window,
         )
         np.testing.assert_allclose(result, expected, atol=tolerance, rtol=tolerance)
 
@@ -135,18 +145,18 @@ def test_attention_packed(dtype, tolerance, scenario, head_dim, threads, mode, n
 @pytest.mark.parametrize("window", [None, 5])
 def test_attention_causal_decode(dtype, tolerance, window, np_rng: np.random.Generator):
     """A few trailing queries per segment against a longer cache: `diagonal_offset = length - queries`."""
-    length, query_count, segment_count, num_heads, head_dim = 37, 3, 2, 4, 64
+    length, query_count, segment_count, head_count, depth = 37, 3, 2, 4, 64
     key_offsets = np.arange(segment_count + 1, dtype=np.uint32) * length
     query_offsets = np.arange(segment_count + 1, dtype=np.uint32) * query_count
     lengths = [length] * segment_count
-    scale = 1.0 / np.sqrt(head_dim)
+    scale = 1.0 / np.sqrt(depth)
 
-    q_f32 = (np_rng.standard_normal((segment_count * query_count, num_heads * head_dim)) * 0.3).astype(np.float32)
-    k_f32 = (np_rng.standard_normal((segment_count * length, num_heads * head_dim)) * 0.3).astype(np.float32)
-    v_f32 = (np_rng.standard_normal((segment_count * length, num_heads * head_dim)) * 0.3).astype(np.float32)
+    q_f32 = (np_rng.standard_normal((segment_count * query_count, head_count * depth)) * 0.3).astype(np.float32)
+    k_f32 = (np_rng.standard_normal((segment_count * length, head_count * depth)) * 0.3).astype(np.float32)
+    v_f32 = (np_rng.standard_normal((segment_count * length, head_count * depth)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=key_offsets, depth=head_dim, threads=1)
+    kv = nk.attention_pack(k, v, segment_offsets=key_offsets, depth=depth, threads=1)
     diagonal_offset = length - query_count
     out = nk.attention_causal_packed(
         q, kv, query_offsets=query_offsets, diagonal_offset=diagonal_offset, window=window, threads=1
@@ -159,9 +169,9 @@ def test_attention_causal_decode(dtype, tolerance, window, np_rng: np.random.Gen
         query_offsets,
         key_offsets,
         lengths,
-        num_heads,
-        num_heads,
-        head_dim,
+        head_count,
+        head_count,
+        depth,
         scale,
         "causal",
         diagonal_offset,
@@ -176,23 +186,23 @@ def test_attention_pool(dtype, tolerance, np_rng: np.random.Generator):
     lengths = [33, 70, 5]
     kv_offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
     pool_offsets = np.arange(len(lengths) + 1, dtype=np.uint32)
-    tokens, num_heads, head_dim = int(kv_offsets[-1]), 4, 128
-    scale = 1.0 / np.sqrt(head_dim)
+    tokens, head_count, depth = int(kv_offsets[-1]), 4, 128
+    scale = 1.0 / np.sqrt(depth)
 
-    q_f32 = (np_rng.standard_normal((len(lengths), num_heads * head_dim)) * 0.3).astype(np.float32)
-    k_f32 = (np_rng.standard_normal((tokens, num_heads * head_dim)) * 0.3).astype(np.float32)
-    v_f32 = (np_rng.standard_normal((tokens, num_heads * head_dim)) * 0.3).astype(np.float32)
+    q_f32 = (np_rng.standard_normal((len(lengths), head_count * depth)) * 0.3).astype(np.float32)
+    k_f32 = (np_rng.standard_normal((tokens, head_count * depth)) * 0.3).astype(np.float32)
+    v_f32 = (np_rng.standard_normal((tokens, head_count * depth)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=kv_offsets, depth=head_dim, threads=1)
+    kv = nk.attention_pack(k, v, segment_offsets=kv_offsets, depth=depth, threads=1)
     out = nk.attention_bidirectional_packed(q, kv, query_offsets=pool_offsets, threads=1)
     result = np.from_dlpack(out)
 
     q_r, k_r, v_r = (np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v))
     for segment in range(len(lengths)):
         first, kv_len = int(kv_offsets[segment]), lengths[segment]
-        for head in range(num_heads):
-            sl = slice(head * head_dim, (head + 1) * head_dim)
+        for head in range(head_count):
+            sl = slice(head * depth, (head + 1) * depth)
             scores = q_r[segment, sl] @ k_r[first : first + kv_len, sl].T * scale
             probabilities = np.exp(scores - scores.max())
             probabilities /= probabilities.sum()
@@ -209,20 +219,20 @@ def test_attention_i8(mode, np_rng: np.random.Generator):
     """
     lengths = [40, 90, 0, 17]
     offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
-    tokens, num_heads, head_dim = int(offsets[-1]), 4, 128
-    scale = 0.05 / np.sqrt(head_dim)
+    tokens, head_count, depth = int(offsets[-1]), 4, 128
+    scale = 0.05 / np.sqrt(depth)
 
-    q = nk.Tensor(np_rng.integers(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
-    k = nk.Tensor(np_rng.integers(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
-    v = nk.Tensor(np_rng.integers(-31, 32, (tokens, num_heads * head_dim)).astype(np.int8))
+    q = nk.Tensor(np_rng.integers(-31, 32, (tokens, head_count * depth)).astype(np.int8))
+    k = nk.Tensor(np_rng.integers(-31, 32, (tokens, head_count * depth)).astype(np.int8))
+    v = nk.Tensor(np_rng.integers(-31, 32, (tokens, head_count * depth)).astype(np.int8))
 
-    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=head_dim, threads=0)
+    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth, threads=0)
     rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
     for diagonal_offset, window in mode_masks(mode):
         out = run_attention(q, kv, offsets, mode, diagonal_offset, window, scale=scale, threads=0)
         result = np.from_dlpack(out)
         expected = reference_attention(
-            *rounded, offsets, offsets, lengths, num_heads, num_heads, head_dim, scale, mode, diagonal_offset, window
+            *rounded, offsets, offsets, lengths, head_count, head_count, depth, scale, mode, diagonal_offset, window
         )
         value_scale = np.abs(expected).max()
         np.testing.assert_allclose(result, expected, atol=0.02 * value_scale)
@@ -241,7 +251,7 @@ def test_attention_validation():
         nk.attention_causal_packed(matrix, kv, query_offsets=np.array([0, 9], dtype=np.uint32))
     with pytest.raises(TypeError):  # mask arguments belong to the causal kernel only
         nk.attention_bidirectional_packed(matrix, kv, query_offsets=offsets, window=4)
-    with pytest.raises(TypeError):  # missing head_dim for a 2-D input
+    with pytest.raises(TypeError):  # missing depth for a 2-D input
         nk.attention_pack(matrix, matrix, segment_offsets=offsets)
 
 

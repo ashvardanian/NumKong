@@ -268,6 +268,17 @@ NUMKONG_INLINE __m512 nk_e5m2x16_to_f32x16_skylake_(__m128i e5m2_i8x16) {
     return _mm512_cvtph_ps(f16_u16x16);
 }
 
+/** Decodes the 16 E2M1 nibbles in the low 8 bytes, element 0 in the first byte's high nibble. */
+NUMKONG_INLINE __m512 nk_e2m1x16_to_f32x16_skylake_(__m128i e2m1_u8x16) {
+    __m512i const doubled_u32x16 = _mm512_cvtepu8_epi32(_mm_unpacklo_epi8(e2m1_u8x16, e2m1_u8x16));
+    __m512i const shifts_u32x16 = _mm512_set_epi32(0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4, 0, 4);
+    __m512i const codes_u32x16 = _mm512_and_si512(_mm512_srlv_epi32(doubled_u32x16, shifts_u32x16),
+                                                  _mm512_set1_epi32(0x0F));
+    __m512 const values_f32x16 = _mm512_set_ps(-6.0f, -4.0f, -3.0f, -2.0f, -1.5f, -1.0f, -0.5f, -0.0f, 6.0f, 4.0f, 3.0f,
+                                               2.0f, 1.5f, 1.0f, 0.5f, 0.0f);
+    return _mm512_permutexvar_ps(codes_u32x16, values_f32x16);
+}
+
 /** Convert 16x e2m3 → 16x f32 via bit manipulation (AVX-512). E2M3 format: S EE MMM (bias=1, only 6
  *  bits used). F32: sign<<31, (exp+126)<<23, mantissa<<20. Subnormals (exp=0): value = mantissa ×
  *  2⁽¹⁻¹⁾ × 2⁻³ = mantissa ÷ 8. */
@@ -968,15 +979,6 @@ NUMKONG_INLINE void nk_cast_elementwise_skylake_(void const *from, nk_dtype_t fr
     nk_cast_elementwise_(from, from_type, n, to, to_type);
 }
 
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_type, nk_size_t n, void *to,
-                                        nk_dtype_t to_type, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_cast_elementwise_skylake_(from, from_type, n, to, to_type);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
-
 /** Reduce a block of @p block_count f32s to `amax = max(|x|)`. @p block_count ≤ 32. */
 NUMKONG_INLINE nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_size_t block_count) {
     __m512i abs_mask_i32x16 = _mm512_set1_epi32(0x7FFFFFFF);
@@ -995,20 +997,19 @@ NUMKONG_INLINE nk_f32_t nk_block_amax_f32_skylake_(nk_f32_t const *block, nk_siz
     return _mm512_reduce_max_ps(_mm512_max_ps(abs_low_f32x16, abs_high_f32x16));
 }
 
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_cast_block_scaled_skylake(                                                          //
-    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
-    nk_block_scaled_format_t const *from_format,                                                               //
-    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
-    nk_size_t count, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
+NUMKONG_INLINE void nk_cast_block_scaled_skylake_(void const *from, nk_u8_t const *from_scales,
+                                                  nk_f32_t const *from_tensor_scale,           //
+                                                  nk_block_scaled_format_t const *from_format, //
+                                                  void *to, nk_u8_t *to_scales, nk_f32_t *to_tensor_scale,
+                                                  nk_block_scaled_format_t const *to_format, //
+                                                  nk_size_t count) {
 
     int from_plain = (from_format->scale_dtype == nk_dtype_unknown_k || from_format->block_size == 0);
     int to_plain = (to_format->scale_dtype == nk_dtype_unknown_k || to_format->block_size == 0);
 
     if (from_plain && to_plain) {
         nk_cast_elementwise_skylake_(from, from_format->element_dtype, count, to, to_format->element_dtype);
-        return nk_success_k;
+        return;
     }
 
     nk_size_t from_block = from_plain ? 1u : from_format->block_size;
@@ -1017,26 +1018,24 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_skylake(                           
 
     nk_f32_t from_tensor_scale_f32 = 1.0f;
     if (from_tensor_scale != NUMKONG_NULL && !from_plain && from_format->tensor_scale_dtype == nk_f32_k)
-        from_tensor_scale_f32 = from_tensor_scale->f32;
+        from_tensor_scale_f32 = *from_tensor_scale;
 
     nk_f32_t to_tensor_scale_f32 = 1.0f;
     int to_has_tensor_scale = (!to_plain && to_tensor_scale != NUMKONG_NULL &&
                                to_format->tensor_scale_dtype == nk_f32_k);
     if (to_has_tensor_scale) {
-        to_tensor_scale_f32 = to_tensor_scale->f32;
+        to_tensor_scale_f32 = *to_tensor_scale;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
             nk_cast_block_scaled_through_f32_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
                                               to_tensor_scale, to_format, count);
-            return nk_success_k;
+            return;
         }
     }
 
     nk_f32_t scratch[32];
     nk_size_t from_bits_per_element = nk_dtype_bits(from_format->element_dtype);
     nk_size_t to_bits_per_element = nk_dtype_bits(to_format->element_dtype);
-    nk_u8_t const *from_scales_bytes = (nk_u8_t const *)from_scales;
-    nk_u8_t *to_scales_bytes = (nk_u8_t *)to_scales;
 
     for (nk_size_t chunk_start = 0; chunk_start < count; chunk_start += chunk) {
         nk_size_t chunk_count = (chunk_start + chunk <= count) ? chunk : (count - chunk_start);
@@ -1050,7 +1049,7 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_skylake(                           
             for (nk_size_t b = 0; b < chunk_count; b += from_block) {
                 nk_size_t valid = (chunk_count - b) < from_block ? (chunk_count - b) : from_block;
                 nk_size_t block_index = (chunk_start + b) / from_block;
-                nk_u8_t raw = from_scales_bytes[block_index];
+                nk_u8_t raw = from_scales[block_index];
                 nk_f32_t scale_f32 = nk_block_scaled_decode_scale_serial_(raw, from_format->scale_dtype) *
                                      from_tensor_scale_f32;
                 void const *src = (nk_u8_t const *)from +
@@ -1081,7 +1080,7 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_skylake(                           
                 nk_u8_t raw = nk_block_scaled_encode_scale_serial_(block_amax, element_max, to_tensor_scale_f32,
                                                                    to_format->scale_dtype);
                 nk_size_t block_index = (chunk_start + b) / to_block;
-                to_scales_bytes[block_index] = raw;
+                to_scales[block_index] = raw;
                 nk_f32_t effective_scale = nk_block_scaled_decode_scale_serial_(raw, to_format->scale_dtype) *
                                            to_tensor_scale_f32;
                 nk_f32_t reciprocal = effective_scale > 0 ? (1.0f / effective_scale) : 0.0f;
@@ -1107,6 +1106,17 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_skylake(                           
             }
         }
     }
+}
+
+#if NUMKONG_TARGET_SKYLAKE
+NUMKONG_API nk_status_t nk_cast_skylake(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                        nk_size_t count, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
+    nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
+    nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+    nk_cast_block_scaled_skylake_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
+                                  target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_SKYLAKE

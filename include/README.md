@@ -655,7 +655,7 @@ A GPU capability, like `nk_dots_packed_bf16_ampere`, takes its CPU twin's argume
 nk_size_t devices = 0;
 nk_capability_t gpu = 0;
 if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enabled(0, &gpu) == nk_success_k)
-    nk_dots_packed_bf16_best(a, b_packed, c, height, width, depth, a_stride, c_stride, gpu, cuda_stream);
+    nk_dots_packed_bf16_best(a, b_packed, c, rows, columns, depth, a_stride, c_stride, gpu, cuda_stream);
 ```
 
 `nk_capabilities_name` spells any such mask as the names bindings accept, like "serial,neon,neonhalf", into a buffer of `NUMKONG_CAPABILITIES_NAME_CAPACITY` bytes.
@@ -741,6 +741,6 @@ struct cuda_allocator {
 };
 
 nk_dot_f32_best(cuda_managed_ptr, cuda_managed_ptr, 1024, &dot, capabilities, NULL); // C ABI, any pointer
-auto view = nk::tensor_view<nk::f32_t>(mmap_ptr, rows, cols);                         // non-owning view
+auto view = nk::tensor_view<nk::f32_t>(mmap_ptr, rows, columns);                      // non-owning view
 auto v = nk::vector<float, cuda_allocator<float>>::zeros(1024);                       // allocator-aware owning
 ```

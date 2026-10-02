@@ -26,7 +26,7 @@
 #include "harness.hpp" // `error_stats_section_t`
 #include "harness.cuh" // `cuda_backend_t`, `device_capabilities`
 #include "each.hpp"    // `test_scale`, `test_sum`, `test_blend`, `test_fma`, `test_rmsnorm`, `test_swiglu`
-#include "cast.hpp"    // `test_cast_pairs`, `test_cast_block_scaled`
+#include "cast.hpp"    // `test_cast_pairs`, `check_block_scaled_casts`
 #include "reduce.hpp"  // `test_reduce_moments`, `test_reduce_minmax`
 
 #include <cuda_bf16.h>
@@ -526,7 +526,7 @@ static bool sweep_fp32_to_fp8_(char const *label, nk_dtype_t destination_dtype,
             launcher(device_source, device_destination, n, interpretation, saturate, grid, block);
         };
         if (!run_kernel_batch_(host_source.data(), host_cuda.data(), this_batch, kernel)) return false;
-        if (nk_cast_serial(host_source.data(), nk_f32_k, this_batch, host_numkong.data(), destination_dtype, nullptr) !=
+        if (nk_cast_serial(host_source.data(), nk_f32_k, host_numkong.data(), destination_dtype, this_batch, nullptr) !=
             nk_success_k)
             return false;
         for (std::size_t i = 0; i < this_batch; ++i) {
@@ -561,7 +561,7 @@ static bool sweep_fp32_to_fp6_(char const *label, nk_dtype_t destination_dtype,
         auto kernel = [&](float const *device_source, unsigned char *device_destination, std::size_t n, dim3 grid,
                           dim3 block) { launcher(device_source, device_destination, n, interpretation, grid, block); };
         if (!run_kernel_batch_(host_source.data(), host_cuda.data(), this_batch, kernel)) return false;
-        if (nk_cast_serial(host_source.data(), nk_f32_k, this_batch, host_numkong.data(), destination_dtype, nullptr) !=
+        if (nk_cast_serial(host_source.data(), nk_f32_k, host_numkong.data(), destination_dtype, this_batch, nullptr) !=
             nk_success_k)
             return false;
         for (std::size_t i = 0; i < this_batch; ++i) {
@@ -591,7 +591,7 @@ static bool sweep_16bit_to_8bit_(char const *label, nk_dtype_t source_dtype, nk_
         std::memcpy(&host_source[i], &bits, sizeof(source_type_));
     }
     if (!run_kernel_batch_(host_source.data(), host_cuda.data(), count, launcher)) return false;
-    if (nk_cast_serial(host_source.data(), source_dtype, count, host_numkong.data(), destination_dtype, nullptr) !=
+    if (nk_cast_serial(host_source.data(), source_dtype, host_numkong.data(), destination_dtype, count, nullptr) !=
         nk_success_k)
         return false;
     std::size_t mismatches = 0;
@@ -618,7 +618,7 @@ static bool sweep_small_to_wide_(char const *label, nk_dtype_t source_dtype, nk_
     std::vector<destination_type_> host_numkong(domain_size);
     for (std::size_t i = 0; i < domain_size; ++i) host_source[i] = static_cast<unsigned char>(i);
     if (!run_kernel_batch_(host_source.data(), host_cuda.data(), domain_size, launcher)) return false;
-    if (nk_cast_serial(host_source.data(), source_dtype, domain_size, host_numkong.data(), destination_dtype,
+    if (nk_cast_serial(host_source.data(), source_dtype, host_numkong.data(), destination_dtype, domain_size,
                        nullptr) != nk_success_k)
         return false;
     std::size_t mismatches = 0;
@@ -723,17 +723,7 @@ static void test_each_cuda(error_stats_section_t &check) {
 static void test_cast_cuda(error_stats_section_t &check) {
     check.section("Conversions CUDA", nk_cap_cuda_k);
     check("cast_cuda", test_cast_pairs<cuda_backend_t>, nk_cast_cuda);
-    check("cast_f32_to_nvfp4_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda, nk_nvfp4);
-    check("cast_f32_to_mxfp4_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda, nk_mxfp4);
-    check("cast_f32_to_mxfp6_e2m3_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
-          nk_mxfp6_e2m3);
-    check("cast_f32_to_mxfp6_e3m2_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
-          nk_mxfp6_e3m2);
-    check("cast_f32_to_mxfp8_e4m3_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
-          nk_mxfp8_e4m3);
-    check("cast_f32_to_mxfp8_e5m2_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
-          nk_mxfp8_e5m2);
-    check("cast_f32_to_mxint8_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda, nk_mxint8);
+    check_block_scaled_casts<cuda_backend_t>(check, "cuda", nk_cast_cuda);
 }
 
 static void test_reduce_cuda(error_stats_section_t &check) {

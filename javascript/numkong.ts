@@ -420,36 +420,36 @@ export const toBinary = (vector: Float32Array | Float64Array | Int8Array): Uint8
 /** Extract a TypedArray from a Matrix for passing to the N-API backend. */
 function unwrapMatrix(matrix: Matrix): { array: DistanceArray; dtype: DType } {
   switch (matrix.dtype) {
-    case DType.F64: return { array: new Float64Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols), dtype: matrix.dtype };
-    case DType.F32: return { array: new Float32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols), dtype: matrix.dtype };
-    case DType.F16: case DType.BF16: return { array: new Uint16Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols), dtype: matrix.dtype };
-    case DType.I8: return { array: new Int8Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols), dtype: matrix.dtype };
-    case DType.U8: return { array: new Uint8Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols), dtype: matrix.dtype };
-    default: return { array: new Uint8Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols), dtype: matrix.dtype };
+    case DType.F64: return { array: new Float64Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns), dtype: matrix.dtype };
+    case DType.F32: return { array: new Float32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns), dtype: matrix.dtype };
+    case DType.F16: case DType.BF16: return { array: new Uint16Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns), dtype: matrix.dtype };
+    case DType.I8: return { array: new Int8Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns), dtype: matrix.dtype };
+    case DType.U8: return { array: new Uint8Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns), dtype: matrix.dtype };
+    default: return { array: new Uint8Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns), dtype: matrix.dtype };
   }
 }
 
 /** Extract a result TypedArray from a Matrix matching its output dtype. */
 function unwrapResultMatrix(matrix: Matrix): Float64Array | Float32Array | Int32Array | Uint32Array {
   switch (matrix.dtype) {
-    case DType.F64: return new Float64Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols);
-    case DType.F32: return new Float32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols);
-    case DType.I32: return new Int32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols);
-    case DType.U32: return new Uint32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols);
-    default: return new Float64Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.cols);
+    case DType.F64: return new Float64Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns);
+    case DType.F32: return new Float32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns);
+    case DType.I32: return new Int32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns);
+    case DType.U32: return new Uint32Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns);
+    default: return new Float64Array(matrix.buffer, matrix.byteOffset, matrix.rows * matrix.columns);
   }
 }
 
 /**
- *  Queries the packed buffer's byte count for a matrix with the given __[width,depth]__ and dtype,
- *  matching what `dotsPack` would allocate.
- *  @param width - Number of vectors being packed, the matrix rows.
+ *  Queries the packed buffer's byte count for a matrix with the given __[columns,depth]__ and
+ *  dtype, matching what `dotsPack` would allocate.
+ *  @param columns - Number of vectors being packed, the matrix rows.
  *  @param depth - Dimensionality per vector, the matrix columns.
  *  @param dtype - Element dtype of the source matrix.
  *  @returns The byte count of the packed buffer.
  */
-export function dotsPackedSize(width: number, depth: number, dtype: DType): number {
-  return addon.dotsPackedSize(width, depth, dtypeToString(dtype));
+export function dotsPackedSize(columns: number, depth: number, dtype: DType): number {
+  return addon.dotsPackedSize(columns, depth, dtypeToString(dtype));
 }
 
 /**
@@ -459,23 +459,23 @@ export function dotsPackedSize(width: number, depth: number, dtype: DType): numb
  */
 export function dotsPack(matrix: Matrix): PackedMatrix {
   const { array, dtype } = unwrapMatrix(matrix);
-  const result = addon.dotsPack(array, matrix.rows, matrix.cols, matrix.rowStride, dtypeToString(dtype));
-  return new PackedMatrix(result.buffer, result.width, result.depth, matrix.dtype, result.byteLength);
+  const result = addon.dotsPack(array, matrix.rows, matrix.columns, matrix.rowStride, dtypeToString(dtype));
+  return new PackedMatrix(result.buffer, result.columns, result.depth, matrix.dtype, result.byteLength);
 }
 
 function packedOperation(compiledName: string, family: KernelFamily, a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
-  if (a.cols !== packed.depth) {
-    throw new Error(`Matrix cols (${a.cols}) must match packed depth (${packed.depth})`);
+  if (a.columns !== packed.depth) {
+    throw new Error(`Matrix columns (${a.columns}) must match packed depth (${packed.depth})`);
   }
   const outDType = outputDType(family, a.dtype);
   if (!out) {
-    out = new Matrix(a.rows, packed.width, outDType);
+    out = new Matrix(a.rows, packed.columns, outDType);
   }
   const aUnwrapped = unwrapMatrix(a);
   const resultArray = unwrapResultMatrix(out);
   (addon as any)[compiledName](
     aUnwrapped.array, packed.buffer, resultArray,
-    a.rows, packed.width, a.cols,
+    a.rows, packed.columns, a.columns,
     a.rowStride, out.rowStride,
     dtypeToString(a.dtype),
   );
@@ -492,7 +492,7 @@ function symmetricOperation(compiledName: string, family: KernelFamily, vectors:
   const resultArray = unwrapResultMatrix(out);
   (addon as any)[compiledName](
     vectorsUnwrapped.array, resultArray,
-    vectors.rows, vectors.cols,
+    vectors.rows, vectors.columns,
     vectors.rowStride, out.rowStride,
     rowStart, count,
     dtypeToString(vectors.dtype),
@@ -504,7 +504,7 @@ function symmetricOperation(compiledName: string, family: KernelFamily, vectors:
  *  Computes the dot products between every row of `a` and every packed vector in `packed`.
  *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
  *  @param packed - The packed matrix produced by `dotsPack`.
- *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.columns]__ shaped.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
 export function dotsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
@@ -515,7 +515,7 @@ export function dotsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matri
  *  Computes the angular distances between every row of `a` and every packed vector in `packed`.
  *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
  *  @param packed - The packed matrix produced by `dotsPack`.
- *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.columns]__ shaped.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
 export function angularsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {
@@ -526,7 +526,7 @@ export function angularsPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): M
  *  Computes the Euclidean distances between every row of `a` and every packed vector in `packed`.
  *  @param a - The query matrix, __[rows,columns]__ shaped, columns matching packed's depth.
  *  @param packed - The packed matrix produced by `dotsPack`.
- *  @param out - Optional output matrix to write into, __[a.rows,packed.width]__ shaped.
+ *  @param out - Optional output matrix to write into, __[a.rows,packed.columns]__ shaped.
  *  @returns The distance matrix: `out` when given, otherwise a newly allocated Matrix.
  */
 export function euclideansPacked(a: Matrix, packed: PackedMatrix, out?: Matrix): Matrix {

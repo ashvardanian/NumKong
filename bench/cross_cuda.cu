@@ -197,13 +197,13 @@ template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
 void run_unpacked(environment_t const &env, std::string const &name, reference_metric_t metric, kernel_type_ kernel,
                   cuda_backend_t const &backend) {
     using input_t = typename nk::type_for<input_dtype_>::type;
-    auto const packed_size = [](std::size_t width, std::size_t depth, nk_size_t *bytes) {
-        *bytes = width * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
+    auto const packed_size = [](std::size_t columns, std::size_t depth, nk_size_t *bytes) {
+        *bytes = columns * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
         return nk_success_k;
     };
-    auto const copy = [](void const *b, void const *, std::size_t width, std::size_t, std::size_t row_bytes,
+    auto const copy = [](void const *b, void const *, std::size_t columns, std::size_t, std::size_t row_bytes,
                          std::size_t, void *packed, std::size_t, std::size_t, void *stream) {
-        return cudaMemcpyAsync(packed, b, width * row_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
+        return cudaMemcpyAsync(packed, b, columns * row_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
     };
     run_packed<input_dtype_, output_type_, cuda_backend_t>(env, name, metric, packed_size, copy, kernel, backend);
 }
@@ -277,6 +277,46 @@ void bench_each_cuda(environment_t const &env, cuda_backend_t const &backend, nk
     run_attention_rope<nk_f32_k>(env, "attention_rope_f32_cuda", nk_attention_rope_f32_cuda, backend);
     run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_cuda", nk_attention_rope_bf16_cuda, backend);
     run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_cuda", nk_attention_rope_e4m3_cuda, backend);
+}
+
+/** The bulk and block-scaled conversion CUDA baseline rows over 4096 tokens of a 4096-wide hidden
+ *  state. */
+void bench_cast_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
+    if (!(enabled & nk_cap_cuda_k)) return;
+    std::size_t const tokens = 4096, hidden = 4096;
+    run_cast_rows<nk_f32_k, nk_bf16_k>(env, "cast_f32_to_bf16_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_cast_rows<nk_bf16_k, nk_f32_k>(env, "cast_bf16_to_f32_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_cast_rows<nk_f32_k, nk_f16_k>(env, "cast_f32_to_f16_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_cast_rows<nk_f32_k, nk_e4m3_k>(env, "cast_f32_to_e4m3_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_cast_rows<nk_bf16_k, nk_e4m3_k>(env, "cast_bf16_to_e4m3_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_cast_rows<nk_e4m3_k, nk_bf16_k>(env, "cast_e4m3_to_bf16_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_cast_rows<nk_f32_k, nk_i8_k>(env, "cast_f32_to_i8_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_cast_rows<nk_f64_k, nk_f32_k>(env, "cast_f64_to_f32_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_nvfp4_k>(env, "cast_block_scaled_nvfp4_encode_cuda",
+                                                                          nk_cast_cuda, tokens, hidden, backend);
+    run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_nvfp4_k>(env, "cast_block_scaled_nvfp4_decode_cuda",
+                                                                          nk_cast_cuda, tokens, hidden, backend);
+    run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp4_k>(env, "cast_block_scaled_mxfp4_encode_cuda",
+                                                                          nk_cast_cuda, tokens, hidden, backend);
+    run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp8e4m3_k>(
+        env, "cast_block_scaled_mxfp8e4m3_encode_cuda", nk_cast_cuda, tokens, hidden, backend);
+    run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp8e4m3_k>(
+        env, "cast_block_scaled_mxfp8e4m3_decode_cuda", nk_cast_cuda, tokens, hidden, backend);
+}
+
+/** The moments and min/max CUDA baseline rows over 4096 tokens of a 4096-wide hidden state. */
+void bench_reduce_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
+    if (!(enabled & nk_cap_cuda_k)) return;
+    std::size_t const tokens = 4096, hidden = 4096;
+    run_moments_rows<nk_f64_k>(env, "reduce_moments_f64_cuda", nk_reduce_moments_f64_cuda, tokens, hidden, backend);
+    run_moments_rows<nk_f32_k>(env, "reduce_moments_f32_cuda", nk_reduce_moments_f32_cuda, tokens, hidden, backend);
+    run_moments_rows<nk_bf16_k>(env, "reduce_moments_bf16_cuda", nk_reduce_moments_bf16_cuda, tokens, hidden, backend);
+    run_moments_rows<nk_f16_k>(env, "reduce_moments_f16_cuda", nk_reduce_moments_f16_cuda, tokens, hidden, backend);
+    run_moments_rows<nk_e4m3_k>(env, "reduce_moments_e4m3_cuda", nk_reduce_moments_e4m3_cuda, tokens, hidden, backend);
+    run_moments_rows<nk_i8_k>(env, "reduce_moments_i8_cuda", nk_reduce_moments_i8_cuda, tokens, hidden, backend);
+    run_minmax_rows<nk_f32_k>(env, "reduce_minmax_f32_cuda", nk_reduce_minmax_f32_cuda, tokens, hidden, backend);
+    run_minmax_rows<nk_bf16_k>(env, "reduce_minmax_bf16_cuda", nk_reduce_minmax_bf16_cuda, tokens, hidden, backend);
+    run_minmax_rows<nk_i8_k>(env, "reduce_minmax_i8_cuda", nk_reduce_minmax_i8_cuda, tokens, hidden, backend);
 }
 
 /** Every Ampere entry point, compiled only when the architecture list includes the family. */
@@ -555,6 +595,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                nk_dots_pack_e2m3_blackwell, nk_dots_packed_e2m3_blackwell, backend);
     run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
                                nk_dots_pack_e2m1_blackwell, nk_dots_packed_e2m1_blackwell, backend);
+    run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_blackwell", nk_dots_pack_size_nvfp4_blackwell,
+                                nk_dots_pack_nvfp4_blackwell, nk_dots_packed_nvfp4_blackwell, backend);
+    run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_blackwell", nk_dots_pack_size_mxfp4_blackwell,
+                                nk_dots_pack_mxfp4_blackwell, nk_dots_packed_mxfp4_blackwell, backend);
+    run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_blackwell", nk_dots_pack_size_mxfp8e4m3_blackwell,
+                                    nk_dots_pack_mxfp8e4m3_blackwell, nk_dots_packed_mxfp8e4m3_blackwell, backend);
+    run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_blackwell", nk_dots_pack_size_mxfp8e5m2_blackwell,
+                                    nk_dots_pack_mxfp8e5m2_blackwell, nk_dots_packed_mxfp8e5m2_blackwell, backend);
 
     run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_blackwell", nk_dots_symmetric_bf16_blackwell, backend);
     run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_blackwell", nk_dots_symmetric_f16_blackwell, backend);
@@ -563,6 +611,12 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
     run_dots_symmetric<nk_e3m2_k>(env, "dots_symmetric_e3m2_blackwell", nk_dots_symmetric_e3m2_blackwell, backend);
     run_dots_symmetric<nk_e2m3_k>(env, "dots_symmetric_e2m3_blackwell", nk_dots_symmetric_e2m3_blackwell, backend);
     run_dots_symmetric<nk_e2m1_k>(env, "dots_symmetric_e2m1_blackwell", nk_dots_symmetric_e2m1_blackwell, backend);
+    run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_blackwell", nk_dots_symmetric_nvfp4_blackwell, backend);
+    run_dots_symmetric<nk_mxfp4_k>(env, "dots_symmetric_mxfp4_blackwell", nk_dots_symmetric_mxfp4_blackwell, backend);
+    run_dots_symmetric<nk_mxfp8e4m3_k>(env, "dots_symmetric_mxfp8e4m3_blackwell", nk_dots_symmetric_mxfp8e4m3_blackwell,
+                                       backend);
+    run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_blackwell", nk_dots_symmetric_mxfp8e5m2_blackwell,
+                                       backend);
 
     run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
                                    nk_dots_pack_bf16_blackwell, nk_angulars_packed_bf16_blackwell, backend);
@@ -578,6 +632,16 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                    nk_dots_pack_e2m3_blackwell, nk_angulars_packed_e2m3_blackwell, backend);
     run_angulars_packed<nk_e2m1_k>(env, "angulars_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
                                    nk_dots_pack_e2m1_blackwell, nk_angulars_packed_e2m1_blackwell, backend);
+    run_angulars_packed<nk_nvfp4_k>(env, "angulars_packed_nvfp4_blackwell", nk_dots_pack_size_nvfp4_blackwell,
+                                    nk_dots_pack_nvfp4_blackwell, nk_angulars_packed_nvfp4_blackwell, backend);
+    run_angulars_packed<nk_mxfp4_k>(env, "angulars_packed_mxfp4_blackwell", nk_dots_pack_size_mxfp4_blackwell,
+                                    nk_dots_pack_mxfp4_blackwell, nk_angulars_packed_mxfp4_blackwell, backend);
+    run_angulars_packed<nk_mxfp8e4m3_k>(env, "angulars_packed_mxfp8e4m3_blackwell",
+                                        nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
+                                        nk_angulars_packed_mxfp8e4m3_blackwell, backend);
+    run_angulars_packed<nk_mxfp8e5m2_k>(env, "angulars_packed_mxfp8e5m2_blackwell",
+                                        nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
+                                        nk_angulars_packed_mxfp8e5m2_blackwell, backend);
 
     run_angulars_symmetric<nk_bf16_k>(env, "angulars_symmetric_bf16_blackwell", nk_angulars_symmetric_bf16_blackwell,
                                       backend);
@@ -593,6 +657,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                       backend);
     run_angulars_symmetric<nk_e2m1_k>(env, "angulars_symmetric_e2m1_blackwell", nk_angulars_symmetric_e2m1_blackwell,
                                       backend);
+    run_angulars_symmetric<nk_nvfp4_k>(env, "angulars_symmetric_nvfp4_blackwell", nk_angulars_symmetric_nvfp4_blackwell,
+                                       backend);
+    run_angulars_symmetric<nk_mxfp4_k>(env, "angulars_symmetric_mxfp4_blackwell", nk_angulars_symmetric_mxfp4_blackwell,
+                                       backend);
+    run_angulars_symmetric<nk_mxfp8e4m3_k>(env, "angulars_symmetric_mxfp8e4m3_blackwell",
+                                           nk_angulars_symmetric_mxfp8e4m3_blackwell, backend);
+    run_angulars_symmetric<nk_mxfp8e5m2_k>(env, "angulars_symmetric_mxfp8e5m2_blackwell",
+                                           nk_angulars_symmetric_mxfp8e5m2_blackwell, backend);
 
     run_euclideans_packed<nk_bf16_k>(env, "euclideans_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
                                      nk_dots_pack_bf16_blackwell, nk_euclideans_packed_bf16_blackwell, backend);
@@ -608,6 +680,16 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                      nk_dots_pack_e2m3_blackwell, nk_euclideans_packed_e2m3_blackwell, backend);
     run_euclideans_packed<nk_e2m1_k>(env, "euclideans_packed_e2m1_blackwell", nk_dots_pack_size_e2m1_blackwell,
                                      nk_dots_pack_e2m1_blackwell, nk_euclideans_packed_e2m1_blackwell, backend);
+    run_euclideans_packed<nk_nvfp4_k>(env, "euclideans_packed_nvfp4_blackwell", nk_dots_pack_size_nvfp4_blackwell,
+                                      nk_dots_pack_nvfp4_blackwell, nk_euclideans_packed_nvfp4_blackwell, backend);
+    run_euclideans_packed<nk_mxfp4_k>(env, "euclideans_packed_mxfp4_blackwell", nk_dots_pack_size_mxfp4_blackwell,
+                                      nk_dots_pack_mxfp4_blackwell, nk_euclideans_packed_mxfp4_blackwell, backend);
+    run_euclideans_packed<nk_mxfp8e4m3_k>(env, "euclideans_packed_mxfp8e4m3_blackwell",
+                                          nk_dots_pack_size_mxfp8e4m3_blackwell, nk_dots_pack_mxfp8e4m3_blackwell,
+                                          nk_euclideans_packed_mxfp8e4m3_blackwell, backend);
+    run_euclideans_packed<nk_mxfp8e5m2_k>(env, "euclideans_packed_mxfp8e5m2_blackwell",
+                                          nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
+                                          nk_euclideans_packed_mxfp8e5m2_blackwell, backend);
 
     run_euclideans_symmetric<nk_bf16_k>(env, "euclideans_symmetric_bf16_blackwell",
                                         nk_euclideans_symmetric_bf16_blackwell, backend);
@@ -623,6 +705,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                         nk_euclideans_symmetric_e2m3_blackwell, backend);
     run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_blackwell",
                                         nk_euclideans_symmetric_e2m1_blackwell, backend);
+    run_euclideans_symmetric<nk_nvfp4_k>(env, "euclideans_symmetric_nvfp4_blackwell",
+                                         nk_euclideans_symmetric_nvfp4_blackwell, backend);
+    run_euclideans_symmetric<nk_mxfp4_k>(env, "euclideans_symmetric_mxfp4_blackwell",
+                                         nk_euclideans_symmetric_mxfp4_blackwell, backend);
+    run_euclideans_symmetric<nk_mxfp8e4m3_k>(env, "euclideans_symmetric_mxfp8e4m3_blackwell",
+                                             nk_euclideans_symmetric_mxfp8e4m3_blackwell, backend);
+    run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_blackwell",
+                                             nk_euclideans_symmetric_mxfp8e5m2_blackwell, backend);
     run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_blackwell",
                                            nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,
                                            nk_attention_bidirectional_packed_e4m3_blackwell, backend);
@@ -789,7 +879,7 @@ struct cublaslt_plan_t {
 
     /** Builds the plan for A of @p a_leading elements per row, or returns why cuBLASLt offers no
      *  algorithm. */
-    cublasStatus_t build(nk_dtype_t dtype, std::size_t height, std::size_t width, std::size_t depth,
+    cublasStatus_t build(nk_dtype_t dtype, std::size_t rows, std::size_t columns, std::size_t depth,
                          std::size_t a_leading) {
         cudaDataType_t const input_type = cublaslt_input_type(dtype);
         output_type = cublaslt_output_type(dtype);
@@ -798,16 +888,16 @@ struct cublaslt_plan_t {
                                                                         : CUBLAS_COMPUTE_32F;
         cublasStatus_t status = cublasLtCreate(&handle);
         if (!status) status = cublasLtMatmulDescCreate(&operation, compute, output_type);
-        if (!status) status = cublasLtMatrixLayoutCreate(&first_layout, input_type, depth, width, depth);
-        if (!status) status = cublasLtMatrixLayoutCreate(&second_layout, input_type, depth, height, a_leading);
-        if (!status) status = cublasLtMatrixLayoutCreate(&output_layout, output_type, width, height, width);
+        if (!status) status = cublasLtMatrixLayoutCreate(&first_layout, input_type, depth, columns, depth);
+        if (!status) status = cublasLtMatrixLayoutCreate(&second_layout, input_type, depth, rows, a_leading);
+        if (!status) status = cublasLtMatrixLayoutCreate(&output_layout, output_type, columns, rows, columns);
         if (status) return status;
         cublasOperation_t const transposed = CUBLAS_OP_T;
         cublasLtMatmulDescSetAttribute(operation, CUBLASLT_MATMUL_DESC_TRANSA, &transposed, sizeof(transposed));
 
         // Unit scales - UE8M0 code 127 is 2⁰, UE4M3 code 0x38 is 1.0 - so the product is the unscaled one.
         if (std::size_t const block = cublaslt_scale_block(dtype)) {
-            scales = device_vector<char>::uninitialized(nk::divide_round_up(std::max(height, width), std::size_t(128)) *
+            scales = device_vector<char>::uninitialized(nk::divide_round_up(std::max(rows, columns), std::size_t(128)) *
                                                         128 * nk::divide_round_up(depth, block * 4) * 4)
                          .value;
             if (scales.empty()) return CUBLAS_STATUS_ALLOC_FAILED;
@@ -882,14 +972,14 @@ void run_dots_f64_with_cublas(environment_t const &env, std::string const &name,
     cublasSetMathMode(raw_handle, CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH);
     run_unpacked<nk_f64_k, nk::f64_t>(
         env, name, reference_metric_t::dot_k,
-        [handle](void const *a, void const *, void const *b, void *c, std::size_t height, std::size_t width,
+        [handle](void const *a, void const *, void const *b, void *c, std::size_t rows, std::size_t columns,
                  std::size_t depth, std::size_t a_stride, std::size_t, std::size_t, void *stream) {
             double const alpha = 1, beta = 0;
             cublasSetStream(handle.get(), (cudaStream_t)stream);
-            cublasStatus_t const status = cublasGemmEx(handle.get(), CUBLAS_OP_T, CUBLAS_OP_N, int(width), int(height),
-                                                       int(depth), &alpha, b, CUDA_R_64F, int(depth), a, CUDA_R_64F,
-                                                       int(a_stride / sizeof(double)), &beta, c, CUDA_R_64F, int(width),
-                                                       CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT, CUBLAS_GEMM_DEFAULT);
+            cublasStatus_t const status = cublasGemmEx(
+                handle.get(), CUBLAS_OP_T, CUBLAS_OP_N, int(columns), int(rows), int(depth), &alpha, b, CUDA_R_64F,
+                int(depth), a, CUDA_R_64F, int(a_stride / sizeof(double)), &beta, c, CUDA_R_64F, int(columns),
+                CUBLAS_COMPUTE_64F_EMULATED_FIXEDPOINT, CUBLAS_GEMM_DEFAULT);
             return status == CUBLAS_STATUS_SUCCESS ? cudaSuccess : cudaErrorUnknown;
         },
         backend);
@@ -1293,13 +1383,13 @@ void run_spatials_with_cuvs(environment_t const &env, std::string const &name, r
     std::uint8_t const bits = std::uint8_t(nk_dtype_bits(input_dtype_));
     run_unpacked<input_dtype_, nk::f32_t>(
         env, name, metric,
-        [resources, distance, bits](void const *a, void const *, void const *b, void *c, std::size_t height,
-                                    std::size_t width, std::size_t depth, std::size_t a_stride, std::size_t,
+        [resources, distance, bits](void const *a, void const *, void const *b, void *c, std::size_t rows,
+                                    std::size_t columns, std::size_t depth, std::size_t a_stride, std::size_t,
                                     std::size_t, void *stream) {
             if (a_stride * 8 != depth * bits) return cudaErrorInvalidPitchValue;
-            std::int64_t a_shape[2] = {std::int64_t(height), std::int64_t(depth)};
-            std::int64_t b_shape[2] = {std::int64_t(width), std::int64_t(depth)};
-            std::int64_t c_shape[2] = {std::int64_t(height), std::int64_t(width)};
+            std::int64_t a_shape[2] = {std::int64_t(rows), std::int64_t(depth)};
+            std::int64_t b_shape[2] = {std::int64_t(columns), std::int64_t(depth)};
+            std::int64_t c_shape[2] = {std::int64_t(rows), std::int64_t(columns)};
             DLManagedTensor a_tensor = dlpack_matrix(a, a_shape, bits), b_tensor = dlpack_matrix(b, b_shape, bits),
                             c_tensor = dlpack_matrix(c, c_shape, 32);
             cuvsStreamSet(*resources, (cudaStream_t)stream);
@@ -1347,6 +1437,8 @@ void bench_cross_cuda([[maybe_unused]] environment_t const &env) {
     if (nk_cuda_capabilities_enabled(0, &capabilities) != nk_success_k) capabilities = 0;
     bench_cross_cuda(env, backend, capabilities);
     bench_each_cuda(env, backend, capabilities);
+    bench_cast_cuda(env, backend, capabilities);
+    bench_reduce_cuda(env, backend, capabilities);
     bench_cross_ampere(env, backend, capabilities);
     bench_cross_hopper(env, backend, capabilities);
     bench_cross_blackwell(env, backend, capabilities);

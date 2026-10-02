@@ -66,18 +66,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_pack_bf16_best(
         keys: *const bf16,
-        key_scales: *const c_void,
         values: *const bf16,
-        value_scales: *const c_void,
         heads: nk_size_t,
         depth: nk_size_t,
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: nk_size_t,
-        key_stride_bytes: nk_size_t,
-        key_scales_stride_bytes: nk_size_t,
-        value_stride_bytes: nk_size_t,
-        value_scales_stride_bytes: nk_size_t,
+        key_stride: nk_size_t,
+        value_stride: nk_size_t,
         key_value_packed: *mut u8,
         task_begin: nk_size_t,
         task_end: nk_size_t,
@@ -86,16 +82,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_bidirectional_packed_bf16_best(
         queries: *const bf16,
-        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
         heads: nk_size_t,
         depth: nk_size_t,
         query_offsets: *const u32,
-        query_stride_bytes: nk_size_t,
-        query_scales_stride_bytes: nk_size_t,
-        output_stride_bytes: nk_size_t,
+        query_stride: nk_size_t,
+        output_stride: nk_size_t,
         scale: f32,
         task_start: nk_size_t,
         task_count: nk_size_t,
@@ -104,16 +98,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_causal_packed_bf16_best(
         queries: *const bf16,
-        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
         heads: nk_size_t,
         depth: nk_size_t,
         query_offsets: *const u32,
-        query_stride_bytes: nk_size_t,
-        query_scales_stride_bytes: nk_size_t,
-        output_stride_bytes: nk_size_t,
+        query_stride: nk_size_t,
+        output_stride: nk_size_t,
         scale: f32,
         diagonal_offset: i64,
         window: nk_size_t,
@@ -133,18 +125,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_pack_e4m3_best(
         keys: *const e4m3,
-        key_scales: *const c_void,
         values: *const e4m3,
-        value_scales: *const c_void,
         heads: nk_size_t,
         depth: nk_size_t,
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: nk_size_t,
-        key_stride_bytes: nk_size_t,
-        key_scales_stride_bytes: nk_size_t,
-        value_stride_bytes: nk_size_t,
-        value_scales_stride_bytes: nk_size_t,
+        key_stride: nk_size_t,
+        value_stride: nk_size_t,
         key_value_packed: *mut u8,
         task_begin: nk_size_t,
         task_end: nk_size_t,
@@ -153,16 +141,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_bidirectional_packed_e4m3_best(
         queries: *const e4m3,
-        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
         heads: nk_size_t,
         depth: nk_size_t,
         query_offsets: *const u32,
-        query_stride_bytes: nk_size_t,
-        query_scales_stride_bytes: nk_size_t,
-        output_stride_bytes: nk_size_t,
+        query_stride: nk_size_t,
+        output_stride: nk_size_t,
         scale: f32,
         task_start: nk_size_t,
         task_count: nk_size_t,
@@ -171,16 +157,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_causal_packed_e4m3_best(
         queries: *const e4m3,
-        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
         heads: nk_size_t,
         depth: nk_size_t,
         query_offsets: *const u32,
-        query_stride_bytes: nk_size_t,
-        query_scales_stride_bytes: nk_size_t,
-        output_stride_bytes: nk_size_t,
+        query_stride: nk_size_t,
+        output_stride: nk_size_t,
         scale: f32,
         diagonal_offset: i64,
         window: nk_size_t,
@@ -200,18 +184,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_pack_i8_best(
         keys: *const i8,
-        key_scales: *const c_void,
         values: *const i8,
-        value_scales: *const c_void,
         heads: nk_size_t,
         depth: nk_size_t,
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: nk_size_t,
-        key_stride_bytes: nk_size_t,
-        key_scales_stride_bytes: nk_size_t,
-        value_stride_bytes: nk_size_t,
-        value_scales_stride_bytes: nk_size_t,
+        key_stride: nk_size_t,
+        value_stride: nk_size_t,
         key_value_packed: *mut u8,
         task_begin: nk_size_t,
         task_end: nk_size_t,
@@ -220,16 +200,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_bidirectional_packed_i8_best(
         queries: *const i8,
-        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
         heads: nk_size_t,
         depth: nk_size_t,
         query_offsets: *const u32,
-        query_stride_bytes: nk_size_t,
-        query_scales_stride_bytes: nk_size_t,
-        output_stride_bytes: nk_size_t,
+        query_stride: nk_size_t,
+        output_stride: nk_size_t,
         scale: f32,
         task_start: nk_size_t,
         task_count: nk_size_t,
@@ -238,16 +216,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_causal_packed_i8_best(
         queries: *const i8,
-        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
         heads: nk_size_t,
         depth: nk_size_t,
         query_offsets: *const u32,
-        query_stride_bytes: nk_size_t,
-        query_scales_stride_bytes: nk_size_t,
-        output_stride_bytes: nk_size_t,
+        query_stride: nk_size_t,
+        output_stride: nk_size_t,
         scale: f32,
         diagonal_offset: i64,
         window: nk_size_t,
@@ -289,9 +265,8 @@ extern "C" {
         rows: nk_size_t,
         head_count: nk_size_t,
         depth: nk_size_t,
-        x_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        input_scale: f32,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -303,9 +278,8 @@ extern "C" {
         rows: nk_size_t,
         head_count: nk_size_t,
         depth: nk_size_t,
-        x_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        input_scale: f32,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -317,9 +291,8 @@ extern "C" {
         rows: nk_size_t,
         head_count: nk_size_t,
         depth: nk_size_t,
-        x_stride_bytes: nk_size_t,
-        y_stride_bytes: nk_size_t,
-        input_scale: f32,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
@@ -349,7 +322,7 @@ pub trait Attention: StorageElement + Clone {
 
     /// Pack a window of the `(segment, kv_head)` task grid into the KV-cache blob.
     /// # Safety
-    /// - `k` / `v` must point to token matrices with `key_stride_bytes` / `value_stride_bytes` byte
+    /// - `k` / `v` must point to token matrices with `key_stride` / `value_stride` byte
     ///   rows covering every token addressed by `segment_offsets` + `segment_lengths`
     /// - `key_value_packed` must have at least `attention_pack_size(..)` bytes
     /// - a window with `task_begin > 0` requires the header already initialized by a
@@ -363,8 +336,8 @@ pub trait Attention: StorageElement + Clone {
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: usize,
-        key_stride_bytes: usize,
-        value_stride_bytes: usize,
+        key_stride: usize,
+        value_stride: usize,
         key_value_packed: *mut u8,
         task_begin: usize,
         task_end: usize,
@@ -375,7 +348,7 @@ pub trait Attention: StorageElement + Clone {
     /// # Safety
     /// - `key_value_packed` must have been produced by `attention_pack` with matching geometry
     /// - `queries` rows addressed by `query_offsets` must be valid, `output` writable
-    ///   with `output_stride_bytes` byte rows
+    ///   with `output_stride` byte rows
     #[allow(clippy::too_many_arguments)]
     unsafe fn attention_bidirectional_packed(
         queries: *const Self,
@@ -385,8 +358,8 @@ pub trait Attention: StorageElement + Clone {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         task_start: usize,
         task_count: usize,
@@ -404,8 +377,8 @@ pub trait Attention: StorageElement + Clone {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         diagonal_offset: i64,
         window: usize,
@@ -453,8 +426,8 @@ impl Attention for bf16 {
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: usize,
-        key_stride_bytes: usize,
-        value_stride_bytes: usize,
+        key_stride: usize,
+        value_stride: usize,
         key_value_packed: *mut u8,
         task_begin: usize,
         task_end: usize,
@@ -462,18 +435,14 @@ impl Attention for bf16 {
         unsafe {
             nk_attention_pack_bf16_best(
                 keys,
-                core::ptr::null(),
                 values,
-                core::ptr::null(),
                 heads,
                 depth,
                 segment_offsets,
                 segment_lengths,
                 segment_count,
-                key_stride_bytes,
-                0,
-                value_stride_bytes,
-                0,
+                key_stride,
+                value_stride,
                 key_value_packed,
                 task_begin,
                 task_end,
@@ -492,8 +461,8 @@ impl Attention for bf16 {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         task_start: usize,
         task_count: usize,
@@ -501,16 +470,14 @@ impl Attention for bf16 {
         unsafe {
             nk_attention_bidirectional_packed_bf16_best(
                 queries,
-                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
                 heads,
                 depth,
                 query_offsets,
-                query_stride_bytes,
-                0,
-                output_stride_bytes,
+                query_stride,
+                output_stride,
                 scale,
                 task_start,
                 task_count,
@@ -529,8 +496,8 @@ impl Attention for bf16 {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         diagonal_offset: i64,
         window: usize,
@@ -540,16 +507,14 @@ impl Attention for bf16 {
         unsafe {
             nk_attention_causal_packed_bf16_best(
                 queries,
-                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
                 heads,
                 depth,
                 query_offsets,
-                query_stride_bytes,
-                0,
-                output_stride_bytes,
+                query_stride,
+                output_stride,
                 scale,
                 diagonal_offset,
                 window,
@@ -602,8 +567,8 @@ impl Attention for e4m3 {
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: usize,
-        key_stride_bytes: usize,
-        value_stride_bytes: usize,
+        key_stride: usize,
+        value_stride: usize,
         key_value_packed: *mut u8,
         task_begin: usize,
         task_end: usize,
@@ -611,18 +576,14 @@ impl Attention for e4m3 {
         unsafe {
             nk_attention_pack_e4m3_best(
                 keys,
-                core::ptr::null(),
                 values,
-                core::ptr::null(),
                 heads,
                 depth,
                 segment_offsets,
                 segment_lengths,
                 segment_count,
-                key_stride_bytes,
-                0,
-                value_stride_bytes,
-                0,
+                key_stride,
+                value_stride,
                 key_value_packed,
                 task_begin,
                 task_end,
@@ -641,8 +602,8 @@ impl Attention for e4m3 {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         task_start: usize,
         task_count: usize,
@@ -650,16 +611,14 @@ impl Attention for e4m3 {
         unsafe {
             nk_attention_bidirectional_packed_e4m3_best(
                 queries,
-                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
                 heads,
                 depth,
                 query_offsets,
-                query_stride_bytes,
-                0,
-                output_stride_bytes,
+                query_stride,
+                output_stride,
                 scale,
                 task_start,
                 task_count,
@@ -678,8 +637,8 @@ impl Attention for e4m3 {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         diagonal_offset: i64,
         window: usize,
@@ -689,16 +648,14 @@ impl Attention for e4m3 {
         unsafe {
             nk_attention_causal_packed_e4m3_best(
                 queries,
-                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
                 heads,
                 depth,
                 query_offsets,
-                query_stride_bytes,
-                0,
-                output_stride_bytes,
+                query_stride,
+                output_stride,
                 scale,
                 diagonal_offset,
                 window,
@@ -751,8 +708,8 @@ impl Attention for i8 {
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: usize,
-        key_stride_bytes: usize,
-        value_stride_bytes: usize,
+        key_stride: usize,
+        value_stride: usize,
         key_value_packed: *mut u8,
         task_begin: usize,
         task_end: usize,
@@ -760,18 +717,14 @@ impl Attention for i8 {
         unsafe {
             nk_attention_pack_i8_best(
                 keys,
-                core::ptr::null(),
                 values,
-                core::ptr::null(),
                 heads,
                 depth,
                 segment_offsets,
                 segment_lengths,
                 segment_count,
-                key_stride_bytes,
-                0,
-                value_stride_bytes,
-                0,
+                key_stride,
+                value_stride,
                 key_value_packed,
                 task_begin,
                 task_end,
@@ -790,8 +743,8 @@ impl Attention for i8 {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         task_start: usize,
         task_count: usize,
@@ -799,16 +752,14 @@ impl Attention for i8 {
         unsafe {
             nk_attention_bidirectional_packed_i8_best(
                 queries,
-                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
                 heads,
                 depth,
                 query_offsets,
-                query_stride_bytes,
-                0,
-                output_stride_bytes,
+                query_stride,
+                output_stride,
                 scale,
                 task_start,
                 task_count,
@@ -827,8 +778,8 @@ impl Attention for i8 {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        query_stride_bytes: usize,
-        output_stride_bytes: usize,
+        query_stride: usize,
+        output_stride: usize,
         scale: f32,
         diagonal_offset: i64,
         window: usize,
@@ -838,16 +789,14 @@ impl Attention for i8 {
         unsafe {
             nk_attention_causal_packed_i8_best(
                 queries,
-                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
                 heads,
                 depth,
                 query_offsets,
-                query_stride_bytes,
-                0,
-                output_stride_bytes,
+                query_stride,
+                output_stride,
                 scale,
                 diagonal_offset,
                 window,
@@ -913,36 +862,36 @@ where
     Scalar: StorageElement,
     View: TensorRef<Scalar, MAX_RANK> + ?Sized,
 {
-    if view.ndim() != 2 {
+    let &[rows, width] = view.shape() else {
         return Err(TensorError::DimensionMismatch {
             expected: 2,
             got: view.ndim(),
         });
-    }
+    };
     if !view.has_contiguous_rows() {
         return Err(TensorError::NonContiguousRows);
     }
-    let row_stride_bytes = view.stride_bytes(0);
-    if row_stride_bytes < 0 {
+    let row_stride = view.stride_bytes(0);
+    if row_stride < 0 {
         return Err(TensorError::InvalidShape {
             axis: 0,
-            size: row_stride_bytes as usize,
+            size: row_stride as usize,
             reason: "attention requires non-negative row strides",
         });
     }
     // A zero head count would survive to the query path and divide by zero there, so reject the
     // zero-width view that produces it here, where the geometry is established.
-    if depth == 0 || view.shape()[1] == 0 || view.shape()[1] % depth != 0 {
+    if depth == 0 || width == 0 || width % depth != 0 {
         return Err(TensorError::DimensionMismatch {
             expected: depth,
-            got: view.shape()[1],
+            got: width,
         });
     }
-    Ok((view.shape()[0], view.shape()[1] / depth, row_stride_bytes as usize))
+    Ok((rows, width / depth, row_stride as usize))
 }
 
 /// Validates the `keys` and `values` token views together and returns their shared geometry as
-/// `(tokens, heads, keys_stride_bytes, values_stride_bytes)`. Both views must be 2D
+/// `(tokens, heads, keys_stride, values_stride)`. Both views must be 2D
 /// __[tokens,heads*depth]__ with contiguous rows and matching token and head counts.
 fn validate_attention_views<Scalar, Keys, Values, const MAX_RANK: usize>(
     keys: &Keys,
@@ -954,15 +903,15 @@ where
     Keys: TensorRef<Scalar, MAX_RANK> + ?Sized,
     Values: TensorRef<Scalar, MAX_RANK> + ?Sized,
 {
-    let (keys_tokens, keys_heads, keys_stride_bytes) = validate_token_view(keys, depth)?;
-    let (values_tokens, values_heads, values_stride_bytes) = validate_token_view(values, depth)?;
+    let (keys_tokens, keys_heads, keys_stride) = validate_token_view(keys, depth)?;
+    let (values_tokens, values_heads, values_stride) = validate_token_view(values, depth)?;
     if keys_tokens != values_tokens || keys_heads != values_heads {
         return Err(TensorError::DimensionMismatch {
             expected: keys_tokens,
             got: values_tokens,
         });
     }
-    Ok((keys_tokens, keys_heads, keys_stride_bytes, values_stride_bytes))
+    Ok((keys_tokens, keys_heads, keys_stride, values_stride))
 }
 
 /// Validates that `offsets` is cumulative and covers at most `tokens` rows.
@@ -999,8 +948,8 @@ fn validate_offsets(offsets: &[u32], tokens: usize) -> Result<usize, TensorError
 /// is the form the FFI consumes anyway.
 struct PackPlan {
     heads: usize,
-    keys_stride_bytes: usize,
-    values_stride_bytes: usize,
+    keys_stride: usize,
+    values_stride: usize,
     segment_lengths: *const u32,
     segment_count: usize,
     destination: *mut u8,
@@ -1009,7 +958,7 @@ struct PackPlan {
 /// Everything a query window needs once the batch is validated against the packed geometry.
 struct QueryPlan {
     query_head_count: usize,
-    query_stride_bytes: usize,
+    query_stride: usize,
     segment_count: usize,
     scale: f32,
 }
@@ -1090,8 +1039,8 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     {
         let Some(PackPlan {
             heads,
-            keys_stride_bytes,
-            values_stride_bytes,
+            keys_stride,
+            values_stride,
             segment_lengths,
             segment_count,
             destination,
@@ -1111,8 +1060,8 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
                 segment_offsets.as_ptr(),
                 segment_lengths,
                 segment_count,
-                keys_stride_bytes,
-                values_stride_bytes,
+                keys_stride,
+                values_stride,
                 destination,
                 0,
                 segment_count * heads,
@@ -1144,7 +1093,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     {
         let QueryPlan {
             query_head_count,
-            query_stride_bytes,
+            query_stride,
             segment_count,
             scale,
         } = self.prepare_query(queries, output, query_offsets, scale)?;
@@ -1157,7 +1106,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
                 self.heads,
                 self.depth,
                 query_offsets.as_ptr(),
-                query_stride_bytes,
+                query_stride,
                 output.stride_bytes(0) as usize,
                 scale,
                 0,
@@ -1184,7 +1133,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     {
         let QueryPlan {
             query_head_count,
-            query_stride_bytes,
+            query_stride,
             segment_count,
             scale,
         } = self.prepare_query(queries, output, query_offsets, scale)?;
@@ -1197,7 +1146,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
                 self.heads,
                 self.depth,
                 query_offsets.as_ptr(),
-                query_stride_bytes,
+                query_stride,
                 output.stride_bytes(0) as usize,
                 scale,
                 diagonal_offset,
@@ -1361,7 +1310,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let (tokens, heads, keys_stride_bytes, values_stride_bytes) = validate_attention_views(keys, values, depth)?;
+        let (tokens, heads, keys_stride, values_stride) = validate_attention_views(keys, values, depth)?;
         let segment_count = validate_offsets(segment_offsets, tokens)?;
         derive_segment_lengths(&mut self.derived_lengths, segment_offsets)?;
 
@@ -1376,8 +1325,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         }
         Ok(Some(PackPlan {
             heads,
-            keys_stride_bytes,
-            values_stride_bytes,
+            keys_stride,
+            values_stride,
             segment_lengths: self.derived_lengths.as_ptr(),
             segment_count,
             destination,
@@ -1399,7 +1348,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         QueriesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutTensor: TensorMut<f32, OUT_MAX_RANK> + ?Sized,
     {
-        let (query_tokens, query_head_count, query_stride_bytes) = validate_token_view(queries, self.depth)?;
+        let (query_tokens, query_head_count, query_stride) = validate_token_view(queries, self.depth)?;
         if query_head_count % self.heads != 0 {
             return Err(TensorError::DimensionMismatch {
                 expected: self.heads,
@@ -1422,7 +1371,7 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         }
         Ok(QueryPlan {
             query_head_count,
-            query_stride_bytes,
+            query_stride,
             segment_count,
             scale: scale.unwrap_or_else(|| (self.depth as f32).rsqrt()),
         })
@@ -1448,11 +1397,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     {
         let QueryPlan {
             query_head_count,
-            query_stride_bytes,
+            query_stride,
             segment_count,
             scale,
         } = self.prepare_query(queries, output, query_offsets, scale)?;
-        let output_stride_bytes = output.stride_bytes(0) as usize;
+        let output_stride = output.stride_bytes(0) as usize;
 
         let q_ptr = fu::SyncConstPtr::new(queries.as_ptr());
         let kv_ptr = fu::SyncConstPtr::new(self.buffer.as_ptr());
@@ -1482,8 +1431,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     heads,
                     depth,
                     offsets_ptr.as_ptr(),
-                    query_stride_bytes,
-                    output_stride_bytes,
+                    query_stride,
+                    output_stride,
                     scale,
                     prong.task_index,
                     1,
@@ -1512,11 +1461,11 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     {
         let QueryPlan {
             query_head_count,
-            query_stride_bytes,
+            query_stride,
             segment_count,
             scale,
         } = self.prepare_query(queries, output, query_offsets, scale)?;
-        let output_stride_bytes = output.stride_bytes(0) as usize;
+        let output_stride = output.stride_bytes(0) as usize;
 
         let q_ptr = fu::SyncConstPtr::new(queries.as_ptr());
         let kv_ptr = fu::SyncConstPtr::new(self.buffer.as_ptr());
@@ -1541,8 +1490,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     heads,
                     depth,
                     offsets_ptr.as_ptr(),
-                    query_stride_bytes,
-                    output_stride_bytes,
+                    query_stride,
+                    output_stride,
                     scale,
                     diagonal_offset,
                     window,
@@ -1624,8 +1573,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
     {
         let Some(PackPlan {
             heads,
-            keys_stride_bytes,
-            values_stride_bytes,
+            keys_stride,
+            values_stride,
             segment_lengths,
             segment_count,
             destination,
@@ -1647,8 +1596,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                 segment_offsets.as_ptr(),
                 segment_lengths,
                 segment_count,
-                keys_stride_bytes,
-                values_stride_bytes,
+                keys_stride,
+                values_stride,
                 destination,
                 0,
                 1,
@@ -1682,8 +1631,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
                     offsets_ptr.as_ptr(),
                     lengths_ptr.as_ptr(),
                     segment_count,
-                    keys_stride_bytes,
-                    values_stride_bytes,
+                    keys_stride,
+                    values_stride,
                     packed_ptr.as_ptr(),
                     prong.task_index + 1,
                     prong.task_index + 2,
@@ -1733,7 +1682,6 @@ pub trait AttentionRope: Sized + StorageElement {
         sin: &[f32],
         head_count: usize,
         depth: usize,
-        input_scale: f32,
     ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized;
@@ -1746,7 +1694,6 @@ impl AttentionRope for f32 {
         sin: &[f32],
         head_count: usize,
         depth: usize,
-        input_scale: f32,
     ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized,
@@ -1764,7 +1711,12 @@ impl AttentionRope for f32 {
                 reason: "RoPE depth must be even",
             });
         }
-        let (rows, width) = (x.shape()[0], x.shape()[1]);
+        let &[rows, width] = x.shape() else {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        };
         if width < head_count * depth {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
@@ -1795,7 +1747,6 @@ impl AttentionRope for f32 {
                 depth,
                 stride,
                 stride,
-                input_scale,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -1812,7 +1763,6 @@ impl AttentionRope for bf16 {
         sin: &[f32],
         head_count: usize,
         depth: usize,
-        input_scale: f32,
     ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized,
@@ -1830,7 +1780,12 @@ impl AttentionRope for bf16 {
                 reason: "RoPE depth must be even",
             });
         }
-        let (rows, width) = (x.shape()[0], x.shape()[1]);
+        let &[rows, width] = x.shape() else {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        };
         if width < head_count * depth {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
@@ -1861,7 +1816,6 @@ impl AttentionRope for bf16 {
                 depth,
                 stride,
                 stride,
-                input_scale,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -1878,7 +1832,6 @@ impl AttentionRope for e4m3 {
         sin: &[f32],
         head_count: usize,
         depth: usize,
-        input_scale: f32,
     ) -> Result<(), TensorError>
     where
         XMut: TensorMut<Self, RX> + ?Sized,
@@ -1896,7 +1849,12 @@ impl AttentionRope for e4m3 {
                 reason: "RoPE depth must be even",
             });
         }
-        let (rows, width) = (x.shape()[0], x.shape()[1]);
+        let &[rows, width] = x.shape() else {
+            return Err(TensorError::DimensionMismatch {
+                expected: 2,
+                got: x.ndim(),
+            });
+        };
         if width < head_count * depth {
             return Err(TensorError::ShapeMismatch {
                 axis: 1,
@@ -1927,7 +1885,6 @@ impl AttentionRope for e4m3 {
                 depth,
                 stride,
                 stride,
-                input_scale,
                 enabled_cpu_capabilities_mask(),
                 null_mut(),
             )
@@ -2065,7 +2022,7 @@ mod tests {
         let sin: Vec<f32> = (0..rows * half_depth).map(|k| (0.1 * k as f32).sin()).collect();
         let reference = x.clone();
         let mut x_t = crate::tensor::Tensor::<Scalar>::from_slice(&x, &[rows, width]).unwrap();
-        Scalar::attention_rope_into(&mut x_t, &cos, &sin, head_count, depth, 1.0).unwrap();
+        Scalar::attention_rope_into(&mut x_t, &cos, &sin, head_count, depth).unwrap();
         let x = x_t.as_slice().to_vec();
         for r in 0..rows {
             for h in 0..head_count {
@@ -2129,11 +2086,11 @@ mod tests {
             let mut sec = span
                 .slice_mut(&[SliceRange::Full, SliceRange::range(0, width)][..])
                 .unwrap();
-            f32::attention_rope_into(&mut sec, &cos, &sin, head_count, depth, 1.0).unwrap();
+            f32::attention_rope_into(&mut sec, &cos, &sin, head_count, depth).unwrap();
         }
 
         let mut contig = Tensor::<f32>::from_slice(&section, &[rows, width]).unwrap();
-        f32::attention_rope_into(&mut contig, &cos, &sin, head_count, depth, 1.0).unwrap();
+        f32::attention_rope_into(&mut contig, &cos, &sin, head_count, depth).unwrap();
 
         let wide_after = wide.as_slice();
         let contig_after = contig.as_slice();

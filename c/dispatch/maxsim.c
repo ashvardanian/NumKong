@@ -46,11 +46,11 @@ static nk_capability_kernels_t const *nk_maxsim_pack_size_bf16_capabilities(void
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_best(nk_size_t width, nk_size_t depth, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
                                                       nk_size_t *bytes) {
     nk_dots_pack_size_punned_t const kernel = (nk_dots_pack_size_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_pack_size_bf16_capabilities());
-    return kernel ? kernel(width, depth, bytes) : nk_missing_kernel_k;
+    return kernel ? kernel(columns, depth, bytes) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_pack_size_f32_capabilities(void) {
@@ -92,11 +92,11 @@ static nk_capability_kernels_t const *nk_maxsim_pack_size_f32_capabilities(void)
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_best(nk_size_t width, nk_size_t depth, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
                                                      nk_size_t *bytes) {
     nk_dots_pack_size_punned_t const kernel = (nk_dots_pack_size_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_pack_size_f32_capabilities());
-    return kernel ? kernel(width, depth, bytes) : nk_missing_kernel_k;
+    return kernel ? kernel(columns, depth, bytes) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_pack_size_f16_capabilities(void) {
@@ -138,11 +138,11 @@ static nk_capability_kernels_t const *nk_maxsim_pack_size_f16_capabilities(void)
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t width, nk_size_t depth, nk_capability_t capabilities,
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_best(nk_size_t columns, nk_size_t depth, nk_capability_t capabilities,
                                                      nk_size_t *bytes) {
     nk_dots_pack_size_punned_t const kernel = (nk_dots_pack_size_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_pack_size_f16_capabilities());
-    return kernel ? kernel(width, depth, bytes) : nk_missing_kernel_k;
+    return kernel ? kernel(columns, depth, bytes) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_packed_shape_bf16_capabilities(void) {
@@ -184,11 +184,11 @@ static nk_capability_kernels_t const *nk_maxsim_packed_shape_bf16_capabilities(v
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
                                                          nk_capability_t capabilities, void *stream) {
     nk_dots_packed_shape_punned_t const kernel = (nk_dots_packed_shape_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_packed_shape_bf16_capabilities());
-    return kernel ? kernel(packed, width, depth, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(packed, columns, depth, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_packed_shape_f32_capabilities(void) {
@@ -230,11 +230,11 @@ static nk_capability_kernels_t const *nk_maxsim_packed_shape_f32_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
                                                         nk_capability_t capabilities, void *stream) {
     nk_dots_packed_shape_punned_t const kernel = (nk_dots_packed_shape_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_packed_shape_f32_capabilities());
-    return kernel ? kernel(packed, width, depth, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(packed, columns, depth, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_packed_shape_f16_capabilities(void) {
@@ -276,11 +276,11 @@ static nk_capability_kernels_t const *nk_maxsim_packed_shape_f16_capabilities(vo
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_size_t *width, nk_size_t *depth,
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
                                                         nk_capability_t capabilities, void *stream) {
     nk_dots_packed_shape_punned_t const kernel = (nk_dots_packed_shape_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_packed_shape_f16_capabilities());
-    return kernel ? kernel(packed, width, depth, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(packed, columns, depth, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_pack_bf16_capabilities(void) {
@@ -322,12 +322,12 @@ static nk_capability_kernels_t const *nk_maxsim_pack_bf16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *b, nk_size_t width, nk_size_t depth,
+NUMKONG_API nk_status_t nk_maxsim_pack_bf16_best(nk_bf16_t const *b, nk_size_t columns, nk_size_t depth,
                                                  nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
                                                  void *stream) {
     nk_maxsim_pack_punned_t const kernel = (nk_maxsim_pack_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_maxsim_pack_bf16_capabilities());
-    return kernel ? kernel(b, width, depth, b_stride, b_packed, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(b, columns, depth, b_stride, b_packed, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_pack_f32_capabilities(void) {
@@ -369,11 +369,12 @@ static nk_capability_kernels_t const *nk_maxsim_pack_f32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
-                                                void *b_packed, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_maxsim_pack_f32_best(nk_f32_t const *b, nk_size_t columns, nk_size_t depth,
+                                                nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
+                                                void *stream) {
     nk_maxsim_pack_punned_t const kernel = (nk_maxsim_pack_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_maxsim_pack_f32_capabilities());
-    return kernel ? kernel(b, width, depth, b_stride, b_packed, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(b, columns, depth, b_stride, b_packed, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_pack_f16_capabilities(void) {
@@ -415,11 +416,12 @@ static nk_capability_kernels_t const *nk_maxsim_pack_f16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride,
-                                                void *b_packed, nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *b, nk_size_t columns, nk_size_t depth,
+                                                nk_size_t b_stride, void *b_packed, nk_capability_t capabilities,
+                                                void *stream) {
     nk_maxsim_pack_punned_t const kernel = (nk_maxsim_pack_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_maxsim_pack_f16_capabilities());
-    return kernel ? kernel(b, width, depth, b_stride, b_packed, stream) : nk_missing_kernel_k;
+    return kernel ? kernel(b, columns, depth, b_stride, b_packed, stream) : nk_missing_kernel_k;
 }
 
 static nk_capability_kernels_t const *nk_maxsim_packed_bf16_capabilities(void) {
@@ -461,12 +463,12 @@ static nk_capability_kernels_t const *nk_maxsim_packed_bf16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_bf16_best(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                                   nk_size_t document_count, nk_size_t depth, nk_f32_t *result,
-                                                   nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_maxsim_packed_bf16_best(void const *query_packed, void const *document_packed,
+                                                   nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                   nk_f32_t *result, nk_capability_t capabilities, void *stream) {
     nk_maxsim_packed_punned_t const kernel = (nk_maxsim_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_packed_bf16_capabilities());
-    return kernel ? kernel(q_packed, d_packed, query_count, document_count, depth, result, stream)
+    return kernel ? kernel(query_packed, document_packed, query_count, document_count, depth, result, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -509,12 +511,12 @@ static nk_capability_kernels_t const *nk_maxsim_packed_f32_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_f32_best(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                                  nk_size_t document_count, nk_size_t depth, nk_f64_t *result,
-                                                  nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_maxsim_packed_f32_best(void const *query_packed, void const *document_packed,
+                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                  nk_f64_t *result, nk_capability_t capabilities, void *stream) {
     nk_maxsim_packed_punned_t const kernel = (nk_maxsim_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_packed_f32_capabilities());
-    return kernel ? kernel(q_packed, d_packed, query_count, document_count, depth, result, stream)
+    return kernel ? kernel(query_packed, document_packed, query_count, document_count, depth, result, stream)
                   : nk_missing_kernel_k;
 }
 
@@ -557,12 +559,12 @@ static nk_capability_kernels_t const *nk_maxsim_packed_f16_capabilities(void) {
     return lists;
 }
 
-NUMKONG_API nk_status_t nk_maxsim_packed_f16_best(void const *q_packed, void const *d_packed, nk_size_t query_count,
-                                                  nk_size_t document_count, nk_size_t depth, nk_f32_t *result,
-                                                  nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_maxsim_packed_f16_best(void const *query_packed, void const *document_packed,
+                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
+                                                  nk_f32_t *result, nk_capability_t capabilities, void *stream) {
     nk_maxsim_packed_punned_t const kernel = (nk_maxsim_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_maxsim_packed_f16_capabilities());
-    return kernel ? kernel(q_packed, d_packed, query_count, document_count, depth, result, stream)
+    return kernel ? kernel(query_packed, document_packed, query_count, document_count, depth, result, stream)
                   : nk_missing_kernel_k;
 }
 

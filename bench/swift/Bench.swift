@@ -71,8 +71,8 @@ private func packed<T: NumKongDotsMatrixElement & SendableMetatype>(
     _ op: @escaping @Sendable (Tensor<T>, PackedMatrix<T>) throws -> Any
 ) -> Workload {
     Workload(testDescription: "\(name) packed") {
-        let a = try Tensor<T>.fromArray(make(matrixHeight * depth), rows: matrixHeight, cols: depth)
-        let b = try Tensor<T>.fromArray(make(matrixWidth * depth), rows: matrixWidth, cols: depth)
+        let a = try Tensor<T>.fromArray(make(matrixHeight * depth), rows: matrixHeight, columns: depth)
+        let b = try Tensor<T>.fromArray(make(matrixWidth * depth), rows: matrixWidth, columns: depth)
         let packed = try b.packForDots()
         return { _ = try! op(a, packed) }
     }
@@ -83,7 +83,7 @@ private func symmetric<T: SendableMetatype>(
     _ op: @escaping @Sendable (Tensor<T>) throws -> Any
 ) -> Workload {
     Workload(testDescription: "\(name) symmetric") {
-        let a = try Tensor<T>.fromArray(make(matrixHeight * depth), rows: matrixHeight, cols: depth)
+        let a = try Tensor<T>.fromArray(make(matrixHeight * depth), rows: matrixHeight, columns: depth)
         return { _ = try! op(a) }
     }
 }

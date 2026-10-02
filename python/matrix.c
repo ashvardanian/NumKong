@@ -12,9 +12,9 @@
  *  - @c Tensor times @c PackedMatrix through the `@` operator: equivalent to @c dots_packed.
  *
  *  Shape naming convention used in docs and errors:
- *  - @c a: @b [height,depth]
- *  - packed @c b: @b [width,depth]
- *  - result: @b [height,width]
+ *  - @c a: @b [rows,depth]
+ *  - packed @c b: @b [columns,depth]
+ *  - result: @b [rows,columns]
  */
 #include <numkong/dots.h>
 
@@ -32,8 +32,8 @@ typedef struct matrix_packed_task_t {
     nk_size_t rows;
     nk_size_t columns;
     nk_size_t depth;
-    nk_size_t a_stride_bytes;
-    nk_size_t c_stride_bytes;
+    nk_size_t a_stride;
+    nk_size_t c_stride;
 } matrix_packed_task_t;
 
 static nk_status_t matrix_packed_tile_(nk_size_t tile_index, void *context) {
@@ -41,8 +41,8 @@ static nk_status_t matrix_packed_tile_(nk_size_t tile_index, void *context) {
     nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
     nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
                                                                                : (task->rows - row);
-    return task->kernel(task->a + row * task->a_stride_bytes, task->b_packed, task->c + row * task->c_stride_bytes,
-                        chunk, task->columns, task->depth, task->a_stride_bytes, task->c_stride_bytes, task->stream);
+    return task->kernel(task->a + row * task->a_stride, task->b_packed, task->c + row * task->c_stride, chunk,
+                        task->columns, task->depth, task->a_stride, task->c_stride, task->stream);
 }
 
 /** One tile of rows of C = A × Aᵀ. */
@@ -53,8 +53,8 @@ typedef struct matrix_symmetric_task_t {
     void *result;
     nk_size_t vectors_count;
     nk_size_t depth;
-    nk_size_t stride_bytes;
-    nk_size_t result_stride_bytes;
+    nk_size_t stride;
+    nk_size_t result_stride;
     nk_size_t row_start;
     nk_size_t row_end;
 } matrix_symmetric_task_t;
@@ -65,8 +65,8 @@ static nk_status_t matrix_symmetric_tile_(nk_size_t tile_index, void *context) {
     nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
                                     ? NUMKONG_PARALLEL_SYMMETRIC_TILE
                                     : (task->row_end - tile_start);
-    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride_bytes, task->result,
-                        task->result_stride_bytes, tile_start, tile_rows, task->stream);
+    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride, task->result,
+                        task->result_stride, tile_start, tile_rows, task->stream);
 }
 
 static void PackedMatrix_dealloc(PyObject *self) {
@@ -88,20 +88,20 @@ static size_t packed_matrix_nbytes(PackedMatrix *mm) {
     nk_find_kernel_punned(nk_kernel_dots_pack_size_k, mm->dtype, mm->capabilities, (nk_kernel_punned_t *)&size_fn,
                           &cap);
     nk_size_t bytes = 0;
-    if (size_fn) size_fn(mm->width, mm->depth, &bytes);
+    if (size_fn) size_fn(mm->columns, mm->depth, &bytes);
     return bytes;
 }
 
 static PyObject *PackedMatrix_repr(PyObject *self) {
     PackedMatrix *mm = (PackedMatrix *)self;
     size_t packed_size = packed_matrix_nbytes(mm);
-    return PyUnicode_FromFormat("<PackedMatrix width=%zu depth=%zu dtype='%s' nbytes=%zu>", (size_t)mm->width,
+    return PyUnicode_FromFormat("<PackedMatrix columns=%zu depth=%zu dtype='%s' nbytes=%zu>", (size_t)mm->columns,
                                 (size_t)mm->depth, nk_dtype_python_name(mm->dtype), packed_size);
 }
 
-static PyObject *PackedMatrix_get_width(PyObject *self, void *closure) {
+static PyObject *PackedMatrix_get_columns(PyObject *self, void *closure) {
     nk_unused_(closure);
-    return PyLong_FromSize_t(((PackedMatrix *)self)->width);
+    return PyLong_FromSize_t(((PackedMatrix *)self)->columns);
 }
 
 static PyObject *PackedMatrix_get_depth(PyObject *self, void *closure) {
@@ -131,22 +131,22 @@ static PyObject *PackedMatrix_get_shape(PyObject *self, void *closure) {
                      nk_dtype_to_pybuffer_typestr(mm->dtype));
         return NULL;
     }
-    nk_size_t width = 0, depth = 0;
-    if (!check_status(shape_fn(mm->data, &width, &depth, NULL))) return NULL;
-    PyObject *width_integer = PyLong_FromSsize_t((Py_ssize_t)width);
+    nk_size_t columns = 0, depth = 0;
+    if (!check_status(shape_fn(mm->data, &columns, &depth, NULL))) return NULL;
+    PyObject *columns_integer = PyLong_FromSsize_t((Py_ssize_t)columns);
     PyObject *depth_integer = PyLong_FromSsize_t((Py_ssize_t)depth);
-    PyObject *shape = width_integer && depth_integer ? PyTuple_Pack(2, width_integer, depth_integer) : NULL;
-    Py_XDECREF(width_integer);
+    PyObject *shape = columns_integer && depth_integer ? PyTuple_Pack(2, columns_integer, depth_integer) : NULL;
+    Py_XDECREF(columns_integer);
     Py_XDECREF(depth_integer);
     return shape;
 }
 
 static PyGetSetDef PackedMatrix_getset[] = {
-    {"width", PackedMatrix_get_width, NULL, "Number of rows in the original matrix", NULL},
+    {"columns", PackedMatrix_get_columns, NULL, "Number of packed vectors, the columns of the result", NULL},
     {"depth", PackedMatrix_get_depth, NULL, "Number of columns in the original matrix", NULL},
     {"dtype", PackedMatrix_get_dtype, NULL, "Data type of the matrix elements", NULL},
     {"nbytes", PackedMatrix_get_nbytes, NULL, "Size of the packed buffer in bytes", NULL},
-    {"shape", PackedMatrix_get_shape, NULL, "Dimensions (width, depth) read from the packed buffer header", NULL},
+    {"shape", PackedMatrix_get_shape, NULL, "Dimensions (columns, depth) read from the packed buffer header", NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 
@@ -159,7 +159,7 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
     Py_ssize_t total = nargs + nkw;
 
     if (nargs < 2 || total > 4 || nargs > 3) {
-        PyErr_SetString(PyExc_TypeError, "pack_size(width, depth, /, dtype='bf16', *, capabilities=None)");
+        PyErr_SetString(PyExc_TypeError, "pack_size(columns, depth, /, dtype='bf16', *, capabilities=None)");
         return NULL;
     }
 
@@ -194,8 +194,8 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
         return NULL;
     }
 
-    nk_size_t width = (nk_size_t)PyLong_AsSize_t(width_obj);
-    if (width == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
+    nk_size_t columns = (nk_size_t)PyLong_AsSize_t(width_obj);
+    if (columns == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
     nk_size_t depth = (nk_size_t)PyLong_AsSize_t(depth_obj);
     if (depth == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
 
@@ -213,7 +213,7 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
     }
 
     nk_size_t bytes = 0;
-    if (!check_status(size_fn(width, depth, &bytes))) return NULL;
+    if (!check_status(size_fn(columns, depth, &bytes))) return NULL;
     return PyLong_FromSize_t(bytes);
 }
 
@@ -257,7 +257,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
         return NULL;
     }
 
-    nk_size_t height = (nk_size_t)a->shape[0];
+    nk_size_t rows = (nk_size_t)a->shape[0];
     nk_size_t depth_a = (nk_size_t)a->shape[1];
 
     if (depth_a != packed->depth) {
@@ -271,7 +271,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
         return NULL;
     }
 
-    nk_size_t n = packed->width;
+    nk_size_t n = packed->columns;
     nk_size_t k = packed->depth;
     nk_size_t row_stride = (nk_size_t)a->strides[0];
     nk_size_t col_stride = (nk_size_t)a->strides[1];
@@ -307,7 +307,7 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     }
 
     // Allocate output tensor
-    Py_ssize_t out_shape[2] = {(Py_ssize_t)height, (Py_ssize_t)n};
+    Py_ssize_t out_shape[2] = {(Py_ssize_t)rows, (Py_ssize_t)n};
     Tensor *result = Tensor_new(out_dtype, 2, out_shape);
     if (!result) return NULL;
 
@@ -315,20 +315,20 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     // `@` takes no `threads`: every core once nk_parallel_worthwhile() clears the product, else inline.
     // Explicit control lives in dots_packed(a, packed, threads=N), which honors the caller literally.
     nk_size_t const available_threads = nk_parallel_concurrency();
-    nk_size_t const threads = nk_parallel_worthwhile(height * n * k, available_threads) ? available_threads : 1;
+    nk_size_t const threads = nk_parallel_worthwhile(rows * n * k, available_threads) ? available_threads : 1;
     matrix_packed_task_t task;
     task.kernel = matmul_fn;
     task.stream = NULL;
     task.a = a->data;
     task.b_packed = packed->data;
     task.c = result->data;
-    task.rows = height;
+    task.rows = rows;
     task.columns = n;
     task.depth = k;
-    task.a_stride_bytes = row_stride;
-    task.c_stride_bytes = c_stride;
+    task.a_stride = row_stride;
+    task.c_stride = c_stride;
     PyThreadState *save = PyEval_SaveThread();
-    nk_status_t const status = nk_parallel_for_tiles(nk_size_divide_round_up_(height, NUMKONG_PARALLEL_PACKED_TILE),
+    nk_status_t const status = nk_parallel_for_tiles(nk_size_divide_round_up_(rows, NUMKONG_PARALLEL_PACKED_TILE),
                                                      threads, matrix_packed_tile_, &task);
     PyEval_RestoreThread(save);
     if (!check_status(status)) {
@@ -386,8 +386,8 @@ static matrix_metric_spec_t const spec_jaccards = {
     .metric_kind = nk_kernel_jaccard_k,
 };
 
-static int resolve_output_tensor(                                            //
-    PyObject *out_obj, nk_size_t rows, nk_size_t cols, nk_dtype_t out_dtype, //
+static int resolve_output_tensor(                                               //
+    PyObject *out_obj, nk_size_t rows, nk_size_t columns, nk_dtype_t out_dtype, //
     Tensor **result, char **out_data, nk_size_t *row_stride, int *owns_result) {
 
     if (out_obj && out_obj != Py_None) {
@@ -398,8 +398,8 @@ static int resolve_output_tensor(                                            //
         *result = (Tensor *)out_obj;
 
         if ((*result)->rank != 2 || (*result)->shape[0] != (Py_ssize_t)rows ||
-            (*result)->shape[1] != (Py_ssize_t)cols) {
-            PyErr_Format(PyExc_ValueError, "out has wrong shape: expected (%zu, %zu), got (%zd, %zd)", rows, cols,
+            (*result)->shape[1] != (Py_ssize_t)columns) {
+            PyErr_Format(PyExc_ValueError, "out has wrong shape: expected (%zu, %zu), got (%zd, %zd)", rows, columns,
                          (*result)->shape[0], (*result)->shape[1]);
             return 0;
         }
@@ -412,7 +412,7 @@ static int resolve_output_tensor(                                            //
 
         size_t out_item_size = nk_dtype_bytes_per_value(out_dtype);
         if ((*result)->strides[1] != (Py_ssize_t)out_item_size ||
-            (*result)->strides[0] != (Py_ssize_t)(cols * out_item_size)) {
+            (*result)->strides[0] != (Py_ssize_t)(columns * out_item_size)) {
             PyErr_SetString(PyExc_ValueError, "out must be C-contiguous");
             return 0;
         }
@@ -423,12 +423,12 @@ static int resolve_output_tensor(                                            //
         return 1;
     }
 
-    Py_ssize_t out_shape[2] = {(Py_ssize_t)rows, (Py_ssize_t)cols};
+    Py_ssize_t out_shape[2] = {(Py_ssize_t)rows, (Py_ssize_t)columns};
     *result = Tensor_new(out_dtype, 2, out_shape);
     if (!*result) return 0;
 
     *out_data = (*result)->data;
-    *row_stride = cols * nk_dtype_bytes_per_value(out_dtype);
+    *row_stride = columns * nk_dtype_bytes_per_value(out_dtype);
     *owns_result = 1;
     return 1;
 }
@@ -516,7 +516,7 @@ static PyObject *api_packed_common( //
         return NULL;
     }
 
-    nk_size_t height = (nk_size_t)a_buffer.shape[0];
+    nk_size_t rows = (nk_size_t)a_buffer.shape[0];
     nk_size_t depth = (nk_size_t)a_buffer.shape[1];
     nk_size_t input_row_stride = (nk_size_t)a_buffer.strides[0];
     nk_size_t input_col_stride = (nk_size_t)a_buffer.strides[1];
@@ -559,14 +559,14 @@ static PyObject *api_packed_common( //
         return NULL;
     }
 
-    nk_size_t width = packed->width;
+    nk_size_t columns = packed->columns;
     nk_size_t depth_packed = packed->depth;
 
     Tensor *result = NULL;
     int owns_result = 0;
     char *out_data = NULL;
     nk_size_t output_row_stride = 0;
-    if (!resolve_output_tensor(out_obj, height, width, out_dtype, &result, &out_data, &output_row_stride,
+    if (!resolve_output_tensor(out_obj, rows, columns, out_dtype, &result, &out_data, &output_row_stride,
                                &owns_result)) {
         PyBuffer_Release(&a_buffer);
         return NULL;
@@ -574,12 +574,12 @@ static PyObject *api_packed_common( //
 
     // Apply row-range slicing
     if (start_row < 0) start_row = 0;
-    if (end_row < 0) end_row = (Py_ssize_t)height;
-    if (start_row > (Py_ssize_t)height || end_row > (Py_ssize_t)height || start_row > end_row) {
+    if (end_row < 0) end_row = (Py_ssize_t)rows;
+    if (start_row > (Py_ssize_t)rows || end_row > (Py_ssize_t)rows || start_row > end_row) {
         PyBuffer_Release(&a_buffer);
         if (owns_result) Py_DECREF(result);
         PyErr_Format(PyExc_ValueError, "Invalid row range [%zd, %zd) for matrix with %zu rows", start_row, end_row,
-                     (size_t)height);
+                     (size_t)rows);
         return NULL;
     }
     {
@@ -594,14 +594,14 @@ static PyObject *api_packed_common( //
         task.b_packed = packed->data;
         task.c = out_ptr;
         task.rows = slice_height;
-        task.columns = width;
+        task.columns = columns;
         task.depth = depth_packed;
-        task.a_stride_bytes = input_row_stride;
-        task.c_stride_bytes = output_row_stride;
+        task.a_stride = input_row_stride;
+        task.c_stride = output_row_stride;
         // A GPU parallelizes the whole slice itself, in one launch rather than the thread pool
         nk_status_t status;
         if (on_gpu)
-            status = kernel(a_ptr, packed->data, out_ptr, slice_height, width, depth_packed, input_row_stride,
+            status = kernel(a_ptr, packed->data, out_ptr, slice_height, columns, depth_packed, input_row_stride,
                             output_row_stride, stream);
         else
             status = nk_parallel_for_tiles(nk_size_divide_round_up_(slice_height, NUMKONG_PARALLEL_PACKED_TILE),
@@ -753,8 +753,8 @@ static PyObject *api_symmetric_common( //
         task.result = out_data;
         task.vectors_count = n_vectors;
         task.depth = depth;
-        task.stride_bytes = stride;
-        task.result_stride_bytes = result_stride;
+        task.stride = stride;
+        task.result_stride = result_stride;
         task.row_start = row_start;
         task.row_end = row_end;
         nk_status_t status;
@@ -786,7 +786,7 @@ char const doc_dots_pack[] =                                                    
     "dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix\n\n"              //
     "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                  //
     "Args:\n"                                                                                //
-    "    b (array_like): Source matrix with shape [width,depth], or a CUDA or ROCm\n"        //
+    "    b (array_like): Source matrix with shape [columns,depth], or a CUDA or ROCm\n"      //
     "        Tensor from from_dlpack() to pack on that GPU.\n"                               //
     "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"              //
     "        Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                   //
@@ -854,7 +854,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     }
     if (device.device_type != kDLCPU && !out_obj) {
         PyErr_SetString(PyExc_ValueError, "packing a GPU matrix needs out=, a Tensor on its device of " //
-                                          "PackedMatrix.pack_size(width, depth, dtype, capabilities=...) bytes");
+                                          "PackedMatrix.pack_size(columns, depth, dtype, capabilities=...) bytes");
         return NULL;
     }
     if (device.device_type != kDLCPU && !device_capabilities(device, &capabilities)) return NULL;
@@ -886,7 +886,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
         return NULL;
     }
 
-    nk_size_t width = (nk_size_t)b_buffer.shape[0];
+    nk_size_t columns = (nk_size_t)b_buffer.shape[0];
     nk_size_t depth = (nk_size_t)b_buffer.shape[1];
     // A whole-byte buffer counts storage values; `depth` counts dimensions, a multiple of the values per byte.
     depth *= nk_dimensions_per_value(target_dtype);
@@ -917,7 +917,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
         return NULL;
     }
     nk_size_t packed_size = 0;
-    if (!check_status(size_fn(width, depth, &packed_size))) {
+    if (!check_status(size_fn(columns, depth, &packed_size))) {
         PyBuffer_Release(&b_buffer);
         return NULL;
     }
@@ -943,7 +943,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     }
 
     packed->dtype = target_dtype;
-    packed->width = width;
+    packed->columns = columns;
     packed->depth = depth;
     packed->capabilities = capabilities;
     packed->device = device;
@@ -962,7 +962,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     }
 
     PyThreadState *save = PyEval_SaveThread();
-    nk_status_t const status = pack_fn(b_buffer.buf, width, depth, row_stride, packed->data, 0, width, stream);
+    nk_status_t const status = pack_fn(b_buffer.buf, columns, depth, row_stride, packed->data, 0, columns, stream);
     PyEval_RestoreThread(save);
 
     PyBuffer_Release(&b_buffer);
@@ -982,17 +982,17 @@ char const doc_dots_packed[] =                                                  
     "dots_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise dot products between matrix a and pre-packed matrix b.\n\n"              //
     "Args:\n"                                                                                  //
-    "    a (array_like): Query matrix with shape [height,depth], on the device of b.\n"        //
-    "    b (PackedMatrix): Matrix packed with dots_pack(); shape [width,depth].\n"             //
+    "    a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"          //
+    "    b (PackedMatrix): Matrix packed with dots_pack(); shape [columns,depth].\n"           //
     "    out (Tensor, optional): C-contiguous output tensor with shape\n"                      //
-    "        [height,width] and matching output dtype. Required, on the same GPU,\n"           //
+    "        [rows,columns] and matching output dtype. Required, on the same GPU,\n"           //
     "        when b was packed on a GPU.\n"                                                    //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"             //
-    "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"  //
+    "    end_row (int, optional): One-past-last row of a to process, defaulting to rows.\n"    //
     "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"        //
     "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"      //
     "Returns:\n"                                                                               //
-    "    Tensor: Dot-product matrix with shape [height,width].\n"                              //
+    "    Tensor: Dot-product matrix with shape [rows,columns].\n"                              //
     "    Returns out when provided.\n\n"                                                       //
     "Note:\n"                                                                                  //
     "    Equivalent to A @ B.T where B is the original unpacked matrix.\n"                     //
@@ -1010,7 +1010,7 @@ char const doc_hammings_pack[] =                                             //
     "hammings_pack(b, /, dtype='uint1') -> PackedMatrix\n\n"                 //
     "Pack a 2D matrix for repeated set-distance cross operations.\n\n"       //
     "Args:\n"                                                                //
-    "    b (array_like): Source matrix with shape [width,depth].\n"          //
+    "    b (array_like): Source matrix with shape [columns,depth].\n"        //
     "    dtype (str, optional): Packing dtype. Default: 'uint1'.\n"          //
     "        For 'uint1', packed bits are represented as uint8 bytes.\n\n"   //
     "Returns:\n"                                                             //
@@ -1028,16 +1028,16 @@ char const doc_hammings_packed[] =                                              
     "hammings_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise Hamming distances between matrix a and pre-packed b.\n\n"                    //
     "Args:\n"                                                                                      //
-    "    a (array_like): Query matrix with shape [height,depth].\n"                                //
+    "    a (array_like): Query matrix with shape [rows,depth].\n"                                  //
     "    b (PackedMatrix): Matrix packed with hammings_pack();\n"                                  //
-    "        shape [width,depth].\n"                                                               //
+    "        shape [columns,depth].\n"                                                             //
     "    out (Tensor, optional): C-contiguous output tensor with shape\n"                          //
-    "        [height,width] and dtype uint32.\n"                                                   //
+    "        [rows,columns] and dtype uint32.\n"                                                   //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"                 //
-    "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"      //
+    "    end_row (int, optional): One-past-last row of a to process, defaulting to rows.\n"        //
     "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                            //
     "Returns:\n"                                                                                   //
-    "    Tensor: Hamming-distance matrix with shape [height,width].\n"                             //
+    "    Tensor: Hamming-distance matrix with shape [rows,columns].\n"                             //
     "    Returns out when provided.\n\n"                                                           //
     "Note:\n"                                                                                      //
     "    Output dtype is uint32; Hamming distances are unsigned integer counts.\n\n"               //
@@ -1054,16 +1054,16 @@ char const doc_jaccards_packed[] =                                              
     "jaccards_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise Jaccard distances between matrix a and pre-packed b.\n\n"                    //
     "Args:\n"                                                                                      //
-    "    a (array_like): Query matrix with shape [height,depth].\n"                                //
+    "    a (array_like): Query matrix with shape [rows,depth].\n"                                  //
     "    b (PackedMatrix): Matrix packed with hammings_pack();\n"                                  //
-    "        shape [width,depth].\n"                                                               //
+    "        shape [columns,depth].\n"                                                             //
     "    out (Tensor, optional): C-contiguous output tensor with\n"                                //
-    "        shape [height,width] and matching output dtype.\n"                                    //
+    "        shape [rows,columns] and matching output dtype.\n"                                    //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"                 //
-    "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"      //
+    "    end_row (int, optional): One-past-last row of a to process, defaulting to rows.\n"        //
     "    threads (int, optional): Worker threads, defaulting to 1.\n\n"                            //
     "Returns:\n"                                                                                   //
-    "    Tensor: Jaccard-distance matrix with shape [height,width].\n"                             //
+    "    Tensor: Jaccard-distance matrix with shape [rows,columns].\n"                             //
     "    Returns out when provided.\n\n"                                                           //
     "Note:\n"                                                                                      //
     "    Jaccard distances reuse the Hamming packing format.\n"                                    //
@@ -1081,18 +1081,18 @@ char const doc_angulars_packed[] =                                              
     "angulars_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise angular distances between matrix a and pre-packed b.\n\n"                    //
     "Args:\n"                                                                                      //
-    "    a (array_like): Query matrix with shape [height,depth], on the device of b.\n"            //
+    "    a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"              //
     "    b (PackedMatrix): Matrix packed with dots_pack();\n"                                      //
-    "        shape [width,depth].\n"                                                               //
+    "        shape [columns,depth].\n"                                                             //
     "    out (Tensor, optional): C-contiguous output tensor with\n"                                //
-    "        shape [height,width] and matching output dtype. Required, on the\n"                   //
+    "        shape [rows,columns] and matching output dtype. Required, on the\n"                   //
     "        same GPU, when b was packed on a GPU.\n"                                              //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"                 //
-    "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"      //
+    "    end_row (int, optional): One-past-last row of a to process, defaulting to rows.\n"        //
     "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"            //
     "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"          //
     "Returns:\n"                                                                                   //
-    "    Tensor: Angular-distance matrix with shape [height,width].\n"                             //
+    "    Tensor: Angular-distance matrix with shape [rows,columns].\n"                             //
     "    Returns out when provided.\n\n"                                                           //
     "Note:\n"                                                                                      //
     "    Use dots_pack() to prepare the packed matrix — angular\n"                                 //
@@ -1110,18 +1110,18 @@ char const doc_euclideans_packed[] =                                            
     "euclideans_packed(a, b, /, *, out=None, start_row=None, end_row=None, threads=1) -> Tensor\n\n" //
     "Compute row-wise Euclidean distances between matrix a and pre-packed b.\n\n"                    //
     "Args:\n"                                                                                        //
-    "    a (array_like): Query matrix with shape [height,depth], on the device of b.\n"              //
+    "    a (array_like): Query matrix with shape [rows,depth], on the device of b.\n"                //
     "    b (PackedMatrix): Matrix packed with dots_pack();\n"                                        //
-    "        shape [width,depth].\n"                                                                 //
+    "        shape [columns,depth].\n"                                                               //
     "    out (Tensor, optional): C-contiguous output tensor with\n"                                  //
-    "        shape [height,width] and matching output dtype. Required, on the\n"                     //
+    "        shape [rows,columns] and matching output dtype. Required, on the\n"                     //
     "        same GPU, when b was packed on a GPU.\n"                                                //
     "    start_row (int, optional): First row of a to process, defaulting to 0.\n"                   //
-    "    end_row (int, optional): One-past-last row of a to process, defaulting to height.\n"        //
+    "    end_row (int, optional): One-past-last row of a to process, defaulting to rows.\n"          //
     "    threads (int, optional): Worker threads, defaulting to 1; ignored on a GPU.\n"              //
     "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0.\n\n"            //
     "Returns:\n"                                                                                     //
-    "    Tensor: Euclidean-distance matrix with shape [height,width].\n"                             //
+    "    Tensor: Euclidean-distance matrix with shape [rows,columns].\n"                             //
     "    Returns out when provided.\n\n"                                                             //
     "Note:\n"                                                                                        //
     "    Use dots_pack() to prepare the packed matrix — Euclidean\n"                                 //

@@ -380,10 +380,10 @@ error_stats_t test_block_scaled_composites(settings_t const &) {
     stats.expect(mxfp4_vec.size_bytes() == 68, "mxfp4_t size_bytes mismatch (4 × 17)");
 
     // MXFP8 E4M3: 33 bytes per block × 4 blocks for 128 logical dims.
-    auto mxfp8_vec = make_vector<nk::mxfp8_e4m3_t>(128);
-    stats.expect(mxfp8_vec.size() == 128, "mxfp8_e4m3_t size mismatch");
-    stats.expect(mxfp8_vec.size_values() == 4, "mxfp8_e4m3_t size_values mismatch");
-    stats.expect(mxfp8_vec.size_bytes() == 132, "mxfp8_e4m3_t size_bytes mismatch (4 × 33)");
+    auto mxfp8e4m3_vec = make_vector<nk::mxfp8e4m3_t>(128);
+    stats.expect(mxfp8e4m3_vec.size() == 128, "mxfp8e4m3_t size mismatch");
+    stats.expect(mxfp8e4m3_vec.size_values() == 4, "mxfp8e4m3_t size_values mismatch");
+    stats.expect(mxfp8e4m3_vec.size_bytes() == 132, "mxfp8e4m3_t size_bytes mismatch (4 × 33)");
 
     // Round-trip: encode 16 random f32s into an NVFP4 block, decode back, check bounded error.
     float const src[16] = {-5.3f, 2.1f,  0.5f, -0.1f, 3.7f,  -4.2f, 1.0f, 0.0f,
@@ -410,47 +410,46 @@ concept exposes_tensor_scale_ = requires(scaled_type_ const &t) { t.tensor_scale
  *      components, slice rows / block-aligned column tiles, materialize back to dense, and verify
  *      the per-tensor scale is exposed for NVFP4 but compile-time absent for the MX family.
  *
- *  Every numeric path is checked byte-for-byte against @c nk_cast_block_scaled_serial.
+ *  Every numeric path is checked byte-for-byte against @c nk_cast_serial.
  */
 error_stats_t test_scaled_tensor(settings_t const &) {
     error_stats_t stats(comparison_family_t::exact_k);
     using nk::f32_t;
     using nk::u8_t;
 
-    // 4 rows × 64 cols. 64 is a multiple of both the NVFP4 (16) and MX (32) block sizes.
-    constexpr std::size_t rows = 4, cols = 64;
-    auto [weights, weights_status] = nk::tensor<f32_t>::uninitialized({rows, cols});
+    // 4 rows × 64 columns. 64 is a multiple of both the NVFP4 (16) and MX (32) block sizes.
+    constexpr std::size_t rows = 4, columns = 64;
+    auto [weights, weights_status] = nk::tensor<f32_t>::uninitialized({rows, columns});
     stats.expect(nk::succeeded(weights_status), "weights allocation failed");
     {
         auto writable = weights.span();
         for (std::size_t r = 0; r < rows; ++r)
-            for (std::size_t c = 0; c < cols; ++c)
+            for (std::size_t c = 0; c < columns; ++c)
                 writable(r, c) = f32_t(static_cast<float>(static_cast<int>((r * 7 + c * 3) % 17) - 8) * 0.6f);
     }
 
     // Encode (quantize) to NVFP4 into a preallocated scaled_tensor.
-    auto [quantized, quantized_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, cols});
+    auto [quantized, quantized_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, columns});
     stats.expect(nk::succeeded(quantized_status), "quantized allocation failed");
     stats.expect(nk::cast(weights.view(), quantized.span()));
     stats.expect(!quantized.empty(), "encode produced an empty scaled_tensor");
-    stats.expect(quantized.rank() == 2 && quantized.extent(0) == rows && quantized.extent(1) == cols,
+    stats.expect(quantized.rank() == 2 && quantized.extent(0) == rows && quantized.extent(1) == columns,
                  "encoded shape mismatch");
     // elements() keeps the logical shape; block_scales() divides the last axis by block_size (16).
-    stats.expect(quantized.elements().extent(0) == rows && quantized.elements().extent(1) == cols,
+    stats.expect(quantized.elements().extent(0) == rows && quantized.elements().extent(1) == columns,
                  "elements() shape mismatch");
-    stats.expect(quantized.block_scales().extent(0) == rows && quantized.block_scales().extent(1) == cols / 16,
+    stats.expect(quantized.block_scales().extent(0) == rows && quantized.block_scales().extent(1) == columns / 16,
                  "block_scales() shape mismatch");
 
     // Byte-identical to the serial C reference.
     nk_block_scaled_format_t const nvfp4_format = nk_nvfp4();
-    nk_block_scaled_format_t const f32_format = nk_plain(nk_f32_k);
-    auto reference_elements = make_vector<u8_t>(nk_block_scaled_elements_size(rows * cols, nvfp4_format));
-    auto reference_scales = make_vector<u8_t>(nk_block_scaled_scales_size(rows * cols, nvfp4_format));
-    nk_scalar_buffer_t reference_tensor_scale = {};    // zero → derive, matching the C++ factory
-    stats.expect(nk_cast_block_scaled_serial(          //
-        weights.data(), nullptr, nullptr, &f32_format, //
-        reference_elements.raw_values_data(), reference_scales.raw_values_data(), //
-        &reference_tensor_scale, &nvfp4_format, rows * cols, nullptr));
+    auto reference_elements = make_vector<u8_t>(nk_block_scaled_elements_size(rows * columns, nvfp4_format));
+    auto reference_scales = make_vector<u8_t>(nk_block_scaled_scales_size(rows * columns, nvfp4_format));
+    nk_f32_t reference_tensor_scale = 0; // zero → derive, matching the C++ factory
+    nk_nvfp4_ref_t reference_encoded = {reinterpret_cast<nk_e2m1x2_t *>(reference_elements.raw_values_data()),
+                                        reinterpret_cast<nk_ue4m3_t *>(reference_scales.raw_values_data()),
+                                        &reference_tensor_scale};
+    stats.expect(nk_cast_serial(weights.data(), nk_f32_k, &reference_encoded, nk_nvfp4_k, rows * columns, nullptr));
 
     auto const *encoded_elements = reinterpret_cast<unsigned char const *>(quantized.elements().byte_data());
     for (std::size_t i = 0; i < reference_elements.size_values(); ++i)
@@ -459,25 +458,25 @@ error_stats_t test_scaled_tensor(settings_t const &) {
     auto const *encoded_scales = reinterpret_cast<unsigned char const *>(quantized.block_scales().byte_data());
     for (std::size_t i = 0; i < reference_scales.size_values(); ++i)
         stats.expect(encoded_scales[i] == reference_scales.raw_values_data()[i], "NVFP4 scales differ from reference");
-    stats.expect(quantized.tensor_scale().raw_ == reference_tensor_scale.f32,
+    stats.expect(quantized.tensor_scale().raw_ == reference_tensor_scale,
                  "derived tensor_scale differs from reference");
 
-    std::size_t const row_element_bytes = nk_block_scaled_elements_size(cols, nvfp4_format); // 32
-    std::size_t const row_scale_bytes = nk_block_scaled_scales_size(cols, nvfp4_format);     // 4
+    std::size_t const row_element_bytes = nk_block_scaled_elements_size(columns, nvfp4_format); // 32
+    std::size_t const row_scale_bytes = nk_block_scaled_scales_size(columns, nvfp4_format);     // 4
 
     // Slice one row and materialize it to a dense f32 vector.
-    auto restored_row = make_vector<f32_t>(cols);
+    auto restored_row = make_vector<f32_t>(columns);
     stats.expect(nk::cast<nk::nvfp4_t>(quantized.row(1), restored_row.span()));
     {
-        auto reference_row = make_vector<f32_t>(cols);
-        nk_scalar_buffer_t tensor_scale;
-        tensor_scale.f32 = quantized.tensor_scale().raw_;
-        stats.expect(nk_cast_block_scaled_serial(                         //
-            reference_elements.raw_values_data() + 1 * row_element_bytes, //
-            reference_scales.raw_values_data() + 1 * row_scale_bytes,     //
-            &tensor_scale, &nvfp4_format,                                 //
-            reference_row.raw_values_data(), nullptr, nullptr, &f32_format, cols, nullptr));
-        for (std::size_t c = 0; c < cols; ++c)
+        auto reference_row = make_vector<f32_t>(columns);
+        nk_f32_t tensor_scale = quantized.tensor_scale().raw_;
+        nk_nvfp4_cref_t const row_reference = {
+            reinterpret_cast<nk_e2m1x2_t const *>(reference_elements.raw_values_data() + 1 * row_element_bytes),
+            reinterpret_cast<nk_ue4m3_t const *>(reference_scales.raw_values_data() + 1 * row_scale_bytes),
+            &tensor_scale};
+        stats.expect(
+            nk_cast_serial(&row_reference, nk_nvfp4_k, reference_row.raw_values_data(), nk_f32_k, columns, nullptr));
+        for (std::size_t c = 0; c < columns; ++c)
             stats.expect(restored_row.raw_values_data()[c] == reference_row.raw_values_data()[c],
                          "row materialization differs from reference");
     }
@@ -495,13 +494,13 @@ error_stats_t test_scaled_tensor(settings_t const &) {
         auto const *tile_raw = reinterpret_cast<float const *>(restored_tile.data());
         auto reference_tile_row = make_vector<f32_t>(32);
         for (std::size_t r = 0; r < rows; ++r) {
-            nk_scalar_buffer_t tensor_scale;
-            tensor_scale.f32 = quantized.tensor_scale().raw_;
-            stats.expect(nk_cast_block_scaled_serial(                         //
-                reference_elements.raw_values_data() + r * row_element_bytes, //
-                reference_scales.raw_values_data() + r * row_scale_bytes,     //
-                &tensor_scale, &nvfp4_format,                                 //
-                reference_tile_row.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr));
+            nk_f32_t tensor_scale = quantized.tensor_scale().raw_;
+            nk_nvfp4_cref_t const row_reference = {
+                reinterpret_cast<nk_e2m1x2_t const *>(reference_elements.raw_values_data() + r * row_element_bytes),
+                reinterpret_cast<nk_ue4m3_t const *>(reference_scales.raw_values_data() + r * row_scale_bytes),
+                &tensor_scale};
+            stats.expect(nk_cast_serial(&row_reference, nk_nvfp4_k, reference_tile_row.raw_values_data(), nk_f32_k, 32,
+                                        nullptr));
             for (std::size_t c = 0; c < 32; ++c)
                 stats.expect(tile_raw[r * 32 + c] == reference_tile_row.raw_values_data()[c],
                              "column-tile materialization differs from reference");
@@ -511,15 +510,15 @@ error_stats_t test_scaled_tensor(settings_t const &) {
     // Iterate leading-axis rows.
     std::size_t iterated_rows = 0;
     for (nk::scaled_tensor_view<nk::nvfp4_t> row_view : quantized.rows_views()) {
-        stats.expect(row_view.rank() == 1 && row_view.extent(0) == cols, "row view shape mismatch");
-        stats.expect(row_view.block_scales().extent(0) == cols / 16, "row view block_scales extent mismatch");
+        stats.expect(row_view.rank() == 1 && row_view.extent(0) == columns, "row view shape mismatch");
+        stats.expect(row_view.block_scales().extent(0) == columns / 16, "row view block_scales extent mismatch");
         ++iterated_rows;
     }
     stats.expect(iterated_rows == rows, "rows_views() did not visit every row");
 
     // The per-tensor scale exists for NVFP4 and is compile-time absent for the MX family.
     static_assert(exposes_tensor_scale_<nk::scaled_tensor<nk::nvfp4_t>>, "NVFP4 must expose tensor_scale()");
-    static_assert(!exposes_tensor_scale_<nk::scaled_tensor<nk::mxfp8_e4m3_t>>,
+    static_assert(!exposes_tensor_scale_<nk::scaled_tensor<nk::mxfp8e4m3_t>>,
                   "MX formats must not expose tensor_scale()");
 
     // Block-aligned column tile at a non-zero start exercises the element and scale byte offsets.
@@ -533,13 +532,15 @@ error_stats_t test_scaled_tensor(settings_t const &) {
         auto const *mid_raw = reinterpret_cast<float const *>(restored_mid.data());
         auto reference_mid = make_vector<f32_t>(32);
         for (std::size_t r = 0; r < rows; ++r) {
-            nk_scalar_buffer_t tensor_scale;
-            tensor_scale.f32 = quantized.tensor_scale().raw_;
-            stats.expect(nk_cast_block_scaled_serial(                                  //
-                reference_elements.raw_values_data() + r * row_element_bytes + 16 / 2, // column 16 → byte 8
-                reference_scales.raw_values_data() + r * row_scale_bytes + 16 / 16,    // block 1
-                &tensor_scale, &nvfp4_format,                                          //
-                reference_mid.raw_values_data(), nullptr, nullptr, &f32_format, 32, nullptr));
+            nk_f32_t tensor_scale = quantized.tensor_scale().raw_;
+            nk_nvfp4_cref_t const row_reference = {
+                reinterpret_cast<nk_e2m1x2_t const *>(reference_elements.raw_values_data() + r * row_element_bytes +
+                                                      16 / 2), // column 16 → byte 8
+                reinterpret_cast<nk_ue4m3_t const *>(reference_scales.raw_values_data() + r * row_scale_bytes +
+                                                     16 / 16), // block 1
+                &tensor_scale};
+            stats.expect(
+                nk_cast_serial(&row_reference, nk_nvfp4_k, reference_mid.raw_values_data(), nk_f32_k, 32, nullptr));
             for (std::size_t c = 0; c < 32; ++c)
                 stats.expect(mid_raw[r * 32 + c] == reference_mid.raw_values_data()[c],
                              "non-zero-start column tile differs from reference");
@@ -547,44 +548,44 @@ error_stats_t test_scaled_tensor(settings_t const &) {
     }
 
     // MXFP8 whole-tensor decode equals the serial reference byte-for-byte.
-    auto [mx, mx_status] = nk::scaled_tensor<nk::mxfp8_e4m3_t>::uninitialized({rows, cols});
+    auto [mx, mx_status] = nk::scaled_tensor<nk::mxfp8e4m3_t>::uninitialized({rows, columns});
     stats.expect(nk::succeeded(mx_status), "MXFP8 allocation failed");
     stats.expect(nk::cast(weights.view(), mx.span()));
-    stats.expect(!mx.empty() && mx.block_scales().extent(0) == rows && mx.block_scales().extent(1) == cols / 32,
+    stats.expect(!mx.empty() && mx.block_scales().extent(0) == rows && mx.block_scales().extent(1) == columns / 32,
                  "MXFP8 encode shape mismatch");
     {
-        auto [mx_restored, mx_restored_status] = nk::tensor<f32_t>::uninitialized({rows, cols});
+        auto [mx_restored, mx_restored_status] = nk::tensor<f32_t>::uninitialized({rows, columns});
         stats.expect(nk::succeeded(mx_restored_status), "MXFP8 restore allocation failed");
-        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(mx.view(), mx_restored.span()));
+        stats.expect(nk::cast<nk::mxfp8e4m3_t>(mx.view(), mx_restored.span()));
         // Reference: decode the same bytes through the serial kernel and require bit-identical output.
-        nk_block_scaled_format_t const mx_format = nk_mxfp8_e4m3();
-        auto reference_restored = make_vector<f32_t>(rows * cols);
-        stats.expect(nk_cast_block_scaled_serial( //
-            mx.elements().byte_data(), mx.block_scales().byte_data(), nullptr, &mx_format,
-            reference_restored.raw_values_data(), nullptr, nullptr, &f32_format, rows * cols, nullptr));
+        nk_mxfp8e4m3_cref_t const mx_reference = {reinterpret_cast<nk_e4m3_t const *>(mx.elements().byte_data()),
+                                                  reinterpret_cast<nk_ue8m0_t const *>(mx.block_scales().byte_data())};
+        auto reference_restored = make_vector<f32_t>(rows * columns);
+        stats.expect(nk_cast_serial(&mx_reference, nk_mxfp8e4m3_k, reference_restored.raw_values_data(), nk_f32_k,
+                                    rows * columns, nullptr));
         auto const *restored_raw = reinterpret_cast<float const *>(mx_restored.data());
-        for (std::size_t i = 0; i < rows * cols; ++i)
+        for (std::size_t i = 0; i < rows * columns; ++i)
             stats.expect(restored_raw[i] == reference_restored.raw_values_data()[i],
                          "MXFP8 whole-tensor decode differs from serial reference");
     }
 
     // Transcode MXFP8 E4M3 to NVFP4 (block-scaled to block-scaled).
     {
-        auto [transcoded, transcoded_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, cols});
+        auto [transcoded, transcoded_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, columns});
         stats.expect(nk::succeeded(transcoded_status), "transcode allocation failed");
         auto destination = transcoded.span();
         stats.expect(nk::cast(mx.view(), destination));
         // The transcode result must match decoding MXFP8→dense then re-encoding to NVFP4.
-        auto [dense, dense_status] = nk::tensor<f32_t>::uninitialized({rows, cols});
+        auto [dense, dense_status] = nk::tensor<f32_t>::uninitialized({rows, columns});
         stats.expect(nk::succeeded(dense_status), "dense allocation failed");
-        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(mx.view(), dense.span()));
-        auto [reference_nvfp4, reference_nvfp4_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, cols});
+        stats.expect(nk::cast<nk::mxfp8e4m3_t>(mx.view(), dense.span()));
+        auto [reference_nvfp4, reference_nvfp4_status] = nk::scaled_tensor<nk::nvfp4_t>::uninitialized({rows, columns});
         stats.expect(nk::succeeded(reference_nvfp4_status), "reference allocation failed");
         stats.expect(nk::cast(dense.view(), reference_nvfp4.span()));
         auto const *transcoded_elements = reinterpret_cast<unsigned char const *>(transcoded.elements().byte_data());
         auto const *reference_nvfp4_elements = reinterpret_cast<unsigned char const *>(
             reference_nvfp4.elements().byte_data());
-        std::size_t transcoded_byte_count = nk_block_scaled_elements_size(rows * cols, nvfp4_format);
+        std::size_t transcoded_byte_count = nk_block_scaled_elements_size(rows * columns, nvfp4_format);
         for (std::size_t i = 0; i < transcoded_byte_count; ++i)
             stats.expect(transcoded_elements[i] == reference_nvfp4_elements[i],
                          "transcode elements differ from decode-then-encode");
@@ -672,11 +673,11 @@ error_stats_t test_scaled_tensor_degenerate(settings_t const &) {
     {
         auto [input, input_status] = nk::tensor<f32_t>::zeros({std::size_t {1}, block});
         auto [quantized,
-              quantized_status] = nk::scaled_tensor<nk::mxfp8_e4m3_t>::uninitialized({std::size_t {1}, block});
+              quantized_status] = nk::scaled_tensor<nk::mxfp8e4m3_t>::uninitialized({std::size_t {1}, block});
         stats.expect(nk::succeeded(input_status) && nk::succeeded(quantized_status), "allocation failed");
         stats.expect(nk::cast(input.view(), quantized.span()));
         auto restored = make_vector<f32_t>(block);
-        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(quantized.row(0), restored.span()));
+        stats.expect(nk::cast<nk::mxfp8e4m3_t>(quantized.row(0), restored.span()));
         for (std::size_t i = 0; i < block; ++i)
             stats.expect(restored.raw_values_data()[i] == 0.0f, "all-zero block did not decode to zero");
     }
@@ -691,12 +692,12 @@ error_stats_t test_scaled_tensor_degenerate(settings_t const &) {
             writable(1, i) = f32_t(1.5f);                      // row 1 clean
         }
         auto [quantized,
-              quantized_status] = nk::scaled_tensor<nk::mxfp8_e4m3_t>::uninitialized({std::size_t {2}, block});
+              quantized_status] = nk::scaled_tensor<nk::mxfp8e4m3_t>::uninitialized({std::size_t {2}, block});
         stats.expect(nk::succeeded(quantized_status), "quantized allocation failed");
         stats.expect(nk::cast(input.view(), quantized.span()));
         auto [restored, restored_status] = nk::tensor<f32_t>::uninitialized({std::size_t {2}, block});
         stats.expect(nk::succeeded(restored_status), "restored allocation failed");
-        stats.expect(nk::cast<nk::mxfp8_e4m3_t>(quantized.view(), restored.span()));
+        stats.expect(nk::cast<nk::mxfp8e4m3_t>(quantized.view(), restored.span()));
         auto const *clean_row = reinterpret_cast<float const *>(restored.data()) + block;
         for (std::size_t i = 0; i < block; ++i)
             stats.expect(abs_diff(clean_row[i], 1.5f) <= 0.1f, "clean block corrupted by a NaN in another block");
@@ -997,10 +998,10 @@ void test_vector_types(error_stats_section_t &check) {
     // MXINT8 resolves to ~1/64 over the narrow band.
     check("vector_scaled_roundtrip_nvfp4", test_scaled_roundtrip<nk::nvfp4_t>, 0.5f);
     check("vector_scaled_roundtrip_mxfp4", test_scaled_roundtrip<nk::mxfp4_t>, 0.5f);
-    check("vector_scaled_roundtrip_mxfp6_e2m3", test_scaled_roundtrip<nk::mxfp6_e2m3_t>, 0.125f);
-    check("vector_scaled_roundtrip_mxfp6_e3m2", test_scaled_roundtrip<nk::mxfp6_e3m2_t>, 0.25f);
-    check("vector_scaled_roundtrip_mxfp8_e4m3", test_scaled_roundtrip<nk::mxfp8_e4m3_t>, 0.125f);
-    check("vector_scaled_roundtrip_mxfp8_e5m2", test_scaled_roundtrip<nk::mxfp8_e5m2_t>, 0.25f);
+    check("vector_scaled_roundtrip_mxfp6e2m3", test_scaled_roundtrip<nk::mxfp6e2m3_t>, 0.125f);
+    check("vector_scaled_roundtrip_mxfp6e3m2", test_scaled_roundtrip<nk::mxfp6e3m2_t>, 0.25f);
+    check("vector_scaled_roundtrip_mxfp8e4m3", test_scaled_roundtrip<nk::mxfp8e4m3_t>, 0.125f);
+    check("vector_scaled_roundtrip_mxfp8e5m2", test_scaled_roundtrip<nk::mxfp8e5m2_t>, 0.25f);
     check("vector_scaled_roundtrip_mxint8", test_scaled_roundtrip<nk::mxint8_t>, 0.05f);
     check("vector_scaled_tensor_degenerate", test_scaled_tensor_degenerate);
 
@@ -1104,7 +1105,7 @@ error_stats_t test_tensor_ops_for_type(settings_t const &) {
         stats.expect(row0.rank() == 1 && row0.extent(0) == 8, "row() shape mismatch");
     }
 
-    // Convenience view constructor (ptr, rows, cols)
+    // Convenience view constructor (ptr, rows, columns)
     {
         nk::tensor_view<value_type_> view_from_ptr(a.data(), 4, 8);
         stats.expect(view_from_ptr.rank() == 2 && view_from_ptr.extent(0) == 4, "convenience view ctor mismatch");
@@ -1277,7 +1278,7 @@ error_stats_t test_custom_allocator_factories(settings_t const &) {
     expect_counted(nk::dots_symmetric<nk::f32_t>(rows, counting_allocator<nk::f64_t>(counting)), 5,
                    "dots_symmetric ignored the allocator instance");
 
-    using mx_t = nk::mxfp8_e4m3_t;
+    using mx_t = nk::mxfp8e4m3_t;
     using mx_tensor_t = nk::scaled_tensor<mx_t, counting_allocator<mx_t::element_t>, counting_allocator<mx_t::scale_t>>;
     expect_counted(mx_tensor_t::uninitialized({4, 64}, counting_allocator<mx_t::element_t>(counting),
                                               counting_allocator<mx_t::scale_t>(counting)),

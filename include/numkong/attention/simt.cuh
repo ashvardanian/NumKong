@@ -679,16 +679,14 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
                                    task_begin, task_end);                                                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_attention_pack_##input_type_name##_##isa_suffix(                                        \
-        nk_##input_value_type##_t const *keys, void const *key_scales, nk_##input_value_type##_t const *values,        \
-        void const *value_scales, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *segment_offsets,    \
-        nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride_bytes,                          \
-        nk_size_t key_scales_stride_bytes, nk_size_t value_stride_bytes, nk_size_t value_scales_stride_bytes,          \
+        nk_##input_value_type##_t const *keys, nk_##input_value_type##_t const *values,                                \
+        nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *segment_offsets,                              \
+        nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,        \
         void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {                              \
         return nk_attention_pack_launch_((void const *)nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_,   \
                                          nk_cap_##isa_suffix##_k, sizeof(nk_##input_value_type##_t), keys, values,     \
                                          key_value_head_count, depth, segment_offsets, segment_lengths, segment_count, \
-                                         key_stride_bytes, value_stride_bytes, key_value_packed, task_begin, task_end, \
-                                         stream);                                                                      \
+                                         key_stride, value_stride, key_value_packed, task_begin, task_end, stream);    \
     }
 
 /**
@@ -704,27 +702,25 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
         nk_attention_fallback_(nk_##input_value_type##_k, &arguments);                                               \
     }                                                                                                                \
     NUMKONG_API nk_status_t nk_attention_bidirectional_packed_##input_type_name##_##isa_suffix(                      \
-        nk_##input_value_type##_t const *queries, void const *query_scales, void const *key_value_packed,            \
-        nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                     \
-        nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,            \
-        nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream) {   \
+        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                    \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,        \
+        nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, \
+        void *stream) {                                                                                              \
         return nk_attention_launch_((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_,    \
                                     nk_cap_##isa_suffix##_k, queries, key_value_packed, output, head_count,          \
-                                    key_value_head_count, depth, query_offsets, query_stride_bytes,                  \
-                                    output_stride_bytes, scale, nk_attention_mask_bidirectional_k, 0, 0, task_start, \
-                                    task_count, stream);                                                             \
+                                    key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,  \
+                                    nk_attention_mask_bidirectional_k, 0, 0, task_start, task_count, stream);        \
     }                                                                                                                \
     NUMKONG_API nk_status_t nk_attention_causal_packed_##input_type_name##_##isa_suffix(                             \
-        nk_##input_value_type##_t const *queries, void const *query_scales, void const *key_value_packed,            \
-        nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                     \
-        nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,            \
-        nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window,                   \
+        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                    \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,        \
+        nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, \
         nk_size_t task_start, nk_size_t task_count, void *stream) {                                                  \
         return nk_attention_launch_((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_,    \
                                     nk_cap_##isa_suffix##_k, queries, key_value_packed, output, head_count,          \
-                                    key_value_head_count, depth, query_offsets, query_stride_bytes,                  \
-                                    output_stride_bytes, scale, nk_attention_mask_causal_k, diagonal_offset, window, \
-                                    task_start, task_count, stream);                                                 \
+                                    key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,  \
+                                    nk_attention_mask_causal_k, diagonal_offset, window, task_start, task_count,     \
+                                    stream);                                                                         \
     }
 
 /** Every attention entry of one dtype on the vendor baseline @p isa_suffix, with its own pack. */
@@ -764,31 +760,29 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
         nk_attention_fallback_(nk_##input_value_type##_k, &arguments);                                                \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_attention_bidirectional_packed_##input_type_name##_##isa_suffix(                       \
-        nk_##input_value_type##_t const *queries, void const *query_scales, void const *key_value_packed,             \
-        nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                      \
-        nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,             \
-        nk_size_t output_stride_bytes, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream) {    \
+        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                     \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
+        nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count,  \
+        void *stream) {                                                                                               \
         return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,         \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,           \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_,       \
                          nk_##input_value_type##_k, queries, key_value_packed, output, head_count,                    \
-                         key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,  \
-                         score_scale, output_scale, nk_attention_mask_bidirectional_k, 0, 0, task_start, task_count,  \
-                         stream);                                                                                     \
+                         key_value_head_count, depth, query_offsets, query_stride, output_stride, scale, score_scale, \
+                         output_scale, nk_attention_mask_bidirectional_k, 0, 0, task_start, task_count, stream);      \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_attention_causal_packed_##input_type_name##_##isa_suffix(                              \
-        nk_##input_value_type##_t const *queries, void const *query_scales, void const *key_value_packed,             \
-        nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                      \
-        nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,             \
-        nk_size_t output_stride_bytes, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window,                    \
+        nk_##input_value_type##_t const *queries, void const *key_value_packed, nk_f32_t *output,                     \
+        nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,         \
+        nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window,  \
         nk_size_t task_start, nk_size_t task_count, void *stream) {                                                   \
         return launch_fn((void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_narrow_kernel_,         \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_wide_kernel_,           \
                          (void const *)nk_attention_packed_##input_type_name##_##isa_suffix##_fallback_kernel_,       \
                          nk_##input_value_type##_k, queries, key_value_packed, output, head_count,                    \
-                         key_value_head_count, depth, query_offsets, query_stride_bytes, output_stride_bytes, scale,  \
-                         score_scale, output_scale, nk_attention_mask_causal_k, diagonal_offset, window, task_start,  \
-                         task_count, stream);                                                                         \
+                         key_value_head_count, depth, query_offsets, query_stride, output_stride, scale, score_scale, \
+                         output_scale, nk_attention_mask_causal_k, diagonal_offset, window, task_start, task_count,   \
+                         stream);                                                                                     \
     }
 
 #pragma endregion Attention Macros
@@ -804,26 +798,24 @@ typedef struct {
     nk_size_t head_count;
     nk_size_t half_depth;
     nk_size_t heads;
-    nk_size_t x_stride_bytes;
-    nk_size_t y_stride_bytes;
-    nk_f32_t input_scale;
+    nk_size_t x_stride;
+    nk_size_t y_stride;
 } nk_attention_rope_arguments_t;
 
 /** Validates the contract and launches @p kernel with a warp or wavefront per head of every row, at
  *  most 2²⁰ blocks of them. */
 NUMKONG_INLINE nk_status_t nk_attention_rope_launch_(void const *kernel, nk_size_t value_bytes, void const *x,
                                                      nk_f32_t const *cos, nk_f32_t const *sin, void *y, nk_size_t rows,
-                                                     nk_size_t head_count, nk_size_t depth, nk_size_t x_stride_bytes,
-                                                     nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+                                                     nk_size_t head_count, nk_size_t depth, nk_size_t x_stride,
+                                                     nk_size_t y_stride, void *stream) {
     if (depth % 2) return nk_unexpected_dimensions_k;
-    if ((((nk_size_t)x) | x_stride_bytes | ((nk_size_t)y) | y_stride_bytes) & (value_bytes - 1) ||
+    if ((((nk_size_t)x) | x_stride | ((nk_size_t)y) | y_stride) & (value_bytes - 1) ||
         (((nk_size_t)cos) | ((nk_size_t)sin)) & 3)
         return nk_misaligned_k;
     nk_attention_rope_arguments_t arguments;
     arguments.x = (unsigned char const *)x, arguments.cos = cos, arguments.sin = sin, arguments.y = (unsigned char *)y;
     arguments.head_count = head_count, arguments.half_depth = depth / 2, arguments.heads = rows * head_count;
-    arguments.x_stride_bytes = x_stride_bytes, arguments.y_stride_bytes = y_stride_bytes;
-    arguments.input_scale = input_scale;
+    arguments.x_stride = x_stride, arguments.y_stride = y_stride;
     if (arguments.heads == 0 || depth == 0) return nk_success_k;
     nk_size_t const blocks = nk_size_divide_round_up_(arguments.heads, nk_attention_threads_k / 32),
                     blocks_limit = (nk_size_t)1 << 20;
@@ -836,40 +828,38 @@ NUMKONG_INLINE nk_status_t nk_attention_rope_launch_(void const *kernel, nk_size
 /** Generates the RoPE kernel of @p input_type and its host entry point for @p isa_suffix, after
  *  @c nk_define_attention_rope_ of the serial backend: each warp or wavefront rotates one head of
  *  one row, so the row and head divisions happen once per head rather than once per pair. */
-#define nk_define_device_attention_rope_(input_type, isa_suffix, load_and_convert, convert_and_store)               \
-    static __global__ void nk_attention_rope_##input_type##_##isa_suffix##_kernel_(                                 \
-        nk_attention_rope_arguments_t arguments) {                                                                  \
-        unsigned const lanes = nk_warp_lanes_(), lane = threadIdx.x % lanes;                                        \
-        nk_size_t const groups = blockDim.x / lanes;                                                                \
-        for (nk_size_t head = (nk_size_t)blockIdx.x * groups + threadIdx.x / lanes; head < arguments.heads;         \
-             head += (nk_size_t)gridDim.x * groups) {                                                               \
-            nk_size_t const row = head / arguments.head_count;                                                      \
-            nk_size_t const first = (head - row * arguments.head_count) * 2 * arguments.half_depth;                 \
-            nk_f32_t const *cos_row = arguments.cos + row * arguments.half_depth;                                   \
-            nk_f32_t const *sin_row = arguments.sin + row * arguments.half_depth;                                   \
-            nk_##input_type##_t const *x =                                                                          \
-                (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride_bytes) + first;                \
-            nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride_bytes) + first; \
-            for (nk_size_t pair = lane; pair < arguments.half_depth; pair += lanes) {                               \
-                nk_f32_t low, high;                                                                                 \
-                load_and_convert(x + pair, &low);                                                                   \
-                load_and_convert(x + pair + arguments.half_depth, &high);                                           \
-                low *= arguments.input_scale, high *= arguments.input_scale;                                        \
-                nk_f32_t const cosine = cos_row[pair], sine = sin_row[pair];                                        \
-                nk_f32_t const rotated_low = low * cosine - high * sine;                                            \
-                nk_f32_t const rotated_high = low * sine + high * cosine;                                           \
-                convert_and_store(&rotated_low, y + pair);                                                          \
-                convert_and_store(&rotated_high, y + pair + arguments.half_depth);                                  \
-            }                                                                                                       \
-        }                                                                                                           \
-    }                                                                                                               \
-    NUMKONG_API nk_status_t nk_attention_rope_##input_type##_##isa_suffix(                                          \
-        nk_##input_type##_t const *x, nk_f32_t const *cos, nk_f32_t const *sin, nk_##input_type##_t *y,             \
-        nk_size_t rows, nk_size_t head_count, nk_size_t depth, nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,  \
-        nk_f32_t input_scale, void *stream) {                                                                       \
-        return nk_attention_rope_launch_((void const *)&nk_attention_rope_##input_type##_##isa_suffix##_kernel_,    \
-                                         sizeof(nk_##input_type##_t), x, cos, sin, y, rows, head_count, depth,      \
-                                         x_stride_bytes, y_stride_bytes, input_scale, stream);                      \
+#define nk_define_device_attention_rope_(input_type, isa_suffix, load_and_convert, convert_and_store)                  \
+    static __global__ void nk_attention_rope_##input_type##_##isa_suffix##_kernel_(                                    \
+        nk_attention_rope_arguments_t arguments) {                                                                     \
+        unsigned const lanes = nk_warp_lanes_(), lane = threadIdx.x % lanes;                                           \
+        nk_size_t const groups = blockDim.x / lanes;                                                                   \
+        for (nk_size_t head = (nk_size_t)blockIdx.x * groups + threadIdx.x / lanes; head < arguments.heads;            \
+             head += (nk_size_t)gridDim.x * groups) {                                                                  \
+            nk_size_t const row = head / arguments.head_count;                                                         \
+            nk_size_t const first = (head - row * arguments.head_count) * 2 * arguments.half_depth;                    \
+            nk_f32_t const *cos_row = arguments.cos + row * arguments.half_depth;                                      \
+            nk_f32_t const *sin_row = arguments.sin + row * arguments.half_depth;                                      \
+            nk_##input_type##_t const *x = (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride) +     \
+                                           first;                                                                      \
+            nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride) + first;          \
+            for (nk_size_t pair = lane; pair < arguments.half_depth; pair += lanes) {                                  \
+                nk_f32_t low, high;                                                                                    \
+                load_and_convert(x + pair, &low);                                                                      \
+                load_and_convert(x + pair + arguments.half_depth, &high);                                              \
+                nk_f32_t const cosine = cos_row[pair], sine = sin_row[pair];                                           \
+                nk_f32_t const rotated_low = low * cosine - high * sine;                                               \
+                nk_f32_t const rotated_high = low * sine + high * cosine;                                              \
+                convert_and_store(&rotated_low, y + pair);                                                             \
+                convert_and_store(&rotated_high, y + pair + arguments.half_depth);                                     \
+            }                                                                                                          \
+        }                                                                                                              \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_attention_rope_##input_type##_##isa_suffix(                                             \
+        nk_##input_type##_t const *x, nk_f32_t const *cos, nk_f32_t const *sin, nk_##input_type##_t *y,                \
+        nk_size_t rows, nk_size_t head_count, nk_size_t depth, nk_size_t x_stride, nk_size_t y_stride, void *stream) { \
+        return nk_attention_rope_launch_((void const *)&nk_attention_rope_##input_type##_##isa_suffix##_kernel_,       \
+                                         sizeof(nk_##input_type##_t), x, cos, sin, y, rows, head_count, depth,         \
+                                         x_stride, y_stride, stream);                                                  \
     }
 
 #pragma endregion Rotary Embeddings

@@ -28,15 +28,15 @@ Reformulating as Python pseudocode:
 ```python
 import numpy as np
 
-def kld(p: np.ndarray, q: np.ndarray, eps: float = 1e-7) -> float:
-    return np.sum(p * np.log(np.maximum(p, eps) / np.maximum(q, eps)))
+def kld(p: np.ndarray, q: np.ndarray, epsilon: float = 1e-7) -> float:
+    return np.sum(p * np.log(np.maximum(p, epsilon) / np.maximum(q, epsilon)))
 
 def jsd(p: np.ndarray, q: np.ndarray) -> float:
     m = (p + q) / 2
     return np.sqrt((kld(p, m) + kld(q, m)) / 2)
 ```
 
-Operands are clamped to at least `eps`, so terms at or above it follow the exact formula, while zero entries contribute nothing instead of hitting $\log 0$ or $0/0$.
+Operands are clamped to at least `epsilon`, so terms at or above it follow the exact formula, while zero entries contribute nothing instead of hitting $\log 0$ or $0/0$.
 
 ## Use Cases
 

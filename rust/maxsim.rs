@@ -461,12 +461,12 @@ impl<Scalar: MaxSim, Alloc: Allocator> MaxSimPackedMatrix<Scalar, Alloc> {
     where
         Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        let (vectors, depth, row_stride_bytes) = validate_maxsim_view(data)?;
+        let (vectors, depth, row_stride) = validate_maxsim_view(data)?;
         let size = Scalar::maxsim_pack_size(vectors, depth)?;
         // The packer zeros the whole buffer up front, so it owns every byte — no pre-zeroing here.
         let destination = self.buffer.reset_for_pack(size)?;
         if size > 0 {
-            unsafe { Scalar::maxsim_pack(data.as_ptr(), vectors, depth, row_stride_bytes, destination) }?;
+            unsafe { Scalar::maxsim_pack(data.as_ptr(), vectors, depth, row_stride, destination) }?;
         }
         self.vectors = vectors;
         self.depth = depth;
@@ -566,27 +566,27 @@ where
     Scalar: StorageElement,
     Vectors: TensorRef<Scalar, MAX_RANK> + ?Sized,
 {
-    if data.ndim() != 2 {
+    let &[rows, columns] = data.shape() else {
         return Err(TensorError::DimensionMismatch {
             expected: 2,
             got: data.ndim(),
         });
-    }
+    };
 
     if !data.has_contiguous_rows() {
         return Err(TensorError::NonContiguousRows);
     }
 
-    let row_stride_bytes = data.stride_bytes(0);
-    if row_stride_bytes < 0 {
+    let row_stride = data.stride_bytes(0);
+    if row_stride < 0 {
         return Err(TensorError::InvalidShape {
             axis: 0,
-            size: row_stride_bytes as usize,
+            size: row_stride as usize,
             reason: "MaxSim requires non-negative row strides",
         });
     }
 
-    Ok((data.shape()[0], data.shape()[1], row_stride_bytes as usize))
+    Ok((rows, columns, row_stride as usize))
 }
 
 impl<Scalar: MaxSim> MaxSimPackedMatrix<Scalar, Global> {

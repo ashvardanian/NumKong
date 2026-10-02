@@ -2,7 +2,7 @@
 
 NumKong implements single-pass horizontal reductions over dense vectors: statistical moments (sum + sum-of-squares) and extrema (min + max with argmin + argmax).
 Both reductions traverse the input once, producing scalar outputs with compensated arithmetic for numerical stability.
-The only module with full stride support — `stride_bytes` controls the byte distance between consecutive logical elements, enabling column extraction from row-major matrices and strided array views without copying.
+The only module with full stride support — `stride` controls the byte distance between consecutive logical elements, enabling column extraction from row-major matrices and strided array views without copying.
 Used internally by packing routines for norm precomputation and by distance kernels for normalization.
 
 Moments:
@@ -78,8 +78,8 @@ Sub-byte reductions:
 
 ### Strided Access Across Backends
 
-Reductions accept a `stride_bytes` parameter specifying the byte distance between consecutive logical elements — the only NumKong module where loads far outnumber stores (N loads, 2-4 scalar stores), making arbitrary strides practical.
-Serial iterates with byte-pointer arithmetic: `ptr += stride_bytes` per element.
+Reductions accept a `stride` parameter specifying the byte distance between consecutive logical elements — the only NumKong module where loads far outnumber stores (N loads, 2-4 scalar stores), making arbitrary strides practical.
+Serial iterates with byte-pointer arithmetic: `ptr += stride` per element.
 NEON uses hardware de-interleaving loads (`vld2q_f32`, `vld3q_f32`, `vld4q_f32`) for small integer strides (2-4 elements apart), extracting column 0 from interleaved data in a single instruction.
 Haswell/Skylake use blend masks for small strides and `_mm256_i32gather_ps` / `_mm512_i32gather_pd` hardware gathers for larger strides — 8cy per gather on Haswell, ~5cy on Skylake for 16-element gathers.
 RVV uses native strided loads (`__riscv_vlse32_v_f32m1`) that accept arbitrary byte strides directly in the load instruction — no gather overhead, no stride-dependent branching.

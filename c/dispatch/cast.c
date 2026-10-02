@@ -314,62 +314,11 @@ NUMKONG_API void nk_f32_to_e3m2_best(nk_f32_t const *source, nk_e3m2_t *destinat
                                             nk_f32_to_e3m2_capabilities()))(source, destination);
 }
 
-static nk_capability_kernels_t const *nk_cast_block_scaled_capabilities(void) {
-    static nk_kernel_punned_t const cpu[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_cast_block_scaled_serial,
-#if NUMKONG_TARGET_NEON
-        (nk_kernel_punned_t)&nk_cast_block_scaled_neon,
-#endif
-#if NUMKONG_TARGET_HASWELL
-        (nk_kernel_punned_t)&nk_cast_block_scaled_haswell,
-#endif
-#if NUMKONG_TARGET_SKYLAKE
-        (nk_kernel_punned_t)&nk_cast_block_scaled_skylake,
-#endif
-#if NUMKONG_TARGET_ICELAKE
-        (nk_kernel_punned_t)&nk_cast_block_scaled_icelake,
-#endif
-    };
-#if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
-        NUMKONG_NULL,
-        (nk_kernel_punned_t)&nk_cast_block_scaled_cuda,
-    };
-#endif
-    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
-             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE,
-         cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, nvidia},
-#else
-        {0, nk_no_kernels_},
-#endif
-        {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
-    };
-    return lists;
-}
-
-NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
-                                     nk_capability_t capabilities, void *stream) {
+NUMKONG_API nk_status_t nk_cast_best(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                     nk_size_t count, nk_capability_t capabilities, void *stream) {
     nk_kernel_cast_punned_t const kernel = (nk_kernel_cast_punned_t)nk_kernel_pick_(capabilities,
                                                                                     nk_cast_capabilities());
-    return kernel ? kernel(from, from_type, n, to, to_type, stream) : nk_missing_kernel_k;
-}
-
-NUMKONG_API nk_status_t nk_cast_block_scaled_best(                                            //
-    void const *from, void const *from_scales,                                                //
-    nk_scalar_buffer_t const *from_tensor_scale, nk_block_scaled_format_t const *from_format, //
-    void *to, void *to_scales,                                                                //
-    nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format,           //
-    nk_size_t count, nk_capability_t capabilities, void *stream) {
-    nk_kernel_cast_block_scaled_punned_t const kernel = (nk_kernel_cast_block_scaled_punned_t)nk_kernel_pick_(
-        capabilities, nk_cast_block_scaled_capabilities());
-    return kernel ? kernel(from, from_scales, from_tensor_scale, from_format, to, to_scales, to_tensor_scale, to_format,
-                           count, stream)
-                  : nk_missing_kernel_k;
+    return kernel ? kernel(from, from_dtype, to, to_dtype, count, stream) : nk_missing_kernel_k;
 }
 
 NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
@@ -379,7 +328,6 @@ NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
     case nk_dtype_unknown_k:
         switch (kind) {
         case nk_kernel_cast_k: lists = nk_cast_capabilities(); break;
-        case nk_kernel_cast_block_scaled_k: lists = nk_cast_block_scaled_capabilities(); break;
         default: break;
         }
         break;
