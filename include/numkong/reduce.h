@@ -1037,6 +1037,128 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_v128relaxed(nk_e3m2_t const *, nk_
                                                           nk_size_t *, nk_e3m2_t *, nk_size_t *, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
+/*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
+ *  every operand is device memory of the vendor their capability names. */
+#if NUMKONG_ARCH_CUDA_
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_f32_cuda(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_f64_cuda(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_i8_cuda(nk_i8_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *,
+                                                  void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_u8_cuda(nk_u8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
+                                                  void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_i16_cuda(nk_i16_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_u16_cuda(nk_u16_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_i32_cuda(nk_i32_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_u32_cuda(nk_u32_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_i64_cuda(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_u64_cuda(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_f16_cuda(nk_f16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                   void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_bf16_cuda(nk_bf16_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                    void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_e4m3_cuda(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                    void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_e5m2_cuda(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                    void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_e2m3_cuda(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                    void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_e3m2_cuda(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                    void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_e2m1_cuda(nk_e2m1x2_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_f32_t *,
+                                                    void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_i4_cuda(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_u64_t *,
+                                                  void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_u4_cuda(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
+                                                  void *stream);
+/** @copydoc nk_reduce_moments_f64_best */
+NUMKONG_API nk_status_t nk_reduce_moments_u1_cuda(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_u64_t *,
+                                                  void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_f32_cuda(nk_f32_t const *, nk_size_t, nk_size_t, nk_f32_t *, nk_size_t *,
+                                                  nk_f32_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_f64_cuda(nk_f64_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_size_t *,
+                                                  nk_f64_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_i8_cuda(nk_i8_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                 nk_i8_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_u8_cuda(nk_u8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                 nk_u8_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_i16_cuda(nk_i16_t const *, nk_size_t, nk_size_t, nk_i16_t *, nk_size_t *,
+                                                  nk_i16_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_u16_cuda(nk_u16_t const *, nk_size_t, nk_size_t, nk_u16_t *, nk_size_t *,
+                                                  nk_u16_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_i32_cuda(nk_i32_t const *, nk_size_t, nk_size_t, nk_i32_t *, nk_size_t *,
+                                                  nk_i32_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_u32_cuda(nk_u32_t const *, nk_size_t, nk_size_t, nk_u32_t *, nk_size_t *,
+                                                  nk_u32_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_i64_cuda(nk_i64_t const *, nk_size_t, nk_size_t, nk_i64_t *, nk_size_t *,
+                                                  nk_i64_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_u64_cuda(nk_u64_t const *, nk_size_t, nk_size_t, nk_u64_t *, nk_size_t *,
+                                                  nk_u64_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_f16_cuda(nk_f16_t const *, nk_size_t, nk_size_t, nk_f16_t *, nk_size_t *,
+                                                  nk_f16_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_bf16_cuda(nk_bf16_t const *, nk_size_t, nk_size_t, nk_bf16_t *, nk_size_t *,
+                                                   nk_bf16_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_cuda(nk_e4m3_t const *, nk_size_t, nk_size_t, nk_e4m3_t *, nk_size_t *,
+                                                   nk_e4m3_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_cuda(nk_e5m2_t const *, nk_size_t, nk_size_t, nk_e5m2_t *, nk_size_t *,
+                                                   nk_e5m2_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_cuda(nk_e2m3_t const *, nk_size_t, nk_size_t, nk_e2m3_t *, nk_size_t *,
+                                                   nk_e2m3_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_cuda(nk_e3m2_t const *, nk_size_t, nk_size_t, nk_e3m2_t *, nk_size_t *,
+                                                   nk_e3m2_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_i4_cuda(nk_i4x2_t const *, nk_size_t, nk_size_t, nk_i8_t *, nk_size_t *,
+                                                 nk_i8_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_u4_cuda(nk_u4x2_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                 nk_u8_t *, nk_size_t *, void *stream);
+/** @copydoc nk_reduce_minmax_f64_best */
+NUMKONG_API nk_status_t nk_reduce_minmax_u1_cuda(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
+                                                 nk_u8_t *, nk_size_t *, void *stream);
+#endif // NUMKONG_ARCH_CUDA_
+
 /**
  *  @brief Returns the accumulator dtype for the @c sum output of reduce_moments.
  *
@@ -1145,6 +1267,7 @@ NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
 #include "numkong/reduce/rvv.h"
 #include "numkong/reduce/v128.h"
 #include "numkong/reduce/v128relaxed.h"
+#include "numkong/reduce/simt.cuh"
 
 #ifdef __cplusplus
 extern "C" {

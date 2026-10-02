@@ -47,6 +47,29 @@ NUMKONG_DEVICE void nk_e4m3_to_f32_simt_(nk_e4m3_t const *src, nk_f32_t *dest) {
     *dest = (code & 0x7Fu) == 0x7Fu ? __uint_as_float(0x7FC00000u) : nk_e4m3_to_scaled_f32_(code) * 256.0f;
 }
 
+/** Widens one E2M3FN value to F32, exactly, reading its low 6 bits. */
+NUMKONG_DEVICE void nk_e2m3_to_f32_simt_(nk_e2m3_t const *src, nk_f32_t *dest) {
+    nk_u32_t const code = *src, exponent = (code >> 3) & 3u, mantissa = code & 7u;
+    nk_u32_t const magnitude = exponent ? ((exponent + 126u) << 23) | (mantissa << 20)
+                                        : __float_as_uint((nk_f32_t)mantissa * 0.125f);
+    *dest = __uint_as_float(((code & 0x20u) << 26) | magnitude);
+}
+
+/** Widens one E3M2FN value to F32, exactly, reading its low 6 bits. */
+NUMKONG_DEVICE void nk_e3m2_to_f32_simt_(nk_e3m2_t const *src, nk_f32_t *dest) {
+    nk_u32_t const code = *src, exponent = (code >> 2) & 7u, mantissa = code & 3u;
+    nk_u32_t const magnitude = exponent ? ((exponent + 124u) << 23) | (mantissa << 21)
+                                        : __float_as_uint((nk_f32_t)mantissa * 0.0625f);
+    *dest = __uint_as_float(((code & 0x20u) << 26) | magnitude);
+}
+
+/** Twice the E2M1 value in the low 4 bits of @p nibble, an exact integer in [-12, +12]. */
+NUMKONG_DEVICE nk_i32_t nk_e2m1_nibble_to_i8x2_simt_(nk_u32_t nibble) {
+    nk_u32_t const exponent = (nibble >> 1) & 3u, mantissa = nibble & 1u;
+    nk_i32_t const doubled = (nk_i32_t)(exponent ? (2u + mantissa) << (exponent - 1u) : mantissa);
+    return nibble & 8u ? -doubled : doubled;
+}
+
 /** Narrows one F32 value to BF16, rounding to nearest even and keeping NaNs. */
 NUMKONG_DEVICE void nk_f32_to_bf16_simt_(nk_f32_t const *src, nk_bf16_t *dest) {
     nk_u32_t const bits = __float_as_uint(*src);

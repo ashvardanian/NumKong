@@ -6,81 +6,9 @@
  */
 
 #include "harness.hpp"
-#include "numkong/reduce.hpp"
-#include "numkong/reduce/serial.h"
+#include "reduce.hpp" // `test_reduce_moments`, `test_reduce_minmax`
 
 namespace ashvardanian::numkong::test {
-
-constexpr std::size_t max_stride_k = 50;
-
-template <typename input_type_>
-error_stats_t test_reduce_moments(settings_t const &settings, typename input_type_::reduce_moments_kernel_t kernel) {
-    using sum_t = typename input_type_::reduce_moments_sum_t;
-    using sumsq_t = typename input_type_::reduce_moments_sumsq_t;
-    using sum_reference_t = bounded_reference_for<input_type_, sum_t>;
-    using sumsq_reference_t = bounded_reference_for<input_type_, sumsq_t>;
-    error_stats_t stats(nk_reduce_moments_error_bound(input_type_::dtype()));
-    std::mt19937 generator(settings.seed.value);
-    std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
-    std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
-    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
-    auto buffer = make_vector<input_type_>(n * (max_stride_k + sizeof(input_type_)));
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
-        std::size_t stride_bytes = stride_bytes_distribution(generator);
-        fill_random(settings, generator, buffer);
-        typename sum_t::raw_t sum;
-        typename sumsq_t::raw_t sumsq;
-        stats.expect(kernel(buffer.raw_values_data(), n, stride_bytes, &sum, &sumsq, nullptr));
-        sum_reference_t sum_reference;
-        sumsq_reference_t sumsq_reference;
-        stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
-            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference, no_tiers_k));
-        stats.accumulate(sum_t::from_raw(sum), sum_reference);
-        stats.accumulate(sumsq_t::from_raw(sumsq), sumsq_reference);
-    }
-    return stats;
-}
-
-template <typename input_type_>
-error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type_::reduce_minmax_kernel_t kernel) {
-    using output_t = typename input_type_::reduce_minmax_value_t;
-    error_stats_t stats(comparison_family_t::exact_k);
-    std::mt19937 generator(settings.seed.value);
-    std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
-    std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
-    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
-    auto buffer = make_vector<input_type_>(n * (max_stride_k + sizeof(input_type_)));
-    auto compare = [&](std::size_t stride_bytes) {
-        typename output_t::raw_t min_val, max_val;
-        nk_size_t min_idx, max_idx;
-        stats.expect(
-            kernel(buffer.raw_values_data(), n, stride_bytes, &min_val, &min_idx, &max_val, &max_idx, nullptr));
-        output_t ref_min, ref_max;
-        std::size_t ref_min_idx, ref_max_idx;
-        stats.expect(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride_bytes, &ref_min,
-                                                              &ref_min_idx, &ref_max, &ref_max_idx, no_tiers_k));
-        stats.accumulate(static_cast<nk_size_t>(min_idx), static_cast<nk_size_t>(ref_min_idx));
-        stats.accumulate(static_cast<nk_size_t>(max_idx), static_cast<nk_size_t>(ref_max_idx));
-        if (ref_min_idx == NUMKONG_SIZE_MAX) return; // No index, so the values are only sentinels
-        stats.accumulate(output_t::from_raw(min_val), ref_min);
-        stats.accumulate(output_t::from_raw(max_val), ref_max);
-    };
-    // Uniform inputs never win a strict comparison, yet only an all-NaN one lacks an index
-    std::fill_n(buffer.values_data(), buffer.size_values(), nk::finite_max<input_type_>());
-    compare(sizeof(input_type_));
-    if constexpr (nk::nan_capable_dtype<input_type_>) {
-        std::fill_n(buffer.values_data(), buffer.size_values(), input_type_::quiet_nan());
-        compare(sizeof(input_type_));
-    }
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
-        std::size_t stride_bytes = stride_bytes_distribution(generator);
-        fill_random(settings, generator, buffer);
-        compare(stride_bytes);
-    }
-    return stats;
-}
 
 /** Known-value test for the vector-shaped reduction wrappers. */
 inline error_stats_t test_vector_reductions(settings_t const &) {

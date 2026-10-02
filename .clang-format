@@ -153,6 +153,8 @@ StatementMacros:
   - nk_define_device_attention_baseline_
   - nk_define_device_attention_packed_
   - nk_define_attention_rope_
+  - nk_define_device_reduce_moments_
+  - nk_define_device_reduce_minmax_
 
 # Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:

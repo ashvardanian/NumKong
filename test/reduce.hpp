@@ -1,0 +1,110 @@
+/**
+ *  @file test/reduce.hpp
+ *  @author Ash Vardanian
+ *  @date October 1, 2026
+ *  @brief Backend-neutral reduction scenarios, run on the host and on devices alike.
+ *
+ *  Every scenario is a template over the input type and a backend owning where the operands live
+ *  and when results become readable, @c host_backend_t by default. Inputs sit a random number of
+ *  bytes apart, aligned or not.
+ */
+#pragma once
+#ifndef NUMKONG_TEST_REDUCE_HPP
+#define NUMKONG_TEST_REDUCE_HPP
+
+#include <algorithm> // `std::fill_n`
+#include <random>    // `std::uniform_int_distribution`
+
+#include "numkong/reduce.hpp" // `nk::reduce_moments`, `nk::reduce_minmax`
+
+#include "harness.hpp"
+
+namespace ashvardanian::numkong::test {
+
+constexpr std::size_t max_stride_k = 50;
+
+template <typename input_type_, typename backend_type_ = host_backend_t>
+error_stats_t test_reduce_moments(settings_t const &settings, typename input_type_::reduce_moments_kernel_t kernel) {
+    using sum_t = typename input_type_::reduce_moments_sum_t;
+    using sumsq_t = typename input_type_::reduce_moments_sumsq_t;
+    using sum_reference_t = bounded_reference_for<input_type_, sum_t>;
+    using sumsq_reference_t = bounded_reference_for<input_type_, sumsq_t>;
+    using inputs_t = nk::vector<input_type_, typename backend_type_::template allocator<input_type_>>;
+    using sums_t = nk::vector<sum_t, typename backend_type_::template allocator<sum_t>>;
+    using sumsqs_t = nk::vector<sumsq_t, typename backend_type_::template allocator<sumsq_t>>;
+    backend_type_ backend;
+    error_stats_t stats(nk_reduce_moments_error_bound(input_type_::dtype()));
+    std::mt19937 generator(settings.seed.value);
+    std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
+    std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
+    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
+    auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_))).value;
+    auto sum = sums_t::zeros(1).value;
+    auto sumsq = sumsqs_t::zeros(1).value;
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        std::size_t stride_bytes = stride_bytes_distribution(generator);
+        fill_random(settings, generator, buffer);
+        backend.call(kernel, buffer.raw_values_data(), n, stride_bytes, sum.raw_values_data(), sumsq.raw_values_data());
+        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        sum_reference_t sum_reference;
+        sumsq_reference_t sumsq_reference;
+        stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
+            buffer.values_data(), n, stride_bytes, &sum_reference, &sumsq_reference, no_tiers_k));
+        stats.accumulate(sum_t::from_raw(sum.raw_values_data()[0]), sum_reference);
+        stats.accumulate(sumsq_t::from_raw(sumsq.raw_values_data()[0]), sumsq_reference);
+    }
+    return stats;
+}
+
+template <typename input_type_, typename backend_type_ = host_backend_t>
+error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type_::reduce_minmax_kernel_t kernel) {
+    using output_t = typename input_type_::reduce_minmax_value_t;
+    using inputs_t = nk::vector<input_type_, typename backend_type_::template allocator<input_type_>>;
+    using extrema_t = nk::vector<output_t, typename backend_type_::template allocator<output_t>>;
+    using indices_t = nk::vector<u64_t, typename backend_type_::template allocator<u64_t>>;
+    static_assert(sizeof(nk_size_t) == sizeof(nk_u64_t), "indices are read back as U64");
+    backend_type_ backend;
+    error_stats_t stats(comparison_family_t::exact_k);
+    std::mt19937 generator(settings.seed.value);
+    std::uniform_int_distribution<std::size_t> stride_bytes_distribution(1, max_stride_k);
+    std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
+    std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
+    auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_))).value;
+    auto extrema = extrema_t::zeros(2).value;
+    auto indices = indices_t::zeros(2).value;
+    auto *index_values = reinterpret_cast<nk_size_t *>(indices.raw_values_data());
+    auto compare = [&](std::size_t stride_bytes) {
+        backend.call(kernel, buffer.raw_values_data(), n, stride_bytes, extrema.raw_values_data() + 0, index_values + 0,
+                     extrema.raw_values_data() + 1, index_values + 1);
+        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        output_t reference_min, reference_max;
+        std::size_t reference_min_index, reference_max_index;
+        stats.expect(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride_bytes, &reference_min,
+                                                              &reference_min_index, &reference_max,
+                                                              &reference_max_index, no_tiers_k));
+        stats.accumulate(index_values[0], static_cast<nk_size_t>(reference_min_index));
+        stats.accumulate(index_values[1], static_cast<nk_size_t>(reference_max_index));
+        if (reference_min_index == NUMKONG_SIZE_MAX) return; // No index, so the values are only sentinels
+        stats.accumulate(output_t::from_raw(extrema.raw_values_data()[0]), reference_min);
+        stats.accumulate(output_t::from_raw(extrema.raw_values_data()[1]), reference_max);
+    };
+    // Uniform inputs never win a strict comparison, yet only an all-NaN one lacks an index
+    std::fill_n(buffer.values_data(), buffer.size_values(), nk::finite_max<input_type_>());
+    compare(sizeof(input_type_));
+    if constexpr (nk::nan_capable_dtype<input_type_>) {
+        std::fill_n(buffer.values_data(), buffer.size_values(), input_type_::quiet_nan());
+        compare(sizeof(input_type_));
+    }
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        std::size_t stride_bytes = stride_bytes_distribution(generator);
+        fill_random(settings, generator, buffer);
+        compare(stride_bytes);
+    }
+    return stats;
+}
+
+} // namespace ashvardanian::numkong::test
+
+#endif // NUMKONG_TEST_REDUCE_HPP
