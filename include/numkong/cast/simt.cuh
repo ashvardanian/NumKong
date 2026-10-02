@@ -696,7 +696,8 @@ NUMKONG_DEVICE nk_f32_t nk_cast_block_scaled_to_tensor_scale_simt_(nk_cast_block
     if (!arguments->to_tensor_scale) return 1.0f;
     nk_u32_t const bits = *(nk_u32_t volatile *)arguments->to_tensor_scale;
     if (bits && !(bits >> 31)) return __uint_as_float(bits);
-    nk_f32_t const amax = __uint_as_float(bits & 0x7FFFFFFFu);
+    // ptxas 13.2 folded `bits & 0x7FFFFFFF` into an |abs| operand of a register it reused for 1.0
+    nk_f32_t const amax = fabsf(__uint_as_float(bits));
     nk_f32_t const scale_max = arguments->to_scale_dtype == nk_ue4m3_k ? 448.0f : 1.0f;
     return amax > 0 ? amax / (nk_element_max_representable_(arguments->to_dtype) * scale_max) : 1.0f;
 }
