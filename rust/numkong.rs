@@ -200,10 +200,10 @@ pub use capabilities::{Capabilities, Capability, Device, DeviceKind, Status};
 
 // Re-export tensor types
 pub use tensor::{
-    AllocError, Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Fill, Global, Matrix, MatrixSpan, MatrixView,
-    MinMaxResult, RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView, SliceArg, SliceRange, SliceSpec, Tensor,
-    TensorDims, TensorError, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims, TensorSpanIterator,
-    TensorView, TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
+    AllocError, Allocator, AxisIterator, AxisIteratorMut, CopyFrom, Error, Fill, Global, Matrix, MatrixSpan,
+    MatrixView, MinMaxResult, RangeStep, ScaledTensor, ScaledTensorSpan, ScaledTensorView, SliceArg, SliceRange,
+    SliceSpec, Tensor, TensorDims, TensorIterator, TensorMut, TensorRef, TensorSpan, TensorSpanDims,
+    TensorSpanIterator, TensorView, TensorViewDims, TensorViewIterator, DEFAULT_MAX_RANK, SIMD_ALIGNMENT,
 };
 
 // Re-export batched GEMM types

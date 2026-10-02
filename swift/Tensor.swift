@@ -35,8 +35,10 @@ public final class Tensor<Element>: @unchecked Sendable {
 
     /// Creates a tensor by copying elements from a flat array into owned memory.
     public static func fromArray(_ data: [Element], rows: Int, columns: Int) throws -> Tensor {
-        guard rows > 0 && columns > 0 else { throw NumKongMatrixError.invalidDimensions }
-        guard data.count == rows * columns else { throw NumKongMatrixError.outputShapeMismatch }
+        guard rows > 0 && columns > 0 else { throw fail(.unexpectedDimensions, "rows and columns must be positive") }
+        guard data.count == rows * columns else {
+            throw fail(.unexpectedDimensions, "the array holds \(data.count) values, not rows × columns")
+        }
         let ptr = UnsafeMutablePointer<Element>.allocate(capacity: rows * columns)
         data.withUnsafeBufferPointer { src in
             ptr.initialize(from: src.baseAddress!, count: rows * columns)
@@ -46,7 +48,7 @@ public final class Tensor<Element>: @unchecked Sendable {
 
     /// Creates a tensor filled with a repeating value.
     public static func full(rows: Int, columns: Int, value: Element) throws -> Tensor {
-        guard rows > 0 && columns > 0 else { throw NumKongMatrixError.invalidDimensions }
+        guard rows > 0 && columns > 0 else { throw fail(.unexpectedDimensions, "rows and columns must be positive") }
         let ptr = UnsafeMutablePointer<Element>.allocate(capacity: rows * columns)
         ptr.initialize(repeating: value, count: rows * columns)
         return Tensor(rawPointer: ptr, rows: rows, columns: columns)
@@ -115,7 +117,7 @@ public final class Tensor<Element>: @unchecked Sendable {
 extension Tensor {
     @usableFromInline
     static func _zeroInitialized(rows: Int, columns: Int) throws -> Tensor {
-        guard rows > 0 && columns > 0 else { throw NumKongMatrixError.invalidDimensions }
+        guard rows > 0 && columns > 0 else { throw fail(.unexpectedDimensions, "rows and columns must be positive") }
         let count = rows * columns
         let ptr = UnsafeMutablePointer<Element>.allocate(capacity: count)
         let raw = UnsafeMutableRawPointer(ptr)

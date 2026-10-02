@@ -13,7 +13,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{check_len, TensorError},
+    tensor::{check_len, Error},
     types::{bf16, f16},
 };
 
@@ -92,21 +92,21 @@ extern "C" {
 ///
 /// D_KL(P‖Q) = ∑ᵢ pᵢ × ln(pᵢ / qᵢ)
 ///
-/// Range: \[0, ∞). Not symmetric. Fails with [`TensorError::ShapeMismatch`] if lengths differ,
-/// or [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Range: \[0, ∞). Not symmetric. Fails with [`Error::ShapeMismatch`] if lengths differ,
+/// or [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`.
 pub trait KullbackLeibler: Sized {
     type Output;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `kullbackleibler`.
-    fn kl(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> { Self::kullbackleibler(a, b) }
+    fn kl(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> { Self::kullbackleibler(a, b) }
 }
 
 impl KullbackLeibler for f64 {
     type Output = f64;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -126,7 +126,7 @@ impl KullbackLeibler for f64 {
 
 impl KullbackLeibler for f32 {
     type Output = f64;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -146,7 +146,7 @@ impl KullbackLeibler for f32 {
 
 impl KullbackLeibler for f16 {
     type Output = f32;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -166,7 +166,7 @@ impl KullbackLeibler for f16 {
 
 impl KullbackLeibler for bf16 {
     type Output = f32;
-    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn kullbackleibler(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -192,21 +192,21 @@ impl KullbackLeibler for bf16 {
 ///
 /// d_JS(P, Q) = √(½(D_KL(P‖M) + D_KL(Q‖M))), where M = (P + Q) / 2
 ///
-/// Range: \[0, √ln2\]. Symmetric. Fails with [`TensorError::ShapeMismatch`] if lengths differ,
-/// or [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Range: \[0, √ln2\]. Symmetric. Fails with [`Error::ShapeMismatch`] if lengths differ,
+/// or [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`.
 pub trait JensenShannon: Sized {
     type Output;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `jensenshannon`.
-    fn js(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> { Self::jensenshannon(a, b) }
+    fn js(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> { Self::jensenshannon(a, b) }
 }
 
 impl JensenShannon for f64 {
     type Output = f64;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -226,7 +226,7 @@ impl JensenShannon for f64 {
 
 impl JensenShannon for f32 {
     type Output = f64;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -246,7 +246,7 @@ impl JensenShannon for f32 {
 
 impl JensenShannon for f16 {
     type Output = f32;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -266,7 +266,7 @@ impl JensenShannon for f16 {
 
 impl JensenShannon for bf16 {
     type Output = f32;
-    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn jensenshannon(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {

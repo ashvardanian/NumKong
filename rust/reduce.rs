@@ -20,7 +20,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorError, TensorMut, TensorRef},
+    tensor::{Error, MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorMut, TensorRef},
     types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement},
     vector::VectorIndex,
 };
@@ -419,7 +419,7 @@ extern "C" {
 ///
 /// # Errors
 ///
-/// [`TensorError::KernelFailed`] when no capability of the current
+/// [`Error::KernelFailed`] when no capability of the current
 /// [`Capabilities`](crate::Capabilities) has the kernel.
 pub trait ReduceMoments: StorageElement {
     /// Type for the sum output.
@@ -431,7 +431,7 @@ pub trait ReduceMoments: StorageElement {
     ///
     /// Reads `data.len()` logical elements starting at `data.as_ptr()`, advancing by `stride`
     /// between each — pass `size_of::<Self>()` for contiguous storage.
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError>;
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error>;
 }
 
 unsafe fn reduce_moments_via_ffi<Scalar, Sum: Default, SumSq: Default>(
@@ -447,7 +447,7 @@ unsafe fn reduce_moments_via_ffi<Scalar, Sum: Default, SumSq: Default>(
         nk_capability_t,
         *mut c_void,
     ) -> nk_status_t,
-) -> Result<(Sum, SumSq), TensorError>
+) -> Result<(Sum, SumSq), Error>
 where
     Scalar: StorageElement,
 {
@@ -470,7 +470,7 @@ impl ReduceMoments for f64 {
     type SumOutput = f64;
     type SumSqOutput = f64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_f64_best) }
     }
 }
@@ -479,7 +479,7 @@ impl ReduceMoments for f32 {
     type SumOutput = f64;
     type SumSqOutput = f64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_f32_best) }
     }
 }
@@ -488,7 +488,7 @@ impl ReduceMoments for i8 {
     type SumOutput = i64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_i8_best) }
     }
 }
@@ -497,7 +497,7 @@ impl ReduceMoments for u8 {
     type SumOutput = u64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_u8_best) }
     }
 }
@@ -506,7 +506,7 @@ impl ReduceMoments for i16 {
     type SumOutput = i64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_i16_best) }
     }
 }
@@ -515,7 +515,7 @@ impl ReduceMoments for u16 {
     type SumOutput = u64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_u16_best) }
     }
 }
@@ -524,7 +524,7 @@ impl ReduceMoments for i32 {
     type SumOutput = i64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_i32_best) }
     }
 }
@@ -533,7 +533,7 @@ impl ReduceMoments for u32 {
     type SumOutput = u64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_u32_best) }
     }
 }
@@ -542,7 +542,7 @@ impl ReduceMoments for i64 {
     type SumOutput = i64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_i64_best) }
     }
 }
@@ -551,7 +551,7 @@ impl ReduceMoments for u64 {
     type SumOutput = u64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_u64_best) }
     }
 }
@@ -560,7 +560,7 @@ impl ReduceMoments for f16 {
     type SumOutput = f32;
     type SumSqOutput = f32;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_f16_best) }
     }
 }
@@ -569,7 +569,7 @@ impl ReduceMoments for bf16 {
     type SumOutput = f32;
     type SumSqOutput = f32;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_bf16_best) }
     }
 }
@@ -578,7 +578,7 @@ impl ReduceMoments for e4m3 {
     type SumOutput = f32;
     type SumSqOutput = f32;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_e4m3_best) }
     }
 }
@@ -587,7 +587,7 @@ impl ReduceMoments for e5m2 {
     type SumOutput = f32;
     type SumSqOutput = f32;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_e5m2_best) }
     }
 }
@@ -596,7 +596,7 @@ impl ReduceMoments for e2m3 {
     type SumOutput = f32;
     type SumSqOutput = f32;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_e2m3_best) }
     }
 }
@@ -605,7 +605,7 @@ impl ReduceMoments for e3m2 {
     type SumOutput = f32;
     type SumSqOutput = f32;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_e3m2_best) }
     }
 }
@@ -614,7 +614,7 @@ impl ReduceMoments for i4x2 {
     type SumOutput = i64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_i4_best) }
     }
 }
@@ -623,7 +623,7 @@ impl ReduceMoments for u4x2 {
     type SumOutput = u64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_u4_best) }
     }
 }
@@ -632,7 +632,7 @@ impl ReduceMoments for u1x8 {
     type SumOutput = u64;
     type SumSqOutput = u64;
 
-    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), TensorError> {
+    fn reduce_moments(data: &[Self], stride: usize) -> Result<(Self::SumOutput, Self::SumSqOutput), Error> {
         unsafe { reduce_moments_via_ffi(data.as_ptr(), data.len(), stride, nk_reduce_moments_u1_best) }
     }
 }
@@ -641,7 +641,7 @@ impl ReduceMoments for u1x8 {
 ///
 /// Returns `Ok(Some(MinMaxResult))` for all elements in a slice, or `Ok(None)` if all elements are
 /// NaN, for NaN-masking formats. The output value type matches the logical reduced scalar type. A
-/// refusing kernel fails with [`TensorError::KernelFailed`].
+/// refusing kernel fails with [`Error::KernelFailed`].
 pub trait ReduceMinMax: StorageElement {
     /// Output type for the min/max values — matches the C layer's native type.
     type Output: StorageElement;
@@ -652,7 +652,7 @@ pub trait ReduceMinMax: StorageElement {
     ///
     /// Reads `data.len()` logical elements starting at `data.as_ptr()`, advancing by `stride`
     /// between each — pass `size_of::<Self>()` for contiguous storage.
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError>;
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error>;
 }
 
 unsafe fn reduce_minmax_via_ffi<Scalar, Out: Default>(
@@ -671,7 +671,7 @@ unsafe fn reduce_minmax_via_ffi<Scalar, Out: Default>(
         nk_capability_t,
         *mut c_void,
     ) -> nk_status_t,
-) -> Result<Option<MinMaxResult<Out>>, TensorError>
+) -> Result<Option<MinMaxResult<Out>>, Error>
 where
     Scalar: StorageElement,
 {
@@ -703,7 +703,7 @@ impl ReduceMinMax for f64 {
     type Output = f64;
     const NONE_ON_SENTINEL: bool = true;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -720,7 +720,7 @@ impl ReduceMinMax for f32 {
     type Output = f32;
     const NONE_ON_SENTINEL: bool = true;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -737,7 +737,7 @@ impl ReduceMinMax for i8 {
     type Output = i8;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -754,7 +754,7 @@ impl ReduceMinMax for u8 {
     type Output = u8;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -771,7 +771,7 @@ impl ReduceMinMax for i16 {
     type Output = i16;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -788,7 +788,7 @@ impl ReduceMinMax for u16 {
     type Output = u16;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -805,7 +805,7 @@ impl ReduceMinMax for i32 {
     type Output = i32;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -822,7 +822,7 @@ impl ReduceMinMax for u32 {
     type Output = u32;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -839,7 +839,7 @@ impl ReduceMinMax for i64 {
     type Output = i64;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -856,7 +856,7 @@ impl ReduceMinMax for u64 {
     type Output = u64;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -873,7 +873,7 @@ impl ReduceMinMax for f16 {
     type Output = f16;
     const NONE_ON_SENTINEL: bool = true;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -890,7 +890,7 @@ impl ReduceMinMax for bf16 {
     type Output = bf16;
     const NONE_ON_SENTINEL: bool = true;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -907,7 +907,7 @@ impl ReduceMinMax for e4m3 {
     type Output = e4m3;
     const NONE_ON_SENTINEL: bool = true;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -924,7 +924,7 @@ impl ReduceMinMax for e5m2 {
     type Output = e5m2;
     const NONE_ON_SENTINEL: bool = true;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -941,7 +941,7 @@ impl ReduceMinMax for e2m3 {
     type Output = e2m3;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -958,7 +958,7 @@ impl ReduceMinMax for e3m2 {
     type Output = e3m2;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -975,7 +975,7 @@ impl ReduceMinMax for i4x2 {
     type Output = i8;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -992,7 +992,7 @@ impl ReduceMinMax for u4x2 {
     type Output = u8;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -1009,7 +1009,7 @@ impl ReduceMinMax for u1x8 {
     type Output = u8;
     const NONE_ON_SENTINEL: bool = false;
 
-    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, TensorError> {
+    fn reduce_minmax(data: &[Self], stride: usize) -> Result<Option<MinMaxResult<Self::Output>>, Error> {
         unsafe {
             reduce_minmax_via_ffi(
                 data.as_ptr(),
@@ -1035,7 +1035,7 @@ impl<Scalar: ReduceMoments + ReduceMinMax> Reductions for Scalar {}
 /// matrices and higher-rank tensors of bits work without flattening first. Non-contiguous outer
 /// strides fall out of the recursion naturally — only the leaf storage slice has to be dense, and
 /// sub-byte storage always is.
-fn popcount_via_tensor_ref<View, const MAX_RANK: usize>(view: &View) -> Result<u64, TensorError>
+fn popcount_via_tensor_ref<View, const MAX_RANK: usize>(view: &View) -> Result<u64, Error>
 where
     View: TensorRef<u1x8, MAX_RANK> + ?Sized,
 {
@@ -1071,16 +1071,16 @@ where
 /// from [`crate::vector`].
 pub trait BitwiseReductionsOps<const MAX_RANK: usize>: TensorRef<u1x8, MAX_RANK> {
     /// Number of set bits across the entire tensor.
-    fn popcount(&self) -> Result<u64, TensorError> { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
+    fn popcount(&self) -> Result<u64, Error> { popcount_via_tensor_ref::<_, MAX_RANK>(self) }
 
     /// `true` if at least one bit in the tensor is set.
-    fn any_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? != 0) }
+    fn any_set(&self) -> Result<bool, Error> { Ok(self.popcount()? != 0) }
 
     /// `true` if no bit in the tensor is set.
-    fn none_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == 0) }
+    fn none_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == 0) }
 
     /// `true` if every bit in the tensor is set.
-    fn all_set(&self) -> Result<bool, TensorError> { Ok(self.popcount()? == self.numel() as u64) }
+    fn all_set(&self) -> Result<bool, Error> { Ok(self.popcount()? == self.numel() as u64) }
 }
 
 impl<Container, const MAX_RANK: usize> BitwiseReductionsOps<MAX_RANK> for Container where
@@ -1118,7 +1118,7 @@ where
     Scalar::SumOutput: Clone + Default + core::ops::AddAssign,
     Scalar::SumSqOutput: Clone + Default + core::ops::AddAssign + SumSqToF64,
 {
-    fn moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), TensorError> { self.view().moments_all() }
+    fn moments_all(&self) -> Result<(Scalar::SumOutput, Scalar::SumSqOutput), Error> { self.view().moments_all() }
 
     fn moments_axis<AnyIndex: VectorIndex>(
         &self,
@@ -1137,7 +1137,7 @@ where
         keep_dims: bool,
         sum_out: &mut SumTensor,
         sumsq_out: &mut SumSqTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         AnyIndex: VectorIndex,
         SumTensor: TensorMut<Scalar::SumOutput, MAX_RANK> + ?Sized,
@@ -1146,13 +1146,13 @@ where
         self.view().moments_axis_into(axis, keep_dims, sum_out, sumsq_out)
     }
 
-    fn sum_all(&self) -> Result<Scalar::SumOutput, TensorError> { self.view().sum_all() }
+    fn sum_all(&self) -> Result<Scalar::SumOutput, Error> { self.view().sum_all() }
 
     fn sum_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
-    ) -> Result<Tensor<Scalar::SumOutput, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar::SumOutput, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -1164,7 +1164,7 @@ where
         axis: AnyIndex,
         keep_dims: bool,
         out: &mut SumTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         AnyIndex: VectorIndex,
         SumTensor: TensorMut<Scalar::SumOutput, MAX_RANK> + ?Sized,
@@ -1172,13 +1172,13 @@ where
         self.view().sum_axis_into(axis, keep_dims, out)
     }
 
-    fn norm_all(&self) -> Result<f64, TensorError> { self.view().norm_all() }
+    fn norm_all(&self) -> Result<f64, Error> { self.view().norm_all() }
 
     fn norm_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
-    ) -> Result<Tensor<f64, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<f64, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -1190,7 +1190,7 @@ where
         axis: AnyIndex,
         keep_dims: bool,
         out: &mut NormTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         AnyIndex: VectorIndex,
         NormTensor: TensorMut<f64, MAX_RANK> + ?Sized,
@@ -1211,7 +1211,7 @@ pub trait MinMaxOps<Scalar: Clone + ReduceMinMax, const MAX_RANK: usize>: Tensor
 where
     Scalar::Output: Clone + Default + PartialOrd,
 {
-    fn minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, TensorError> { self.view().minmax_all() }
+    fn minmax_all(&self) -> Result<MinMaxResult<Scalar::Output>, Error> { self.view().minmax_all() }
 
     fn minmax_axis<AnyIndex: VectorIndex>(
         &self,
@@ -1232,7 +1232,7 @@ where
         argmin_out: &mut IndexTensor,
         max_out: &mut ValueTensor,
         argmax_out: &mut IndexTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         AnyIndex: VectorIndex,
         ValueTensor: TensorMut<Scalar::Output, MAX_RANK> + ?Sized,
@@ -1242,19 +1242,19 @@ where
             .minmax_axis_into(axis, keep_dims, min_out, argmin_out, max_out, argmax_out)
     }
 
-    fn min_all(&self) -> Result<Scalar::Output, TensorError> { self.view().min_all() }
+    fn min_all(&self) -> Result<Scalar::Output, Error> { self.view().min_all() }
 
-    fn argmin_all(&self) -> Result<usize, TensorError> { self.view().argmin_all() }
+    fn argmin_all(&self) -> Result<usize, Error> { self.view().argmin_all() }
 
-    fn max_all(&self) -> Result<Scalar::Output, TensorError> { self.view().max_all() }
+    fn max_all(&self) -> Result<Scalar::Output, Error> { self.view().max_all() }
 
-    fn argmax_all(&self) -> Result<usize, TensorError> { self.view().argmax_all() }
+    fn argmax_all(&self) -> Result<usize, Error> { self.view().argmax_all() }
 
     fn min_axis<AnyIndex: VectorIndex>(
         &self,
         axis: AnyIndex,
         keep_dims: bool,
-    ) -> Result<Tensor<Scalar::Output, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar::Output, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -1265,7 +1265,7 @@ where
         &self,
         axis: AnyIndex,
         keep_dims: bool,
-    ) -> Result<Tensor<usize, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<usize, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -1276,7 +1276,7 @@ where
         &self,
         axis: AnyIndex,
         keep_dims: bool,
-    ) -> Result<Tensor<Scalar::Output, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar::Output, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -1287,7 +1287,7 @@ where
         &self,
         axis: AnyIndex,
         keep_dims: bool,
-    ) -> Result<Tensor<usize, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<usize, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {

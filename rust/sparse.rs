@@ -26,7 +26,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::TensorError,
+    tensor::Error,
     types::bf16,
 };
 
@@ -92,21 +92,21 @@ extern "C" {
 ///
 /// # Errors
 ///
-/// [`TensorError::KernelFailed`] when no capability of the current
+/// [`Error::KernelFailed`] when no capability of the current
 /// [`Capabilities`](crate::Capabilities) has the kernel.
 pub trait SparseIntersect: Sized {
     /// Returns the intersection size between two sorted sparse vectors.
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError>;
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, Error>;
 
     /// Computes intersection and writes matching elements to output buffer.
     /// Buffer must be at least `min(a.len(), b.len())` in size.
-    /// Returns the number of elements written, or [`TensorError::CapacityExceeded`] if the buffer
+    /// Returns the number of elements written, or [`Error::CapacityExceeded`] if the buffer
     /// is too small.
-    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, TensorError>;
+    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, Error>;
 }
 
 impl SparseIntersect for u16 {
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError> {
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, Error> {
         let mut count: usize = 0;
         unsafe {
             nk_sparse_intersect_u16_best(
@@ -124,10 +124,10 @@ impl SparseIntersect for u16 {
         Ok(count)
     }
 
-    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, TensorError> {
+    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, Error> {
         let min_len = a.len().min(b.len());
         if result.len() < min_len {
-            return Err(TensorError::CapacityExceeded {
+            return Err(Error::CapacityExceeded {
                 requested: min_len,
                 capacity: result.len(),
             });
@@ -151,7 +151,7 @@ impl SparseIntersect for u16 {
 }
 
 impl SparseIntersect for u32 {
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError> {
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, Error> {
         let mut count: usize = 0;
         unsafe {
             nk_sparse_intersect_u32_best(
@@ -169,10 +169,10 @@ impl SparseIntersect for u32 {
         Ok(count)
     }
 
-    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, TensorError> {
+    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, Error> {
         let min_len = a.len().min(b.len());
         if result.len() < min_len {
-            return Err(TensorError::CapacityExceeded {
+            return Err(Error::CapacityExceeded {
                 requested: min_len,
                 capacity: result.len(),
             });
@@ -196,7 +196,7 @@ impl SparseIntersect for u32 {
 }
 
 impl SparseIntersect for u64 {
-    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, TensorError> {
+    fn sparse_intersection_size(a: &[Self], b: &[Self]) -> Result<usize, Error> {
         let mut count: usize = 0;
         unsafe {
             nk_sparse_intersect_u64_best(
@@ -214,10 +214,10 @@ impl SparseIntersect for u64 {
         Ok(count)
     }
 
-    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, TensorError> {
+    fn sparse_intersect_into(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<usize, Error> {
         let min_len = a.len().min(b.len());
         if result.len() < min_len {
-            return Err(TensorError::CapacityExceeded {
+            return Err(Error::CapacityExceeded {
                 requested: min_len,
                 capacity: result.len(),
             });
@@ -251,7 +251,7 @@ impl SparseIntersect for u64 {
 ///
 /// # Errors
 ///
-/// [`TensorError::KernelFailed`] when no capability of the current
+/// [`Error::KernelFailed`] when no capability of the current
 /// [`Capabilities`](crate::Capabilities) has the kernel.
 pub trait SparseDot: Sized {
     /// Weight type for this sparse dot product.
@@ -270,7 +270,7 @@ pub trait SparseDot: Sized {
         b_indices: &[Self],
         a_weights: &[Self::Weight],
         b_weights: &[Self::Weight],
-    ) -> Result<Self::Output, TensorError>;
+    ) -> Result<Self::Output, Error>;
 }
 
 impl SparseDot for u16 {
@@ -282,7 +282,7 @@ impl SparseDot for u16 {
         b_indices: &[Self],
         a_weights: &[bf16],
         b_weights: &[bf16],
-    ) -> Result<Self::Output, TensorError> {
+    ) -> Result<Self::Output, Error> {
         // The index lengths below bound the kernel's reads of both arrays of each vector.
         if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
             return Ok(Self::Output::default());
@@ -315,7 +315,7 @@ impl SparseDot for u32 {
         b_indices: &[Self],
         a_weights: &[f32],
         b_weights: &[f32],
-    ) -> Result<Self::Output, TensorError> {
+    ) -> Result<Self::Output, Error> {
         // The index lengths below bound the kernel's reads of both arrays of each vector.
         if a_weights.len() < a_indices.len() || b_weights.len() < b_indices.len() {
             return Ok(Self::Output::default());
@@ -382,7 +382,7 @@ mod tests {
         let mut result: Vec<u16> = vec![0; 2];
         assert_eq!(
             u16::sparse_intersect_into(&left, &right, &mut result),
-            Err(TensorError::CapacityExceeded {
+            Err(Error::CapacityExceeded {
                 requested: 5,
                 capacity: 2
             })

@@ -26,7 +26,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{check_len, TensorError},
+    tensor::{check_len, Error},
 };
 
 #[link(name = "numkong")]
@@ -87,8 +87,8 @@ pub trait Haversine: Sized {
     /// Compute the great-circle distance for paired coordinates.
     ///
     /// All four coordinate slices must be the same length, matching the output slice, or it fails
-    /// with [`TensorError::ShapeMismatch`], and a refusing kernel fails with
-    /// [`TensorError::KernelFailed`]. Inputs are in __radians__ and results are in __meters__.
+    /// with [`Error::ShapeMismatch`], and a refusing kernel fails with [`Error::KernelFailed`].
+    /// Inputs are in __radians__ and results are in __meters__.
     ///
     /// # Examples
     ///
@@ -110,7 +110,7 @@ pub trait Haversine: Sized {
         b_lat: &[Self],
         b_lon: &[Self],
         result: &mut [Self],
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 }
 
 /// Computes __Vincenty geodesic distances__ on the WGS84 ellipsoid.
@@ -132,7 +132,7 @@ pub trait Vincenty: Sized {
         b_lat: &[Self],
         b_lon: &[Self],
         result: &mut [Self],
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 }
 
 /// Combined trait for all geospatial distance computations.
@@ -145,7 +145,7 @@ impl Haversine for f64 {
         b_lat: &[Self],
         b_lon: &[Self],
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         let coordinate_count = a_lat.len();
         check_len(coordinate_count, a_lon.len())?;
         check_len(coordinate_count, b_lat.len())?;
@@ -174,7 +174,7 @@ impl Vincenty for f64 {
         b_lat: &[Self],
         b_lon: &[Self],
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         let coordinate_count = a_lat.len();
         check_len(coordinate_count, a_lon.len())?;
         check_len(coordinate_count, b_lat.len())?;
@@ -205,7 +205,7 @@ impl Haversine for f32 {
         b_lat: &[Self],
         b_lon: &[Self],
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         let coordinate_count = a_lat.len();
         check_len(coordinate_count, a_lon.len())?;
         check_len(coordinate_count, b_lat.len())?;
@@ -234,7 +234,7 @@ impl Vincenty for f32 {
         b_lat: &[Self],
         b_lon: &[Self],
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         let coordinate_count = a_lat.len();
         check_len(coordinate_count, a_lon.len())?;
         check_len(coordinate_count, b_lat.len())?;

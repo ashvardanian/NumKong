@@ -155,8 +155,8 @@ let kernels: [Kernel] = {
     #expect(enabled.contains(.serial))
     #expect(enabled.isSubset(of: try cpu.capabilitiesDetected.union(cpu.capabilitiesCompiled)))
     #expect(try Device.count(.cpu) == 1)
-    #expect(throws: DeviceError.self) { try Device(kind: .cpu, ordinal: 1) }
-    #expect(throws: DeviceError.self) { try Device(kind: .metal, ordinal: (try? Device.count(.metal)) ?? 0) }
+    #expect(throws: NumKong.Error.self) { try Device(kind: .cpu, ordinal: 1) }
+    #expect(throws: NumKong.Error.self) { try Device(kind: .metal, ordinal: (try? Device.count(.metal)) ?? 0) }
 }
 
 @Test(arguments: kernels)
@@ -201,7 +201,9 @@ func kernel(_ kernel: Kernel) throws {
 }
 
 @Test func tensorRejectsEmpty() {
-    #expect(throws: NumKongMatrixError.invalidDimensions) { try Tensor<Float32>.zeros(rows: 0, columns: 4) }
+    #expect { try Tensor<Float32>.zeros(rows: 0, columns: 4) } throws: {
+        ($0 as? NumKong.Error)?.status == .unexpectedDimensions
+    }
 }
 
 @Test func tensorResizeWithinCapacity() throws {
@@ -240,7 +242,7 @@ func kernel(_ kernel: Kernel) throws {
     // Every capability stamps its packs, so bytes no capability wrote are refused rather than read.
     UnsafeMutableRawPointer(mutating: packed.rawBuffer.baseAddress!)
         .initializeMemory(as: UInt8.self, repeating: 0xFF, count: packed.byteCount)
-    #expect(throws: NumKongMatrixError.kernelFailed) { try a.dotsPacked(packed) }
+    #expect { try a.dotsPacked(packed) } throws: { ($0 as? NumKong.Error)?.status == .packMismatch }
 }
 
 @Test func tensorAngularsPacked() throws {

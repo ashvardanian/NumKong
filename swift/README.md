@@ -458,7 +458,7 @@ for ordinal in 0..<((try? Device.count(.metal)) ?? 0) {
 }
 ```
 
-- `Device.cpu` is the host CPU, and `Device(kind:ordinal:)` any device `Device.count(_:)` counts, throwing a `DeviceError` past the last one.
+- `Device.cpu` is the host CPU, and `Device(kind:ordinal:)` any device `Device.count(_:)` counts, throwing an `Error` past the last one.
 - `capabilitiesDetected` is what the device can execute, from CPUID or HWCAP on the CPU.
 - `capabilitiesCompiled` is what this binary contains for devices of its kind, from the ISA probes at build time.
 - `capabilitiesEnabled` is what dispatch uses, both axes at once unless narrowed, and on the CPU always contains `.serial`.

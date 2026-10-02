@@ -185,7 +185,7 @@ let jsd = f32::jensenshannon(&p, &q).unwrap();
 println!("{dot} {jaccard} {jsd}");
 ```
 
-Every slice kernel returns a `Result`, failing with `TensorError::ShapeMismatch` when operand lengths differ and with `TensorError::KernelFailed` carrying the kernel's `Status` when it refuses its operands.
+Every slice kernel returns a `Result`, failing with `Error::ShapeMismatch` when operand lengths differ and with `Error::KernelFailed` carrying the kernel's `Status` when it refuses its operands.
 `ReduceMinMax` returns `Ok(None)` for an all-NaN input, which is an empty result rather than a failure.
 
 ## Dot Products

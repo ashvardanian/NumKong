@@ -51,7 +51,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef},
+    tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef},
     types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement},
 };
 
@@ -832,7 +832,7 @@ extern "C" {
 
 // Complex fallback helpers
 
-fn complex_each_sum_fallback<Scalar>(a: &[Scalar], b: &[Scalar], result: &mut [Scalar]) -> Result<(), TensorError>
+fn complex_each_sum_fallback<Scalar>(a: &[Scalar], b: &[Scalar], result: &mut [Scalar]) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar>,
 {
@@ -849,7 +849,7 @@ fn complex_each_scale_fallback<Scalar>(
     alpha: Scalar,
     beta: Scalar,
     result: &mut [Scalar],
-) -> Result<(), TensorError>
+) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -866,7 +866,7 @@ fn complex_each_blend_fallback<Scalar>(
     alpha: Scalar,
     beta: Scalar,
     result: &mut [Scalar],
-) -> Result<(), TensorError>
+) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -885,7 +885,7 @@ fn complex_each_fma_fallback<Scalar>(
     alpha: Scalar,
     beta: Scalar,
     result: &mut [Scalar],
-) -> Result<(), TensorError>
+) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -901,7 +901,7 @@ where
 // In-place complex fallbacks: read-modify-write through a single `&mut` — sound, with no aliased
 // `&[T]` over the same storage. `data` is both the `a` operand and the result.
 
-fn complex_each_sum_inplace_fallback<Scalar>(data: &mut [Scalar], other: &[Scalar]) -> Result<(), TensorError>
+fn complex_each_sum_inplace_fallback<Scalar>(data: &mut [Scalar], other: &[Scalar]) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar>,
 {
@@ -912,11 +912,7 @@ where
     Ok(())
 }
 
-fn complex_each_scale_inplace_fallback<Scalar>(
-    data: &mut [Scalar],
-    alpha: Scalar,
-    beta: Scalar,
-) -> Result<(), TensorError>
+fn complex_each_scale_inplace_fallback<Scalar>(data: &mut [Scalar], alpha: Scalar, beta: Scalar) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -931,7 +927,7 @@ fn complex_each_blend_inplace_fallback<Scalar>(
     other: &[Scalar],
     alpha: Scalar,
     beta: Scalar,
-) -> Result<(), TensorError>
+) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -947,7 +943,7 @@ fn complex_each_fma_inplace_fallback<Scalar>(
     b: &[Scalar],
     alpha: Scalar,
     beta: Scalar,
-) -> Result<(), TensorError>
+) -> Result<(), Error>
 where
     Scalar: Copy + core::ops::Add<Output = Scalar> + core::ops::Mul<Output = Scalar>,
 {
@@ -967,8 +963,8 @@ where
 ///
 /// rᵢ = α × aᵢ + β
 ///
-/// Fails with [`TensorError::ShapeMismatch`] if `a` and `result` lengths differ, or
-/// [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Fails with [`Error::ShapeMismatch`] if `a` and `result` lengths differ, or
+/// [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
@@ -989,18 +985,18 @@ pub trait EachScale: Sized + StorageElement {
     /// f32::each_scale(&input, 1.0, -2.0, &mut output).unwrap();
     /// assert_eq!(output, [-1.0, 0.0, 1.0]);
     /// ```
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError>;
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), Error>;
 
     /// In-place affine: dataᵢ = α × dataᵢ + β.
     ///
     /// Both source and destination pointers are derived from the single `&mut`, so no aliased
     /// `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError>;
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error>;
 }
 
 impl EachScale for f64 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f64_best(
@@ -1016,7 +1012,7 @@ impl EachScale for f64 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1036,7 +1032,7 @@ impl EachScale for f64 {
 
 impl EachScale for f32 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f32_best(
@@ -1052,7 +1048,7 @@ impl EachScale for f32 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1072,7 +1068,7 @@ impl EachScale for f32 {
 
 impl EachScale for f16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f16_best(
@@ -1088,7 +1084,7 @@ impl EachScale for f16 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1108,7 +1104,7 @@ impl EachScale for f16 {
 
 impl EachScale for bf16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_bf16_best(
@@ -1124,7 +1120,7 @@ impl EachScale for bf16 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1144,7 +1140,7 @@ impl EachScale for bf16 {
 
 impl EachScale for i8 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i8_best(
@@ -1160,7 +1156,7 @@ impl EachScale for i8 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1180,7 +1176,7 @@ impl EachScale for i8 {
 
 impl EachScale for u8 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u8_best(
@@ -1196,7 +1192,7 @@ impl EachScale for u8 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1216,7 +1212,7 @@ impl EachScale for u8 {
 
 impl EachScale for i16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i16_best(
@@ -1232,7 +1228,7 @@ impl EachScale for i16 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1252,7 +1248,7 @@ impl EachScale for i16 {
 
 impl EachScale for u16 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u16_best(
@@ -1268,7 +1264,7 @@ impl EachScale for u16 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1288,7 +1284,7 @@ impl EachScale for u16 {
 
 impl EachScale for i32 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i32_best(
@@ -1304,7 +1300,7 @@ impl EachScale for i32 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1324,7 +1320,7 @@ impl EachScale for i32 {
 
 impl EachScale for u32 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u32_best(
@@ -1340,7 +1336,7 @@ impl EachScale for u32 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1360,7 +1356,7 @@ impl EachScale for u32 {
 
 impl EachScale for i64 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_i64_best(
@@ -1376,7 +1372,7 @@ impl EachScale for i64 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1396,7 +1392,7 @@ impl EachScale for i64 {
 
 impl EachScale for u64 {
     type Scalar = f64;
-    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_u64_best(
@@ -1412,7 +1408,7 @@ impl EachScale for u64 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f64, beta: f64) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1432,7 +1428,7 @@ impl EachScale for u64 {
 
 impl EachScale for e4m3 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e4m3_best(
@@ -1448,7 +1444,7 @@ impl EachScale for e4m3 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1468,7 +1464,7 @@ impl EachScale for e4m3 {
 
 impl EachScale for e5m2 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e5m2_best(
@@ -1484,7 +1480,7 @@ impl EachScale for e5m2 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1504,7 +1500,7 @@ impl EachScale for e5m2 {
 
 impl EachScale for e2m3 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e2m3_best(
@@ -1520,7 +1516,7 @@ impl EachScale for e2m3 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1540,7 +1536,7 @@ impl EachScale for e2m3 {
 
 impl EachScale for e3m2 {
     type Scalar = f32;
-    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_e3m2_best(
@@ -1556,7 +1552,7 @@ impl EachScale for e3m2 {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: f32, beta: f32) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1576,7 +1572,7 @@ impl EachScale for e3m2 {
 
 impl EachScale for f64c {
     type Scalar = f64c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f64c_best(
@@ -1592,7 +1588,7 @@ impl EachScale for f64c {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1612,7 +1608,7 @@ impl EachScale for f64c {
 
 impl EachScale for f32c {
     type Scalar = f32c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), result.len())?;
         unsafe {
             nk_each_scale_f32c_best(
@@ -1628,7 +1624,7 @@ impl EachScale for f32c {
         .check()
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -1648,22 +1644,22 @@ impl EachScale for f32c {
 
 impl EachScale for f16c {
     type Scalar = f16c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), Error> {
         complex_each_scale_fallback(a, alpha, beta, result)
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         complex_each_scale_inplace_fallback(data, alpha, beta)
     }
 }
 
 impl EachScale for bf16c {
     type Scalar = bf16c;
-    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_scale(a: &[Self], alpha: Self::Scalar, beta: Self::Scalar, result: &mut [Self]) -> Result<(), Error> {
         complex_each_scale_fallback(a, alpha, beta, result)
     }
 
-    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), TensorError> {
+    fn each_scale_inplace(data: &mut [Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         complex_each_scale_inplace_fallback(data, alpha, beta)
     }
 }
@@ -1676,24 +1672,24 @@ impl EachScale for bf16c {
 ///
 /// rᵢ = aᵢ + bᵢ
 ///
-/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
 /// `u64`, `e4m3`, `e5m2`, `e2m3`, and `e3m2`.
 pub trait EachSum: Sized + StorageElement {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError>;
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error>;
 
     /// In-place sum: dataᵢ = dataᵢ + otherᵢ.
     ///
     /// `data` is both the `a` operand and the result; its source and destination pointers come from
     /// the single `&mut`, while `other` is disjoint storage — no aliased `&[Self]` + `&mut [Self]`
     /// over the same buffer is formed.
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError>;
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error>;
 }
 
 impl EachSum for f64 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1709,7 +1705,7 @@ impl EachSum for f64 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1728,7 +1724,7 @@ impl EachSum for f64 {
 }
 
 impl EachSum for f32 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1744,7 +1740,7 @@ impl EachSum for f32 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1763,7 +1759,7 @@ impl EachSum for f32 {
 }
 
 impl EachSum for f16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1779,7 +1775,7 @@ impl EachSum for f16 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1798,7 +1794,7 @@ impl EachSum for f16 {
 }
 
 impl EachSum for bf16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1814,7 +1810,7 @@ impl EachSum for bf16 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1833,7 +1829,7 @@ impl EachSum for bf16 {
 }
 
 impl EachSum for i8 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1849,7 +1845,7 @@ impl EachSum for i8 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1868,7 +1864,7 @@ impl EachSum for i8 {
 }
 
 impl EachSum for u8 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1884,7 +1880,7 @@ impl EachSum for u8 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1903,7 +1899,7 @@ impl EachSum for u8 {
 }
 
 impl EachSum for i16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1919,7 +1915,7 @@ impl EachSum for i16 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1938,7 +1934,7 @@ impl EachSum for i16 {
 }
 
 impl EachSum for u16 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1954,7 +1950,7 @@ impl EachSum for u16 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -1973,7 +1969,7 @@ impl EachSum for u16 {
 }
 
 impl EachSum for i32 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -1989,7 +1985,7 @@ impl EachSum for i32 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2008,7 +2004,7 @@ impl EachSum for i32 {
 }
 
 impl EachSum for u32 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2024,7 +2020,7 @@ impl EachSum for u32 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2043,7 +2039,7 @@ impl EachSum for u32 {
 }
 
 impl EachSum for i64 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2059,7 +2055,7 @@ impl EachSum for i64 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2078,7 +2074,7 @@ impl EachSum for i64 {
 }
 
 impl EachSum for u64 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2094,7 +2090,7 @@ impl EachSum for u64 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2113,7 +2109,7 @@ impl EachSum for u64 {
 }
 
 impl EachSum for e4m3 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2129,7 +2125,7 @@ impl EachSum for e4m3 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2148,7 +2144,7 @@ impl EachSum for e4m3 {
 }
 
 impl EachSum for e5m2 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2164,7 +2160,7 @@ impl EachSum for e5m2 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2183,7 +2179,7 @@ impl EachSum for e5m2 {
 }
 
 impl EachSum for e2m3 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2199,7 +2195,7 @@ impl EachSum for e2m3 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2218,7 +2214,7 @@ impl EachSum for e2m3 {
 }
 
 impl EachSum for e3m2 {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2234,7 +2230,7 @@ impl EachSum for e3m2 {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2253,7 +2249,7 @@ impl EachSum for e3m2 {
 }
 
 impl EachSum for f64c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2269,7 +2265,7 @@ impl EachSum for f64c {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2288,7 +2284,7 @@ impl EachSum for f64c {
 }
 
 impl EachSum for f32c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2304,7 +2300,7 @@ impl EachSum for f32c {
         .check()
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2323,21 +2319,21 @@ impl EachSum for f32c {
 }
 
 impl EachSum for f16c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         complex_each_sum_fallback(a, b, result)
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         complex_each_sum_inplace_fallback(data, other)
     }
 }
 
 impl EachSum for bf16c {
-    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_sum(a: &[Self], b: &[Self], result: &mut [Self]) -> Result<(), Error> {
         complex_each_sum_fallback(a, b, result)
     }
 
-    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), TensorError> {
+    fn each_sum_inplace(data: &mut [Self], other: &[Self]) -> Result<(), Error> {
         complex_each_sum_inplace_fallback(data, other)
     }
 }
@@ -2350,7 +2346,7 @@ impl EachSum for bf16c {
 ///
 /// rᵢ = α × aᵢ + β × bᵢ
 ///
-/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
@@ -2363,7 +2359,7 @@ pub trait EachBlend: Sized + StorageElement {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 
     /// In-place blend: dataᵢ = α × dataᵢ + β × otherᵢ.
     ///
@@ -2375,12 +2371,12 @@ pub trait EachBlend: Sized + StorageElement {
         other: &[Self],
         alpha: Self::Scalar,
         beta: Self::Scalar,
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 }
 
 impl EachBlend for f64 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2398,7 +2394,7 @@ impl EachBlend for f64 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2420,7 +2416,7 @@ impl EachBlend for f64 {
 
 impl EachBlend for f32 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2438,7 +2434,7 @@ impl EachBlend for f32 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2460,7 +2456,7 @@ impl EachBlend for f32 {
 
 impl EachBlend for f16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2478,7 +2474,7 @@ impl EachBlend for f16 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2500,7 +2496,7 @@ impl EachBlend for f16 {
 
 impl EachBlend for bf16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2518,7 +2514,7 @@ impl EachBlend for bf16 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2540,7 +2536,7 @@ impl EachBlend for bf16 {
 
 impl EachBlend for i8 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2558,7 +2554,7 @@ impl EachBlend for i8 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2580,7 +2576,7 @@ impl EachBlend for i8 {
 
 impl EachBlend for u8 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2598,7 +2594,7 @@ impl EachBlend for u8 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2620,7 +2616,7 @@ impl EachBlend for u8 {
 
 impl EachBlend for i16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2638,7 +2634,7 @@ impl EachBlend for i16 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2660,7 +2656,7 @@ impl EachBlend for i16 {
 
 impl EachBlend for u16 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2678,7 +2674,7 @@ impl EachBlend for u16 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2700,7 +2696,7 @@ impl EachBlend for u16 {
 
 impl EachBlend for i32 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2718,7 +2714,7 @@ impl EachBlend for i32 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2740,7 +2736,7 @@ impl EachBlend for i32 {
 
 impl EachBlend for u32 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2758,7 +2754,7 @@ impl EachBlend for u32 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2780,7 +2776,7 @@ impl EachBlend for u32 {
 
 impl EachBlend for i64 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2798,7 +2794,7 @@ impl EachBlend for i64 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2820,7 +2816,7 @@ impl EachBlend for i64 {
 
 impl EachBlend for u64 {
     type Scalar = f64;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2838,7 +2834,7 @@ impl EachBlend for u64 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2860,7 +2856,7 @@ impl EachBlend for u64 {
 
 impl EachBlend for e4m3 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2878,7 +2874,7 @@ impl EachBlend for e4m3 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2900,7 +2896,7 @@ impl EachBlend for e4m3 {
 
 impl EachBlend for e5m2 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2918,7 +2914,7 @@ impl EachBlend for e5m2 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2940,7 +2936,7 @@ impl EachBlend for e5m2 {
 
 impl EachBlend for e2m3 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2958,7 +2954,7 @@ impl EachBlend for e2m3 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -2980,7 +2976,7 @@ impl EachBlend for e2m3 {
 
 impl EachBlend for e3m2 {
     type Scalar = f32;
-    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), TensorError> {
+    fn each_blend(a: &[Self], b: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -2998,7 +2994,7 @@ impl EachBlend for e3m2 {
         .check()
     }
 
-    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_blend_inplace(data: &mut [Self], other: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3026,7 +3022,7 @@ impl EachBlend for f64c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -3049,7 +3045,7 @@ impl EachBlend for f64c {
         other: &[Self],
         alpha: Self::Scalar,
         beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3077,7 +3073,7 @@ impl EachBlend for f32c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), result.len())?;
         unsafe {
@@ -3100,7 +3096,7 @@ impl EachBlend for f32c {
         other: &[Self],
         alpha: Self::Scalar,
         beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         check_len(data.len(), other.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3128,7 +3124,7 @@ impl EachBlend for f16c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
     }
 
@@ -3137,7 +3133,7 @@ impl EachBlend for f16c {
         other: &[Self],
         alpha: Self::Scalar,
         beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         complex_each_blend_inplace_fallback(data, other, alpha, beta)
     }
 }
@@ -3150,7 +3146,7 @@ impl EachBlend for bf16c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         complex_each_blend_fallback(a, b, alpha, beta, result)
     }
 
@@ -3159,7 +3155,7 @@ impl EachBlend for bf16c {
         other: &[Self],
         alpha: Self::Scalar,
         beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         complex_each_blend_inplace_fallback(data, other, alpha, beta)
     }
 }
@@ -3172,7 +3168,7 @@ impl EachBlend for bf16c {
 ///
 /// rᵢ = α × aᵢ × bᵢ + β × cᵢ
 ///
-/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `i16`, `u16`, `i32`, `u32`, `i64`,
@@ -3186,7 +3182,7 @@ pub trait EachFma: Sized + StorageElement {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 
     /// In-place fused multiply-add with the `c` operand bound to `a`:
     /// dataᵢ = α × dataᵢ × bᵢ + β × dataᵢ.
@@ -3195,24 +3191,12 @@ pub trait EachFma: Sized + StorageElement {
     /// `&mut`, while `b` is disjoint storage. This matches out-of-place `mul_tensor`, which wires
     /// `c = self` and is the only in-place FMA caller. No aliased `&[Self]` + `&mut [Self]` over
     /// the same buffer is formed.
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Result<(), TensorError>;
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error>;
 }
 
 impl EachFma for f64 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3232,7 +3216,7 @@ impl EachFma for f64 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3255,14 +3239,7 @@ impl EachFma for f64 {
 
 impl EachFma for f32 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3282,7 +3259,7 @@ impl EachFma for f32 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3305,14 +3282,7 @@ impl EachFma for f32 {
 
 impl EachFma for f16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3332,7 +3302,7 @@ impl EachFma for f16 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3355,14 +3325,7 @@ impl EachFma for f16 {
 
 impl EachFma for bf16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3382,7 +3345,7 @@ impl EachFma for bf16 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3405,14 +3368,7 @@ impl EachFma for bf16 {
 
 impl EachFma for i8 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3432,7 +3388,7 @@ impl EachFma for i8 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3455,14 +3411,7 @@ impl EachFma for i8 {
 
 impl EachFma for u8 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3482,7 +3431,7 @@ impl EachFma for u8 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3505,14 +3454,7 @@ impl EachFma for u8 {
 
 impl EachFma for e4m3 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3532,7 +3474,7 @@ impl EachFma for e4m3 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3555,14 +3497,7 @@ impl EachFma for e4m3 {
 
 impl EachFma for e5m2 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3582,7 +3517,7 @@ impl EachFma for e5m2 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3605,14 +3540,7 @@ impl EachFma for e5m2 {
 
 impl EachFma for e2m3 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3632,7 +3560,7 @@ impl EachFma for e2m3 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3655,14 +3583,7 @@ impl EachFma for e2m3 {
 
 impl EachFma for e3m2 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3682,7 +3603,7 @@ impl EachFma for e3m2 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3705,14 +3626,7 @@ impl EachFma for e3m2 {
 
 impl EachFma for i16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3732,7 +3646,7 @@ impl EachFma for i16 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3755,14 +3669,7 @@ impl EachFma for i16 {
 
 impl EachFma for u16 {
     type Scalar = f32;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f32,
-        beta: f32,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f32, beta: f32, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3782,7 +3689,7 @@ impl EachFma for u16 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f32, beta: f32) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3805,14 +3712,7 @@ impl EachFma for u16 {
 
 impl EachFma for i32 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3832,7 +3732,7 @@ impl EachFma for i32 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3855,14 +3755,7 @@ impl EachFma for i32 {
 
 impl EachFma for u32 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3882,7 +3775,7 @@ impl EachFma for u32 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3905,14 +3798,7 @@ impl EachFma for u32 {
 
 impl EachFma for i64 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3932,7 +3818,7 @@ impl EachFma for i64 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -3955,14 +3841,7 @@ impl EachFma for i64 {
 
 impl EachFma for u64 {
     type Scalar = f64;
-    fn each_fma(
-        a: &[Self],
-        b: &[Self],
-        c: &[Self],
-        alpha: f64,
-        beta: f64,
-        result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    fn each_fma(a: &[Self], b: &[Self], c: &[Self], alpha: f64, beta: f64, result: &mut [Self]) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -3982,7 +3861,7 @@ impl EachFma for u64 {
         .check()
     }
 
-    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: f64, beta: f64) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -4012,7 +3891,7 @@ impl EachFma for f64c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -4032,12 +3911,7 @@ impl EachFma for f64c {
         .check()
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -4067,7 +3941,7 @@ impl EachFma for f32c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         check_len(a.len(), b.len())?;
         check_len(a.len(), c.len())?;
         check_len(a.len(), result.len())?;
@@ -4087,12 +3961,7 @@ impl EachFma for f32c {
         .check()
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         check_len(data.len(), b.len())?;
         let len = data.len();
         let p = data.as_mut_ptr();
@@ -4122,16 +3991,11 @@ impl EachFma for f16c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         complex_each_fma_inplace_fallback(data, b, alpha, beta)
     }
 }
@@ -4145,16 +4009,11 @@ impl EachFma for bf16c {
         alpha: Self::Scalar,
         beta: Self::Scalar,
         result: &mut [Self],
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         complex_each_fma_fallback(a, b, c, alpha, beta, result)
     }
 
-    fn each_fma_inplace(
-        data: &mut [Self],
-        b: &[Self],
-        alpha: Self::Scalar,
-        beta: Self::Scalar,
-    ) -> Result<(), TensorError> {
+    fn each_fma_inplace(data: &mut [Self], b: &[Self], alpha: Self::Scalar, beta: Self::Scalar) -> Result<(), Error> {
         complex_each_fma_inplace_fallback(data, b, alpha, beta)
     }
 }
@@ -4200,21 +4059,21 @@ pub trait ScaleOps<Scalar: Clone + EachScale, const MAX_RANK: usize>: TensorRef<
 where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
-    fn add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    fn add_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
         self.view().add_scalar(scalar)
     }
 
-    fn sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    fn sub_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
         self.view().sub_scalar(scalar)
     }
 
-    fn mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    fn mul_scalar(&self, scalar: Scalar::Scalar) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -4226,7 +4085,7 @@ where
         alpha: Scalar::Scalar,
         beta: Scalar::Scalar,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         self.view().scale_tensor_into(alpha, beta, out)
     }
 
@@ -4234,7 +4093,7 @@ where
         &self,
         scalar: Scalar::Scalar,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         self.view().add_scalar_into(scalar, out)
     }
 
@@ -4242,7 +4101,7 @@ where
         &self,
         scalar: Scalar::Scalar,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         self.view().sub_scalar_into(scalar, out)
     }
 
@@ -4250,7 +4109,7 @@ where
         &self,
         scalar: Scalar::Scalar,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         self.view().mul_scalar_into(scalar, out)
     }
 }
@@ -4265,17 +4124,17 @@ where
     Scalar::Scalar: From<f32> + core::ops::Mul<Output = Scalar::Scalar> + Copy,
 {
     /// Element-wise add scalar in-place.
-    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+    pub fn add_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), Error> {
         self.span().add_scalar_inplace(scalar)
     }
 
     /// Element-wise subtract scalar in-place.
-    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+    pub fn sub_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), Error> {
         self.span().sub_scalar_inplace(scalar)
     }
 
     /// Element-wise multiply scalar in-place.
-    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), TensorError> {
+    pub fn mul_scalar_inplace(&mut self, scalar: Scalar::Scalar) -> Result<(), Error> {
         self.span().mul_scalar_inplace(scalar)
     }
 }
@@ -4285,7 +4144,7 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
     fn add_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
-    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -4296,7 +4155,7 @@ pub trait SumOps<Scalar: Clone + EachSum, const MAX_RANK: usize>: TensorRef<Scal
         &self,
         other: &OtherTensor,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
@@ -4311,7 +4170,7 @@ impl<Scalar: Clone + EachSum, Alloc: Allocator, const MAX_RANK: usize> Tensor<Sc
     pub fn add_tensor_inplace<OtherAlloc: Allocator>(
         &mut self,
         other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         let other_view = other.view();
         self.span().add_inplace(&other_view)
     }
@@ -4325,7 +4184,7 @@ where
     fn sub_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
-    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -4338,7 +4197,7 @@ where
         alpha: Scalar::Scalar,
         beta: Scalar::Scalar,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
@@ -4350,7 +4209,7 @@ where
         &self,
         other: &OtherTensor,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
@@ -4371,7 +4230,7 @@ where
     pub fn sub_tensor_inplace<OtherAlloc: Allocator>(
         &mut self,
         other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         let other_view = other.view();
         self.span().sub_inplace(&other_view)
     }
@@ -4385,7 +4244,7 @@ where
     fn mul_tensor(
         &self,
         other: &(impl TensorRef<Scalar, MAX_RANK> + ?Sized),
-    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -4399,7 +4258,7 @@ where
         alpha: Scalar::Scalar,
         beta: Scalar::Scalar,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         BTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         CTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
@@ -4412,7 +4271,7 @@ where
         &self,
         other: &OtherTensor,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OtherTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized,
@@ -4433,7 +4292,7 @@ where
     pub fn mul_tensor_inplace<OtherAlloc: Allocator>(
         &mut self,
         other: &Tensor<Scalar, OtherAlloc, MAX_RANK>,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         let other_view = other.view();
         self.span().mul_inplace(&other_view)
     }
@@ -4457,7 +4316,7 @@ pub trait EachSwiGlu: Sized + StorageElement {
         y: &mut YOut,
         gate_scale: f32,
         output_scale: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
@@ -4485,7 +4344,7 @@ fn validate_swiglu<Scalar, GIn, UIn, YOut, const RG: usize, const RU: usize, con
     gate: &GIn,
     up: Option<&UIn>,
     y: &YOut,
-) -> Result<Option<SwigluPlan<Scalar>>, TensorError>
+) -> Result<Option<SwigluPlan<Scalar>>, Error>
 where
     Scalar: StorageElement,
     GIn: TensorRef<Scalar, RG> + ?Sized,
@@ -4493,19 +4352,19 @@ where
     YOut: TensorRef<Scalar, RY> + ?Sized,
 {
     if gate.ndim() != 2 {
-        return Err(TensorError::DimensionMismatch {
+        return Err(Error::DimensionMismatch {
             expected: 2,
             got: gate.ndim(),
         });
     }
     if y.ndim() != 2 {
-        return Err(TensorError::DimensionMismatch {
+        return Err(Error::DimensionMismatch {
             expected: 2,
             got: y.ndim(),
         });
     }
     let (&[rows, columns], &[y_rows, y_columns]) = (gate.shape(), y.shape()) else {
-        return Err(TensorError::DimensionMismatch {
+        return Err(Error::DimensionMismatch {
             expected: 2,
             got: gate.ndim(),
         });
@@ -4516,7 +4375,7 @@ where
         } else {
             (1, columns, y_columns)
         };
-        return Err(TensorError::ShapeMismatch { axis, expected, got });
+        return Err(Error::ShapeMismatch { axis, expected, got });
     }
     if rows == 0 || columns == 0 {
         return Ok(None);
@@ -4526,13 +4385,13 @@ where
     let (up_ptr, up_stride) = match up {
         Some(u) => {
             if u.ndim() != 2 {
-                return Err(TensorError::DimensionMismatch {
+                return Err(Error::DimensionMismatch {
                     expected: 2,
                     got: u.ndim(),
                 });
             }
             let &[up_rows, up_columns] = u.shape() else {
-                return Err(TensorError::DimensionMismatch {
+                return Err(Error::DimensionMismatch {
                     expected: 2,
                     got: u.ndim(),
                 });
@@ -4543,7 +4402,7 @@ where
                 } else {
                     (1, columns, up_columns)
                 };
-                return Err(TensorError::ShapeMismatch { axis, expected, got });
+                return Err(Error::ShapeMismatch { axis, expected, got });
             }
             (u.as_ptr(), u.stride_bytes(0) as usize)
         }
@@ -4566,7 +4425,7 @@ impl EachSwiGlu for f32 {
         y: &mut YOut,
         gate_scale: f32,
         output_scale: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
@@ -4611,7 +4470,7 @@ impl EachSwiGlu for bf16 {
         y: &mut YOut,
         gate_scale: f32,
         output_scale: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
@@ -4656,7 +4515,7 @@ impl EachSwiGlu for e4m3 {
         y: &mut YOut,
         gate_scale: f32,
         output_scale: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         GIn: TensorRef<Self, RG> + ?Sized,
         UIn: TensorRef<Self, RU> + ?Sized,
@@ -4714,7 +4573,7 @@ pub trait EachRmsNorm: Sized + StorageElement {
         y: &mut YOut,
         groups: usize,
         epsilon: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized;
@@ -4739,26 +4598,26 @@ fn validate_rmsnorm<Scalar, XIn, YOut, const RX: usize, const RY: usize>(
     gamma: Option<&[f32]>,
     y: &YOut,
     groups: usize,
-) -> Result<Option<RmsNormPlan>, TensorError>
+) -> Result<Option<RmsNormPlan>, Error>
 where
     Scalar: StorageElement,
     XIn: TensorRef<Scalar, RX> + ?Sized,
     YOut: TensorRef<Scalar, RY> + ?Sized,
 {
     if x.ndim() != 2 {
-        return Err(TensorError::DimensionMismatch {
+        return Err(Error::DimensionMismatch {
             expected: 2,
             got: x.ndim(),
         });
     }
     if y.ndim() != 2 {
-        return Err(TensorError::DimensionMismatch {
+        return Err(Error::DimensionMismatch {
             expected: 2,
             got: y.ndim(),
         });
     }
     let (&[rows, width], &[y_rows, y_width]) = (x.shape(), y.shape()) else {
-        return Err(TensorError::DimensionMismatch {
+        return Err(Error::DimensionMismatch {
             expected: 2,
             got: x.ndim(),
         });
@@ -4769,10 +4628,10 @@ where
         } else {
             (1, width, y_width)
         };
-        return Err(TensorError::ShapeMismatch { axis, expected, got });
+        return Err(Error::ShapeMismatch { axis, expected, got });
     }
     if groups == 0 || width % groups != 0 {
-        return Err(TensorError::InvalidShape {
+        return Err(Error::InvalidShape {
             axis: 1,
             size: width,
             reason: "width must be a positive multiple of groups",
@@ -4784,7 +4643,7 @@ where
     let columns = width / groups;
     if let Some(g) = gamma {
         if g.len() != columns {
-            return Err(TensorError::ShapeMismatch {
+            return Err(Error::ShapeMismatch {
                 axis: 1,
                 expected: columns,
                 got: g.len(),
@@ -4810,7 +4669,7 @@ impl EachRmsNorm for f32 {
         y: &mut YOut,
         groups: usize,
         epsilon: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
@@ -4852,7 +4711,7 @@ impl EachRmsNorm for bf16 {
         y: &mut YOut,
         groups: usize,
         epsilon: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
@@ -4894,7 +4753,7 @@ impl EachRmsNorm for e4m3 {
         y: &mut YOut,
         groups: usize,
         epsilon: f32,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         XIn: TensorRef<Self, RX> + ?Sized,
         YOut: TensorMut<Self, RY> + ?Sized,
@@ -4945,7 +4804,7 @@ mod tests {
         label: &str,
     ) where
         Scalar: FloatLike + TestableType,
-        F: FnOnce(&[Scalar], &[Scalar], &mut [Scalar]) -> Result<(), TensorError>,
+        F: FnOnce(&[Scalar], &[Scalar], &mut [Scalar]) -> Result<(), Error>,
     {
         let a: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
         let b: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
@@ -5090,7 +4949,7 @@ mod tests {
         let mut result = vec![0.0f32; a.len()];
         assert_eq!(
             f32::each_sum(&a, &b, &mut result),
-            Err(TensorError::ShapeMismatch {
+            Err(Error::ShapeMismatch {
                 axis: 0,
                 expected: 3,
                 got: 2

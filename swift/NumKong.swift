@@ -324,11 +324,38 @@ public enum DeviceKind: Sendable {
     case cpu, cuda, rocm, metal
 }
 
-/// Why a ``Device`` query failed, as `nk_status_name` spells the C status.
-public struct DeviceError: Error, CustomStringConvertible {
-    public let description: String
-    init(_ status: nk_status_t) { description = String(cString: nk_status_name(status)) }
+/// Why a call failed, one case per failing `nk_status_t`, which `nk_status_name` spells.
+public enum Status: Int32, Sendable {
+    case badAllocation = -10
+    case unexpectedDimensions = -15
+    case missingGpu = -16
+    case deviceCodeMismatch = -17
+    case deviceMemoryMismatch = -18
+    case missingKernel = -19
+    case misaligned = -20
+    case packMismatch = -21
+    case missingLibrary = -22
+
+    /// The C spelling, like "unexpected_dimensions".
+    public var name: String { String(cString: nk_status_name(nk_status_t(rawValue: rawValue))) }
 }
+
+/// One failed call: a status every caller can branch on, and the detail the status cannot
+/// carry.
+public struct Error: Swift.Error, CustomStringConvertible, Equatable, Sendable {
+    /// The failure identity, shared with the C library.
+    public let status: Status
+    /// This binding's detail when it rejected the call itself, else empty.
+    public let message: String
+
+    public var description: String {
+        message.isEmpty ? "numkong: \(status.name)" : "numkong: \(status.name): \(message)"
+    }
+}
+
+/// Builds the failure this binding reports for a fault it caught before the boundary.
+@usableFromInline
+func fail(_ status: Status, _ message: String) -> Error { Error(status: status, message: message) }
 
 /// One device NumKong can run kernels on: the host CPU, or a GPU by its runtime's own ordinal, the
 /// one `cudaSetDevice` or `hipSetDevice` takes, or the position in Metal's device list.
@@ -357,21 +384,23 @@ public struct Device: Sendable, Equatable {
     }
 
     /// Device `ordinal` of `kind`.
-    /// - Throws: ``DeviceError`` past the last device of `kind`.
+    /// - Throws: ``Error`` past the last device of `kind`.
     public init(kind: DeviceKind, ordinal: Int) throws {
-        guard ordinal >= 0, ordinal < (try Device.count(kind)) else { throw DeviceError(nk_missing_gpu_k) }
+        guard ordinal >= 0, ordinal < (try Device.count(kind)) else {
+            throw fail(.missingGpu, "no \(kind) device \(ordinal)")
+        }
         self.init(kind: kind, unchecked: ordinal)
     }
 
     /// How many devices of `kind` the process sees: one CPU, or the GPUs its runtime counts.
-    /// - Throws: ``DeviceError`` without a GPU of `kind`.
+    /// - Throws: ``Error`` without a GPU of `kind`.
     public static func count(_ kind: DeviceKind) throws -> Int {
         var count: nk_size_t = 1
         switch kind {
         case .cpu: break
-        case .cuda: try check(nk_cuda_count_devices(&count))
-        case .rocm: try check(nk_rocm_count_devices(&count))
-        case .metal: try check(nk_metal_count_devices(&count))
+        case .cuda: try _nkCheck(nk_cuda_count_devices(&count))
+        case .rocm: try _nkCheck(nk_rocm_count_devices(&count))
+        case .metal: try _nkCheck(nk_metal_count_devices(&count))
         }
         return Int(count)
     }
@@ -382,10 +411,10 @@ public struct Device: Sendable, Equatable {
             var mask: nk_capability_t = 0
             let device = nk_size_t(ordinal)
             switch kind {
-            case .cpu: try Device.check(nk_cpu_capabilities_detected(&mask))
-            case .cuda: try Device.check(nk_cuda_capabilities_detected(device, &mask))
-            case .rocm: try Device.check(nk_rocm_capabilities_detected(device, &mask))
-            case .metal: try Device.check(nk_metal_capabilities_detected(device, &mask))
+            case .cpu: try _nkCheck(nk_cpu_capabilities_detected(&mask))
+            case .cuda: try _nkCheck(nk_cuda_capabilities_detected(device, &mask))
+            case .rocm: try _nkCheck(nk_rocm_capabilities_detected(device, &mask))
+            case .metal: try _nkCheck(nk_metal_capabilities_detected(device, &mask))
             }
             return Capabilities(rawValue: UInt64(mask))
         }
@@ -412,9 +441,9 @@ public struct Device: Sendable, Equatable {
             let device = nk_size_t(ordinal)
             switch kind {
             case .cpu: return Device.cpuEnabled
-            case .cuda: try Device.check(nk_cuda_capabilities_enabled(device, &mask))
-            case .rocm: try Device.check(nk_rocm_capabilities_enabled(device, &mask))
-            case .metal: try Device.check(nk_metal_capabilities_enabled(device, &mask))
+            case .cuda: try _nkCheck(nk_cuda_capabilities_enabled(device, &mask))
+            case .rocm: try _nkCheck(nk_rocm_capabilities_enabled(device, &mask))
+            case .metal: try _nkCheck(nk_metal_capabilities_enabled(device, &mask))
             }
             return Capabilities(rawValue: UInt64(mask))
         }
@@ -424,10 +453,10 @@ public struct Device: Sendable, Equatable {
     /// binary compiled and keeping ``Capabilities/serial``. Matrices packed before the call must be
     /// packed again under the new set.
     /// - Returns: The set that took effect.
-    /// - Throws: ``DeviceError`` on a GPU, which keeps no such set.
+    /// - Throws: ``Error`` on a GPU, which keeps no such set.
     @discardableResult
     public func capabilitiesEnable(_ wanted: Capabilities) throws -> Capabilities {
-        guard kind == .cpu else { throw DeviceError(nk_missing_kernel_k) }
+        guard kind == .cpu else { throw fail(.missingKernel, "GPUs keep no capability set") }
         var mask = Capabilities.serial.native
         _ = nk_cpu_capabilities_enabled(&mask)
         Device.cpuEnabled = wanted.intersection(Capabilities(rawValue: UInt64(mask))).union(.serial)
@@ -436,18 +465,17 @@ public struct Device: Sendable, Equatable {
 
     /// Configures the current thread for `capabilities`, usually ``capabilitiesEnabled``, e.g. AMX
     /// tile state on x86. Must be called once per thread before using AMX operations.
-    /// - Throws: ``DeviceError`` on a GPU, which has no thread state to configure.
+    /// - Throws: ``Error`` on a GPU, which has no thread state to configure.
     public func configureThread(_ capabilities: Capabilities) throws {
-        guard kind == .cpu else { throw DeviceError(nk_missing_kernel_k) }
-        try Device.check(nk_cpu_configure_thread(capabilities.native))
+        guard kind == .cpu else { throw fail(.missingKernel, "GPUs have no thread state to configure") }
+        try _nkCheck(nk_cpu_configure_thread(capabilities.native))
     }
 
-    private static func check(_ status: nk_status_t) throws {
-        guard status == nk_success_k else { throw DeviceError(status) }
-    }
 }
 
-/// Throws ``NumKongMatrixError/kernelFailed`` when a kernel reports a failure.
-func _nkCheck(_ status: nk_status_t) throws {
-    guard status == nk_success_k else { throw NumKongMatrixError.kernelFailed }
+/// Throws the ``Error`` a C call reports, if any.
+@usableFromInline
+func _nkCheck(_ status: nk_status_t) throws(Error) {
+    guard status != nk_success_k else { return }
+    throw Error(status: Status(rawValue: status.rawValue) ?? .deviceCodeMismatch, message: "")
 }

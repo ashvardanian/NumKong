@@ -7,7 +7,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef},
+    tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef},
     types::{f16, StorageElement},
 };
 
@@ -82,20 +82,20 @@ extern "C" {
 
 /// Computes __element-wise sine__ of a vector.
 ///
-/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 pub trait TrigSin: Sized + StorageElement {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError>;
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error>;
 
     /// In-place sine: `data[i] = sin(data[i])`.
     ///
     /// Both source and destination pointers are derived from the single `&mut`, so no aliased
     /// `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn sin_inplace(data: &mut [Self]) -> Result<(), TensorError>;
+    fn sin_inplace(data: &mut [Self]) -> Result<(), Error>;
 }
 
 impl TrigSin for f64 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_sin_f64_best(
@@ -109,7 +109,7 @@ impl TrigSin for f64 {
         .check()
     }
 
-    fn sin_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn sin_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_trig_sin_f64_best(p as *const f64, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
@@ -117,7 +117,7 @@ impl TrigSin for f64 {
 }
 
 impl TrigSin for f32 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_sin_f32_best(
@@ -131,7 +131,7 @@ impl TrigSin for f32 {
         .check()
     }
 
-    fn sin_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn sin_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_trig_sin_f32_best(p as *const f32, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
@@ -139,7 +139,7 @@ impl TrigSin for f32 {
 }
 
 impl TrigSin for f16 {
-    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn sin(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_sin_f16_best(
@@ -153,7 +153,7 @@ impl TrigSin for f16 {
         .check()
     }
 
-    fn sin_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn sin_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -175,20 +175,20 @@ impl TrigSin for f16 {
 
 /// Computes __element-wise cosine__ of a vector.
 ///
-/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 pub trait TrigCos: Sized + StorageElement {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError>;
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error>;
 
     /// In-place cosine: `data[i] = cos(data[i])`.
     ///
     /// Both source and destination pointers are derived from the single `&mut`, so no aliased
     /// `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn cos_inplace(data: &mut [Self]) -> Result<(), TensorError>;
+    fn cos_inplace(data: &mut [Self]) -> Result<(), Error>;
 }
 
 impl TrigCos for f64 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_cos_f64_best(
@@ -202,7 +202,7 @@ impl TrigCos for f64 {
         .check()
     }
 
-    fn cos_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn cos_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_trig_cos_f64_best(p as *const f64, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
@@ -210,7 +210,7 @@ impl TrigCos for f64 {
 }
 
 impl TrigCos for f32 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_cos_f32_best(
@@ -224,7 +224,7 @@ impl TrigCos for f32 {
         .check()
     }
 
-    fn cos_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn cos_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_trig_cos_f32_best(p as *const f32, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
@@ -232,7 +232,7 @@ impl TrigCos for f32 {
 }
 
 impl TrigCos for f16 {
-    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn cos(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_cos_f16_best(
@@ -246,7 +246,7 @@ impl TrigCos for f16 {
         .check()
     }
 
-    fn cos_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn cos_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -268,20 +268,20 @@ impl TrigCos for f16 {
 
 /// Computes __element-wise arctangent__ of a vector.
 ///
-/// Fails with [`TensorError::ShapeMismatch`] if lengths differ, or [`TensorError::KernelFailed`]
+/// Fails with [`Error::ShapeMismatch`] if lengths differ, or [`Error::KernelFailed`]
 /// carrying the kernel's status.
 pub trait TrigAtan: Sized + StorageElement {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError>;
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error>;
 
     /// In-place arctangent: `data[i] = atan(data[i])`.
     ///
     /// Both source and destination pointers are derived from the single `&mut`, so no aliased
     /// `&[Self]` + `&mut [Self]` over the same storage is formed.
-    fn atan_inplace(data: &mut [Self]) -> Result<(), TensorError>;
+    fn atan_inplace(data: &mut [Self]) -> Result<(), Error>;
 }
 
 impl TrigAtan for f64 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_atan_f64_best(
@@ -295,7 +295,7 @@ impl TrigAtan for f64 {
         .check()
     }
 
-    fn atan_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn atan_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_trig_atan_f64_best(p as *const f64, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
@@ -303,7 +303,7 @@ impl TrigAtan for f64 {
 }
 
 impl TrigAtan for f32 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_atan_f32_best(
@@ -317,7 +317,7 @@ impl TrigAtan for f32 {
         .check()
     }
 
-    fn atan_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn atan_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe { nk_trig_atan_f32_best(p as *const f32, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
@@ -325,7 +325,7 @@ impl TrigAtan for f32 {
 }
 
 impl TrigAtan for f16 {
-    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), TensorError> {
+    fn atan(inputs: &[Self], outputs: &mut [Self]) -> Result<(), Error> {
         check_len(inputs.len(), outputs.len())?;
         unsafe {
             nk_trig_atan_f16_best(
@@ -339,7 +339,7 @@ impl TrigAtan for f16 {
         .check()
     }
 
-    fn atan_inplace(data: &mut [Self]) -> Result<(), TensorError> {
+    fn atan_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
         unsafe {
@@ -365,7 +365,7 @@ impl<Scalar: TrigSin + TrigCos + TrigAtan> Trigonometry for Scalar {}
 
 /// Extension trait: element-wise sine for any [`TensorRef`] implementor.
 pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn sin(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    fn sin(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -375,7 +375,7 @@ pub trait TrigSinOps<Scalar: Clone + TrigSin, const MAX_RANK: usize>: TensorRef<
     fn sin_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         self.view().sin_into(out)
     }
 }
@@ -384,7 +384,7 @@ impl<Scalar: Clone + TrigSin, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 
 /// Extension trait: element-wise cosine for any [`TensorRef`] implementor.
 pub trait TrigCosOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn cos(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    fn cos(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -394,7 +394,7 @@ pub trait TrigCosOps<Scalar: Clone + TrigCos, const MAX_RANK: usize>: TensorRef<
     fn cos_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         self.view().cos_into(out)
     }
 }
@@ -403,7 +403,7 @@ impl<Scalar: Clone + TrigCos, const R: usize, C: TensorRef<Scalar, R> + ?Sized> 
 
 /// Extension trait: element-wise arctangent for any [`TensorRef`] implementor.
 pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn atan(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, TensorError>
+    fn atan(&self) -> Result<Tensor<Scalar, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -413,7 +413,7 @@ pub trait TrigAtanOps<Scalar: Clone + TrigAtan, const MAX_RANK: usize>: TensorRe
     fn atan_into<OutputTensor: TensorMut<Scalar, MAX_RANK> + ?Sized>(
         &self,
         out: &mut OutputTensor,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         self.view().atan_into(out)
     }
 }
@@ -422,17 +422,17 @@ impl<Scalar: Clone + TrigAtan, const R: usize, C: TensorRef<Scalar, R> + ?Sized>
 
 impl<Scalar: Clone + TrigSin, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Element-wise sine in-place.
-    pub fn sin_inplace(&mut self) -> Result<(), TensorError> { self.span().sin_inplace() }
+    pub fn sin_inplace(&mut self) -> Result<(), Error> { self.span().sin_inplace() }
 }
 
 impl<Scalar: Clone + TrigCos, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Element-wise cosine in-place.
-    pub fn cos_inplace(&mut self) -> Result<(), TensorError> { self.span().cos_inplace() }
+    pub fn cos_inplace(&mut self) -> Result<(), Error> { self.span().cos_inplace() }
 }
 
 impl<Scalar: Clone + TrigAtan, Alloc: Allocator, const MAX_RANK: usize> Tensor<Scalar, Alloc, MAX_RANK> {
     /// Element-wise arctangent in-place.
-    pub fn atan_inplace(&mut self) -> Result<(), TensorError> { self.span().atan_inplace() }
+    pub fn atan_inplace(&mut self) -> Result<(), Error> { self.span().atan_inplace() }
 }
 
 // endregion: Tensor-shaped trigonometry
@@ -441,7 +441,7 @@ impl<Scalar: Clone + TrigAtan, Alloc: Allocator, const MAX_RANK: usize> Tensor<S
 mod tests {
     use super::{TrigAtan, TrigCos, TrigSin};
     use crate::{
-        tensor::TensorError,
+        tensor::Error,
         types::{assert_close, f16, FloatLike, TestableType},
     };
 
@@ -453,7 +453,7 @@ mod tests {
         label: &str,
     ) where
         Scalar: FloatLike + TestableType,
-        F: FnOnce(&[Scalar], &mut [Scalar]) -> Result<(), TensorError>,
+        F: FnOnce(&[Scalar], &mut [Scalar]) -> Result<(), Error>,
     {
         let values: Vec<f64> = (0..count).map(|i| gen_fn(i, count)).collect();
         let a: Vec<Scalar> = values.iter().map(|&v| Scalar::from_f32(v as f32)).collect();

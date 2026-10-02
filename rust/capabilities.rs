@@ -30,7 +30,7 @@ use core::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use crate::tensor::TensorError;
+use crate::tensor::Error;
 
 #[allow(non_camel_case_types)]
 pub(crate) type nk_capability_t = u64;
@@ -131,14 +131,14 @@ impl fmt::Display for Status {
 /// transmuting, so a code the header does not list never lands in an enum it isn't a variant of.
 pub(crate) trait StatusCode {
     /// `Ok(())` on success, so a method returning `Result` returns the status through `?`.
-    fn check(self) -> Result<(), TensorError>;
+    fn check(self) -> Result<(), Error>;
 }
 
 impl StatusCode for nk_status_t {
-    fn check(self) -> Result<(), TensorError> {
+    fn check(self) -> Result<(), Error> {
         match Status::from_code(self) {
             Status::Success => Ok(()),
-            status => Err(TensorError::KernelFailed { status }),
+            status => Err(Error::KernelFailed { status }),
         }
     }
 }
@@ -151,14 +151,14 @@ pub(crate) struct WorkerStatus(core::sync::atomic::AtomicI32);
 #[cfg(feature = "parallel")]
 impl WorkerStatus {
     /// Keeps the status of a kernel call that failed.
-    pub(crate) fn record(&self, result: Result<(), TensorError>) {
-        if let Err(TensorError::KernelFailed { status }) = result {
+    pub(crate) fn record(&self, result: Result<(), Error>) {
+        if let Err(Error::KernelFailed { status }) = result {
             self.0.store(status as nk_status_t, Ordering::Relaxed);
         }
     }
 
     /// `Ok(())` unless a worker recorded a failure.
-    pub(crate) fn check(&self) -> Result<(), TensorError> { self.0.load(Ordering::Relaxed).check() }
+    pub(crate) fn check(&self) -> Result<(), Error> { self.0.load(Ordering::Relaxed).check() }
 }
 
 /// One capability, numbered like the C `nk_cap_<capability>_k` bits: each capability group in a
@@ -277,7 +277,7 @@ const CAPABILITIES: [Capability; 47] = [
 /// if enabled.contains(Capability::SapphireAmx) {
 ///     println!("AMX is enabled");
 /// }
-/// # Ok::<(), numkong::TensorError>(())
+/// # Ok::<(), numkong::Error>(())
 /// ```
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -346,7 +346,7 @@ pub(crate) fn enabled_cpu_capabilities_mask() -> nk_capability_t {
 
 /// Sets up the calling thread for the enabled CPU capabilities, as every parallel worker must.
 #[cfg(any(test, feature = "parallel"))]
-pub(crate) fn configure_cpu_thread() -> Result<(), TensorError> {
+pub(crate) fn configure_cpu_thread() -> Result<(), Error> {
     unsafe { nk_cpu_configure_thread(enabled_cpu_capabilities_mask()) }.check()
 }
 
@@ -374,7 +374,7 @@ pub enum DeviceKind {
 ///     let gpu = Device::new(DeviceKind::Cuda, ordinal)?;
 ///     println!("CUDA device {ordinal} runs {}", gpu.capabilities_enabled()?);
 /// }
-/// # Ok::<(), numkong::TensorError>(())
+/// # Ok::<(), numkong::Error>(())
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Device {
@@ -393,7 +393,7 @@ impl Device {
 
     /// How many devices of `kind` this process sees: one CPU, and no GPUs where the runtime finds
     /// none or this build lacks its kernels.
-    pub fn count(kind: DeviceKind) -> Result<usize, TensorError> {
+    pub fn count(kind: DeviceKind) -> Result<usize, Error> {
         let count_devices = match kind {
             DeviceKind::Cpu => return Ok(1),
             DeviceKind::Cuda => nk_cuda_count_devices,
@@ -403,7 +403,7 @@ impl Device {
         let mut count: nk_size_t = 0;
         // C reports an empty runtime as `nk_missing_gpu_k`, which for a count means zero.
         match unsafe { count_devices(&mut count) }.check() {
-            Err(TensorError::KernelFailed {
+            Err(Error::KernelFailed {
                 status: Status::MissingGpu,
             }) => Ok(0),
             result => result.map(|()| count),
@@ -411,10 +411,10 @@ impl Device {
     }
 
     /// Device `ordinal` of `kind`, as its runtime numbers them; the CPU is ordinal zero.
-    pub fn new(kind: DeviceKind, ordinal: usize) -> Result<Self, TensorError> {
+    pub fn new(kind: DeviceKind, ordinal: usize) -> Result<Self, Error> {
         let count = Self::count(kind)?;
         if ordinal >= count {
-            return Err(TensorError::KernelFailed {
+            return Err(Error::KernelFailed {
                 status: Status::MissingGpu,
             });
         }
@@ -428,7 +428,7 @@ impl Device {
     pub const fn ordinal(&self) -> usize { self.ordinal }
 
     /// Capabilities this device supports, whether or not their kernels were compiled in.
-    pub fn capabilities_detected(&self) -> Result<Capabilities, TensorError> {
+    pub fn capabilities_detected(&self) -> Result<Capabilities, Error> {
         let mut mask: nk_capability_t = 0;
         let status = unsafe {
             match self.kind {
@@ -461,7 +461,7 @@ impl Device {
     /// Capabilities kernels run with: [`Device::capabilities_detected`] &
     /// [`Device::capabilities_compiled`], on the CPU narrowed by [`Device::capabilities_enable`]
     /// and always with [`Capability::Serial`].
-    pub fn capabilities_enabled(&self) -> Result<Capabilities, TensorError> {
+    pub fn capabilities_enabled(&self) -> Result<Capabilities, Error> {
         let mut mask: nk_capability_t = 0;
         let status = unsafe {
             match self.kind {
@@ -481,11 +481,11 @@ impl Device {
     ///
     /// This is the one piece of process state the crate keeps: kernel calls take no mask, so every
     /// thread dispatches with the set last enabled here. Pack matrices again after the call:
-    /// packed kernels refuse another capability's layout with [`TensorError::KernelFailed`]. It
+    /// packed kernels refuse another capability's layout with [`Error::KernelFailed`]. It
     /// applies to the CPU only, and fails with [`Status::MissingKernel`] on a GPU.
-    pub fn capabilities_enable(&self, wanted: Capabilities) -> Result<Capabilities, TensorError> {
+    pub fn capabilities_enable(&self, wanted: Capabilities) -> Result<Capabilities, Error> {
         if self.kind != DeviceKind::Cpu {
-            return Err(TensorError::KernelFailed {
+            return Err(Error::KernelFailed {
                 status: Status::MissingKernel,
             });
         }
@@ -501,10 +501,10 @@ impl Device {
     /// [`Device::capabilities_enabled`]: AMX tile permission on x86 Linux, fused BF16 dots on Arm.
     /// Call it once per thread before using those kernels; it is idempotent. It applies to the CPU
     /// only, and fails with [`Status::MissingKernel`] on a GPU.
-    pub fn configure_thread(&self, capabilities: Capabilities) -> Result<(), TensorError> {
+    pub fn configure_thread(&self, capabilities: Capabilities) -> Result<(), Error> {
         match self.kind {
             DeviceKind::Cpu => unsafe { nk_cpu_configure_thread(capabilities.0) }.check(),
-            DeviceKind::Cuda | DeviceKind::Rocm | DeviceKind::Metal => Err(TensorError::KernelFailed {
+            DeviceKind::Cuda | DeviceKind::Rocm | DeviceKind::Metal => Err(Error::KernelFailed {
                 status: Status::MissingKernel,
             }),
         }
@@ -643,7 +643,7 @@ mod tests {
         assert_eq!(success.check(), Ok(()));
         assert_eq!(
             missing_kernel.check(),
-            Err(TensorError::KernelFailed {
+            Err(Error::KernelFailed {
                 status: Status::MissingKernel
             })
         );
@@ -653,7 +653,7 @@ mod tests {
         for code in unlisted {
             assert_eq!(
                 code.check(),
-                Err(TensorError::KernelFailed {
+                Err(Error::KernelFailed {
                     status: Status::Unrecognized
                 })
             );

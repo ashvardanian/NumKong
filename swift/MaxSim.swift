@@ -49,10 +49,10 @@ public final class MaxSimPackedMatrix<Element: NumKongMaxSimElement>: @unchecked
     /// Packs a matrix view into the MaxSim-optimized layout.
     public convenience init(packing matrix: MatrixView<Element>) throws {
         guard matrix.rows > 0 && matrix.columns > 0 else {
-            throw NumKongMatrixError.invalidDimensions
+            throw fail(.unexpectedDimensions, "rows and columns must be positive")
         }
         let bytes = try Element._nk_maxsim_pack_size(matrix.rows, matrix.columns)
-        guard bytes > 0 else { throw NumKongMatrixError.packedBufferTooSmall }
+        guard bytes > 0 else { throw fail(.missingKernel, "no capability sized a pack") }
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
         self.init(vectors: matrix.rows, depth: matrix.columns, byteCount: bytes, rawPointer: ptr)
         try Element._nk_maxsim_pack(matrix.baseAddress, matrix.rows, matrix.columns, matrix.rowStrideBytes, ptr)

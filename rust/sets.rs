@@ -18,7 +18,7 @@ use forkunion as fu;
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{Allocator, Tensor, TensorError, TensorMut, TensorRef, TensorView},
+    tensor::{Allocator, Error, Tensor, TensorMut, TensorRef, TensorView},
     types::{u1x8, StorageElement},
 };
 
@@ -100,7 +100,7 @@ extern "C" {
 ///
 /// # Errors
 ///
-/// [`TensorError::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
+/// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
 /// other [`Capabilities`](crate::Capabilities) than the current ones.
 pub trait Hammings: Dots {
     /// Computes Hamming distances between values matrix rows and packed query rows.
@@ -118,7 +118,7 @@ pub trait Hammings: Dots {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 
     /// Computes symmetric Gram matrix of Hamming distances: C = A × Aᵀ.
     ///
@@ -134,7 +134,7 @@ pub trait Hammings: Dots {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 }
 
 impl Hammings for u1x8 {
@@ -147,7 +147,7 @@ impl Hammings for u1x8 {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         nk_hammings_packed_u1_best(
             queries as *const u8,
             packed,
@@ -172,7 +172,7 @@ impl Hammings for u1x8 {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         nk_hammings_symmetric_u1_best(
             vectors as *const u8,
             vector_count,
@@ -208,7 +208,7 @@ impl Hammings for u1x8 {
 ///
 /// # Errors
 ///
-/// [`TensorError::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
+/// [`Error::KernelFailed`] when the kernel refuses to run, like on a buffer packed under
 /// other [`Capabilities`](crate::Capabilities) than the current ones.
 pub trait Jaccards: Dots {
     /// Result type for Jaccard distances.
@@ -229,7 +229,7 @@ pub trait Jaccards: Dots {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 
     /// Computes symmetric Gram matrix of Jaccard distances.
     ///
@@ -245,7 +245,7 @@ pub trait Jaccards: Dots {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    ) -> Result<(), TensorError>;
+    ) -> Result<(), Error>;
 }
 
 impl Jaccards for u1x8 {
@@ -260,7 +260,7 @@ impl Jaccards for u1x8 {
         depth: usize,
         v_stride: usize,
         r_stride: usize,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         nk_jaccards_packed_u1_best(
             queries as *const u8,
             packed,
@@ -285,7 +285,7 @@ impl Jaccards for u1x8 {
         result_stride: usize,
         row_start: usize,
         row_count: usize,
-    ) -> Result<(), TensorError> {
+    ) -> Result<(), Error> {
         nk_jaccards_symmetric_u1_best(
             vectors as *const u8,
             vector_count,
@@ -311,7 +311,7 @@ impl<Scalar: Hammings, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
     pub fn hammings_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Result<Tensor<u32, Alloc, MAX_RANK>, TensorError> {
+    ) -> Result<Tensor<u32, Alloc, MAX_RANK>, Error> {
         let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(&[rows, columns], u32::default(), self.alloc.clone())?;
         unsafe {
@@ -351,7 +351,7 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
     fn hammings_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Result<Tensor<u32, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<u32, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -381,7 +381,7 @@ pub trait HammingsPackedOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
@@ -414,7 +414,7 @@ impl<Scalar: Jaccards, Alloc: Allocator + Clone, const MAX_RANK: usize> Tensor<S
     pub fn jaccards_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, TensorError> {
+    ) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, Error> {
         let (rows, columns, depth) = validate_packed_input(self, packed_right)?;
         let mut output = Tensor::full_in(&[rows, columns], Scalar::JaccardResult::default(), self.alloc.clone())?;
         unsafe {
@@ -454,7 +454,7 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
     fn jaccards_packed<PackedAlloc: Allocator>(
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
-    ) -> Result<Tensor<Scalar::JaccardResult, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar::JaccardResult, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -488,7 +488,7 @@ pub trait JaccardsPackedOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
@@ -537,7 +537,7 @@ where
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
@@ -588,7 +588,7 @@ where
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
-    ) -> Result<Tensor<u32, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<u32, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -618,7 +618,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
     pub fn hammings_symmetric_parallel(
         &self,
         pool: &mut fu::ThreadPool,
-    ) -> Result<Tensor<u32, Alloc, MAX_RANK>, TensorError> {
+    ) -> Result<Tensor<u32, Alloc, MAX_RANK>, Error> {
         let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::full_in(&[vector_count, vector_count], 0u32, self.allocator().clone())?;
         self.hammings_symmetric_parallel_into(&mut result, pool)?;
@@ -631,7 +631,7 @@ impl<Scalar: Hammings + Clone + Send + Sync, Alloc: Allocator + Clone, const MAX
         &self,
         output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
@@ -686,7 +686,7 @@ where
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         PackedAlloc: Allocator,
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
@@ -738,7 +738,7 @@ where
         &self,
         packed_right: &DotsPackedMatrix<Scalar, PackedAlloc>,
         pool: &mut fu::ThreadPool,
-    ) -> Result<Tensor<Scalar::JaccardResult, Self::Alloc, MAX_RANK>, TensorError>
+    ) -> Result<Tensor<Scalar::JaccardResult, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -775,7 +775,7 @@ where
     pub fn jaccards_symmetric_parallel(
         &self,
         pool: &mut fu::ThreadPool,
-    ) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, TensorError> {
+    ) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, Error> {
         let (vector_count, _) = validate_symmetric_input(self)?;
         let mut result = Tensor::full_in(
             &[vector_count, vector_count],
@@ -792,7 +792,7 @@ where
         &self,
         output: &mut OutputTensor,
         pool: &mut fu::ThreadPool,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
@@ -836,7 +836,7 @@ impl<'queries, Scalar: Hammings, const MAX_RANK: usize, Alloc: Allocator>
     TensorView<'queries, Scalar, MAX_RANK, Alloc>
 {
     /// Computes symmetric Hamming distance matrix for a set of binary vectors.
-    pub fn hammings_symmetric(&self) -> Result<Tensor<u32, Alloc, MAX_RANK>, TensorError>
+    pub fn hammings_symmetric(&self) -> Result<Tensor<u32, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
     {
@@ -851,7 +851,7 @@ impl<'queries, Scalar: Hammings, const MAX_RANK: usize, Alloc: Allocator>
     pub fn hammings_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OutputTensor: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
@@ -877,7 +877,7 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize, Alloc: Allocator>
     TensorView<'queries, Scalar, MAX_RANK, Alloc>
 {
     /// Computes symmetric Jaccard distance matrix for a set of binary vectors.
-    pub fn jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, TensorError>
+    pub fn jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Alloc, MAX_RANK>, Error>
     where
         Alloc: Clone,
     {
@@ -896,7 +896,7 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize, Alloc: Allocator>
     pub fn jaccards_symmetric_into<OutputTensor, const OUTPUT_MAX_RANK: usize>(
         &self,
         output: &mut OutputTensor,
-    ) -> Result<(), TensorError>
+    ) -> Result<(), Error>
     where
         OutputTensor: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {
@@ -931,7 +931,7 @@ impl<'queries, Scalar: Jaccards, const MAX_RANK: usize, Alloc: Allocator>
 /// Prefer this trait when writing generic code over `TensorRef`; use the inherent
 /// [`TensorView::hammings_symmetric`] when you already hold a view.
 pub trait SymmetricHammingsOps<Scalar: Hammings, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn hammings_symmetric(&self) -> Result<Tensor<u32, Self::Alloc, MAX_RANK>, TensorError>
+    fn hammings_symmetric(&self) -> Result<Tensor<u32, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -940,7 +940,7 @@ pub trait SymmetricHammingsOps<Scalar: Hammings, const MAX_RANK: usize>: TensorR
 
     /// Writes the symmetric Hamming-distance matrix into pre-allocated output, touching only the
     /// upper triangle of it.
-    fn hammings_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), TensorError>
+    fn hammings_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), Error>
     where
         Out: TensorMut<u32, OUTPUT_MAX_RANK>,
     {
@@ -963,7 +963,7 @@ impl<Scalar: Hammings, const R: usize, OutputTensor: TensorRef<Scalar, R>> Symme
 /// Prefer this trait when writing generic code over `TensorRef`; use the inherent
 /// [`TensorView::jaccards_symmetric`] when you already hold a view.
 pub trait SymmetricJaccardsOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorRef<Scalar, MAX_RANK> {
-    fn jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Self::Alloc, MAX_RANK>, TensorError>
+    fn jaccards_symmetric(&self) -> Result<Tensor<Scalar::JaccardResult, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -972,7 +972,7 @@ pub trait SymmetricJaccardsOps<Scalar: Jaccards, const MAX_RANK: usize>: TensorR
 
     /// Writes the symmetric Jaccard-distance matrix into pre-allocated output, touching only the
     /// upper triangle of it.
-    fn jaccards_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), TensorError>
+    fn jaccards_symmetric_into<Out, const OUTPUT_MAX_RANK: usize>(&self, output: &mut Out) -> Result<(), Error>
     where
         Out: TensorMut<Scalar::JaccardResult, OUTPUT_MAX_RANK>,
     {

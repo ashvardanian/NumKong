@@ -8,24 +8,6 @@
 
 import CNumKong
 
-/// Errors thrown by matrix operations.
-public enum NumKongMatrixError: Error {
-    /// The matrix has zero or negative rows/columns.
-    case invalidDimensions
-    /// The row stride is smaller than `columns * MemoryLayout<Element>.stride`.
-    case invalidStride
-    /// The output matrix shape does not match the expected dimensions.
-    case outputShapeMismatch
-    /// The vector depth, columns, of the two matrices differs.
-    case depthMismatch
-    /// The requested row window exceeds matrix bounds.
-    case rowWindowOutOfBounds
-    /// The packed buffer size returned by the kernel is zero.
-    case packedBufferTooSmall
-    /// The kernel refused to run, like on a matrix packed under other ``Capabilities``.
-    case kernelFailed
-}
-
 /// Non-owning, immutable view over a row-major matrix stored in contiguous memory.
 public struct MatrixView<Element> {
     public let baseAddress: UnsafePointer<Element>
@@ -103,22 +85,22 @@ public final class PackedMatrix<Element>: @unchecked Sendable {
 @usableFromInline
 func _nkValidateMatrixView<Element>(_ matrix: MatrixView<Element>) throws {
     guard matrix.rows > 0 && matrix.columns > 0 else {
-        throw NumKongMatrixError.invalidDimensions
+        throw fail(.unexpectedDimensions, "rows and columns must be positive")
     }
     let minStride = matrix.columns * MemoryLayout<Element>.stride
     guard matrix.rowStrideBytes >= minStride else {
-        throw NumKongMatrixError.invalidStride
+        throw fail(.unexpectedDimensions, "the row stride is shorter than a row")
     }
 }
 
 @usableFromInline
 func _nkValidateMatrixSpan<Element>(_ matrix: MatrixSpan<Element>) throws {
     guard matrix.rows > 0 && matrix.columns > 0 else {
-        throw NumKongMatrixError.invalidDimensions
+        throw fail(.unexpectedDimensions, "rows and columns must be positive")
     }
     let minStride = matrix.columns * MemoryLayout<Element>.stride
     guard matrix.rowStrideBytes >= minStride else {
-        throw NumKongMatrixError.invalidStride
+        throw fail(.unexpectedDimensions, "the row stride is shorter than a row")
     }
 }
 
@@ -258,7 +240,7 @@ extension PackedMatrix where Element: NumKongDotsMatrixElement {
     public convenience init(packing matrix: MatrixView<Element>) throws {
         try _nkValidateMatrixView(matrix)
         let bytes = try Element._nk_dots_pack_size(matrix.rows, matrix.columns)
-        guard bytes > 0 else { throw NumKongMatrixError.packedBufferTooSmall }
+        guard bytes > 0 else { throw fail(.missingKernel, "no capability sized a pack") }
         let ptr = UnsafeMutableRawPointer.allocate(byteCount: bytes, alignment: 64)
         self.init(rows: matrix.rows, columns: matrix.columns, byteCount: bytes, rawPointer: ptr)
         try Element._nk_dots_pack(matrix.baseAddress, matrix.rows, matrix.columns, matrix.rowStrideBytes, ptr)
@@ -287,9 +269,9 @@ public func dots_packed<Element: NumKongDotsMatrixElement>(
     try _nkValidateMatrixView(a)
     try _nkValidateMatrixSpan(result)
 
-    guard a.columns == bPacked.columns else { throw NumKongMatrixError.depthMismatch }
+    guard a.columns == bPacked.columns else { throw fail(.unexpectedDimensions, "the operands differ in depth") }
     guard result.rows == a.rows && result.columns == bPacked.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     try Element._nk_dots_packed(
@@ -316,12 +298,12 @@ public func dots_symmetric<Element: NumKongDotsMatrixElement>(
     try _nkValidateMatrixSpan(result)
 
     guard result.rows == vectors.rows && result.columns == vectors.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     let count = rowCount ?? (vectors.rows - rowStart)
     guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
-        throw NumKongMatrixError.rowWindowOutOfBounds
+        throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
     try Element._nk_dots_symmetric(
@@ -348,9 +330,9 @@ public func angulars_packed<Element: NumKongSpatialsMatrixElement>(
     try _nkValidateMatrixView(a)
     try _nkValidateMatrixSpan(result)
 
-    guard a.columns == bPacked.columns else { throw NumKongMatrixError.depthMismatch }
+    guard a.columns == bPacked.columns else { throw fail(.unexpectedDimensions, "the operands differ in depth") }
     guard result.rows == a.rows && result.columns == bPacked.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     try Element._nk_angulars_packed(
@@ -375,9 +357,9 @@ public func euclideans_packed<Element: NumKongSpatialsMatrixElement>(
     try _nkValidateMatrixView(a)
     try _nkValidateMatrixSpan(result)
 
-    guard a.columns == bPacked.columns else { throw NumKongMatrixError.depthMismatch }
+    guard a.columns == bPacked.columns else { throw fail(.unexpectedDimensions, "the operands differ in depth") }
     guard result.rows == a.rows && result.columns == bPacked.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     try Element._nk_euclideans_packed(
@@ -404,12 +386,12 @@ public func angulars_symmetric<Element: NumKongSpatialsMatrixElement>(
     try _nkValidateMatrixSpan(result)
 
     guard result.rows == vectors.rows && result.columns == vectors.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     let count = rowCount ?? (vectors.rows - rowStart)
     guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
-        throw NumKongMatrixError.rowWindowOutOfBounds
+        throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
     try Element._nk_angulars_symmetric(
@@ -436,12 +418,12 @@ public func euclideans_symmetric<Element: NumKongSpatialsMatrixElement>(
     try _nkValidateMatrixSpan(result)
 
     guard result.rows == vectors.rows && result.columns == vectors.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     let count = rowCount ?? (vectors.rows - rowStart)
     guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
-        throw NumKongMatrixError.rowWindowOutOfBounds
+        throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
     try Element._nk_euclideans_symmetric(
@@ -468,9 +450,9 @@ public func hammings_packed<Element: NumKongSetsMatrixElement>(
     try _nkValidateMatrixView(a)
     try _nkValidateMatrixSpan(result)
 
-    guard a.columns == bPacked.columns else { throw NumKongMatrixError.depthMismatch }
+    guard a.columns == bPacked.columns else { throw fail(.unexpectedDimensions, "the operands differ in depth") }
     guard result.rows == a.rows && result.columns == bPacked.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     try Element._nk_hammings_packed(
@@ -497,12 +479,12 @@ public func hammings_symmetric<Element: NumKongSetsMatrixElement>(
     try _nkValidateMatrixSpan(result)
 
     guard result.rows == vectors.rows && result.columns == vectors.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     let count = rowCount ?? (vectors.rows - rowStart)
     guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
-        throw NumKongMatrixError.rowWindowOutOfBounds
+        throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
     try Element._nk_hammings_symmetric(
@@ -527,9 +509,9 @@ public func jaccards_packed<Element: NumKongSetsMatrixElement>(
     try _nkValidateMatrixView(a)
     try _nkValidateMatrixSpan(result)
 
-    guard a.columns == bPacked.columns else { throw NumKongMatrixError.depthMismatch }
+    guard a.columns == bPacked.columns else { throw fail(.unexpectedDimensions, "the operands differ in depth") }
     guard result.rows == a.rows && result.columns == bPacked.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     try Element._nk_jaccards_packed(
@@ -556,12 +538,12 @@ public func jaccards_symmetric<Element: NumKongSetsMatrixElement>(
     try _nkValidateMatrixSpan(result)
 
     guard result.rows == vectors.rows && result.columns == vectors.rows else {
-        throw NumKongMatrixError.outputShapeMismatch
+        throw fail(.unexpectedDimensions, "the result shape does not match the operands")
     }
 
     let count = rowCount ?? (vectors.rows - rowStart)
     guard rowStart >= 0 && count >= 0 && rowStart + count <= vectors.rows else {
-        throw NumKongMatrixError.rowWindowOutOfBounds
+        throw fail(.unexpectedDimensions, "the row window exceeds the matrix")
     }
 
     try Element._nk_jaccards_symmetric(
@@ -587,7 +569,8 @@ extension Float64: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -688,7 +671,8 @@ extension Float32: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -789,7 +773,8 @@ extension BFloat16: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -898,7 +883,8 @@ extension Float16: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1007,7 +993,8 @@ extension E5M2: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1115,7 +1102,8 @@ extension E4M3: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1223,7 +1211,8 @@ extension E3M2: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1331,7 +1320,8 @@ extension E2M3: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1441,7 +1431,8 @@ extension E2M1x2: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1556,7 +1547,8 @@ extension Int8: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1659,7 +1651,8 @@ extension I4x2: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1770,7 +1763,8 @@ extension UInt8: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1873,7 +1867,8 @@ extension U4x2: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -1986,7 +1981,8 @@ extension U1x8: NumKongDotsMatrixElement {
         return Int(bytes)
     }
 
-    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int) throws
+    public static func _nk_dots_packed_shape(_ packed: UnsafeRawPointer, _ columns: inout Int, _ depth: inout Int)
+        throws
     {
         var w: nk_size_t = 0
         var d: nk_size_t = 0
@@ -2045,7 +2041,8 @@ extension U1x8: NumKongSetsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_hammings_packed_u1_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(valuesToDimensions(depth, nk_u1_k)),
+                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(columns),
+                nk_size_t(valuesToDimensions(depth, nk_u1_k)),
                 nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -2067,7 +2064,8 @@ extension U1x8: NumKongSetsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_jaccards_packed_u1_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(columns), nk_size_t(valuesToDimensions(depth, nk_u1_k)),
+                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(columns),
+                nk_size_t(valuesToDimensions(depth, nk_u1_k)),
                 nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 

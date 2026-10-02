@@ -51,7 +51,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{check_len, TensorError},
+    tensor::{check_len, Error},
     types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement},
 };
 
@@ -239,8 +239,8 @@ extern "C" {
 ///
 /// d = ∑ᵢ aᵢ × bᵢ
 ///
-/// Range: unbounded. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
-/// [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Range: unbounded. Fails with [`Error::ShapeMismatch`] if lengths differ, or
+/// [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, `u4x2`, `u1x8`.
@@ -259,15 +259,15 @@ extern "C" {
 /// ```
 pub trait Dot: StorageElement {
     type Output;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError>;
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `dot`.
-    fn inner(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> { Self::dot(first, second) }
+    fn inner(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> { Self::dot(first, second) }
 }
 
 impl Dot for f64 {
     type Output = f64;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -287,7 +287,7 @@ impl Dot for f64 {
 
 impl Dot for f32 {
     type Output = f64;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -307,7 +307,7 @@ impl Dot for f32 {
 
 impl Dot for f16 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -327,7 +327,7 @@ impl Dot for f16 {
 
 impl Dot for bf16 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -347,7 +347,7 @@ impl Dot for bf16 {
 
 impl Dot for i8 {
     type Output = i32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         unsafe {
@@ -367,7 +367,7 @@ impl Dot for i8 {
 
 impl Dot for u8 {
     type Output = u32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         unsafe {
@@ -387,7 +387,7 @@ impl Dot for u8 {
 
 impl Dot for e4m3 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -407,7 +407,7 @@ impl Dot for e4m3 {
 
 impl Dot for e5m2 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -427,7 +427,7 @@ impl Dot for e5m2 {
 
 impl Dot for e2m3 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -447,7 +447,7 @@ impl Dot for e2m3 {
 
 impl Dot for e3m2 {
     type Output = f32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -467,7 +467,7 @@ impl Dot for e3m2 {
 
 impl Dot for i4x2 {
     type Output = i32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         let element_count = first.len() * Self::dimensions_per_value();
@@ -488,7 +488,7 @@ impl Dot for i4x2 {
 
 impl Dot for u4x2 {
     type Output = u32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         let element_count = first.len() * Self::dimensions_per_value();
@@ -509,7 +509,7 @@ impl Dot for u4x2 {
 
 impl Dot for u1x8 {
     type Output = u32;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result: Self::Output = 0;
         let n = first.len() * Self::dimensions_per_value();
@@ -530,7 +530,7 @@ impl Dot for u1x8 {
 
 impl Dot for f16c {
     type Output = f32c;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
@@ -553,7 +553,7 @@ impl Dot for f16c {
 
 impl Dot for bf16c {
     type Output = f32c;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
@@ -576,7 +576,7 @@ impl Dot for bf16c {
 
 impl Dot for f32c {
     type Output = f64c;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
@@ -599,7 +599,7 @@ impl Dot for f32c {
 
 impl Dot for f64c {
     type Output = f64c;
-    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn dot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
@@ -638,7 +638,7 @@ pub trait VDot: Dot {
     /// Hermitian inner product. On real-valued types this falls back to `Dot::dot`; on complex
     /// types it returns ∑ᵢ conj(aᵢ) × bᵢ computed in the widened accumulator described by
     /// `Dot::Output`.
-    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> { Self::dot(first, second) }
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> { Self::dot(first, second) }
 }
 
 impl VDot for f64 {}
@@ -656,7 +656,7 @@ impl VDot for u4x2 {}
 impl VDot for u1x8 {}
 
 impl VDot for f16c {
-    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
@@ -678,7 +678,7 @@ impl VDot for f16c {
 }
 
 impl VDot for bf16c {
-    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f32; 2];
         unsafe {
@@ -700,7 +700,7 @@ impl VDot for bf16c {
 }
 
 impl VDot for f32c {
-    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
@@ -722,7 +722,7 @@ impl VDot for f32c {
 }
 
 impl VDot for f64c {
-    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, TensorError> {
+    fn vdot(first: &[Self], second: &[Self]) -> Result<Self::Output, Error> {
         check_len(first.len(), second.len())?;
         let mut result = [0.0f64; 2];
         unsafe {
@@ -761,7 +761,7 @@ mod tests {
     where
         Scalar: FloatLike + TestableType,
         R: FloatLike,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, TensorError>,
+        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, Error>,
     {
         let first: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
         let second: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
@@ -815,7 +815,7 @@ mod tests {
         assert_eq!(u1x8::dot(&left, &left).unwrap(), 8);
         assert_eq!(
             u1x8::dot(&left, &right[..1]),
-            Err(TensorError::ShapeMismatch {
+            Err(Error::ShapeMismatch {
                 axis: 0,
                 expected: 2,
                 got: 1
@@ -896,7 +896,7 @@ mod tests {
     ) where
         Scalar: ComplexSample,
         R: ComplexValue,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, TensorError>,
+        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, Error>,
     {
         let a_t: Vec<Scalar> = first.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();
         let b_t: Vec<Scalar> = second.iter().map(|&(re, im)| Scalar::from_real_imag(re, im)).collect();

@@ -23,7 +23,7 @@
 //!   same cloud align cleanly.
 //!
 //! Inputs are `[[Scalar; 3]]` slices, length ≥ 3 and matching on both sides; mismatched inputs fail
-//! with [`TensorError::ShapeMismatch`] and too-small ones with [`TensorError::InvalidShape`]. The
+//! with [`Error::ShapeMismatch`] and too-small ones with [`Error::InvalidShape`]. The
 //! struct-returning API makes downstream `transform_point` / `transform_points` calls trivial.
 //!
 //! File: rust/mesh.rs
@@ -33,7 +33,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{check_len, TensorError},
+    tensor::{check_len, Error},
     types::{bf16, f16},
 };
 
@@ -279,19 +279,16 @@ pub trait MeshAlignment: Sized {
     type Metric: Default + Copy;
 
     /// Root-mean-square deviation between two point-for-point correspondent clouds, without solving
-    /// for a transform. Fails with [`TensorError::ShapeMismatch`] if the lengths differ, or
-    /// [`TensorError::InvalidShape`] below the 3-point minimum.
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError>;
+    /// for a transform. Fails with [`Error::ShapeMismatch`] if the lengths differ, or
+    /// [`Error::InvalidShape`] below the 3-point minimum.
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error>;
 
     /// Kabsch rigid-body alignment: recovers the best-fit 3×3 rotation matrix with no scaling that
     /// aligns `a` onto `b`, plus the residual RMSD. The returned struct's `scale` is always `1.0`
     /// by construction.
     ///
-    /// Fails with [`TensorError::ShapeMismatch`] if `a.len() != b.len()`, or with
-    /// [`TensorError::InvalidShape`] if either cloud has under three points — a degenerate SVD.
+    /// Fails with [`Error::ShapeMismatch`] if `a.len() != b.len()`, or with
+    /// [`Error::InvalidShape`] if either cloud has under three points — a degenerate SVD.
     ///
     /// # Examples
     ///
@@ -308,30 +305,21 @@ pub trait MeshAlignment: Sized {
     /// assert!((fit.scale - 1.0).abs() < 1e-9);
     /// assert!(fit.rmsd.abs() < 1e-9);
     /// ```
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError>;
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error>;
 
     /// Umeyama similarity alignment: like Kabsch but also recovers an optimal uniform scale factor
     /// `s > 0`. Useful when the two clouds are related by rotation __and__ scaling.
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError>;
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error>;
 }
 
 impl MeshAlignment for f64 {
     type Transform = f64;
     type Metric = f64;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -362,13 +350,10 @@ impl MeshAlignment for f64 {
         Ok(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -399,13 +384,10 @@ impl MeshAlignment for f64 {
         Ok(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -441,13 +423,10 @@ impl MeshAlignment for f32 {
     type Transform = f32;
     type Metric = f64;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -478,13 +457,10 @@ impl MeshAlignment for f32 {
         Ok(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -515,13 +491,10 @@ impl MeshAlignment for f32 {
         Ok(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -557,13 +530,10 @@ impl MeshAlignment for f16 {
     type Transform = f32;
     type Metric = f32;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -594,13 +564,10 @@ impl MeshAlignment for f16 {
         Ok(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -631,13 +598,10 @@ impl MeshAlignment for f16 {
         Ok(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -673,13 +637,10 @@ impl MeshAlignment for bf16 {
     type Transform = f32;
     type Metric = f32;
 
-    fn rmsd(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn rmsd(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -710,13 +671,10 @@ impl MeshAlignment for bf16 {
         Ok(result)
     }
 
-    fn kabsch(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn kabsch(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -747,13 +705,10 @@ impl MeshAlignment for bf16 {
         Ok(result)
     }
 
-    fn umeyama(
-        a: &[[Self; 3]],
-        b: &[[Self; 3]],
-    ) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, TensorError> {
+    fn umeyama(a: &[[Self; 3]], b: &[[Self; 3]]) -> Result<MeshAlignmentResult<Self::Transform, Self::Metric>, Error> {
         check_len(a.len(), b.len())?;
         if a.len() < 3 {
-            return Err(TensorError::InvalidShape {
+            return Err(Error::InvalidShape {
                 axis: 0,
                 size: a.len(),
                 reason: "mesh alignment needs at least three points",
@@ -891,7 +846,7 @@ mod tests {
         let pair: &[[f64; 3]] = &[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
 
         // Length mismatch
-        let mismatch = Err(TensorError::ShapeMismatch {
+        let mismatch = Err(Error::ShapeMismatch {
             axis: 0,
             expected: 3,
             got: 2,
@@ -903,7 +858,7 @@ mod tests {
         // Too few points
         assert!(matches!(
             f64::kabsch(pair, pair),
-            Err(TensorError::InvalidShape { size: 2, .. })
+            Err(Error::InvalidShape { size: 2, .. })
         ));
 
         // Kabsch on random-ish clouds: check outputs are finite and scale == 1.

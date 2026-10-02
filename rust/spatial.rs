@@ -43,7 +43,7 @@ use core::{ffi::c_void, ptr::null_mut};
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
     dot::Dot,
-    tensor::{check_len, TensorError},
+    tensor::{check_len, Error},
     types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement},
 };
 
@@ -351,22 +351,22 @@ extern "C" {
 ///
 /// d = 1 − (a · b) / (‖a‖ × ‖b‖)
 ///
-/// Range: \[0, 2\]. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
-/// [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Range: \[0, 2\]. Fails with [`Error::ShapeMismatch`] if lengths differ, or
+/// [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, and `u4x2`.
 pub trait Angular: StorageElement {
     type Output;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 
     /// Alias for `angular`.
-    fn cosine(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> { Self::angular(a, b) }
+    fn cosine(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> { Self::angular(a, b) }
 }
 
 impl Angular for f64 {
     type Output = f64;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -386,7 +386,7 @@ impl Angular for f64 {
 
 impl Angular for f32 {
     type Output = f64;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -406,7 +406,7 @@ impl Angular for f32 {
 
 impl Angular for f16 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -426,7 +426,7 @@ impl Angular for f16 {
 
 impl Angular for bf16 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -446,7 +446,7 @@ impl Angular for bf16 {
 
 impl Angular for i8 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -466,7 +466,7 @@ impl Angular for i8 {
 
 impl Angular for u8 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -486,7 +486,7 @@ impl Angular for u8 {
 
 impl Angular for e4m3 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -506,7 +506,7 @@ impl Angular for e4m3 {
 
 impl Angular for e5m2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -526,7 +526,7 @@ impl Angular for e5m2 {
 
 impl Angular for e2m3 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -546,7 +546,7 @@ impl Angular for e2m3 {
 
 impl Angular for e3m2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -566,7 +566,7 @@ impl Angular for e3m2 {
 
 impl Angular for i4x2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
@@ -587,7 +587,7 @@ impl Angular for i4x2 {
 
 impl Angular for u4x2 {
     type Output = f32;
-    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn angular(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
@@ -614,8 +614,8 @@ impl Angular for u4x2 {
 ///
 /// d = √(∑ᵢ (aᵢ − bᵢ)²)
 ///
-/// Range: \[0, ∞). Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
-/// [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Range: \[0, ∞). Fails with [`Error::ShapeMismatch`] if lengths differ, or
+/// [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `f64`, `f32`, `f16`, `bf16`, `i8`, `u8`, `e4m3`, `e5m2`, `e2m3`, `e3m2`,
 /// `i4x2`, and `u4x2`.
@@ -624,17 +624,17 @@ pub trait Euclidean: StorageElement {
     type EuclideanOutput;
 
     /// Squared Euclidean distance, i.e. L2². Faster than `euclidean` for comparisons.
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError>;
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error>;
 
     /// Euclidean distance, i.e. L2. True metric distance.
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError>;
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error>;
 }
 
 impl Euclidean for f64 {
     type SqEuclideanOutput = f64;
     type EuclideanOutput = f64;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -651,7 +651,7 @@ impl Euclidean for f64 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -673,7 +673,7 @@ impl Euclidean for f32 {
     type SqEuclideanOutput = f64;
     type EuclideanOutput = f64;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -690,7 +690,7 @@ impl Euclidean for f32 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -712,7 +712,7 @@ impl Euclidean for f16 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -729,7 +729,7 @@ impl Euclidean for f16 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -751,7 +751,7 @@ impl Euclidean for bf16 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -768,7 +768,7 @@ impl Euclidean for bf16 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -790,7 +790,7 @@ impl Euclidean for i8 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         unsafe {
@@ -807,7 +807,7 @@ impl Euclidean for i8 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -829,7 +829,7 @@ impl Euclidean for u8 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         unsafe {
@@ -846,7 +846,7 @@ impl Euclidean for u8 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -868,7 +868,7 @@ impl Euclidean for e4m3 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -885,7 +885,7 @@ impl Euclidean for e4m3 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -907,7 +907,7 @@ impl Euclidean for e5m2 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -924,7 +924,7 @@ impl Euclidean for e5m2 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -946,7 +946,7 @@ impl Euclidean for e2m3 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -963,7 +963,7 @@ impl Euclidean for e2m3 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -985,7 +985,7 @@ impl Euclidean for e3m2 {
     type SqEuclideanOutput = f32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0.0;
         unsafe {
@@ -1002,7 +1002,7 @@ impl Euclidean for e3m2 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         unsafe {
@@ -1024,7 +1024,7 @@ impl Euclidean for i4x2 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         let element_count = a.len() * Self::dimensions_per_value();
@@ -1042,7 +1042,7 @@ impl Euclidean for i4x2 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
@@ -1065,7 +1065,7 @@ impl Euclidean for u4x2 {
     type SqEuclideanOutput = u32;
     type EuclideanOutput = f32;
 
-    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, TensorError> {
+    fn sqeuclidean(a: &[Self], b: &[Self]) -> Result<Self::SqEuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::SqEuclideanOutput = 0;
         let element_count = a.len() * Self::dimensions_per_value();
@@ -1083,7 +1083,7 @@ impl Euclidean for u4x2 {
         Ok(result)
     }
 
-    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, TensorError> {
+    fn euclidean(a: &[Self], b: &[Self]) -> Result<Self::EuclideanOutput, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::EuclideanOutput = 0.0;
         let element_count = a.len() * Self::dimensions_per_value();
@@ -1118,7 +1118,7 @@ mod tests {
     where
         Scalar: FloatLike + TestableType,
         R: FloatLike,
-        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, TensorError>,
+        F: FnOnce(&[Scalar], &[Scalar]) -> Result<R, Error>,
     {
         let a: Vec<Scalar> = a_vals.iter().map(|&v| Scalar::from_f32(v)).collect();
         let b: Vec<Scalar> = b_vals.iter().map(|&v| Scalar::from_f32(v)).collect();

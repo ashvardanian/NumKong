@@ -13,7 +13,7 @@ use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
     capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
-    tensor::{check_len, TensorError},
+    tensor::{check_len, Error},
     types::{u1x8, StorageElement},
 };
 
@@ -67,18 +67,18 @@ extern "C" {
 ///
 /// Counts differing bits for `u1x8`, or differing bytes for `u8`.
 ///
-/// Range: \[0, n\]. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
-/// [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Range: \[0, n\]. Fails with [`Error::ShapeMismatch`] if lengths differ, or
+/// [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `u1x8`, `u8`.
 pub trait Hamming: StorageElement {
     type Output;
-    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
+    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 }
 
 impl Hamming for u1x8 {
     type Output = u32;
-    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0;
         let n_bits = a.len() * Self::dimensions_per_value();
@@ -99,7 +99,7 @@ impl Hamming for u1x8 {
 
 impl Hamming for u8 {
     type Output = u32;
-    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn hamming(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0;
         unsafe {
@@ -125,18 +125,18 @@ impl Hamming for u8 {
 ///
 /// d = 1 − |A ∩ B| / |A ∪ B|
 ///
-/// Range: \[0, 1\]. Fails with [`TensorError::ShapeMismatch`] if lengths differ, or
-/// [`TensorError::KernelFailed`] carrying the kernel's status.
+/// Range: \[0, 1\]. Fails with [`Error::ShapeMismatch`] if lengths differ, or
+/// [`Error::KernelFailed`] carrying the kernel's status.
 ///
 /// Implemented for: `u1x8`, `u16`, `u32`.
 pub trait Jaccard: StorageElement {
     type Output;
-    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError>;
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, Error>;
 }
 
 impl Jaccard for u1x8 {
     type Output = f32;
-    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         let n_bits = a.len() * Self::dimensions_per_value();
@@ -157,7 +157,7 @@ impl Jaccard for u1x8 {
 
 impl Jaccard for u16 {
     type Output = f32;
-    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {
@@ -177,7 +177,7 @@ impl Jaccard for u16 {
 
 impl Jaccard for u32 {
     type Output = f32;
-    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, TensorError> {
+    fn jaccard(a: &[Self], b: &[Self]) -> Result<Self::Output, Error> {
         check_len(a.len(), b.len())?;
         let mut result: Self::Output = 0.0;
         unsafe {

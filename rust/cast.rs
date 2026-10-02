@@ -173,8 +173,8 @@ impl CastDType for u64 {
 /// - `dest` - Destination slice to receive cast elements; must be same length as source
 ///
 /// # Errors
-/// - [`TensorError::ShapeMismatch`] if slices have different lengths
-/// - [`TensorError::KernelFailed`] carrying the kernel's status when it refuses the pair
+/// - [`Error::ShapeMismatch`] if slices have different lengths
+/// - [`Error::KernelFailed`] carrying the kernel's status when it refuses the pair
 ///
 /// # Example
 /// ```ignore
@@ -184,7 +184,7 @@ impl CastDType for u64 {
 /// let mut f32_data: Vec<f32> = vec![0.0; f16_data.len()];
 /// cast(&f16_data, &mut f32_data);
 /// ```
-pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Result<(), TensorError> {
+pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Result<(), Error> {
     check_len(source.len(), dest.len())?;
     unsafe {
         nk_cast_best(
@@ -202,11 +202,11 @@ pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Result<
 
 // region: Tensor-shaped cast
 
-use crate::tensor::{check_len, Allocator, Tensor, TensorError, TensorMut, TensorRef, DEFAULT_MAX_RANK};
+use crate::tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef, DEFAULT_MAX_RANK};
 
 /// Extension trait: type casting for any [`TensorRef`] implementor.
 pub trait CastOps<Source: Clone + CastDType, const MAX_RANK: usize>: TensorRef<Source, MAX_RANK> {
-    fn cast<Destination: Clone + CastDType>(&self) -> Result<Tensor<Destination, Self::Alloc, MAX_RANK>, TensorError>
+    fn cast<Destination: Clone + CastDType>(&self) -> Result<Tensor<Destination, Self::Alloc, MAX_RANK>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -215,7 +215,7 @@ pub trait CastOps<Source: Clone + CastDType, const MAX_RANK: usize>: TensorRef<S
 
     /// Cast into a pre-allocated sink. The destination may be a `&mut Tensor<...>` or a `&mut
     /// TensorSpan<...>`, any [`TensorMut`]; a strided sub-span works too.
-    fn cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), TensorError>
+    fn cast_into<Destination, OutputTensor>(&self, out: &mut OutputTensor) -> Result<(), Error>
     where
         Destination: Clone + CastDType,
         OutputTensor: TensorMut<Destination, MAX_RANK> + ?Sized,
@@ -686,19 +686,19 @@ impl BlockScaledFormat for Mxint8 {
 /// Validate a block-scaled shape and return the per-block scales shape: the input shape with its
 /// last extent divided by `block_size`. Quantization runs along the last axis, which must split
 /// evenly into blocks; any rank with at least one axis is accepted.
-fn blocked_scales_shape_into(shape: &[usize], block_size: usize, out: &mut [usize]) -> Result<usize, TensorError> {
+fn blocked_scales_shape_into(shape: &[usize], block_size: usize, out: &mut [usize]) -> Result<usize, Error> {
     let Some((&last_extent, leading)) = shape.split_last() else {
-        return Err(TensorError::DimensionMismatch { expected: 1, got: 0 });
+        return Err(Error::DimensionMismatch { expected: 1, got: 0 });
     };
     if last_extent % block_size != 0 {
-        return Err(TensorError::InvalidShape {
+        return Err(Error::InvalidShape {
             axis: leading.len(),
             size: last_extent,
             reason: "last axis must be divisible by the format block size",
         });
     }
     if shape.len() > out.len() {
-        return Err(TensorError::TooManyRanks { got: shape.len() });
+        return Err(Error::TooManyRanks { got: shape.len() });
     }
     out[..shape.len()].copy_from_slice(shape);
     out[shape.len() - 1] = last_extent / block_size;
@@ -719,7 +719,7 @@ fn block_scaled_cast_(
     to_derives_scale: bool,
     to_format: &BlockScaledDescriptor,
     count: usize,
-) -> Result<Option<f32>, TensorError> {
+) -> Result<Option<f32>, Error> {
     let from_scale = from_tensor_scale
         .as_ref()
         .map_or(core::ptr::null(), |scale| scale as *const f32);
@@ -756,7 +756,7 @@ fn block_scaled_cast_(
 /// Blanket-implemented for every [`TensorRef<f32, MAX_RANK>`], so `Tensor<f32>`, `TensorView<f32>`,
 /// and `TensorSpan<f32>` all expose `.cast_to_scaled::<F>()` without an intervening `.view()`.
 pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
-    fn cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F, Self::Alloc>, TensorError>
+    fn cast_to_scaled<F: BlockScaledFormat>(&self) -> Result<ScaledTensor<F, Self::Alloc>, Error>
     where
         Self::Alloc: Clone,
     {
@@ -766,7 +766,7 @@ pub trait DenseToScaledOps<const MAX_RANK: usize>: TensorRef<f32, MAX_RANK> {
         let scales_shape = &scales_buf[..scales_ndim];
         let count: usize = shape.iter().product();
         let view = self.view();
-        let source = view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
+        let source = view.as_packed_slice().ok_or(Error::NonContiguousRows)?;
 
         let mut elements = Tensor::zeros_in(shape, self.allocator().clone())?;
         let mut block_scales = Tensor::zeros_in(scales_shape, self.allocator().clone())?;
@@ -791,13 +791,13 @@ impl<const R: usize, C: TensorRef<f32, R> + ?Sized> DenseToScaledOps<R> for C {}
 /// Transcode: a [`ScaledTensorView`] → another [`ScaledTensor`].
 impl<'a, F: BlockScaledFormat, A: Allocator + Clone> ScaledTensorView<'a, F, A> {
     /// Materialize this block-scaled view into a dense `Tensor<T>` of the same shape.
-    pub fn cast<T: Clone + CastDType>(&self) -> Result<Tensor<T, A>, TensorError> {
+    pub fn cast<T: Clone + CastDType>(&self) -> Result<Tensor<T, A>, Error> {
         let shape = self.shape();
         let count: usize = shape.iter().product();
         let elements_view = self.elements();
         let scales_view = self.block_scales();
-        let elements = elements_view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
-        let scales = scales_view.as_packed_slice().ok_or(TensorError::NonContiguousRows)?;
+        let elements = elements_view.as_packed_slice().ok_or(Error::NonContiguousRows)?;
+        let scales = scales_view.as_packed_slice().ok_or(Error::NonContiguousRows)?;
 
         let mut out = Tensor::zeros_in(shape, elements_view.allocator().clone())?;
         block_scaled_cast_(
@@ -815,7 +815,7 @@ impl<'a, F: BlockScaledFormat, A: Allocator + Clone> ScaledTensorView<'a, F, A> 
     }
 
     /// Transcode this block-scaled view into a different block-scaled format.
-    pub fn cast_to_scaled<G: BlockScaledFormat>(&self) -> Result<ScaledTensor<G, A>, TensorError> {
+    pub fn cast_to_scaled<G: BlockScaledFormat>(&self) -> Result<ScaledTensor<G, A>, Error> {
         let shape = self.shape();
         let mut scales_buf = [0usize; DEFAULT_MAX_RANK];
         let scales_ndim = blocked_scales_shape_into(shape, G::BLOCK_SIZE, &mut scales_buf)?;
@@ -824,12 +824,8 @@ impl<'a, F: BlockScaledFormat, A: Allocator + Clone> ScaledTensorView<'a, F, A> 
 
         let src_elements_view = self.elements();
         let src_scales_view = self.block_scales();
-        let src_elements = src_elements_view
-            .as_packed_slice()
-            .ok_or(TensorError::NonContiguousRows)?;
-        let src_scales = src_scales_view
-            .as_packed_slice()
-            .ok_or(TensorError::NonContiguousRows)?;
+        let src_elements = src_elements_view.as_packed_slice().ok_or(Error::NonContiguousRows)?;
+        let src_scales = src_scales_view.as_packed_slice().ok_or(Error::NonContiguousRows)?;
 
         let mut elements = Tensor::zeros_in(shape, src_elements_view.allocator().clone())?;
         let mut block_scales = Tensor::zeros_in(scales_shape, src_elements_view.allocator().clone())?;
@@ -919,7 +915,7 @@ mod tests {
         let mut dst = [0.0f32; 2];
         assert_eq!(
             cast(&src, &mut dst),
-            Err(TensorError::ShapeMismatch {
+            Err(Error::ShapeMismatch {
                 axis: 0,
                 expected: 1,
                 got: 2
