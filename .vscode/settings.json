@@ -185,6 +185,7 @@
     "*.cu": "cuda-cpp",
     "*.cuh": "cuda-cpp",
     "*.gyp": "jsonc",
+    "*.hip": "cuda-cpp",
     "*.metal": "cpp",
     "*.tcc": "cpp",
     "__bit_reference": "cpp",
