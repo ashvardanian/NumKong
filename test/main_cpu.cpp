@@ -496,7 +496,7 @@ static void test_dispatch_points(error_stats_section_t &check) {
         return test_missing_library<nk_dot_f32_best>(settings, nullptr, nullptr, 0, nullptr, nullptr);
     });
     check("best_dots_packed_bf16", [](settings_t const &settings) {
-        return test_missing_library<nk_dots_packed_bf16_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0, 0,
+        return test_missing_library<nk_dots_packed_bf16_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
                                                               nullptr);
     });
     check("best_reduce_moments_f32", [](settings_t const &settings) {

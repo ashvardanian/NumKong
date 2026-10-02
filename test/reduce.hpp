@@ -63,7 +63,7 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
     using inputs_t = nk::vector<input_type_, typename backend_type_::template allocator<input_type_>>;
     using extrema_t = nk::vector<output_t, typename backend_type_::template allocator<output_t>>;
     using indices_t = nk::vector<u64_t, typename backend_type_::template allocator<u64_t>>;
-    static_assert(sizeof(nk_size_t) == sizeof(nk_u64_t), "indices are read back as U64");
+    static_assert(sizeof(nk_size_t) <= sizeof(nk_u64_t), "indices are stored in U64 slots");
     backend_type_ backend;
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
