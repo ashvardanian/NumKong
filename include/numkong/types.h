@@ -400,7 +400,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for RISC-V Vector with Zvfh, f16, NUMKONG_TARGET_RVVHALF:
  *  Requires GCC 14+ or Clang 18+ for full intrinsic support */
-#if !defined(NUMKONG_TARGET_RVVHALF) || (NUMKONG_TARGET_RVVHALF && !NUMKONG_TARGET_RVV)
+#if !defined(NUMKONG_TARGET_RVVHALF) || (NUMKONG_TARGET_RVVHALF && !NUMKONG_ARCH_RISCV64_)
 #if defined(__riscv_zvfh) && (__riscv_zvfh > 0)
 #define NUMKONG_TARGET_RVVHALF 1
 #else
@@ -411,7 +411,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for RISC-V Vector with Zvfbfwma, bf16 widening FMA, NUMKONG_TARGET_RVVBF16:
  *  Requires GCC 14+ or Clang 18+ for full intrinsic support */
-#if !defined(NUMKONG_TARGET_RVVBF16) || (NUMKONG_TARGET_RVVBF16 && !NUMKONG_TARGET_RVV)
+#if !defined(NUMKONG_TARGET_RVVBF16) || (NUMKONG_TARGET_RVVBF16 && !NUMKONG_ARCH_RISCV64_)
 #if defined(__riscv_zvfbfwma) && (__riscv_zvfbfwma > 0)
 #define NUMKONG_TARGET_RVVBF16 1
 #else
@@ -422,7 +422,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for RISC-V Vector with Zvbb, basic bit-manipulation, NUMKONG_TARGET_RVVBB:
  *  Provides per-element popcount via vcpop.v, plus vclz.v, vctz.v, vbrev.v, vrol.v, vror.v */
-#if !defined(NUMKONG_TARGET_RVVBB) || (NUMKONG_TARGET_RVVBB && !NUMKONG_TARGET_RVV)
+#if !defined(NUMKONG_TARGET_RVVBB) || (NUMKONG_TARGET_RVVBB && !NUMKONG_ARCH_RISCV64_)
 #if defined(__riscv_zvbb) && (__riscv_zvbb > 0)
 #define NUMKONG_TARGET_RVVBB 1
 #else
