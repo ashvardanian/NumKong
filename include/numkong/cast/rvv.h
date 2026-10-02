@@ -284,6 +284,8 @@ NUMKONG_INLINE vfloat32m4_t nk_e5m2m1_to_f32m4_rvv_(vuint8m1_t e5m2_u8m1, nk_siz
     // Strip sign to get 7-bit magnitude, widen to u32, shift left by 21
     vuint32m4_t nonsign_u32m4 = __riscv_vzext_vf4_u32m4(__riscv_vand_vx_u8m1(e5m2_u8m1, 0x7F, vector_length),
                                                         vector_length);
+    vbool8_t is_nan_b8 = __riscv_vmsgtu_vx_u32m4_b8(nonsign_u32m4, 0x7C, vector_length);
+    nonsign_u32m4 = __riscv_vmerge_vxm_u32m4(nonsign_u32m4, 0x7E, is_nan_b8, vector_length);
     vuint32m4_t shifted_u32m4 = __riscv_vsll_vx_u32m4(nonsign_u32m4, 21, vector_length);
 
     // Magic multiply: reinterpret as f32 × 2^112 rebiases from E5M2 (bias=15) to f32 (bias=127).
@@ -397,6 +399,8 @@ NUMKONG_INLINE vuint16m2_t nk_e5m2m1_to_bf16m2_rvv_(vuint8m1_t e5m2_u8m1, nk_siz
     vuint8m1_t sign_u8m1 = __riscv_vand_vx_u8m1(e5m2_u8m1, 0x80, vector_length);
     vuint8m1_t nonsign_u8m1 = __riscv_vand_vx_u8m1(e5m2_u8m1, 0x7F, vector_length);
     vuint32m4_t nonsign_u32m4 = __riscv_vzext_vf4_u32m4(nonsign_u8m1, vector_length);
+    vbool8_t is_nan_b8 = __riscv_vmsgtu_vx_u32m4_b8(nonsign_u32m4, 0x7C, vector_length);
+    nonsign_u32m4 = __riscv_vmerge_vxm_u32m4(nonsign_u32m4, 0x7E, is_nan_b8, vector_length);
     vuint32m4_t shifted_u32m4 = __riscv_vsll_vx_u32m4(nonsign_u32m4, 21, vector_length);
     // Magic multiply: reinterpret as f32 × 2^112
     vfloat32m4_t magic_f32m4 = __riscv_vreinterpret_v_u32m4_f32m4(__riscv_vmv_v_x_u32m4(0x77800000, vector_length));

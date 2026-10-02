@@ -44,13 +44,23 @@ NUMKONG_INLINE void nk_partial_load_e4m3x32_to_f16x32_diamond_(void const *src, 
     dst->zmm = nk_m512i_from_m512h_(_mm512_cvthf8_ph(_mm256_maskz_loadu_epi8(mask, src)));
 }
 
+/** VCVTBF82PH keeps NaN payloads, so NaN codes first become the canonical quiet 0x7E like the
+ *  serial kernel. */
+NUMKONG_INLINE __m512h nk_e5m2x32_to_f16x32_diamond_(__m256i e5m2_u8x32) {
+    __m256i sign_u8x32 = _mm256_and_si256(e5m2_u8x32, _mm256_set1_epi8((char)0x80));
+    __m256i lower7_u8x32 = _mm256_and_si256(e5m2_u8x32, _mm256_set1_epi8(0x7F));
+    __mmask32 is_nan_m32 = _mm256_cmpgt_epu8_mask(lower7_u8x32, _mm256_set1_epi8(0x7C));
+    lower7_u8x32 = _mm256_mask_mov_epi8(lower7_u8x32, is_nan_m32, _mm256_set1_epi8(0x7E));
+    return _mm512_cvtbf8_ph(_mm256_or_si256(lower7_u8x32, sign_u8x32));
+}
+
 NUMKONG_INLINE void nk_load_e5m2x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst) {
-    dst->zmm = nk_m512i_from_m512h_(_mm512_cvtbf8_ph(_mm256_loadu_epi8(src)));
+    dst->zmm = nk_m512i_from_m512h_(nk_e5m2x32_to_f16x32_diamond_(_mm256_loadu_epi8(src)));
 }
 
 NUMKONG_INLINE void nk_partial_load_e5m2x32_to_f16x32_diamond_(void const *src, nk_b512_vec_t *dst, nk_size_t count) {
     __mmask32 mask = (__mmask32)_bzhi_u32(0xFFFFFFFF, count);
-    dst->zmm = nk_m512i_from_m512h_(_mm512_cvtbf8_ph(_mm256_maskz_loadu_epi8(mask, src)));
+    dst->zmm = nk_m512i_from_m512h_(nk_e5m2x32_to_f16x32_diamond_(_mm256_maskz_loadu_epi8(mask, src)));
 }
 
 #if defined(__clang__)

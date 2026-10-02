@@ -88,6 +88,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_e4m3_to_f32_haswell", test_cast<e4m3_t, f32_t>, nk_cast_haswell);
     check("cast_f32_to_e5m2_haswell", test_cast<f32_t, e5m2_t>, nk_cast_haswell);
     check("cast_e5m2_to_f32_haswell", test_cast<e5m2_t, f32_t>, nk_cast_haswell);
+    check("cast_e5m2_to_f16_haswell", test_cast<e5m2_t, f16_t>, nk_cast_haswell);
     check("cast_f32_to_e2m3_haswell", test_cast<f32_t, e2m3_t>, nk_cast_haswell);
     check("cast_e2m3_to_f32_haswell", test_cast<e2m3_t, f32_t>, nk_cast_haswell);
     check("cast_f32_to_e3m2_haswell", test_cast<f32_t, e3m2_t>, nk_cast_haswell);
@@ -195,6 +196,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_e4m3_to_f32_neon", test_cast<e4m3_t, f32_t>, nk_cast_neon);
     check("cast_f32_to_e4m3_neon", test_cast<f32_t, e4m3_t>, nk_cast_neon);
     check("cast_e5m2_to_f32_neon", test_cast<e5m2_t, f32_t>, nk_cast_neon);
+    check("cast_e5m2_to_f16_neon", test_cast<e5m2_t, f16_t>, nk_cast_neon);
     check("cast_f32_to_e5m2_neon", test_cast<f32_t, e5m2_t>, nk_cast_neon);
 #endif // NUMKONG_TARGET_NEON
 
@@ -208,6 +210,8 @@ void test_casts(error_stats_section_t &check) {
     check("cast_e4m3_to_f32_v128relaxed", test_cast<e4m3_t, f32_t>, nk_cast_v128relaxed);
     check("cast_f32_to_e5m2_v128relaxed", test_cast<f32_t, e5m2_t>, nk_cast_v128relaxed);
     check("cast_e5m2_to_f32_v128relaxed", test_cast<e5m2_t, f32_t>, nk_cast_v128relaxed);
+    check("cast_e5m2_to_bf16_v128relaxed", test_cast<e5m2_t, bf16_t>, nk_cast_v128relaxed);
+    check("cast_e5m2_to_f16_v128relaxed", test_cast<e5m2_t, f16_t>, nk_cast_v128relaxed);
     check("cast_f32_to_e2m3_v128relaxed", test_cast<f32_t, e2m3_t>, nk_cast_v128relaxed);
     check("cast_e2m3_to_f32_v128relaxed", test_cast<e2m3_t, f32_t>, nk_cast_v128relaxed);
     check("cast_f32_to_e3m2_v128relaxed", test_cast<f32_t, e3m2_t>, nk_cast_v128relaxed);
@@ -224,6 +228,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_f32_to_bf16_rvv", test_cast<f32_t, bf16_t>, nk_cast_rvv);
     check("cast_e4m3_to_f32_rvv", test_cast<e4m3_t, f32_t>, nk_cast_rvv);
     check("cast_e5m2_to_f32_rvv", test_cast<e5m2_t, f32_t>, nk_cast_rvv);
+    check("cast_e5m2_to_bf16_rvv", test_cast<e5m2_t, bf16_t>, nk_cast_rvv);
 #endif // NUMKONG_TARGET_RVV
 
 #if NUMKONG_TARGET_POWERVSX

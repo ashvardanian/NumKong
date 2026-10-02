@@ -259,12 +259,15 @@ NUMKONG_INLINE __m256i nk_e4m3x16_to_f16x16_skylake_(__m128i e4m3_u8x16) {
 }
 
 /** Convert 16x e5m2 → 16x f32 via free-shift widen (AVX-512 + F16C). E5M2 shares F16's exponent
- *  bias (15): `(byte << 8)` is the matching F16 bit pattern for every E5M2 value (normals,
- *  subnormals, zero, ±Inf, NaN — all bit-exact). Widen u8 → u16, shift, then VCVTPH2PS to F32.
- *  Three ops total. */
+ *  bias (15): `(byte << 8)` is the matching F16 bit pattern for every E5M2 value but NaN, whose
+ *  codes first become the canonical quiet 0x7E like the serial kernel. Then VCVTPH2PS to F32. */
 NUMKONG_INLINE __m512 nk_e5m2x16_to_f32x16_skylake_(__m128i e5m2_i8x16) {
     __m256i e5m2_u16x16 = _mm256_cvtepu8_epi16(e5m2_i8x16);
-    __m256i f16_u16x16 = _mm256_slli_epi16(e5m2_u16x16, 8);
+    __m256i sign_u16x16 = _mm256_and_si256(e5m2_u16x16, _mm256_set1_epi16(0x80));
+    __m256i lower7_u16x16 = _mm256_and_si256(e5m2_u16x16, _mm256_set1_epi16(0x7F));
+    __mmask16 is_nan_m16 = _mm256_cmpgt_epu16_mask(lower7_u16x16, _mm256_set1_epi16(0x7C));
+    lower7_u16x16 = _mm256_mask_mov_epi16(lower7_u16x16, is_nan_m16, _mm256_set1_epi16(0x7E));
+    __m256i f16_u16x16 = _mm256_slli_epi16(_mm256_or_si256(lower7_u16x16, sign_u16x16), 8);
     return _mm512_cvtph_ps(f16_u16x16);
 }
 

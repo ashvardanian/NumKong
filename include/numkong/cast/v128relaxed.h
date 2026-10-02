@@ -107,21 +107,23 @@ NUMKONG_INLINE nk_b64_vec_t nk_f32x4_to_f16x4_v128relaxed_(nk_b128_vec_t hub_vec
     v128_t inf_result_u32x4 = wasm_v128_or(sign_u32x4, wasm_i32x4_splat(0x7C00));
     normal_result_u32x4 = wasm_i32x4_relaxed_laneselect(inf_result_u32x4, normal_result_u32x4, overflow_mask_u32x4);
 
-    // Underflow → zero (exp <= 0 after rebias, ignoring subnormals for simplicity)
-    v128_t underflow_mask_u32x4 = wasm_i32x4_lt(f16_exp_i32x4, wasm_i32x4_splat(1));
-    normal_result_u32x4 = wasm_i32x4_relaxed_laneselect(sign_u32x4, normal_result_u32x4, underflow_mask_u32x4);
+    // Subnormals, zeros and F32 denormals: the F16 code is |x| × 2²⁴, exact in F32, rounded to
+    // nearest even by adding 1.5 × 2²³, and a round up to 0x400 is already the smallest normal
+    v128_t abs_f32x4 = wasm_v128_and(bits_u32x4, wasm_i32x4_splat(0x7FFFFFFF));
+    v128_t scaled_f32x4 = wasm_f32x4_mul(abs_f32x4, wasm_f32x4_splat(16777216.0f));
+    v128_t subnormal_u32x4 = wasm_i32x4_sub(wasm_f32x4_add(scaled_f32x4, wasm_f32x4_splat(12582912.0f)),
+                                            wasm_i32x4_splat(0x4B400000));
+    v128_t subnormal_mask_u32x4 = wasm_i32x4_lt(f32_exp_u32x4, wasm_i32x4_splat(113));
+    normal_result_u32x4 = wasm_i32x4_relaxed_laneselect(wasm_v128_or(sign_u32x4, subnormal_u32x4), normal_result_u32x4,
+                                                        subnormal_mask_u32x4);
 
-    // Inf/NaN passthrough: f32 exp=255
+    // Inf/NaN passthrough: f32 exp=255, a NaN quieted keeping its top payload bits, as serial does
     v128_t infnan_mask_u32x4 = wasm_i32x4_eq(f32_exp_u32x4, wasm_i32x4_splat(255));
-    v128_t nan_payload_u32x4 = wasm_v128_or(wasm_u32x4_shr(f32_mant_u32x4, 13), wasm_i32x4_splat(1));
+    v128_t nan_payload_u32x4 = wasm_v128_or(wasm_u32x4_shr(f32_mant_u32x4, 13), wasm_i32x4_splat(0x200));
     v128_t mant_nonzero_u32x4 = wasm_i32x4_ne(f32_mant_u32x4, wasm_i32x4_splat(0));
     v128_t nan_result_u32x4 = wasm_v128_or(
         sign_u32x4, wasm_v128_or(wasm_i32x4_splat(0x7C00), wasm_v128_and(nan_payload_u32x4, mant_nonzero_u32x4)));
     normal_result_u32x4 = wasm_i32x4_relaxed_laneselect(nan_result_u32x4, normal_result_u32x4, infnan_mask_u32x4);
-
-    // F32 zero/denorm → f16 zero
-    v128_t f32_zero_mask_u32x4 = wasm_i32x4_eq(f32_exp_u32x4, wasm_i32x4_splat(0));
-    normal_result_u32x4 = wasm_i32x4_relaxed_laneselect(sign_u32x4, normal_result_u32x4, f32_zero_mask_u32x4);
 
     // Pack 4x u32 → 4x u16
     v128_t packed_u16x8 = wasm_u16x8_narrow_i32x4(normal_result_u32x4, normal_result_u32x4);

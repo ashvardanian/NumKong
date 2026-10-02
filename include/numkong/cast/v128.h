@@ -54,6 +54,8 @@ NUMKONG_INLINE nk_b128_vec_t nk_e5m2x4_to_f32x4_v128_(nk_b32_vec_t e5m2_vec) {
     v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_u16x8_extend_low_u8x16(wasm_i32x4_splat(e5m2_vec.u32)));
     v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x80)), 24);
     v128_t nonsign_u32x4 = wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x7F));
+    v128_t is_nan_u32x4 = wasm_u32x4_gt(nonsign_u32x4, wasm_i32x4_splat(0x7C));
+    nonsign_u32x4 = wasm_v128_bitselect(wasm_i32x4_splat(0x7E), nonsign_u32x4, is_nan_u32x4);
     v128_t shifted_u32x4 = wasm_i32x4_shl(nonsign_u32x4, 21);
     v128_t rebiased_f32x4 = wasm_f32x4_mul((v128_t)shifted_u32x4, (v128_t)wasm_i32x4_splat(0x77800000)); // 2^112
     v128_t is_infnan_u32x4 = wasm_u32x4_gt(nonsign_u32x4, wasm_i32x4_splat(123));

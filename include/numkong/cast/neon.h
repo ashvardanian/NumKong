@@ -182,6 +182,8 @@ NUMKONG_INLINE float32x4_t nk_e5m2x4_to_f32x4_neon_(nk_b32_vec_t src) {
     uint32x4_t sign_u32x4 = vshlq_n_u32(vandq_u32(e5m2_u32x4, vdupq_n_u32(0x80)), 24);
     // Strip sign to get 7-bit magnitude, shift left by 21 so E5M2 exponent overlaps f32 exponent
     uint32x4_t nonsign_u32x4 = vandq_u32(e5m2_u32x4, vdupq_n_u32(0x7F));
+    uint32x4_t is_nan_u32x4 = vcgtq_u32(nonsign_u32x4, vdupq_n_u32(0x7C));
+    nonsign_u32x4 = vbslq_u32(is_nan_u32x4, vdupq_n_u32(0x7E), nonsign_u32x4);
     uint32x4_t shifted_u32x4 = vshlq_n_u32(nonsign_u32x4, 21);
 
     // Magic multiply: reinterpret as f32 × 2^112 rebiases from E5M2 (bias=15) to f32 (bias=127).
@@ -290,11 +292,15 @@ NUMKONG_INLINE void nk_e4m3x16_to_f16x8x2_neon_(uint8x16_t input_u8x16, float16x
 }
 
 /** Convert 8x e5m2 → f16x8 via bit shift (NEON). E5M2 (bias=15) and F16 (bias=15) share the same
- *  exponent bias, so conversion is trivial. E5M2: S EEEEE MM → F16: S EEEEE MM 00000000. Works for
- *  all: zero, subnormal, normal, inf, nan. */
+ *  exponent bias, so conversion is trivial. E5M2: S EEEEE MM → F16: S EEEEE MM 00000000. Zero,
+ *  subnormals, normals and infinities pass through, and NaN codes become the canonical 0x7E. */
 NUMKONG_INLINE float16x8_t nk_e5m2x8_to_f16x8_neon_(uint8x8_t e5m2_u8x8) {
     uint16x8_t e5m2_u16x8 = vmovl_u8(e5m2_u8x8);
-    return vreinterpretq_f16_u16(vshlq_n_u16(e5m2_u16x8, 8));
+    uint16x8_t sign_u16x8 = vandq_u16(e5m2_u16x8, vdupq_n_u16(0x80));
+    uint16x8_t lower7_u16x8 = vandq_u16(e5m2_u16x8, vdupq_n_u16(0x7F));
+    uint16x8_t is_nan_u16x8 = vcgtq_u16(lower7_u16x8, vdupq_n_u16(0x7C));
+    lower7_u16x8 = vbslq_u16(is_nan_u16x8, vdupq_n_u16(0x7E), lower7_u16x8);
+    return vreinterpretq_f16_u16(vshlq_n_u16(vorrq_u16(lower7_u16x8, sign_u16x8), 8));
 }
 
 /** Convert 8x e2m3 → f16x8 via direct bit manipulation (NEON). E2M3FN (FP6): S EE MMM (bias=1) →

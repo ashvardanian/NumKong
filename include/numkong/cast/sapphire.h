@@ -101,8 +101,12 @@ NUMKONG_INLINE __m256h nk_e5m2x16_to_f16x16_sapphire_(__m128i e5m2_i8x16) {
     __m256i mantissa_i16x16 = _mm256_and_si256(e5m2_i16x16, _mm256_set1_epi16(0x03));
     __m256i sign_i16x16 = _mm256_and_si256(_mm256_slli_epi16(e5m2_i16x16, 8), _mm256_set1_epi16((short)0x8000));
 
-    // Normal path: sign | (exp<<10) | (mant<<8) - same exponent bias so just shift lower7 by 8
-    __m256i exp_mantissa_i16x16 = _mm256_slli_epi16(_mm256_and_si256(e5m2_i16x16, _mm256_set1_epi16(0x7F)), 8);
+    // Normal path: sign | (exp<<10) | (mant<<8) - same exponent bias so just shift lower7 by 8,
+    // after mapping every NaN to the canonical quiet one like the serial kernel
+    __m256i lower7_i16x16 = _mm256_and_si256(e5m2_i16x16, _mm256_set1_epi16(0x7F));
+    __mmask16 is_nan_m16 = _mm256_cmpgt_epu16_mask(lower7_i16x16, _mm256_set1_epi16(0x7C));
+    lower7_i16x16 = _mm256_mask_mov_epi16(lower7_i16x16, is_nan_m16, _mm256_set1_epi16(0x7E));
+    __m256i exp_mantissa_i16x16 = _mm256_slli_epi16(lower7_i16x16, 8);
     __m256i normal_i16x16 = _mm256_or_si256(sign_i16x16, exp_mantissa_i16x16);
 
     // Subnormal fix: for exp==0 lanes, use (subnorm_abs | sign); else keep normal
@@ -203,17 +207,15 @@ NUMKONG_INLINE __m128i nk_f16x16_to_e5m2x16_sapphire_(__m256h f16x16) {
         _mm256_slli_epi16(sign_i16x16, 7),
         _mm256_or_si256(_mm256_slli_epi16(clamped_exp_i16x16, 2), normal_mantissa_i16x16));
 
-    // Subnormal path: mantissa = round(abs_f16 * 65536)
-    __m256h abs_f16x16 = _mm256_castsi256_ph(_mm256_and_si256(_mm256_castph_si256(f16x16), _mm256_set1_epi16(0x7FFF)));
-    __m256h scaled_f16x16 = _mm256_mul_ph(abs_f16x16, _mm256_castsi256_ph(_mm256_set1_epi16(0x7C00))); // 65536 (inf)
-    __m256i subnorm_mantissa_i16x16 = _mm256_cvtph_epi16(scaled_f16x16);
-    __mmask16 promotes_to_normal_m16 = _mm256_cmpgt_epi16_mask(subnorm_mantissa_i16x16, _mm256_set1_epi16(3));
-    subnorm_mantissa_i16x16 = _mm256_min_epi16(subnorm_mantissa_i16x16, _mm256_set1_epi16(3));
-    subnorm_mantissa_i16x16 = _mm256_max_epi16(subnorm_mantissa_i16x16, _mm256_setzero_si256());
+    // Subnormal path: F16 subnormals are m × 2⁻²⁴, so the E5M2 mantissa is m ÷ 256 rounded
+    // to nearest even, and a round up to 4 is already the encoding of the first normal
+    __m256i f16_subnorm_mantissa_i16x16 = _mm256_and_si256(bits_i16x16, _mm256_set1_epi16(0x03FF));
+    __m256i subnorm_lsb_i16x16 = _mm256_and_si256(_mm256_srli_epi16(f16_subnorm_mantissa_i16x16, 8),
+                                                  _mm256_set1_epi16(1));
+    __m256i subnorm_mantissa_i16x16 = _mm256_srli_epi16(
+        _mm256_add_epi16(f16_subnorm_mantissa_i16x16, _mm256_add_epi16(_mm256_set1_epi16(0x007F), subnorm_lsb_i16x16)),
+        8);
     __m256i subnorm_e5m2_i16x16 = _mm256_or_si256(_mm256_slli_epi16(sign_i16x16, 7), subnorm_mantissa_i16x16);
-    __m256i first_normal_e5m2_i16x16 = _mm256_or_si256(_mm256_slli_epi16(sign_i16x16, 7), _mm256_set1_epi16(0x04));
-    subnorm_e5m2_i16x16 = _mm256_mask_blend_epi16(promotes_to_normal_m16, subnorm_e5m2_i16x16,
-                                                  first_normal_e5m2_i16x16);
 
     // Blend: use subnormal result when exp == 0
     __m256i e5m2_i16x16 = _mm256_mask_blend_epi16(is_subnormal_m16, normal_e5m2_i16x16, subnorm_e5m2_i16x16);

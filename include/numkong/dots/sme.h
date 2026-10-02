@@ -1884,8 +1884,13 @@ NUMKONG_INLINE svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuin
 NUMKONG_INLINE svfloat16_t nk_e5m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
     // E5M2 and F16 share the same exponent bias (15), sign position, exponent width,
     // and mantissa field alignment. The conversion f16 = byte << 8 is exact for all
-    // 256 values including subnormals, infinity, and NaN.
-    return svreinterpret_f16_u16(svlsl_n_u16_x(predicate_b16x, svunpklo_u16(bytes_u8x), 8));
+    // 256 values but NaN, whose codes first become the canonical quiet 0x7E.
+    svuint16_t e5m2_u16x = svunpklo_u16(bytes_u8x);
+    svuint16_t sign_u16x = svand_n_u16_x(predicate_b16x, e5m2_u16x, 0x80);
+    svuint16_t lower7_u16x = svand_n_u16_x(predicate_b16x, e5m2_u16x, 0x7F);
+    svbool_t is_nan_b16x = svcmpgt_n_u16(predicate_b16x, lower7_u16x, 0x7C);
+    lower7_u16x = svdup_n_u16_m(lower7_u16x, is_nan_b16x, 0x7E);
+    return svreinterpret_f16_u16(svlsl_n_u16_x(predicate_b16x, svorr_u16_x(predicate_b16x, lower7_u16x, sign_u16x), 8));
 }
 
 /** Fused e4m3 × e4m3 → f32 GEMM kernel using interleaved FMOPA.

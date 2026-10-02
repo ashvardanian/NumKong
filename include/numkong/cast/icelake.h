@@ -89,18 +89,23 @@ NUMKONG_INLINE __m512i nk_e4m3x32_to_bf16x32_icelake_(__m256i e4m3x32) {
  *  @brief Convert 32x e5m2 → 32x bf16 via arithmetic + 4-entry subnormal LUT (AVX-512BW).
  *
  *  E5M2 format: S EEEEE MM (bias=15). BF16: S EEEEEEEE MMMMMMM (bias=127).
- *  Normal values (exp != 0): BF16 = sign | ((lower7 << 5) + 0x3800).
- *  Subnormals (exp == 0, 4 values): looked up from 4-entry LUT via permutexvar.
- *  Memory: 8 bytes (4 × 16-bit entries) vs 256 bytes (128-entry LUT). OCP FP8 v1.0.
+ *  Normal values (exp != 0): BF16 = sign | ((lower7 << 5) + 0x3800), and Inf/NaN (exp == 31) add
+ *  another 0x3800 to reach BF16's all-ones exponent. NaN codes first become the canonical 0x7E.
+ *  Subnormals (exp == 0, 4 values): looked up from 4-entry LUT via permutexvar. OCP FP8 v1.0.
  */
 NUMKONG_INLINE __m512i nk_e5m2x32_to_bf16x32_icelake_(__m256i e5m2x32) {
     __m512i e5m2_i16x32 = _mm512_cvtepu8_epi16(e5m2x32);
     __m512i sign_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16((short)0x80));
     __m512i lower7_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16(0x7F));
+    __mmask32 is_nan_m32 = _mm512_cmpgt_epu16_mask(lower7_i16x32, _mm512_set1_epi16(0x7C));
+    lower7_i16x32 = _mm512_mask_mov_epi16(lower7_i16x32, is_nan_m32, _mm512_set1_epi16(0x7E));
 
     // Normal path: BF16 = ((lower7 << 5) + 0x3800) | (sign << 8)
     // Formula: E5M2 exp=e, mant=m → BF16 exp = e+112 (bias 15→127), mant = m<<5
     __m512i normal_abs_i16x32 = _mm512_add_epi16(_mm512_slli_epi16(lower7_i16x32, 5), _mm512_set1_epi16(0x3800));
+    __mmask32 is_special_m32 = _mm512_cmpge_epu16_mask(lower7_i16x32, _mm512_set1_epi16(0x7C));
+    normal_abs_i16x32 = _mm512_mask_add_epi16(normal_abs_i16x32, is_special_m32, normal_abs_i16x32,
+                                              _mm512_set1_epi16(0x3800));
 
     // Subnormal LUT (4 entries, repeated 8x for all lanes): E5M2 subnormals are mant × 2^(-16)
     // Values: 0, 1/65536, 2/65536, 3/65536 (4 entries, then zeros for padding to 8)
@@ -227,14 +232,16 @@ NUMKONG_INLINE __m512i nk_e4m3x32_to_f16x32_icelake_(__m256i e4m3x32) {
 
 /** Convert 32x e5m2 → 32x f16 via simple bit shift (AVX-512BW). E5M2 format: S EEEEE MM (bias=15).
  *  F16: S EEEEE MMMMMMMMMM (bias=15). Same exponent bias means F16 = (lower7 << 8) | (sign << 15).
- *  Handles all corner cases: zero, subnormals, normals, infinity, and NaN. */
+ *  Zero, subnormals, normals and infinities map as they are, and every NaN decodes to the
+ *  canonical quiet NaN like the serial kernel. */
 NUMKONG_INLINE __m512i nk_e5m2x32_to_f16x32_icelake_(__m256i e5m2x32) {
     __m512i e5m2_i16x32 = _mm512_cvtepu8_epi16(e5m2x32);
     __m512i sign_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16((short)0x80));
     __m512i lower7_i16x32 = _mm512_and_si512(e5m2_i16x32, _mm512_set1_epi16(0x7F));
+    __mmask32 is_nan_m32 = _mm512_cmpgt_epu16_mask(lower7_i16x32, _mm512_set1_epi16(0x7C));
+    lower7_i16x32 = _mm512_mask_mov_epi16(lower7_i16x32, is_nan_m32, _mm512_set1_epi16(0x7E));
 
     // F16 = (lower7 << 8) | (sign << 15)
-    // Works for all cases: subnormals, normals, infinity, and NaN
     __m512i result_i16x32 = _mm512_slli_epi16(lower7_i16x32, 8);
     sign_i16x32 = _mm512_slli_epi16(sign_i16x32, 8);
     return _mm512_or_si512(result_i16x32, sign_i16x32);
