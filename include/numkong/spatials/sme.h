@@ -227,7 +227,7 @@ NK_PUBLIC svfloat32_t nk_euclideans_from_dot_f32x_ssve_(svbool_t predicate_b32x,
 
 #pragma region F16 Floats
 
-static void nk_angulars_packed_f16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_f16_sme_finalize_ssve_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -260,7 +260,7 @@ NK_PUBLIC void nk_angulars_packed_f16_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_f16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_f16_sme_finalize_ssve_( //
     nk_f16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -293,7 +293,7 @@ NK_PUBLIC void nk_euclideans_packed_f16_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_f16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_f16_sme_finalize_ssve_( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -340,7 +340,7 @@ NK_PUBLIC void nk_angulars_symmetric_f16_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_f16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_f16_sme_finalize_ssve_( //
     nk_f16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -391,7 +391,7 @@ NK_PUBLIC void nk_euclideans_symmetric_f16_sme( //
 
 #pragma region BF16 Floats
 
-static void nk_angulars_packed_bf16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -424,7 +424,7 @@ NK_PUBLIC void nk_angulars_packed_bf16_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_bf16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -457,7 +457,7 @@ NK_PUBLIC void nk_euclideans_packed_bf16_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_bf16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -504,7 +504,7 @@ NK_PUBLIC void nk_angulars_symmetric_bf16_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_bf16_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_bf16_sme_finalize_ssve_( //
     nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -555,7 +555,7 @@ NK_PUBLIC void nk_euclideans_symmetric_bf16_sme( //
 
 #pragma region E4M3 Floats
 
-static void nk_angulars_packed_e4m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -588,7 +588,7 @@ NK_PUBLIC void nk_angulars_packed_e4m3_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_e4m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -621,7 +621,7 @@ NK_PUBLIC void nk_euclideans_packed_e4m3_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_e4m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -668,7 +668,7 @@ NK_PUBLIC void nk_angulars_symmetric_e4m3_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_e4m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_e4m3_sme_finalize_ssve_( //
     nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -719,7 +719,7 @@ NK_PUBLIC void nk_euclideans_symmetric_e4m3_sme( //
 
 #pragma region E5M2 Floats
 
-static void nk_angulars_packed_e5m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -752,7 +752,7 @@ NK_PUBLIC void nk_angulars_packed_e5m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_e5m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -785,7 +785,7 @@ NK_PUBLIC void nk_euclideans_packed_e5m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_e5m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -832,7 +832,7 @@ NK_PUBLIC void nk_angulars_symmetric_e5m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_e5m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_e5m2_sme_finalize_ssve_( //
     nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -883,7 +883,7 @@ NK_PUBLIC void nk_euclideans_symmetric_e5m2_sme( //
 
 #pragma region E2M3 Floats
 
-static void nk_angulars_packed_e2m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -916,7 +916,7 @@ NK_PUBLIC void nk_angulars_packed_e2m3_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_e2m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -949,7 +949,7 @@ NK_PUBLIC void nk_euclideans_packed_e2m3_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_e2m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -996,7 +996,7 @@ NK_PUBLIC void nk_angulars_symmetric_e2m3_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_e2m3_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_e2m3_sme_finalize_ssve_( //
     nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -1047,7 +1047,7 @@ NK_PUBLIC void nk_euclideans_symmetric_e2m3_sme( //
 
 #pragma region E3M2 Floats
 
-static void nk_angulars_packed_e3m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1080,7 +1080,7 @@ NK_PUBLIC void nk_angulars_packed_e3m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_e3m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1113,7 +1113,7 @@ NK_PUBLIC void nk_euclideans_packed_e3m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_e3m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -1160,7 +1160,7 @@ NK_PUBLIC void nk_angulars_symmetric_e3m2_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_e3m2_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_e3m2_sme_finalize_ssve_( //
     nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -1210,7 +1210,7 @@ NK_PUBLIC void nk_euclideans_symmetric_e3m2_sme( //
 #pragma endregion E3M2 Floats
 #pragma region I8 Integers
 
-static void nk_angulars_packed_i8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_i8_sme_finalize_ssve_( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1246,7 +1246,7 @@ NK_PUBLIC void nk_angulars_packed_i8_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_i8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_i8_sme_finalize_ssve_( //
     nk_i8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1282,7 +1282,7 @@ NK_PUBLIC void nk_euclideans_packed_i8_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_i8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_i8_sme_finalize_ssve_( //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
@@ -1332,7 +1332,7 @@ NK_PUBLIC void nk_angulars_symmetric_i8_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_i8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_i8_sme_finalize_ssve_( //
     nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
@@ -1386,7 +1386,7 @@ NK_PUBLIC void nk_euclideans_symmetric_i8_sme( //
 
 #pragma region U8 Integers
 
-static void nk_angulars_packed_u8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_u8_sme_finalize_ssve_( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1422,7 +1422,7 @@ NK_PUBLIC void nk_angulars_packed_u8_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_u8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_u8_sme_finalize_ssve_( //
     nk_u8_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1458,7 +1458,7 @@ NK_PUBLIC void nk_euclideans_packed_u8_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_u8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_u8_sme_finalize_ssve_( //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
@@ -1508,7 +1508,7 @@ NK_PUBLIC void nk_angulars_symmetric_u8_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_u8_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_u8_sme_finalize_ssve_( //
     nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
@@ -1562,7 +1562,7 @@ NK_PUBLIC void nk_euclideans_symmetric_u8_sme( //
 
 #pragma region I4 Integers
 
-static void nk_angulars_packed_i4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1598,7 +1598,7 @@ NK_PUBLIC void nk_angulars_packed_i4_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_i4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1634,7 +1634,7 @@ NK_PUBLIC void nk_euclideans_packed_i4_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_i4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
@@ -1684,7 +1684,7 @@ NK_PUBLIC void nk_angulars_symmetric_i4_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_i4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_i4_sme_finalize_ssve_( //
     nk_i4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
@@ -1738,7 +1738,7 @@ NK_PUBLIC void nk_euclideans_symmetric_i4_sme( //
 
 #pragma region U4 Integers
 
-static void nk_angulars_packed_u4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1774,7 +1774,7 @@ NK_PUBLIC void nk_angulars_packed_u4_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_packed_u4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
@@ -1810,7 +1810,7 @@ NK_PUBLIC void nk_euclideans_packed_u4_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_angulars_symmetric_u4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
@@ -1860,7 +1860,7 @@ NK_PUBLIC void nk_angulars_symmetric_u4_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_euclideans_symmetric_u4_sme_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_u4_sme_finalize_ssve_( //
     nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f32_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal (store as u32 in f32 slot)
