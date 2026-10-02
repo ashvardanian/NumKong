@@ -86,7 +86,7 @@ NK_PUBLIC svfloat64_t nk_euclideans_from_dot_f64x_ssvef64_(svbool_t predicate_b6
 
 #pragma region F32 Packed Angular
 
-static void nk_angulars_packed_f32_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_f32_smef64_finalize_ssve_( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
 
@@ -127,7 +127,7 @@ NK_PUBLIC void nk_angulars_packed_f32_smef64( //
 #pragma endregion F32 Packed Angular
 #pragma region F32 Packed Euclidean
 
-static void nk_euclideans_packed_f32_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_f32_smef64_finalize_ssve_( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
 
@@ -168,7 +168,7 @@ NK_PUBLIC void nk_euclideans_packed_f32_smef64( //
 #pragma endregion F32 Packed Euclidean
 #pragma region F32 Symmetric Angular
 
-static void nk_angulars_symmetric_f32_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_f32_smef64_finalize_ssve_( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -223,7 +223,7 @@ NK_PUBLIC void nk_angulars_symmetric_f32_smef64( //
 #pragma endregion F32 Symmetric Angular
 #pragma region F32 Symmetric Euclidean
 
-static void nk_euclideans_symmetric_f32_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_f32_smef64_finalize_ssve_( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -278,7 +278,7 @@ NK_PUBLIC void nk_euclideans_symmetric_f32_smef64( //
 #pragma endregion F32 Symmetric Euclidean
 #pragma region F64 Packed Angular
 
-static void nk_angulars_packed_f64_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_packed_f64_smef64_finalize_ssve_( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
 
@@ -319,7 +319,7 @@ NK_PUBLIC void nk_angulars_packed_f64_smef64( //
 #pragma endregion F64 Packed Angular
 #pragma region F64 Packed Euclidean
 
-static void nk_euclideans_packed_f64_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_packed_f64_smef64_finalize_ssve_( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NK_STREAMING_ {
 
@@ -360,7 +360,7 @@ NK_PUBLIC void nk_euclideans_packed_f64_smef64( //
 #pragma endregion F64 Packed Euclidean
 #pragma region F64 Symmetric Angular
 
-static void nk_angulars_symmetric_f64_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_angulars_symmetric_f64_smef64_finalize_ssve_( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal
@@ -415,7 +415,7 @@ NK_PUBLIC void nk_angulars_symmetric_f64_smef64( //
 #pragma endregion F64 Symmetric Angular
 #pragma region F64 Symmetric Euclidean
 
-static void nk_euclideans_symmetric_f64_smef64_finalize_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_euclideans_symmetric_f64_smef64_finalize_ssve_( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NK_STREAMING_ {
     // Phase 1: cache row norms on diagonal

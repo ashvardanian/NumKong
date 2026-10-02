@@ -249,7 +249,7 @@ NK_PUBLIC nk_size_t nk_attention_packed_kv_size_f16_sme(nk_size_t num_kv_heads, 
     return nk_attention_packed_kv_size_bf16_sme(num_kv_heads, head_dim, max_seq_len);
 }
 
-static void nk_attention_pack_kv_bf16_sme_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_attention_pack_kv_bf16_sme_ssve_( //
     nk_bf16_t const *k, nk_bf16_t const *v, nk_size_t num_kv_heads, nk_size_t head_dim, nk_size_t seq_len,
     nk_size_t k_stride, nk_size_t v_stride, void *kv_packed) NK_STREAMING_ {
 
@@ -322,7 +322,7 @@ NK_PUBLIC void nk_attention_pack_kv_bf16_sme( //
     nk_sme_stop_streaming_();
 }
 
-static void nk_attention_pack_kv_f16_sme_ssve_( //
+NK_STREAMING_OUTLINED_ void nk_attention_pack_kv_f16_sme_ssve_( //
     nk_f16_t const *k, nk_f16_t const *v, nk_size_t num_kv_heads, nk_size_t head_dim, nk_size_t seq_len,
     nk_size_t k_stride, nk_size_t v_stride, void *kv_packed) NK_STREAMING_ {
 
