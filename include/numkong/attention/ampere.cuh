@@ -153,7 +153,9 @@ NUMKONG_DEVICE void nk_attention_weights_u8_ampere_(nk_f32_t const probabilities
     nk_u32_t bytes = 0, total = 0;
 #pragma unroll
     for (unsigned index = 0; index < 4; ++index) {
-        nk_u32_t const weight = (nk_u32_t)(probabilities[index] * 255.0f + 0.5f);
+        // A round-down add of 2²³ truncates at the full F32 rate; sm_103 converts at 2 per clock
+        nk_u32_t const weight = __float_as_uint(__fadd_rd(probabilities[index] * 255.0f + 0.5f, 8388608.0f)) -
+                                0x4B000000u;
         bytes |= weight << (index * 8), total += weight;
     }
     packed[0] = bytes, packed[1] = 0;

@@ -122,6 +122,9 @@ struct cuda_backend_t {
         return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
     }
 
+    /** Rows a token-row benchmark batches: a 4096-token prefill. */
+    static std::size_t token_rows(environment_t const &) noexcept { return 4096; }
+
     /** Prefill and decode segments at the end of a 4096-key cache, Llama-style heads. */
     static std::vector<attention_shape_t> attention_shapes(environment_t const &) {
         return {{"prefill", 32, 8, 128, 4096, 4096}, {"decode", 32, 8, 128, 1, 4096}};
@@ -230,6 +233,50 @@ void bench_cross_cuda(environment_t const &env, cuda_backend_t const &backend, n
                                     nk_dots_pack_f32_cuda, nk_euclideans_packed_f32_cuda, backend);
     run_euclideans_symmetric<nk_f64_k>(env, "euclideans_symmetric_f64_cuda", nk_euclideans_symmetric_f64_cuda, backend);
     run_euclideans_symmetric<nk_f32_k>(env, "euclideans_symmetric_f32_cuda", nk_euclideans_symmetric_f32_cuda, backend);
+}
+
+/** The element-wise and RoPE CUDA baseline rows over the backend's token rows. */
+void bench_each_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
+    if (!(enabled & nk_cap_cuda_k)) return;
+    constexpr nk_kernel_kind_t sum_k = nk_kernel_each_sum_k, scale_k = nk_kernel_each_scale_k;
+    constexpr nk_kernel_kind_t blend_k = nk_kernel_each_blend_k, fma_k = nk_kernel_each_fma_k;
+    run_each<nk_f64_k, sum_k, nk_f64_k>(env, "each_sum_f64_cuda", nk_each_sum_f64_cuda, backend);
+    run_each<nk_f64_k, scale_k, nk_f64_k>(env, "each_scale_f64_cuda", nk_each_scale_f64_cuda, backend);
+    run_each<nk_f64_k, blend_k, nk_f64_k>(env, "each_blend_f64_cuda", nk_each_blend_f64_cuda, backend);
+    run_each<nk_f64_k, fma_k, nk_f64_k>(env, "each_fma_f64_cuda", nk_each_fma_f64_cuda, backend);
+    run_each<nk_f32_k, sum_k, nk_f32_k>(env, "each_sum_f32_cuda", nk_each_sum_f32_cuda, backend);
+    run_each<nk_f32_k, scale_k, nk_f32_k>(env, "each_scale_f32_cuda", nk_each_scale_f32_cuda, backend);
+    run_each<nk_f32_k, blend_k, nk_f32_k>(env, "each_blend_f32_cuda", nk_each_blend_f32_cuda, backend);
+    run_each<nk_f32_k, fma_k, nk_f32_k>(env, "each_fma_f32_cuda", nk_each_fma_f32_cuda, backend);
+    run_each<nk_bf16_k, sum_k, nk_f32_k>(env, "each_sum_bf16_cuda", nk_each_sum_bf16_cuda, backend);
+    run_each<nk_bf16_k, scale_k, nk_f32_k>(env, "each_scale_bf16_cuda", nk_each_scale_bf16_cuda, backend);
+    run_each<nk_bf16_k, blend_k, nk_f32_k>(env, "each_blend_bf16_cuda", nk_each_blend_bf16_cuda, backend);
+    run_each<nk_bf16_k, fma_k, nk_f32_k>(env, "each_fma_bf16_cuda", nk_each_fma_bf16_cuda, backend);
+    run_each<nk_e4m3_k, sum_k, nk_f32_k>(env, "each_sum_e4m3_cuda", nk_each_sum_e4m3_cuda, backend);
+    run_each<nk_e4m3_k, scale_k, nk_f32_k>(env, "each_scale_e4m3_cuda", nk_each_scale_e4m3_cuda, backend);
+    run_each<nk_e4m3_k, blend_k, nk_f32_k>(env, "each_blend_e4m3_cuda", nk_each_blend_e4m3_cuda, backend);
+    run_each<nk_e4m3_k, fma_k, nk_f32_k>(env, "each_fma_e4m3_cuda", nk_each_fma_e4m3_cuda, backend);
+    run_each<nk_i8_k, sum_k, nk_f32_k>(env, "each_sum_i8_cuda", nk_each_sum_i8_cuda, backend);
+    run_each<nk_i8_k, scale_k, nk_f32_k>(env, "each_scale_i8_cuda", nk_each_scale_i8_cuda, backend);
+    run_each<nk_i8_k, blend_k, nk_f32_k>(env, "each_blend_i8_cuda", nk_each_blend_i8_cuda, backend);
+    run_each<nk_i8_k, fma_k, nk_f32_k>(env, "each_fma_i8_cuda", nk_each_fma_i8_cuda, backend);
+    run_each<nk_u8_k, sum_k, nk_f32_k>(env, "each_sum_u8_cuda", nk_each_sum_u8_cuda, backend);
+    run_each<nk_u8_k, scale_k, nk_f32_k>(env, "each_scale_u8_cuda", nk_each_scale_u8_cuda, backend);
+    run_each<nk_u8_k, blend_k, nk_f32_k>(env, "each_blend_u8_cuda", nk_each_blend_u8_cuda, backend);
+    run_each<nk_u8_k, fma_k, nk_f32_k>(env, "each_fma_u8_cuda", nk_each_fma_u8_cuda, backend);
+    run_each<nk_i32_k, sum_k, nk_f64_k>(env, "each_sum_i32_cuda", nk_each_sum_i32_cuda, backend);
+    run_each<nk_i32_k, scale_k, nk_f64_k>(env, "each_scale_i32_cuda", nk_each_scale_i32_cuda, backend);
+    run_each<nk_i32_k, blend_k, nk_f64_k>(env, "each_blend_i32_cuda", nk_each_blend_i32_cuda, backend);
+    run_each<nk_i32_k, fma_k, nk_f64_k>(env, "each_fma_i32_cuda", nk_each_fma_i32_cuda, backend);
+    run_rmsnorm<nk_f32_k>(env, "each_rmsnorm_f32_cuda", nk_each_rmsnorm_f32_cuda, backend);
+    run_rmsnorm<nk_bf16_k>(env, "each_rmsnorm_bf16_cuda", nk_each_rmsnorm_bf16_cuda, backend);
+    run_rmsnorm<nk_e4m3_k>(env, "each_rmsnorm_e4m3_cuda", nk_each_rmsnorm_e4m3_cuda, backend);
+    run_swiglu<nk_f32_k>(env, "each_swiglu_f32_cuda", nk_each_swiglu_f32_cuda, backend);
+    run_swiglu<nk_bf16_k>(env, "each_swiglu_bf16_cuda", nk_each_swiglu_bf16_cuda, backend);
+    run_swiglu<nk_e4m3_k>(env, "each_swiglu_e4m3_cuda", nk_each_swiglu_e4m3_cuda, backend);
+    run_attention_rope<nk_f32_k>(env, "attention_rope_f32_cuda", nk_attention_rope_f32_cuda, backend);
+    run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_cuda", nk_attention_rope_bf16_cuda, backend);
+    run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_cuda", nk_attention_rope_e4m3_cuda, backend);
 }
 
 /** Every Ampere entry point, compiled only when the architecture list includes the family. */
@@ -1297,6 +1344,7 @@ void bench_cross_cuda([[maybe_unused]] environment_t const &env) {
     nk_capability_t capabilities = 0;
     if (nk_cuda_capabilities_enabled(0, &capabilities) != nk_success_k) capabilities = 0;
     bench_cross_cuda(env, backend, capabilities);
+    bench_each_cuda(env, backend, capabilities);
     bench_cross_ampere(env, backend, capabilities);
     bench_cross_hopper(env, backend, capabilities);
     bench_cross_blackwell(env, backend, capabilities);

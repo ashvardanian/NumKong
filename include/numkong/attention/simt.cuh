@@ -2,7 +2,7 @@
  *  @file include/numkong/attention/simt.cuh
  *  @author Ash Vardanian
  *  @date September 25, 2026
- *  @brief Ragged attention on the SIMT cores of every CUDA and ROCm device.
+ *  @brief Ragged attention and rotary embeddings on the SIMT cores of every CUDA and ROCm device.
  *
  *  @sa include/numkong/attention.h
  *  @sa include/numkong/attention/serial.h
@@ -409,7 +409,8 @@ NUMKONG_DEVICE void nk_attention_fallback_row_(nk_dtype_t dtype, nk_attention_ar
         nk_f32_t const score = nk_attention_score_(dtype, query_row, keys_plane + position * row_bytes, depth, lane,
                                                    lanes);
         nk_f32_t weight = exp2f(score * arguments->scale2 - row_max);
-        if (dtype == nk_i8_k) weight = (nk_f32_t)(nk_u32_t)(weight * 255.0f + 0.5f);
+        // A round-down add of 2²³ truncates at the full F32 rate; sm_103 converts at 2 per clock
+        if (dtype == nk_i8_k) weight = __fadd_rd(weight * 255.0f + 0.5f, 8388608.0f) - 8388608.0f;
         weights_sum += weight;
         for (nk_size_t element = lane; element < depth; element += lanes) {
             nk_f32_t const value = dtype == nk_bf16_k
@@ -790,12 +791,96 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_(void const *kernel, nk_capabilit
 
 #pragma endregion Attention Macros
 
+#pragma region Rotary Embeddings
+
+/** Everything one RoPE launch shares, passed by value as the kernels' only argument. */
+typedef struct {
+    unsigned char const *x;
+    nk_f32_t const *cos;
+    nk_f32_t const *sin;
+    unsigned char *y;
+    nk_size_t head_count;
+    nk_size_t half_depth;
+    nk_size_t heads;
+    nk_size_t x_stride_bytes;
+    nk_size_t y_stride_bytes;
+    nk_f32_t input_scale;
+} nk_attention_rope_arguments_t;
+
+/** Validates the contract and launches @p kernel with a warp or wavefront per head of every row, at
+ *  most 2²⁰ blocks of them. */
+NUMKONG_INLINE nk_status_t nk_attention_rope_launch_(void const *kernel, nk_size_t value_bytes, void const *x,
+                                                     nk_f32_t const *cos, nk_f32_t const *sin, void *y, nk_size_t rows,
+                                                     nk_size_t head_count, nk_size_t depth, nk_size_t x_stride_bytes,
+                                                     nk_size_t y_stride_bytes, nk_f32_t input_scale, void *stream) {
+    if (depth % 2) return nk_unexpected_dimensions_k;
+    if ((((nk_size_t)x) | x_stride_bytes | ((nk_size_t)y) | y_stride_bytes) & (value_bytes - 1) ||
+        (((nk_size_t)cos) | ((nk_size_t)sin)) & 3)
+        return nk_misaligned_k;
+    nk_attention_rope_arguments_t arguments;
+    arguments.x = (unsigned char const *)x, arguments.cos = cos, arguments.sin = sin, arguments.y = (unsigned char *)y;
+    arguments.head_count = head_count, arguments.half_depth = depth / 2, arguments.heads = rows * head_count;
+    arguments.x_stride_bytes = x_stride_bytes, arguments.y_stride_bytes = y_stride_bytes;
+    arguments.input_scale = input_scale;
+    if (arguments.heads == 0 || depth == 0) return nk_success_k;
+    nk_size_t const blocks = nk_size_divide_round_up_(arguments.heads, nk_attention_threads_k / 32),
+                    blocks_limit = (nk_size_t)1 << 20;
+    void *launch_arguments[1];
+    launch_arguments[0] = &arguments;
+    return nk_device_launch_(kernel, blocks < blocks_limit ? blocks : blocks_limit, nk_attention_threads_k,
+                             launch_arguments, 0, stream);
+}
+
+/** Generates the RoPE kernel of @p input_type and its host entry point for @p isa_suffix, after
+ *  @c nk_define_attention_rope_ of the serial backend: each warp or wavefront rotates one head of
+ *  one row, so the row and head divisions happen once per head rather than once per pair. */
+#define nk_define_device_attention_rope_(input_type, isa_suffix, load_and_convert, convert_and_store)               \
+    static __global__ void nk_attention_rope_##input_type##_##isa_suffix##_kernel_(                                 \
+        nk_attention_rope_arguments_t arguments) {                                                                  \
+        unsigned const lanes = nk_warp_lanes_(), lane = threadIdx.x % lanes;                                        \
+        nk_size_t const groups = blockDim.x / lanes;                                                                \
+        for (nk_size_t head = (nk_size_t)blockIdx.x * groups + threadIdx.x / lanes; head < arguments.heads;         \
+             head += (nk_size_t)gridDim.x * groups) {                                                               \
+            nk_size_t const row = head / arguments.head_count;                                                      \
+            nk_size_t const first = (head - row * arguments.head_count) * 2 * arguments.half_depth;                 \
+            nk_f32_t const *cos_row = arguments.cos + row * arguments.half_depth;                                   \
+            nk_f32_t const *sin_row = arguments.sin + row * arguments.half_depth;                                   \
+            nk_##input_type##_t const *x =                                                                          \
+                (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride_bytes) + first;                \
+            nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride_bytes) + first; \
+            for (nk_size_t pair = lane; pair < arguments.half_depth; pair += lanes) {                               \
+                nk_f32_t low, high;                                                                                 \
+                load_and_convert(x + pair, &low);                                                                   \
+                load_and_convert(x + pair + arguments.half_depth, &high);                                           \
+                low *= arguments.input_scale, high *= arguments.input_scale;                                        \
+                nk_f32_t const cosine = cos_row[pair], sine = sin_row[pair];                                        \
+                nk_f32_t const rotated_low = low * cosine - high * sine;                                            \
+                nk_f32_t const rotated_high = low * sine + high * cosine;                                           \
+                convert_and_store(&rotated_low, y + pair);                                                          \
+                convert_and_store(&rotated_high, y + pair + arguments.half_depth);                                  \
+            }                                                                                                       \
+        }                                                                                                           \
+    }                                                                                                               \
+    NUMKONG_API nk_status_t nk_attention_rope_##input_type##_##isa_suffix(                                          \
+        nk_##input_type##_t const *x, nk_f32_t const *cos, nk_f32_t const *sin, nk_##input_type##_t *y,             \
+        nk_size_t rows, nk_size_t head_count, nk_size_t depth, nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,  \
+        nk_f32_t input_scale, void *stream) {                                                                       \
+        return nk_attention_rope_launch_((void const *)&nk_attention_rope_##input_type##_##isa_suffix##_kernel_,    \
+                                         sizeof(nk_##input_type##_t), x, cos, sin, y, rows, head_count, depth,      \
+                                         x_stride_bytes, y_stride_bytes, input_scale, stream);                      \
+    }
+
+#pragma endregion Rotary Embeddings
+
 #pragma region Instantiations
 
 #if NUMKONG_TARGET_CUDA
 nk_define_device_attention_baseline_(bf16, cuda, bf16, 2)
 nk_define_device_attention_baseline_(e4m3, cuda, e4m3, 1)
 nk_define_device_attention_baseline_(i8, cuda, i8, 1)
+nk_define_device_attention_rope_(f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_device_attention_rope_(bf16, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_device_attention_rope_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
 #elif NUMKONG_TARGET_ROCM
 nk_define_device_attention_baseline_(bf16, rocm, bf16, 2)
 nk_define_device_attention_baseline_(e4m3, rocm, e4m3, 1)

@@ -1189,6 +1189,21 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_cuda(nk_i8_t const *querie
                                                            nk_size_t output_stride_bytes, nk_f32_t scale,
                                                            nk_i64_t diagonal_offset, nk_size_t window,
                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_f32_cuda(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                   nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                   nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                   nk_f32_t input_scale, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_bf16_cuda(nk_bf16_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_bf16_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, void *stream);
+/** @copydoc nk_attention_rope_f32_best */
+NUMKONG_API nk_status_t nk_attention_rope_e4m3_cuda(nk_e4m3_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
+                                                    nk_e4m3_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
+                                                    nk_size_t x_stride_bytes, nk_size_t y_stride_bytes,
+                                                    nk_f32_t input_scale, void *stream);
 #endif // NUMKONG_TARGET_CUDA
 
 /*  NVIDIA backends from Ampere on: FlashAttention-2 on warp-level `mma.sync` up to depth 256, the

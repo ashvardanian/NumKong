@@ -6,113 +6,15 @@
  */
 
 #include "harness.hpp"
-#include "each.hpp"                 // `test_sum`, `test_rmsnorm`
+#include "each.hpp"                 // `test_scale`, `test_sum`, `test_blend`, `test_fma`, `test_rmsnorm`
 #include "numkong/each.hpp"         // `nk::add`, `nk::scale`, `nk::blend`, `nk::fma`
 #include "numkong/trigonometry.hpp" // `nk::sin`, `nk::cos`, `nk::atan` wrappers
 
 namespace ashvardanian::numkong::test {
 
-template <typename scalar_type_, typename generator_type_>
-typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
-    using scale_t = typename scalar_type_::scale_t;
-    if constexpr (scalar_type_::is_complex()) {
-        using component_raw_t = typename scalar_type_::component_t::raw_t;
-        std::uniform_real_distribution<component_raw_t> dist(-2, 2);
-        scale_t coef;
-        coef.real = dist(gen), coef.imag = dist(gen);
-        return coef;
-    }
-    else {
-        std::uniform_real_distribution<scale_t> dist(scale_t(-2), scale_t(2));
-        return dist(gen);
-    }
-}
-
-/** Unified test for scale: result[i] = alpha * x[i] + beta. */
-template <typename scalar_type_>
-error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scale_kernel_t kernel) {
-    using scalar_t = scalar_type_;
-    using scale_t = typename scalar_t::scale_t;
-    using value_t = tracked<reference_for<scalar_t>>;
-
-    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(settings.seed.value);
-    auto input = make_vector<scalar_t>(settings.dense_dimensions);
-    auto result = make_vector<scalar_t>(settings.dense_dimensions);
-
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
-        fill_random(settings, generator, input);
-        scale_t alpha = random_coef<scalar_t>(generator);
-        scale_t beta = random_coef<scalar_t>(generator);
-
-        stats.expect(kernel(input.raw_values_data(), settings.dense_dimensions, &alpha, &beta, result.raw_values_data(),
-                            nullptr));
-        for (std::size_t i = 0; i < settings.dense_dimensions; i++)
-            stats.accumulate(result[i], value_t(input[i]) * value_t(alpha) + value_t(beta));
-    }
-    return stats;
-}
-
-/** Unified test for blend: result[i] = alpha * a[i] + beta * b[i]. */
-template <typename scalar_type_>
-error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blend_kernel_t kernel) {
-    using scalar_t = scalar_type_;
-    using scale_t = typename scalar_t::scale_t;
-    using value_t = tracked<reference_for<scalar_t>>;
-
-    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(settings.seed.value);
-    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
-    auto result = make_vector<scalar_t>(settings.dense_dimensions);
-
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
-        fill_random(settings, generator, a);
-        fill_random(settings, generator, b);
-        scale_t alpha = random_coef<scalar_t>(generator);
-        scale_t beta = random_coef<scalar_t>(generator);
-
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), settings.dense_dimensions, &alpha, &beta,
-                            result.raw_values_data(), nullptr));
-        for (std::size_t i = 0; i < settings.dense_dimensions; i++)
-            stats.accumulate(result[i], value_t(a[i]) * value_t(alpha) + value_t(b[i]) * value_t(beta));
-    }
-    return stats;
-}
-
-/** Unified test for FMA: result[i] = alpha * a[i] * b[i] + beta * c[i]. */
-template <typename scalar_type_>
-error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_kernel_t kernel) {
-    using scalar_t = scalar_type_;
-    using scale_t = typename scalar_t::scale_t;
-    using value_t = tracked<reference_for<scalar_t>>;
-
-    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
-    std::mt19937 generator(settings.seed.value);
-    auto a = make_vector<scalar_t>(settings.dense_dimensions), b = make_vector<scalar_t>(settings.dense_dimensions);
-    auto c = make_vector<scalar_t>(settings.dense_dimensions);
-    auto result = make_vector<scalar_t>(settings.dense_dimensions);
-
-    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
-         steady_clock_t::now() < deadline;) {
-        fill_random(settings, generator, a);
-        fill_random(settings, generator, b);
-        fill_random(settings, generator, c);
-        scale_t alpha = random_coef<scalar_t>(generator);
-        scale_t beta = random_coef<scalar_t>(generator);
-
-        stats.expect(kernel(a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), settings.dense_dimensions,
-                            &alpha, &beta, result.raw_values_data(), nullptr));
-        for (std::size_t i = 0; i < settings.dense_dimensions; i++)
-            stats.accumulate(result[i], value_t(a[i]) * value_t(b[i]) * value_t(alpha) + value_t(c[i]) * value_t(beta));
-    }
-    return stats;
-}
-
 /** Smoke-test for the tensor-shaped trig wrappers @c nk::sin, @c cos and @c atan, running
  *  allocating and into-span variants on a small zero tensor, just exercising the dispatch paths,
- *  not the numerical accuracy, which the kernel tests above cover. */
+ *  not the numerical accuracy, which the scenarios of `each.hpp` cover. */
 void test_each(error_stats_section_t &check) {
 
     check.section("Elementwise Operations Serial", nk_cap_serial_k);

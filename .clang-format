@@ -146,12 +146,16 @@ StatementMacros:
   - nk_define_device_each_sum_
   - nk_define_device_each_rmsnorm_
   - nk_define_device_each_swiglu_
+  - nk_define_device_each_scale_
+  - nk_define_device_each_blend_
+  - nk_define_device_each_fma_
   - nk_define_device_attention_pack_size_
   - nk_define_device_attention_packed_shape_
   - nk_define_device_attention_pack_
   - nk_define_device_attention_baseline_packed_
   - nk_define_device_attention_baseline_
   - nk_define_device_attention_packed_
+  - nk_define_device_attention_rope_
   - nk_define_attention_rope_
   - nk_define_device_reduce_moments_
   - nk_define_device_reduce_minmax_

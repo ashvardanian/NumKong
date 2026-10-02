@@ -1338,9 +1338,19 @@ static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_attention_rope_f32_skylake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_attention_rope_f32_cuda,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1368,9 +1378,19 @@ static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_rope_bf16_skylake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_attention_rope_bf16_cuda,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1398,9 +1418,19 @@ static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_attention_rope_e4m3_skylake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_attention_rope_e4m3_cuda,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };

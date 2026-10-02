@@ -20,6 +20,122 @@
 
 namespace ashvardanian::numkong::test {
 
+/** A random α or β for @p scalar_type_, each part in [-2, 2]. */
+template <typename scalar_type_, typename generator_type_>
+typename scalar_type_::scale_t random_coef(generator_type_ &gen) {
+    using scale_t = typename scalar_type_::scale_t;
+    if constexpr (scalar_type_::is_complex()) {
+        using component_raw_t = typename scalar_type_::component_t::raw_t;
+        std::uniform_real_distribution<component_raw_t> dist(-2, 2);
+        scale_t coef;
+        coef.real = dist(gen), coef.imag = dist(gen);
+        return coef;
+    }
+    else {
+        std::uniform_real_distribution<scale_t> dist(scale_t(-2), scale_t(2));
+        return dist(gen);
+    }
+}
+
+/** Unified test for scale: result[i] = alpha * x[i] + beta, with α and β where the kernel reads. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t>
+error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scale_kernel_t kernel) {
+    using scalar_t = scalar_type_;
+    using scale_t = typename scalar_t::scale_t;
+    using value_t = tracked<reference_for<scalar_t>>;
+    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
+    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+
+    backend_type_ backend;
+    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const count = settings.dense_dimensions;
+    auto input = scalars_t::zeros(count).value, result = scalars_t::zeros(count).value;
+    auto coefficients = bytes_t::zeros(2 * sizeof(scale_t)).value;
+    scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
+
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, input);
+        *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
+
+        backend.call(kernel, input.raw_values_data(), count, alpha, beta, result.raw_values_data());
+        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        for (std::size_t i = 0; i < count; i++)
+            stats.accumulate(result[i], value_t(input[i]) * value_t(*alpha) + value_t(*beta));
+    }
+    return stats;
+}
+
+/** Unified test for blend: result[i] = alpha * a[i] + beta * b[i], with α and β where the kernel
+ *  reads. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t>
+error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blend_kernel_t kernel) {
+    using scalar_t = scalar_type_;
+    using scale_t = typename scalar_t::scale_t;
+    using value_t = tracked<reference_for<scalar_t>>;
+    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
+    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+
+    backend_type_ backend;
+    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const count = settings.dense_dimensions;
+    auto a = scalars_t::zeros(count).value, b = scalars_t::zeros(count).value;
+    auto result = scalars_t::zeros(count).value;
+    auto coefficients = bytes_t::zeros(2 * sizeof(scale_t)).value;
+    scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
+
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
+        *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
+
+        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, alpha, beta, result.raw_values_data());
+        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        for (std::size_t i = 0; i < count; i++)
+            stats.accumulate(result[i], value_t(a[i]) * value_t(*alpha) + value_t(b[i]) * value_t(*beta));
+    }
+    return stats;
+}
+
+/** Unified test for FMA: result[i] = alpha * a[i] * b[i] + beta * c[i], with α and β where the
+ *  kernel reads. */
+template <typename scalar_type_, typename backend_type_ = host_backend_t>
+error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_kernel_t kernel) {
+    using scalar_t = scalar_type_;
+    using scale_t = typename scalar_t::scale_t;
+    using value_t = tracked<reference_for<scalar_t>>;
+    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
+    using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
+
+    backend_type_ backend;
+    error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
+    std::mt19937 generator(settings.seed.value);
+    std::size_t const count = settings.dense_dimensions;
+    auto a = scalars_t::zeros(count).value, b = scalars_t::zeros(count).value;
+    auto c = scalars_t::zeros(count).value, result = scalars_t::zeros(count).value;
+    auto coefficients = bytes_t::zeros(2 * sizeof(scale_t)).value;
+    scale_t *alpha = reinterpret_cast<scale_t *>(coefficients.raw_values_data()), *beta = alpha + 1;
+
+    for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
+         steady_clock_t::now() < deadline;) {
+        fill_random(settings, generator, a);
+        fill_random(settings, generator, b);
+        fill_random(settings, generator, c);
+        *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
+
+        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), count, alpha, beta,
+                     result.raw_values_data());
+        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        for (std::size_t i = 0; i < count; i++)
+            stats.accumulate(result[i],
+                             value_t(a[i]) * value_t(b[i]) * value_t(*alpha) + value_t(c[i]) * value_t(*beta));
+    }
+    return stats;
+}
+
 /** Element-wise sums against the C++ reference, exact for integers, as a residual add. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t>
 error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_kernel_t kernel) {

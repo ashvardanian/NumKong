@@ -1683,6 +1683,236 @@ NUMKONG_API nk_status_t nk_each_sum_f16_cuda(nk_f16_t const *a, nk_f16_t const *
 /** @copydoc nk_each_sum_bf16_best */
 NUMKONG_API nk_status_t nk_each_sum_bf16_cuda(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
                                               void *stream);
+/** @copydoc nk_each_sum_f64_best */
+NUMKONG_API nk_status_t nk_each_sum_f64_cuda(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_e4m3_best */
+NUMKONG_API nk_status_t nk_each_sum_e4m3_cuda(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_e4m3_t *result,
+                                              void *stream);
+/** @copydoc nk_each_sum_e5m2_best */
+NUMKONG_API nk_status_t nk_each_sum_e5m2_cuda(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_e5m2_t *result,
+                                              void *stream);
+/** @copydoc nk_each_sum_e2m3_best */
+NUMKONG_API nk_status_t nk_each_sum_e2m3_cuda(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_e2m3_t *result,
+                                              void *stream);
+/** @copydoc nk_each_sum_e3m2_best */
+NUMKONG_API nk_status_t nk_each_sum_e3m2_cuda(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_e3m2_t *result,
+                                              void *stream);
+/** @copydoc nk_each_sum_i8_best */
+NUMKONG_API nk_status_t nk_each_sum_i8_cuda(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
+                                            void *stream);
+/** @copydoc nk_each_sum_u8_best */
+NUMKONG_API nk_status_t nk_each_sum_u8_cuda(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
+                                            void *stream);
+/** @copydoc nk_each_sum_i16_best */
+NUMKONG_API nk_status_t nk_each_sum_i16_cuda(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_i16_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_u16_best */
+NUMKONG_API nk_status_t nk_each_sum_u16_cuda(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_u16_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_i32_best */
+NUMKONG_API nk_status_t nk_each_sum_i32_cuda(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_u32_best */
+NUMKONG_API nk_status_t nk_each_sum_u32_cuda(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_i64_best */
+NUMKONG_API nk_status_t nk_each_sum_i64_cuda(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_i64_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_u64_best */
+NUMKONG_API nk_status_t nk_each_sum_u64_cuda(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_u64_t *result,
+                                             void *stream);
+/** @copydoc nk_each_sum_f32c_best */
+NUMKONG_API nk_status_t nk_each_sum_f32c_cuda(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f32c_t *result,
+                                              void *stream);
+/** @copydoc nk_each_sum_f64c_best */
+NUMKONG_API nk_status_t nk_each_sum_f64c_cuda(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n, nk_f64c_t *result,
+                                              void *stream);
+/** @copydoc nk_each_scale_f64_best */
+NUMKONG_API nk_status_t nk_each_scale_f64_cuda(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_f64_t *result, void *stream);
+/** @copydoc nk_each_scale_f32_best */
+NUMKONG_API nk_status_t nk_each_scale_f32_cuda(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_f32_t *result, void *stream);
+/** @copydoc nk_each_scale_f16_best */
+NUMKONG_API nk_status_t nk_each_scale_f16_cuda(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_f16_t *result, void *stream);
+/** @copydoc nk_each_scale_bf16_best */
+NUMKONG_API nk_status_t nk_each_scale_bf16_cuda(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                nk_f32_t const *beta, nk_bf16_t *result, void *stream);
+/** @copydoc nk_each_scale_e4m3_best */
+NUMKONG_API nk_status_t nk_each_scale_e4m3_cuda(nk_e4m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                nk_f32_t const *beta, nk_e4m3_t *result, void *stream);
+/** @copydoc nk_each_scale_e5m2_best */
+NUMKONG_API nk_status_t nk_each_scale_e5m2_cuda(nk_e5m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                nk_f32_t const *beta, nk_e5m2_t *result, void *stream);
+/** @copydoc nk_each_scale_e2m3_best */
+NUMKONG_API nk_status_t nk_each_scale_e2m3_cuda(nk_e2m3_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                nk_f32_t const *beta, nk_e2m3_t *result, void *stream);
+/** @copydoc nk_each_scale_e3m2_best */
+NUMKONG_API nk_status_t nk_each_scale_e3m2_cuda(nk_e3m2_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                                nk_f32_t const *beta, nk_e3m2_t *result, void *stream);
+/** @copydoc nk_each_scale_i8_best */
+NUMKONG_API nk_status_t nk_each_scale_i8_cuda(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                              nk_f32_t const *beta, nk_i8_t *result, void *stream);
+/** @copydoc nk_each_scale_u8_best */
+NUMKONG_API nk_status_t nk_each_scale_u8_cuda(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                              nk_f32_t const *beta, nk_u8_t *result, void *stream);
+/** @copydoc nk_each_scale_i16_best */
+NUMKONG_API nk_status_t nk_each_scale_i16_cuda(nk_i16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_i16_t *result, void *stream);
+/** @copydoc nk_each_scale_u16_best */
+NUMKONG_API nk_status_t nk_each_scale_u16_cuda(nk_u16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_u16_t *result, void *stream);
+/** @copydoc nk_each_scale_i32_best */
+NUMKONG_API nk_status_t nk_each_scale_i32_cuda(nk_i32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_i32_t *result, void *stream);
+/** @copydoc nk_each_scale_u32_best */
+NUMKONG_API nk_status_t nk_each_scale_u32_cuda(nk_u32_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_u32_t *result, void *stream);
+/** @copydoc nk_each_scale_i64_best */
+NUMKONG_API nk_status_t nk_each_scale_i64_cuda(nk_i64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_i64_t *result, void *stream);
+/** @copydoc nk_each_scale_u64_best */
+NUMKONG_API nk_status_t nk_each_scale_u64_cuda(nk_u64_t const *a, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_u64_t *result, void *stream);
+/** @copydoc nk_each_scale_f32c_best */
+NUMKONG_API nk_status_t nk_each_scale_f32c_cuda(nk_f32c_t const *a, nk_size_t n, nk_f32c_t const *alpha,
+                                                nk_f32c_t const *beta, nk_f32c_t *result, void *stream);
+/** @copydoc nk_each_scale_f64c_best */
+NUMKONG_API nk_status_t nk_each_scale_f64c_cuda(nk_f64c_t const *a, nk_size_t n, nk_f64c_t const *alpha,
+                                                nk_f64c_t const *beta, nk_f64c_t *result, void *stream);
+/** @copydoc nk_each_blend_f64_best */
+NUMKONG_API nk_status_t nk_each_blend_f64_cuda(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_f64_t *result, void *stream);
+/** @copydoc nk_each_blend_f32_best */
+NUMKONG_API nk_status_t nk_each_blend_f32_cuda(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_f32_t *result, void *stream);
+/** @copydoc nk_each_blend_f16_best */
+NUMKONG_API nk_status_t nk_each_blend_f16_cuda(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_f16_t *result, void *stream);
+/** @copydoc nk_each_blend_bf16_best */
+NUMKONG_API nk_status_t nk_each_blend_bf16_cuda(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result,
+                                                void *stream);
+/** @copydoc nk_each_blend_e4m3_best */
+NUMKONG_API nk_status_t nk_each_blend_e4m3_cuda(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result,
+                                                void *stream);
+/** @copydoc nk_each_blend_e5m2_best */
+NUMKONG_API nk_status_t nk_each_blend_e5m2_cuda(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result,
+                                                void *stream);
+/** @copydoc nk_each_blend_e2m3_best */
+NUMKONG_API nk_status_t nk_each_blend_e2m3_cuda(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e2m3_t *result,
+                                                void *stream);
+/** @copydoc nk_each_blend_e3m2_best */
+NUMKONG_API nk_status_t nk_each_blend_e3m2_cuda(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                nk_f32_t const *alpha, nk_f32_t const *beta, nk_e3m2_t *result,
+                                                void *stream);
+/** @copydoc nk_each_blend_i8_best */
+NUMKONG_API nk_status_t nk_each_blend_i8_cuda(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                              nk_f32_t const *beta, nk_i8_t *result, void *stream);
+/** @copydoc nk_each_blend_u8_best */
+NUMKONG_API nk_status_t nk_each_blend_u8_cuda(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                              nk_f32_t const *beta, nk_u8_t *result, void *stream);
+/** @copydoc nk_each_blend_i16_best */
+NUMKONG_API nk_status_t nk_each_blend_i16_cuda(nk_i16_t const *a, nk_i16_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_i16_t *result, void *stream);
+/** @copydoc nk_each_blend_u16_best */
+NUMKONG_API nk_status_t nk_each_blend_u16_cuda(nk_u16_t const *a, nk_u16_t const *b, nk_size_t n, nk_f32_t const *alpha,
+                                               nk_f32_t const *beta, nk_u16_t *result, void *stream);
+/** @copydoc nk_each_blend_i32_best */
+NUMKONG_API nk_status_t nk_each_blend_i32_cuda(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_i32_t *result, void *stream);
+/** @copydoc nk_each_blend_u32_best */
+NUMKONG_API nk_status_t nk_each_blend_u32_cuda(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_u32_t *result, void *stream);
+/** @copydoc nk_each_blend_i64_best */
+NUMKONG_API nk_status_t nk_each_blend_i64_cuda(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_i64_t *result, void *stream);
+/** @copydoc nk_each_blend_u64_best */
+NUMKONG_API nk_status_t nk_each_blend_u64_cuda(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_f64_t const *alpha,
+                                               nk_f64_t const *beta, nk_u64_t *result, void *stream);
+/** @copydoc nk_each_blend_f32c_best */
+NUMKONG_API nk_status_t nk_each_blend_f32c_cuda(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n,
+                                                nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result,
+                                                void *stream);
+/** @copydoc nk_each_blend_f64c_best */
+NUMKONG_API nk_status_t nk_each_blend_f64c_cuda(nk_f64c_t const *a, nk_f64c_t const *b, nk_size_t n,
+                                                nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result,
+                                                void *stream);
+/** @copydoc nk_each_fma_f64_best */
+NUMKONG_API nk_status_t nk_each_fma_f64_cuda(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t n,
+                                             nk_f64_t const *alpha, nk_f64_t const *beta, nk_f64_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_f32_best */
+NUMKONG_API nk_status_t nk_each_fma_f32_cuda(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
+                                             nk_f32_t const *alpha, nk_f32_t const *beta, nk_f32_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_f16_best */
+NUMKONG_API nk_status_t nk_each_fma_f16_cuda(nk_f16_t const *a, nk_f16_t const *b, nk_f16_t const *c, nk_size_t n,
+                                             nk_f32_t const *alpha, nk_f32_t const *beta, nk_f16_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_bf16_best */
+NUMKONG_API nk_status_t nk_each_fma_bf16_cuda(nk_bf16_t const *a, nk_bf16_t const *b, nk_bf16_t const *c, nk_size_t n,
+                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_bf16_t *result,
+                                              void *stream);
+/** @copydoc nk_each_fma_e4m3_best */
+NUMKONG_API nk_status_t nk_each_fma_e4m3_cuda(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_e4m3_t const *c, nk_size_t n,
+                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e4m3_t *result,
+                                              void *stream);
+/** @copydoc nk_each_fma_e5m2_best */
+NUMKONG_API nk_status_t nk_each_fma_e5m2_cuda(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_e5m2_t const *c, nk_size_t n,
+                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e5m2_t *result,
+                                              void *stream);
+/** @copydoc nk_each_fma_e2m3_best */
+NUMKONG_API nk_status_t nk_each_fma_e2m3_cuda(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_e2m3_t const *c, nk_size_t n,
+                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e2m3_t *result,
+                                              void *stream);
+/** @copydoc nk_each_fma_e3m2_best */
+NUMKONG_API nk_status_t nk_each_fma_e3m2_cuda(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_e3m2_t const *c, nk_size_t n,
+                                              nk_f32_t const *alpha, nk_f32_t const *beta, nk_e3m2_t *result,
+                                              void *stream);
+/** @copydoc nk_each_fma_i8_best */
+NUMKONG_API nk_status_t nk_each_fma_i8_cuda(nk_i8_t const *a, nk_i8_t const *b, nk_i8_t const *c, nk_size_t n,
+                                            nk_f32_t const *alpha, nk_f32_t const *beta, nk_i8_t *result, void *stream);
+/** @copydoc nk_each_fma_u8_best */
+NUMKONG_API nk_status_t nk_each_fma_u8_cuda(nk_u8_t const *a, nk_u8_t const *b, nk_u8_t const *c, nk_size_t n,
+                                            nk_f32_t const *alpha, nk_f32_t const *beta, nk_u8_t *result, void *stream);
+/** @copydoc nk_each_fma_i16_best */
+NUMKONG_API nk_status_t nk_each_fma_i16_cuda(nk_i16_t const *a, nk_i16_t const *b, nk_i16_t const *c, nk_size_t n,
+                                             nk_f32_t const *alpha, nk_f32_t const *beta, nk_i16_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_u16_best */
+NUMKONG_API nk_status_t nk_each_fma_u16_cuda(nk_u16_t const *a, nk_u16_t const *b, nk_u16_t const *c, nk_size_t n,
+                                             nk_f32_t const *alpha, nk_f32_t const *beta, nk_u16_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_i32_best */
+NUMKONG_API nk_status_t nk_each_fma_i32_cuda(nk_i32_t const *a, nk_i32_t const *b, nk_i32_t const *c, nk_size_t n,
+                                             nk_f64_t const *alpha, nk_f64_t const *beta, nk_i32_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_u32_best */
+NUMKONG_API nk_status_t nk_each_fma_u32_cuda(nk_u32_t const *a, nk_u32_t const *b, nk_u32_t const *c, nk_size_t n,
+                                             nk_f64_t const *alpha, nk_f64_t const *beta, nk_u32_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_i64_best */
+NUMKONG_API nk_status_t nk_each_fma_i64_cuda(nk_i64_t const *a, nk_i64_t const *b, nk_i64_t const *c, nk_size_t n,
+                                             nk_f64_t const *alpha, nk_f64_t const *beta, nk_i64_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_u64_best */
+NUMKONG_API nk_status_t nk_each_fma_u64_cuda(nk_u64_t const *a, nk_u64_t const *b, nk_u64_t const *c, nk_size_t n,
+                                             nk_f64_t const *alpha, nk_f64_t const *beta, nk_u64_t *result,
+                                             void *stream);
+/** @copydoc nk_each_fma_f32c_best */
+NUMKONG_API nk_status_t nk_each_fma_f32c_cuda(nk_f32c_t const *a, nk_f32c_t const *b, nk_f32c_t const *c, nk_size_t n,
+                                              nk_f32c_t const *alpha, nk_f32c_t const *beta, nk_f32c_t *result,
+                                              void *stream);
+/** @copydoc nk_each_fma_f64c_best */
+NUMKONG_API nk_status_t nk_each_fma_f64c_cuda(nk_f64c_t const *a, nk_f64c_t const *b, nk_f64c_t const *c, nk_size_t n,
+                                              nk_f64c_t const *alpha, nk_f64c_t const *beta, nk_f64c_t *result,
+                                              void *stream);
 /** @copydoc nk_each_swiglu_f32_best */
 NUMKONG_API nk_status_t nk_each_swiglu_f32_cuda(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
                                                 nk_size_t cols, nk_size_t gate_stride_bytes, nk_size_t up_stride_bytes,

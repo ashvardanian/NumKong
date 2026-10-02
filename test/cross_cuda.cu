@@ -249,6 +249,9 @@ void test_cross_cuda(error_stats_section_t &check) {
     check("attention_causal_packed_i8_cuda",
           test_attention_causal_packed<i8_t, cuda_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_cuda, nk_attention_pack_i8_cuda, nk_attention_causal_packed_i8_cuda);
+    check("attention_rope_f32_cuda", test_attention_rope<f32_t, cuda_backend_t>, nk_attention_rope_f32_cuda);
+    check("attention_rope_bf16_cuda", test_attention_rope<bf16_t, cuda_backend_t>, nk_attention_rope_bf16_cuda);
+    check("attention_rope_e4m3_cuda", test_attention_rope<e4m3_t, cuda_backend_t>, nk_attention_rope_e4m3_cuda);
 
 #if NUMKONG_TARGET_AMPERE
     check.section("Cross Ampere", nk_cap_ampere_k);
