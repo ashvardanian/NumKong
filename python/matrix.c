@@ -16,58 +16,10 @@
  *  - packed @c b: @b [columns,depth]
  *  - result: @b [rows,columns]
  */
-#include <numkong/dots.h>
-
 #include "matrix.h"
-#include "parallel.h" // `nk_parallel_for_tiles`, tile sizes
+#include "parallel.h" // `nk_parallel_dots_packed`, `nk_parallel_dots_symmetric`
 #include "tensor.h"
-
-/** One tile of rows of C = A × Bᵀ with B pre-packed. */
-typedef struct matrix_packed_task_t {
-    nk_dots_packed_punned_t kernel;
-    void *stream;
-    char const *a;
-    void const *b_packed;
-    char *c;
-    nk_size_t rows;
-    nk_size_t columns;
-    nk_size_t depth;
-    nk_size_t a_stride;
-    nk_size_t c_stride;
-} matrix_packed_task_t;
-
-static nk_status_t matrix_packed_tile_(nk_size_t tile_index, void *context) {
-    matrix_packed_task_t const *task = (matrix_packed_task_t const *)context;
-    nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
-    nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
-                                                                               : (task->rows - row);
-    return task->kernel(task->a + row * task->a_stride, task->b_packed, task->c + row * task->c_stride, chunk,
-                        task->columns, task->depth, task->a_stride, task->c_stride, task->stream);
-}
-
-/** One tile of rows of C = A × Aᵀ. */
-typedef struct matrix_symmetric_task_t {
-    nk_dots_symmetric_punned_t kernel;
-    void *stream;
-    void const *vectors;
-    void *result;
-    nk_size_t vectors_count;
-    nk_size_t depth;
-    nk_size_t stride;
-    nk_size_t result_stride;
-    nk_size_t row_start;
-    nk_size_t row_end;
-} matrix_symmetric_task_t;
-
-static nk_status_t matrix_symmetric_tile_(nk_size_t tile_index, void *context) {
-    matrix_symmetric_task_t const *task = (matrix_symmetric_task_t const *)context;
-    nk_size_t const tile_start = task->row_start + tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
-    nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
-                                    ? NUMKONG_PARALLEL_SYMMETRIC_TILE
-                                    : (task->row_end - tile_start);
-    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride, task->result,
-                        task->result_stride, tile_start, tile_rows, task->stream);
-}
+#include "numkong/dots.h"
 
 static void PackedMatrix_dealloc(PyObject *self) {
     Py_XDECREF(((PackedMatrix *)self)->storage);
@@ -316,20 +268,17 @@ PyObject *Tensor_matmul(PyObject *self, PyObject *other) {
     // Explicit control lives in dots_packed(a, packed, threads=N), which honors the caller literally.
     nk_size_t const available_threads = nk_parallel_concurrency();
     nk_size_t const threads = nk_parallel_worthwhile(rows * n * k, available_threads) ? available_threads : 1;
-    matrix_packed_task_t task;
-    task.kernel = matmul_fn;
-    task.stream = NULL;
-    task.a = a->data;
-    task.b_packed = packed->data;
-    task.c = result->data;
-    task.rows = rows;
-    task.columns = n;
-    task.depth = k;
-    task.a_stride = row_stride;
-    task.c_stride = c_stride;
+    nk_dots_packed_task_t const task = {.kernel = matmul_fn,
+                                        .a = a->data,
+                                        .b_packed = packed->data,
+                                        .c = result->data,
+                                        .rows = rows,
+                                        .columns = n,
+                                        .depth = k,
+                                        .a_stride = row_stride,
+                                        .c_stride = c_stride};
     PyThreadState *save = PyEval_SaveThread();
-    nk_status_t const status = nk_parallel_for_tiles(nk_size_divide_round_up_(rows, NUMKONG_PARALLEL_PACKED_TILE),
-                                                     threads, matrix_packed_tile_, &task);
+    nk_status_t const status = nk_parallel_dots_packed(&task, threads);
     PyEval_RestoreThread(save);
     if (!check_status(status)) {
         Py_DECREF(result);
@@ -587,25 +536,20 @@ static PyObject *api_packed_common( //
         char *out_ptr = out_data + start_row * (Py_ssize_t)output_row_stride;
         nk_size_t slice_height = (nk_size_t)(end_row - start_row);
         PyThreadState *save = PyEval_SaveThread();
-        matrix_packed_task_t task;
-        task.kernel = kernel;
-        task.stream = stream;
-        task.a = a_ptr;
-        task.b_packed = packed->data;
-        task.c = out_ptr;
-        task.rows = slice_height;
-        task.columns = columns;
-        task.depth = depth_packed;
-        task.a_stride = input_row_stride;
-        task.c_stride = output_row_stride;
+        nk_dots_packed_task_t const task = {.kernel = kernel,
+                                            .a = a_ptr,
+                                            .b_packed = packed->data,
+                                            .c = out_ptr,
+                                            .rows = slice_height,
+                                            .columns = columns,
+                                            .depth = depth_packed,
+                                            .a_stride = input_row_stride,
+                                            .c_stride = output_row_stride,
+                                            .stream = stream};
         // A GPU parallelizes the whole slice itself, in one launch rather than the thread pool
-        nk_status_t status;
-        if (on_gpu)
-            status = kernel(a_ptr, packed->data, out_ptr, slice_height, columns, depth_packed, input_row_stride,
-                            output_row_stride, stream);
-        else
-            status = nk_parallel_for_tiles(nk_size_divide_round_up_(slice_height, NUMKONG_PARALLEL_PACKED_TILE),
-                                           threads, matrix_packed_tile_, &task);
+        nk_status_t const status = on_gpu ? kernel(task.a, task.b_packed, task.c, task.rows, task.columns, task.depth,
+                                                   task.a_stride, task.c_stride, stream)
+                                          : nk_parallel_dots_packed(&task, threads);
         PyEval_RestoreThread(save);
         if (!check_status(status)) {
             PyBuffer_Release(&a_buffer);
@@ -721,7 +665,7 @@ static PyObject *api_symmetric_common( //
         goto cleanup;
     }
 
-    nk_size_t n_vectors = (nk_size_t)vec_buf.shape[0];
+    nk_size_t vectors_count = (nk_size_t)vec_buf.shape[0];
     nk_size_t depth = (nk_size_t)vec_buf.shape[1];
     depth *= nk_dimensions_per_value(dtype);
     nk_size_t stride = (nk_size_t)vec_buf.strides[0];
@@ -730,40 +674,35 @@ static PyObject *api_symmetric_common( //
     int owns_result = 0;
     char *out_data = NULL;
     nk_size_t result_stride = 0;
-    if (!resolve_output_tensor(out_obj, n_vectors, n_vectors, out_dtype, &result, &out_data, &result_stride,
+    if (!resolve_output_tensor(out_obj, vectors_count, vectors_count, out_dtype, &result, &out_data, &result_stride,
                                &owns_result))
         goto cleanup;
 
     // Apply row-range slicing
     {
         nk_size_t row_start = (start_row >= 0) ? (nk_size_t)start_row : 0;
-        nk_size_t row_end = (end_row >= 0) ? (nk_size_t)end_row : n_vectors;
-        if (row_start > n_vectors || row_end > n_vectors || row_start > row_end) {
+        nk_size_t row_end = (end_row >= 0) ? (nk_size_t)end_row : vectors_count;
+        if (row_start > vectors_count || row_end > vectors_count || row_start > row_end) {
             PyErr_Format(PyExc_ValueError, "Invalid row range [%zu, %zu) for %zu vectors", (size_t)row_start,
-                         (size_t)row_end, (size_t)n_vectors);
+                         (size_t)row_end, (size_t)vectors_count);
             if (owns_result) Py_DECREF(result);
             goto cleanup;
         }
-        nk_size_t row_count_val = (nk_size_t)(row_end - row_start);
         PyThreadState *save = PyEval_SaveThread();
-        matrix_symmetric_task_t task;
-        task.kernel = kernel;
-        task.stream = stream;
-        task.vectors = vec_buf.buf;
-        task.result = out_data;
-        task.vectors_count = n_vectors;
-        task.depth = depth;
-        task.stride = stride;
-        task.result_stride = result_stride;
-        task.row_start = row_start;
-        task.row_end = row_end;
-        nk_status_t status;
-        if (on_gpu)
-            status = kernel(vec_buf.buf, n_vectors, depth, stride, out_data, result_stride, row_start, row_count_val,
-                            stream);
-        else
-            status = nk_parallel_for_tiles(nk_size_divide_round_up_(row_count_val, NUMKONG_PARALLEL_SYMMETRIC_TILE),
-                                           threads, matrix_symmetric_tile_, &task);
+        nk_dots_symmetric_task_t const task = {.kernel = kernel,
+                                               .vectors = vec_buf.buf,
+                                               .vectors_count = vectors_count,
+                                               .depth = depth,
+                                               .vectors_stride = stride,
+                                               .result = out_data,
+                                               .result_stride = result_stride,
+                                               .row_start = row_start,
+                                               .row_count = row_end - row_start,
+                                               .stream = stream};
+        nk_status_t const status = on_gpu
+                                       ? kernel(task.vectors, task.vectors_count, task.depth, task.vectors_stride,
+                                                task.result, task.result_stride, task.row_start, task.row_count, stream)
+                                       : nk_parallel_dots_symmetric(&task, threads);
         PyEval_RestoreThread(save);
         if (!check_status(status)) {
             if (owns_result) Py_DECREF(result);

@@ -10,11 +10,11 @@
 #ifndef NUMKONG_PYTHON_NUMKONG_H
 #define NUMKONG_PYTHON_NUMKONG_H
 
-#include <math.h>
-#include <string.h>
-
+/** Sizes arguments as @c Py_ssize_t; set before @c Python.h, which precedes every system header,
+ *  as its configuration fixes the feature macros they read. */
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <math.h>
 
 #include <numkong/numkong.h>
 #include <numkong/cast/serial.h> // `nk_scalar_buffer_*_` helpers, which only header-only builds pull in
@@ -30,7 +30,7 @@ extern "C" {
  *  buffer protocol, NumPy arrays, PyTorch tensors, etc. Only used for distance/metric APIs that
  *  expect 1D or 2D inputs.
  */
-typedef struct MatrixOrVectorView {
+typedef struct {
 
     /** Pointer to the first element. */
     char *data;
@@ -45,18 +45,18 @@ typedef struct MatrixOrVectorView {
     size_t row_stride;
 
     /** Number of dimensions, 1 or 2. */
-    int rank;
+    size_t rank;
 
     /** Logical dtype. */
     nk_dtype_t dtype;
-} MatrixOrVectorView;
+} nk_matrix_or_vector_view_t;
 
 /**
  *  @brief Lightweight view for stride-aware operations.
  *
  *  Used by impl_reduce_* functions to traverse N-dimensional tensors with arbitrary strides.
  */
-typedef struct TensorView {
+typedef struct {
 
     /** Logical dtype. */
     nk_dtype_t dtype;
@@ -72,7 +72,7 @@ typedef struct TensorView {
 
     /** Data pointer. */
     char *data;
-} TensorView;
+} nk_tensor_view_t;
 
 /** Metadata for a single dtype. */
 typedef struct {
@@ -238,34 +238,34 @@ int nk_get_buffer(PyObject *obj, Py_buffer *buffer, int flags, nk_buffer_backing
 int nk_buffer_logical_shape(Py_buffer *buffer, nk_dtype_t dtype, nk_buffer_backing_t *backing);
 
 /**
- *  @brief Parse a Python tensor object into MatrixOrVectorView.
+ *  @brief Parse a Python tensor object into nk_matrix_or_vector_view_t.
  *
  *  Extracts buffer information from any Python object supporting the buffer protocol or
  *  __array_interface__. Validates that the tensor is 1D or 2D with contiguous rows.
  *
  *  @param[in] tensor Python object supporting buffer protocol.
  *  @param[out] buffer Output Py_buffer (caller must release with PyBuffer_Release).
- *  @param[out] parsed Output MatrixOrVectorView with extracted metadata.
+ *  @param[out] parsed Output nk_matrix_or_vector_view_t with extracted metadata.
  *  @param[out] backing Backing storage for shape/strides.
  *  @return 1 on success, 0 on failure (Python exception set).
  */
-int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed, nk_buffer_backing_t *backing,
+int parse_tensor(PyObject *tensor, Py_buffer *buffer, nk_matrix_or_vector_view_t *parsed, nk_buffer_backing_t *backing,
                  nk_dtype_t dtype_hint);
 
 /**
- *  @brief Build a TensorView from any buffer-protocol object.
+ *  @brief Build a nk_tensor_view_t from any buffer-protocol object.
  *
  *  N-dimensional sibling of parse_tensor, which is limited to 1D/2D. Caller must call
  *  PyBuffer_Release(buffer) when done with the view.
  *
  *  @param[in] obj Python object exposing buffer protocol or __array_interface__.
  *  @param[out] buffer Output Py_buffer (caller must release with PyBuffer_Release).
- *  @param[out] view Output TensorView with borrowed pointers into buffer.
+ *  @param[out] view Output nk_tensor_view_t with borrowed pointers into buffer.
  *  @param[out] backing Backing storage for shape/strides (used by __array_interface__ fallback).
  *  @param[in] dtype_hint Override dtype; nk_dtype_unknown_k to infer from buffer format.
  *  @return 1 on success, 0 on failure (Python exception set).
  */
-int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffer_backing_t *backing,
+int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, nk_tensor_view_t *view, nk_buffer_backing_t *backing,
                     nk_dtype_t dtype_hint);
 
 /**

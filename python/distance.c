@@ -7,10 +7,8 @@
  *  Extracted from numkong.c. Contains all distance-metric API functions, pointer-access wrappers,
  *  cdist, and supporting implement_* helpers.
  */
-#include <math.h>
-
 #include "distance.h"
-#include "parallel.h" // `nk_parallel_for_tiles`, tile sizes
+#include "parallel.h" // `nk_parallel_dots_packed`, `nk_parallel_dots_symmetric`
 #include "tensor.h"
 
 static PyObject *implement_dense_metric( //
@@ -31,7 +29,7 @@ static PyObject *implement_dense_metric( //
     nk_capability_t capabilities = default_capabilities;
     void *stream = NULL;
     Py_buffer a_buffer, b_buffer, out_buffer;
-    MatrixOrVectorView a_parsed, b_parsed, out_parsed;
+    nk_matrix_or_vector_view_t a_parsed, b_parsed, out_parsed;
     memset(&a_buffer, 0, sizeof(Py_buffer));
     memset(&b_buffer, 0, sizeof(Py_buffer));
     memset(&out_buffer, 0, sizeof(Py_buffer));
@@ -260,7 +258,7 @@ static PyObject *implement_curved_metric( //
     nk_capability_t capabilities = default_capabilities;
     void *stream = NULL;
     Py_buffer a_buffer, b_buffer, c_buffer;
-    MatrixOrVectorView a_parsed, b_parsed, c_parsed;
+    nk_matrix_or_vector_view_t a_parsed, b_parsed, c_parsed;
     memset(&a_buffer, 0, sizeof(Py_buffer));
     memset(&b_buffer, 0, sizeof(Py_buffer));
     memset(&c_buffer, 0, sizeof(Py_buffer));
@@ -382,7 +380,7 @@ static PyObject *implement_geospatial_metric( //
     nk_capability_t capabilities = default_capabilities;
     void *stream = NULL;
     Py_buffer a_lats_buffer, a_lons_buffer, b_lats_buffer, b_lons_buffer, out_buffer;
-    MatrixOrVectorView a_lats_parsed, a_lons_parsed, b_lats_parsed, b_lons_parsed, out_parsed;
+    nk_matrix_or_vector_view_t a_lats_parsed, a_lons_parsed, b_lats_parsed, b_lons_parsed, out_parsed;
     memset(&a_lats_buffer, 0, sizeof(Py_buffer));
     memset(&a_lons_buffer, 0, sizeof(Py_buffer));
     memset(&b_lats_buffer, 0, sizeof(Py_buffer));
@@ -522,7 +520,7 @@ static PyObject *implement_sparse_metric( //
     PyObject *b_obj = args[1];
 
     Py_buffer a_buffer, b_buffer;
-    MatrixOrVectorView a_parsed, b_parsed;
+    nk_matrix_or_vector_view_t a_parsed, b_parsed;
     nk_buffer_backing_t a_backing, b_backing;
     memset(&a_buffer, 0, sizeof(Py_buffer));
     memset(&b_buffer, 0, sizeof(Py_buffer));
@@ -624,83 +622,38 @@ static nk_status_t cdist_pairwise_loop(                            //
     return nk_success_k;
 }
 
-/** One tile of rows of C = A × Aᵀ. */
-typedef struct cdist_symmetric_task_t {
-    nk_dots_symmetric_punned_t kernel;
-    void *stream;
-    char const *vectors;
-    char *result;
-    nk_size_t vectors_count;
-    nk_size_t depth;
-    nk_size_t stride;
-    nk_size_t result_stride;
-} cdist_symmetric_task_t;
-
-static nk_status_t cdist_symmetric_tile_(nk_size_t tile_index, void *context) {
-    cdist_symmetric_task_t const *task = (cdist_symmetric_task_t const *)context;
-    nk_size_t const tile_start = tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
-    nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->vectors_count)
-                                    ? NUMKONG_PARALLEL_SYMMETRIC_TILE
-                                    : (task->vectors_count - tile_start);
-    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride, task->result,
-                        task->result_stride, tile_start, tile_rows, task->stream);
-}
-
 /** Batch symmetric path: compute C = A × Aᵀ via a SIMD-optimized symmetric kernel. */
-static nk_status_t cdist_batch_symmetric(                           //
-    nk_kernel_kind_t symmetric_kind, nk_dtype_t dtype,              //
-    nk_capability_t capabilities, void *stream,                     //
-    char const *vectors, nk_size_t n_vectors, nk_size_t dimensions, //
-    nk_size_t stride, char *out, nk_size_t out_row_stride,          //
+static nk_status_t cdist_batch_symmetric(                            //
+    nk_kernel_kind_t symmetric_kind, nk_dtype_t dtype,               //
+    nk_capability_t capabilities, void *stream,                      //
+    char const *vectors, nk_size_t vectors_count, nk_size_t depth,   //
+    nk_size_t vectors_stride, char *result, nk_size_t result_stride, //
     nk_size_t threads) {
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
     nk_find_kernel_punned(symmetric_kind, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) return nk_missing_kernel_k;
 
-    cdist_symmetric_task_t task;
-    task.kernel = kernel;
-    task.stream = stream;
-    task.vectors = vectors;
-    task.result = out;
-    task.vectors_count = n_vectors;
-    task.depth = dimensions;
-    task.stride = stride;
-    task.result_stride = out_row_stride;
-    return nk_parallel_for_tiles(nk_size_divide_round_up_(n_vectors, NUMKONG_PARALLEL_SYMMETRIC_TILE), threads,
-                                 cdist_symmetric_tile_, &task);
-}
-
-/** One tile of rows of C = A × Bᵀ with B pre-packed. */
-typedef struct cdist_packed_task_t {
-    nk_dots_packed_punned_t kernel;
-    void *stream;
-    char const *a;
-    void const *b_packed;
-    char *c;
-    nk_size_t rows;
-    nk_size_t columns;
-    nk_size_t depth;
-    nk_size_t a_stride;
-    nk_size_t c_stride;
-} cdist_packed_task_t;
-
-static nk_status_t cdist_packed_tile_(nk_size_t tile_index, void *context) {
-    cdist_packed_task_t const *task = (cdist_packed_task_t const *)context;
-    nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
-    nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
-                                                                               : (task->rows - row);
-    return task->kernel(task->a + row * task->a_stride, task->b_packed, task->c + row * task->c_stride, chunk,
-                        task->columns, task->depth, task->a_stride, task->c_stride, task->stream);
+    nk_dots_symmetric_task_t const task = {.kernel = kernel,
+                                           .vectors = vectors,
+                                           .vectors_count = vectors_count,
+                                           .depth = depth,
+                                           .vectors_stride = vectors_stride,
+                                           .result = result,
+                                           .result_stride = result_stride,
+                                           .row_start = 0,
+                                           .row_count = vectors_count,
+                                           .stream = stream};
+    return nk_parallel_dots_symmetric(&task, threads);
 }
 
 /** Batch packed path: pack B, then compute C = A × Bᵀ via a SIMD-optimized kernel. */
-static nk_status_t cdist_batch_packed(                                                //
-    nk_kernel_kind_t packed_kind, nk_dtype_t dtype,                                   //
-    nk_capability_t capabilities, void *stream,                                       //
-    char const *a_start, nk_size_t a_count, nk_size_t a_stride,                       //
-    char const *b_start, nk_size_t b_count, nk_size_t b_stride, nk_size_t dimensions, //
-    char *out, nk_size_t out_row_stride, nk_size_t threads) {
+static nk_status_t cdist_batch_packed(                                     //
+    nk_kernel_kind_t packed_kind, nk_dtype_t dtype,                        //
+    nk_capability_t capabilities, void *stream,                            //
+    char const *a, nk_size_t rows, nk_size_t a_stride,                     //
+    char const *b, nk_size_t columns, nk_size_t b_stride, nk_size_t depth, //
+    char *c, nk_size_t c_stride, nk_size_t threads) {
 
     // All metric families reuse the dots pack_size / pack kernels
     nk_dots_pack_size_punned_t size_fn = NULL;
@@ -720,26 +673,23 @@ static nk_status_t cdist_batch_packed(                                          
     if (!kernel || !cap) return nk_missing_kernel_k;
 
     nk_size_t packed_size = 0;
-    nk_status_t status = size_fn(b_count, dimensions, &packed_size);
+    nk_status_t status = size_fn(columns, depth, &packed_size);
     if (status != nk_success_k) return status;
     void *b_packed = malloc(packed_size);
     if (!b_packed) return nk_bad_alloc_k;
 
-    cdist_packed_task_t task;
-    task.kernel = kernel;
-    task.stream = stream;
-    task.a = a_start;
-    task.b_packed = b_packed;
-    task.c = out;
-    task.rows = a_count;
-    task.columns = b_count;
-    task.depth = dimensions;
-    task.a_stride = a_stride;
-    task.c_stride = out_row_stride;
-    status = pack_fn(b_start, b_count, dimensions, b_stride, b_packed, 0, b_count, stream);
-    if (status == nk_success_k)
-        status = nk_parallel_for_tiles(nk_size_divide_round_up_(a_count, NUMKONG_PARALLEL_PACKED_TILE), threads,
-                                       cdist_packed_tile_, &task);
+    nk_dots_packed_task_t const task = {.kernel = kernel,
+                                        .a = a,
+                                        .b_packed = b_packed,
+                                        .c = c,
+                                        .rows = rows,
+                                        .columns = columns,
+                                        .depth = depth,
+                                        .a_stride = a_stride,
+                                        .c_stride = c_stride,
+                                        .stream = stream};
+    status = pack_fn(b, columns, depth, b_stride, b_packed, 0, columns, stream);
+    if (status == nk_success_k) status = nk_parallel_dots_packed(&task, threads);
 
     free(b_packed);
     return status;
@@ -755,7 +705,7 @@ static PyObject *implement_cdist(                        //
     PyObject *return_obj = NULL;
 
     Py_buffer a_buffer, b_buffer, out_buffer;
-    MatrixOrVectorView a_parsed, b_parsed, out_parsed;
+    nk_matrix_or_vector_view_t a_parsed, b_parsed, out_parsed;
     nk_buffer_backing_t a_backing, b_backing, out_backing;
     memset(&a_buffer, 0, sizeof(Py_buffer));
     memset(&b_buffer, 0, sizeof(Py_buffer));
@@ -1413,7 +1363,7 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
         if (!parse_dispatch_keyword(PyTuple_GET_ITEM(kwnames, i), args[nargs + i], &capabilities, &stream)) return NULL;
 
     Py_buffer a_idx_buf, a_val_buf, b_idx_buf, b_val_buf;
-    MatrixOrVectorView a_idx, a_val, b_idx, b_val;
+    nk_matrix_or_vector_view_t a_idx, a_val, b_idx, b_val;
     nk_buffer_backing_t a_idx_backing, a_val_backing, b_idx_backing, b_val_backing;
     memset(&a_idx_buf, 0, sizeof(Py_buffer));
     memset(&a_val_buf, 0, sizeof(Py_buffer));

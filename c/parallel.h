@@ -10,7 +10,7 @@
 #ifndef NUMKONG_PARALLEL_H
 #define NUMKONG_PARALLEL_H
 
-#include <numkong/types.h> // `nk_size_t`, `nk_status_t`
+#include "numkong/capabilities.h" // `nk_dots_packed_punned_t`, `nk_dots_symmetric_punned_t`
 
 #ifdef __cplusplus
 extern "C" {
@@ -46,6 +46,40 @@ nk_size_t nk_parallel_concurrency(void);
  *  @return @c nk_success_k, or the failure of the lowest-numbered worker that had one.
  */
 nk_status_t nk_parallel_for_tiles(nk_size_t tile_count, nk_size_t threads, nk_tile_body_t body, void *context);
+
+/** One C = A × Bᵀ against a packed B, for plain dtypes, named as the kernel names its arguments. */
+typedef struct {
+    nk_dots_packed_punned_t kernel;
+    char const *a;
+    void const *b_packed;
+    char *c;
+    nk_size_t rows;
+    nk_size_t columns;
+    nk_size_t depth;
+    nk_size_t a_stride;
+    nk_size_t c_stride;
+    void *stream;
+} nk_dots_packed_task_t;
+
+/** One Gram matrix C = A × Aᵀ over rows [row_start, row_start + row_count), for plain dtypes. */
+typedef struct {
+    nk_dots_symmetric_punned_t kernel;
+    char const *vectors;
+    nk_size_t vectors_count;
+    nk_size_t depth;
+    nk_size_t vectors_stride;
+    char *result;
+    nk_size_t result_stride;
+    nk_size_t row_start;
+    nk_size_t row_count;
+    void *stream;
+} nk_dots_symmetric_task_t;
+
+/** Runs @p task in tiles of @c NUMKONG_PARALLEL_PACKED_TILE rows of A on @p threads workers. */
+nk_status_t nk_parallel_dots_packed(nk_dots_packed_task_t const *task, nk_size_t threads);
+
+/** Runs @p task in tiles of @c NUMKONG_PARALLEL_SYMMETRIC_TILE rows on @p threads workers. */
+nk_status_t nk_parallel_dots_symmetric(nk_dots_symmetric_task_t const *task, nk_size_t threads);
 
 #ifdef __cplusplus
 }

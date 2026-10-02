@@ -783,25 +783,25 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
         PyErr_Format(PyExc_TypeError, "attention_rope supports f32, bf16, e4m3; got '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
-    int const ndim = x_buffer.ndim;
+    int const rank = x_buffer.ndim;
     size_t const value_bytes = nk_dtype_bytes_per_value(dtype);
-    if ((size_t)x_buffer.strides[ndim - 1] != value_bytes) {
+    if ((size_t)x_buffer.strides[rank - 1] != value_bytes) {
         PyErr_SetString(PyExc_ValueError, "attention_rope requires the last axis to be contiguous");
         goto cleanup;
     }
-    if ((nk_size_t)x_buffer.shape[ndim - 1] < (nk_size_t)(head_count * depth)) {
+    if ((nk_size_t)x_buffer.shape[rank - 1] < (nk_size_t)(head_count * depth)) {
         PyErr_SetString(PyExc_ValueError, "last axis too small for head_count * depth");
         goto cleanup;
     }
     nk_size_t rows = 1;
-    for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
-    for (int d = 0; d + 2 < ndim; ++d) {
+    for (int d = 0; d < rank - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
+    for (int d = 0; d + 2 < rank; ++d) {
         if (x_buffer.strides[d] != x_buffer.shape[d + 1] * x_buffer.strides[d + 1]) {
             PyErr_SetString(PyExc_ValueError, "attention_rope requires C-contiguous leading axes for rank > 2");
             goto cleanup;
         }
     }
-    nk_size_t const x_stride = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+    nk_size_t const x_stride = rank >= 2 ? (nk_size_t)x_buffer.strides[rank - 2] : 0;
 
     void *y_data = x_buffer.buf;
     nk_size_t y_stride = x_stride;
@@ -809,21 +809,21 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
         if (!nk_get_buffer(out_object, &y_buffer, PyBUF_WRITABLE | PyBUF_STRIDES | PyBUF_FORMAT, &y_backing))
             goto cleanup;
         got_y = 1;
-        if (y_buffer.ndim != ndim || resolve_nk_dtype_in_py_buffer(&y_buffer) != dtype) {
+        if (y_buffer.ndim != rank || resolve_nk_dtype_in_py_buffer(&y_buffer) != dtype) {
             PyErr_SetString(PyExc_ValueError, "out must have the same shape and dtype as x");
             goto cleanup;
         }
-        for (int d = 0; d < ndim; ++d)
+        for (int d = 0; d < rank; ++d)
             if (y_buffer.shape[d] != x_buffer.shape[d]) {
                 PyErr_SetString(PyExc_ValueError, "out must have the same shape as x");
                 goto cleanup;
             }
-        if ((size_t)y_buffer.strides[ndim - 1] != value_bytes) {
+        if ((size_t)y_buffer.strides[rank - 1] != value_bytes) {
             PyErr_SetString(PyExc_ValueError, "out requires the last axis to be contiguous");
             goto cleanup;
         }
         y_data = y_buffer.buf;
-        y_stride = ndim >= 2 ? (nk_size_t)y_buffer.strides[ndim - 2] : 0;
+        y_stride = rank >= 2 ? (nk_size_t)y_buffer.strides[rank - 2] : 0;
     }
 
     if (!nk_get_buffer(cos_object, &cos_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &cos_backing)) goto cleanup;

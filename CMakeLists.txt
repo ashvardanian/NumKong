@@ -902,7 +902,7 @@ if (NUMKONG_BUILD_PYTHON)
         python/distance.c python/each.c python/trigonometry.c python/mesh.c python/attention.c python/maxsim.c
         python/numpy_interop.c python/dlpack_interop.c c/parallel.c
     )
-    set_target_properties(numkong_python PROPERTIES OUTPUT_NAME "_numkong" C_STANDARD 11)
+    set_target_properties(numkong_python PROPERTIES OUTPUT_NAME "_numkong" C_STANDARD 11 C_EXTENSIONS OFF)
     target_include_directories(numkong_python PRIVATE python c)
     target_link_libraries(
         numkong_python PRIVATE numkong_static $<$<PLATFORM_ID:Linux,FreeBSD>:m>
@@ -919,7 +919,8 @@ if (NUMKONG_BUILD_NODE)
     find_package(OpenMP COMPONENTS C)
     # `CMAKE_JS_SRC` is the Windows delay-load hook and empty everywhere else.
     add_library(numkong_node SHARED javascript/numkong.c c/parallel.c ${CMAKE_JS_SRC})
-    set_target_properties(numkong_node PROPERTIES PREFIX "" SUFFIX ".node" OUTPUT_NAME "numkong" C_STANDARD 11)
+    set_target_properties(numkong_node PROPERTIES PREFIX "" SUFFIX ".node" OUTPUT_NAME "numkong" C_STANDARD 11
+                                                C_EXTENSIONS OFF)
     target_include_directories(numkong_node PRIVATE ${CMAKE_JS_INC} c)
     target_compile_definitions(numkong_node PRIVATE NAPI_VERSION=8)
     target_compile_options(numkong_node PRIVATE $<$<C_COMPILER_ID:MSVC>:/Zc:preprocessor>)

@@ -130,8 +130,8 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
         if (argc == 3) {
             // Parse explicit dtype string from 3rd argument
             char dtype_str[16];
-            size_t str_len;
-            if (napi_get_value_string_utf8(env, args[2], dtype_str, sizeof(dtype_str), &str_len) != napi_ok) {
+            size_t string_length;
+            if (napi_get_value_string_utf8(env, args[2], dtype_str, sizeof(dtype_str), &string_length) != napi_ok) {
                 napi_throw_error(env, NULL, "Third argument must be a dtype string");
                 return NULL;
             }
@@ -470,9 +470,9 @@ napi_value api_cast(napi_env env, napi_callback_info info) {
 
     // Get dtype strings
     char src_dtype_str[16], dst_dtype_str[16];
-    size_t str_len;
-    napi_get_value_string_utf8(env, args[1], src_dtype_str, sizeof(src_dtype_str), &str_len);
-    napi_get_value_string_utf8(env, args[3], dst_dtype_str, sizeof(dst_dtype_str), &str_len);
+    size_t string_length;
+    napi_get_value_string_utf8(env, args[1], src_dtype_str, sizeof(src_dtype_str), &string_length);
+    napi_get_value_string_utf8(env, args[3], dst_dtype_str, sizeof(dst_dtype_str), &string_length);
 
     // Map dtype strings to nk_dtype_t
     nk_dtype_t src_dtype = parse_dtype_string(src_dtype_str);
@@ -506,8 +506,8 @@ static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
     napi_get_value_uint32(env, args[1], &depth);
 
     char dtype_str[16];
-    size_t str_len;
-    napi_get_value_string_utf8(env, args[2], dtype_str, sizeof(dtype_str), &str_len);
+    size_t string_length;
+    napi_get_value_string_utf8(env, args[2], dtype_str, sizeof(dtype_str), &string_length);
     nk_dtype_t dtype = parse_dtype_string(dtype_str);
     if (dtype == nk_dtype_unknown_k) {
         napi_throw_error(env, NULL, "Unsupported dtype string");
@@ -554,8 +554,8 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     napi_get_value_uint32(env, args[3], &stride);
 
     char dtype_str[16];
-    size_t str_len;
-    napi_get_value_string_utf8(env, args[4], dtype_str, sizeof(dtype_str), &str_len);
+    size_t string_length;
+    napi_get_value_string_utf8(env, args[4], dtype_str, sizeof(dtype_str), &string_length);
     nk_dtype_t dtype = parse_dtype_string(dtype_str);
     if (dtype == nk_dtype_unknown_k) {
         napi_throw_error(env, NULL, "Unsupported dtype string");
@@ -611,28 +611,6 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     return result_obj;
 }
 
-/** One tile of rows of C = A × Bᵀ with B pre-packed. */
-typedef struct packed_task_t {
-    nk_dots_packed_punned_t kernel;
-    char const *a;
-    void const *b_packed;
-    char *c;
-    nk_size_t rows;
-    nk_size_t columns;
-    nk_size_t depth;
-    nk_size_t a_stride;
-    nk_size_t c_stride;
-} packed_task_t;
-
-static nk_status_t packed_tile_(nk_size_t tile_index, void *context) {
-    packed_task_t const *task = (packed_task_t const *)context;
-    nk_size_t const row = tile_index * NUMKONG_PARALLEL_PACKED_TILE;
-    nk_size_t const chunk = (row + NUMKONG_PARALLEL_PACKED_TILE <= task->rows) ? NUMKONG_PARALLEL_PACKED_TILE
-                                                                               : (task->rows - row);
-    return task->kernel(task->a + row * task->a_stride, task->b_packed, task->c + row * task->c_stride, chunk,
-                        task->columns, task->depth, task->a_stride, task->c_stride, NULL);
-}
-
 /**
  *  @brief Shared dispatcher for packed operations, dots, angulars and euclideans.
  *
@@ -677,8 +655,8 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
 
     // arg[8]: dtype string
     char dtype_str[16];
-    size_t str_len;
-    napi_get_value_string_utf8(env, args[8], dtype_str, sizeof(dtype_str), &str_len);
+    size_t string_length;
+    napi_get_value_string_utf8(env, args[8], dtype_str, sizeof(dtype_str), &string_length);
     nk_dtype_t dtype = parse_dtype_string(dtype_str);
     if (dtype == nk_dtype_unknown_k) {
         napi_throw_error(env, NULL, "Unsupported dtype string");
@@ -696,18 +674,16 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
     uint32_t threads = 1;
     if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
 
-    packed_task_t task;
-    task.kernel = kernel;
-    task.a = a_data;
-    task.b_packed = packed_data;
-    task.c = result_data;
-    task.rows = rows;
-    task.columns = columns;
-    task.depth = depth;
-    task.a_stride = a_stride;
-    task.c_stride = result_stride;
-    check_status(env, nk_parallel_for_tiles(nk_size_divide_round_up_(rows, NUMKONG_PARALLEL_PACKED_TILE), threads,
-                                            packed_tile_, &task));
+    nk_dots_packed_task_t const task = {.kernel = kernel,
+                                        .a = a_data,
+                                        .b_packed = packed_data,
+                                        .c = result_data,
+                                        .rows = rows,
+                                        .columns = columns,
+                                        .depth = depth,
+                                        .a_stride = a_stride,
+                                        .c_stride = result_stride};
+    check_status(env, nk_parallel_dots_packed(&task, threads));
     return NULL;
 }
 
@@ -719,29 +695,6 @@ static napi_value api_angulars_packed(napi_env env, napi_callback_info info) {
 }
 static napi_value api_euclideans_packed(napi_env env, napi_callback_info info) {
     return api_packed_common(env, info, nk_kernel_euclideans_packed_k);
-}
-
-/** One tile of rows of C = A × Aᵀ. */
-typedef struct symmetric_task_t {
-    nk_dots_symmetric_punned_t kernel;
-    void const *vectors;
-    void *result;
-    nk_size_t vectors_count;
-    nk_size_t depth;
-    nk_size_t stride;
-    nk_size_t result_stride;
-    nk_size_t row_start;
-    nk_size_t row_end;
-} symmetric_task_t;
-
-static nk_status_t symmetric_tile_(nk_size_t tile_index, void *context) {
-    symmetric_task_t const *task = (symmetric_task_t const *)context;
-    nk_size_t const tile_start = task->row_start + tile_index * NUMKONG_PARALLEL_SYMMETRIC_TILE;
-    nk_size_t const tile_rows = (tile_start + NUMKONG_PARALLEL_SYMMETRIC_TILE <= task->row_end)
-                                    ? NUMKONG_PARALLEL_SYMMETRIC_TILE
-                                    : (task->row_end - tile_start);
-    return task->kernel(task->vectors, task->vectors_count, task->depth, task->stride, task->result,
-                        task->result_stride, tile_start, tile_rows, NULL);
 }
 
 /**
@@ -774,9 +727,9 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     napi_typedarray_type result_type;
     napi_get_typedarray_info(env, args[1], &result_type, &result_len, &result_data, NULL, NULL);
 
-    // args[2..7]: nVectors, depth, vectorsStride, resultStride, rowStart, rowCount
-    uint32_t n_vectors, depth, vectors_stride, result_stride, row_start, row_count;
-    napi_get_value_uint32(env, args[2], &n_vectors);
+    // args[2..7]: vectorsCount, depth, vectorsStride, resultStride, rowStart, rowCount
+    uint32_t vectors_count, depth, vectors_stride, result_stride, row_start, row_count;
+    napi_get_value_uint32(env, args[2], &vectors_count);
     napi_get_value_uint32(env, args[3], &depth);
     napi_get_value_uint32(env, args[4], &vectors_stride);
     napi_get_value_uint32(env, args[5], &result_stride);
@@ -785,8 +738,8 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
 
     // arg[8]: dtype string
     char dtype_str[16];
-    size_t str_len;
-    napi_get_value_string_utf8(env, args[8], dtype_str, sizeof(dtype_str), &str_len);
+    size_t string_length;
+    napi_get_value_string_utf8(env, args[8], dtype_str, sizeof(dtype_str), &string_length);
     nk_dtype_t dtype = parse_dtype_string(dtype_str);
     if (dtype == nk_dtype_unknown_k) {
         napi_throw_error(env, NULL, "Unsupported dtype string");
@@ -804,19 +757,16 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
     uint32_t threads = 1;
     if (argc == 10) napi_get_value_uint32(env, args[9], &threads);
 
-    symmetric_task_t task;
-    task.kernel = kernel;
-    task.vectors = vectors_data;
-    task.result = result_data;
-    task.vectors_count = n_vectors;
-    task.depth = depth;
-    task.stride = vectors_stride;
-    task.result_stride = result_stride;
-    task.row_start = row_start;
-    // Widen before the sum so two `uint32_t` row bounds cannot wrap.
-    task.row_end = (nk_size_t)row_start + row_count;
-    check_status(env, nk_parallel_for_tiles(nk_size_divide_round_up_(row_count, NUMKONG_PARALLEL_SYMMETRIC_TILE),
-                                            threads, symmetric_tile_, &task));
+    nk_dots_symmetric_task_t const task = {.kernel = kernel,
+                                           .vectors = vectors_data,
+                                           .vectors_count = vectors_count,
+                                           .depth = depth,
+                                           .vectors_stride = vectors_stride,
+                                           .result = result_data,
+                                           .result_stride = result_stride,
+                                           .row_start = row_start,
+                                           .row_count = row_count};
+    check_status(env, nk_parallel_dots_symmetric(&task, threads));
     return NULL;
 }
 

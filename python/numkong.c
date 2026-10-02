@@ -632,12 +632,12 @@ int py_object_is_scalar(PyObject *obj) {
     // Check for NumPy scalar types (0D arrays or numpy.generic subclasses)
     if (PyNumber_Check(obj)) {
         // 0D numpy arrays and numpy scalars (e.g. np.int8(-11)) support the buffer protocol
-        // but have ndim == 0. Check if the object has ndim attribute == 0.
+        // but have ndim == 0. Check if the object has an ndim attribute of 0.
         PyObject *ndim_obj = PyObject_GetAttrString(obj, "ndim");
         if (ndim_obj) {
-            long ndim = PyLong_AsLong(ndim_obj);
+            long rank = PyLong_AsLong(ndim_obj);
             Py_DECREF(ndim_obj);
-            if (ndim == 0) return 1;
+            if (rank == 0) return 1;
         }
         else { PyErr_Clear(); }
     }
@@ -849,7 +849,7 @@ int nk_buffer_logical_shape(Py_buffer *buffer, nk_dtype_t dtype, nk_buffer_backi
     return 1;
 }
 
-int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed, nk_buffer_backing_t *backing,
+int parse_tensor(PyObject *tensor, Py_buffer *buffer, nk_matrix_or_vector_view_t *parsed, nk_buffer_backing_t *backing,
                  nk_dtype_t dtype_hint) {
     if (!nk_get_buffer(tensor, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing)) return 0;
 
@@ -906,7 +906,7 @@ int parse_tensor(PyObject *tensor, Py_buffer *buffer, MatrixOrVectorView *parsed
     return 1;
 }
 
-int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, TensorView *view, nk_buffer_backing_t *backing,
+int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, nk_tensor_view_t *view, nk_buffer_backing_t *backing,
                     nk_dtype_t dtype_hint) {
     if (!nk_get_buffer(obj, buffer, PyBUF_STRIDES | PyBUF_FORMAT, backing)) return 0;
     if ((size_t)buffer->ndim > NUMKONG_TENSOR_MAX_RANK) {

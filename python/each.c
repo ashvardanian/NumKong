@@ -39,7 +39,7 @@ static void flush_cast_staging(char const *staging, nk_dtype_t compute_dtype, Py
 /**
  *  @brief Resolve the destination of an N-D elementwise op and the longest shared contiguous tail.
  *
- *  All @p num_inputs operands, at most 3, are assumed same-shape and same-dtype as @p inputs[0].
+ *  All @p input_count operands, at most 3, are assumed same-shape and same-dtype as @p inputs[0].
  *  When @p out_obj is given it is acquired into @p out_buffer, must match that shape and @p dtype,
  *  may be strided, and is written in place, returning a fresh @c None; otherwise a new C-contiguous
  *  Tensor of dtype @p dtype is allocated and returned. Fills @p result_data, @p result_strides, and
@@ -564,10 +564,10 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
         PyErr_Format(PyExc_TypeError, "rmsnorm supports f32, bf16, e4m3; got '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
-    int const ndim = x_buffer.ndim;
+    int const rank = x_buffer.ndim;
     size_t const elem = nk_dtype_bytes_per_value(dtype);
-    nk_size_t const width = (nk_size_t)x_buffer.shape[ndim - 1];
-    if ((size_t)x_buffer.strides[ndim - 1] != elem) {
+    nk_size_t const width = (nk_size_t)x_buffer.shape[rank - 1];
+    if ((size_t)x_buffer.strides[rank - 1] != elem) {
         PyErr_SetString(PyExc_ValueError, "rmsnorm requires the last axis to be contiguous");
         goto cleanup;
     }
@@ -577,14 +577,14 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     }
     nk_size_t const columns = width / groups;
     nk_size_t rows = 1;
-    for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
-    for (int d = 0; d + 2 < ndim; ++d) {
+    for (int d = 0; d < rank - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
+    for (int d = 0; d + 2 < rank; ++d) {
         if (x_buffer.strides[d] != x_buffer.shape[d + 1] * x_buffer.strides[d + 1]) {
             PyErr_SetString(PyExc_ValueError, "rmsnorm requires C-contiguous leading axes for rank > 2");
             goto cleanup;
         }
     }
-    nk_size_t const x_stride = ndim >= 2 ? (nk_size_t)x_buffer.strides[ndim - 2] : 0;
+    nk_size_t const x_stride = rank >= 2 ? (nk_size_t)x_buffer.strides[rank - 2] : 0;
 
     nk_f32_t const *gamma_ptr = NULL;
     if (gamma_obj) {
@@ -618,7 +618,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
                                  &result_data, result_strides, &contiguous_tail, &return_obj))
         goto cleanup;
-    nk_size_t const y_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+    nk_size_t const y_stride = rank >= 2 ? (nk_size_t)result_strides[rank - 2] : 0;
 
     {
         PyThreadState *gil = PyEval_SaveThread();
@@ -712,22 +712,22 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
         PyErr_Format(PyExc_TypeError, "swiglu supports f32, bf16, e4m3; got '%s'", nk_dtype_python_name(dtype));
         goto cleanup;
     }
-    int const ndim = gate_buffer.ndim;
+    int const rank = gate_buffer.ndim;
     size_t const elem = nk_dtype_bytes_per_value(dtype);
-    nk_size_t const columns = (nk_size_t)gate_buffer.shape[ndim - 1];
-    if ((size_t)gate_buffer.strides[ndim - 1] != elem) {
+    nk_size_t const columns = (nk_size_t)gate_buffer.shape[rank - 1];
+    if ((size_t)gate_buffer.strides[rank - 1] != elem) {
         PyErr_SetString(PyExc_ValueError, "swiglu requires the last axis to be contiguous");
         goto cleanup;
     }
     nk_size_t rows = 1;
-    for (int d = 0; d < ndim - 1; ++d) rows *= (nk_size_t)gate_buffer.shape[d];
-    for (int d = 0; d + 2 < ndim; ++d) {
+    for (int d = 0; d < rank - 1; ++d) rows *= (nk_size_t)gate_buffer.shape[d];
+    for (int d = 0; d + 2 < rank; ++d) {
         if (gate_buffer.strides[d] != gate_buffer.shape[d + 1] * gate_buffer.strides[d + 1]) {
             PyErr_SetString(PyExc_ValueError, "swiglu requires C-contiguous leading axes for rank > 2");
             goto cleanup;
         }
     }
-    nk_size_t const gate_stride = ndim >= 2 ? (nk_size_t)gate_buffer.strides[ndim - 2] : 0;
+    nk_size_t const gate_stride = rank >= 2 ? (nk_size_t)gate_buffer.strides[rank - 2] : 0;
 
     void const *up_ptr = NUMKONG_NULL;
     nk_size_t up_stride = 0;
@@ -739,12 +739,12 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
             PyErr_SetString(PyExc_TypeError, "up dtype must match gate dtype");
             goto cleanup;
         }
-        if ((size_t)up_buffer.strides[ndim - 1] != elem) {
+        if ((size_t)up_buffer.strides[rank - 1] != elem) {
             PyErr_SetString(PyExc_ValueError, "swiglu requires up's last axis to be contiguous");
             goto cleanup;
         }
         up_ptr = up_buffer.buf;
-        up_stride = ndim >= 2 ? (nk_size_t)up_buffer.strides[ndim - 2] : 0;
+        up_stride = rank >= 2 ? (nk_size_t)up_buffer.strides[rank - 2] : 0;
     }
 
     nk_each_swiglu_punned_t kernel = NULL;
@@ -762,7 +762,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
                                  &result_data, result_strides, &contiguous_tail, &return_obj))
         goto cleanup;
-    nk_size_t const y_stride = ndim >= 2 ? (nk_size_t)result_strides[ndim - 2] : 0;
+    nk_size_t const y_stride = rank >= 2 ? (nk_size_t)result_strides[rank - 2] : 0;
 
     {
         PyThreadState *gil = PyEval_SaveThread();
@@ -846,9 +846,9 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
-    nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
-    Py_buffer const *input_bufs[] = {&a_buffer};
-    int contiguous_tail = shared_contiguous_tail_dimensions(input_bufs, 1, a_buffer.ndim);
+    nk_dtype_t out_buffer_dtype = nk_dtype_unknown_k;
+    Py_buffer const *input_buffers[] = {&a_buffer};
+    int contiguous_tail = shared_contiguous_tail_dimensions(input_buffers, 1, a_buffer.ndim);
 
     // nk.add(np.int16([1,2,3]), 5) → returns new Tensor(int16)
     if (!out_obj) {
@@ -860,9 +860,9 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     }
     // nk.add(np.int16([1,2,3]), 5, out=np.zeros(3, dtype=np.float64))
     // → kernel computes int16, then casts int16→float64 into output buffer
-    else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
-             out_buf_dtype != dtype) {
-        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
+    else if ((out_buffer_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
+             out_buffer_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buffer_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
@@ -878,8 +878,8 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     else {
         result_data = out_buffer.buf;
         for (int dim = 0; dim < a_buffer.ndim; ++dim) result_strides[dim] = out_buffer.strides[dim];
-        Py_buffer const *both_bufs[] = {&a_buffer, &out_buffer};
-        contiguous_tail = shared_contiguous_tail_dimensions(both_bufs, 2, a_buffer.ndim);
+        Py_buffer const *both_buffers[] = {&a_buffer, &out_buffer};
+        contiguous_tail = shared_contiguous_tail_dimensions(both_buffers, 2, a_buffer.ndim);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -888,7 +888,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     nk_status_t const status = each_scale_recursive(scale_kernel, stream, a_buffer.buf, result_data, &alpha_buf,
                                                     &beta_buf, a_buffer.shape, a_buffer.strides, result_strides,
                                                     a_buffer.ndim, contiguous_tail);
-    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buffer_dtype);
     PyEval_RestoreThread(gil);
     if (!check_status(status)) Py_CLEAR(return_obj);
 
@@ -959,51 +959,51 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
         goto cleanup;
     }
 
-    int const num_dims = a_buffer.ndim;
+    int const rank = a_buffer.ndim;
     nk_size_t total_elements = 1;
-    for (int dim = 0; dim < num_dims; dim++)
+    for (int dim = 0; dim < rank; dim++)
         if (!nk_size_mul_checked_(total_elements, (nk_size_t)a_buffer.shape[dim], &total_elements)) {
             PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
             goto cleanup;
         }
 
-    a_promoted = ensure_contiguous_buffer(a_buffer.buf, a_dtype, dtype, num_dims, a_buffer.shape, a_buffer.strides,
+    a_promoted = ensure_contiguous_buffer(a_buffer.buf, a_dtype, dtype, rank, a_buffer.shape, a_buffer.strides,
                                           total_elements, &a_needs_free);
     if (!a_promoted) goto cleanup;
-    b_promoted = ensure_contiguous_buffer(b_buffer.buf, b_dtype, dtype, num_dims, a_buffer.shape, b_buffer.strides,
+    b_promoted = ensure_contiguous_buffer(b_buffer.buf, b_dtype, dtype, rank, a_buffer.shape, b_buffer.strides,
                                           total_elements, &b_needs_free);
     if (!b_promoted) goto cleanup;
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     Py_ssize_t promoted_strides[NUMKONG_TENSOR_MAX_RANK];
-    compute_contiguous_strides((size_t)num_dims, a_buffer.shape, dtype, promoted_strides);
+    compute_contiguous_strides((size_t)rank, a_buffer.shape, dtype, promoted_strides);
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
-    nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
-    int contiguous_tail = num_dims;
+    nk_dtype_t out_buffer_dtype = nk_dtype_unknown_k;
+    int contiguous_tail = rank;
 
     // nk.add(np.int16([1,2,3]), np.uint16([4,5,6]))
     // → promotes to int32, returns new Tensor(int32)
     if (!out_obj) {
-        Tensor *result_tensor = Tensor_new(dtype, (size_t)num_dims, a_buffer.shape);
+        Tensor *result_tensor = Tensor_new(dtype, (size_t)rank, a_buffer.shape);
         if (!result_tensor) goto cleanup;
         return_obj = (PyObject *)result_tensor;
         result_data = result_tensor->data;
-        memcpy(result_strides, promoted_strides, num_dims * sizeof(Py_ssize_t));
+        memcpy(result_strides, promoted_strides, rank * sizeof(Py_ssize_t));
     }
     // nk.add(np.int16([1,2,3]), np.uint16([4,5,6]), out=np.zeros(3, dtype=np.float64))
     // → kernel computes int32, then casts int32→float64 into output buffer
-    else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
-             out_buf_dtype != dtype) {
-        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
+    else if ((out_buffer_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
+             out_buffer_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buffer_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
             goto cleanup;
         }
         result_data = cast_staging;
-        memcpy(result_strides, promoted_strides, num_dims * sizeof(Py_ssize_t));
+        memcpy(result_strides, promoted_strides, rank * sizeof(Py_ssize_t));
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -1011,9 +1011,9 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     // → kernel writes float32 directly into output buffer; output may be non-contiguous
     else {
         result_data = out_buffer.buf;
-        for (int dim = 0; dim < num_dims; dim++) result_strides[dim] = out_buffer.strides[dim];
-        Py_buffer const *out_bufs[] = {&out_buffer};
-        contiguous_tail = shared_contiguous_tail_dimensions(out_bufs, 1, num_dims);
+        for (int dim = 0; dim < rank; dim++) result_strides[dim] = out_buffer.strides[dim];
+        Py_buffer const *out_buffers[] = {&out_buffer};
+        contiguous_tail = shared_contiguous_tail_dimensions(out_buffers, 1, rank);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -1021,8 +1021,8 @@ static PyObject *add_array_array(PyObject *a_obj, PyObject *b_obj, PyObject *out
     PyThreadState *gil = PyEval_SaveThread();
     nk_status_t const status = each_sum_recursive(sum_kernel, stream, a_promoted, b_promoted, result_data,
                                                   a_buffer.shape, promoted_strides, promoted_strides, result_strides,
-                                                  num_dims, contiguous_tail);
-    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+                                                  rank, contiguous_tail);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buffer_dtype);
     PyEval_RestoreThread(gil);
     if (!check_status(status)) Py_CLEAR(return_obj);
 
@@ -1157,9 +1157,9 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
-    nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
-    Py_buffer const *input_bufs[] = {&a_buffer};
-    int contiguous_tail = shared_contiguous_tail_dimensions(input_bufs, 1, a_buffer.ndim);
+    nk_dtype_t out_buffer_dtype = nk_dtype_unknown_k;
+    Py_buffer const *input_buffers[] = {&a_buffer};
+    int contiguous_tail = shared_contiguous_tail_dimensions(input_buffers, 1, a_buffer.ndim);
 
     // nk.multiply(np.float32([1,2,3]), 5.0) → returns new Tensor(float32)
     if (!out_obj) {
@@ -1171,9 +1171,9 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     }
     // nk.multiply(np.int16([1,2,3]), 5, out=np.zeros(3, dtype=np.float64))
     // → kernel computes int16, then casts int16→float64 into output buffer
-    else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
-             out_buf_dtype != dtype) {
-        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
+    else if ((out_buffer_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
+             out_buffer_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buffer_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
@@ -1189,8 +1189,8 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     else {
         result_data = out_buffer.buf;
         for (int dim = 0; dim < a_buffer.ndim; ++dim) result_strides[dim] = out_buffer.strides[dim];
-        Py_buffer const *both_bufs[] = {&a_buffer, &out_buffer};
-        contiguous_tail = shared_contiguous_tail_dimensions(both_bufs, 2, a_buffer.ndim);
+        Py_buffer const *both_buffers[] = {&a_buffer, &out_buffer};
+        contiguous_tail = shared_contiguous_tail_dimensions(both_buffers, 2, a_buffer.ndim);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -1199,7 +1199,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     nk_status_t const status = each_scale_recursive(scale_kernel, stream, a_buffer.buf, result_data, &alpha_buf,
                                                     &beta_buf, a_buffer.shape, a_buffer.strides, result_strides,
                                                     a_buffer.ndim, contiguous_tail);
-    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buffer_dtype);
     PyEval_RestoreThread(gil);
     if (!check_status(status)) Py_CLEAR(return_obj);
 
@@ -1276,45 +1276,45 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
     nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
 
-    int const num_dims = a_buffer.ndim;
+    int const rank = a_buffer.ndim;
     nk_size_t total_elements = 1;
-    for (int dim = 0; dim < num_dims; dim++)
+    for (int dim = 0; dim < rank; dim++)
         if (!nk_size_mul_checked_(total_elements, (nk_size_t)a_buffer.shape[dim], &total_elements)) {
             PyErr_SetString(PyExc_OverflowError, "tensor element count overflows size_t");
             goto cleanup;
         }
 
-    a_promoted = ensure_contiguous_buffer(a_buffer.buf, a_dtype, dtype, num_dims, a_buffer.shape, a_buffer.strides,
+    a_promoted = ensure_contiguous_buffer(a_buffer.buf, a_dtype, dtype, rank, a_buffer.shape, a_buffer.strides,
                                           total_elements, &a_needs_free);
     if (!a_promoted) goto cleanup;
-    b_promoted = ensure_contiguous_buffer(b_buffer.buf, b_dtype, dtype, num_dims, a_buffer.shape, b_buffer.strides,
+    b_promoted = ensure_contiguous_buffer(b_buffer.buf, b_dtype, dtype, rank, a_buffer.shape, b_buffer.strides,
                                           total_elements, &b_needs_free);
     if (!b_promoted) goto cleanup;
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     Py_ssize_t promoted_strides[NUMKONG_TENSOR_MAX_RANK];
-    compute_contiguous_strides((size_t)num_dims, a_buffer.shape, dtype, promoted_strides);
+    compute_contiguous_strides((size_t)rank, a_buffer.shape, dtype, promoted_strides);
 
     char *result_data = NULL;
     Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
-    nk_dtype_t out_buf_dtype = nk_dtype_unknown_k;
-    int contiguous_tail = num_dims;
+    nk_dtype_t out_buffer_dtype = nk_dtype_unknown_k;
+    int contiguous_tail = rank;
 
     // nk.multiply(np.int16([1,2,3]), np.uint16([4,5,6]))
     // → promotes to int32, returns new Tensor(int32), zero-filled to prevent 0*NaN=NaN
     if (!out_obj) {
-        Tensor *result_tensor = Tensor_new(dtype, (size_t)num_dims, a_buffer.shape);
+        Tensor *result_tensor = Tensor_new(dtype, (size_t)rank, a_buffer.shape);
         if (!result_tensor) goto cleanup;
         memset(result_tensor->data, 0, total_elements * element_size); // prevent 0*NaN=NaN
         return_obj = (PyObject *)result_tensor;
         result_data = result_tensor->data;
-        memcpy(result_strides, promoted_strides, num_dims * sizeof(Py_ssize_t));
+        memcpy(result_strides, promoted_strides, rank * sizeof(Py_ssize_t));
     }
     // nk.multiply(np.int16([1,2,3]), np.uint16([4,5,6]), out=np.zeros(3, dtype=np.float64))
     // → kernel computes int32, then casts int32→float64 into output buffer
-    else if ((out_buf_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
-             out_buf_dtype != dtype) {
-        if (!validate_cast_writeback_target(&out_buffer, out_buf_dtype)) goto cleanup;
+    else if ((out_buffer_dtype = resolve_nk_dtype_in_py_buffer(&out_buffer)) != nk_dtype_unknown_k &&
+             out_buffer_dtype != dtype) {
+        if (!validate_cast_writeback_target(&out_buffer, out_buffer_dtype)) goto cleanup;
         cast_staging = PyMem_Malloc(total_elements * element_size + NUMKONG_TENSOR_PADDING_);
         if (!cast_staging) {
             PyErr_NoMemory();
@@ -1322,7 +1322,7 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
         }
         result_data = cast_staging;
         memset(result_data, 0, total_elements * element_size); // prevent 0*NaN=NaN
-        memcpy(result_strides, promoted_strides, num_dims * sizeof(Py_ssize_t));
+        memcpy(result_strides, promoted_strides, rank * sizeof(Py_ssize_t));
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -1330,9 +1330,9 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     // → kernel writes float32 directly into output buffer; output may be non-contiguous
     else {
         result_data = out_buffer.buf;
-        for (int dim = 0; dim < num_dims; dim++) result_strides[dim] = out_buffer.strides[dim];
-        Py_buffer const *out_bufs[] = {&out_buffer};
-        contiguous_tail = shared_contiguous_tail_dimensions(out_bufs, 1, num_dims);
+        for (int dim = 0; dim < rank; dim++) result_strides[dim] = out_buffer.strides[dim];
+        Py_buffer const *out_buffers[] = {&out_buffer};
+        contiguous_tail = shared_contiguous_tail_dimensions(out_buffers, 1, rank);
         return_obj = Py_None;
         Py_INCREF(Py_None);
     }
@@ -1340,8 +1340,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     PyThreadState *gil = PyEval_SaveThread();
     nk_status_t const status = each_fma_recursive(
         fma_kernel, stream, a_promoted, b_promoted, result_data, result_data, &alpha_buf, &beta_buf, a_buffer.shape,
-        promoted_strides, promoted_strides, result_strides, result_strides, num_dims, contiguous_tail);
-    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buf_dtype);
+        promoted_strides, promoted_strides, result_strides, result_strides, rank, contiguous_tail);
+    if (status == nk_success_k && cast_staging) flush_cast_staging(cast_staging, dtype, &out_buffer, out_buffer_dtype);
     PyEval_RestoreThread(gil);
     if (!check_status(status)) Py_CLEAR(return_obj);
 

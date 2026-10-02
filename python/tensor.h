@@ -278,7 +278,7 @@ int buffers_shapes_match(Py_buffer const *first, Py_buffer const *second);
 char *validate_out_py_buffer(Py_buffer const *out_buffer, Py_buffer const *input_buffer, nk_dtype_t expected_dtype);
 
 /** Compute the number of trailing contiguous dimensions shared across multiple buffers. */
-size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t num_buffers, size_t num_dims);
+size_t shared_contiguous_tail_dimensions(Py_buffer const *buffers[], size_t buffer_count, size_t rank);
 
 /** Recursively apply a binary sum kernel to N-D tensors, stopping at the first failure. */
 nk_status_t each_sum_recursive(                                    //
@@ -345,7 +345,7 @@ PyObject *api_argmax(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
 int elementwise_prepare_out(                                                    //
     PyObject *out_obj, Py_buffer *out_buffer, nk_buffer_backing_t *out_backing, //
-    Py_buffer const **inputs, size_t num_inputs, nk_dtype_t dtype,              //
+    Py_buffer const **inputs, size_t input_count, nk_dtype_t dtype,             //
     char **result_data, Py_ssize_t *result_strides, int *contiguous_tail,       //
     PyObject **return_obj);
 

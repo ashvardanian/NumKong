@@ -76,7 +76,7 @@
  *
  *  Strides travel in different units: NumKong keeps them in bytes, DLPack in elements, so
  *  conversion divides or multiplies by @c nk_dtype_bytes_per_value. DLPack 1.2+ requires non-NULL
- *  strides whenever ndim > 0 — the exporter conforms.
+ *  strides whenever rank > 0 — the exporter conforms.
  *
  *  FP6 uses a byte-padded layout: NumKong stores @c nk_e2m3_t and @c nk_e3m2_t as one byte each,
  *  the low 6 bits carrying the value. DLPack expresses this with `{kDLFloat6_*, 6, 1}` plus the
