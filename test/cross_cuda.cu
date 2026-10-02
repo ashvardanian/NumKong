@@ -874,6 +874,74 @@ void test_cross_cuda(error_stats_section_t &check) {
           nk_euclideans_packed_mxfp8e5m2_blackwell);
     check("euclideans_symmetric_mxfp8e5m2_blackwell", test_euclideans_symmetric<mxfp8e5m2_t, cuda_backend_t>,
           nk_euclideans_symmetric_mxfp8e5m2_blackwell);
+    check("dots_packed_i8_blackwell", test_dots_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_blackwell,
+          nk_dots_pack_i8_blackwell, nk_dots_packed_i8_blackwell);
+    check("dots_pack_i8_blackwell",
+          test_dots_pack_layout<i8_t, cuda_backend_t, nk_dots_pack_size_i8_blackwell, nk_dots_packed_shape_i8_blackwell,
+                                nk_dots_pack_i8_blackwell>);
+    check("dots_contract_i8_blackwell",
+          test_dots_launch_contract<i8_t, cuda_backend_t, nk_dots_pack_size_i8_blackwell, nk_dots_packed_i8_blackwell,
+                                    nk_dots_symmetric_i8_blackwell>);
+    check("dots_symmetric_i8_blackwell", test_dots_symmetric<i8_t, cuda_backend_t>, nk_dots_symmetric_i8_blackwell);
+    check("dots_packed_u8_blackwell", test_dots_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_blackwell,
+          nk_dots_pack_u8_blackwell, nk_dots_packed_u8_blackwell);
+    check("dots_pack_u8_blackwell",
+          test_dots_pack_layout<u8_t, cuda_backend_t, nk_dots_pack_size_u8_blackwell, nk_dots_packed_shape_u8_blackwell,
+                                nk_dots_pack_u8_blackwell>);
+    check("dots_contract_u8_blackwell",
+          test_dots_launch_contract<u8_t, cuda_backend_t, nk_dots_pack_size_u8_blackwell, nk_dots_packed_u8_blackwell,
+                                    nk_dots_symmetric_u8_blackwell>);
+    check("dots_symmetric_u8_blackwell", test_dots_symmetric<u8_t, cuda_backend_t>, nk_dots_symmetric_u8_blackwell);
+    check("dots_packed_i4_blackwell", test_dots_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_blackwell,
+          nk_dots_pack_i4_blackwell, nk_dots_packed_i4_blackwell);
+    check("dots_pack_i4_blackwell",
+          test_dots_pack_layout<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_blackwell,
+                                nk_dots_packed_shape_i4_blackwell, nk_dots_pack_i4_blackwell>);
+    check("dots_contract_i4_blackwell",
+          test_dots_launch_contract<i4x2_t, cuda_backend_t, nk_dots_pack_size_i4_blackwell, nk_dots_packed_i4_blackwell,
+                                    nk_dots_symmetric_i4_blackwell>);
+    check("dots_symmetric_i4_blackwell", test_dots_symmetric<i4x2_t, cuda_backend_t>, nk_dots_symmetric_i4_blackwell);
+    check("dots_packed_u4_blackwell", test_dots_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_blackwell,
+          nk_dots_pack_u4_blackwell, nk_dots_packed_u4_blackwell);
+    check("dots_pack_u4_blackwell",
+          test_dots_pack_layout<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_blackwell,
+                                nk_dots_packed_shape_u4_blackwell, nk_dots_pack_u4_blackwell>);
+    check("dots_contract_u4_blackwell",
+          test_dots_launch_contract<u4x2_t, cuda_backend_t, nk_dots_pack_size_u4_blackwell, nk_dots_packed_u4_blackwell,
+                                    nk_dots_symmetric_u4_blackwell>);
+    check("dots_symmetric_u4_blackwell", test_dots_symmetric<u4x2_t, cuda_backend_t>, nk_dots_symmetric_u4_blackwell);
+    check("angulars_packed_i8_blackwell", test_angulars_packed<i8_t, cuda_backend_t>, nk_dots_pack_size_i8_blackwell,
+          nk_dots_pack_i8_blackwell, nk_angulars_packed_i8_blackwell);
+    check("angulars_symmetric_i8_blackwell", test_angulars_symmetric<i8_t, cuda_backend_t>,
+          nk_angulars_symmetric_i8_blackwell);
+    check("euclideans_packed_i8_blackwell", test_euclideans_packed<i8_t, cuda_backend_t>,
+          nk_dots_pack_size_i8_blackwell, nk_dots_pack_i8_blackwell, nk_euclideans_packed_i8_blackwell);
+    check("euclideans_symmetric_i8_blackwell", test_euclideans_symmetric<i8_t, cuda_backend_t>,
+          nk_euclideans_symmetric_i8_blackwell);
+    check("angulars_packed_u8_blackwell", test_angulars_packed<u8_t, cuda_backend_t>, nk_dots_pack_size_u8_blackwell,
+          nk_dots_pack_u8_blackwell, nk_angulars_packed_u8_blackwell);
+    check("angulars_symmetric_u8_blackwell", test_angulars_symmetric<u8_t, cuda_backend_t>,
+          nk_angulars_symmetric_u8_blackwell);
+    check("euclideans_packed_u8_blackwell", test_euclideans_packed<u8_t, cuda_backend_t>,
+          nk_dots_pack_size_u8_blackwell, nk_dots_pack_u8_blackwell, nk_euclideans_packed_u8_blackwell);
+    check("euclideans_symmetric_u8_blackwell", test_euclideans_symmetric<u8_t, cuda_backend_t>,
+          nk_euclideans_symmetric_u8_blackwell);
+    check("angulars_packed_i4_blackwell", test_angulars_packed<i4x2_t, cuda_backend_t>, nk_dots_pack_size_i4_blackwell,
+          nk_dots_pack_i4_blackwell, nk_angulars_packed_i4_blackwell);
+    check("angulars_symmetric_i4_blackwell", test_angulars_symmetric<i4x2_t, cuda_backend_t>,
+          nk_angulars_symmetric_i4_blackwell);
+    check("euclideans_packed_i4_blackwell", test_euclideans_packed<i4x2_t, cuda_backend_t>,
+          nk_dots_pack_size_i4_blackwell, nk_dots_pack_i4_blackwell, nk_euclideans_packed_i4_blackwell);
+    check("euclideans_symmetric_i4_blackwell", test_euclideans_symmetric<i4x2_t, cuda_backend_t>,
+          nk_euclideans_symmetric_i4_blackwell);
+    check("angulars_packed_u4_blackwell", test_angulars_packed<u4x2_t, cuda_backend_t>, nk_dots_pack_size_u4_blackwell,
+          nk_dots_pack_u4_blackwell, nk_angulars_packed_u4_blackwell);
+    check("angulars_symmetric_u4_blackwell", test_angulars_symmetric<u4x2_t, cuda_backend_t>,
+          nk_angulars_symmetric_u4_blackwell);
+    check("euclideans_packed_u4_blackwell", test_euclideans_packed<u4x2_t, cuda_backend_t>,
+          nk_dots_pack_size_u4_blackwell, nk_dots_pack_u4_blackwell, nk_euclideans_packed_u4_blackwell);
+    check("euclideans_symmetric_u4_blackwell", test_euclideans_symmetric<u4x2_t, cuda_backend_t>,
+          nk_euclideans_symmetric_u4_blackwell);
     check("attention_bidirectional_packed_e4m3_blackwell",
           test_attention_bidirectional_packed<e4m3_t, cuda_backend_t, attention_weights_t::bits_4_k>,
           nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,

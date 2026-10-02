@@ -1133,6 +1133,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_size_i8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -1165,7 +1168,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1241,6 +1246,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_size_u8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -1273,7 +1281,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1328,6 +1338,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_size_i4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -1354,7 +1367,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1409,6 +1424,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_size_u4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -1435,7 +1453,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -2632,6 +2652,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i8_capabilities(void)
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_i8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -2664,7 +2687,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i8_capabilities(void)
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -2740,6 +2765,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u8_capabilities(void)
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_u8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -2772,7 +2800,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u8_capabilities(void)
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -2827,6 +2857,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i4_capabilities(void)
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_i4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -2853,7 +2886,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i4_capabilities(void)
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -2908,6 +2943,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u4_capabilities(void)
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_u4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -2934,7 +2972,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u4_capabilities(void)
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -4157,6 +4197,9 @@ static nk_capability_kernels_t const *nk_dots_pack_i8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_i8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_i8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -4189,7 +4232,9 @@ static nk_capability_kernels_t const *nk_dots_pack_i8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -4267,6 +4312,9 @@ static nk_capability_kernels_t const *nk_dots_pack_u8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_u8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_u8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -4299,7 +4347,9 @@ static nk_capability_kernels_t const *nk_dots_pack_u8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -4356,6 +4406,9 @@ static nk_capability_kernels_t const *nk_dots_pack_i4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_i4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_i4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -4382,7 +4435,9 @@ static nk_capability_kernels_t const *nk_dots_pack_i4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -4439,6 +4494,9 @@ static nk_capability_kernels_t const *nk_dots_pack_u4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_pack_u4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_pack_u4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -4465,7 +4523,9 @@ static nk_capability_kernels_t const *nk_dots_pack_u4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -5683,6 +5743,9 @@ static nk_capability_kernels_t const *nk_dots_packed_i8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_i8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_i8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -5715,7 +5778,9 @@ static nk_capability_kernels_t const *nk_dots_packed_i8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -5792,6 +5857,9 @@ static nk_capability_kernels_t const *nk_dots_packed_u8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_u8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_u8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -5824,7 +5892,9 @@ static nk_capability_kernels_t const *nk_dots_packed_u8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -5880,6 +5950,9 @@ static nk_capability_kernels_t const *nk_dots_packed_i4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_i4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_i4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -5906,7 +5979,9 @@ static nk_capability_kernels_t const *nk_dots_packed_i4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -5962,6 +6037,9 @@ static nk_capability_kernels_t const *nk_dots_packed_u4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_packed_u4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_packed_u4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -5988,7 +6066,9 @@ static nk_capability_kernels_t const *nk_dots_packed_u4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -7228,6 +7308,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_symmetric_i8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -7260,7 +7343,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -7339,6 +7424,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u8_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_symmetric_u8_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -7371,7 +7459,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u8_capabilities(void) {
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -7429,6 +7519,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_symmetric_i4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -7455,7 +7548,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -7513,6 +7608,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u4_capabilities(void) {
 #if NUMKONG_TARGET_HOPPER
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_hopper,
 #endif
+#if NUMKONG_TARGET_BLACKWELL
+        (nk_kernel_punned_t)&nk_dots_symmetric_u4_blackwell,
+#endif
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
@@ -7539,7 +7637,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u4_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+         nvidia},
 #else
         {0, nk_no_kernels_},
 #endif

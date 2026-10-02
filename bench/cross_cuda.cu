@@ -191,6 +191,14 @@ void print_skipped(environment_t const &env, std::string const &name, char const
     if (env.settings.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
 }
 
+/** The codes behind a kernel operand: the pointer itself, or a block-scaled reference's elements,
+ *  whose unit scales the baselines never read. */
+template <typename operand_type_>
+void const *operand_codes(operand_type_ operand) noexcept {
+    if constexpr (requires { operand->elements; }) return operand->elements;
+    else return operand;
+}
+
 /** Runs a baseline @p kernel over dense B rows through @c run_packed, with a copy of B as
  *  its pack. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
@@ -201,9 +209,10 @@ void run_unpacked(environment_t const &env, std::string const &name, reference_m
         *bytes = columns * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
         return nk_success_k;
     };
-    auto const copy = [](void const *b, void const *, std::size_t columns, std::size_t, std::size_t row_bytes,
-                         std::size_t, void *packed, std::size_t, std::size_t, void *stream) {
-        return cudaMemcpyAsync(packed, b, columns * row_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
+    auto const copy = [](auto b, std::size_t columns, std::size_t, std::size_t row_bytes, void *packed, std::size_t,
+                         std::size_t, void *stream) {
+        return cudaMemcpyAsync(packed, operand_codes(b), columns * row_bytes, cudaMemcpyDeviceToDevice,
+                               (cudaStream_t)stream);
     };
     run_packed<input_dtype_, output_type_, cuda_backend_t>(env, name, metric, packed_size, copy, kernel, backend);
 }
@@ -603,6 +612,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                     nk_dots_pack_mxfp8e4m3_blackwell, nk_dots_packed_mxfp8e4m3_blackwell, backend);
     run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_blackwell", nk_dots_pack_size_mxfp8e5m2_blackwell,
                                     nk_dots_pack_mxfp8e5m2_blackwell, nk_dots_packed_mxfp8e5m2_blackwell, backend);
+    run_dots_packed<nk_i8_k>(env, "dots_packed_i8_blackwell", nk_dots_pack_size_i8_blackwell, nk_dots_pack_i8_blackwell,
+                             nk_dots_packed_i8_blackwell, backend);
+    run_dots_packed<nk_i4_k>(env, "dots_packed_i4_blackwell", nk_dots_pack_size_i4_blackwell, nk_dots_pack_i4_blackwell,
+                             nk_dots_packed_i4_blackwell, backend);
+    run_dots_packed<nk_u8_k>(env, "dots_packed_u8_blackwell", nk_dots_pack_size_u8_blackwell, nk_dots_pack_u8_blackwell,
+                             nk_dots_packed_u8_blackwell, backend);
+    run_dots_packed<nk_u4_k>(env, "dots_packed_u4_blackwell", nk_dots_pack_size_u4_blackwell, nk_dots_pack_u4_blackwell,
+                             nk_dots_packed_u4_blackwell, backend);
 
     run_dots_symmetric<nk_bf16_k>(env, "dots_symmetric_bf16_blackwell", nk_dots_symmetric_bf16_blackwell, backend);
     run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_blackwell", nk_dots_symmetric_f16_blackwell, backend);
@@ -617,6 +634,10 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                        backend);
     run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_blackwell", nk_dots_symmetric_mxfp8e5m2_blackwell,
                                        backend);
+    run_dots_symmetric<nk_i8_k>(env, "dots_symmetric_i8_blackwell", nk_dots_symmetric_i8_blackwell, backend);
+    run_dots_symmetric<nk_i4_k>(env, "dots_symmetric_i4_blackwell", nk_dots_symmetric_i4_blackwell, backend);
+    run_dots_symmetric<nk_u8_k>(env, "dots_symmetric_u8_blackwell", nk_dots_symmetric_u8_blackwell, backend);
+    run_dots_symmetric<nk_u4_k>(env, "dots_symmetric_u4_blackwell", nk_dots_symmetric_u4_blackwell, backend);
 
     run_angulars_packed<nk_bf16_k>(env, "angulars_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
                                    nk_dots_pack_bf16_blackwell, nk_angulars_packed_bf16_blackwell, backend);
@@ -642,6 +663,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
     run_angulars_packed<nk_mxfp8e5m2_k>(env, "angulars_packed_mxfp8e5m2_blackwell",
                                         nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
                                         nk_angulars_packed_mxfp8e5m2_blackwell, backend);
+    run_angulars_packed<nk_i8_k>(env, "angulars_packed_i8_blackwell", nk_dots_pack_size_i8_blackwell,
+                                 nk_dots_pack_i8_blackwell, nk_angulars_packed_i8_blackwell, backend);
+    run_angulars_packed<nk_i4_k>(env, "angulars_packed_i4_blackwell", nk_dots_pack_size_i4_blackwell,
+                                 nk_dots_pack_i4_blackwell, nk_angulars_packed_i4_blackwell, backend);
+    run_angulars_packed<nk_u8_k>(env, "angulars_packed_u8_blackwell", nk_dots_pack_size_u8_blackwell,
+                                 nk_dots_pack_u8_blackwell, nk_angulars_packed_u8_blackwell, backend);
+    run_angulars_packed<nk_u4_k>(env, "angulars_packed_u4_blackwell", nk_dots_pack_size_u4_blackwell,
+                                 nk_dots_pack_u4_blackwell, nk_angulars_packed_u4_blackwell, backend);
 
     run_angulars_symmetric<nk_bf16_k>(env, "angulars_symmetric_bf16_blackwell", nk_angulars_symmetric_bf16_blackwell,
                                       backend);
@@ -665,6 +694,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                            nk_angulars_symmetric_mxfp8e4m3_blackwell, backend);
     run_angulars_symmetric<nk_mxfp8e5m2_k>(env, "angulars_symmetric_mxfp8e5m2_blackwell",
                                            nk_angulars_symmetric_mxfp8e5m2_blackwell, backend);
+    run_angulars_symmetric<nk_i8_k>(env, "angulars_symmetric_i8_blackwell", nk_angulars_symmetric_i8_blackwell,
+                                    backend);
+    run_angulars_symmetric<nk_i4_k>(env, "angulars_symmetric_i4_blackwell", nk_angulars_symmetric_i4_blackwell,
+                                    backend);
+    run_angulars_symmetric<nk_u8_k>(env, "angulars_symmetric_u8_blackwell", nk_angulars_symmetric_u8_blackwell,
+                                    backend);
+    run_angulars_symmetric<nk_u4_k>(env, "angulars_symmetric_u4_blackwell", nk_angulars_symmetric_u4_blackwell,
+                                    backend);
 
     run_euclideans_packed<nk_bf16_k>(env, "euclideans_packed_bf16_blackwell", nk_dots_pack_size_bf16_blackwell,
                                      nk_dots_pack_bf16_blackwell, nk_euclideans_packed_bf16_blackwell, backend);
@@ -690,6 +727,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
     run_euclideans_packed<nk_mxfp8e5m2_k>(env, "euclideans_packed_mxfp8e5m2_blackwell",
                                           nk_dots_pack_size_mxfp8e5m2_blackwell, nk_dots_pack_mxfp8e5m2_blackwell,
                                           nk_euclideans_packed_mxfp8e5m2_blackwell, backend);
+    run_euclideans_packed<nk_i8_k>(env, "euclideans_packed_i8_blackwell", nk_dots_pack_size_i8_blackwell,
+                                   nk_dots_pack_i8_blackwell, nk_euclideans_packed_i8_blackwell, backend);
+    run_euclideans_packed<nk_i4_k>(env, "euclideans_packed_i4_blackwell", nk_dots_pack_size_i4_blackwell,
+                                   nk_dots_pack_i4_blackwell, nk_euclideans_packed_i4_blackwell, backend);
+    run_euclideans_packed<nk_u8_k>(env, "euclideans_packed_u8_blackwell", nk_dots_pack_size_u8_blackwell,
+                                   nk_dots_pack_u8_blackwell, nk_euclideans_packed_u8_blackwell, backend);
+    run_euclideans_packed<nk_u4_k>(env, "euclideans_packed_u4_blackwell", nk_dots_pack_size_u4_blackwell,
+                                   nk_dots_pack_u4_blackwell, nk_euclideans_packed_u4_blackwell, backend);
 
     run_euclideans_symmetric<nk_bf16_k>(env, "euclideans_symmetric_bf16_blackwell",
                                         nk_euclideans_symmetric_bf16_blackwell, backend);
@@ -713,6 +758,14 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                              nk_euclideans_symmetric_mxfp8e4m3_blackwell, backend);
     run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_blackwell",
                                              nk_euclideans_symmetric_mxfp8e5m2_blackwell, backend);
+    run_euclideans_symmetric<nk_i8_k>(env, "euclideans_symmetric_i8_blackwell", nk_euclideans_symmetric_i8_blackwell,
+                                      backend);
+    run_euclideans_symmetric<nk_i4_k>(env, "euclideans_symmetric_i4_blackwell", nk_euclideans_symmetric_i4_blackwell,
+                                      backend);
+    run_euclideans_symmetric<nk_u8_k>(env, "euclideans_symmetric_u8_blackwell", nk_euclideans_symmetric_u8_blackwell,
+                                      backend);
+    run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_blackwell", nk_euclideans_symmetric_u4_blackwell,
+                                      backend);
     run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_blackwell",
                                            nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,
                                            nk_attention_bidirectional_packed_e4m3_blackwell, backend);
@@ -956,8 +1009,8 @@ void run_dots_with_cublaslt(environment_t const &env, std::string const &name, c
         return print_skipped(env, name, cublasLtGetStatusName(status));
     run_unpacked<input_dtype_, output_type_>(
         env, name, reference_metric_t::dot_k,
-        [plan](void const *a, void const *, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t,
-               std::size_t, std::size_t, void *stream) { return plan->launch(a, b, c, (cudaStream_t)stream); },
+        [plan](auto a, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t,
+               void *stream) { return plan->launch(operand_codes(a), b, c, (cudaStream_t)stream); },
         backend);
 }
 
@@ -972,8 +1025,8 @@ void run_dots_f64_with_cublas(environment_t const &env, std::string const &name,
     cublasSetMathMode(raw_handle, CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH);
     run_unpacked<nk_f64_k, nk::f64_t>(
         env, name, reference_metric_t::dot_k,
-        [handle](void const *a, void const *, void const *b, void *c, std::size_t rows, std::size_t columns,
-                 std::size_t depth, std::size_t a_stride, std::size_t, std::size_t, void *stream) {
+        [handle](void const *a, void const *b, void *c, std::size_t rows, std::size_t columns, std::size_t depth,
+                 std::size_t a_stride, std::size_t, void *stream) {
             double const alpha = 1, beta = 0;
             cublasSetStream(handle.get(), (cudaStream_t)stream);
             cublasStatus_t const status = cublasGemmEx(
@@ -1383,9 +1436,8 @@ void run_spatials_with_cuvs(environment_t const &env, std::string const &name, r
     std::uint8_t const bits = std::uint8_t(nk_dtype_bits(input_dtype_));
     run_unpacked<input_dtype_, nk::f32_t>(
         env, name, metric,
-        [resources, distance, bits](void const *a, void const *, void const *b, void *c, std::size_t rows,
-                                    std::size_t columns, std::size_t depth, std::size_t a_stride, std::size_t,
-                                    std::size_t, void *stream) {
+        [resources, distance, bits](void const *a, void const *b, void *c, std::size_t rows, std::size_t columns,
+                                    std::size_t depth, std::size_t a_stride, std::size_t, void *stream) {
             if (a_stride * 8 != depth * bits) return cudaErrorInvalidPitchValue;
             std::int64_t a_shape[2] = {std::int64_t(rows), std::int64_t(depth)};
             std::int64_t b_shape[2] = {std::int64_t(columns), std::int64_t(depth)};

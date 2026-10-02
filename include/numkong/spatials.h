@@ -4209,6 +4209,78 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_mxfp8e5m2_blackwell(nk_mxfp8e5m2
                                                                     nk_size_t stride, nk_f32_t *result,
                                                                     nk_size_t result_stride, nk_size_t row_start,
                                                                     nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i8_blackwell(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_blackwell(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_blackwell(nk_i8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_blackwell(nk_i8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u8_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u8_blackwell(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_blackwell(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_blackwell(nk_u8_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u8_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_blackwell(nk_u8_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_i4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_i4_blackwell(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_i4_blackwell(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_i4_blackwell(nk_i4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_i4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i4_blackwell(nk_i4x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
+/** @copydoc nk_angulars_packed_u4_best */
+NUMKONG_API nk_status_t nk_angulars_packed_u4_blackwell(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                        nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                        nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_angulars_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_angulars_symmetric_u4_blackwell(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                           nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                           nk_size_t result_stride, nk_size_t row_start,
+                                                           nk_size_t row_count, void *stream);
+/** @copydoc nk_euclideans_packed_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_packed_u4_blackwell(nk_u4x2_t const *a, void const *b_packed, nk_f32_t *c,
+                                                          nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                          nk_size_t a_stride, nk_size_t c_stride, void *stream);
+/** @copydoc nk_euclideans_symmetric_u4_best */
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_blackwell(nk_u4x2_t const *vectors, nk_size_t vectors_count,
+                                                             nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                             nk_size_t result_stride, nk_size_t row_start,
+                                                             nk_size_t row_count, void *stream);
 #endif // NUMKONG_TARGET_BLACKWELL
 
 /*  NVIDIA backends for the compute capability 12.x family, with Float8, Float6 and Float4 products
