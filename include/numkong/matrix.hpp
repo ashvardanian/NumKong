@@ -98,44 +98,50 @@ status_t dots_pack(in_type_ const *b, std::size_t row_count, std::size_t depth, 
 
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f64_t>)
-            return static_cast<status_t>(nk_dots_pack_f64_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                               row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_f64_best(b_raw, NUMKONG_NULL, row_count, depth, b_stride_in_bytes,
+                                                               0, b_packed, 0, row_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f32_t>)
-            return static_cast<status_t>(nk_dots_pack_f32_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                               row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_f32_best(b_raw, NUMKONG_NULL, row_count, depth, b_stride_in_bytes,
+                                                               0, b_packed, 0, row_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t>)
-            return static_cast<status_t>(nk_dots_pack_f16_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                               row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_f16_best(b_raw, NUMKONG_NULL, row_count, depth, b_stride_in_bytes,
+                                                               0, b_packed, 0, row_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
-            return static_cast<status_t>(nk_dots_pack_bf16_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                                row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_bf16_best(b_raw, NUMKONG_NULL, row_count, depth,
+                                                                b_stride_in_bytes, 0, b_packed, 0, row_count,
+                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
-            return static_cast<status_t>(nk_dots_pack_i8_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                              row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_i8_best(b_raw, NUMKONG_NULL, row_count, depth, b_stride_in_bytes,
+                                                              0, b_packed, 0, row_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u8_t>)
-            return static_cast<status_t>(nk_dots_pack_u8_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                              row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_u8_best(b_raw, NUMKONG_NULL, row_count, depth, b_stride_in_bytes,
+                                                              0, b_packed, 0, row_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-            return static_cast<status_t>(nk_dots_pack_e4m3_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                                row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_e4m3_best(b_raw, NUMKONG_NULL, row_count, depth,
+                                                                b_stride_in_bytes, 0, b_packed, 0, row_count,
+                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e5m2_t>)
-            return static_cast<status_t>(nk_dots_pack_e5m2_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                                row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_e5m2_best(b_raw, NUMKONG_NULL, row_count, depth,
+                                                                b_stride_in_bytes, 0, b_packed, 0, row_count,
+                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m3_t>)
-            return static_cast<status_t>(nk_dots_pack_e2m3_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                                row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_e2m3_best(b_raw, NUMKONG_NULL, row_count, depth,
+                                                                b_stride_in_bytes, 0, b_packed, 0, row_count,
+                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e2m1x2_t>)
-            return static_cast<status_t>(nk_dots_pack_e2m1_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                                row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_e2m1_best(b_raw, NUMKONG_NULL, row_count, depth,
+                                                                b_stride_in_bytes, 0, b_packed, 0, row_count,
+                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e3m2_t>)
-            return static_cast<status_t>(nk_dots_pack_e3m2_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                                row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_e3m2_best(b_raw, NUMKONG_NULL, row_count, depth,
+                                                                b_stride_in_bytes, 0, b_packed, 0, row_count,
+                                                                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, u4x2_t>)
-            return static_cast<status_t>(nk_dots_pack_u4_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                              row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_u4_best(b_raw, NUMKONG_NULL, row_count, depth, b_stride_in_bytes,
+                                                              0, b_packed, 0, row_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i4x2_t>)
-            return static_cast<status_t>(nk_dots_pack_i4_best(b_raw, row_count, depth, b_stride_in_bytes, b_packed, 0,
-                                                              row_count, capabilities, stream));
+            return static_cast<status_t>(nk_dots_pack_i4_best(b_raw, NUMKONG_NULL, row_count, depth, b_stride_in_bytes,
+                                                              0, b_packed, 0, row_count, capabilities, stream));
     }
     // Persist the pointer to the original B matrix and its stride
     char *b_packed_bytes = reinterpret_cast<char *>(b_packed);
@@ -276,32 +282,35 @@ status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_pack_bf16_best(
-                keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, capabilities,
-                stream));
+                keys_raw, NUMKONG_NULL, values_raw, NUMKONG_NULL, key_value_head_count, depth, segment_offsets,
+                segment_lengths, segment_count, keys_stride_in_bytes, 0, values_stride_in_bytes, 0, key_value_packed,
+                task_start, task_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_pack_e4m3_best(
-                keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, capabilities,
-                stream));
+                keys_raw, NUMKONG_NULL, values_raw, NUMKONG_NULL, key_value_head_count, depth, segment_offsets,
+                segment_lengths, segment_count, keys_stride_in_bytes, 0, values_stride_in_bytes, 0, key_value_packed,
+                task_start, task_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
-            return static_cast<status_t>(
-                nk_attention_pack_i8_best(keys_raw, values_raw, key_value_head_count, depth, segment_offsets,
-                                          segment_lengths, segment_count, keys_stride_in_bytes, values_stride_in_bytes,
-                                          key_value_packed, task_start, task_end, capabilities, stream));
+            return static_cast<status_t>(nk_attention_pack_i8_best(
+                keys_raw, NUMKONG_NULL, values_raw, NUMKONG_NULL, key_value_head_count, depth, segment_offsets,
+                segment_lengths, segment_count, keys_stride_in_bytes, 0, values_stride_in_bytes, 0, key_value_packed,
+                task_start, task_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
-        return static_cast<status_t>(nk_attention_pack_bf16_serial(
-            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, stream));
+        return static_cast<status_t>(
+            nk_attention_pack_bf16_serial(keys_raw, NUMKONG_NULL, values_raw, NUMKONG_NULL, key_value_head_count, depth,
+                                          segment_offsets, segment_lengths, segment_count, keys_stride_in_bytes, 0,
+                                          values_stride_in_bytes, 0, key_value_packed, task_start, task_end, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-        return static_cast<status_t>(nk_attention_pack_e4m3_serial(
-            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, stream));
+        return static_cast<status_t>(
+            nk_attention_pack_e4m3_serial(keys_raw, NUMKONG_NULL, values_raw, NUMKONG_NULL, key_value_head_count, depth,
+                                          segment_offsets, segment_lengths, segment_count, keys_stride_in_bytes, 0,
+                                          values_stride_in_bytes, 0, key_value_packed, task_start, task_end, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
-        return static_cast<status_t>(nk_attention_pack_i8_serial(
-            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride_in_bytes, values_stride_in_bytes, key_value_packed, task_start, task_end, stream));
+        return static_cast<status_t>(
+            nk_attention_pack_i8_serial(keys_raw, NUMKONG_NULL, values_raw, NUMKONG_NULL, key_value_head_count, depth,
+                                        segment_offsets, segment_lengths, segment_count, keys_stride_in_bytes, 0,
+                                        values_stride_in_bytes, 0, key_value_packed, task_start, task_end, stream));
     else return status_t::missing_kernel_k;
 }
 

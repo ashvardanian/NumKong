@@ -66,8 +66,10 @@ func NewDotsPackedMatrixF64(b []float64, width, depth int) DotsPackedMatrix {
 	data := make([]byte, size)
 	check(C.nk_dots_pack_f64_best(
 		(*C.nk_f64_t)(&b[0]),
+		nil,
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
+		0,
 		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width), capabilities(), nil))
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "f64"}
 }
@@ -83,8 +85,10 @@ func NewDotsPackedMatrixF32(b []float32, width, depth int) DotsPackedMatrix {
 	data := make([]byte, size)
 	check(C.nk_dots_pack_f32_best(
 		(*C.nk_f32_t)(&b[0]),
+		nil,
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
+		0,
 		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width), capabilities(), nil))
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "f32"}
 }
@@ -100,8 +104,10 @@ func NewDotsPackedMatrixI8(b []int8, width, depth int) DotsPackedMatrix {
 	data := make([]byte, size)
 	check(C.nk_dots_pack_i8_best(
 		(*C.nk_i8_t)(&b[0]),
+		nil,
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width), capabilities(), nil))
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "i8"}
 }
@@ -117,8 +123,10 @@ func NewDotsPackedMatrixU8(b []uint8, width, depth int) DotsPackedMatrix {
 	data := make([]byte, size)
 	check(C.nk_dots_pack_u8_best(
 		(*C.nk_u8_t)(&b[0]),
+		nil,
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width), capabilities(), nil))
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "u8"}
 }
@@ -136,8 +144,10 @@ func NewDotsPackedMatrixU1(b []byte, width, depth int) DotsPackedMatrix {
 	data := make([]byte, size)
 	check(C.nk_dots_pack_u1_best(
 		(*C.nk_u1x8_t)(&b[0]),
+		nil,
 		C.nk_size_t(width), C.nk_size_t(depth),
 		C.nk_size_t(bytesPerVec),
+		0,
 		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(width), capabilities(), nil))
 	return DotsPackedMatrix{data: data, width: width, depth: depth, dtype: "u1"}
 }
@@ -161,10 +171,12 @@ func DotsPackedF64(a []float64, b DotsPackedMatrix, c []float64, height int) {
 	}
 	check(C.nk_dots_packed_f64_best(
 		(*C.nk_f64_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&c[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
+		0,
 		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
@@ -183,10 +195,12 @@ func DotsPackedF32(a []float32, b DotsPackedMatrix, c []float64, height int) {
 	}
 	check(C.nk_dots_packed_f32_best(
 		(*C.nk_f32_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&c[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
+		0,
 		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
@@ -205,10 +219,12 @@ func DotsPackedI8(a []int8, b DotsPackedMatrix, c []int32, height int) {
 	}
 	check(C.nk_dots_packed_i8_best(
 		(*C.nk_i8_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_i32_t)(&c[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
+		0,
 		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
@@ -227,10 +243,12 @@ func DotsPackedU8(a []uint8, b DotsPackedMatrix, c []uint32, height int) {
 	}
 	check(C.nk_dots_packed_u8_best(
 		(*C.nk_u8_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_u32_t)(&c[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
+		0,
 		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
@@ -254,8 +272,10 @@ func DotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64) 
 func dotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
 	check(C.nk_dots_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
+		0,
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -277,8 +297,10 @@ func DotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64) 
 func dotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
 	check(C.nk_dots_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
+		0,
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -300,8 +322,10 @@ func DotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32) {
 func dotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32, rowStart, rowCount int) {
 	check(C.nk_dots_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		(*C.nk_i32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -323,8 +347,10 @@ func DotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32) {
 func dotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32, rowStart, rowCount int) {
 	check(C.nk_dots_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))

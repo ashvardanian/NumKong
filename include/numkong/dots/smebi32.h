@@ -112,8 +112,9 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_u1_smebi32(void const *b_packed, nk
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits,
-                                                nk_size_t b_stride_in_bytes, void *b_packed, nk_size_t columns_begin,
+NUMKONG_API nk_status_t nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, void const *b_scales, nk_size_t row_count,
+                                                nk_size_t depth_bits, nk_size_t b_stride_in_bytes,
+                                                nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin,
                                                 nk_size_t columns_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const svl_bytes = nk_smebi32_svl_bytes_();
@@ -377,8 +378,9 @@ __arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_u1_smebi32( //
-    nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
-    nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+    nk_u1x8_t const *a, void const *a_scales, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a,
+    nk_size_t row_count_b, nk_size_t depth_bits, nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride,
+    nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (((nk_dots_smebi32_packed_header_t const *)b_packed)->capability != nk_cap_smebi32_k) return nk_pack_mismatch_k;
     nk_sme_start_streaming_();
@@ -647,8 +649,9 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_u1_smebi32( //
-    nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride_in_bytes,
-    nk_u32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
+    nk_u1x8_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth_bits,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_u32_t *result, nk_size_t result_stride_in_bytes,
+    nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
                stride_in_bytes >= nk_size_divide_round_up_(depth_bits, 8) * sizeof(*vectors));

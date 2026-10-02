@@ -480,8 +480,8 @@ void test_cross_dispatch(error_stats_section_t &check, [[maybe_unused]] nk_metal
     check.section("Cross Dispatch", nk_cap_metal_k);
 #if NUMKONG_HEADER_ONLY
     check("dots_packed_i8_dispatch", [](settings_t const &settings) {
-        return test_missing_library<nk_dots_packed_i8_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
-                                                            nullptr);
+        return test_missing_library<nk_dots_packed_i8_best>(settings, nullptr, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
+                                                            0, nullptr);
     });
 #else
     metal_backend_t const backend {queue};

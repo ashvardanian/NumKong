@@ -44,9 +44,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_f32_best(
         matrix: *const f32,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -55,12 +57,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_f32_best(
         queries: *const f32,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -81,9 +85,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_f64_best(
         matrix: *const f64,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -92,12 +98,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_f64_best(
         queries: *const f64,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f64,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -118,9 +126,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_f16_best(
         matrix: *const u16,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -129,12 +139,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_f16_best(
         queries: *const u16,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -155,9 +167,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_bf16_best(
         matrix: *const u16,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -166,12 +180,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_bf16_best(
         queries: *const u16,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -192,9 +208,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_i8_best(
         matrix: *const i8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -203,12 +221,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_i8_best(
         queries: *const i8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut i32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -229,9 +249,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_u8_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -240,12 +262,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_u8_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut u32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -266,9 +290,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_e4m3_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -277,12 +303,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e4m3_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -303,9 +331,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_e5m2_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -314,12 +344,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e5m2_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -340,9 +372,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_e2m3_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -351,12 +385,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e2m3_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -377,9 +413,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_e2m1_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -388,12 +426,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e2m1_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -414,9 +454,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_e3m2_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -425,12 +467,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_e3m2_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut f32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -451,9 +495,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_u4_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -462,12 +508,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_u4_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut u32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -488,9 +536,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_i4_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -499,12 +549,14 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_i4_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut i32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
@@ -513,9 +565,11 @@ extern "C" {
     // Symmetric Gram matrix (C = A × Aᵀ)
     fn nk_dots_symmetric_f32_best(
         vectors: *const f32,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -525,9 +579,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_f64_best(
         vectors: *const f64,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f64,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -537,9 +593,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_f16_best(
         vectors: *const u16,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -549,9 +607,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_bf16_best(
         vectors: *const u16,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -561,9 +621,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_i8_best(
         vectors: *const i8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut i32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -573,9 +635,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_u8_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -585,9 +649,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e4m3_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -597,9 +663,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e5m2_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -609,9 +677,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e2m3_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -621,9 +691,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e2m1_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -633,9 +705,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_e3m2_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut f32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -645,9 +719,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_u4_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -657,9 +733,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_symmetric_i4_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut i32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -683,9 +761,11 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_pack_u1_best(
         matrix: *const u8,
+        b_scales: *const c_void,
         width: nk_size_t,
         depth: nk_size_t,
         matrix_stride: nk_size_t,
+        b_scales_stride: nk_size_t,
         packed: *mut u8,
         columns_begin: nk_size_t,
         columns_end: nk_size_t,
@@ -694,21 +774,25 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_dots_packed_u1_best(
         queries: *const u8,
+        a_scales: *const c_void,
         packed: *const u8,
         output: *mut u32,
         height: nk_size_t,
         width: nk_size_t,
         depth: nk_size_t,
         query_stride: nk_size_t,
+        a_scales_stride: nk_size_t,
         output_stride: nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
     fn nk_dots_symmetric_u1_best(
         vectors: *const u8,
+        vector_scales: *const c_void,
         vector_count: nk_size_t,
         depth: nk_size_t,
         stride: nk_size_t,
+        scales_stride: nk_size_t,
         result: *mut u32,
         result_stride: nk_size_t,
         row_start: nk_size_t,
@@ -861,9 +945,11 @@ impl Dots for f32 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_f32_best(
             matrix,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -885,12 +971,14 @@ impl Dots for f32 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_f32_best(
             queries,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -910,9 +998,11 @@ impl Dots for f32 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_f32_best(
             vectors,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -956,9 +1046,11 @@ impl Dots for f64 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_f64_best(
             matrix,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -980,12 +1072,14 @@ impl Dots for f64 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_f64_best(
             queries,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1005,9 +1099,11 @@ impl Dots for f64 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_f64_best(
             vectors,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1051,9 +1147,11 @@ impl Dots for f16 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_f16_best(
             matrix as *const u16,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1075,12 +1173,14 @@ impl Dots for f16 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_f16_best(
             queries as *const u16,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1100,9 +1200,11 @@ impl Dots for f16 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_f16_best(
             vectors as *const u16,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1146,9 +1248,11 @@ impl Dots for bf16 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_bf16_best(
             matrix as *const u16,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1170,12 +1274,14 @@ impl Dots for bf16 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_bf16_best(
             queries as *const u16,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1195,9 +1301,11 @@ impl Dots for bf16 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_bf16_best(
             vectors as *const u16,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1241,9 +1349,11 @@ impl Dots for i8 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_i8_best(
             matrix,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1265,12 +1375,14 @@ impl Dots for i8 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_i8_best(
             queries,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1290,9 +1402,11 @@ impl Dots for i8 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_i8_best(
             vectors,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1336,9 +1450,11 @@ impl Dots for u8 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_u8_best(
             matrix,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1360,12 +1476,14 @@ impl Dots for u8 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_u8_best(
             queries,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1385,9 +1503,11 @@ impl Dots for u8 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_u8_best(
             vectors,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1431,9 +1551,11 @@ impl Dots for e4m3 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e4m3_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1455,12 +1577,14 @@ impl Dots for e4m3 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_e4m3_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1480,9 +1604,11 @@ impl Dots for e4m3 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e4m3_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1526,9 +1652,11 @@ impl Dots for e5m2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e5m2_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1550,12 +1678,14 @@ impl Dots for e5m2 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_e5m2_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1575,9 +1705,11 @@ impl Dots for e5m2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e5m2_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1621,9 +1753,11 @@ impl Dots for e2m3 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e2m3_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1645,12 +1779,14 @@ impl Dots for e2m3 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_e2m3_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1670,9 +1806,11 @@ impl Dots for e2m3 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e2m3_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1716,9 +1854,11 @@ impl Dots for e2m1x2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e2m1_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1740,12 +1880,14 @@ impl Dots for e2m1x2 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_e2m1_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1765,9 +1907,11 @@ impl Dots for e2m1x2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e2m1_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1811,9 +1955,11 @@ impl Dots for e3m2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_e3m2_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1835,12 +1981,14 @@ impl Dots for e3m2 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_e3m2_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1860,9 +2008,11 @@ impl Dots for e3m2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_e3m2_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -1906,9 +2056,11 @@ impl Dots for u4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_u4_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -1930,12 +2082,14 @@ impl Dots for u4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_u4_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -1955,9 +2109,11 @@ impl Dots for u4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_u4_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -2001,9 +2157,11 @@ impl Dots for i4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_i4_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -2025,12 +2183,14 @@ impl Dots for i4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_i4_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2050,9 +2210,11 @@ impl Dots for i4x2 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_i4_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,
@@ -2096,9 +2258,11 @@ impl Dots for u1x8 {
     ) -> Result<(), TensorError> {
         nk_dots_pack_u1_best(
             matrix as *const u8,
+            core::ptr::null(),
             width,
             depth,
             matrix_stride,
+            0,
             packed,
             columns_begin,
             columns_end,
@@ -2120,12 +2284,14 @@ impl Dots for u1x8 {
     ) -> Result<(), TensorError> {
         nk_dots_packed_u1_best(
             queries as *const u8,
+            core::ptr::null(),
             packed,
             output,
             height,
             width,
             depth,
             query_stride,
+            0,
             output_stride,
             enabled_cpu_capabilities_mask(),
             null_mut(),
@@ -2145,9 +2311,11 @@ impl Dots for u1x8 {
     ) -> Result<(), TensorError> {
         nk_dots_symmetric_u1_best(
             vectors as *const u8,
+            core::ptr::null(),
             vector_count,
             depth,
             stride,
+            0,
             result,
             result_stride,
             row_start,

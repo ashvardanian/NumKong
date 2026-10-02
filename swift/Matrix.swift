@@ -601,7 +601,8 @@ extension Float64: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_pack_f64_best(
-                b, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                b,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -611,7 +612,8 @@ extension Float64: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_packed_f64_best(
-                a, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                a,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -621,7 +623,8 @@ extension Float64: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_f64_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -635,7 +638,8 @@ extension Float64: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_packed_f64_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -645,7 +649,8 @@ extension Float64: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_packed_f64_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -655,7 +660,8 @@ extension Float64: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_f64_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -665,7 +671,8 @@ extension Float64: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_f64_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -695,7 +702,8 @@ extension Float32: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_pack_f32_best(
-                b, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                b,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -705,7 +713,8 @@ extension Float32: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_packed_f32_best(
-                a, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                a,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -715,7 +724,8 @@ extension Float32: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_f32_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -729,7 +739,8 @@ extension Float32: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_packed_f32_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -739,7 +750,8 @@ extension Float32: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_packed_f32_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -749,7 +761,8 @@ extension Float32: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_f32_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -759,7 +772,8 @@ extension Float32: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_f32_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -790,7 +804,8 @@ extension BFloat16: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_dots_pack_bf16_best(
-                cPtr, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -801,7 +816,8 @@ extension BFloat16: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_dots_packed_bf16_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -812,7 +828,8 @@ extension BFloat16: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_dots_symmetric_bf16_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -827,7 +844,8 @@ extension BFloat16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_angulars_packed_bf16_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -838,7 +856,8 @@ extension BFloat16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_euclideans_packed_bf16_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -849,7 +868,8 @@ extension BFloat16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_angulars_symmetric_bf16_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -860,7 +880,8 @@ extension BFloat16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_bf16_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_bf16_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -892,7 +913,8 @@ extension Float16: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_dots_pack_f16_best(
-                cPtr, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -903,7 +925,8 @@ extension Float16: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_dots_packed_f16_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -914,7 +937,8 @@ extension Float16: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_dots_symmetric_f16_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -929,7 +953,8 @@ extension Float16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_angulars_packed_f16_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -940,7 +965,8 @@ extension Float16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_euclideans_packed_f16_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -951,7 +977,8 @@ extension Float16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_angulars_symmetric_f16_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -962,7 +989,8 @@ extension Float16: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_f16_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_f16_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -994,7 +1022,8 @@ extension E5M2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_dots_pack_e5m2_best(
-                cPtr, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1005,7 +1034,8 @@ extension E5M2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_dots_packed_e5m2_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1016,7 +1046,8 @@ extension E5M2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_dots_symmetric_e5m2_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1031,7 +1062,8 @@ extension E5M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_angulars_packed_e5m2_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1042,7 +1074,8 @@ extension E5M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_euclideans_packed_e5m2_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1053,7 +1086,8 @@ extension E5M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e5m2_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1064,7 +1098,8 @@ extension E5M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e5m2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e5m2_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1095,7 +1130,8 @@ extension E4M3: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_dots_pack_e4m3_best(
-                cPtr, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1106,7 +1142,8 @@ extension E4M3: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_dots_packed_e4m3_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1117,7 +1154,8 @@ extension E4M3: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_dots_symmetric_e4m3_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1132,7 +1170,8 @@ extension E4M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_angulars_packed_e4m3_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1143,7 +1182,8 @@ extension E4M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_euclideans_packed_e4m3_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1154,7 +1194,8 @@ extension E4M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e4m3_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1165,7 +1206,8 @@ extension E4M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e4m3_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e4m3_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1196,7 +1238,8 @@ extension E3M2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_dots_pack_e3m2_best(
-                cPtr, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1207,7 +1250,8 @@ extension E3M2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_dots_packed_e3m2_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1218,7 +1262,8 @@ extension E3M2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_dots_symmetric_e3m2_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1233,7 +1278,8 @@ extension E3M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_angulars_packed_e3m2_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1244,7 +1290,8 @@ extension E3M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_euclideans_packed_e3m2_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1255,7 +1302,8 @@ extension E3M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e3m2_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1266,7 +1314,8 @@ extension E3M2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e3m2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e3m2_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1297,7 +1346,8 @@ extension E2M3: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_dots_pack_e2m3_best(
-                cPtr, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1308,7 +1358,8 @@ extension E2M3: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_dots_packed_e2m3_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1319,7 +1370,8 @@ extension E2M3: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_dots_symmetric_e2m3_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1334,7 +1386,8 @@ extension E2M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_angulars_packed_e2m3_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1345,7 +1398,8 @@ extension E2M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_euclideans_packed_e2m3_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1356,7 +1410,8 @@ extension E2M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e2m3_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1367,7 +1422,8 @@ extension E2M3: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m3_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e2m3_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1400,7 +1456,8 @@ extension E2M1x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_dots_pack_e2m1_best(
-                cPtr, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_e2m1_k)), nk_size_t(bStride), packed, 0,
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_e2m1_k)), nk_size_t(bStride), 0, packed, 0,
                 nk_size_t(n),
                 Device.cpuEnabled.native, nil
             ))
@@ -1413,8 +1470,10 @@ extension E2M1x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_dots_packed_e2m1_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_e2m1_k)),
-                nk_size_t(aStride), nk_size_t(cStride), Device.cpuEnabled.native, nil))
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_e2m1_k)),
+                nk_size_t(aStride),
+                0, nk_size_t(cStride), Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_dots_symmetric(
@@ -1424,7 +1483,8 @@ extension E2M1x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_dots_symmetric_e2m1_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1439,9 +1499,11 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_angulars_packed_e2m1_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols),
                 nk_size_t(valuesToDimensions(depth, nk_e2m1_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
+                nk_size_t(aStride),
+                0, nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1451,9 +1513,11 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_euclideans_packed_e2m1_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols),
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols),
                 nk_size_t(valuesToDimensions(depth, nk_e2m1_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
+                nk_size_t(aStride),
+                0, nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1463,7 +1527,8 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_e2m1_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1474,7 +1539,8 @@ extension E2M1x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_e2m1x2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_e2m1_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_e2m1_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1504,7 +1570,8 @@ extension Int8: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_pack_i8_best(
-                b, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                b,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1514,7 +1581,8 @@ extension Int8: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_packed_i8_best(
-                a, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                a,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1524,7 +1592,8 @@ extension Int8: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_i8_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1538,7 +1607,8 @@ extension Int8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_packed_i8_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1548,7 +1618,8 @@ extension Int8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_packed_i8_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1558,7 +1629,8 @@ extension Int8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_i8_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1568,7 +1640,8 @@ extension Int8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_i8_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1601,7 +1674,8 @@ extension I4x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_dots_pack_i4_best(
-                cPtr, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_i4_k)), nk_size_t(bStride), packed, 0,
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_i4_k)), nk_size_t(bStride), 0, packed, 0,
                 nk_size_t(n), Device.cpuEnabled.native, nil))
     }
 
@@ -1612,8 +1686,10 @@ extension I4x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_dots_packed_i4_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_i4_k)),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_i4_k)),
                 nk_size_t(aStride),
+                0,
                 nk_size_t(cStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1624,7 +1700,8 @@ extension I4x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_dots_symmetric_i4_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1639,8 +1716,10 @@ extension I4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_angulars_packed_i4_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_i4_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_i4_k)),
+                nk_size_t(aStride),
+                0, nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1650,8 +1729,10 @@ extension I4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_euclideans_packed_i4_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_i4_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_i4_k)),
+                nk_size_t(aStride),
+                0, nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1661,7 +1742,8 @@ extension I4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_i4_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1672,7 +1754,8 @@ extension I4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_i4x2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_i4_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_i4_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1702,7 +1785,8 @@ extension UInt8: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_pack_u8_best(
-                b, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), packed, 0, nk_size_t(n),
+                b,
+                nil, nk_size_t(n), nk_size_t(k), nk_size_t(bStride), 0, packed, 0, nk_size_t(n),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1712,7 +1796,8 @@ extension UInt8: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_packed_u8_best(
-                a, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), nk_size_t(cStride),
+                a,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(k), nk_size_t(aStride), 0, nk_size_t(cStride),
                 Device.cpuEnabled.native, nil))
     }
 
@@ -1722,7 +1807,8 @@ extension UInt8: NumKongDotsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_dots_symmetric_u8_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1736,7 +1822,8 @@ extension UInt8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_packed_u8_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1746,7 +1833,8 @@ extension UInt8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_packed_u8_best(
-                a, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride),
+                a,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(depth), nk_size_t(aStride), 0,
                 nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1756,7 +1844,8 @@ extension UInt8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_angulars_symmetric_u8_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1766,7 +1855,8 @@ extension UInt8: NumKongSpatialsMatrixElement {
     ) throws {
         try _nkCheck(
             nk_euclideans_symmetric_u8_best(
-                vectors, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), result, nk_size_t(resultStride),
+                vectors,
+                nil, nk_size_t(nVectors), nk_size_t(depth), nk_size_t(stride), 0, result, nk_size_t(resultStride),
                 nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1799,7 +1889,8 @@ extension U4x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_dots_pack_u4_best(
-                cPtr, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u4_k)), nk_size_t(bStride), packed, 0,
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u4_k)), nk_size_t(bStride), 0, packed, 0,
                 nk_size_t(n), Device.cpuEnabled.native, nil))
     }
 
@@ -1810,8 +1901,10 @@ extension U4x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_dots_packed_u4_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u4_k)),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u4_k)),
                 nk_size_t(aStride),
+                0,
                 nk_size_t(cStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1822,7 +1915,8 @@ extension U4x2: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_dots_symmetric_u4_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1837,8 +1931,10 @@ extension U4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_angulars_packed_u4_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_u4_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_u4_k)),
+                nk_size_t(aStride),
+                0, nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_euclideans_packed(
@@ -1848,8 +1944,10 @@ extension U4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_euclideans_packed_u4_best(
-                cPtr, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_u4_k)),
-                nk_size_t(aStride), nk_size_t(rStride), Device.cpuEnabled.native, nil))
+                cPtr,
+                nil, bPacked, result, nk_size_t(rows), nk_size_t(cols), nk_size_t(valuesToDimensions(depth, nk_u4_k)),
+                nk_size_t(aStride),
+                0, nk_size_t(rStride), Device.cpuEnabled.native, nil))
     }
 
     public static func _nk_angulars_symmetric(
@@ -1859,7 +1957,8 @@ extension U4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_angulars_symmetric_u4_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 
@@ -1870,7 +1969,8 @@ extension U4x2: NumKongSpatialsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u4x2_t.self)
         try _nkCheck(
             nk_euclideans_symmetric_u4_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u4_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }
@@ -1903,7 +2003,8 @@ extension U1x8: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(b).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_dots_pack_u1_best(
-                cPtr, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u1_k)), nk_size_t(bStride), packed, 0,
+                cPtr,
+                nil, nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u1_k)), nk_size_t(bStride), 0, packed, 0,
                 nk_size_t(n), Device.cpuEnabled.native, nil))
     }
 
@@ -1914,8 +2015,10 @@ extension U1x8: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(a).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_dots_packed_u1_best(
-                cPtr, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u1_k)),
+                cPtr,
+                nil, bPacked, c, nk_size_t(m), nk_size_t(n), nk_size_t(valuesToDimensions(k, nk_u1_k)),
                 nk_size_t(aStride),
+                0,
                 nk_size_t(cStride), Device.cpuEnabled.native, nil))
     }
 
@@ -1926,7 +2029,8 @@ extension U1x8: NumKongDotsMatrixElement {
         let cPtr = UnsafeRawPointer(vectors).assumingMemoryBound(to: nk_u1x8_t.self)
         try _nkCheck(
             nk_dots_symmetric_u1_best(
-                cPtr, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), result,
+                cPtr,
+                nil, nk_size_t(nVectors), nk_size_t(valuesToDimensions(depth, nk_u1_k)), nk_size_t(stride), 0, result,
                 nk_size_t(resultStride), nk_size_t(rowStart), nk_size_t(rowCount), Device.cpuEnabled.native, nil))
     }
 }

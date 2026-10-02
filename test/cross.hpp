@@ -358,9 +358,10 @@ void pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pac
     std::size_t const tasks = segments.count() * layout.key_value_head_count;
     std::size_t const windows[2][2] = {{0, 1}, {1, tasks + 7}};
     for (auto const &window : windows)
-        backend.call(pack_fn, keys.raw_values_data(), values.raw_values_data(), layout.key_value_head_count,
-                     layout.depth, segments.key_offsets.values_data(), segments.lengths.values_data(), segments.count(),
-                     stride_bytes, stride_bytes, key_value_packed.raw_values_data(), window[0], window[1]);
+        backend.call(pack_fn, keys.raw_values_data(), nullptr, values.raw_values_data(), nullptr,
+                     layout.key_value_head_count, layout.depth, segments.key_offsets.values_data(),
+                     segments.lengths.values_data(), segments.count(), stride_bytes, 0, stride_bytes, 0,
+                     key_value_packed.raw_values_data(), window[0], window[1]);
 }
 
 /** Causal reference: the serial bidirectional kernel per query row, over a pack of exactly the keys
@@ -566,9 +567,10 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
             fill_canary(c);
 
             // Run kernel being tested
-            backend.call(pack_fn, b.raw_values_data(), width, depth, b_stride, b_packed.raw_values_data(), 0, width);
-            backend.call(dots_fn, a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), height, width,
-                         depth, a_stride, c_stride);
+            backend.call(pack_fn, b.raw_values_data(), nullptr, width, depth, b_stride, 0, b_packed.raw_values_data(),
+                         0, width);
+            backend.call(dots_fn, a.raw_values_data(), nullptr, b_packed.raw_values_data(), c.raw_values_data(), height,
+                         width, depth, a_stride, 0, c_stride);
             synchronize(backend, stats);
 
             // Compute reference using nk:: template
@@ -644,11 +646,12 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
 
             nk_size_t shape_width = 0, shape_depth = 0;
             // Run kernel being tested: one pack of every column, one in two column windows, then the shape
-            backend.call(pack_fn_, b.raw_values_data(), width, depth, row_bytes, whole.raw_values_data(), 0, width);
-            backend.call(pack_fn_, b.raw_values_data(), width, depth, row_bytes, windows.raw_values_data(), 0,
-                         width / 2);
-            backend.call(pack_fn_, b.raw_values_data(), width, depth, row_bytes, windows.raw_values_data(), width / 2,
+            backend.call(pack_fn_, b.raw_values_data(), nullptr, width, depth, row_bytes, 0, whole.raw_values_data(), 0,
                          width);
+            backend.call(pack_fn_, b.raw_values_data(), nullptr, width, depth, row_bytes, 0, windows.raw_values_data(),
+                         0, width / 2);
+            backend.call(pack_fn_, b.raw_values_data(), nullptr, width, depth, row_bytes, 0, windows.raw_values_data(),
+                         width / 2, width);
             backend.call(packed_shape_fn_, whole.raw_values_data(), &shape_width, &shape_depth);
             synchronize(backend, stats);
 
@@ -738,8 +741,8 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
 
             // Run kernel being tested
-            backend.call(symmetric_fn, a.raw_values_data(), count, depth, stride, c.raw_values_data(), c_stride,
-                         row_start, test_case.row_count);
+            backend.call(symmetric_fn, a.raw_values_data(), nullptr, count, depth, stride, 0, c.raw_values_data(),
+                         c_stride, row_start, test_case.row_count);
             synchronize(backend, stats);
 
             // Compute reference using nk:: template
@@ -816,25 +819,25 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
     auto const *shifted = reinterpret_cast<raw_t const *>(rows.raw_values_data() + 1);
     auto *cells = output.raw_values_data();
     void const *b_packed = packed.raw_values_data();
-    stats.expect(backend.refuses_misaligned(dots_fn_, shifted, b_packed, cells, count, count, depth, aligned_stride,
-                                            output_stride),
+    stats.expect(backend.refuses_misaligned(dots_fn_, shifted, nullptr, b_packed, cells, count, count, depth,
+                                            aligned_stride, 0, output_stride),
                  "packed took an A off 16 bytes");
-    stats.expect(
-        backend.refuses_misaligned(dots_fn_, aligned, b_packed, cells, count, count, depth, odd_stride, output_stride),
-        "packed took an A stride off 16 bytes");
-    stats.expect(backend.refuses_misaligned(symmetric_fn_, shifted, count, depth, aligned_stride, cells, output_stride,
-                                            0, count),
+    stats.expect(backend.refuses_misaligned(dots_fn_, aligned, nullptr, b_packed, cells, count, count, depth,
+                                            odd_stride, 0, output_stride),
+                 "packed took an A stride off 16 bytes");
+    stats.expect(backend.refuses_misaligned(symmetric_fn_, shifted, nullptr, count, depth, aligned_stride, 0, cells,
+                                            output_stride, 0, count),
                  "symmetric took vectors off 16 bytes");
-    stats.expect(
-        backend.refuses_misaligned(symmetric_fn_, aligned, count, depth, odd_stride, cells, output_stride, 0, count),
-        "symmetric took a vectors stride off 16 bytes");
+    stats.expect(backend.refuses_misaligned(symmetric_fn_, aligned, nullptr, count, depth, odd_stride, 0, cells,
+                                            output_stride, 0, count),
+                 "symmetric took a vectors stride off 16 bytes");
     // Four bytes of padding keep 4-byte results aligned, so only 8-byte results can be caught off their size
     if constexpr (sizeof(result_t) == 8) {
         std::size_t const word_stride = output_stride + 4;
-        stats.expect(backend.refuses_misaligned(dots_fn_, aligned, b_packed, cells, count, count, depth, aligned_stride,
-                                                word_stride),
+        stats.expect(backend.refuses_misaligned(dots_fn_, aligned, nullptr, b_packed, cells, count, count, depth,
+                                                aligned_stride, 0, word_stride),
                      "packed took a C stride off the result size");
-        stats.expect(backend.refuses_misaligned(symmetric_fn_, aligned, count, depth, aligned_stride, cells,
+        stats.expect(backend.refuses_misaligned(symmetric_fn_, aligned, nullptr, count, depth, aligned_stride, 0, cells,
                                                 word_stride, 0, count),
                      "symmetric took a result stride off the result size");
     }
@@ -844,7 +847,7 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
     // A NaN input reaches every sum it enters, however the capability widens its codes
     if constexpr (nk::nan_capable_dtype<scalar_t>) {
         reinterpret_cast<scalar_t *>(rows.raw_values_data())[0] = scalar_t::quiet_nan();
-        backend.call(symmetric_fn_, aligned, count, depth, aligned_stride, cells, output_stride, 0, count);
+        backend.call(symmetric_fn_, aligned, nullptr, count, depth, aligned_stride, 0, cells, output_stride, 0, count);
         synchronize(backend, stats);
         stats.expect(std::isnan(static_cast<double>(cells[0])), "a NaN input summed to a finite dot");
     }
@@ -908,7 +911,8 @@ error_stats_t test_hammings_packed(settings_t const &settings,
             fill_random(settings, generator, a);
             fill_random(settings, generator, b);
 
-            stats.expect(pack_fn(b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n, nullptr));
+            stats.expect(
+                pack_fn(b.raw_values_data(), nullptr, n, k, stride, 0, b_packed.raw_values_data(), 0, n, nullptr));
             stats.expect(hammings_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
                                      stride, c_stride, nullptr));
 
@@ -994,7 +998,8 @@ error_stats_t test_jaccards_packed(settings_t const &settings,
             std::memset(a.raw_values_data(), 0, stride);
             std::memset(b.raw_values_data(), 0, stride);
 
-            stats.expect(pack_fn(b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n, nullptr));
+            stats.expect(
+                pack_fn(b.raw_values_data(), nullptr, n, k, stride, 0, b_packed.raw_values_data(), 0, n, nullptr));
             stats.expect(jaccards_fn(a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
                                      stride, c_stride, nullptr));
 
@@ -1114,10 +1119,10 @@ error_stats_t test_angulars_packed(settings_t const &settings, pack_size_kernel_
                 }
 
             // The norms of the second window's columns come from a pack not starting at zero
-            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n / 2);
-            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), n / 2, n);
-            backend.call(angulars_fn, a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
-                         stride, c_stride);
+            backend.call(pack_fn, b.raw_values_data(), nullptr, n, k, stride, 0, b_packed.raw_values_data(), 0, n / 2);
+            backend.call(pack_fn, b.raw_values_data(), nullptr, n, k, stride, 0, b_packed.raw_values_data(), n / 2, n);
+            backend.call(angulars_fn, a.raw_values_data(), nullptr, b_packed.raw_values_data(), c.raw_values_data(), m,
+                         n, k, stride, 0, c_stride);
             synchronize(backend, stats);
 
             for (std::size_t i = 0; i < m * n; i++) accumulate_angular(stats, c[i], c_ref[i], k);
@@ -1188,10 +1193,10 @@ error_stats_t test_euclideans_packed(settings_t const &settings, pack_size_kerne
                 }
 
             // The norms of the second window's columns come from a pack not starting at zero
-            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), 0, n / 2);
-            backend.call(pack_fn, b.raw_values_data(), n, k, stride, b_packed.raw_values_data(), n / 2, n);
-            backend.call(euclideans_fn, a.raw_values_data(), b_packed.raw_values_data(), c.raw_values_data(), m, n, k,
-                         stride, c_stride);
+            backend.call(pack_fn, b.raw_values_data(), nullptr, n, k, stride, 0, b_packed.raw_values_data(), 0, n / 2);
+            backend.call(pack_fn, b.raw_values_data(), nullptr, n, k, stride, 0, b_packed.raw_values_data(), n / 2, n);
+            backend.call(euclideans_fn, a.raw_values_data(), nullptr, b_packed.raw_values_data(), c.raw_values_data(),
+                         m, n, k, stride, 0, c_stride);
             synchronize(backend, stats);
 
             for (std::size_t i = 0; i < m; i++)
@@ -1251,7 +1256,8 @@ error_stats_t test_angulars_symmetric(settings_t const &settings, symmetric_kern
                 }
             }
 
-            backend.call(symmetric_fn, a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
+            backend.call(symmetric_fn, a.raw_values_data(), nullptr, n, k, stride, 0, c.raw_values_data(), c_stride, 0,
+                         n);
             synchronize(backend, stats);
 
             for (std::size_t i = 0; i < n; i++)
@@ -1310,7 +1316,8 @@ error_stats_t test_euclideans_symmetric(settings_t const &settings, symmetric_ke
                 }
             }
 
-            backend.call(symmetric_fn, a.raw_values_data(), n, k, stride, c.raw_values_data(), c_stride, 0, n);
+            backend.call(symmetric_fn, a.raw_values_data(), nullptr, n, k, stride, 0, c.raw_values_data(), c_stride, 0,
+                         n);
             synchronize(backend, stats);
 
             for (std::size_t i = 0; i < n; i++)
@@ -1370,10 +1377,10 @@ error_stats_t test_attention_bidirectional_packed(settings_t const &settings, pa
             auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
             // Run kernel being tested: pack in two windows, then attention over the whole task grid
             pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
-            backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
+            backend.call(attention_fn, queries.raw_values_data(), nullptr, key_value_packed.raw_values_data(),
                          output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-                         segments.query_offsets.values_data(), query_stride_bytes, output_stride_bytes, layout.scale, 0,
-                         total_tasks);
+                         segments.query_offsets.values_data(), query_stride_bytes, 0, output_stride_bytes, layout.scale,
+                         0, total_tasks);
             synchronize(backend, stats);
 
             auto const reference_size = nk::attention_pack_size<scalar_t>(
@@ -1442,13 +1449,13 @@ error_stats_t test_attention_causal_packed(settings_t const &settings, pack_size
                                         .value;
             auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
             pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
-            backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
+            backend.call(attention_fn, queries.raw_values_data(), nullptr, key_value_packed.raw_values_data(),
                          output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-                         segments.query_offsets.values_data(), query_stride_bytes, output_stride_bytes, layout.scale,
+                         segments.query_offsets.values_data(), query_stride_bytes, 0, output_stride_bytes, layout.scale,
                          test_case.diagonal_offset, test_case.window, 0, first_window_tasks);
-            backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
+            backend.call(attention_fn, queries.raw_values_data(), nullptr, key_value_packed.raw_values_data(),
                          output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-                         segments.query_offsets.values_data(), query_stride_bytes, output_stride_bytes, layout.scale,
+                         segments.query_offsets.values_data(), query_stride_bytes, 0, output_stride_bytes, layout.scale,
                          test_case.diagonal_offset, test_case.window, first_window_tasks, unbounded_window);
             synchronize(backend, stats);
 

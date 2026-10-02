@@ -213,25 +213,25 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
         stats.expect(nk_dots_pack_size_bf16_best(width, depth, capability, &dispatched_bytes));
         stats.expect(dispatched_bytes == expected_bytes, "the dispatch point sized another capability's pack");
         auto expected_pack = make_vector<char>(expected_bytes), dispatched_pack = make_vector<char>(expected_bytes);
-        stats.expect(
-            pack(b.raw_values_data(), width, depth, row_bytes, expected_pack.raw_values_data(), 0, width, nullptr));
-        stats.expect(nk_dots_pack_bf16_best(b.raw_values_data(), width, depth, row_bytes,
+        stats.expect(pack(b.raw_values_data(), nullptr, width, depth, row_bytes, 0, expected_pack.raw_values_data(), 0,
+                          width, nullptr));
+        stats.expect(nk_dots_pack_bf16_best(b.raw_values_data(), nullptr, width, depth, row_bytes, 0,
                                             dispatched_pack.raw_values_data(), 0, width, capability, nullptr));
-        stats.expect(packed(a.raw_values_data(), expected_pack.raw_values_data(), expected.raw_values_data(), height,
-                            width, depth, row_bytes, c_stride, nullptr));
-        stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), dispatched_pack.raw_values_data(),
-                                              dispatched.raw_values_data(), height, width, depth, row_bytes, c_stride,
-                                              capability, nullptr));
+        stats.expect(packed(a.raw_values_data(), nullptr, expected_pack.raw_values_data(), expected.raw_values_data(),
+                            height, width, depth, row_bytes, 0, c_stride, nullptr));
+        stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), nullptr, dispatched_pack.raw_values_data(),
+                                              dispatched.raw_values_data(), height, width, depth, row_bytes, 0,
+                                              c_stride, capability, nullptr));
         stats.expect(std::memcmp(expected.raw_values_data(), dispatched.raw_values_data(), expected.size_bytes()) == 0,
                      "the dispatch point ran another capability's kernel");
     }
     nk_capability_t cuda = 0;
     stats.expect(nk_cuda_capabilities_compiled(&cuda));
     if (!cuda)
-        stats.expect(
-            nk_dots_packed_bf16_best(a.raw_values_data(), b.raw_values_data(), expected.raw_values_data(), height,
-                                     width, depth, row_bytes, c_stride, nk_cap_cuda_k, nullptr) == nk_missing_kernel_k,
-            "a GPU mask found a kernel in a binary without one");
+        stats.expect(nk_dots_packed_bf16_best(a.raw_values_data(), nullptr, b.raw_values_data(),
+                                              expected.raw_values_data(), height, width, depth, row_bytes, 0, c_stride,
+                                              nk_cap_cuda_k, nullptr) == nk_missing_kernel_k,
+                     "a GPU mask found a kernel in a binary without one");
     return stats;
 }
 
@@ -497,8 +497,8 @@ static void test_dispatch_points(error_stats_section_t &check) {
         return test_missing_library<nk_dot_f32_best>(settings, nullptr, nullptr, 0, nullptr, nullptr);
     });
     check("best_dots_packed_bf16", [](settings_t const &settings) {
-        return test_missing_library<nk_dots_packed_bf16_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
-                                                              nullptr);
+        return test_missing_library<nk_dots_packed_bf16_best>(settings, nullptr, nullptr, nullptr, nullptr, 0, 0, 0, 0,
+                                                              0, 0, nullptr);
     });
     check("best_reduce_moments_f32", [](settings_t const &settings) {
         return test_missing_library<nk_reduce_moments_f32_best>(settings, nullptr, 0, 0, nullptr, nullptr, nullptr);

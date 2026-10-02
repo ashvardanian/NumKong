@@ -1235,8 +1235,9 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
         }                                                                                                            \
     }                                                                                                                \
     NUMKONG_API nk_status_t nk_dots_pack_##input_type_name##_##isa_suffix(                                           \
-        nk_##input_value_type##_t const *b, nk_size_t column_count, nk_size_t depth, nk_size_t b_stride_in_bytes,    \
-        void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, void *stream) {                              \
+        nk_##input_value_type##_t const *b, void const *b_scales, nk_size_t column_count, nk_size_t depth,           \
+        nk_size_t b_stride_in_bytes, nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin,             \
+        nk_size_t columns_end, void *stream) {                                                                       \
         nk_size_t const depth_values_padded = nk_device_cross_padded_values_(                                        \
             depth, depth_simd_dimensions, dimensions_per_value, sizeof(nk_##packed_value_type##_t));                 \
         nk_size_t const depth_bytes = depth / dimensions_per_value * sizeof(nk_##input_value_type##_t);              \
@@ -1273,9 +1274,9 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
         nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_full_k, nk_cross_metric_##metric##_k, &arguments);      \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                    \
-        nk_##input_value_type##_t const *a_matrix, void const *b_packed_buffer, nk_##result_value_type##_t *c_matrix,  \
-        nk_size_t row_count, nk_size_t column_count, nk_size_t depth, nk_size_t a_stride_in_bytes,                     \
-        nk_size_t c_stride_in_bytes, void *stream) {                                                                   \
+        nk_##input_value_type##_t const *a_matrix, void const *a_scales, void const *b_packed_buffer,                  \
+        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
+        nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {           \
         nk_size_t const row_bytes = nk_device_cross_padded_values_(depth, depth_simd_dimensions, dimensions_per_value, \
                                                                    sizeof(nk_##packed_value_type##_t)) *               \
                                     sizeof(nk_##packed_value_type##_t);                                                \
@@ -1306,9 +1307,9 @@ NUMKONG_DEVICE void nk_cross_tile_simt_b32_(nk_dtype_t dtype, nk_cross_accumulat
         nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_upper_k, nk_cross_metric_##metric##_k, &arguments);     \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##input_type_name##_##isa_suffix(                                 \
-        nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, \
-        nk_##result_value_type##_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start,                     \
-        nk_size_t row_count, void *stream) {                                                                           \
+        nk_##input_value_type##_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth, \
+        nk_size_t stride_in_bytes, nk_size_t scales_stride, nk_##result_value_type##_t *result,                        \
+        nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {                    \
         nk_size_t const row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;       \
         return nk_cross_launch_((void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_,     \
                                 nk_cross_tile_##tile##_k, nk_cross_threads_##tile##_k, vectors, vectors, 0, result,    \

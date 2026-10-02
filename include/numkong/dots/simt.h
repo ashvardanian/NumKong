@@ -189,16 +189,18 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, void const
         return nk_cross_packed_shape_metal_(b_packed, width, depth, nk_cap_##isa_suffix##_k, stream);                  \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_pack_##input_type_name##_##isa_suffix(                                             \
-        nk_##input_value_type##_t const *b, nk_size_t width, nk_size_t depth, nk_size_t b_stride, void *b_packed,      \
-        nk_size_t columns_begin, nk_size_t columns_end, void *stream) {                                                \
+        nk_##input_value_type##_t const *b, void const *b_scales, nk_size_t width, nk_size_t depth,                    \
+        nk_size_t b_stride, nk_size_t b_scales_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, \
+        void *stream) {                                                                                                \
         return nk_cross_pack_launch_metal_("nk_dots_pack_" #input_type_name "_metal_kernel_", b, width, depth,         \
                                            b_stride, b_packed, columns_begin, columns_end, depth_simd_dimensions,      \
                                            sizeof(nk_##input_value_type##_t), dimensions_per_value,                    \
                                            nk_cap_##isa_suffix##_k, stream);                                           \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_packed_##input_type_name##_##isa_suffix(                                           \
-        nk_##input_value_type##_t const *a, void const *b_packed, nk_##result_value_type##_t *c, nk_size_t height,     \
-        nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride, void *stream) {                      \
+        nk_##input_value_type##_t const *a, void const *a_scales, void const *b_packed, nk_##result_value_type##_t *c, \
+        nk_size_t height, nk_size_t width, nk_size_t depth, nk_size_t a_stride, nk_size_t a_scales_stride,             \
+        nk_size_t c_stride, void *stream) {                                                                            \
         nk_size_t const row_bytes = nk_cross_padded_values_(depth, depth_simd_dimensions, dimensions_per_value,        \
                                                             sizeof(nk_##input_value_type##_t)) *                       \
                                     sizeof(nk_##input_value_type##_t);                                                 \
@@ -208,9 +210,9 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_metal_(char const *kernel, void const
                                                row_bytes, c_stride, 0, stream);                                        \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_symmetric_##input_type_name##_##isa_suffix(                                        \
-        nk_##input_value_type##_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride,          \
-        nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,         \
-        void *stream) {                                                                                                \
+        nk_##input_value_type##_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth, \
+        nk_size_t stride, nk_size_t scales_stride, nk_##result_value_type##_t *result, nk_size_t result_stride,        \
+        nk_size_t row_start, nk_size_t row_count, void *stream) {                                                      \
         nk_size_t const row_end = row_start + row_count < vectors_count ? row_start + row_count : vectors_count;       \
         return nk_cross_launch_##isa_suffix##_("nk_dots_" #input_type_name "_" #isa_suffix "_kernel_", vectors,        \
                                                vectors, 0, result, sizeof(nk_##result_value_type##_t), row_start,      \

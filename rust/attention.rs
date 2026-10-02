@@ -66,14 +66,18 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_pack_bf16_best(
         keys: *const bf16,
+        key_scales: *const c_void,
         values: *const bf16,
+        value_scales: *const c_void,
         heads: nk_size_t,
         depth: nk_size_t,
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: nk_size_t,
         key_stride_bytes: nk_size_t,
+        key_scales_stride_bytes: nk_size_t,
         value_stride_bytes: nk_size_t,
+        value_scales_stride_bytes: nk_size_t,
         key_value_packed: *mut u8,
         task_begin: nk_size_t,
         task_end: nk_size_t,
@@ -82,6 +86,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_bidirectional_packed_bf16_best(
         queries: *const bf16,
+        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
@@ -89,6 +94,7 @@ extern "C" {
         depth: nk_size_t,
         query_offsets: *const u32,
         query_stride_bytes: nk_size_t,
+        query_scales_stride_bytes: nk_size_t,
         output_stride_bytes: nk_size_t,
         scale: f32,
         task_start: nk_size_t,
@@ -98,6 +104,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_causal_packed_bf16_best(
         queries: *const bf16,
+        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
@@ -105,6 +112,7 @@ extern "C" {
         depth: nk_size_t,
         query_offsets: *const u32,
         query_stride_bytes: nk_size_t,
+        query_scales_stride_bytes: nk_size_t,
         output_stride_bytes: nk_size_t,
         scale: f32,
         diagonal_offset: i64,
@@ -125,14 +133,18 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_pack_e4m3_best(
         keys: *const e4m3,
+        key_scales: *const c_void,
         values: *const e4m3,
+        value_scales: *const c_void,
         heads: nk_size_t,
         depth: nk_size_t,
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: nk_size_t,
         key_stride_bytes: nk_size_t,
+        key_scales_stride_bytes: nk_size_t,
         value_stride_bytes: nk_size_t,
+        value_scales_stride_bytes: nk_size_t,
         key_value_packed: *mut u8,
         task_begin: nk_size_t,
         task_end: nk_size_t,
@@ -141,6 +153,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_bidirectional_packed_e4m3_best(
         queries: *const e4m3,
+        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
@@ -148,6 +161,7 @@ extern "C" {
         depth: nk_size_t,
         query_offsets: *const u32,
         query_stride_bytes: nk_size_t,
+        query_scales_stride_bytes: nk_size_t,
         output_stride_bytes: nk_size_t,
         scale: f32,
         task_start: nk_size_t,
@@ -157,6 +171,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_causal_packed_e4m3_best(
         queries: *const e4m3,
+        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
@@ -164,6 +179,7 @@ extern "C" {
         depth: nk_size_t,
         query_offsets: *const u32,
         query_stride_bytes: nk_size_t,
+        query_scales_stride_bytes: nk_size_t,
         output_stride_bytes: nk_size_t,
         scale: f32,
         diagonal_offset: i64,
@@ -184,14 +200,18 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_pack_i8_best(
         keys: *const i8,
+        key_scales: *const c_void,
         values: *const i8,
+        value_scales: *const c_void,
         heads: nk_size_t,
         depth: nk_size_t,
         segment_offsets: *const u32,
         segment_lengths: *const u32,
         segment_count: nk_size_t,
         key_stride_bytes: nk_size_t,
+        key_scales_stride_bytes: nk_size_t,
         value_stride_bytes: nk_size_t,
+        value_scales_stride_bytes: nk_size_t,
         key_value_packed: *mut u8,
         task_begin: nk_size_t,
         task_end: nk_size_t,
@@ -200,6 +220,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_bidirectional_packed_i8_best(
         queries: *const i8,
+        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
@@ -207,6 +228,7 @@ extern "C" {
         depth: nk_size_t,
         query_offsets: *const u32,
         query_stride_bytes: nk_size_t,
+        query_scales_stride_bytes: nk_size_t,
         output_stride_bytes: nk_size_t,
         scale: f32,
         task_start: nk_size_t,
@@ -216,6 +238,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_causal_packed_i8_best(
         queries: *const i8,
+        query_scales: *const c_void,
         key_value_packed: *const u8,
         output: *mut f32,
         head_count: nk_size_t,
@@ -223,6 +246,7 @@ extern "C" {
         depth: nk_size_t,
         query_offsets: *const u32,
         query_stride_bytes: nk_size_t,
+        query_scales_stride_bytes: nk_size_t,
         output_stride_bytes: nk_size_t,
         scale: f32,
         diagonal_offset: i64,
@@ -438,14 +462,18 @@ impl Attention for bf16 {
         unsafe {
             nk_attention_pack_bf16_best(
                 keys,
+                core::ptr::null(),
                 values,
+                core::ptr::null(),
                 heads,
                 depth,
                 segment_offsets,
                 segment_lengths,
                 segment_count,
                 key_stride_bytes,
+                0,
                 value_stride_bytes,
+                0,
                 key_value_packed,
                 task_begin,
                 task_end,
@@ -473,6 +501,7 @@ impl Attention for bf16 {
         unsafe {
             nk_attention_bidirectional_packed_bf16_best(
                 queries,
+                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
@@ -480,6 +509,7 @@ impl Attention for bf16 {
                 depth,
                 query_offsets,
                 query_stride_bytes,
+                0,
                 output_stride_bytes,
                 scale,
                 task_start,
@@ -510,6 +540,7 @@ impl Attention for bf16 {
         unsafe {
             nk_attention_causal_packed_bf16_best(
                 queries,
+                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
@@ -517,6 +548,7 @@ impl Attention for bf16 {
                 depth,
                 query_offsets,
                 query_stride_bytes,
+                0,
                 output_stride_bytes,
                 scale,
                 diagonal_offset,
@@ -579,14 +611,18 @@ impl Attention for e4m3 {
         unsafe {
             nk_attention_pack_e4m3_best(
                 keys,
+                core::ptr::null(),
                 values,
+                core::ptr::null(),
                 heads,
                 depth,
                 segment_offsets,
                 segment_lengths,
                 segment_count,
                 key_stride_bytes,
+                0,
                 value_stride_bytes,
+                0,
                 key_value_packed,
                 task_begin,
                 task_end,
@@ -614,6 +650,7 @@ impl Attention for e4m3 {
         unsafe {
             nk_attention_bidirectional_packed_e4m3_best(
                 queries,
+                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
@@ -621,6 +658,7 @@ impl Attention for e4m3 {
                 depth,
                 query_offsets,
                 query_stride_bytes,
+                0,
                 output_stride_bytes,
                 scale,
                 task_start,
@@ -651,6 +689,7 @@ impl Attention for e4m3 {
         unsafe {
             nk_attention_causal_packed_e4m3_best(
                 queries,
+                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
@@ -658,6 +697,7 @@ impl Attention for e4m3 {
                 depth,
                 query_offsets,
                 query_stride_bytes,
+                0,
                 output_stride_bytes,
                 scale,
                 diagonal_offset,
@@ -720,14 +760,18 @@ impl Attention for i8 {
         unsafe {
             nk_attention_pack_i8_best(
                 keys,
+                core::ptr::null(),
                 values,
+                core::ptr::null(),
                 heads,
                 depth,
                 segment_offsets,
                 segment_lengths,
                 segment_count,
                 key_stride_bytes,
+                0,
                 value_stride_bytes,
+                0,
                 key_value_packed,
                 task_begin,
                 task_end,
@@ -755,6 +799,7 @@ impl Attention for i8 {
         unsafe {
             nk_attention_bidirectional_packed_i8_best(
                 queries,
+                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
@@ -762,6 +807,7 @@ impl Attention for i8 {
                 depth,
                 query_offsets,
                 query_stride_bytes,
+                0,
                 output_stride_bytes,
                 scale,
                 task_start,
@@ -792,6 +838,7 @@ impl Attention for i8 {
         unsafe {
             nk_attention_causal_packed_i8_best(
                 queries,
+                core::ptr::null(),
                 key_value_packed,
                 output,
                 head_count,
@@ -799,6 +846,7 @@ impl Attention for i8 {
                 depth,
                 query_offsets,
                 query_stride_bytes,
+                0,
                 output_stride_bytes,
                 scale,
                 diagonal_offset,

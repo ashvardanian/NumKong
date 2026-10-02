@@ -50,7 +50,7 @@ NUMKONG_API nk_status_t nk_hammings_packed_u1_best(nk_u1x8_t const *a, void cons
                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
                                                    nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
+    nk_hammings_packed_punned_t const kernel = (nk_hammings_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_hammings_packed_u1_capabilities());
     return kernel ? kernel(a, b_packed, c, height, width, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
 }
@@ -98,7 +98,7 @@ NUMKONG_API nk_status_t nk_hammings_symmetric_u1_best(nk_u1x8_t const *vectors, 
                                                       nk_size_t depth, nk_size_t stride, nk_u32_t *result,
                                                       nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
                                                       nk_capability_t capabilities, void *stream) {
-    nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
+    nk_hammings_symmetric_punned_t const kernel = (nk_hammings_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_hammings_symmetric_u1_capabilities());
     return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
                   : nk_missing_kernel_k;
@@ -147,7 +147,7 @@ NUMKONG_API nk_status_t nk_jaccards_packed_u1_best(nk_u1x8_t const *a, void cons
                                                    nk_size_t height, nk_size_t width, nk_size_t depth,
                                                    nk_size_t a_stride, nk_size_t c_stride, nk_capability_t capabilities,
                                                    void *stream) {
-    nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
+    nk_jaccards_packed_punned_t const kernel = (nk_jaccards_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_jaccards_packed_u1_capabilities());
     return kernel ? kernel(a, b_packed, c, height, width, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
 }
@@ -195,7 +195,7 @@ NUMKONG_API nk_status_t nk_jaccards_symmetric_u1_best(nk_u1x8_t const *vectors, 
                                                       nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                       nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count,
                                                       nk_capability_t capabilities, void *stream) {
-    nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
+    nk_jaccards_symmetric_punned_t const kernel = (nk_jaccards_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_jaccards_symmetric_u1_capabilities());
     return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
                   : nk_missing_kernel_k;

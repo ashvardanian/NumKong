@@ -58,32 +58,35 @@ status_t attention_bidirectional_packed(in_type_ const *queries, void const *key
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_bidirectional_packed_bf16_best(
-                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, task_start, task_count, capabilities,
-                stream));
+                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
+                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_bidirectional_packed_e4m3_best(
-                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, task_start, task_count, capabilities,
-                stream));
+                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
+                capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_bidirectional_packed_i8_best(
-                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, task_start, task_count, capabilities,
-                stream));
+                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
+                capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_bidirectional_packed_bf16_serial(
-            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-            queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, task_start, task_count, stream));
+            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
+            stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_bidirectional_packed_e4m3_serial(
-            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-            queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, task_start, task_count, stream));
+            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
+            stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_bidirectional_packed_i8_serial(
-            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-            queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, task_start, task_count, stream));
+            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, task_start, task_count,
+            stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -113,35 +116,35 @@ status_t attention_causal_packed(in_type_ const *queries, void const *key_value_
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_causal_packed_bf16_best(
-                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, diagonal_offset, window, task_start,
-                task_count, capabilities, stream));
+                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
+                task_start, task_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_causal_packed_e4m3_best(
-                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, diagonal_offset, window, task_start,
-                task_count, capabilities, stream));
+                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
+                task_start, task_count, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_causal_packed_i8_best(
-                queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-                queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, diagonal_offset, window, task_start,
-                task_count, capabilities, stream));
+                queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+                query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
+                task_start, task_count, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_causal_packed_bf16_serial(
-            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-            queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, diagonal_offset, window, task_start,
-            task_count, stream));
+            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
+            task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_causal_packed_e4m3_serial(
-            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-            queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, diagonal_offset, window, task_start,
-            task_count, stream));
+            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
+            task_start, task_count, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_causal_packed_i8_serial(
-            queries_raw, key_value_packed, output_raw, head_count, key_value_head_count, depth, query_offsets,
-            queries_stride_in_bytes, output_stride_in_bytes, scale.raw_, diagonal_offset, window, task_start,
-            task_count, stream));
+            queries_raw, NUMKONG_NULL, key_value_packed, output_raw, head_count, key_value_head_count, depth,
+            query_offsets, queries_stride_in_bytes, 0, output_stride_in_bytes, scale.raw_, diagonal_offset, window,
+            task_start, task_count, stream));
     else return status_t::missing_kernel_k;
 }
 

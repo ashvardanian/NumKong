@@ -209,10 +209,10 @@ NUMKONG_INLINE void nk_angulars_packed_bf16_sapphireamx_finalize_(nk_bf16_t cons
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_bf16_sapphireamx( //
-    nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_bf16_sapphireamx(                     //
+    nk_bf16_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -240,10 +240,10 @@ NUMKONG_INLINE void nk_euclideans_packed_bf16_sapphireamx_finalize_(nk_bf16_t co
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sapphireamx( //
-    nk_bf16_t const *a, void const *b_packed, nk_f32_t *c,     //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_bf16_sapphireamx(                   //
+    nk_bf16_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_bf16_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -294,8 +294,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t c
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_sapphireamx(                                    //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_bf16_sapphireamx( //
+    nk_bf16_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -347,8 +348,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_bf16_sapphireamx_finalize_(nk_bf16_t
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_sapphireamx(                                  //
-    nk_bf16_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_bf16_sapphireamx( //
+    nk_bf16_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -385,10 +387,10 @@ NUMKONG_INLINE void nk_angulars_packed_i8_sapphireamx_finalize_(nk_i8_t const *a
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_i8_sapphireamx( //
-    nk_i8_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_i8_sapphireamx(                     //
+    nk_i8_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                        //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -417,10 +419,10 @@ NUMKONG_INLINE void nk_euclideans_packed_i8_sapphireamx_finalize_(nk_i8_t const 
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_i8_sapphireamx( //
-    nk_i8_t const *a, void const *b_packed, nk_f32_t *c,     //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_i8_sapphireamx(                   //
+    nk_i8_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                        //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_i8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -472,8 +474,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_i8_sapphireamx_finalize_(nk_i8_t const
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sapphireamx(                                    //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_i8_sapphireamx( //
+    nk_i8_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -525,8 +528,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_i8_sapphireamx_finalize_(nk_i8_t con
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sapphireamx(                                  //
-    nk_i8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_i8_sapphireamx( //
+    nk_i8_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -563,10 +567,10 @@ NUMKONG_INLINE void nk_angulars_packed_u8_sapphireamx_finalize_(nk_u8_t const *a
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_u8_sapphireamx( //
-    nk_u8_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,    //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_u8_sapphireamx(                     //
+    nk_u8_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                        //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -595,10 +599,10 @@ NUMKONG_INLINE void nk_euclideans_packed_u8_sapphireamx_finalize_(nk_u8_t const 
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_u8_sapphireamx( //
-    nk_u8_t const *a, void const *b_packed, nk_f32_t *c,     //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_u8_sapphireamx(                   //
+    nk_u8_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                        //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_u8_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -650,8 +654,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_u8_sapphireamx_finalize_(nk_u8_t const
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sapphireamx(                                    //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_u8_sapphireamx( //
+    nk_u8_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -703,8 +708,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_u8_sapphireamx_finalize_(nk_u8_t con
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sapphireamx(                                  //
-    nk_u8_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_sapphireamx( //
+    nk_u8_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -740,10 +746,10 @@ NUMKONG_INLINE void nk_angulars_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t cons
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_e4m3_sapphireamx( //
-    nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_e4m3_sapphireamx(                     //
+    nk_e4m3_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -771,10 +777,10 @@ NUMKONG_INLINE void nk_euclideans_packed_e4m3_sapphireamx_finalize_(nk_e4m3_t co
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sapphireamx( //
-    nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,     //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_e4m3_sapphireamx(                   //
+    nk_e4m3_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e4m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -806,10 +812,10 @@ NUMKONG_INLINE void nk_angulars_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t cons
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_e5m2_sapphireamx( //
-    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_e5m2_sapphireamx(                     //
+    nk_e5m2_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -837,10 +843,10 @@ NUMKONG_INLINE void nk_euclideans_packed_e5m2_sapphireamx_finalize_(nk_e5m2_t co
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sapphireamx( //
-    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,     //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_sapphireamx(                   //
+    nk_e5m2_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e5m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -891,8 +897,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t c
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_sapphireamx(                                    //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_sapphireamx( //
+    nk_e5m2_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -944,8 +951,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_e5m2_sapphireamx_finalize_(nk_e5m2_t
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_sapphireamx(                                  //
-    nk_e5m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_sapphireamx( //
+    nk_e5m2_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -1000,8 +1008,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t c
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_sapphireamx(                                    //
-    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e4m3_sapphireamx( //
+    nk_e4m3_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -1053,8 +1062,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_e4m3_sapphireamx_finalize_(nk_e4m3_t
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_sapphireamx(                                  //
-    nk_e4m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e4m3_sapphireamx( //
+    nk_e4m3_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -1090,10 +1100,10 @@ NUMKONG_INLINE void nk_angulars_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t cons
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sapphireamx( //
-    nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_e2m3_sapphireamx(                     //
+    nk_e2m3_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1121,10 +1131,10 @@ NUMKONG_INLINE void nk_euclideans_packed_e2m3_sapphireamx_finalize_(nk_e2m3_t co
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sapphireamx( //
-    nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c,     //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m3_sapphireamx(                   //
+    nk_e2m3_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m3_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1175,8 +1185,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t c
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sapphireamx(                                    //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m3_sapphireamx( //
+    nk_e2m3_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -1228,8 +1239,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_e2m3_sapphireamx_finalize_(nk_e2m3_t
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sapphireamx(                                  //
-    nk_e2m3_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m3_sapphireamx( //
+    nk_e2m3_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -1265,10 +1277,10 @@ NUMKONG_INLINE void nk_angulars_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_t co
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sapphireamx( //
-    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_e2m1_sapphireamx(                       //
+    nk_e2m1x2_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                            //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1296,10 +1308,10 @@ NUMKONG_INLINE void nk_euclideans_packed_e2m1_sapphireamx_finalize_(nk_e2m1x2_t 
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sapphireamx( //
-    nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_e2m1_sapphireamx(                     //
+    nk_e2m1x2_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                            //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e2m1x2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1351,8 +1363,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_e2m1_sapphireamx_finalize_(nk_e2m1x2_t
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sapphireamx(                                      //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e2m1_sapphireamx( //
+    nk_e2m1x2_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
@@ -1405,8 +1418,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_e2m1_sapphireamx_finalize_(nk_e2m1x2
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sapphireamx(                                    //
-    nk_e2m1x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_sapphireamx( //
+    nk_e2m1x2_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 &&
@@ -1443,10 +1457,10 @@ NUMKONG_INLINE void nk_angulars_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t cons
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_packed_e3m2_sapphireamx( //
-    nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,   //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,      //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_angulars_packed_e3m2_sapphireamx(                     //
+    nk_e3m2_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1474,10 +1488,10 @@ NUMKONG_INLINE void nk_euclideans_packed_e3m2_sapphireamx_finalize_(nk_e3m2_t co
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sapphireamx( //
-    nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c,     //
-    nk_size_t rows, nk_size_t columns, nk_size_t depth,        //
-    nk_size_t a_stride_in_bytes, nk_size_t c_stride_in_bytes, void *stream) {
+NUMKONG_API nk_status_t nk_euclideans_packed_e3m2_sapphireamx(                   //
+    nk_e3m2_t const *a, void const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns, nk_size_t depth,                          //
+    nk_size_t a_stride_in_bytes, nk_size_t a_scales_stride, nk_size_t c_stride_in_bytes, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const a_stride_elements = a_stride_in_bytes / sizeof(nk_e3m2_t);
     nk_size_t const c_stride_elements = c_stride_in_bytes / sizeof(nk_f32_t);
@@ -1528,8 +1542,9 @@ NUMKONG_INLINE void nk_angulars_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t c
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_sapphireamx(                                    //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_angulars_symmetric_e3m2_sapphireamx( //
+    nk_e3m2_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));
@@ -1581,8 +1596,9 @@ NUMKONG_INLINE void nk_euclideans_symmetric_e3m2_sapphireamx_finalize_(nk_e3m2_t
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 
-NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_sapphireamx(                                  //
-    nk_e3m2_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_in_bytes, //
+NUMKONG_API nk_status_t nk_euclideans_symmetric_e3m2_sapphireamx( //
+    nk_e3m2_t const *vectors, void const *vector_scales, nk_size_t vectors_count, nk_size_t depth,
+    nk_size_t stride_in_bytes, nk_size_t scales_stride, //
     nk_f32_t *result, nk_size_t result_stride_in_bytes, nk_size_t row_start, nk_size_t row_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride_in_bytes % sizeof(*vectors) == 0 && stride_in_bytes >= depth * sizeof(*vectors));

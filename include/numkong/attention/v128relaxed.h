@@ -108,11 +108,12 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_i8_v128relaxed(void const *key
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_pack_bf16_v128relaxed(                            //
-    nk_bf16_t const *keys, nk_bf16_t const *values,                                    //
-    nk_size_t key_value_head_count, nk_size_t depth,                                   //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
-    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
+NUMKONG_API nk_status_t nk_attention_pack_bf16_v128relaxed(                                           //
+    nk_bf16_t const *keys, void const *key_scales, nk_bf16_t const *values, void const *value_scales, //
+    nk_size_t key_value_head_count, nk_size_t depth,                                                  //
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                 //
+    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t key_scales_stride_bytes,
+    nk_size_t value_stride_bytes, nk_size_t value_scales_stride_bytes, //
     void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_v128_k_) {
@@ -128,11 +129,12 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_v128relaxed(                     
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_pack_e4m3_v128relaxed(                            //
-    nk_e4m3_t const *keys, nk_e4m3_t const *values,                                    //
-    nk_size_t key_value_head_count, nk_size_t depth,                                   //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
-    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
+NUMKONG_API nk_status_t nk_attention_pack_e4m3_v128relaxed(                                           //
+    nk_e4m3_t const *keys, void const *key_scales, nk_e4m3_t const *values, void const *value_scales, //
+    nk_size_t key_value_head_count, nk_size_t depth,                                                  //
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                                 //
+    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t key_scales_stride_bytes,
+    nk_size_t value_stride_bytes, nk_size_t value_scales_stride_bytes, //
     void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_v128_k_) {
@@ -148,11 +150,12 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_v128relaxed(                     
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_pack_i8_v128relaxed(                              //
-    nk_i8_t const *keys, nk_i8_t const *values,                                        //
-    nk_size_t key_value_head_count, nk_size_t depth,                                   //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                  //
-    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t value_stride_bytes, //
+NUMKONG_API nk_status_t nk_attention_pack_i8_v128relaxed(                                         //
+    nk_i8_t const *keys, void const *key_scales, nk_i8_t const *values, void const *value_scales, //
+    nk_size_t key_value_head_count, nk_size_t depth,                                              //
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                             //
+    nk_size_t segment_count, nk_size_t key_stride_bytes, nk_size_t key_scales_stride_bytes,
+    nk_size_t value_stride_bytes, nk_size_t value_scales_stride_bytes, //
     void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_v128_k_) {
@@ -333,10 +336,11 @@ NUMKONG_INLINE void nk_attention_packed_bf16_v128relaxed_(                      
                                            output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_v128relaxed(                                     //
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
-    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_v128relaxed(                             //
+    nk_bf16_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                              //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
@@ -346,10 +350,11 @@ NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_v128relaxed(     
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_v128relaxed(                                            //
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
-    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_v128relaxed(                                    //
+    nk_bf16_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                              //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
@@ -377,10 +382,11 @@ NUMKONG_INLINE void nk_attention_packed_e4m3_v128relaxed_(                      
                                            output_stride_bytes, scale, diagonal_offset, window, task_start, task_count);
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_v128relaxed(                                     //
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
-    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_v128relaxed(                             //
+    nk_e4m3_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                              //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
@@ -390,10 +396,11 @@ NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_v128relaxed(     
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_v128relaxed(                                            //
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                                   //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
-    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_v128relaxed(                                    //
+    nk_e4m3_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                              //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
@@ -610,10 +617,11 @@ NUMKONG_INLINE void nk_attention_packed_i8_v128relaxed_(                        
     }
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_v128relaxed(                                       //
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
-    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_v128relaxed(                             //
+    nk_i8_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                            //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_size_t task_start, nk_size_t task_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
@@ -623,10 +631,11 @@ NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_v128relaxed(       
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_v128relaxed(                                              //
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                                     //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                                      //
-    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t output_stride_bytes, nk_f32_t scale, //
+NUMKONG_API nk_status_t nk_attention_causal_packed_i8_v128relaxed(                                    //
+    nk_i8_t const *queries, void const *query_scales, void const *key_value_packed, nk_f32_t *output, //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                            //
+    nk_u32_t const *query_offsets, nk_size_t query_stride_bytes, nk_size_t query_scales_stride_bytes,
+    nk_size_t output_stride_bytes, nk_f32_t scale, //
     nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;

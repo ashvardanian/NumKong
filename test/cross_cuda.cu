@@ -27,13 +27,15 @@ static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &) {
     auto const *a_codes = reinterpret_cast<nk_e4m3_t const *>(a.raw_values_data());
     auto const *b_codes = reinterpret_cast<nk_e4m3_t const *>(b.raw_values_data());
     auto *gpu = reinterpret_cast<nk_f32_t *>(distance.raw_values_data());
-    backend.call(pack_fn_, b_codes, 1, depth, depth, packed.raw_values_data(), 0, 1);
-    backend.call(angulars_fn_, a_codes, packed.raw_values_data(), gpu, 1, 1, depth, depth, sizeof(nk_f32_t));
+    backend.call(pack_fn_, b_codes, nullptr, 1, depth, depth, 0, packed.raw_values_data(), 0, 1);
+    backend.call(angulars_fn_, a_codes, nullptr, packed.raw_values_data(), gpu, 1, 1, depth, depth, 0,
+                 sizeof(nk_f32_t));
     synchronize(backend, stats);
     nk_f32_t serial = 0;
-    stats.expect(nk_dots_pack_e4m3_serial(b_codes, 1, depth, depth, serial_packed.raw_values_data(), 0, 1, nullptr));
-    stats.expect(nk_angulars_packed_e4m3_serial(a_codes, serial_packed.raw_values_data(), &serial, 1, 1, depth, depth,
-                                                sizeof(nk_f32_t), nullptr));
+    stats.expect(
+        nk_dots_pack_e4m3_serial(b_codes, nullptr, 1, depth, depth, 0, serial_packed.raw_values_data(), 0, 1, nullptr));
+    stats.expect(nk_angulars_packed_e4m3_serial(a_codes, nullptr, serial_packed.raw_values_data(), &serial, 1, 1, depth,
+                                                depth, 0, sizeof(nk_f32_t), nullptr));
     stats.expect(*gpu == serial, "a NaN code in B packed to a finite column norm");
     return stats;
 }

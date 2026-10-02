@@ -26,10 +26,12 @@ func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, height
 	}
 	check(C.nk_angulars_packed_f64_best(
 		(*C.nk_f64_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
+		0,
 		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
@@ -48,10 +50,12 @@ func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, height
 	}
 	check(C.nk_angulars_packed_f32_best(
 		(*C.nk_f32_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
+		0,
 		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
@@ -70,10 +74,12 @@ func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, height int
 	}
 	check(C.nk_angulars_packed_i8_best(
 		(*C.nk_i8_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
+		0,
 		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
@@ -92,10 +98,12 @@ func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height in
 	}
 	check(C.nk_angulars_packed_u8_best(
 		(*C.nk_u8_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
+		0,
 		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
@@ -114,10 +122,12 @@ func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, heig
 	}
 	check(C.nk_euclideans_packed_f64_best(
 		(*C.nk_f64_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
+		0,
 		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
@@ -136,10 +146,12 @@ func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, heig
 	}
 	check(C.nk_euclideans_packed_f32_best(
 		(*C.nk_f32_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
+		0,
 		C.nk_size_t(b.width*8), capabilities(), nil))
 }
 
@@ -158,10 +170,12 @@ func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, height i
 	}
 	check(C.nk_euclideans_packed_i8_best(
 		(*C.nk_i8_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
+		0,
 		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
@@ -180,10 +194,12 @@ func EuclideansPackedU8(a []uint8, b DotsPackedMatrix, result []float32, height 
 	}
 	check(C.nk_euclideans_packed_u8_best(
 		(*C.nk_u8_t)(&a[0]),
+		nil,
 		unsafe.Pointer(&b.data[0]),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(height), C.nk_size_t(b.width), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
+		0,
 		C.nk_size_t(b.width*4), capabilities(), nil))
 }
 
@@ -207,8 +223,10 @@ func AngularsSymmetricF64(vectors []float64, nVectors, depth int, result []float
 func angularsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
 	check(C.nk_angulars_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
+		0,
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -230,8 +248,10 @@ func AngularsSymmetricF32(vectors []float32, nVectors, depth int, result []float
 func angularsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
 	check(C.nk_angulars_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
+		0,
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -253,8 +273,10 @@ func AngularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32) 
 func angularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowStart, rowCount int) {
 	check(C.nk_angulars_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -276,8 +298,10 @@ func AngularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32)
 func angularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowStart, rowCount int) {
 	check(C.nk_angulars_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -299,8 +323,10 @@ func EuclideansSymmetricF64(vectors []float64, nVectors, depth int, result []flo
 func euclideansSymmetricF64(vectors []float64, nVectors, depth int, result []float64, rowStart, rowCount int) {
 	check(C.nk_euclideans_symmetric_f64_best(
 		(*C.nk_f64_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
+		0,
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -322,8 +348,10 @@ func EuclideansSymmetricF32(vectors []float32, nVectors, depth int, result []flo
 func euclideansSymmetricF32(vectors []float32, nVectors, depth int, result []float64, rowStart, rowCount int) {
 	check(C.nk_euclideans_symmetric_f32_best(
 		(*C.nk_f32_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
+		0,
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -345,8 +373,10 @@ func EuclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32
 func euclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32, rowStart, rowCount int) {
 	check(C.nk_euclideans_symmetric_i8_best(
 		(*C.nk_i8_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
@@ -368,8 +398,10 @@ func EuclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float3
 func euclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float32, rowStart, rowCount int) {
 	check(C.nk_euclideans_symmetric_u8_best(
 		(*C.nk_u8_t)(&vectors[0]),
+		nil,
 		C.nk_size_t(nVectors), C.nk_size_t(depth),
 		C.nk_size_t(depth),
+		0,
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
 		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
