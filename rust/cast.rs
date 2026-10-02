@@ -476,7 +476,6 @@ pub(crate) mod ffi {
         /// A `tensor_scale` holding zero receives the derived scale, any other is applied as is.
         pub(crate) fn new(
             format: &BlockScaledDescriptor,
-            derives_scale: bool,
             elements: *mut c_void,
             scales: *mut c_void,
             tensor_scale: *mut f32,
@@ -485,7 +484,7 @@ pub(crate) mod ffi {
             if format.scale_dtype == dtype::UNKNOWN {
                 return Self::Plain(elements);
             }
-            if derives_scale {
+            if format.tensor_scale_dtype != dtype::UNKNOWN {
                 return Self::Nvfp4(nk_nvfp4_ref_t {
                     elements: elements as *mut e2m1x2,
                     scales: scales as *mut Ue4m3,
@@ -725,7 +724,7 @@ fn block_scaled_cast_(
         .map_or(core::ptr::null(), |scale| scale as *const f32);
     let from_operand = ffi::Cref::new(from_format, from_elements, from_scales, from_scale);
     let mut to_scale = 0.0f32;
-    let mut to_operand = ffi::Ref::new(to_format, to_derives_scale, to_elements, to_scales, &mut to_scale);
+    let mut to_operand = ffi::Ref::new(to_format, to_elements, to_scales, &mut to_scale);
 
     // SAFETY: the caller sizes the source slices and the freshly-allocated destination tensors from
     // the same shape, so both buffers cover `count` logical elements; the operand structs and the
@@ -1260,7 +1259,6 @@ mod tests {
         let mut ref_scale = 0.0f32;
         let mut to_operand = ffi::Ref::new(
             &to_format,
-            has_tensor_scale,
             ref_elements.as_mut_ptr() as *mut c_void,
             ref_scales.as_mut_ptr() as *mut c_void,
             &mut ref_scale,

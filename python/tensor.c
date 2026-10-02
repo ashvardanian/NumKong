@@ -2572,13 +2572,82 @@ static PyObject *Tensor_argmax(PyObject *self, PyObject *const *args, Py_ssize_t
     return reduce_axis_dispatch(&view, &parsed, nk_i64_k, argmax_slice);
 }
 
-/** Layout shared by every @c nk_<format>_ref_t and @c _cref_t; the MX formats stop before
- *  @c tensor_scale. */
-typedef struct scaled_operand_t {
-    void *elements;
-    void *scales;
-    nk_f32_t *tensor_scale;
-} scaled_operand_t;
+/** Room for the reference of any block-scaled dtype, which cast kernels read by its own type. */
+typedef union {
+    nk_nvfp4_cref_t nvfp4_source;
+    nk_nvfp4_ref_t nvfp4_target;
+    nk_mxfp4_cref_t mxfp4_source;
+    nk_mxfp4_ref_t mxfp4_target;
+    nk_mxfp6e2m3_cref_t mxfp6e2m3_source;
+    nk_mxfp6e2m3_ref_t mxfp6e2m3_target;
+    nk_mxfp6e3m2_cref_t mxfp6e3m2_source;
+    nk_mxfp6e3m2_ref_t mxfp6e3m2_target;
+    nk_mxfp8e4m3_cref_t mxfp8e4m3_source;
+    nk_mxfp8e4m3_ref_t mxfp8e4m3_target;
+    nk_mxfp8e5m2_cref_t mxfp8e5m2_source;
+    nk_mxfp8e5m2_ref_t mxfp8e5m2_target;
+    nk_mxint8_cref_t mxint8_source;
+    nk_mxint8_ref_t mxint8_target;
+} block_scaled_reference_t;
+
+/** The @c nk_<format>_cref_t of @p dtype over @p elements and @p scales, built in @p storage. */
+static void const *block_scaled_source_(nk_dtype_t dtype, void const *elements, void const *scales,
+                                        nk_f32_t const *tensor_scale, block_scaled_reference_t *storage) {
+    switch (dtype) {
+    case nk_nvfp4_k:
+        storage->nvfp4_source = (nk_nvfp4_cref_t) {(nk_e2m1x2_t const *)elements, (nk_ue4m3_t const *)scales,
+                                                   tensor_scale};
+        return &storage->nvfp4_source;
+    case nk_mxfp4_k:
+        storage->mxfp4_source = (nk_mxfp4_cref_t) {(nk_e2m1x2_t const *)elements, (nk_ue8m0_t const *)scales};
+        return &storage->mxfp4_source;
+    case nk_mxfp6e2m3_k:
+        storage->mxfp6e2m3_source = (nk_mxfp6e2m3_cref_t) {(nk_e2m3_t const *)elements, (nk_ue8m0_t const *)scales};
+        return &storage->mxfp6e2m3_source;
+    case nk_mxfp6e3m2_k:
+        storage->mxfp6e3m2_source = (nk_mxfp6e3m2_cref_t) {(nk_e3m2_t const *)elements, (nk_ue8m0_t const *)scales};
+        return &storage->mxfp6e3m2_source;
+    case nk_mxfp8e4m3_k:
+        storage->mxfp8e4m3_source = (nk_mxfp8e4m3_cref_t) {(nk_e4m3_t const *)elements, (nk_ue8m0_t const *)scales};
+        return &storage->mxfp8e4m3_source;
+    case nk_mxfp8e5m2_k:
+        storage->mxfp8e5m2_source = (nk_mxfp8e5m2_cref_t) {(nk_e5m2_t const *)elements, (nk_ue8m0_t const *)scales};
+        return &storage->mxfp8e5m2_source;
+    case nk_mxint8_k:
+        storage->mxint8_source = (nk_mxint8_cref_t) {(nk_i8_t const *)elements, (nk_ue8m0_t const *)scales};
+        return &storage->mxint8_source;
+    default: return NULL;
+    }
+}
+
+/** The @c nk_<format>_ref_t of @p dtype over @p elements and @p scales, built in @p storage. */
+static void *block_scaled_target_(nk_dtype_t dtype, void *elements, void *scales, nk_f32_t *tensor_scale,
+                                  block_scaled_reference_t *storage) {
+    switch (dtype) {
+    case nk_nvfp4_k:
+        storage->nvfp4_target = (nk_nvfp4_ref_t) {(nk_e2m1x2_t *)elements, (nk_ue4m3_t *)scales, tensor_scale};
+        return &storage->nvfp4_target;
+    case nk_mxfp4_k:
+        storage->mxfp4_target = (nk_mxfp4_ref_t) {(nk_e2m1x2_t *)elements, (nk_ue8m0_t *)scales};
+        return &storage->mxfp4_target;
+    case nk_mxfp6e2m3_k:
+        storage->mxfp6e2m3_target = (nk_mxfp6e2m3_ref_t) {(nk_e2m3_t *)elements, (nk_ue8m0_t *)scales};
+        return &storage->mxfp6e2m3_target;
+    case nk_mxfp6e3m2_k:
+        storage->mxfp6e3m2_target = (nk_mxfp6e3m2_ref_t) {(nk_e3m2_t *)elements, (nk_ue8m0_t *)scales};
+        return &storage->mxfp6e3m2_target;
+    case nk_mxfp8e4m3_k:
+        storage->mxfp8e4m3_target = (nk_mxfp8e4m3_ref_t) {(nk_e4m3_t *)elements, (nk_ue8m0_t *)scales};
+        return &storage->mxfp8e4m3_target;
+    case nk_mxfp8e5m2_k:
+        storage->mxfp8e5m2_target = (nk_mxfp8e5m2_ref_t) {(nk_e5m2_t *)elements, (nk_ue8m0_t *)scales};
+        return &storage->mxfp8e5m2_target;
+    case nk_mxint8_k:
+        storage->mxint8_target = (nk_mxint8_ref_t) {(nk_i8_t *)elements, (nk_ue8m0_t *)scales};
+        return &storage->mxint8_target;
+    default: return NULL;
+    }
+}
 
 /**
  *  @brief Build a @c ScaledTensor by quantizing a dense tensor into @p target_dtype.
@@ -2635,10 +2704,12 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
 
     int has_tensor_scale = (to_format.tensor_scale_dtype == nk_f32_k);
     nk_f32_t to_tensor_scale = 0.0f; // zero → kernel derives the per-tensor scale (NVFP4)
-    scaled_operand_t to_operand = {elements->data, block_scales->data, has_tensor_scale ? &to_tensor_scale : NULL};
+    block_scaled_reference_t to_storage;
+    void *to_operand = block_scaled_target_(target_dtype, elements->data, block_scales->data,
+                                            has_tensor_scale ? &to_tensor_scale : NULL, &to_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(staging, nk_f32_k, &to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(staging, nk_f32_k, to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
     PyEval_RestoreThread(gil);
 
     if (staging_free) PyMem_Free(staging);
@@ -3618,11 +3689,14 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
     int to_has_tensor_scale = (to_format.tensor_scale_dtype == nk_f32_k);
     nk_f32_t from_tensor_scale = scaled->tensor_scale;
     nk_f32_t to_tensor_scale = 0.0f; // zero → kernel derives the destination per-tensor scale (NVFP4)
-    scaled_operand_t from_operand = {elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL};
-    scaled_operand_t to_operand = {dst_elements->data, dst_scales->data, to_has_tensor_scale ? &to_tensor_scale : NULL};
+    block_scaled_reference_t from_storage, to_storage;
+    void const *from_operand = block_scaled_source_(
+        scaled->dtype, elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL, &from_storage);
+    void *to_operand = block_scaled_target_(target_dtype, dst_elements->data, dst_scales->data,
+                                            to_has_tensor_scale ? &to_tensor_scale : NULL, &to_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(&from_operand, scaled->dtype, &to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(from_operand, scaled->dtype, to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
@@ -3686,11 +3760,12 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
     }
 
     nk_f32_t from_tensor_scale = scaled->tensor_scale;
-    scaled_operand_t from_operand = {elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL};
+    block_scaled_reference_t from_storage;
+    void const *from_operand = block_scaled_source_(
+        scaled->dtype, elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL, &from_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(&from_operand, scaled->dtype, f32_result->data, nk_f32_k, (nk_size_t)total, default_capabilities,
-                 NULL);
+    nk_cast_best(from_operand, scaled->dtype, f32_result->data, nk_f32_k, (nk_size_t)total, default_capabilities, NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
