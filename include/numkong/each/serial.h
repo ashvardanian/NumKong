@@ -126,8 +126,20 @@ nk_define_each_sum_(i16, i64, nk_assign_from_to_, nk_i64_to_i16_serial_) // nk_e
 nk_define_each_sum_(u16, i64, nk_assign_from_to_, nk_i64_to_u16_serial_) // nk_each_sum_u16_serial
 nk_define_each_sum_(i32, i64, nk_assign_from_to_, nk_i64_to_i32_serial_) // nk_each_sum_i32_serial
 nk_define_each_sum_(u32, i64, nk_assign_from_to_, nk_i64_to_u32_serial_) // nk_each_sum_u32_serial
-nk_define_each_sum_(i64, i64, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_sum_i64_serial
-nk_define_each_sum_(u64, u64, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_sum_u64_serial
+
+NUMKONG_API nk_status_t nk_each_sum_i64_serial(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_i64_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t i = 0; i != n; ++i) result[i] = nk_i64_saturating_add_(a[i], b[i]);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_sum_u64_serial(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_u64_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t i = 0; i != n; ++i) result[i] = nk_u64_saturating_add_(a[i], b[i]);
+    return nk_success_k;
+}
 
 nk_define_each_scale_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_scale_f64_serial
 nk_define_each_scale_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_scale_f32_serial
