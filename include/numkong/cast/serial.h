@@ -1684,6 +1684,7 @@ NUMKONG_INLINE void nk_u4x2_to_u8x2_serial_(nk_u4x2_t const *src, nk_u8_t *dest)
 NUMKONG_INLINE int nk_scalar_buffer_to_f64c_(nk_scalar_buffer_t const *buf, nk_dtype_t dtype, nk_f64c_t *result) {
     // Snapshot input so `result` may alias `buf` (e.g. in-place conversion within a union).
     nk_scalar_buffer_t local;
+    nk_f32_t real_f32, imag_f32;
     local.f64c = buf->f64c;
     result->real = 0, result->imag = 0;
     switch (dtype) {
@@ -1700,16 +1701,12 @@ NUMKONG_INLINE int nk_scalar_buffer_to_f64c_(nk_scalar_buffer_t const *buf, nk_d
     case nk_f64c_k: result->real = local.f64c.real, result->imag = local.f64c.imag; break;
     case nk_f32c_k: result->real = (nk_f64_t)local.f32c.real, result->imag = (nk_f64_t)local.f32c.imag; break;
     case nk_f16c_k:
-        nk_f16_to_f32_(&local.f16c.real, &local.f32);
-        result->real = (nk_f64_t)local.f32;
-        nk_f16_to_f32_(&local.f16c.imag, &local.f32);
-        result->imag = (nk_f64_t)local.f32;
+        nk_f16_to_f32_(&local.f16c.real, &real_f32), nk_f16_to_f32_(&local.f16c.imag, &imag_f32);
+        result->real = (nk_f64_t)real_f32, result->imag = (nk_f64_t)imag_f32;
         break;
     case nk_bf16c_k:
-        nk_bf16_to_f32_(&local.bf16c.real, &local.f32);
-        result->real = (nk_f64_t)local.f32;
-        nk_bf16_to_f32_(&local.bf16c.imag, &local.f32);
-        result->imag = (nk_f64_t)local.f32;
+        nk_bf16_to_f32_(&local.bf16c.real, &real_f32), nk_bf16_to_f32_(&local.bf16c.imag, &imag_f32);
+        result->real = (nk_f64_t)real_f32, result->imag = (nk_f64_t)imag_f32;
         break;
     case nk_i64_k: result->real = (nk_f64_t)local.i64; break;
     case nk_u64_k: result->real = (nk_f64_t)local.u64; break;
