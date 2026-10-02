@@ -35,13 +35,23 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
         (nk_kernel_punned_t)&nk_cast_powervsx,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_cast_cuda,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX,
          cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -321,11 +331,21 @@ static nk_capability_kernels_t const *nk_cast_block_scaled_capabilities(void) {
         (nk_kernel_punned_t)&nk_cast_block_scaled_icelake,
 #endif
     };
+#if NUMKONG_ARCH_CUDA_
+    static nk_kernel_punned_t const nvidia[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_cast_block_scaled_cuda,
+    };
+#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE,
          cpu},
+#if NUMKONG_ARCH_CUDA_
+        {nk_cap_cuda_k, nvidia},
+#else
         {0, nk_no_kernels_},
+#endif
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };

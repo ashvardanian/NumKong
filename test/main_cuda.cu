@@ -26,6 +26,7 @@
 #include "harness.hpp" // `error_stats_section_t`
 #include "harness.cuh" // `cuda_backend_t`, `device_capabilities`
 #include "each.hpp"    // `test_sum`, `test_rmsnorm`, `test_swiglu`
+#include "cast.hpp"    // `test_cast_pairs`, `test_cast_block_scaled`
 #include "reduce.hpp"  // `test_reduce_moments`, `test_reduce_minmax`
 
 #include <cuda_bf16.h>
@@ -649,6 +650,100 @@ static void test_each_cuda(error_stats_section_t &check) {
     check("each_rmsnorm_e4m3_cuda", test_rmsnorm<e4m3_t, cuda_backend_t>, nk_each_rmsnorm_e4m3_cuda);
 }
 
+/** The device twins of the serial conversions in @c numkong/cast/simt.cuh match them bit for bit,
+ *  NaN payloads included: decoders over every code, encoders over every F16 value and random bits.
+ *  Only header-only builds compile those internal helpers into the test. */
+static error_stats_t test_cast_scalars_cuda(settings_t const &settings) {
+    using floats_t = nk::vector<f32_t, cuda_backend_t::allocator<f32_t>>;
+    using halves_t = nk::vector<u16_t, cuda_backend_t::allocator<u16_t>>;
+    using bytes_t = nk::vector<u8_t, cuda_backend_t::allocator<u8_t>>;
+    std::size_t const codes = 1u << 16, count = codes + (1u << 20);
+    cuda_backend_t backend;
+    error_stats_t stats(comparison_family_t::exact_k);
+    std::mt19937 generator(settings.seed.value);
+    auto decoded = floats_t::zeros(2 * codes + 1536).value, values = floats_t::zeros(count).value;
+    auto halves = halves_t::zeros(2 * count).value;
+    auto bytes = bytes_t::zeros(5 * count).value;
+    nk_f32_t *value_data = values.raw_values_data();
+    for (std::size_t code = 0; code != codes; ++code) {
+        nk_u16_t const half = static_cast<nk_u16_t>(code);
+        nk_f16_to_f32_serial(&half, value_data + code);
+    }
+    for (std::size_t index = codes; index != count; ++index) {
+        std::uint32_t const bits = static_cast<std::uint32_t>(generator());
+        std::memcpy(value_data + index, &bits, sizeof(bits));
+    }
+    cudaStream_t const stream = static_cast<cudaStream_t>(backend.stream);
+    cast_decode_codes_kernel_<<<codes / 256, 256, 0, stream>>>(decoded.raw_values_data());
+    cast_encode_floats_kernel_<<<nk::divide_round_up(count, 256), 256, 0, stream>>>(
+        value_data, count, halves.raw_values_data(), bytes.raw_values_data());
+    backend.keep(cudaGetLastError() == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k);
+    if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+
+    auto compare_bits = [&](auto const &actual, auto const &expected) {
+        static_assert(sizeof(actual) == sizeof(expected));
+        std::uint32_t actual_bits = 0, expected_bits = 0;
+        std::memcpy(&actual_bits, &actual, sizeof(actual));
+        std::memcpy(&expected_bits, &expected, sizeof(expected));
+        stats.accumulate(actual_bits, expected_bits);
+    };
+    auto compare_conversion = [&](auto serial, auto const &source, auto const &actual) {
+        std::remove_cvref_t<decltype(actual)> expected;
+        serial(&source, &expected);
+        compare_bits(actual, expected);
+    };
+    nk_f32_t const *widened = decoded.raw_values_data(), *narrow_codes = widened + 2 * codes;
+    for (std::size_t code = 0; code != codes; ++code) {
+        nk_u16_t const half = static_cast<nk_u16_t>(code);
+        nk_u8_t const byte = static_cast<nk_u8_t>(code);
+        compare_conversion(nk_f16_to_f32_serial, half, widened[code]);
+        compare_conversion(nk_bf16_to_f32_serial, half, widened[codes + code]);
+        if (code >= 256) continue;
+        compare_conversion(nk_e4m3_to_f32_serial, byte, narrow_codes[code]);
+        compare_conversion(nk_e5m2_to_f32_serial, byte, narrow_codes[256 + code]);
+        compare_conversion(nk_e2m3_to_f32_serial, byte, narrow_codes[512 + code]);
+        compare_conversion(nk_e3m2_to_f32_serial, byte, narrow_codes[768 + code]);
+        nk_f32_t pair[2];
+        nk_e2m1x2_to_f32x2_serial(&byte, pair);
+        compare_bits(narrow_codes[1024 + 2 * code], pair[0]), compare_bits(narrow_codes[1025 + 2 * code], pair[1]);
+    }
+    nk_u16_t const *half_data = halves.raw_values_data();
+    nk_u8_t const *byte_data = bytes.raw_values_data();
+    for (std::size_t index = 0; index != count; ++index) {
+        compare_conversion(nk_f32_to_f16_serial, value_data[index], half_data[index]);
+        compare_conversion(nk_f32_to_bf16_serial, value_data[index], half_data[count + index]);
+        compare_conversion(nk_f32_to_e4m3_serial, value_data[index], byte_data[index]);
+        compare_conversion(nk_f32_to_e5m2_serial, value_data[index], byte_data[count + index]);
+        compare_conversion(nk_f32_to_e2m3_serial, value_data[index], byte_data[2 * count + index]);
+        compare_conversion(nk_f32_to_e3m2_serial, value_data[index], byte_data[3 * count + index]);
+        if (index % 2) continue;
+        nk_u8_t pair;
+        nk_f32x2_to_e2m1x2_serial(value_data + index, &pair);
+        compare_bits(byte_data[4 * count + index / 2], pair);
+    }
+    return stats;
+}
+
+/** Bulk and block-scaled conversions on the CUDA baseline, over @c test/cast.hpp. */
+static void test_cast_cuda(error_stats_section_t &check) {
+    check.section("Conversions CUDA", nk_cap_cuda_k);
+#if NUMKONG_HEADER_ONLY
+    check("cast_scalars_cuda", test_cast_scalars_cuda);
+#endif
+    check("cast_cuda", test_cast_pairs<cuda_backend_t>, nk_cast_cuda);
+    check("cast_f32_to_nvfp4_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda, nk_nvfp4);
+    check("cast_f32_to_mxfp4_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda, nk_mxfp4);
+    check("cast_f32_to_mxfp6_e2m3_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
+          nk_mxfp6_e2m3);
+    check("cast_f32_to_mxfp6_e3m2_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
+          nk_mxfp6_e3m2);
+    check("cast_f32_to_mxfp8_e4m3_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
+          nk_mxfp8_e4m3);
+    check("cast_f32_to_mxfp8_e5m2_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda,
+          nk_mxfp8_e5m2);
+    check("cast_f32_to_mxint8_cuda", test_cast_block_scaled<cuda_backend_t>, nk_cast_block_scaled_cuda, nk_mxint8);
+}
+
 static void test_reduce_cuda(error_stats_section_t &check) {
     check.section("Reductions CUDA", nk_cap_cuda_k);
     check("reduce_moments_f32_cuda", test_reduce_moments<f32_t, cuda_backend_t>, nk_reduce_moments_f32_cuda);
@@ -959,6 +1054,7 @@ int main(int, char **argv) {
     }
 
     test_each_cuda(check);
+    test_cast_cuda(check);
     test_reduce_cuda(check);
     test_cross_cuda(check);
 

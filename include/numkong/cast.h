@@ -550,6 +550,23 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_ty
                                             nk_dtype_t to_type, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
+/*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
+ *  every operand is device memory of the vendor their capability names. */
+#if NUMKONG_ARCH_CUDA_
+/** @copydoc nk_cast_best */
+NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
+                                     void *stream);
+
+/** @copydoc nk_cast_block_scaled_best
+ *
+ *  The formats stay in host memory, while both tensor scales are device memory like the rest. */
+NUMKONG_API nk_status_t nk_cast_block_scaled_cuda(                                                             //
+    void const *from, void const *from_scales, nk_scalar_buffer_t const *from_tensor_scale,                    //
+    nk_block_scaled_format_t const *from_format,                                                               //
+    void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
+    nk_size_t count, void *stream);
+#endif // NUMKONG_ARCH_CUDA_
+
 /**
  *  @brief Finds the cast kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
@@ -575,6 +592,7 @@ NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/cast/v128relaxed.h"
 #include "numkong/cast/powervsx.h"
 #include "numkong/cast/loongsonasx.h"
+#include "numkong/cast/simt.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

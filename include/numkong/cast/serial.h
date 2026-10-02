@@ -757,7 +757,7 @@ NUMKONG_INLINE void nk_f32_to_bf16_(nk_f32_t const *src, nk_bf16_t *dest) {
 }
 
 /** Widens one E4M3FN value to F32, exactly. */
-NUMKONG_INLINE void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) {
+NUMKONG_CONSTEXPR void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) {
     nk_u8_t raw = *src;
     nk_u32_t sign = (nk_u32_t)(raw & 0x80) << 24;
     nk_u32_t exponent = (raw >> 3) & 0x0Fu;
@@ -789,7 +789,7 @@ NUMKONG_INLINE void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) {
 }
 
 /** Narrows one F32 value to E4M3FN, rounding to nearest even and saturating at 448. */
-NUMKONG_INLINE void nk_f32_to_e4m3_(nk_f32_t const *src, nk_e4m3_t *dest) {
+NUMKONG_CONSTEXPR void nk_f32_to_e4m3_(nk_f32_t const *src, nk_e4m3_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -1001,7 +1001,7 @@ NUMKONG_INLINE void nk_e5m2_to_f32_(nk_e5m2_t const *src, nk_f32_t *dest) {
 }
 
 /** Narrows one F32 value to E5M2, rounding to nearest even and keeping infinities and NaNs. */
-NUMKONG_INLINE void nk_f32_to_e5m2_(nk_f32_t const *src, nk_e5m2_t *dest) {
+NUMKONG_CONSTEXPR void nk_f32_to_e5m2_(nk_f32_t const *src, nk_e5m2_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -1101,7 +1101,7 @@ NUMKONG_INLINE void nk_e2m3_to_f32_(nk_e2m3_t const *src, nk_f32_t *dest) {
 }
 
 /** Narrows one F32 value to E2M3FN, rounding to nearest even and saturating at 7.5. */
-NUMKONG_INLINE void nk_f32_to_e2m3_(nk_f32_t const *src, nk_e2m3_t *dest) {
+NUMKONG_CONSTEXPR void nk_f32_to_e2m3_(nk_f32_t const *src, nk_e2m3_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -1204,7 +1204,7 @@ NUMKONG_INLINE void nk_e3m2_to_f32_(nk_e3m2_t const *src, nk_f32_t *dest) {
 }
 
 /** Narrows one F32 value to E3M2FN, rounding to nearest even and saturating at 28. */
-NUMKONG_INLINE void nk_f32_to_e3m2_(nk_f32_t const *src, nk_e3m2_t *dest) {
+NUMKONG_CONSTEXPR void nk_f32_to_e3m2_(nk_f32_t const *src, nk_e3m2_t *dest) {
     nk_f32_t x = *src;
     nk_fui32_t conv;
     conv.f = x;
@@ -1322,7 +1322,7 @@ NUMKONG_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) {
 
 /** Convert a single f32 to an E2M1 nibble (returned in low 4 bits of @p nibble_out). RNE rounding,
  *  saturation at ±6.0, NaN → ±6.0 with sign preserved (OCP MX: FP4 has no NaN). */
-NUMKONG_INLINE void nk_f32_to_e2m1_nibble_serial_(nk_f32_t src, nk_u8_t *nibble_out) {
+NUMKONG_CONSTEXPR void nk_f32_to_e2m1_nibble_serial_(nk_f32_t src, nk_u8_t *nibble_out) {
     nk_fui32_t conv;
     conv.f = src;
     nk_u8_t sign_bit = (nk_u8_t)((conv.u >> 31) << 3);
@@ -1377,7 +1377,7 @@ NUMKONG_INLINE void nk_e2m1x2_to_f32x2_(nk_e2m1x2_t const *src, nk_f32_t *dest) 
 }
 
 /** Narrows two F32 values to the E2M1 nibbles of one byte, the first into the high nibble. */
-NUMKONG_INLINE void nk_f32x2_to_e2m1x2_(nk_f32_t const *src, nk_e2m1x2_t *dest) {
+NUMKONG_CONSTEXPR void nk_f32x2_to_e2m1x2_(nk_f32_t const *src, nk_e2m1x2_t *dest) {
     nk_u8_t high_nibble, low_nibble;
     nk_f32_to_e2m1_nibble_serial_(src[0], &high_nibble);
     nk_f32_to_e2m1_nibble_serial_(src[1], &low_nibble);
@@ -1385,7 +1385,7 @@ NUMKONG_INLINE void nk_f32x2_to_e2m1x2_(nk_f32_t const *src, nk_e2m1x2_t *dest) 
 }
 
 /** Decodes one UE8M0 power-of-two scale to F32, 0xFF to a NaN and 0x00 to zero. */
-NUMKONG_INLINE void nk_ue8m0_to_f32_(nk_ue8m0_t const *src, nk_f32_t *dest) {
+NUMKONG_CONSTEXPR void nk_ue8m0_to_f32_(nk_ue8m0_t const *src, nk_f32_t *dest) {
     nk_u8_t raw = *src;
     nk_fui32_t conv;
     if (raw == 0) {
@@ -1403,7 +1403,7 @@ NUMKONG_INLINE void nk_ue8m0_to_f32_(nk_ue8m0_t const *src, nk_f32_t *dest) {
 }
 
 /** Encodes one F32 magnitude as the nearest UE8M0 power of two, saturating at 0xFE. */
-NUMKONG_INLINE void nk_f32_to_ue8m0_(nk_f32_t const *src, nk_ue8m0_t *dest) {
+NUMKONG_CONSTEXPR void nk_f32_to_ue8m0_(nk_f32_t const *src, nk_ue8m0_t *dest) {
     nk_fui32_t conv;
     conv.f = *src;
     nk_u32_t abs_bits = conv.u & 0x7FFFFFFFu;
@@ -1473,7 +1473,7 @@ NUMKONG_API void nk_f32_to_ue8m0_serial(nk_f32_t const *src, nk_ue8m0_t *dest) {
  *  of two. A NaN amax maps to 0xFF as the block-NaN sentinel, an infinite one saturates to 0xFE,
  *  and a zero or subnormal one maps to 0x00.
  */
-NUMKONG_INLINE nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f32_t element_max) {
+NUMKONG_CONSTEXPR nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f32_t element_max) {
     nk_fui32_t amax_conv, element_conv;
     amax_conv.f = amax;
     element_conv.f = element_max;
@@ -1490,13 +1490,13 @@ NUMKONG_INLINE nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f32_
 }
 
 /** Decodes one UE4M3 scale, an E4M3FN without the sign bit, to F32. */
-NUMKONG_INLINE void nk_ue4m3_to_f32_(nk_ue4m3_t const *src, nk_f32_t *dest) {
+NUMKONG_CONSTEXPR void nk_ue4m3_to_f32_(nk_ue4m3_t const *src, nk_f32_t *dest) {
     nk_e4m3_t raw = (nk_e4m3_t)(*src & 0x7F);
     nk_e4m3_to_f32_(&raw, dest);
 }
 
 /** Encodes the magnitude of one F32 value as UE4M3, rounding to nearest even, a NaN to 0x7F. */
-NUMKONG_INLINE void nk_f32_to_ue4m3_(nk_f32_t const *src, nk_ue4m3_t *dest) {
+NUMKONG_CONSTEXPR void nk_f32_to_ue4m3_(nk_f32_t const *src, nk_ue4m3_t *dest) {
     nk_fui32_t conv;
     conv.f = *src;
     conv.u &= 0x7FFFFFFFu; // take absolute value before encoding
@@ -1529,7 +1529,7 @@ NUMKONG_API void nk_f32_to_ue4m3_serial(nk_f32_t const *src, nk_ue4m3_t *dest) {
 
 /*  Convert floating-point numbers to integers with the project-wide narrowing policy: finite values
  *  are clamped and rounded to nearest, ties to even, infinities saturate, and NaNs map to zero. */
-NUMKONG_INLINE nk_i64_t nk_rint_even_f64_to_i64_serial_(nk_f64_t x) {
+NUMKONG_CONSTEXPR nk_i64_t nk_rint_even_f64_to_i64_serial_(nk_f64_t x) {
     nk_i64_t integer = (nk_i64_t)x;
     nk_f64_t fraction = x - (nk_f64_t)integer;
     if (fraction > 0.5 || (fraction == 0.5 && (integer & 1))) ++integer;
@@ -1537,7 +1537,7 @@ NUMKONG_INLINE nk_i64_t nk_rint_even_f64_to_i64_serial_(nk_f64_t x) {
     return integer;
 }
 
-NUMKONG_INLINE nk_u64_t nk_rint_even_f64_to_u64_serial_(nk_f64_t x) {
+NUMKONG_CONSTEXPR nk_u64_t nk_rint_even_f64_to_u64_serial_(nk_f64_t x) {
     nk_u64_t integer = (nk_u64_t)x;
     nk_f64_t fraction = x - (nk_f64_t)integer;
     if (fraction > 0.5 || (fraction == 0.5 && (integer & 1))) ++integer;
@@ -1566,80 +1566,82 @@ NUMKONG_INLINE void nk_f32_to_u16_serial_(nk_f32_t const *x, nk_u16_t *y) {
     else *y = (nk_u16_t)nk_rint_even_f64_to_u64_serial_(*x > 65535.0f ? 65535.0 : (*x < 0 ? 0.0 : (nk_f64_t)*x));
 }
 
-NUMKONG_INLINE void nk_f64_to_i8_serial_(nk_f64_t const *x, nk_i8_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_i8_serial_(nk_f64_t const *x, nk_i8_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_i8_t)nk_rint_even_f64_to_i64_serial_(*x > 127.0 ? 127.0 : (*x < -128.0 ? -128.0 : *x));
 }
 
-NUMKONG_INLINE void nk_f64_to_u8_serial_(nk_f64_t const *x, nk_u8_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_u8_serial_(nk_f64_t const *x, nk_u8_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u8_t)nk_rint_even_f64_to_u64_serial_(*x > 255.0 ? 255.0 : (*x < 0 ? 0.0 : *x));
 }
 
-NUMKONG_INLINE void nk_f64_to_i16_serial_(nk_f64_t const *x, nk_i16_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_i16_serial_(nk_f64_t const *x, nk_i16_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_i16_t)nk_rint_even_f64_to_i64_serial_(*x > 32767.0 ? 32767.0 : (*x < -32768.0 ? -32768.0 : *x));
 }
 
-NUMKONG_INLINE void nk_f64_to_u16_serial_(nk_f64_t const *x, nk_u16_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_u16_serial_(nk_f64_t const *x, nk_u16_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u16_t)nk_rint_even_f64_to_u64_serial_(*x > 65535.0 ? 65535.0 : (*x < 0 ? 0.0 : *x));
 }
 
-NUMKONG_INLINE void nk_f64_to_i32_serial_(nk_f64_t const *x, nk_i32_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_i32_serial_(nk_f64_t const *x, nk_i32_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else
         *y = (nk_i32_t)nk_rint_even_f64_to_i64_serial_(*x > 2147483647.0 ? 2147483647.0
                                                                          : (*x < -2147483648.0 ? -2147483648.0 : *x));
 }
 
-NUMKONG_INLINE void nk_f64_to_u32_serial_(nk_f64_t const *x, nk_u32_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_u32_serial_(nk_f64_t const *x, nk_u32_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else *y = (nk_u32_t)nk_rint_even_f64_to_u64_serial_(*x > 4294967295.0 ? 4294967295.0 : (*x < 0 ? 0.0 : *x));
 }
 
-NUMKONG_INLINE void nk_f64_to_i64_serial_(nk_f64_t const *x, nk_i64_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_i64_serial_(nk_f64_t const *x, nk_i64_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else if (*x >= 9223372036854775808.0) *y = NUMKONG_I64_MAX; // 2⁶³ itself would overflow the cast
     else *y = nk_rint_even_f64_to_i64_serial_(*x < -9223372036854775808.0 ? -9223372036854775808.0 : *x);
 }
 
-NUMKONG_INLINE void nk_f64_to_u64_serial_(nk_f64_t const *x, nk_u64_t *y) {
+NUMKONG_CONSTEXPR void nk_f64_to_u64_serial_(nk_f64_t const *x, nk_u64_t *y) {
     if (*x != *x) *y = 0; // For IEEE floating-point, NaN is the one value that is not equal to itself
     else if (*x >= 18446744073709551616.0) *y = NUMKONG_U64_MAX; // 2⁶⁴ itself would overflow the cast
     else *y = nk_rint_even_f64_to_u64_serial_(*x < 0 ? 0.0 : *x);
 }
 
-NUMKONG_INLINE void nk_i64_to_i8_serial_(nk_i64_t const *x, nk_i8_t *y) {
+NUMKONG_CONSTEXPR void nk_i64_to_i8_serial_(nk_i64_t const *x, nk_i8_t *y) {
     *y = (nk_i8_t)(*x > 127ll ? 127ll : (*x < -128ll ? -128ll : *x));
 }
 
-NUMKONG_INLINE void nk_i64_to_u8_serial_(nk_i64_t const *x, nk_u8_t *y) {
+NUMKONG_CONSTEXPR void nk_i64_to_u8_serial_(nk_i64_t const *x, nk_u8_t *y) {
     *y = (nk_u8_t)(*x > 255ll ? 255ll : (*x < 0ll ? 0ll : *x));
 }
 
-NUMKONG_INLINE void nk_i64_to_i16_serial_(nk_i64_t const *x, nk_i16_t *y) {
+NUMKONG_CONSTEXPR void nk_i64_to_i16_serial_(nk_i64_t const *x, nk_i16_t *y) {
     *y = (nk_i16_t)(*x > 32767ll ? 32767ll : (*x < -32768ll ? -32768ll : *x));
 }
 
-NUMKONG_INLINE void nk_i64_to_u16_serial_(nk_i64_t const *x, nk_u16_t *y) {
+NUMKONG_CONSTEXPR void nk_i64_to_u16_serial_(nk_i64_t const *x, nk_u16_t *y) {
     *y = (nk_u16_t)(*x > 65535ll ? 65535ll : (*x < 0ll ? 0ll : *x));
 }
 
-NUMKONG_INLINE void nk_i64_to_i32_serial_(nk_i64_t const *x, nk_i32_t *y) {
+NUMKONG_CONSTEXPR void nk_i64_to_i32_serial_(nk_i64_t const *x, nk_i32_t *y) {
     *y = (nk_i32_t)(*x > 2147483647ll ? 2147483647ll : (*x < -2147483648ll ? -2147483648ll : *x));
 }
 
-NUMKONG_INLINE void nk_i64_to_u32_serial_(nk_i64_t const *x, nk_u32_t *y) {
+NUMKONG_CONSTEXPR void nk_i64_to_u32_serial_(nk_i64_t const *x, nk_u32_t *y) {
     *y = (nk_u32_t)(*x > 4294967295ll ? 4294967295ll : (*x < 0ll ? 0ll : *x));
 }
 
 NUMKONG_INLINE void nk_u64_to_i8_serial_(nk_u64_t const *x, nk_i8_t *y) { *y = (nk_i8_t)(*x > 127ull ? 127ull : *x); }
-NUMKONG_INLINE void nk_u64_to_u8_serial_(nk_u64_t const *x, nk_u8_t *y) { *y = (nk_u8_t)(*x > 255ull ? 255ull : *x); }
+NUMKONG_CONSTEXPR void nk_u64_to_u8_serial_(nk_u64_t const *x, nk_u8_t *y) {
+    *y = (nk_u8_t)(*x > 255ull ? 255ull : *x);
+}
 NUMKONG_INLINE void nk_u64_to_i16_serial_(nk_u64_t const *x, nk_i16_t *y) {
     *y = (nk_i16_t)(*x > 32767ull ? 32767ull : *x);
 }
-NUMKONG_INLINE void nk_u64_to_u16_serial_(nk_u64_t const *x, nk_u16_t *y) {
+NUMKONG_CONSTEXPR void nk_u64_to_u16_serial_(nk_u64_t const *x, nk_u16_t *y) {
     *y = (nk_u16_t)(*x > 65535ull ? 65535ull : *x);
 }
 
@@ -1647,7 +1649,7 @@ NUMKONG_INLINE void nk_u64_to_i32_serial_(nk_u64_t const *x, nk_i32_t *y) {
     *y = (nk_i32_t)(*x > 2147483647ull ? 2147483647ull : *x);
 }
 
-NUMKONG_INLINE void nk_u64_to_u32_serial_(nk_u64_t const *x, nk_u32_t *y) {
+NUMKONG_CONSTEXPR void nk_u64_to_u32_serial_(nk_u64_t const *x, nk_u32_t *y) {
     *y = (nk_u32_t)(*x > 4294967295ull ? 4294967295ull : *x);
 }
 
@@ -1655,7 +1657,7 @@ NUMKONG_INLINE void nk_u64_to_i64_serial_(nk_u64_t const *x, nk_i64_t *y) {
     *y = (nk_i64_t)(*x >= 9223372036854775807ull ? 9223372036854775807ll : *x);
 }
 
-NUMKONG_INLINE void nk_i64_to_u64_serial_(nk_i64_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
+NUMKONG_CONSTEXPR void nk_i64_to_u64_serial_(nk_i64_t const *x, nk_u64_t *y) { *y = (nk_u64_t)(*x < 0 ? 0 : *x); }
 
 NUMKONG_INLINE void nk_i4x2_to_i8x2_serial_(nk_i4x2_t const *src, nk_i8_t *dest) {
     // Each nibble is a signed 4-bit integer in [-8, 7]
@@ -2285,7 +2287,7 @@ NUMKONG_API nk_status_t nk_cast_serial(void const *from, nk_dtype_t from_type, n
 #endif // NUMKONG_TARGET_SERIAL
 
 /** Maximum representable magnitude for each block-scaled element dtype (OCP MX / NVFP4 spec). */
-NUMKONG_INLINE nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) {
+NUMKONG_CONSTEXPR nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) {
     switch (element_dtype) {
     case nk_e5m2_k: return 57344.0f;
     case nk_e4m3_k: return 448.0f;
@@ -2299,7 +2301,7 @@ NUMKONG_INLINE nk_f32_t nk_element_max_representable_(nk_dtype_t element_dtype) 
 
 /** Block abs-max over n f32 values; propagates NaN so a NaN-containing block yields the scale
  *  dtype's NaN sentinel (0xFF for UE8M0) instead of silently dropping the NaN. */
-NUMKONG_INLINE nk_f32_t nk_block_amax_f32_serial_(nk_f32_t const *src, nk_size_t n) {
+NUMKONG_CONSTEXPR nk_f32_t nk_block_amax_f32_serial_(nk_f32_t const *src, nk_size_t n) {
     nk_f32_t amax = 0.0f;
     for (nk_size_t i = 0; i < n; ++i) {
         nk_f32_t a = src[i] < 0 ? -src[i] : src[i];
@@ -2310,7 +2312,7 @@ NUMKONG_INLINE nk_f32_t nk_block_amax_f32_serial_(nk_f32_t const *src, nk_size_t
 }
 
 /** Decode a block's scale byte into f32 (UE8M0 or UE4M3). */
-NUMKONG_INLINE nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_scale, nk_dtype_t scale_dtype) {
+NUMKONG_CONSTEXPR nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_scale, nk_dtype_t scale_dtype) {
     nk_f32_t result = 0.0f;
     if (scale_dtype == nk_ue8m0_k) nk_ue8m0_to_f32_(&raw_scale, &result);
     else if (scale_dtype == nk_ue4m3_k) nk_ue4m3_to_f32_(&raw_scale, &result);
@@ -2326,8 +2328,8 @@ NUMKONG_INLINE nk_f32_t nk_block_scaled_decode_scale_serial_(nk_u8_t raw_scale, 
  *  - UE4M3 (NVFP4): per-block scale relative to the per-tensor f32 scale, round-to-nearest-even
  *    (UE4M3's 3 mantissa bits make scale clipping negligible).
  */
-NUMKONG_INLINE nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t block_amax, nk_f32_t element_max,
-                                                            nk_f32_t tensor_scale, nk_dtype_t scale_dtype) {
+NUMKONG_CONSTEXPR nk_u8_t nk_block_scaled_encode_scale_serial_(nk_f32_t block_amax, nk_f32_t element_max,
+                                                               nk_f32_t tensor_scale, nk_dtype_t scale_dtype) {
     nk_u8_t raw = 0;
     if (scale_dtype == nk_ue8m0_k) { raw = nk_f32_block_amax_to_ue8m0_serial_(block_amax, element_max); }
     else if (scale_dtype == nk_ue4m3_k) {
