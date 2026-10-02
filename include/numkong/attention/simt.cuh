@@ -390,6 +390,16 @@ NUMKONG_DEVICE nk_f32_t nk_attention_score_(nk_dtype_t dtype, unsigned char cons
     return sum;
 }
 
+/** The U8 weight the I8 contract gives a softmax weight in [0, 1]: ⌊255 · w + ½⌋, as F32. */
+NUMKONG_DEVICE nk_f32_t nk_attention_quantize_weight_(nk_f32_t weight) {
+#if NUMKONG_ARCH_ROCM_
+    return floorf(weight * 255.0f + 0.5f);
+#else
+    // A round-down add of 2²³ truncates at the full F32 rate, where sm_103 converts at 2 per clock.
+    return __fadd_rd(weight * 255.0f + 0.5f, 8388608.0f) - 8388608.0f;
+#endif
+}
+
 /** Attends one query row to the keys from @p key_begin up to @p key_end in the serial backend's
  *  two sweeps: the largest score first, then the weighted V rows, summed into @p output_row and
  *  divided by the sum of their weights. */
@@ -409,8 +419,7 @@ NUMKONG_DEVICE void nk_attention_fallback_row_(nk_dtype_t dtype, nk_attention_ar
         nk_f32_t const score = nk_attention_score_(dtype, query_row, keys_plane + position * row_bytes, depth, lane,
                                                    lanes);
         nk_f32_t weight = exp2f(score * arguments->scale2 - row_max);
-        // A round-down add of 2²³ truncates at the full F32 rate; sm_103 converts at 2 per clock
-        if (dtype == nk_i8_k) weight = __fadd_rd(weight * 255.0f + 0.5f, 8388608.0f) - 8388608.0f;
+        if (dtype == nk_i8_k) weight = nk_attention_quantize_weight_(weight);
         weights_sum += weight;
         for (nk_size_t element = lane; element < depth; element += lanes) {
             nk_f32_t const value = dtype == nk_bf16_k
