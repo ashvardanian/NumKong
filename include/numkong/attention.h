@@ -1111,7 +1111,7 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_v128relaxed(
  *
  *  CUDA on every NVIDIA device: 32 lanes per query row, two sweeps over its keys as the serial
  *  backend makes, and the pack routine every GPU capability shares. */
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_cuda(nk_size_t key_value_head_count, nk_size_t depth,
                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
@@ -1189,7 +1189,7 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_cuda(nk_i8_t const *querie
                                                            nk_size_t output_stride_bytes, nk_f32_t scale,
                                                            nk_i64_t diagonal_offset, nk_size_t window,
                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
-#endif // NUMKONG_ARCH_CUDA_
+#endif // NUMKONG_TARGET_CUDA
 
 /*  NVIDIA backends from Ampere on: FlashAttention-2 on warp-level `mma.sync` up to depth 256, the
  *  CUDA baseline past it. */
@@ -1415,7 +1415,7 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_blackwellrtx(
 #endif // NUMKONG_TARGET_BLACKWELLRTX
 
 /*  ROCm on every AMD device: the CUDA baseline's source, compiled by HIP. */
-#if NUMKONG_ARCH_ROCM_
+#if NUMKONG_TARGET_ROCM
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_rocm(nk_size_t key_value_head_count, nk_size_t depth,
                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
@@ -1493,7 +1493,7 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_rocm(nk_i8_t const *querie
                                                            nk_size_t output_stride_bytes, nk_f32_t scale,
                                                            nk_i64_t diagonal_offset, nk_size_t window,
                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
-#endif // NUMKONG_ARCH_ROCM_
+#endif // NUMKONG_TARGET_ROCM
 
 /*  AMD Instinct MI350 backends, gfx950, through its matrix cores. */
 #if NUMKONG_TARGET_CDNA4

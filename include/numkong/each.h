@@ -1673,7 +1673,7 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const
 
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
  *  every operand is device memory of the vendor their capability names. */
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
 /** @copydoc nk_each_sum_f32_best */
 NUMKONG_API nk_status_t nk_each_sum_f32_cuda(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
                                              void *stream);
@@ -1712,9 +1712,9 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_cuda(nk_e4m3_t const *x, nk_f32_t c
                                                   nk_size_t rows, nk_size_t groups, nk_size_t cols,
                                                   nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
                                                   nk_f32_t input_scale, void *stream);
-#endif // NUMKONG_ARCH_CUDA_
+#endif // NUMKONG_TARGET_CUDA
 
-#if NUMKONG_ARCH_ROCM_
+#if NUMKONG_TARGET_ROCM
 /** @copydoc nk_each_sum_f32_best */
 NUMKONG_API nk_status_t nk_each_sum_f32_rocm(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
                                              void *stream);
@@ -1753,7 +1753,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_rocm(nk_e4m3_t const *x, nk_f32_t c
                                                   nk_size_t rows, nk_size_t groups, nk_size_t cols,
                                                   nk_size_t x_stride_bytes, nk_size_t y_stride_bytes, nk_f32_t eps,
                                                   nk_f32_t input_scale, void *stream);
-#endif // NUMKONG_ARCH_ROCM_
+#endif // NUMKONG_TARGET_ROCM
 
 /** Returns the scalar parameter dtype for elementwise scale/blend/fma operations. */
 NUMKONG_INLINE nk_dtype_t nk_each_scale_input_dtype(nk_dtype_t dtype) {

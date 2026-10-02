@@ -1039,7 +1039,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_v128relaxed(nk_e3m2_t const *, nk_
 
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
  *  every operand is device memory of the vendor their capability names. */
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
 /** @copydoc nk_reduce_moments_f64_best */
 NUMKONG_API nk_status_t nk_reduce_moments_f32_cuda(nk_f32_t const *, nk_size_t, nk_size_t, nk_f64_t *, nk_f64_t *,
                                                    void *stream);
@@ -1157,7 +1157,7 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u4_cuda(nk_u4x2_t const *, nk_size_t, n
 /** @copydoc nk_reduce_minmax_f64_best */
 NUMKONG_API nk_status_t nk_reduce_minmax_u1_cuda(nk_u1x8_t const *, nk_size_t, nk_size_t, nk_u8_t *, nk_size_t *,
                                                  nk_u8_t *, nk_size_t *, void *stream);
-#endif // NUMKONG_ARCH_CUDA_
+#endif // NUMKONG_TARGET_CUDA
 
 /**
  *  @brief Returns the accumulator dtype for the @c sum output of reduce_moments.

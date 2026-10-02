@@ -552,7 +552,7 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_ty
 
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device;
  *  every operand is device memory of the vendor their capability names. */
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
 /** @copydoc nk_cast_best */
 NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type,
                                      void *stream);
@@ -565,7 +565,7 @@ NUMKONG_API nk_status_t nk_cast_block_scaled_cuda(                              
     nk_block_scaled_format_t const *from_format,                                                               //
     void *to, void *to_scales, nk_scalar_buffer_t *to_tensor_scale, nk_block_scaled_format_t const *to_format, //
     nk_size_t count, void *stream);
-#endif // NUMKONG_ARCH_CUDA_
+#endif // NUMKONG_TARGET_CUDA
 
 /**
  *  @brief Finds the cast kernel of @p kind for @p dtype, from the best of @p capabilities.

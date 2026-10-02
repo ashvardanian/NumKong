@@ -3248,7 +3248,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u8_loongsonasx(nk_u8_t const *ve
  *  NVIDIA backends on every device, reusing the baseline dots packs and scalar-FMA tile with
  *  the metric applied in the epilogue. Products and norms accumulate in F64, F64 inputs in
  *  Dot2; outputs are F64 for F64 and F32 inputs, F32 for the rest. */
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
 /** @copydoc nk_angulars_packed_f64_best */
 NUMKONG_API nk_status_t nk_angulars_packed_f64_cuda(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
@@ -3481,7 +3481,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_cuda(nk_u4x2_t const *vectors
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
                                                         nk_size_t row_count, void *stream);
-#endif // NUMKONG_ARCH_CUDA_
+#endif // NUMKONG_TARGET_CUDA
 
 /*  NVIDIA backends from Ampere on, reusing the CUDA dots packs and tiles with the metric applied
  *  in the epilogue, every output F32. */
@@ -4062,7 +4062,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e2m1_blackwellrtx(nk_e2m1x2_t co
 #endif // NUMKONG_TARGET_BLACKWELLRTX
 
 /*  AMD backends on every device: the CUDA baseline's source, compiled by HIP. */
-#if NUMKONG_ARCH_ROCM_
+#if NUMKONG_TARGET_ROCM
 /** @copydoc nk_angulars_packed_f64_best */
 NUMKONG_API nk_status_t nk_angulars_packed_f64_rocm(nk_f64_t const *a, void const *b_packed, nk_f64_t *c,
                                                     nk_size_t height, nk_size_t width, nk_size_t depth,
@@ -4295,7 +4295,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_u4_rocm(nk_u4x2_t const *vectors
                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
                                                         nk_size_t result_stride, nk_size_t row_start,
                                                         nk_size_t row_count, void *stream);
-#endif // NUMKONG_ARCH_ROCM_
+#endif // NUMKONG_TARGET_ROCM
 
 /*  AMD Instinct MI350 backends, gfx950, through its matrix cores. */
 #if NUMKONG_TARGET_CDNA4
