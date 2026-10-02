@@ -115,7 +115,11 @@
 
 #if NK_DYNAMIC_DISPATCH
 #if defined(_WIN32) || defined(__CYGWIN__)
+#if defined(NK_BUILDING_LIBRARY)
 #define NK_DYNAMIC __declspec(dllexport)
+#else
+#define NK_DYNAMIC __declspec(dllimport)
+#endif
 #elif defined(__GNUC__) || defined(__clang__)
 #define NK_DYNAMIC __attribute__((visibility("default")))
 #else
