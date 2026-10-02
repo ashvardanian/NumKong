@@ -35,6 +35,31 @@ dot = nk.dot(a, b)  # widened accumulation, not same-dtype
 print(dot)
 ```
 
+## Stateful Random Generation
+
+`nk.Generator` provides an independent, reproducible source of random values for pipelines that must not share
+process-global random state. The first API phase supports `random`, `uniform`, `normal`, `standard_normal`, and
+`integers`. Every method accepts `size` as an integer or tuple, `dtype=`, and a writable C-contiguous `out=` buffer.
+
+```python
+import numkong as nk
+
+generator = nk.Generator(seed=137)
+images = generator.uniform(0.0, 1.0, size=(8, 224, 224, 3), dtype="float32")
+labels = generator.integers(0, 10, size=32, dtype="int32")
+
+same_images = nk.Generator(seed=137).uniform(0.0, 1.0, size=(8, 224, 224, 3), dtype="float32")
+assert images == same_images
+```
+
+The generator owns its state, releases the GIL while filling native output, and returns a NumKong `Tensor` unless
+`out=` is supplied. With `out=`, the method writes in place and returns `None`; NumPy arrays, `memoryview` objects,
+and NumKong tensors are accepted when their shape, dtype, and C-contiguous layout match the request.
+
+This first phase fixes the stateful Python contract and a deterministic scalar core. It does not claim SIMD speedup
+yet; ISA-specific fill kernels and distribution extensions such as `choice`, `poisson`, `laplace`, and `beta` remain
+follow-up work.
+
 ## Installation
 
 From PyPI:
