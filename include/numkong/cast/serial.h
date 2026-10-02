@@ -1653,7 +1653,7 @@ NUMKONG_CONSTEXPR void nk_u64_to_u32_serial_(nk_u64_t const *x, nk_u32_t *y) {
     *y = (nk_u32_t)(*x > 4294967295ull ? 4294967295ull : *x);
 }
 
-NUMKONG_INLINE void nk_u64_to_i64_serial_(nk_u64_t const *x, nk_i64_t *y) {
+NUMKONG_CONSTEXPR void nk_u64_to_i64_serial_(nk_u64_t const *x, nk_i64_t *y) {
     *y = (nk_i64_t)(*x >= 9223372036854775807ull ? 9223372036854775807ll : *x);
 }
 
@@ -1676,6 +1676,35 @@ NUMKONG_INLINE void nk_u4x2_to_u8x2_serial_(nk_u4x2_t const *src, nk_u8_t *dest)
     dest[1] = byte & 0x0F;
 }
 
+/** Widens one F32 value to F64 exactly, quieting a NaN and keeping its sign and payload on every
+ *  ISA, as RISC-V's FCVT.D.S returns the canonical NaN instead. */
+NUMKONG_INLINE void nk_f32_to_f64_serial_(nk_f32_t const *src, nk_f64_t *dest) {
+    nk_fui32_t narrow;
+    nk_fui64_t wide;
+    narrow.f = *src;
+    if ((narrow.u & 0x7FFFFFFFu) <= 0x7F800000u) {
+        *dest = (nk_f64_t)*src;
+        return;
+    }
+    wide.u = ((nk_u64_t)(narrow.u & 0x80000000u) << 32) | 0x7FF8000000000000ull |
+             ((nk_u64_t)(narrow.u & 0x7FFFFFu) << 29);
+    *dest = wide.f;
+}
+
+/** Narrows one F64 value to F32, rounding to nearest even, quieting a NaN and keeping its sign and
+ *  the top of its payload on every ISA, as RISC-V's FCVT.S.D returns the canonical NaN instead. */
+NUMKONG_INLINE void nk_f64_to_f32_serial_(nk_f64_t const *src, nk_f32_t *dest) {
+    nk_fui64_t wide;
+    nk_fui32_t narrow;
+    wide.f = *src;
+    if ((wide.u & 0x7FFFFFFFFFFFFFFFull) <= 0x7FF0000000000000ull) {
+        *dest = (nk_f32_t)*src;
+        return;
+    }
+    narrow.u = (nk_u32_t)((wide.u >> 32) & 0x80000000u) | 0x7FC00000u | (nk_u32_t)((wide.u >> 29) & 0x7FFFFFu);
+    *dest = narrow.f;
+}
+
 /**
  *  @brief Reads a typed scalar from @p buf and writes the widened f64c into @p result.
  *
@@ -1691,24 +1720,26 @@ NUMKONG_INLINE int nk_scalar_buffer_to_f64c_(nk_scalar_buffer_t const *buf, nk_d
     result->real = 0, result->imag = 0;
     switch (dtype) {
     case nk_f64_k: result->real = local.f64; break;
-    case nk_f32_k: result->real = (nk_f64_t)local.f32; break;
+    case nk_f32_k: nk_f32_to_f64_serial_(&local.f32, &result->real); break;
     case nk_f16_k:
         nk_f16_to_f32_(&local.f16, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     case nk_bf16_k:
         nk_bf16_to_f32_(&local.bf16, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     case nk_f64c_k: result->real = local.f64c.real, result->imag = local.f64c.imag; break;
-    case nk_f32c_k: result->real = (nk_f64_t)local.f32c.real, result->imag = (nk_f64_t)local.f32c.imag; break;
+    case nk_f32c_k:
+        nk_f32_to_f64_serial_(&local.f32c.real, &result->real), nk_f32_to_f64_serial_(&local.f32c.imag, &result->imag);
+        break;
     case nk_f16c_k:
         nk_f16_to_f32_(&local.f16c.real, &real_f32), nk_f16_to_f32_(&local.f16c.imag, &imag_f32);
-        result->real = (nk_f64_t)real_f32, result->imag = (nk_f64_t)imag_f32;
+        nk_f32_to_f64_serial_(&real_f32, &result->real), nk_f32_to_f64_serial_(&imag_f32, &result->imag);
         break;
     case nk_bf16c_k:
         nk_bf16_to_f32_(&local.bf16c.real, &real_f32), nk_bf16_to_f32_(&local.bf16c.imag, &imag_f32);
-        result->real = (nk_f64_t)real_f32, result->imag = (nk_f64_t)imag_f32;
+        nk_f32_to_f64_serial_(&real_f32, &result->real), nk_f32_to_f64_serial_(&imag_f32, &result->imag);
         break;
     case nk_i64_k: result->real = (nk_f64_t)local.i64; break;
     case nk_u64_k: result->real = (nk_f64_t)local.u64; break;
@@ -1720,27 +1751,27 @@ NUMKONG_INLINE int nk_scalar_buffer_to_f64c_(nk_scalar_buffer_t const *buf, nk_d
     case nk_u8_k: result->real = (nk_f64_t)local.u8; break;
     case nk_e4m3_k:
         nk_e4m3_to_f32_(&local.u8, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     case nk_e5m2_k:
         nk_e5m2_to_f32_(&local.u8, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     case nk_e2m3_k:
         nk_e2m3_to_f32_(&local.u8, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     case nk_e3m2_k:
         nk_e3m2_to_f32_(&local.u8, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     case nk_ue8m0_k:
         nk_ue8m0_to_f32_(&local.u8, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     case nk_ue4m3_k:
         nk_ue4m3_to_f32_(&local.u8, &local.f32);
-        result->real = (nk_f64_t)local.f32;
+        nk_f32_to_f64_serial_(&local.f32, &result->real);
         break;
     default: return 0;
     }
@@ -1820,13 +1851,13 @@ NUMKONG_INLINE int nk_scalar_buffer_from_f64c_(nk_f64c_t const *value, nk_scalar
     nk_f32_t temporary_f32;
     switch (dtype) {
     case nk_f64_k: buf->f64 = local.real; break;
-    case nk_f32_k: buf->f32 = (nk_f32_t)local.real; break;
+    case nk_f32_k: nk_f64_to_f32_serial_(&local.real, &buf->f32); break;
     case nk_f16_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_f16_(&temporary_f32, &buf->f16);
         break;
     case nk_bf16_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_bf16_(&temporary_f32, &buf->bf16);
         break;
     case nk_f64c_k:
@@ -1834,19 +1865,19 @@ NUMKONG_INLINE int nk_scalar_buffer_from_f64c_(nk_f64c_t const *value, nk_scalar
         buf->f64c.imag = local.imag;
         break;
     case nk_f32c_k:
-        buf->f32c.real = (nk_f32_t)local.real;
-        buf->f32c.imag = (nk_f32_t)local.imag;
+        nk_f64_to_f32_serial_(&local.real, &buf->f32c.real);
+        nk_f64_to_f32_serial_(&local.imag, &buf->f32c.imag);
         break;
     case nk_f16c_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_f16_(&temporary_f32, &buf->f16c.real);
-        temporary_f32 = (nk_f32_t)local.imag;
+        nk_f64_to_f32_serial_(&local.imag, &temporary_f32);
         nk_f32_to_f16_(&temporary_f32, &buf->f16c.imag);
         break;
     case nk_bf16c_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_bf16_(&temporary_f32, &buf->bf16c.real);
-        temporary_f32 = (nk_f32_t)local.imag;
+        nk_f64_to_f32_serial_(&local.imag, &temporary_f32);
         nk_f32_to_bf16_(&temporary_f32, &buf->bf16c.imag);
         break;
     case nk_i64_k: nk_f64_to_i64_serial_(&local.real, &buf->i64); break;
@@ -1858,27 +1889,27 @@ NUMKONG_INLINE int nk_scalar_buffer_from_f64c_(nk_f64c_t const *value, nk_scalar
     case nk_i8_k: nk_f64_to_i8_serial_(&local.real, &buf->i8); break;
     case nk_u8_k: nk_f64_to_u8_serial_(&local.real, &buf->u8); break;
     case nk_e4m3_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_e4m3_(&temporary_f32, &buf->u8);
         break;
     case nk_e5m2_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_e5m2_(&temporary_f32, &buf->u8);
         break;
     case nk_e2m3_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_e2m3_(&temporary_f32, &buf->u8);
         break;
     case nk_e3m2_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_e3m2_(&temporary_f32, &buf->u8);
         break;
     case nk_ue8m0_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_ue8m0_(&temporary_f32, &buf->u8);
         break;
     case nk_ue4m3_k:
-        temporary_f32 = (nk_f32_t)local.real;
+        nk_f64_to_f32_serial_(&local.real, &temporary_f32);
         nk_f32_to_ue4m3_(&temporary_f32, &buf->u8);
         break;
     default: return 0;
@@ -1978,7 +2009,7 @@ NUMKONG_INLINE void nk_scalar_buffers_to_i64_(                         //
     } break;
     case nk_u64_k: {
         nk_u64_t const *p = (nk_u64_t const *)from_ptr;
-        for (i = 0; i < from_count; ++i) to_buffers[i].i64 = (nk_i64_t)p[i];
+        for (i = 0; i < from_count; ++i) nk_u64_to_i64_serial_(&p[i], &to_buffers[i].i64);
     } break;
     case nk_u32_k: {
         nk_u32_t const *p = (nk_u32_t const *)from_ptr;

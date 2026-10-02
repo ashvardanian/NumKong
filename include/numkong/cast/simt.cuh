@@ -464,7 +464,11 @@ NUMKONG_DEVICE nk_i64_t nk_cast_load_i64_simt_(unsigned char const *bytes, nk_dt
     case nk_i32_k: return ((nk_i32_t const *)bytes)[index];
     case nk_i16_k: return ((nk_i16_t const *)bytes)[index];
     case nk_i8_k: return ((nk_i8_t const *)bytes)[index];
-    case nk_u64_k: return (nk_i64_t)((nk_u64_t const *)bytes)[index];
+    case nk_u64_k: {
+        nk_i64_t value;
+        nk_u64_to_i64_serial_((nk_u64_t const *)bytes + index, &value);
+        return value;
+    }
     case nk_u32_k: return ((nk_u32_t const *)bytes)[index];
     case nk_u16_k: return ((nk_u16_t const *)bytes)[index];
     case nk_u8_k: return bytes[index];
