@@ -358,13 +358,13 @@ The stream is that device's `cudaStream_t`, `hipStream_t`, or `id<MTLCommandQueu
 `nk_memory_allocate_unified_best` hands out memory both the host and that device address, and `nk_stream_synchronize_best` waits for the work queued on the stream.
 
 ```c
-nk_capability_t cpu = nk_cap_serial_k, gpu = 0;
-nk_cpu_capabilities_enabled(&cpu);    // detected on this CPU and compiled into this binary
-nk_cuda_capabilities_enabled(0, &gpu); // the same for CUDA device 0
+nk_capability_t cpu = nk_cap_cpus_k, gpu = 0;
+nk_cuda_capabilities_enabled(0, &gpu); // detected on CUDA device 0 and compiled into this binary
 nk_dots_symmetric_bf16_best(vectors, count, depth, stride, gram, gram_stride, 0, count, cpu, NULL);
 nk_dots_symmetric_bf16_best(vectors_on_gpu, count, depth, stride, gram_on_gpu, gram_stride, 0, count, gpu, cuda_stream);
 ```
 
+The library clamps every CPU mask to `nk_cpu_capabilities_enabled`, what this CPU runs and this binary holds, which it settles as it loads, so `nk_cap_cpus_k` runs the best kernel here.
 Narrowing the mask narrows the choice: `cpu & ~nk_cap_sapphireamx_k` skips AMX, and `nk_cap_serial_k` alone runs the reference kernel.
 Header-only builds, with `NUMKONG_HEADER_ONLY=1`, inline the capability kernels their compiler flags enable, and their dispatch points report `nk_missing_library_k`.
 Library builds, the default, compile every capability the toolchain builds into one binary and export the dispatch points, so a single binary runs everywhere — the model of DBMS products (ClickHouse), web browsers (Chromium), and other projects that ship to heterogeneous fleets.

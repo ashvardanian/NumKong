@@ -32,7 +32,7 @@ func (p MaxSimPackedMatrix) Shape() (vectors, depth int) {
 		return 0, 0
 	}
 	var v, d C.nk_size_t
-	check(C.nk_maxsim_packed_shape_f32_best(unsafe.Pointer(&p.data[0]), &v, &d, capabilities(), nil))
+	check(C.nk_maxsim_packed_shape_f32_best(unsafe.Pointer(&p.data[0]), &v, &d, C.nk_cap_cpus_k, nil))
 	return int(v), int(d)
 }
 
@@ -43,13 +43,13 @@ func NewMaxSimPackedMatrixF32(vectorsData []float32, vectorsCount, depth int) Ma
 		panic("input slice too short for the given vectorsCount and depth")
 	}
 	var size C.nk_size_t
-	check(C.nk_maxsim_pack_size_f32_best(C.nk_size_t(vectorsCount), C.nk_size_t(depth), capabilities(), &size))
+	check(C.nk_maxsim_pack_size_f32_best(C.nk_size_t(vectorsCount), C.nk_size_t(depth), C.nk_cap_cpus_k, &size))
 	data := make([]byte, size)
 	check(C.nk_maxsim_pack_f32_best(
 		(*C.nk_f32_t)(&vectorsData[0]),
 		C.nk_size_t(vectorsCount), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
-		unsafe.Pointer(&data[0]), capabilities(), nil))
+		unsafe.Pointer(&data[0]), C.nk_cap_cpus_k, nil))
 	return MaxSimPackedMatrix{data: data, vectors: vectorsCount, depth: depth}
 }
 
@@ -64,6 +64,6 @@ func MaxSimF32(query, document MaxSimPackedMatrix) float64 {
 		unsafe.Pointer(&query.data[0]),
 		unsafe.Pointer(&document.data[0]),
 		C.nk_size_t(query.vectors), C.nk_size_t(document.vectors), C.nk_size_t(query.depth),
-		&result, capabilities(), nil))
+		&result, C.nk_cap_cpus_k, nil))
 	return float64(result)
 }

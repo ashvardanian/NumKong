@@ -62,14 +62,15 @@ except ImportError:
 
 
 KERNELS_TENSOR: dict[str, tuple[Callable, Callable]] = {
-    "sum": (lambda a: np.sum(np.asarray(a)), lambda a: a.sum()),
-    "min": (lambda a: np.min(np.asarray(a)), lambda a: a.min()),
-    "max": (lambda a: np.max(np.asarray(a)), lambda a: a.max()),
-    "argmin": (lambda a: np.argmin(np.asarray(a)), lambda a: a.argmin()),
-    "argmax": (lambda a: np.argmax(np.asarray(a)), lambda a: a.argmax()),
+    "sum": (lambda a: np.sum(np.asarray(a)), lambda a, capabilities: a.sum(capabilities=capabilities)),
+    "min": (lambda a: np.min(np.asarray(a)), lambda a, capabilities: a.min(capabilities=capabilities)),
+    "max": (lambda a: np.max(np.asarray(a)), lambda a, capabilities: a.max(capabilities=capabilities)),
+    "argmin": (lambda a: np.argmin(np.asarray(a)), lambda a, capabilities: a.argmin(capabilities=capabilities)),
+    "argmax": (lambda a: np.argmax(np.asarray(a)), lambda a, capabilities: a.argmax(capabilities=capabilities)),
 }
 """Reduction kernels consulted by the strided / transposed / subview tests below, where the
-operation name varies at runtime. Each entry is ``(numpy_reference, nk_method)``.
+operation name varies at runtime. Each entry is ``(numpy_reference, nk_method)``, and the method
+takes the `capabilities=` mask to run.
 """
 
 
@@ -289,7 +290,7 @@ def test_pointers_availability():
         (nk.sqeuclidean, ValueError, (to_array([1.0]), to_array([1.0]), "missing_dtype"), {}),
         (nk.sqeuclidean, TypeError, (to_array([1.0]), "invalid"), {}),
         (nk.sqeuclidean, TypeError, (to_array([1.0]), to_array([1.0])), {"invalid_kwarg": "value"}),
-        (nk.cpu_capabilities_enable, TypeError, ("haswell",), {}),
+        (nk.sqeuclidean, TypeError, (to_array([1.0]), to_array([1.0])), {"capabilities": "haswell"}),
         (nk.mahalanobis, TypeError, (to_array([1.0]), to_array([1.0])), {}),
         (nk.bilinear, TypeError, (to_array([1.0]),), {}),
         (nk.angular, TypeError, (to_array([1.0]), to_array([1.0]), to_array([1.0])), {}),
@@ -998,12 +999,12 @@ def test_ndarray_hash(dtype: str, shape):
 )
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_ndarray_sum(dtype: str, shape, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     # NumKong sums integers in 64 bits, while NumPy's default integer accumulator is 32-bit under Emscripten.
     expected = np.sum(np_arr, dtype=np.int64) if dtype.startswith(("int", "uint")) else np.sum(np_arr)
-    assert_op_matches(nk_arr.sum(), expected, dtype)
+    assert_op_matches(nk_arr.sum(capabilities=capabilities), expected, dtype)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1011,11 +1012,11 @@ def test_ndarray_sum(dtype: str, shape, capability: str, np_rng: np.random.Gener
 @pytest.mark.parametrize("shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d")])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_ndarray_min_max(dtype: str, shape, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
-    assert_op_matches(nk_arr.min(), np.min(np_arr), dtype)
-    assert_op_matches(nk_arr.max(), np.max(np_arr), dtype)
+    assert_op_matches(nk_arr.min(capabilities=capabilities), np.min(np_arr), dtype)
+    assert_op_matches(nk_arr.max(capabilities=capabilities), np.max(np_arr), dtype)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1024,11 +1025,11 @@ def test_ndarray_min_max(dtype: str, shape, capability: str, np_rng: np.random.G
 @pytest.mark.parametrize("op", ["argmin", "argmax"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_ndarray_argmin_argmax_methods(dtype: str, shape, op: str, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-    assert simd_kernel(nk_arr) == baseline_kernel(np_arr)
+    assert simd_kernel(nk_arr, capabilities) == baseline_kernel(np_arr)
 
 
 # Per-op integer ranges keep products inside the dtype; multiply needs the tighter bound.
@@ -1042,9 +1043,7 @@ def test_ndarray_argmin_argmax_methods(dtype: str, shape, op: str, capability: s
     ],
 )
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_ndarray_binary(op, int_hi: int, dtype: str, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+def test_ndarray_binary(op, int_hi: int, dtype: str, np_rng: np.random.Generator):
     np_a = random_ndarray(np_rng, dtype, (20,), -int_hi, int_hi)
     np_b = random_ndarray(np_rng, dtype, (20,), -int_hi, int_hi)
     nk_a, nk_b = make_nk(np_a, dtype), make_nk(np_b, dtype)
@@ -1053,9 +1052,7 @@ def test_ndarray_binary(op, int_hi: int, dtype: str, capability: str, np_rng: np
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_ndarray_unary(dtype: str, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+def test_ndarray_unary(dtype: str, np_rng: np.random.Generator):
     np_a = random_ndarray(np_rng, dtype, (20,))
     nk_a = make_nk(np_a, dtype)
     assert_op_matches(-nk_a, -np_a, dtype)
@@ -1067,7 +1064,7 @@ def test_ndarray_unary(dtype: str, capability: str, np_rng: np.random.Generator)
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_reduction_on_strided_array(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     np_arr, _ = make_random((10, 10), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1076,7 +1073,7 @@ def test_reduction_on_strided_array(dtype: str, op: str, capability: str, np_rng
 
     atol, rtol = tolerances_for_dtype(dtype)
     baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-    assert_allclose(simd_kernel(nk_strided), baseline_kernel(np_strided), rtol=rtol, atol=atol)
+    assert_allclose(simd_kernel(nk_strided, capabilities), baseline_kernel(np_strided), rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1084,7 +1081,7 @@ def test_reduction_on_strided_array(dtype: str, op: str, capability: str, np_rng
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_reduction_on_transposed_array(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     np_arr, _ = make_random((5, 8), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1093,7 +1090,7 @@ def test_reduction_on_transposed_array(dtype: str, op: str, capability: str, np_
 
     atol, rtol = tolerances_for_dtype(dtype)
     baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-    assert_allclose(simd_kernel(nk_t), baseline_kernel(np_t), rtol=rtol, atol=atol)
+    assert_allclose(simd_kernel(nk_t, capabilities), baseline_kernel(np_t), rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1101,7 +1098,7 @@ def test_reduction_on_transposed_array(dtype: str, op: str, capability: str, np_
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_reduction_on_subview(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     np_arr, _ = make_random((20, 20), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1110,7 +1107,7 @@ def test_reduction_on_subview(dtype: str, op: str, capability: str, np_rng: np.r
 
     atol, rtol = tolerances_for_dtype(dtype)
     baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-    assert_allclose(simd_kernel(nk_sub), baseline_kernel(np_sub), rtol=rtol, atol=atol)
+    assert_allclose(simd_kernel(nk_sub, capabilities), baseline_kernel(np_sub), rtol=rtol, atol=atol)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -1118,7 +1115,7 @@ def test_reduction_on_subview(dtype: str, op: str, capability: str, np_rng: np.r
 @pytest.mark.parametrize("op", ["argmin", "argmax"])
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_argreduction_on_subview(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     np_arr, _ = make_random((20, 20), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1126,7 +1123,7 @@ def test_argreduction_on_subview(dtype: str, op: str, capability: str, np_rng: n
     nk_sub = nk_arr[5:15, 5:15]
 
     baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
-    assert simd_kernel(nk_sub) == baseline_kernel(np_sub)
+    assert simd_kernel(nk_sub, capabilities) == baseline_kernel(np_sub)
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is required for edge-shape tests")
@@ -1408,11 +1405,11 @@ def test_nk_dtype_numpy_roundtrip():
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_dots_packed_row_range(capability: str, np_rng: np.random.Generator):
     """Test dots_packed with start_row/end_row splits produce the same result."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     rows, depth, columns = 100, 64, 50
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
     right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
-    right_packed = nk.dots_pack(right_matrix, dtype="float32")
+    right_packed = nk.dots_pack(right_matrix, dtype="float32", capabilities=capabilities)
 
     reference = np.array(nk.dots_packed(left_matrix, right_packed))
 
@@ -1431,15 +1428,15 @@ def test_dots_symmetric_row_range(capability: str, np_rng: np.random.Generator):
     Only the upper triangle of the output is guaranteed to be initialized,
     so we compare only the upper-triangle entries that fall within each row range.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     count, depth = 64, 32
     vectors, _ = make_random((count, depth), "float32", np_rng)
 
-    reference = np.array(nk.dots_symmetric(vectors))
+    reference = np.array(nk.dots_symmetric(vectors, capabilities=capabilities))
     mask = np.triu(np.ones((count, count), dtype=bool))
 
     output = nk.zeros((count, count), dtype="float64")
-    nk.dots_symmetric(vectors, out=output, start_row=0, end_row=count)
+    nk.dots_symmetric(vectors, out=output, start_row=0, end_row=count, capabilities=capabilities)
 
     assert_allclose(np.array(output)[mask], reference[mask], err_msg="Full-range dots_symmetric differs from default")
 
@@ -1455,11 +1452,11 @@ def test_dots_packed_threads(threads, rows, capability, np_rng: np.random.Genera
     and tail-chunk branches of the parallel loop. threads=0 (all cores) must match threads=1 regardless
     of any prior explicit count — the num_threads() clause fix, not the poisoned global ICV.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     depth, columns = 64, 32
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
     right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
-    right_packed = nk.dots_pack(right_matrix, dtype="float32")
+    right_packed = nk.dots_pack(right_matrix, dtype="float32", capabilities=capabilities)
 
     serial = np.array(nk.dots_packed(left_matrix, right_packed, threads=1))
     parallel = np.array(nk.dots_packed(left_matrix, right_packed, threads=threads))
@@ -1479,13 +1476,13 @@ def test_dots_symmetric_threads(threads, count, capability, np_rng: np.random.Ge
     The symmetric row tile is 32; only the upper triangle is guaranteed written. threads=0 (all cores)
     must match threads=1 regardless of any prior explicit count — the num_threads() clause fix.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     depth = 32
     vectors, _ = make_random((count, depth), "float32", np_rng)
     mask = np.triu(np.ones((count, count), dtype=bool))
 
-    serial = np.array(nk.dots_symmetric(vectors, threads=1))
-    parallel = np.array(nk.dots_symmetric(vectors, threads=threads))
+    serial = np.array(nk.dots_symmetric(vectors, threads=1, capabilities=capabilities))
+    parallel = np.array(nk.dots_symmetric(vectors, threads=threads, capabilities=capabilities))
     assert_allclose(parallel[mask], serial[mask], err_msg=f"threads={threads} diverges from threads=1 at count={count}")
 
 

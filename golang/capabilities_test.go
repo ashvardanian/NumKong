@@ -67,28 +67,18 @@ func TestCapabilityNames(t *testing.T) {
 	}
 }
 
-func TestCapabilitiesEnable(t *testing.T) {
+func TestCapabilitiesEnabled(t *testing.T) {
 	cpu := numkong.CPU()
 	enabled, err := cpu.CapabilitiesEnabled()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer cpu.CapabilitiesEnable(enabled)
 	detected, _ := cpu.CapabilitiesDetected()
-	if !enabled.Has(numkong.CapSerial) || enabled&^(detected|numkong.CapSerial) != 0 {
-		t.Fatalf("CapabilitiesEnabled() = %v, expected serial plus detected capabilities", enabled)
-	}
-	if got, _ := cpu.CapabilitiesEnable(0); got != numkong.CapSerial {
-		t.Fatalf("CapabilitiesEnable(0) = %v, expected serial alone", got)
-	}
-	if got, _ := cpu.CapabilitiesEnabled(); got != numkong.CapSerial {
-		t.Fatalf("CapabilitiesEnabled() after narrowing = %v, expected serial alone", got)
+	if !enabled.Has(numkong.CapSerial) || enabled != detected&cpu.CapabilitiesCompiled() {
+		t.Fatalf("CapabilitiesEnabled() = %v, expected serial plus detected and compiled capabilities", enabled)
 	}
 	if got := numkong.DotF32([]float32{1, 2, 3}, []float32{4, 5, 6}); got != 32 {
-		t.Errorf("DotF32 on the serial capability: expected 32, got %v", got)
-	}
-	if got, _ := cpu.CapabilitiesEnable(enabled); got != enabled {
-		t.Errorf("CapabilitiesEnable(%v) = %v, expected the original set back", enabled, got)
+		t.Errorf("DotF32 on the enabled capabilities: expected 32, got %v", got)
 	}
 }
 

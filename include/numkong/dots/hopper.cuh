@@ -443,9 +443,9 @@ NUMKONG_DEVICE void nk_cross_tile_hopper_(nk_cross_multiply_hopper_t multiply, n
 
 #pragma region BF16
 
-nk_define_cross_pack_simt_(bf16, hopper, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(bf16, hopper, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, bf16, hopper, hopper, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(dot, bf16, hopper, hopper, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_bf16_multiply_hopper_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -453,9 +453,9 @@ nk_define_cross_simt_(dot, bf16, hopper, hopper, bf16, bf16, f32, /*depth_simd_d
 
 #pragma region F16
 
-nk_define_cross_pack_simt_(f16, hopper, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(f16, hopper, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, f16, hopper, hopper, f16, f16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(dot, f16, hopper, hopper, f16, f16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_f16_multiply_hopper_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -463,9 +463,9 @@ nk_define_cross_simt_(dot, f16, hopper, hopper, f16, f16, f32, /*depth_simd_dime
 
 #pragma region E2M3
 
-nk_define_cross_pack_simt_(e2m3, hopper, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m3, hopper, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e2m3, hopper, hopper, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(dot, e2m3, hopper, hopper, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_hopper_, nk_cross_epilogue_i32_to_f32_k,
                       /*output_scale=*/0.015625f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -473,9 +473,9 @@ nk_define_cross_simt_(dot, e2m3, hopper, hopper, e2m3, e2m3, f32, /*depth_simd_d
 
 #pragma region E2M1
 
-nk_define_cross_pack_simt_(e2m1, hopper, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m1, hopper, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, e2m1, hopper, hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(dot, e2m1, hopper, hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_hopper_, nk_cross_epilogue_i32_to_f32_k,
                       /*output_scale=*/0.25f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -483,9 +483,9 @@ nk_define_cross_simt_(dot, e2m1, hopper, hopper, e2m1x2, e2m1x2, f32, /*depth_si
 
 #pragma region I8
 
-nk_define_cross_pack_simt_(i8, hopper, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(i8, hopper, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, i8, hopper, hopper, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
+nk_define_cross_cuda_(dot, i8, hopper, hopper, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_i8_multiply_hopper_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
                       NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -493,9 +493,9 @@ nk_define_cross_simt_(dot, i8, hopper, hopper, i8, i8, i32, /*depth_simd_dimensi
 
 #pragma region I4
 
-nk_define_cross_pack_simt_(i4, hopper, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(i4, hopper, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, i4, hopper, hopper, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(dot, i4, hopper, hopper, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_hopper_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -503,9 +503,9 @@ nk_define_cross_simt_(dot, i4, hopper, hopper, i4x2, i4x2, i32, /*depth_simd_dim
 
 #pragma region U8
 
-nk_define_cross_pack_simt_(u8, hopper, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(u8, hopper, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, u8, hopper, hopper, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
+nk_define_cross_cuda_(dot, u8, hopper, hopper, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_u8_multiply_hopper_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
                       NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -513,9 +513,9 @@ nk_define_cross_simt_(dot, u8, hopper, hopper, u8, u8, u32, /*depth_simd_dimensi
 
 #pragma region U4
 
-nk_define_cross_pack_simt_(u4, hopper, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(u4, hopper, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, u4, hopper, hopper, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(dot, u4, hopper, hopper, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_hopper_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 

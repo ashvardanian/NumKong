@@ -86,9 +86,9 @@ def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str, np_rng
     a_val, a_f64 = downcast_f32_to_dtype(np_rng.standard_normal(len(a_idx)).astype(np.float32), weight_dtype)
     b_val, b_f64 = downcast_f32_to_dtype(np_rng.standard_normal(len(b_idx)).astype(np.float32), weight_dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     result_ns, result = timed_call(
-        simd_kernel, a_idx, make_nk(a_val, weight_dtype), b_idx, make_nk(b_val, weight_dtype)
+        simd_kernel, a_idx, make_nk(a_val, weight_dtype), b_idx, make_nk(b_val, weight_dtype), capabilities=capabilities
     )
 
     accurate_ns, accurate = timed_call(baseline_kernel, a_idx, a_f64, b_idx, b_f64)
@@ -120,10 +120,10 @@ def test_intersect(
     a = np.unique(a)
     b = np.unique(b)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_SPARSE["intersect"]
     expected = baseline_kernel(a, b)
-    result = simd_kernel(a, b)
+    result = simd_kernel(a, b, capabilities=capabilities)
 
     assert round(float(expected)) == round(float(result)), (
         f"Intersection count mismatch: expected {expected}, got {result}. "

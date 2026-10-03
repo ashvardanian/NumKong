@@ -13,7 +13,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_dtype_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_dtype_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement},
 };
 
@@ -193,7 +193,7 @@ pub fn cast<S: CastDType, D: CastDType>(source: &[S], dest: &mut [D]) -> Result<
             dest.as_mut_ptr() as *mut c_void,
             D::dtype_code(),
             source.len(),
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
     }
@@ -737,7 +737,7 @@ fn block_scaled_cast_(
             to_operand.as_mut_ptr(),
             to_format.element_dtype | to_format.scale_dtype,
             count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
     }
@@ -1270,7 +1270,7 @@ mod tests {
                 to_operand.as_mut_ptr(),
                 to_format.element_dtype | to_format.scale_dtype,
                 count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }

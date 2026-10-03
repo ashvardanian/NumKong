@@ -53,19 +53,27 @@ NUMKONG_CONSTEXPR nk_capability_group_t nk_capability_group_of_(nk_capability_t 
                                    (capabilities >= nk_cap_metal_k));
 }
 
-/** The best capability @p capabilities shares with its group's kernels, or zero if none. */
-NUMKONG_CONSTEXPR nk_capability_t nk_capability_pick_(nk_capability_t capabilities,
-                                                      nk_capability_kernels_t const groups[nk_capability_groups_k]) {
-    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities &
-                                                    groups[nk_capability_group_of_(capabilities)].capabilities);
+/** What each group runs in this process: the CPU's starts at serial and widens as the library
+ *  loads, and the GPU groups keep every bit, as their masks come from per-device producers. */
+extern nk_capability_t nk_capabilities_runnable_[nk_capability_groups_k];
+
+/** The best capability @p capabilities shares with its group's kernels and runnable ones, or zero. */
+NUMKONG_INLINE nk_capability_t nk_capability_pick_(nk_capability_t capabilities,
+                                                   nk_capability_kernels_t const groups[nk_capability_groups_k]) {
+    nk_capability_group_t const group_index = nk_capability_group_of_(capabilities);
+    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & groups[group_index].capabilities &
+                                                    nk_capabilities_runnable_[group_index]);
     return at_or_below ^ (at_or_below >> 1);
 }
 
-/** The kernel of the best capability @p capabilities shares with its group's kernels, or null. */
-NUMKONG_CONSTEXPR nk_kernel_punned_t nk_kernel_pick_(nk_capability_t capabilities,
-                                                     nk_capability_kernels_t const groups[nk_capability_groups_k]) {
-    nk_capability_kernels_t const *group = &groups[nk_capability_group_of_(capabilities)];
-    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & group->capabilities);
+/** The kernel of the best capability @p capabilities shares with its group's kernels and runnable
+ *  ones, or null. */
+NUMKONG_INLINE nk_kernel_punned_t nk_kernel_pick_(nk_capability_t capabilities,
+                                                  nk_capability_kernels_t const groups[nk_capability_groups_k]) {
+    nk_capability_group_t const group_index = nk_capability_group_of_(capabilities);
+    nk_capability_kernels_t const *group = &groups[group_index];
+    nk_u64_t const at_or_below = nk_u64_smear_down_(capabilities & group->capabilities &
+                                                    nk_capabilities_runnable_[group_index]);
     return group->kernels[nk_u64_popcount_(group->capabilities & at_or_below)];
 }
 

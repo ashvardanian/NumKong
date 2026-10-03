@@ -11,7 +11,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Error},
     types::{bf16, bf16c, f16, f16c, f32c, f64c, StorageElement},
 };
@@ -173,7 +173,7 @@ impl Bilinear for f64 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -204,7 +204,7 @@ impl Bilinear for f32 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -235,7 +235,7 @@ impl Bilinear for f16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -266,7 +266,7 @@ impl Bilinear for bf16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -297,7 +297,7 @@ impl Bilinear for f64c {
                 c.as_ptr() as *const f64,
                 point_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -331,7 +331,7 @@ impl Bilinear for f32c {
                 c.as_ptr() as *const f32,
                 point_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -365,7 +365,7 @@ impl Bilinear for f16c {
                 c.as_ptr() as *const u16,
                 point_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -399,7 +399,7 @@ impl Bilinear for bf16c {
                 c.as_ptr() as *const u16,
                 point_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -455,7 +455,7 @@ impl Mahalanobis for f64 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -486,7 +486,7 @@ impl Mahalanobis for f32 {
                 c.as_ptr(),
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -517,7 +517,7 @@ impl Mahalanobis for f16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -548,7 +548,7 @@ impl Mahalanobis for bf16 {
                 c.as_ptr() as *const u16,
                 point_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;

@@ -17,7 +17,7 @@
 
 #if NUMKONG_ARCH_CUDA_AMPERE_
 
-#include "numkong/dots/simt.cuh"
+#include "numkong/dots/cuda.cuh"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -685,9 +685,9 @@ NUMKONG_DEVICE void nk_dots_u4_multiply_ampere_(nk_fui32_t accumulators[4][8][4]
 
 #pragma region BF16
 
-nk_define_cross_pack_simt_(bf16, ampere, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(bf16, ampere, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, bf16, ampere, ampere, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(dot, bf16, ampere, ampere, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_bf16_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -695,9 +695,9 @@ nk_define_cross_simt_(dot, bf16, ampere, ampere, bf16, bf16, f32, /*depth_simd_d
 
 #pragma region F16
 
-nk_define_cross_pack_simt_(f16, ampere, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(f16, ampere, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, f16, ampere, ampere, f16, f16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(dot, f16, ampere, ampere, f16, f16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_f16_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -705,9 +705,9 @@ nk_define_cross_simt_(dot, f16, ampere, ampere, f16, f16, f32, /*depth_simd_dime
 
 #pragma region E5M2
 
-nk_define_cross_pack_simt_(e5m2, ampere, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e5m2, ampere, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(dot, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -715,9 +715,9 @@ nk_define_cross_simt_(dot, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_simd_d
 
 #pragma region E4M3
 
-nk_define_cross_pack_simt_(e4m3, ampere, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e4m3, ampere, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(dot, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/65536.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -725,9 +725,9 @@ nk_define_cross_simt_(dot, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_simd_d
 
 #pragma region E3M2
 
-nk_define_cross_pack_simt_(e3m2, ampere, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e3m2, ampere, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(dot, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/16777216.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -735,13 +735,13 @@ nk_define_cross_simt_(dot, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_simd_d
 
 #pragma region E2M3
 
-nk_define_cross_pack_simt_(e2m3, ampere, e2m3, i8, nk_load_e2m3_to_i8_ampere_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m3, ampere, e2m3, i8, nk_load_e2m3_to_i8_ampere_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_packed_simt_(dot, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_packed_cuda_(dot, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
                              /*dimensions_per_value=*/1, nk_dots_e2m3_packed_multiply_ampere_,
                              nk_cross_epilogue_i32_to_f32_k, /*output_scale=*/0.015625f, nk_cross_norm_f32_k,
                              NUMKONG_NULL, /*norm_scale=*/1.0f)
-nk_define_cross_symmetric_simt_(dot, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_symmetric_cuda_(dot, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
                                 /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_ampere_,
                                 nk_cross_epilogue_i32_to_f32_k, /*output_scale=*/0.015625f, nk_cross_norm_f32_k,
                                 NUMKONG_NULL, /*norm_scale=*/1.0f)
@@ -750,9 +750,9 @@ nk_define_cross_symmetric_simt_(dot, e2m3, ampere, ampere, e2m3, i8, f32, /*dept
 
 #pragma region E2M1
 
-nk_define_cross_pack_simt_(e2m1, ampere, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m1, ampere, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(dot, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_ampere_, nk_cross_epilogue_i32_to_f32_k,
                       /*output_scale=*/0.25f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -760,9 +760,9 @@ nk_define_cross_simt_(dot, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*depth_si
 
 #pragma region I8
 
-nk_define_cross_pack_simt_(i8, ampere, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(i8, ampere, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, i8, ampere, ampere, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
+nk_define_cross_cuda_(dot, i8, ampere, ampere, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_i8_multiply_ampere_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
                       NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -770,9 +770,9 @@ nk_define_cross_simt_(dot, i8, ampere, ampere, i8, i8, i32, /*depth_simd_dimensi
 
 #pragma region I4
 
-nk_define_cross_pack_simt_(i4, ampere, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(i4, ampere, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, i4, ampere, ampere, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(dot, i4, ampere, ampere, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -780,9 +780,9 @@ nk_define_cross_simt_(dot, i4, ampere, ampere, i4x2, i4x2, i32, /*depth_simd_dim
 
 #pragma region U8
 
-nk_define_cross_pack_simt_(u8, ampere, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(u8, ampere, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, u8, ampere, ampere, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
+nk_define_cross_cuda_(dot, u8, ampere, ampere, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_u8_multiply_ampere_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
                       NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -790,9 +790,9 @@ nk_define_cross_simt_(dot, u8, ampere, ampere, u8, u8, u32, /*depth_simd_dimensi
 
 #pragma region U4
 
-nk_define_cross_pack_simt_(u4, ampere, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(u4, ampere, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, u4, ampere, ampere, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(dot, u4, ampere, ampere, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 

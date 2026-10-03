@@ -3,7 +3,7 @@
 
 Capabilities are reported along two independent axes — `detected` (what this CPU can execute)
 and `compiled` (what the ISA probes baked into this build) — plus `enabled` (what dispatch uses,
-their intersection unless narrowed by `cpu_capabilities_enable`, or for one call by `capabilities=`).
+their intersection, which one call can narrow by `capabilities=`).
 
 Conflating the axes is a silent performance cliff rather than a build error, which is how
 SIMD-free wheels once shipped with every check green: `detected` is true of the machine no
@@ -44,14 +44,6 @@ def baseline_for_this_machine() -> nk.Capability | None:
     return None
 
 
-@pytest.fixture(autouse=True)
-def restore_enabled_capabilities():
-    """Restores the enabled set each test found, which `keep_one_capability` caches across tests."""
-    enabled = nk.cpu_capabilities_enabled()
-    yield
-    nk.cpu_capabilities_enable(enabled)
-
-
 def test_capability_members_are_the_cpu_capabilities():
     """`Capability` has one member per CPU capability, in bit order, and none for the GPU capabilities.
 
@@ -71,16 +63,17 @@ def test_capability_members_are_the_cpu_capabilities():
     assert list(nk.Capability.__members__) == [name.upper() for name in expected], "members follow the bit order"
 
 
-def test_enabling_everything_keeps_what_runs_here():
-    """Asking for every capability leaves exactly the ones both detected and compiled, serial included.
+def test_masks_past_this_cpu_are_clamped():
+    """A call asking for every capability runs only what this CPU detects and this build compiled.
 
-    Without the clamp, enabling an ISA that was compiled in but that this CPU lacks points
-    dispatch at instructions the hardware refuses to execute.
+    Without the clamp in the library's lookup, an ISA that was compiled in but that this CPU lacks
+    would point dispatch at instructions the hardware refuses to execute.
     """
     detected, compiled = nk.cpu_capabilities_detected(), nk.cpu_capabilities_compiled()
-    enabled = nk.cpu_capabilities_enable(detected | compiled)
-    assert enabled == detected & compiled == nk.cpu_capabilities_enabled()
-    assert nk.Capability.SERIAL in enabled, "the serial fallback is always both detected and compiled in"
+    a, b = array.array("f", [0.25] * 64), array.array("f", [0.5] * 64)
+    assert nk.dot(a, b, capabilities=detected | compiled) == 8.0
+    assert nk.cpu_capabilities_enabled() == detected & compiled
+    assert nk.Capability.SERIAL in detected & compiled, "the serial fallback is always both detected and compiled in"
 
 
 def test_compiled_covers_the_baseline_this_machine_detects():
@@ -103,25 +96,6 @@ def test_compiled_covers_the_baseline_this_machine_detects():
         f"this CPU reports {baseline.name} but no {baseline.name} kernels were compiled in — "
         f"the ISA probes failed at build time and this build is scalar"
     )
-
-
-def test_enable_drops_the_tiers_left_out():
-    """`capabilities_enable` makes `wanted` the enabled set, so a capability left out stops dispatching."""
-    available = nk.cpu_capabilities_detected() & nk.cpu_capabilities_compiled()
-    capabilities = [
-        capability for capability in nk.Capability if capability in available and capability != nk.Capability.SERIAL
-    ]
-    if not capabilities:
-        pytest.skip("scalar build: no capability other than serial to toggle")
-
-    enabled = nk.cpu_capabilities_enable(available ^ capabilities[0])
-    assert capabilities[0] not in enabled and enabled == nk.cpu_capabilities_enabled()
-    assert nk.cpu_capabilities_enable(available) == available
-
-
-def test_serial_survives_enabling_nothing():
-    """The serial fallback always remains, so a kernel is always found."""
-    assert nk.cpu_capabilities_enable(nk.Capability(0)) == nk.Capability.SERIAL
 
 
 @pytest.mark.parametrize("vendor", ["cuda", "rocm", "metal"])
@@ -154,9 +128,9 @@ def test_synchronize_on_the_cpu_returns():
 
 
 def test_capabilities_keyword_narrows_one_call():
-    """`capabilities=` picks the capabilities of one call and leaves the default of every other call alone.
+    """`capabilities=` picks the capabilities of one call and leaves every other call alone.
 
-    Unlike `capabilities_enable`, the keyword keeps no serial fallback, so a mask of no capability finds no kernel.
+    The keyword keeps no serial fallback, so a mask of no capability finds no kernel.
     """
     a, b = array.array("f", [0.25] * 64), array.array("f", [0.5] * 64)
     enabled = nk.cpu_capabilities_enabled()
@@ -169,15 +143,14 @@ def test_capabilities_keyword_narrows_one_call():
 
 
 def test_packed_matrix_keeps_the_mask_it_was_packed_with():
-    """A packed matrix is read by the capability that packed it, even after the default narrows.
+    """A packed matrix is read by the capability that packed it, whatever mask later calls default to.
 
     Pack layouts differ per capability, so another capability's kernel refuses the buffer rather than misreading it.
     """
     vectors = memoryview(array.array("f", [float(i % 7) for i in range(8 * 64)])).cast("B").cast("f", [8, 64])
     packed = nk.dots_pack(vectors)
     expected = nk.dots_packed(vectors, packed)
-    nk.cpu_capabilities_enable(nk.Capability.SERIAL)
-    serial_packed = nk.dots_pack(vectors)
+    serial_packed = nk.dots_pack(vectors, capabilities=nk.Capability.SERIAL)
     assert nk.dots_packed(vectors, packed) == expected
     assert nk.dots_packed(vectors, serial_packed) == expected
     if serial_packed.nbytes != packed.nbytes:

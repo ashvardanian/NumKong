@@ -26,7 +26,7 @@ static PyObject *implement_dense_metric( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k, out_dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_buffer a_buffer, b_buffer, out_buffer;
     nk_matrix_or_vector_view_t a_parsed, b_parsed, out_parsed;
@@ -255,7 +255,7 @@ static PyObject *implement_curved_metric( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_buffer a_buffer, b_buffer, c_buffer;
     nk_matrix_or_vector_view_t a_parsed, b_parsed, c_parsed;
@@ -377,7 +377,7 @@ static PyObject *implement_geospatial_metric( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_buffer a_lats_buffer, a_lons_buffer, b_lats_buffer, b_lons_buffer, out_buffer;
     nk_matrix_or_vector_view_t a_lats_parsed, a_lons_parsed, b_lats_parsed, b_lons_parsed, out_parsed;
@@ -509,7 +509,7 @@ static PyObject *implement_sparse_metric( //
         PyErr_SetString(PyExc_TypeError, "Function expects only 2 positional arguments");
         return NULL;
     }
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwnames_count; ++i)
@@ -896,7 +896,7 @@ static PyObject *implement_pointer_access(nk_kernel_kind_t metric_kind, PyObject
 
     nk_kernel_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(metric_kind, dtype, default_capabilities, &metric, &capability);
+    nk_find_kernel_punned(metric_kind, dtype, nk_cap_cpus_k, &metric, &capability);
     if (!metric || !capability) {
         PyErr_SetString(PyExc_LookupError, "No such metric");
         return NULL;
@@ -940,7 +940,7 @@ PyObject *api_cdist( //
 
     // Once parsed, the arguments will be stored in these variables:
     nk_dtype_t dtype = nk_dtype_unknown_k, out_dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     /** Same default as in SciPy:
@@ -1356,7 +1356,7 @@ PyObject *api_sparse_dot(PyObject *self, PyObject *const *args, Py_ssize_t nargs
                         "sparse_dot() expects exactly 4 arguments: a_indices, a_values, b_indices, b_values");
         return NULL;
     }
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_ssize_t const kwnames_count = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwnames_count; ++i)

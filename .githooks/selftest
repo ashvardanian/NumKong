@@ -2425,6 +2425,35 @@ assert_accepts "C in a CUDA tier, and prose naming templates" include/numkong/pr
 extern "C" void nk_probe_cuda(void);
 FIXTURE
 
+assert_rejects "chevron launch in a library unit" "launches with <<< >>>" c/target/probe.cu <<'FIXTURE'
+void probe(void) { nk_probe_simt_kernel_<<<1, 32>>>(); }
+FIXTURE
+
+assert_accepts "launch API in a library unit, and prose naming chevrons" c/target/probe.cu <<'FIXTURE'
+/* Never <<< >>>, which drops the status. */
+void probe(void) { cudaLaunchKernel(kernel, grid, block, arguments, 0, stream); }
+FIXTURE
+
+assert_rejects "vendor test in a host file" "tests the GPU compiler in host code" include/numkong/probe/cuda.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#if defined(__HIP__)
+void probe(void) { hipFree(0); }
+#endif
+#endif
+FIXTURE
+
+assert_accepts "one top guard in a vendor file" include/numkong/probe/rocm.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+void probe(void) { hipFree(0); }
+#endif // NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+FIXTURE
+
+assert_accepts "vendor spelling in a shared kernel" include/numkong/probe/simt.cuh <<'FIXTURE'
+#if defined(__HIP__)
+void probe(void) { __builtin_amdgcn_s_barrier(); }
+#endif
+FIXTURE
+
 assert_rejects "CMake lowercase internal" "defines a lowercase nk_" CMakeLists.txt <<'FIXTURE'
 set(nk_probe_sources probe.c)
 FIXTURE

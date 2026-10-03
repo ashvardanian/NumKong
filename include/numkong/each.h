@@ -2096,7 +2096,8 @@ NUMKONG_API nk_status_t nk_each_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/each/rvv.h"
 #include "numkong/each/v128.h"
 #include "numkong/each/v128relaxed.h"
-#include "numkong/each/simt.cuh"
+#include "numkong/each/cuda.cuh"
+#include "numkong/each/rocm.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

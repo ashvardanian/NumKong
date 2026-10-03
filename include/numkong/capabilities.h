@@ -1235,19 +1235,19 @@ NUMKONG_CONSTEXPR nk_capability_t nk_cpu_capabilities_compiled_(void) {
     return caps;
 }
 
-/*  CPU capabilities, reported along two independent axes and the mask dispatch uses by default:
+/*  CPU capabilities, reported along two independent axes and the mask dispatch runs within:
  *
  *  - @b nk_cpu_capabilities_detected() — what this CPU can execute, from CPUID or the OS, or from
  *    what the compiler flags guarantee where the OS cannot be asked.
  *  - @b nk_cpu_capabilities_compiled() — what this binary contains, from the `NUMKONG_TARGET_*`
  *    macros the ISA probes set at build time.
- *  - @b nk_cpu_capabilities_enabled() — both axes at once: the mask to pass every dispatch point on
- *    the CPU. Always retains @b nk_cap_serial_k.
+ *  - @b nk_cpu_capabilities_enabled() — both axes at once, which the library settles as it loads:
+ *    what every dispatch point on the CPU runs within. Always retains @b nk_cap_serial_k.
  *
  *  The two axes are independent, and conflating them is a silent performance cliff rather than a
  *  build error: a binary whose ISA probes failed still reports this machine's full @b detected
- *  mask while containing no SIMD kernels at all. Ask for @b enabled() unless you specifically mean
- *  one of the raw axes. To narrow dispatch, pass a narrower mask to the dispatch point itself. */
+ *  mask while containing no SIMD kernels at all. Dispatch clamps every CPU mask to @b enabled(),
+ *  so @b nk_cap_cpus_k runs the best kernel, and a narrower mask narrows dispatch. */
 
 NUMKONG_API nk_status_t nk_cpu_capabilities_detected(nk_capability_t *capabilities);
 NUMKONG_API nk_status_t nk_cpu_capabilities_compiled(nk_capability_t *capabilities);
@@ -1260,7 +1260,8 @@ NUMKONG_API nk_status_t nk_cpu_capabilities_enabled(nk_capability_t *capabilitie
  *
  *  Most capabilities need nothing. The ones that do, and what they cost:
  *  - @c nk_cap_sapphireamx_k on Linux: one @c arch_prctl syscall for AMX tile state, which the
- *    kernel grants to the whole process. Windows and FreeBSD need no request.
+ *    kernel grants to the whole process, and which the library already makes as it loads.
+ *    Windows and FreeBSD need no request.
  *  - Arm with FEAT_EBF16: one write of the thread's @c FPCR, making BF16 dot products fused.
  *    Finding FEAT_EBF16 costs a @c sysctl on Apple systems, and one ID-register read on Linux and
  *    FreeBSD when @p capabilities holds more than NEON.
@@ -1304,217 +1305,6 @@ NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *b
 }
 
 #endif
-
-/*  Each vendor's helpers answer from its runtime where the translation unit is compiled for that
- *  vendor, and report no devices elsewhere: the library's host-only units include neither runtime,
- *  as the two clash. */
-
-/** How many CUDA devices the runtime sees, or zero. */
-NUMKONG_INLINE nk_size_t nk_cuda_count_devices_(void) {
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
-    int count = 0;
-    return cudaGetDeviceCount(&count) == cudaSuccess ? (nk_size_t)count : 0;
-#else
-    return 0;
-#endif
-}
-
-/** The capabilities CUDA device @p ordinal runs, by the runtime's own ordinal. */
-NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
-    *capabilities = 0;
-    if (ordinal >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
-    int major = 0, minor = 0;
-    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)ordinal) != cudaSuccess ||
-        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, (int)ordinal) != cudaSuccess)
-        return nk_device_code_mismatch_k;
-    nk_capability_t detected = nk_cap_cuda_k;
-    if (major * 10 + minor >= 80) detected |= nk_cap_ampere_k;
-    if (major * 10 + minor >= 89) detected |= nk_cap_ada_k;
-    if (major == 9) detected |= nk_cap_hopper_k;
-    if (major == 10) detected |= nk_cap_blackwell_k;
-    if (major == 12) detected |= nk_cap_blackwellrtx_k;
-    *capabilities = detected;
-#endif
-    return nk_success_k;
-}
-
-/** Creates a stream on CUDA device @p ordinal, leaving the caller's current device as it was. */
-NUMKONG_INLINE nk_status_t nk_cuda_stream_init_(nk_size_t ordinal, void **stream) {
-    *stream = NUMKONG_NULL;
-    if (ordinal >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
-    int caller = 0;
-    cudaStream_t created = 0;
-    if (cudaGetDevice(&caller) != cudaSuccess || cudaSetDevice((int)ordinal) != cudaSuccess) return nk_missing_gpu_k;
-    cudaError_t const error = cudaStreamCreate(&created);
-    nk_unused_(cudaSetDevice(caller));
-    if (error != cudaSuccess) return nk_bad_alloc_k;
-    *stream = (void *)created;
-#endif
-    return nk_success_k;
-}
-
-/** Destroys @p stream once the work queued on it completes; a null stream is the default one. */
-NUMKONG_INLINE nk_status_t nk_cuda_stream_free_(void *stream) {
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
-    if (!stream) return nk_success_k;
-    return cudaStreamDestroy((cudaStream_t)stream) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    nk_unused_(stream);
-    return nk_missing_gpu_k;
-#endif
-}
-
-/** How many ROCm devices the runtime sees, or zero. */
-NUMKONG_INLINE nk_size_t nk_rocm_count_devices_(void) {
-#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
-    int count = 0;
-    return hipGetDeviceCount(&count) == hipSuccess ? (nk_size_t)count : 0;
-#else
-    return 0;
-#endif
-}
-
-/** The capabilities ROCm device @p ordinal runs, by the runtime's own ordinal. */
-NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
-    *capabilities = 0;
-    if (ordinal >= nk_rocm_count_devices_()) return nk_missing_gpu_k;
-#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
-    hipDeviceProp_t properties;
-    if (hipGetDeviceProperties(&properties, (int)ordinal) != hipSuccess) return nk_device_code_mismatch_k;
-    char const *const name = properties.gcnArchName;
-    nk_capability_t detected = nk_cap_rocm_k;
-    if (strncmp(name, "gfx950", 6) == 0) detected |= nk_cap_cdna4_k;
-    if (strncmp(name, "gfx1250", 7) == 0 || strncmp(name, "gfx1251", 7) == 0) detected |= nk_cap_cdna5_k;
-    *capabilities = detected;
-#endif
-    return nk_success_k;
-}
-
-/** Creates a stream on ROCm device @p ordinal, leaving the caller's current device as it was. */
-NUMKONG_INLINE nk_status_t nk_rocm_stream_init_(nk_size_t ordinal, void **stream) {
-    *stream = NUMKONG_NULL;
-    if (ordinal >= nk_rocm_count_devices_()) return nk_missing_gpu_k;
-#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
-    int caller = 0;
-    hipStream_t created = 0;
-    if (hipGetDevice(&caller) != hipSuccess || hipSetDevice((int)ordinal) != hipSuccess) return nk_missing_gpu_k;
-    hipError_t const error = hipStreamCreate(&created);
-    nk_unused_(hipSetDevice(caller));
-    if (error != hipSuccess) return nk_bad_alloc_k;
-    *stream = (void *)created;
-#endif
-    return nk_success_k;
-}
-
-/** Destroys @p stream once the work queued on it completes; a null stream is the default one. */
-NUMKONG_INLINE nk_status_t nk_rocm_stream_free_(void *stream) {
-#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
-    if (!stream) return nk_success_k;
-    return hipStreamDestroy((hipStream_t)stream) == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    nk_unused_(stream);
-    return nk_missing_gpu_k;
-#endif
-}
-
-/*  Launches and copies for the kernel units, answered by the vendor compiler building the unit. */
-#if (NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)) || (NUMKONG_ARCH_ROCM_ && defined(__HIP__))
-
-/** The runtime's current device ordinal. */
-NUMKONG_INLINE nk_status_t nk_device_current_simt_(int *device) {
-#if defined(__HIP__)
-    return hipGetDevice(device) == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    return cudaGetDevice(device) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#endif
-}
-
-/** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
- *  address. The vendor's own error stays readable through @c cudaGetLastError or
- *  @c hipGetLastError. */
-NUMKONG_INLINE nk_status_t nk_launch_simt_(void const *kernel, nk_size_t blocks, unsigned threads, void **arguments,
-                                           nk_size_t shared_bytes, void *stream) {
-    dim3 grid, block;
-    grid.x = (unsigned)blocks, grid.y = 1, grid.z = 1;
-    block.x = threads, block.y = 1, block.z = 1;
-#if defined(__HIP__)
-    hipError_t const status = hipLaunchKernel(kernel, grid, block, arguments, shared_bytes, (hipStream_t)stream);
-    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    cudaError_t const status = cudaLaunchKernel(kernel, grid, block, arguments, shared_bytes, (cudaStream_t)stream);
-    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#endif
-}
-
-/**
- *  @brief Launches as many blocks of @p kernel as stay resident across the current device, at most
- *      @p blocks_wanted, passing the one argument struct at @p arguments by value.
- *  @param[in] shared_bytes Dynamic shared memory of this launch.
- *  @param[in] shared_ceiling Dynamic shared memory the kernel may take at any depth, or zero for
- *      the runtime's default ceiling.
- */
-NUMKONG_INLINE nk_status_t nk_launch_resident_simt_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
-                                                    nk_size_t shared_ceiling, nk_size_t blocks_wanted, void *arguments,
-                                                    void *stream) {
-    int device = 0, multiprocessors = 0, per_multiprocessor = 0;
-    nk_status_t const status = nk_device_current_simt_(&device);
-    if (status != nk_success_k) return status;
-#if defined(__HIP__)
-    if ((shared_ceiling &&
-         hipFuncSetAttribute(kernel, hipFuncAttributeMaxDynamicSharedMemorySize, (int)shared_ceiling) != hipSuccess) ||
-        hipDeviceGetAttribute(&multiprocessors, hipDeviceAttributeMultiprocessorCount, device) != hipSuccess ||
-        hipOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
-            hipSuccess)
-        return nk_device_code_mismatch_k;
-#else
-    if ((shared_ceiling && cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
-                                                (int)shared_ceiling) != cudaSuccess) ||
-        cudaDeviceGetAttribute(&multiprocessors, cudaDevAttrMultiProcessorCount, device) != cudaSuccess ||
-        cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
-            cudaSuccess)
-        return nk_device_code_mismatch_k;
-#endif
-    nk_size_t const blocks = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
-    if (blocks == 0) return nk_device_code_mismatch_k;
-    void *launch_arguments[1];
-    launch_arguments[0] = arguments;
-    return nk_launch_simt_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads, launch_arguments,
-                           shared_bytes, stream);
-}
-
-/** Reads @p attribute, a @c cudaDeviceAttr or @c hipDeviceAttribute_t, of the current device into
- *  @p value. */
-NUMKONG_INLINE nk_status_t nk_device_attribute_simt_(int attribute, int *value) {
-    int device = 0;
-    nk_status_t const status = nk_device_current_simt_(&device);
-    if (status != nk_success_k) return status;
-#if defined(__HIP__)
-    return hipDeviceGetAttribute(value, (hipDeviceAttribute_t)attribute, device) == hipSuccess
-               ? nk_success_k
-               : nk_device_code_mismatch_k;
-#else
-    return cudaDeviceGetAttribute(value, (enum cudaDeviceAttr)attribute, device) == cudaSuccess
-               ? nk_success_k
-               : nk_device_code_mismatch_k;
-#endif
-}
-
-/** Copies @p bytes from the device back to @p host once everything queued on @p stream is done. */
-NUMKONG_INLINE nk_status_t nk_read_simt_(void *host, void const *device, nk_size_t bytes, void *stream) {
-#if defined(__HIP__)
-    hipError_t status = hipMemcpyAsync(host, device, bytes, hipMemcpyDeviceToHost, (hipStream_t)stream);
-    if (status == hipSuccess) status = hipStreamSynchronize((hipStream_t)stream);
-    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#else
-    cudaError_t status = cudaMemcpyAsync(host, device, bytes, cudaMemcpyDeviceToHost, (cudaStream_t)stream);
-    if (status == cudaSuccess) status = cudaStreamSynchronize((cudaStream_t)stream);
-    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-#endif
-}
-
-#endif // (NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)) || (NUMKONG_ARCH_ROCM_ && defined(__HIP__))
 
 /** How many Metal devices the system lists, or zero. */
 NUMKONG_INLINE nk_size_t nk_metal_count_devices_(void) {
@@ -1753,46 +1543,65 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
 
 #if NUMKONG_HEADER_ONLY
 
+/*  Compiled for CUDA or ROCm, the producers come from `cuda.cuh` or `rocm.cuh`, included below. */
+#if !NUMKONG_TARGET_CUDA
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
-    *count = nk_cuda_count_devices_();
-    return *count ? nk_success_k : nk_missing_gpu_k;
+    *count = 0;
+    return nk_missing_gpu_k;
 }
 NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_cuda_capabilities_detected_(ordinal, capabilities);
+    nk_unused_(ordinal);
+    *capabilities = 0;
+    return nk_missing_gpu_k;
 }
+NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream) {
+    nk_unused_(ordinal);
+    *stream = NUMKONG_NULL;
+    return nk_missing_gpu_k;
+}
+NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream) {
+    nk_unused_(stream);
+    return nk_missing_gpu_k;
+}
+#endif // !NUMKONG_TARGET_CUDA
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_cuda_capabilities_compiled_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_cuda_capabilities_detected_(ordinal, capabilities);
+    nk_status_t const status = nk_cuda_capabilities_detected(ordinal, capabilities);
     *capabilities &= nk_cuda_capabilities_compiled_();
     return status;
 }
-NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream) {
-    return nk_cuda_stream_init_(ordinal, stream);
-}
-NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream) { return nk_cuda_stream_free_(stream); }
+#if !NUMKONG_TARGET_ROCM
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
-    *count = nk_rocm_count_devices_();
-    return *count ? nk_success_k : nk_missing_gpu_k;
+    *count = 0;
+    return nk_missing_gpu_k;
 }
 NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_rocm_capabilities_detected_(ordinal, capabilities);
+    nk_unused_(ordinal);
+    *capabilities = 0;
+    return nk_missing_gpu_k;
 }
+NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream) {
+    nk_unused_(ordinal);
+    *stream = NUMKONG_NULL;
+    return nk_missing_gpu_k;
+}
+NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) {
+    nk_unused_(stream);
+    return nk_missing_gpu_k;
+}
+#endif // !NUMKONG_TARGET_ROCM
 NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_rocm_capabilities_compiled_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_rocm_capabilities_detected_(ordinal, capabilities);
+    nk_status_t const status = nk_rocm_capabilities_detected(ordinal, capabilities);
     *capabilities &= nk_rocm_capabilities_compiled_();
     return status;
 }
-NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream) {
-    return nk_rocm_stream_init_(ordinal, stream);
-}
-NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) { return nk_rocm_stream_free_(stream); }
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
     *count = nk_metal_count_devices_();
     return *count ? nk_success_k : nk_missing_gpu_k;
@@ -1839,6 +1648,11 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
 
 #ifdef __cplusplus
 } // extern "C"
+#endif
+
+#if NUMKONG_HEADER_ONLY
+#include "numkong/cuda.cuh"
+#include "numkong/rocm.cuh"
 #endif
 
 #endif // NUMKONG_CAPABILITIES_H

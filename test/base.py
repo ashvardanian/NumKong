@@ -609,22 +609,22 @@ def downcast_f32_to_dtype(f32_arr: np.ndarray, dtype: str) -> tuple[np.ndarray, 
 possible_capabilities: list[str] = [
     str(capability.name).lower() for capability in nk.Capability if capability in nk.cpu_capabilities_enabled()
 ]
-"""Must be `enabled` at import, not `detected`: parametrizing over a capability this CPU has but this
-binary lacks silently tests the serial fallback while claiming to cover the SIMD kernel. A binary holds
-one CPU capability group, serial first, so no per-architecture list is needed.
+"""Must be `enabled`, not `detected`: parametrizing over a capability this CPU has but this binary
+lacks silently tests the serial fallback while claiming to cover the SIMD kernel. A binary holds one
+CPU capability group, serial first, so no per-architecture list is needed.
 """
 
 current_capability: str | None = None
+"""The capability the running test passes as `capabilities=`, which error reports name."""
 
 
-def keep_one_capability(capability: str) -> None:
-    """Restricts dispatch to `capability`, which this binary must have compiled in."""
+def keep_one_capability(capability: str) -> nk.Capability:
+    """The `capabilities=` mask running `capability`, which this binary must have compiled in, or
+    the serial fallback where it lacks a kernel."""
     global current_capability
     assert capability in possible_capabilities, f"Capability {capability} is not available on this platform."
-    if capability == current_capability:
-        return
-    nk.cpu_capabilities_enable(nk.Capability[capability.upper()])
     current_capability = capability
+    return nk.Capability[capability.upper()] | nk.Capability.SERIAL
 
 
 @dataclass(frozen=True)

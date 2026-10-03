@@ -7,8 +7,8 @@
 //!   execute, from CPUID / `getauxval` / HWCAP on the CPU and from the runtime on a GPU
 //! - [`Capabilities::cpu_compiled`], [`Capabilities::cuda_compiled`]: what this binary contains,
 //!   from the build's probes
-//! - [`Capabilities::cpu_enabled`], [`Capabilities::cuda_enabled`]: what dispatch uses — both axes
-//!   at once, unless narrowed by [`Capabilities::cpu_enable`] on the CPU
+//! - [`Capabilities::cpu_enabled`], [`Capabilities::cuda_enabled`]: what dispatch runs within —
+//!   both axes at once, which the library settles for the CPU as it loads
 //!
 //! ROCm and Metal have the same functions. Only these and [`Capabilities::cuda_stream_init`] take a
 //! GPU's ordinal: everything else takes the mask and a stream, which names the device. Reach for
@@ -31,7 +31,6 @@ use core::{
     fmt,
     ops::BitOr,
     ptr::NonNull,
-    sync::atomic::{AtomicU64, Ordering},
 };
 
 use crate::tensor::{AllocError, Allocator, Error};
@@ -85,12 +84,6 @@ extern "C" {
     fn nk_capabilities_name(capabilities: nk_capability_t, buffer: *mut c_char, capacity: nk_size_t) -> nk_size_t;
     fn nk_status_name(status: nk_status_t) -> *const c_char;
 }
-
-/// The signatures of the per-vendor C producers, which [`Capabilities`] wraps once for all three.
-type CountDevices = unsafe extern "C" fn(*mut nk_size_t) -> nk_status_t;
-type CapabilitiesOfDevice = unsafe extern "C" fn(nk_size_t, *mut nk_capability_t) -> nk_status_t;
-type CapabilitiesQuery = unsafe extern "C" fn(*mut nk_capability_t) -> nk_status_t;
-type StreamInit = unsafe extern "C" fn(nk_size_t, *mut *mut c_void) -> nk_status_t;
 
 /// What a NumKong call reports, C's `nk_status_t`, each variant holding the header's value.
 ///
@@ -307,9 +300,6 @@ const CAPABILITIES: [Capability; 47] = [
 /// if enabled.contains(Capability::SapphireAmx) {
 ///     println!("AMX is enabled");
 /// }
-/// let narrowed = Capabilities::cpu_enable(enabled.without(Capability::Skylake));
-/// assert!(!narrowed.contains(Capability::Skylake));
-///
 /// for ordinal in 0..Capabilities::cuda_count_devices()? {
 ///     println!("CUDA device {ordinal} runs {}", Capabilities::cuda_enabled(ordinal)?);
 /// }
@@ -323,7 +313,8 @@ impl Capabilities {
     /// Every capability, C's `nk_cap_any_k`.
     pub const ANY: Self = Capabilities(nk_capability_t::MAX);
 
-    /// Every CPU capability, the bits below the first GPU vendor's, C's `nk_cap_cpus_k`.
+    /// Every CPU capability, the bits below the first GPU vendor's, C's `nk_cap_cpus_k`. Calls
+    /// without a mask of their own pass it, as dispatch clamps it to what this CPU runs.
     pub const CPUS: Self = Capabilities(Capability::Cuda as nk_capability_t - 1);
 
     /// Every GPU capability, which the CPU never detects or enables, C's `nk_cap_gpus_k`.
@@ -361,30 +352,26 @@ impl Capabilities {
     }
 
     /// Capabilities this CPU supports, whether or not their kernels were compiled in.
-    pub fn cpu_detected() -> Self { Self::queried(nk_cpu_capabilities_detected) }
+    pub fn cpu_detected() -> Self {
+        let mut capabilities: nk_capability_t = 0;
+        // The CPU producers only read CPUID, HWCAP or the build's probes, and always succeed.
+        let _ = unsafe { nk_cpu_capabilities_detected(&mut capabilities) };
+        Capabilities(capabilities)
+    }
 
     /// CPU capabilities whose kernels were compiled in, whether or not this CPU supports them.
-    pub fn cpu_compiled() -> Self { Self::queried(nk_cpu_capabilities_compiled) }
+    pub fn cpu_compiled() -> Self {
+        let mut capabilities: nk_capability_t = 0;
+        let _ = unsafe { nk_cpu_capabilities_compiled(&mut capabilities) };
+        Capabilities(capabilities)
+    }
 
-    /// The CPU capabilities every kernel call passes: [`Capabilities::cpu_detected`] &
-    /// [`Capabilities::cpu_compiled`], narrowed by [`Capabilities::cpu_enable`] and always with
-    /// [`Capability::Serial`].
-    pub fn cpu_enabled() -> Self { Capabilities(enabled_cpu_capabilities_mask()) }
-
-    /// Makes `wanted`, clamped to [`Capabilities::cpu_detected`] & [`Capabilities::cpu_compiled`]
-    /// and with [`Capability::Serial`] kept, what every CPU kernel call passes, and returns what
-    /// stuck.
-    ///
-    /// This is the one piece of process state the crate keeps: kernel calls take no mask, so every
-    /// thread dispatches with the set last enabled here. Pack matrices again after the call:
-    /// packed kernels refuse another capability's layout with [`Error::KernelFailed`].
-    pub fn cpu_enable(wanted: Capabilities) -> Self {
-        let mut available = 0;
-        // Only reads CPUID or HWCAP and the build's probes, returning `nk_success_k` on every path.
-        let _ = unsafe { nk_cpu_capabilities_enabled(&mut available) };
-        let mask = wanted.0 & available | Capability::Serial as nk_capability_t;
-        ENABLED.store(mask, Ordering::Relaxed);
-        Capabilities(mask)
+    /// The CPU capabilities every kernel call runs within: [`Capabilities::cpu_detected`] &
+    /// [`Capabilities::cpu_compiled`], always with [`Capability::Serial`].
+    pub fn cpu_enabled() -> Self {
+        let mut capabilities: nk_capability_t = 0;
+        let _ = unsafe { nk_cpu_capabilities_enabled(&mut capabilities) };
+        Capabilities(capabilities)
     }
 
     /// Sets up the calling thread for the CPU kernels in this set, usually
@@ -393,21 +380,38 @@ impl Capabilities {
     pub fn configure_thread(self) -> Result<(), Error> { unsafe { nk_cpu_configure_thread(self.0) }.check() }
 
     /// How many CUDA devices this process sees, zero without the runtime or without its kernels.
-    pub fn cuda_count_devices() -> Result<usize, Error> { Self::count_devices(nk_cuda_count_devices) }
+    pub fn cuda_count_devices() -> Result<usize, Error> {
+        let mut count: nk_size_t = 0;
+        // C reports an empty runtime as `nk_missing_gpu_k`, which for a count means zero.
+        match unsafe { nk_cuda_count_devices(&mut count) }.check() {
+            Err(Error::KernelFailed {
+                status: Status::MissingGpu,
+            }) => Ok(0),
+            result => result.map(|()| count),
+        }
+    }
 
     /// Capabilities CUDA device `ordinal` supports, by the runtime's own numbering, whether or not
     /// their kernels were compiled in.
     pub fn cuda_detected(ordinal: usize) -> Result<Self, Error> {
-        Self::of_device(nk_cuda_capabilities_detected, ordinal)
+        let mut capabilities: nk_capability_t = 0;
+        unsafe { nk_cuda_capabilities_detected(ordinal, &mut capabilities) }.check()?;
+        Ok(Capabilities(capabilities))
     }
 
     /// CUDA capabilities whose kernels were compiled in.
-    pub fn cuda_compiled() -> Self { Self::queried(nk_cuda_capabilities_compiled) }
+    pub fn cuda_compiled() -> Self {
+        let mut capabilities: nk_capability_t = 0;
+        let _ = unsafe { nk_cuda_capabilities_compiled(&mut capabilities) };
+        Capabilities(capabilities)
+    }
 
     /// The mask CUDA device `ordinal` dispatches with: [`Capabilities::cuda_detected`] &
     /// [`Capabilities::cuda_compiled`].
     pub fn cuda_enabled(ordinal: usize) -> Result<Self, Error> {
-        Self::of_device(nk_cuda_capabilities_enabled, ordinal)
+        let mut capabilities: nk_capability_t = 0;
+        unsafe { nk_cuda_capabilities_enabled(ordinal, &mut capabilities) }.check()?;
+        Ok(Capabilities(capabilities))
     }
 
     /// A new `cudaStream_t` on CUDA device `ordinal`, which names that device to every call it is
@@ -417,7 +421,9 @@ impl Capabilities {
     /// # Safety
     /// The caller owns the stream and frees it once, through [`Capabilities::cuda_stream_free`].
     pub unsafe fn cuda_stream_init(ordinal: usize) -> Result<*mut c_void, Error> {
-        Self::stream_created(nk_cuda_stream_init, ordinal)
+        let mut stream: *mut c_void = core::ptr::null_mut();
+        unsafe { nk_cuda_stream_init(ordinal, &mut stream) }.check()?;
+        Ok(stream)
     }
 
     /// Frees a stream [`Capabilities::cuda_stream_init`] made.
@@ -430,19 +436,35 @@ impl Capabilities {
     }
 
     /// [`Capabilities::cuda_count_devices`], for ROCm.
-    pub fn rocm_count_devices() -> Result<usize, Error> { Self::count_devices(nk_rocm_count_devices) }
+    pub fn rocm_count_devices() -> Result<usize, Error> {
+        let mut count: nk_size_t = 0;
+        match unsafe { nk_rocm_count_devices(&mut count) }.check() {
+            Err(Error::KernelFailed {
+                status: Status::MissingGpu,
+            }) => Ok(0),
+            result => result.map(|()| count),
+        }
+    }
 
     /// [`Capabilities::cuda_detected`], for ROCm.
     pub fn rocm_detected(ordinal: usize) -> Result<Self, Error> {
-        Self::of_device(nk_rocm_capabilities_detected, ordinal)
+        let mut capabilities: nk_capability_t = 0;
+        unsafe { nk_rocm_capabilities_detected(ordinal, &mut capabilities) }.check()?;
+        Ok(Capabilities(capabilities))
     }
 
     /// [`Capabilities::cuda_compiled`], for ROCm.
-    pub fn rocm_compiled() -> Self { Self::queried(nk_rocm_capabilities_compiled) }
+    pub fn rocm_compiled() -> Self {
+        let mut capabilities: nk_capability_t = 0;
+        let _ = unsafe { nk_rocm_capabilities_compiled(&mut capabilities) };
+        Capabilities(capabilities)
+    }
 
     /// [`Capabilities::cuda_enabled`], for ROCm.
     pub fn rocm_enabled(ordinal: usize) -> Result<Self, Error> {
-        Self::of_device(nk_rocm_capabilities_enabled, ordinal)
+        let mut capabilities: nk_capability_t = 0;
+        unsafe { nk_rocm_capabilities_enabled(ordinal, &mut capabilities) }.check()?;
+        Ok(Capabilities(capabilities))
     }
 
     /// [`Capabilities::cuda_stream_init`], for ROCm, making a `hipStream_t`.
@@ -450,7 +472,9 @@ impl Capabilities {
     /// # Safety
     /// The caller owns the stream and frees it once, through [`Capabilities::rocm_stream_free`].
     pub unsafe fn rocm_stream_init(ordinal: usize) -> Result<*mut c_void, Error> {
-        Self::stream_created(nk_rocm_stream_init, ordinal)
+        let mut stream: *mut c_void = core::ptr::null_mut();
+        unsafe { nk_rocm_stream_init(ordinal, &mut stream) }.check()?;
+        Ok(stream)
     }
 
     /// [`Capabilities::cuda_stream_free`], for ROCm.
@@ -462,19 +486,35 @@ impl Capabilities {
     }
 
     /// [`Capabilities::cuda_count_devices`], for Metal, whose devices count in system order.
-    pub fn metal_count_devices() -> Result<usize, Error> { Self::count_devices(nk_metal_count_devices) }
+    pub fn metal_count_devices() -> Result<usize, Error> {
+        let mut count: nk_size_t = 0;
+        match unsafe { nk_metal_count_devices(&mut count) }.check() {
+            Err(Error::KernelFailed {
+                status: Status::MissingGpu,
+            }) => Ok(0),
+            result => result.map(|()| count),
+        }
+    }
 
     /// [`Capabilities::cuda_detected`], for Metal.
     pub fn metal_detected(ordinal: usize) -> Result<Self, Error> {
-        Self::of_device(nk_metal_capabilities_detected, ordinal)
+        let mut capabilities: nk_capability_t = 0;
+        unsafe { nk_metal_capabilities_detected(ordinal, &mut capabilities) }.check()?;
+        Ok(Capabilities(capabilities))
     }
 
     /// [`Capabilities::cuda_compiled`], for Metal.
-    pub fn metal_compiled() -> Self { Self::queried(nk_metal_capabilities_compiled) }
+    pub fn metal_compiled() -> Self {
+        let mut capabilities: nk_capability_t = 0;
+        let _ = unsafe { nk_metal_capabilities_compiled(&mut capabilities) };
+        Capabilities(capabilities)
+    }
 
     /// [`Capabilities::cuda_enabled`], for Metal.
     pub fn metal_enabled(ordinal: usize) -> Result<Self, Error> {
-        Self::of_device(nk_metal_capabilities_enabled, ordinal)
+        let mut capabilities: nk_capability_t = 0;
+        unsafe { nk_metal_capabilities_enabled(ordinal, &mut capabilities) }.check()?;
+        Ok(Capabilities(capabilities))
     }
 
     /// [`Capabilities::cuda_stream_init`], for Metal, making an `id<MTLCommandQueue>`.
@@ -482,7 +522,9 @@ impl Capabilities {
     /// # Safety
     /// The caller owns the stream and frees it once, through [`Capabilities::metal_stream_free`].
     pub unsafe fn metal_stream_init(ordinal: usize) -> Result<*mut c_void, Error> {
-        Self::stream_created(nk_metal_stream_init, ordinal)
+        let mut stream: *mut c_void = core::ptr::null_mut();
+        unsafe { nk_metal_stream_init(ordinal, &mut stream) }.check()?;
+        Ok(stream)
     }
 
     /// [`Capabilities::cuda_stream_free`], for Metal.
@@ -502,61 +544,11 @@ impl Capabilities {
     pub unsafe fn synchronize(self, stream: *mut c_void) -> Result<(), Error> {
         unsafe { nk_stream_synchronize_best(self.0, stream) }.check()
     }
-
-    fn count_devices(count_devices: CountDevices) -> Result<usize, Error> {
-        let mut count: nk_size_t = 0;
-        // C reports an empty runtime as `nk_missing_gpu_k`, which for a count means zero.
-        match unsafe { count_devices(&mut count) }.check() {
-            Err(Error::KernelFailed {
-                status: Status::MissingGpu,
-            }) => Ok(0),
-            result => result.map(|()| count),
-        }
-    }
-
-    fn of_device(query: CapabilitiesOfDevice, ordinal: usize) -> Result<Self, Error> {
-        let mut mask: nk_capability_t = 0;
-        unsafe { query(ordinal, &mut mask) }.check()?;
-        Ok(Capabilities(mask))
-    }
-
-    fn stream_created(init: StreamInit, ordinal: usize) -> Result<*mut c_void, Error> {
-        let mut stream: *mut c_void = core::ptr::null_mut();
-        unsafe { init(ordinal, &mut stream) }.check()?;
-        Ok(stream)
-    }
-
-    fn queried(query: CapabilitiesQuery) -> Self {
-        let mut mask: nk_capability_t = 0;
-        // Each only reads CPUID, HWCAP or the build's probes, and always returns `nk_success_k`.
-        let _ = unsafe { query(&mut mask) };
-        Capabilities(mask)
-    }
-}
-
-/// The CPU capability mask every kernel call passes, zero until first read.
-static ENABLED: AtomicU64 = AtomicU64::new(0);
-
-/// The raw `nk_capability_t` mask every kernel call passes, [`Capabilities::cpu_enabled`].
-pub(crate) fn enabled_cpu_capabilities_mask() -> nk_capability_t {
-    let mask = ENABLED.load(Ordering::Relaxed);
-    if mask != 0 {
-        return mask;
-    }
-    let mut available = 0;
-    // Only reads CPUID or HWCAP and the build's probes, returning `nk_success_k` on every path.
-    let _ = unsafe { nk_cpu_capabilities_enabled(&mut available) };
-    match ENABLED.compare_exchange(0, available, Ordering::Relaxed, Ordering::Relaxed) {
-        Ok(_) => available,
-        Err(current) => current,
-    }
 }
 
 /// Sets up the calling thread for the enabled CPU capabilities, as every parallel worker must.
 #[cfg(any(test, feature = "parallel"))]
-pub(crate) fn configure_cpu_thread() -> Result<(), Error> {
-    unsafe { nk_cpu_configure_thread(enabled_cpu_capabilities_mask()) }.check()
-}
+pub(crate) fn configure_cpu_thread() -> Result<(), Error> { Capabilities::cpu_enabled().configure_thread() }
 
 /// Memory the host and the device of a capability mask both address, on the null stream: managed
 /// memory on CUDA and ROCm, a shared buffer on Metal, and the heap on the CPU.

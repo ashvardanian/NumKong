@@ -282,7 +282,7 @@ def baseline_rope(x, cos, sin, head_count, depth):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_attention_rope(geom, dtype, capability, np_rng: np.random.Generator):
     """Test nk.attention_rope() out-of-place and in-place (out == x) against a float64 rotate-half reference."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     rows, head_count, depth = geom
     width = head_count * depth
     angles = np_rng.standard_normal((rows, depth // 2)).astype(np.float32) * 0.5
@@ -300,13 +300,13 @@ def test_attention_rope(geom, dtype, capability, np_rng: np.random.Generator):
     # Out-of-place: rotate x into a separate output buffer.
     nk_x = make_nk(x_raw, dtype)
     nk_y = make_nk(x_raw, dtype)
-    nk.attention_rope(nk_x, cos, sin, head_count, depth, out=nk_y)
+    nk.attention_rope(nk_x, cos, sin, head_count, depth, out=nk_y, capabilities=capabilities)
     y_out = np.asarray(nk_y if dtype == "float32" else nk_y.astype("float32"))
     assert_allclose(y_out, expected, atol=atol, rtol=rtol)
 
     # In-place: out defaults to x.
     nk_inplace = make_nk(x_raw, dtype)
-    nk.attention_rope(nk_inplace, cos, sin, head_count, depth)
+    nk.attention_rope(nk_inplace, cos, sin, head_count, depth, capabilities=capabilities)
     y_inplace = np.asarray(nk_inplace if dtype == "float32" else nk_inplace.astype("float32"))
     assert_allclose(y_inplace, expected, atol=atol, rtol=rtol)
 

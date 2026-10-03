@@ -713,7 +713,7 @@ class _Dispatch(TypedDict, total=False):
     """Keywords every function that runs kernels accepts, after its own."""
 
     capabilities: Capability | int | None
-    """Capabilities to run: the CPU's enabled ones by default, or for packed operands the mask that packed them."""
+    """Capabilities to run within: every CPU one by default, or for packed operands the mask that packed them."""
     stream: int | None
     """A GPU stream pointer, left None on the CPU."""
 
@@ -727,11 +727,7 @@ def cpu_capabilities_compiled() -> Capability:
     ...
 
 def cpu_capabilities_enabled() -> Capability:
-    """What CPU kernels run with: both of the above, narrowed by `cpu_capabilities_enable`."""
-    ...
-
-def cpu_capabilities_enable(wanted: Capability, /) -> Capability:
-    """Make `wanted`, clamped to what runs and always with SERIAL, the CPU's enabled set."""
+    """What CPU kernels run within: both of the above, settled as the library loads."""
     ...
 
 def cpu_configure_thread(capabilities: Capability, /) -> None:

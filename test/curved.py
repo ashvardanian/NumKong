@@ -151,7 +151,7 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
     b_raw, b_baseline = downcast_f32_to_dtype(b_vector_f32, dtype)
     c_raw, c_baseline = downcast_f32_to_dtype(c_matrix_f32, dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_CURVED[metric]
 
     # High-precision baseline
@@ -169,7 +169,7 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
     )
 
     # SIMD result
-    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, c_raw, dtype)
+    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, c_raw, dtype, capabilities=capabilities)
     result = np.asarray(result)
 
     err_msg = LazyFormat(
@@ -198,7 +198,7 @@ def test_bilinear_complex_accuracy(ndim: int, dtype: str, capability: str, np_rn
     b_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)
     c_matrix = (np_rng.standard_normal((ndim, ndim)) + 1.0j * np_rng.standard_normal((ndim, ndim))).astype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_CURVED["bilinear"]
     precise_dtype = np.clongdouble if dtype == "complex128" else np.complex128
     accurate_ns, accurate = timed_call(
@@ -208,7 +208,7 @@ def test_bilinear_complex_accuracy(ndim: int, dtype: str, capability: str, np_rn
         c_matrix.astype(precise_dtype),
     )
     expected_ns, expected = timed_call(baseline_kernel, a_vector, b_vector, c_matrix)
-    result_ns, result = timed_call(simd_kernel, a_vector, b_vector, c_matrix)
+    result_ns, result = timed_call(simd_kernel, a_vector, b_vector, c_matrix, capabilities=capabilities)
     result = np.asarray(result)
 
     assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)

@@ -144,7 +144,9 @@ KERNELS_GEOSPATIAL: dict[str, tuple[Callable, Callable, None]] = {
 }
 
 
-def _check_geospatial_accuracy(generator: np.random.Generator, metric, ndim, dtype, coord_scale, atol, rtol):
+def _check_geospatial_accuracy(
+    generator: np.random.Generator, metric, ndim, dtype, coord_scale, atol, rtol, capabilities: nk.Capability
+):
     """Shared accuracy check for geospatial kernels."""
     baseline_kernel, simd_kernel, _ = KERNELS_GEOSPATIAL[metric]
 
@@ -169,14 +171,23 @@ def _check_geospatial_accuracy(generator: np.random.Generator, metric, ndim, dty
         _baseline_loop, first_latitudes, first_longitudes, second_latitudes, second_longitudes
     )
 
-    result_ns, result = timed_call(simd_kernel, first_latitudes, first_longitudes, second_latitudes, second_longitudes)
+    result_ns, result = timed_call(
+        simd_kernel,
+        first_latitudes,
+        first_longitudes,
+        second_latitudes,
+        second_longitudes,
+        capabilities=capabilities,
+    )
     result = np.asarray(result)
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
 
     # out= with nk.Tensor buffer
     out_nk = nk.zeros((ndim,), dtype=dtype)
-    ret = simd_kernel(first_latitudes, first_longitudes, second_latitudes, second_longitudes, out=out_nk)
+    ret = simd_kernel(
+        first_latitudes, first_longitudes, second_latitudes, second_longitudes, out=out_nk, capabilities=capabilities
+    )
     assert ret is None
     assert_allclose(np.asarray(out_nk), result, atol=1e-10, rtol=1e-10)
 
@@ -190,8 +201,10 @@ def _check_geospatial_accuracy(generator: np.random.Generator, metric, ndim, dty
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_haversine_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Haversine great-circle distance against baseline for random coordinates."""
-    keep_one_capability(capability)
-    _check_geospatial_accuracy(np_rng, "haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2)
+    capabilities = keep_one_capability(capability)
+    _check_geospatial_accuracy(
+        np_rng, "haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2, capabilities=capabilities
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -201,9 +214,11 @@ def test_haversine_random_accuracy(ndim: int, dtype: str, capability: str, np_rn
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_vincenty_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
     """Vincenty ellipsoidal geodesic distance against baseline for random coordinates."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     rtol = 1.0 if dtype == "float32" else 1e-2
-    _check_geospatial_accuracy(np_rng, "vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol)
+    _check_geospatial_accuracy(
+        np_rng, "vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol, capabilities=capabilities
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
@@ -228,10 +243,10 @@ def test_haversine_known():
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_haversine_self_zero(capability: str):
     """haversine(lat, lon, lat, lon) ~ 0."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     lat = nk.full((1,), 0.5, dtype="float64")
     lon = nk.full((1,), 0.5, dtype="float64")
-    result = nk.haversine(lat, lon, lat, lon)
+    result = nk.haversine(lat, lon, lat, lon, capabilities=capabilities)
     val = next(iter(result))
     assert abs(val) < 1.0, f"haversine(self) = {val}, expected ~0"
 
@@ -239,9 +254,9 @@ def test_haversine_self_zero(capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_vincenty_self_zero(capability: str):
     """vincenty(lat, lon, lat, lon) ~ 0."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     lat = nk.full((1,), 0.5, dtype="float64")
     lon = nk.full((1,), 0.5, dtype="float64")
-    result = nk.vincenty(lat, lon, lat, lon)
+    result = nk.vincenty(lat, lon, lat, lon, capabilities=capabilities)
     val = next(iter(result))
     assert abs(val) < 1.0, f"vincenty(self) = {val}, expected ~0"

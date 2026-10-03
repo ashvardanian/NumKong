@@ -22,7 +22,7 @@
 
 #if NUMKONG_ARCH_ROCM_CDNA4_
 
-#include "numkong/attention/simt.cuh" // `nk_attention_schedule_next_`, `nk_attention_fallback_`
+#include "numkong/attention/rocm.cuh" // `nk_attention_schedule_next_`, `nk_attention_fallback_`
 #include "numkong/dots/cdna4.cuh"     // `nk_mfma_bf16_cdna4_`, `nk_mfma_i8_cdna4_`, `nk_byte_permute_cdna4_`
 
 #if defined(__cplusplus)
@@ -158,14 +158,14 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_cdna4_(
         queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
         scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
     if (depth > nk_attention_wide_depth_cdna4_k)
-        return nk_launch_resident_simt_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
+        return nk_launch_resident_rocm_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
                                         stream);
     nk_attention_width_t const width = depth <= nk_attention_narrow_depth_cdna4_k ? nk_attention_width_128_k
                                                                                   : nk_attention_width_256_k;
     nk_size_t const width_depth = width == nk_attention_width_128_k ? nk_attention_narrow_depth_cdna4_k
                                                                     : nk_attention_wide_depth_cdna4_k;
     // The attribute takes the width's largest size, so no depth's size races a concurrent launch.
-    return nk_launch_resident_simt_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel,
+    return nk_launch_resident_rocm_(width == nk_attention_width_128_k ? narrow_kernel : wide_kernel,
                                     nk_attention_threads_k, nk_attention_shared_bytes_cdna4_(dtype, depth),
                                     nk_attention_shared_bytes_cdna4_(dtype, width_depth), NUMKONG_SIZE_MAX, &arguments,
                                     stream);
@@ -601,23 +601,23 @@ NUMKONG_DEVICE void nk_attention_tile_cdna4_(nk_dtype_t dtype, nk_attention_widt
 #pragma region Instantiations
 
 nk_define_attention_pack_size_simt_(bf16, cdna4, 2)
-nk_define_attention_packed_shape_simt_(bf16, cdna4)
-nk_define_attention_pack_simt_(bf16, cdna4, bf16)
-nk_define_attention_packed_simt_(bf16, cdna4, cdna4, nk_attention_launch_cdna4_, bf16, nk_cross_epilogue_f32_k,
+nk_define_attention_packed_shape_rocm_(bf16, cdna4)
+nk_define_attention_pack_rocm_(bf16, cdna4, bf16)
+nk_define_attention_packed_rocm_(bf16, cdna4, cdna4, nk_attention_launch_cdna4_, bf16, nk_cross_epilogue_f32_k,
                                  nk_attention_scores_bf16_cdna4_, nk_attention_values_bf16_cdna4_,
                                  nk_attention_weights_bf16_cdna4_, 1.0f, 1.0f)
 
 nk_define_attention_pack_size_simt_(e4m3, cdna4, 1)
-nk_define_attention_packed_shape_simt_(e4m3, cdna4)
-nk_define_attention_pack_simt_(e4m3, cdna4, e4m3)
-nk_define_attention_packed_simt_(e4m3, cdna4, cdna4, nk_attention_launch_cdna4_, e4m3, nk_cross_epilogue_f32_k,
+nk_define_attention_packed_shape_rocm_(e4m3, cdna4)
+nk_define_attention_pack_rocm_(e4m3, cdna4, e4m3)
+nk_define_attention_packed_rocm_(e4m3, cdna4, cdna4, nk_attention_launch_cdna4_, e4m3, nk_cross_epilogue_f32_k,
                                  nk_attention_scores_e4m3_cdna4_, nk_attention_values_e4m3_cdna4_,
                                  nk_attention_weights_f16_cdna4_, 1.0f, 256.0f)
 
 nk_define_attention_pack_size_simt_(i8, cdna4, 1)
-nk_define_attention_packed_shape_simt_(i8, cdna4)
-nk_define_attention_pack_simt_(i8, cdna4, i8)
-nk_define_attention_packed_simt_(i8, cdna4, cdna4, nk_attention_launch_cdna4_, i8, nk_cross_epilogue_i32_to_f32_k,
+nk_define_attention_packed_shape_rocm_(i8, cdna4)
+nk_define_attention_pack_rocm_(i8, cdna4, i8)
+nk_define_attention_packed_rocm_(i8, cdna4, cdna4, nk_attention_launch_cdna4_, i8, nk_cross_epilogue_i32_to_f32_k,
                                  nk_attention_scores_i8_cdna4_, nk_attention_values_i8_cdna4_,
                                  nk_attention_weights_u8_cdna4_, 1.0f, 1.0f)
 

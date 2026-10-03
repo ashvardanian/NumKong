@@ -11,7 +11,7 @@
 //! Author: Ash Vardanian
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t},
+    capabilities::{nk_capability_t, Capabilities},
     types::f16,
 };
 
@@ -40,16 +40,16 @@ pub trait Roots: Sized {
 }
 
 impl Roots for f32 {
-    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt_best(self, enabled_cpu_capabilities_mask()) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt_best(self, enabled_cpu_capabilities_mask()) } }
+    fn sqrt(self) -> Self { unsafe { nk_f32_sqrt_best(self, Capabilities::CPUS.bits()) } }
+    fn rsqrt(self) -> Self { unsafe { nk_f32_rsqrt_best(self, Capabilities::CPUS.bits()) } }
 }
 
 impl Roots for f64 {
-    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt_best(self, enabled_cpu_capabilities_mask()) } }
-    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt_best(self, enabled_cpu_capabilities_mask()) } }
+    fn sqrt(self) -> Self { unsafe { nk_f64_sqrt_best(self, Capabilities::CPUS.bits()) } }
+    fn rsqrt(self) -> Self { unsafe { nk_f64_rsqrt_best(self, Capabilities::CPUS.bits()) } }
 }
 
 impl Roots for f16 {
-    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt_best(self.0, enabled_cpu_capabilities_mask()) }) }
-    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt_best(self.0, enabled_cpu_capabilities_mask()) }) }
+    fn sqrt(self) -> Self { f16(unsafe { nk_f16_sqrt_best(self.0, Capabilities::CPUS.bits()) }) }
+    fn rsqrt(self) -> Self { f16(unsafe { nk_f16_rsqrt_best(self.0, Capabilities::CPUS.bits()) }) }
 }

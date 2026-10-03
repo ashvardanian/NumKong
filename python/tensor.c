@@ -331,7 +331,7 @@ static PyObject *tensor_read_packed_scalar(Tensor *tensor, size_t byte_offset, s
     if (!tensor_on_host(tensor)) return NULL;
     nk_f64_t lanes[NUMKONG_BITS_PER_BYTE];
     nk_cast_best(tensor->data + byte_offset, tensor->dtype, lanes, nk_f64_k, nk_dimensions_per_value(tensor->dtype),
-                 default_capabilities, NULL);
+                 nk_cap_cpus_k, NULL);
     if (nk_dtype_family(tensor->dtype) == nk_dtype_family_float_k) return PyFloat_FromDouble(lanes[lane]);
     return PyLong_FromLongLong((long long)lanes[lane]);
 }
@@ -626,7 +626,7 @@ static void cast_strided_recursive(                                            /
         if (src_dtype == dest_dtype)
             memcpy(dest_data, src_data, dimensions_to_values(src_dtype, slice_elements) * element_size);
         else
-            nk_cast_best(src_data, src_dtype, dest_data, dest_dtype, (nk_size_t)slice_elements, default_capabilities,
+            nk_cast_best(src_data, src_dtype, dest_data, dest_dtype, (nk_size_t)slice_elements, nk_cap_cpus_k,
                          NULL);
         return;
     }
@@ -711,7 +711,7 @@ static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double
     if (!tensor_on_host(a)) return NULL;
     nk_each_scale_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_each_scale_k, a->dtype, default_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(nk_kernel_each_scale_k, a->dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel || !cap) {
         PyErr_Format(PyExc_NotImplementedError, "scale not supported for dtype '%s'",
                      nk_dtype_to_pybuffer_typestr(a->dtype));
@@ -770,7 +770,7 @@ static PyObject *Tensor_add(PyObject *self, PyObject *other) {
 
         nk_each_sum_punned_t kernel = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_each_sum_k, a->dtype, default_capabilities, (nk_kernel_punned_t *)&kernel,
+        nk_find_kernel_punned(nk_kernel_each_sum_k, a->dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&kernel,
                               &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_NotImplementedError, "add not supported for dtype '%s'",
@@ -837,7 +837,7 @@ static PyObject *Tensor_subtract(PyObject *self, PyObject *other) {
         // Single-pass subtract via blend: result = 1 · a + (−1) · b
         nk_each_blend_punned_t kernel = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_each_blend_k, a->dtype, default_capabilities, (nk_kernel_punned_t *)&kernel,
+        nk_find_kernel_punned(nk_kernel_each_blend_k, a->dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&kernel,
                               &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_NotImplementedError, "subtract not supported for dtype '%s'",
@@ -909,7 +909,7 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
 
         nk_each_fma_punned_t kernel = NULL;
         nk_capability_t cap = nk_cap_serial_k;
-        nk_find_kernel_punned(nk_kernel_each_fma_k, a->dtype, default_capabilities, (nk_kernel_punned_t *)&kernel,
+        nk_find_kernel_punned(nk_kernel_each_fma_k, a->dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&kernel,
                               &cap);
         if (!kernel || !cap) {
             PyErr_Format(PyExc_NotImplementedError, "multiply not supported for dtype '%s'",
@@ -1996,7 +1996,7 @@ PyObject *Tensor_moments(PyObject *self, PyObject *args) {
     Tensor *t = (Tensor *)self;
     if (!tensor_on_host(t)) return NULL;
     nk_tensor_view_t view = {t->dtype, t->rank, t->shape, t->strides, t->data};
-    return impl_moments_from_view(&view, default_capabilities, NULL);
+    return impl_moments_from_view(&view, nk_cap_cpus_k, NULL);
 }
 
 char const doc_method_minmax[] =                                                                //
@@ -2047,7 +2047,7 @@ PyObject *Tensor_minmax(PyObject *self, PyObject *args) {
     Tensor *t = (Tensor *)self;
     if (!tensor_on_host(t)) return NULL;
     nk_tensor_view_t view = {t->dtype, t->rank, t->shape, t->strides, t->data};
-    return impl_minmax_from_view(&view, default_capabilities, NULL);
+    return impl_minmax_from_view(&view, nk_cap_cpus_k, NULL);
 }
 
 typedef struct {
@@ -2067,7 +2067,7 @@ typedef struct {
     /** @c nk_dtype_unknown_k keeps the source dtype. */
     nk_dtype_t dtype_override;
 
-    /** @c default_capabilities unless overridden. */
+    /** @c nk_cap_cpus_k unless overridden. */
     nk_capability_t capabilities;
 
     /** NULL on the CPU. */
@@ -2140,7 +2140,7 @@ static int parse_reduce_kwargs(PyObject *const *args, Py_ssize_t nargs, PyObject
     parsed->keepdims = 0;
     parsed->out = NULL;
     parsed->dtype_override = nk_dtype_unknown_k;
-    parsed->capabilities = default_capabilities;
+    parsed->capabilities = nk_cap_cpus_k;
     parsed->stream = NULL;
     int axis_set = 0;
 
@@ -2703,7 +2703,7 @@ static PyObject *Tensor_encode_block_scaled(Tensor *tensor, nk_dtype_t target_dt
                                             has_tensor_scale ? &to_tensor_scale : NULL, &to_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(staging, nk_f32_k, to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(staging, nk_f32_k, to_operand, target_dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
     PyEval_RestoreThread(gil);
 
     if (staging_free) PyMem_Free(staging);
@@ -3690,7 +3690,7 @@ static PyObject *ScaledTensor_transcode(ScaledTensor *scaled, nk_dtype_t target_
                                             to_has_tensor_scale ? &to_tensor_scale : NULL, &to_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(from_operand, scaled->dtype, to_operand, target_dtype, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(from_operand, scaled->dtype, to_operand, target_dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
@@ -3759,7 +3759,7 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
         scaled->dtype, elem_buf, scale_buf, scaled->has_tensor_scale ? &from_tensor_scale : NULL, &from_storage);
 
     PyThreadState *gil = PyEval_SaveThread();
-    nk_cast_best(from_operand, scaled->dtype, f32_result->data, nk_f32_k, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(from_operand, scaled->dtype, f32_result->data, nk_f32_k, (nk_size_t)total, nk_cap_cpus_k, NULL);
     PyEval_RestoreThread(gil);
 
     if (elem_free) PyMem_Free(elem_buf);
@@ -3773,7 +3773,7 @@ static PyObject *ScaledTensor_astype(PyObject *self, PyObject *dtype_arg) {
         Py_DECREF(f32_result);
         return NULL;
     }
-    nk_cast_best(f32_result->data, nk_f32_k, result->data, target_dtype, (nk_size_t)total, default_capabilities, NULL);
+    nk_cast_best(f32_result->data, nk_f32_k, result->data, target_dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
     Py_DECREF(f32_result);
     return (PyObject *)result;
 }
@@ -3994,7 +3994,7 @@ static int tensor_fill_affine(Tensor *tensor, nk_f64_t first, nk_f64_t step) {
             return 0;
         }
         for (size_t i = 0; i < total; i++) staging[i] = first + step * (nk_f64_t)i;
-        nk_cast_best(staging, nk_f64_k, tensor->data, tensor->dtype, (nk_size_t)total, default_capabilities, NULL);
+        nk_cast_best(staging, nk_f64_k, tensor->data, tensor->dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
         PyMem_Free(staging);
         return 1;
     }
@@ -4442,7 +4442,7 @@ PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t const n
             return PyErr_NoMemory();
         }
         for (Py_ssize_t i = 0; i < n; i++) staging[(size_t)i * ((size_t)n + 1)] = (nk_f64_t)seed;
-        nk_cast_best(staging, nk_f64_k, result->data, dtype, (nk_size_t)total, default_capabilities, NULL);
+        nk_cast_best(staging, nk_f64_k, result->data, dtype, (nk_size_t)total, nk_cap_cpus_k, NULL);
         PyMem_Free(staging);
         return (PyObject *)result;
     }
@@ -4549,7 +4549,7 @@ PyObject *api_moments(PyObject *self, PyObject *const *args, Py_ssize_t const na
     if (nargs != 1) return (PyErr_SetString(PyExc_TypeError, "moments(a) takes exactly 1 positional argument"), NULL);
 
     nk_dtype_t dtype_override = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_ssize_t const kwcount = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwcount; i++) {
@@ -4597,7 +4597,7 @@ PyObject *api_minmax(PyObject *self, PyObject *const *args, Py_ssize_t const nar
     if (nargs != 1) return (PyErr_SetString(PyExc_TypeError, "minmax(a) takes exactly 1 positional argument"), NULL);
 
     nk_dtype_t dtype_override = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_ssize_t const kwcount = kwnames ? PyTuple_Size(kwnames) : 0;
     for (Py_ssize_t i = 0; i < kwcount; i++) {

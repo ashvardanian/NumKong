@@ -101,7 +101,7 @@ GCC/Clang builds also pass `-fno-tree-vectorize -fno-tree-slp-vectorize` so the 
 That keeps the capability dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
 MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `include/numkong/types.h`).
 LASX and POWER9 are the two kits compiled file-wide, because Clang's `lasxintrin.h` and `altivec.h` hide their contents without `-mlasx` or `-mcpu=power9`.
-CMake gives that flag to `c/cpu/loongsonasx.c` or `c/cpu/powervsx.c`, to the kit's probe, and to `test/cross_loongarch64.cpp` or `test/cross_ppc64.cpp` in the header-only test alone, so every other unit stays at the baseline and runs on LASX-less and POWER8 hosts.
+CMake gives that flag to `c/target/loongsonasx.c` or `c/target/powervsx.c`, to the kit's probe, and to `test/cross_loongarch64.cpp` or `test/cross_ppc64.cpp` in the header-only test alone, so every other unit stays at the baseline and runs on LASX-less and POWER8 hosts.
 
 For host-tuned local builds, set `NUMKONG_TARGET_ARCH=native`, either as the CMake option `-DNUMKONG_TARGET_ARCH=native` or as an environment variable.
 `pip install` reads the variable on every build, while `cargo build` and `npm run build-native` read it when they first configure their build directory.
@@ -497,7 +497,7 @@ To add a new operation family, for example `foo`:
    Helpers compile wherever `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` holds, and kernels only under their own `NUMKONG_TARGET_<CAPABILITY>`.
    A kernel never calls another public kernel: logic two kernels share lives in a helper named for what it computes.
 3. __Library__: create `c/dispatch/foo.c` with a `static` capability list per dispatch point, like `nk_foo_f32_capabilities`, the `_best` body that picks from it, and `nk_foo_find_kernel`.
-   Include each capability header from its unit, like `c/cpu/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `c/numkong.c`.
+   Include each capability header from its unit, like `c/target/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `c/numkong.c`.
 4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API, ending in the dispatch point's mask and stream.
 5. __Test__: create `test/foo.cpp` with precision validation against `f118_t` references.
 6. __Benchmark__: create `bench/foo.cpp` over the `bench/harness.hpp` timing loop.
@@ -512,7 +512,7 @@ Every such kernel is wired in four places beyond its capability's header:
 
 1. __Declaration__: add the `NUMKONG_API` declaration with the matching `@copydoc` under its `NUMKONG_TARGET_*` guard in the first half of `include/numkong/<family>.h`.
 2. __Capability kernels__: add the kernel under its `NUMKONG_TARGET_*` guard to its capability group's array in `nk_<operation>_<dtype>_capabilities` in `c/dispatch/<family>.c`, in the order of the capability bits, and its bit to that group's mask.
-   Its unit, like `c/cpu/haswell.c` or `c/cuda/hopper.cu`, defines it; a new capability gets a new unit.
+   Its unit, like `c/target/haswell.c` or `c/target/hopper.cu`, defines it; a new capability gets a new unit.
 3. __Precision tests__: register the kernel in `numkong_cpu_test`, usually in the existing `test/<family>.cpp` suite.
 4. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/<family>.cpp` suite.
 
@@ -613,7 +613,7 @@ A constant identical across the GPU layers is defined once in `serial.h` with th
 ### GPU Naming
 
 The GPU capability groups are `cuda`, `rocm` and `metal`, beside the CPU's `cpu`.
-Each word names its group's baseline bit, like `nk_cap_cuda_k`, its functions and its library units, like `c/cuda/hopper.cu`, and no symbol or source path names a vendor, like `nvidia`, `amd` or `apple`.
+Each word names its group's baseline bit, like `nk_cap_cuda_k`, its functions and its library units, like `c/target/hopper.cu`, and no symbol or source path names a vendor, like `nvidia`, `amd` or `apple`.
 A function that touches a device is either a producer or a consumer:
 
 - A __producer__ reports a device's capabilities or opens a stream on it.
@@ -658,8 +658,8 @@ A name without it is a public contract, either a switch you may set or a value y
 Architectures are spelled as one token each, `X8664`, `X8632`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`, and GPU architectures `CUDA` and `ROCM`.
 A GPU architecture holds beside the host's architecture in both compiler passes, so it never follows a CPU architecture in an `#elif` chain.
 Metal has no compiler macro on the host side, so its host API is a switch the build sets where it links Metal and Foundation.
-The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `c/dispatch/*.c` list the kernels that the `c/cuda/*.cu` and `c/rocm/*.hip` units compile.
-The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `c/cpu/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
+The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `c/dispatch/*.c` list the kernels that the `c/target/*.cu` and `c/target/*.hip` units compile.
+The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `c/target/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
 A new cross-capability include needs the same line in the unit, or the link reports the kernels defined twice.
 A capability's helpers follow `NUMKONG_ARCH_<ARCH>_<NAME>_`: its own target, or any capability whose headers include its headers.
 Each GPU unit compiles only the codes its generation runs.

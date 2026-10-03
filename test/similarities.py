@@ -94,7 +94,7 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, np_rng: np.r
     is ``np.dot`` (SciPy has no ``cdist`` metric for inner product); other
     metrics use ``scipy.spatial.distance.cdist``.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 7, 11
     a_matrix, _ = make_random((num_rows_a, ndim), input_dtype, np_rng)
@@ -111,7 +111,7 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, np_rng: np.r
     else:
         expected = spd.cdist(a_matrix, b_matrix, scipy_metric).astype(out_dtype)
 
-    result = nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype)
+    result = nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype, capabilities=capabilities)
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 
@@ -195,7 +195,7 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
     """
     if metric == "angular" and ndim == 1:
         pytest.skip("angular at ndim=1 is degenerate (0/0 from single-element norms)")
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_matrix_extended, _ = make_random((num_rows_a, ndim + 1), input_dtype, np_rng)
@@ -218,10 +218,10 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
 
     if out_dtype is None:
         expected = baseline
-        result = nk.cdist(a_matrix, b_matrix, metric)
+        result = nk.cdist(a_matrix, b_matrix, metric, capabilities=capabilities)
     else:
         expected = round_and_clip_even(baseline, out_dtype) if is_integer_output else baseline.astype(out_dtype)
-        result = nk.cdist(a_matrix, b_matrix, metric, out_dtype=out_dtype)
+        result = nk.cdist(a_matrix, b_matrix, metric, out_dtype=out_dtype, capabilities=capabilities)
 
     atol = 1 if is_integer_output else NUMKONG_ATOL
     assert_allclose(result, expected, atol=atol, rtol=NUMKONG_RTOL)
@@ -230,7 +230,7 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
     out_np_dtype = out_dtype if out_dtype else "float64"
     output_buffer_extended = np.zeros((num_rows_a, num_rows_b + 7), dtype=out_np_dtype)
     output_buffer = output_buffer_extended[:, :num_rows_b]
-    assert nk.cdist(a_matrix, b_matrix, metric, out=output_buffer) is None
+    assert nk.cdist(a_matrix, b_matrix, metric, out=output_buffer, capabilities=capabilities) is None
     assert_allclose(output_buffer, expected, atol=atol, rtol=NUMKONG_RTOL)
 
 
@@ -254,7 +254,7 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability, np_rng:
     Inputs are strided (sliced from wider allocations). Dimensions from
     ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_matrix_extended = np_rng.standard_normal((num_rows_a, ndim + 1)).astype(input_dtype)
@@ -273,14 +273,17 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability, np_rng:
             expected[i, j] = baseline_kernel(a_matrix[i], b_matrix[j])
 
     if out_dtype is None:
-        result1d = nk.cdist(a_matrix[0], b_matrix[0], metric=metric)
-        result2d = nk.cdist(a_matrix, b_matrix, metric=metric)
-        assert nk.cdist(a_matrix, b_matrix, metric=metric, out=c_matrix) is None
+        result1d = nk.cdist(a_matrix[0], b_matrix[0], metric=metric, capabilities=capabilities)
+        result2d = nk.cdist(a_matrix, b_matrix, metric=metric, capabilities=capabilities)
+        assert nk.cdist(a_matrix, b_matrix, metric=metric, out=c_matrix, capabilities=capabilities) is None
     else:
         expected = expected.astype(out_dtype)
-        result1d = nk.cdist(a_matrix[0], b_matrix[0], metric=metric, out_dtype=out_dtype)
-        result2d = nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype)
-        assert nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype, out=c_matrix) is None
+        result1d = nk.cdist(a_matrix[0], b_matrix[0], metric=metric, out_dtype=out_dtype, capabilities=capabilities)
+        result2d = nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype, capabilities=capabilities)
+        assert (
+            nk.cdist(a_matrix, b_matrix, metric=metric, out_dtype=out_dtype, out=c_matrix, capabilities=capabilities)
+            is None
+        )
 
     assert_allclose(result1d, expected[0, 0], atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     assert_allclose(result2d, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
@@ -309,7 +312,7 @@ def test_cdist_hamming(ndim, out_dtype, capability, np_rng: np.random.Generator)
     ``NUMKONG_REPETITIONS``, default 10). Dimensions from
     ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_bits = np_rng.integers(2, size=(num_rows_a, ndim)).astype(np.uint8)
@@ -318,14 +321,21 @@ def test_cdist_hamming(ndim, out_dtype, capability, np_rng: np.random.Generator)
 
     if out_dtype is None:
         expected = spd.cdist(a_bits, b_bits, "hamming") * ndim
-        result = nk.cdist(a_packed_bits, b_packed_bits, metric="hamming", dtype="uint1")
+        result = nk.cdist(a_packed_bits, b_packed_bits, metric="hamming", dtype="uint1", capabilities=capabilities)
     else:
         raw = spd.cdist(a_bits, b_bits, "hamming") * ndim
         if np.issubdtype(np.dtype(out_dtype), np.integer):
             expected = round_and_clip_even(raw, out_dtype)
         else:
             expected = raw.astype(out_dtype)
-        result = nk.cdist(a_packed_bits, b_packed_bits, metric="hamming", dtype="uint1", out_dtype=out_dtype)
+        result = nk.cdist(
+            a_packed_bits,
+            b_packed_bits,
+            metric="hamming",
+            dtype="uint1",
+            out_dtype=out_dtype,
+            capabilities=capabilities,
+        )
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
@@ -349,7 +359,7 @@ def test_cdist_jaccard(ndim, out_dtype, capability, np_rng: np.random.Generator)
     Randomised via ``@pytest.mark.repeat``; dimensions from
     ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_bits = np_rng.integers(2, size=(num_rows_a, ndim)).astype(np.uint8)
@@ -358,10 +368,17 @@ def test_cdist_jaccard(ndim, out_dtype, capability, np_rng: np.random.Generator)
 
     if out_dtype is None:
         expected = spd.cdist(a_bits, b_bits, "jaccard")
-        result = nk.cdist(a_packed_bits, b_packed_bits, metric="jaccard", dtype="uint1")
+        result = nk.cdist(a_packed_bits, b_packed_bits, metric="jaccard", dtype="uint1", capabilities=capabilities)
     else:
         expected = spd.cdist(a_bits, b_bits, "jaccard").astype(out_dtype)
-        result = nk.cdist(a_packed_bits, b_packed_bits, metric="jaccard", dtype="uint1", out_dtype=out_dtype)
+        result = nk.cdist(
+            a_packed_bits,
+            b_packed_bits,
+            metric="jaccard",
+            dtype="uint1",
+            out_dtype=out_dtype,
+            capabilities=capabilities,
+        )
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
@@ -391,7 +408,7 @@ def test_cdist_probability(ndim, input_dtype, metric, capability, np_rng: np.ran
     Dimensions from ``NUMKONG_DIMS``; capabilities from platform
     auto-detection.
     """
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 7, 11
     # Positive normalized vectors (softmax of randn)
@@ -411,7 +428,7 @@ def test_cdist_probability(ndim, input_dtype, metric, capability, np_rng: np.ran
         # spd.jensenshannon defaults to base=e (natural log), returns sqrt(JS divergence)
         expected = spd.cdist(a_matrix.astype(np.float64), b_matrix.astype(np.float64), "jensenshannon")
 
-    result = nk.cdist(a_matrix, b_matrix, metric=metric)
+    result = nk.cdist(a_matrix, b_matrix, metric=metric, capabilities=capabilities)
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
 

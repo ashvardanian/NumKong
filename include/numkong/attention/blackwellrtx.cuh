@@ -39,9 +39,9 @@ NUMKONG_DEVICE void nk_attention_scores_e4m3_blackwellrtx_(nk_fui32_t scores[2][
 #pragma region Instantiations
 
 nk_define_attention_pack_size_simt_(e4m3, blackwellrtx, 1)
-nk_define_attention_packed_shape_simt_(e4m3, blackwellrtx)
-nk_define_attention_pack_simt_(e4m3, blackwellrtx, e4m3)
-nk_define_attention_packed_simt_(e4m3, blackwellrtx, ampere, nk_attention_launch_ampere_, e4m3, nk_cross_epilogue_f32_k,
+nk_define_attention_packed_shape_cuda_(e4m3, blackwellrtx)
+nk_define_attention_pack_cuda_(e4m3, blackwellrtx, e4m3)
+nk_define_attention_packed_cuda_(e4m3, blackwellrtx, ampere, nk_attention_launch_ampere_, e4m3, nk_cross_epilogue_f32_k,
                                  nk_attention_scores_e4m3_blackwellrtx_, nk_mma_e4m3_blackwellrtx_,
                                  nk_attention_weights_e4m3_ada_, 1.0f, 1.0f)
 

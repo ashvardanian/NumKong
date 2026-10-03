@@ -43,7 +43,7 @@
 
 #![allow(non_camel_case_types)]
 
-use crate::capabilities::{enabled_cpu_capabilities_mask, nk_capability_t};
+use crate::capabilities::{nk_capability_t, Capabilities};
 
 #[link(name = "numkong")]
 extern "C" {
@@ -149,7 +149,7 @@ impl f16 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u16 = 0;
-        unsafe { nk_f32_to_f16_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_f32_to_f16_best(&value, &mut result, Capabilities::CPUS.bits()) };
         f16(result)
     }
 
@@ -165,7 +165,7 @@ impl f16 {
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_f16_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_f16_to_f32_best(&self.0, &mut result, Capabilities::CPUS.bits()) };
         result
     }
 
@@ -316,7 +316,7 @@ impl bf16 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u16 = 0;
-        unsafe { nk_f32_to_bf16_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_f32_to_bf16_best(&value, &mut result, Capabilities::CPUS.bits()) };
         bf16(result)
     }
 
@@ -324,7 +324,7 @@ impl bf16 {
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_bf16_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_bf16_to_f32_best(&self.0, &mut result, Capabilities::CPUS.bits()) };
         result
     }
 
@@ -475,7 +475,7 @@ impl e4m3 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e4m3_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_f32_to_e4m3_best(&value, &mut result, Capabilities::CPUS.bits()) };
         e4m3(result)
     }
 
@@ -483,7 +483,7 @@ impl e4m3 {
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e4m3_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_e4m3_to_f32_best(&self.0, &mut result, Capabilities::CPUS.bits()) };
         result
     }
 
@@ -641,14 +641,14 @@ impl e5m2 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e5m2_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_f32_to_e5m2_best(&value, &mut result, Capabilities::CPUS.bits()) };
         e5m2(result)
     }
 
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e5m2_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_e5m2_to_f32_best(&self.0, &mut result, Capabilities::CPUS.bits()) };
         result
     }
 
@@ -815,14 +815,14 @@ impl e2m3 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e2m3_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_f32_to_e2m3_best(&value, &mut result, Capabilities::CPUS.bits()) };
         e2m3(result)
     }
 
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e2m3_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_e2m3_to_f32_best(&self.0, &mut result, Capabilities::CPUS.bits()) };
         result
     }
 
@@ -981,14 +981,14 @@ impl e3m2 {
     #[inline(always)]
     pub fn from_f32(value: f32) -> Self {
         let mut result: u8 = 0;
-        unsafe { nk_f32_to_e3m2_best(&value, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_f32_to_e3m2_best(&value, &mut result, Capabilities::CPUS.bits()) };
         e3m2(result)
     }
 
     #[inline(always)]
     pub fn to_f32(self) -> f32 {
         let mut result: f32 = 0.0;
-        unsafe { nk_e3m2_to_f32_best(&self.0, &mut result, enabled_cpu_capabilities_mask()) };
+        unsafe { nk_e3m2_to_f32_best(&self.0, &mut result, Capabilities::CPUS.bits()) };
         result
     }
 

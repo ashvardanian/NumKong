@@ -169,7 +169,7 @@ static PyObject *implement_mesh_alignment(nk_kernel_kind_t metric_kind, PyObject
         PyErr_SetString(PyExc_TypeError, "Expected exactly 2 positional arguments (a, b)");
         return NULL;
     }
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
     for (Py_ssize_t i = 0; i < args_names_count; ++i)

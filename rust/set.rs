@@ -12,7 +12,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Error},
     types::{u1x8, StorageElement},
 };
@@ -88,7 +88,7 @@ impl Hamming for u1x8 {
                 b.as_ptr() as *const u8,
                 n_bits,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -108,7 +108,7 @@ impl Hamming for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -146,7 +146,7 @@ impl Jaccard for u1x8 {
                 b.as_ptr() as *const u8,
                 n_bits,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -166,7 +166,7 @@ impl Jaccard for u16 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -186,7 +186,7 @@ impl Jaccard for u32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }

@@ -12,7 +12,7 @@
 #include <cstring> // `std::strncmp`
 
 #include "harness.hpp" // `error_stats_section_t`
-#include "harness.cuh" // `rocm_backend_t`, `device_capabilities`
+#include "harness.cuh" // `rocm_backend_t`
 #include "each.hpp"    // `test_sum`, `test_rmsnorm`, `test_swiglu`
 
 using namespace ashvardanian::numkong::test;
@@ -66,7 +66,7 @@ int main(int, char **argv) {
         fmt::println("- ROCm: no device");
         return 0;
     }
-    nk_capability_t const capabilities = device_capabilities<rocm_runtime_t>();
+    nk_capability_t const capabilities = rocm_backend_t::capabilities();
     char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
     nk_capabilities_name(capabilities, names, sizeof(names));
     fmt::println("- ROCm: {} devices, the first running {}", devices.value, names);

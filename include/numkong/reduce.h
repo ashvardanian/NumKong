@@ -1267,7 +1267,7 @@ NUMKONG_API nk_status_t nk_reduce_find_kernel(nk_kernel_kind_t kind, nk_dtype_t 
 #include "numkong/reduce/rvv.h"
 #include "numkong/reduce/v128.h"
 #include "numkong/reduce/v128relaxed.h"
-#include "numkong/reduce/simt.cuh"
+#include "numkong/reduce/cuda.cuh"
 
 #ifdef __cplusplus
 extern "C" {

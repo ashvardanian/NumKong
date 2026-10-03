@@ -41,7 +41,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     dot::Dot,
     tensor::{check_len, Error},
     types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement},
@@ -375,7 +375,7 @@ impl Angular for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -395,7 +395,7 @@ impl Angular for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -415,7 +415,7 @@ impl Angular for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -435,7 +435,7 @@ impl Angular for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -455,7 +455,7 @@ impl Angular for i8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -475,7 +475,7 @@ impl Angular for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -495,7 +495,7 @@ impl Angular for e4m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -515,7 +515,7 @@ impl Angular for e5m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -535,7 +535,7 @@ impl Angular for e2m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -555,7 +555,7 @@ impl Angular for e3m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -576,7 +576,7 @@ impl Angular for i4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -597,7 +597,7 @@ impl Angular for u4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -643,7 +643,7 @@ impl Euclidean for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -660,7 +660,7 @@ impl Euclidean for f64 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -682,7 +682,7 @@ impl Euclidean for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -699,7 +699,7 @@ impl Euclidean for f32 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -721,7 +721,7 @@ impl Euclidean for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -738,7 +738,7 @@ impl Euclidean for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -760,7 +760,7 @@ impl Euclidean for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -777,7 +777,7 @@ impl Euclidean for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -799,7 +799,7 @@ impl Euclidean for i8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -816,7 +816,7 @@ impl Euclidean for i8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -838,7 +838,7 @@ impl Euclidean for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -855,7 +855,7 @@ impl Euclidean for u8 {
                 b.as_ptr(),
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -877,7 +877,7 @@ impl Euclidean for e4m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -894,7 +894,7 @@ impl Euclidean for e4m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -916,7 +916,7 @@ impl Euclidean for e5m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -933,7 +933,7 @@ impl Euclidean for e5m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -955,7 +955,7 @@ impl Euclidean for e2m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -972,7 +972,7 @@ impl Euclidean for e2m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -994,7 +994,7 @@ impl Euclidean for e3m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1011,7 +1011,7 @@ impl Euclidean for e3m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1034,7 +1034,7 @@ impl Euclidean for i4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1052,7 +1052,7 @@ impl Euclidean for i4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1075,7 +1075,7 @@ impl Euclidean for u4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1093,7 +1093,7 @@ impl Euclidean for u4x2 {
                 b.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }

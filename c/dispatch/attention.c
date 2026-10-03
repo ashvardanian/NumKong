@@ -67,7 +67,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -240,7 +240,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -322,7 +322,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -495,7 +495,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -577,7 +577,7 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -762,7 +762,7 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -849,7 +849,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_bf16_cap
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -935,7 +935,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_bf16_capabiliti
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1214,7 +1214,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_i8_capab
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1299,7 +1299,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_i8_capabilities
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, nvidia},
+        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER, cuda},
 #else
         {0, nk_no_kernels_},
 #endif

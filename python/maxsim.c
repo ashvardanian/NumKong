@@ -136,7 +136,7 @@ static PyObject *MaxSimPackedMatrix_pack_size(PyObject *cls, PyObject *const *ar
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
+    nk_find_kernel_punned(nk_kernel_maxsim_pack_size_k, dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&size_fn,
                           &cap);
     if (!size_fn || !cap) {
         PyErr_Format(PyExc_LookupError, "No maxsim pack_size kernel for dtype '%s'",
@@ -184,7 +184,7 @@ PyObject *api_maxsim_pack(PyObject *self, PyObject *const *args, Py_ssize_t narg
 
     PyObject *b_obj = NULL;
     PyObject *dtype_obj = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
@@ -421,7 +421,7 @@ PyObject *api_maxsim(PyObject *self, PyObject *const *args, Py_ssize_t nargs, Py
 
     PyObject *queries_obj = NULL, *documents_obj = NULL;
     PyObject *dtype_obj = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;

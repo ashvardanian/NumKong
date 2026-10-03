@@ -92,18 +92,25 @@ def test_hamming_jaccard_random_accuracy(ndim: int, metric: str, capability: str
     a_bits = np_rng.integers(2, size=ndim).astype(np.uint8)
     b_bits = np_rng.integers(2, size=ndim).astype(np.uint8)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_SET[metric]
     accurate_ns, accurate = timed_call(baseline_kernel, a_bits.astype(np.uint64), b_bits.astype(np.uint64))
     expected_ns, expected = timed_call(baseline_kernel, a_bits, b_bits)
-    result_ns, result = timed_call(simd_kernel, np.packbits(a_bits), np.packbits(b_bits), "uint1")
+    result_ns, result = timed_call(
+        simd_kernel, np.packbits(a_bits), np.packbits(b_bits), "uint1", capabilities=capabilities
+    )
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors(metric, ndim, "uint1", accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
 
     # Also verify with boolean view
-    result_ns, result = timed_call(simd_kernel, np.packbits(a_bits).view(np.bool_), np.packbits(b_bits).view(np.bool_))
+    result_ns, result = timed_call(
+        simd_kernel,
+        np.packbits(a_bits).view(np.bool_),
+        np.packbits(b_bits).view(np.bool_),
+        capabilities=capabilities,
+    )
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
@@ -114,9 +121,9 @@ def test_hamming_jaccard_random_accuracy(ndim: int, metric: str, capability: str
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_hamming_self_zero(ndim: int, capability: str):
     """hamming(v, v) = 0 for identical uint8 vectors."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     packed_vector = array.array("B", [0xFF] * ndim)
-    result = nk.hamming(packed_vector, packed_vector, "uint1")
+    result = nk.hamming(packed_vector, packed_vector, "uint1", capabilities=capabilities)
     assert result == 0, f"hamming(v,v) = {result}, expected 0"
 
 
@@ -124,7 +131,7 @@ def test_hamming_self_zero(ndim: int, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_jaccard_self_zero(ndim: int, capability: str):
     """jaccard(v, v) = 0 for identical non-zero uint8 vectors."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     packed_vector = array.array("B", [0xAA] * ndim)
-    result = nk.jaccard(packed_vector, packed_vector, "uint1")
+    result = nk.jaccard(packed_vector, packed_vector, "uint1", capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"jaccard(v,v) = {result}, expected 0"

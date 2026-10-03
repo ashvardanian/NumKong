@@ -467,13 +467,12 @@ Goroutines can migrate between OS threads, so thread-local state (AMX tiles) wou
 
 ```go
 cpu := nk.CPU()
-enabled, _ := cpu.CapabilitiesEnabled() // what dispatch uses: detected on this CPU and compiled in
+enabled, _ := cpu.CapabilitiesEnabled() // what dispatch runs within: detected on this CPU and compiled in
 unlock, _ := cpu.ConfigureThread(enabled) // lock thread, configure what dispatch uses
 defer unlock()                            // release the OS thread on return
 
-fmt.Println(enabled)                         // like "serial,neon,neonhalf,neonfhm,neonsdot"
-fmt.Println(enabled.Has(nk.CapNeon))         // test one capability
-cpu.CapabilitiesEnable(enabled &^ nk.CapSme) // narrow dispatch, returns what took effect
+fmt.Println(enabled)                 // like "serial,neon,neonhalf,neonfhm,neonsdot"
+fmt.Println(enabled.Has(nk.CapNeon)) // test one capability
 
 if gpu, err := nk.NewDevice(nk.DeviceMetal, 0); err == nil {
 	fmt.Println(gpu.CapabilitiesEnabled()) // like "metal,apple9"
@@ -481,7 +480,7 @@ if gpu, err := nk.NewDevice(nk.DeviceMetal, 0); err == nil {
 ```
 
 `CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what the device executes and what this binary contains for its kind.
-Every kernel call dispatches over the CPU's `CapabilitiesEnabled`, so a matrix packed before `CapabilitiesEnable` narrows it must be packed again: packed kernels refuse another capability's layout.
+Every kernel call passes `CapCpus`, which the library clamps to the CPU's `CapabilitiesEnabled`, settled as it loads, so the package keeps no mask of its own.
 Every capability is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSapphireAmx`, `CapSme`, `CapAmpere`, and `CapApple9`, and `CapCpus`, `CapGpus`, and `CapAny` group them.
 These are useful for logging the active platform or gating optional benchmark paths.
 

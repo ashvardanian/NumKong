@@ -513,7 +513,7 @@ NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/cast/v128relaxed.h"
 #include "numkong/cast/powervsx.h"
 #include "numkong/cast/loongsonasx.h"
-#include "numkong/cast/simt.cuh"
+#include "numkong/cast/cuda.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

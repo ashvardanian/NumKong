@@ -29,7 +29,7 @@ func HammingsPackedU1(vectors []byte, query DotsPackedMatrix, result []uint32, r
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(query.columns), C.nk_size_t(query.depth),
 		C.nk_size_t(bytesPerVec),
-		C.nk_size_t(query.columns*4), capabilities(), nil))
+		C.nk_size_t(query.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // HammingsSymmetricU1 computes the Hamming distance between every pair of nVectors binary vectors
@@ -55,7 +55,7 @@ func hammingsSymmetricU1(vectors []byte, nVectors, depth int, result []uint32, r
 		C.nk_size_t(bytesPerVec),
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // JaccardsPackedU1 computes the Jaccard distance from each of rows binary vectors to every packed
@@ -78,7 +78,7 @@ func JaccardsPackedU1(vectors []byte, query DotsPackedMatrix, result []float32, 
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(query.columns), C.nk_size_t(query.depth),
 		C.nk_size_t(bytesPerVec),
-		C.nk_size_t(query.columns*4), capabilities(), nil))
+		C.nk_size_t(query.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // JaccardsSymmetricU1 computes the Jaccard distance between every pair of nVectors binary vectors
@@ -104,5 +104,5 @@ func jaccardsSymmetricU1(vectors []byte, nVectors, depth int, result []float32, 
 		C.nk_size_t(bytesPerVec),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }

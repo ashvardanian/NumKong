@@ -30,7 +30,7 @@ func AngularsPackedF64(a []float64, b DotsPackedMatrix, result []float64, rows i
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
-		C.nk_size_t(b.columns*8), capabilities(), nil))
+		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsPackedF32 computes the angular distance from each of rows float32 rows of a to every
@@ -52,7 +52,7 @@ func AngularsPackedF32(a []float32, b DotsPackedMatrix, result []float64, rows i
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
-		C.nk_size_t(b.columns*8), capabilities(), nil))
+		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsPackedI8 computes the angular distance from each of rows int8 rows of a to every packed
@@ -74,7 +74,7 @@ func AngularsPackedI8(a []int8, b DotsPackedMatrix, result []float32, rows int) 
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), capabilities(), nil))
+		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsPackedU8 computes the angular distance from each of rows uint8 rows of a to every
@@ -96,7 +96,7 @@ func AngularsPackedU8(a []uint8, b DotsPackedMatrix, result []float32, rows int)
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), capabilities(), nil))
+		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansPackedF64 computes the Euclidean distance from each of rows float64 rows of a to
@@ -118,7 +118,7 @@ func EuclideansPackedF64(a []float64, b DotsPackedMatrix, result []float64, rows
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
-		C.nk_size_t(b.columns*8), capabilities(), nil))
+		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansPackedF32 computes the Euclidean distance from each of rows float32 rows of a to
@@ -140,7 +140,7 @@ func EuclideansPackedF32(a []float32, b DotsPackedMatrix, result []float64, rows
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
-		C.nk_size_t(b.columns*8), capabilities(), nil))
+		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansPackedI8 computes the Euclidean distance from each of rows int8 rows of a to every
@@ -162,7 +162,7 @@ func EuclideansPackedI8(a []int8, b DotsPackedMatrix, result []float32, rows int
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), capabilities(), nil))
+		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansPackedU8 computes the Euclidean distance from each of rows uint8 rows of a to every
@@ -184,7 +184,7 @@ func EuclideansPackedU8(a []uint8, b DotsPackedMatrix, result []float32, rows in
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), capabilities(), nil))
+		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // endregion
@@ -211,7 +211,7 @@ func angularsSymmetricF64(vectors []float64, nVectors, depth int, result []float
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsSymmetricF32 computes the angular distance between every pair of nVectors row-major
@@ -234,7 +234,7 @@ func angularsSymmetricF32(vectors []float32, nVectors, depth int, result []float
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsSymmetricI8 computes the angular distance between every pair of nVectors row-major int8
@@ -257,7 +257,7 @@ func angularsSymmetricI8(vectors []int8, nVectors, depth int, result []float32, 
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // AngularsSymmetricU8 computes the angular distance between every pair of nVectors row-major uint8
@@ -280,7 +280,7 @@ func angularsSymmetricU8(vectors []uint8, nVectors, depth int, result []float32,
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricF64 computes the Euclidean distance between every pair of nVectors row-major
@@ -303,7 +303,7 @@ func euclideansSymmetricF64(vectors []float64, nVectors, depth int, result []flo
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricF32 computes the Euclidean distance between every pair of nVectors row-major
@@ -326,7 +326,7 @@ func euclideansSymmetricF32(vectors []float32, nVectors, depth int, result []flo
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricI8 computes the Euclidean distance between every pair of nVectors row-major
@@ -349,7 +349,7 @@ func euclideansSymmetricI8(vectors []int8, nVectors, depth int, result []float32
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // EuclideansSymmetricU8 computes the Euclidean distance between every pair of nVectors row-major
@@ -372,7 +372,7 @@ func euclideansSymmetricU8(vectors []uint8, nVectors, depth int, result []float3
 		C.nk_size_t(depth),
 		(*C.nk_f32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // endregion

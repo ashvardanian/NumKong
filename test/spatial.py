@@ -146,7 +146,7 @@ def test_spatial_random_accuracy(ndim: int, dtype: str, metric: str, capability:
     b_raw, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_SPATIAL[metric]
 
     # High-precision baseline
@@ -166,7 +166,7 @@ def test_spatial_random_accuracy(ndim: int, dtype: str, metric: str, capability:
         expected_ns, expected = 0, None
 
     # SIMD result
-    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, dtype)
+    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, dtype, capabilities=capabilities)
 
     err_msg = LazyFormat(lambda: f"\n{metric}({dtype}, ndim={ndim}):\n  Accurate:  {accurate}\n  Got:       {result}")
 
@@ -182,15 +182,15 @@ def test_angular_zero_vector(ndim: int, dtype: str, capability: str, np_rng: np.
     """Tests the nk.angular() function with zero vectors, to catch division by zero errors."""
     a = np.zeros(ndim, dtype=dtype)
     b = (np_rng.standard_normal(ndim) + 1).astype(dtype)
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
 
-    result = nk.angular(a, b)
+    result = nk.angular(a, b, capabilities=capabilities)
     assert result == 1, f"Expected 1, but got {result}"
 
-    result = nk.angular(a, a)
+    result = nk.angular(a, a, capabilities=capabilities)
     assert result == 0, f"Expected 0 distance from itself, but got {result}"
 
-    result = nk.angular(b, b)
+    result = nk.angular(b, b, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"Expected 0 distance from itself, but got {result}"
 
     assert np.all(result >= 0), "Negative result for angular distance"
@@ -201,12 +201,12 @@ def test_angular_zero_vector(ndim: int, dtype: str, capability: str, np_rng: np.
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_spatial_self_distance_zero(ndim: int, dtype: str, capability: str):
     """d(v, v) should be 0 for euclidean, sqeuclidean, and angular."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     v = nk.full((ndim,), 1.5, dtype=dtype)
     atol = NUMKONG_ATOL
-    assert abs(nk.euclidean(v, v)) < atol
-    assert abs(nk.sqeuclidean(v, v)) < atol
-    assert abs(nk.angular(v, v)) < atol
+    assert abs(nk.euclidean(v, v, capabilities=capabilities)) < atol
+    assert abs(nk.sqeuclidean(v, v, capabilities=capabilities)) < atol
+    assert abs(nk.angular(v, v, capabilities=capabilities)) < atol
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
@@ -214,10 +214,10 @@ def test_spatial_self_distance_zero(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_euclidean_known(ndim: int, dtype: str, capability: str):
     """euclidean(ones, zeros) = sqrt(n)."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
-    result = nk.euclidean(ones_vector, zeros_vector)
+    result = nk.euclidean(ones_vector, zeros_vector, capabilities=capabilities)
     expected = math.sqrt(ndim)
     assert abs(result - expected) < NUMKONG_ATOL + NUMKONG_RTOL * expected
 
@@ -227,10 +227,10 @@ def test_euclidean_known(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_sqeuclidean_known(ndim: int, dtype: str, capability: str):
     """sqeuclidean(ones, zeros) = n."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
-    result = nk.sqeuclidean(ones_vector, zeros_vector)
+    result = nk.sqeuclidean(ones_vector, zeros_vector, capabilities=capabilities)
     assert abs(result - ndim) < NUMKONG_ATOL + NUMKONG_RTOL * ndim
 
 
@@ -239,12 +239,12 @@ def test_sqeuclidean_known(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_spatial_symmetry(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Commutativity: d(a, b) = d(b, a) for all spatial metrics."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     for metric_fn in [nk.euclidean, nk.sqeuclidean, nk.angular]:
-        d_ab = metric_fn(a, b)
-        d_ba = metric_fn(b, a)
+        d_ab = metric_fn(a, b, capabilities=capabilities)
+        d_ba = metric_fn(b, a, capabilities=capabilities)
         assert abs(d_ab - d_ba) < NUMKONG_ATOL, f"{metric_fn.__name__}: d(a,b)={d_ab} != d(b,a)={d_ba}"
 
 
@@ -253,11 +253,11 @@ def test_spatial_symmetry(ndim: int, dtype: str, capability: str, rng: random.Ra
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_spatial_non_negative(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Non-negativity: d(a, b) >= 0 for all spatial metrics."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     for metric_fn in [nk.euclidean, nk.sqeuclidean, nk.angular]:
-        distance = metric_fn(a, b)
+        distance = metric_fn(a, b, capabilities=capabilities)
         assert distance >= -NUMKONG_ATOL, f"{metric_fn.__name__}: d(a,b)={distance} is negative"
 
 
@@ -266,13 +266,13 @@ def test_spatial_non_negative(ndim: int, dtype: str, capability: str, rng: rando
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_euclidean_triangle_inequality(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Triangle inequality: euclidean(a, c) <= euclidean(a, b) + euclidean(b, c)."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     c = make_random_buffer(rng, ndim, dtype)
-    d_ac = nk.euclidean(a, c)
-    d_ab = nk.euclidean(a, b)
-    d_bc = nk.euclidean(b, c)
+    d_ac = nk.euclidean(a, c, capabilities=capabilities)
+    d_ab = nk.euclidean(a, b, capabilities=capabilities)
+    d_bc = nk.euclidean(b, c, capabilities=capabilities)
     assert d_ac <= d_ab + d_bc + NUMKONG_ATOL, (
         f"Triangle inequality violated: d(a,c)={d_ac} > d(a,b)+d(b,c)={d_ab + d_bc}"
     )

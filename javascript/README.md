@@ -249,9 +249,8 @@ Capability detection is explicit, one `Device` at a time:
 import { Capability, Device } from "numkong";
 
 const cpu = Device.cpu();
-console.log(cpu.capabilitiesEnabled()); // what dispatch uses
+console.log(cpu.capabilitiesEnabled()); // what dispatch runs within
 console.log((cpu.capabilitiesEnabled() & Capability.haswell) !== 0n);
-cpu.capabilitiesEnable(cpu.capabilitiesEnabled() & ~Capability.skylake); // stop dispatching to AVX-512
 
 const metal = new Device("metal", 0); // throws without that GPU
 console.log(metal.capabilitiesEnabled() & Capability.gpus);
@@ -262,11 +261,10 @@ console.log(metal.capabilitiesEnabled() & Capability.gpus);
 
 - `capabilitiesDetected()`: what the device, like this CPU or WASM host, can execute.
 - `capabilitiesCompiled()`: what this build contains for devices of its kind, from the ISA probes at build time.
-- `capabilitiesEnabled()`: what dispatch uses, both axes at once unless narrowed.
-- `capabilitiesEnable(wanted)`: makes `wanted` the CPU's enabled set, clamped to both axes, and returns what took effect.
+- `capabilitiesEnabled()`: what dispatch runs within, both axes at once, which the library settles as it loads.
 
 `capabilitiesDetected()` describes the machine and says nothing about whether a kernel was compiled in, so a prebuild whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
-The enabled set always keeps the `serial` fallback.
+The enabled set always keeps the `serial` fallback, and the binding keeps no mask of its own: every kernel call passes `Capability.cpus`, which the library clamps to the enabled set.
 `Capability` maps each lowercase capability name, like `haswell`, `neon`, `v128relaxed` or `ampere`, to its bit, and is built at load from the C library's own names; `cpus`, `devices` and `any` group them.
 A WASM module has only the CPU, so `Device.count` throws for every GPU kind there.
 

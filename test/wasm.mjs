@@ -211,7 +211,7 @@ test(`[${runtime}] Capability detection`, () => {
   const compiled = cpu.capabilitiesCompiled();
   const enabled = cpu.capabilitiesEnabled();
   console.log(`  Enabled capabilities: 0x${enabled.toString(16)}`);
-  assert.strictEqual(enabled, detected & compiled, "enabled must default to detected & compiled");
+  assert.strictEqual(enabled, detected & compiled, "enabled must be detected & compiled");
   assert.strictEqual(enabled & Capability.serial, Capability.serial, "serial must always be enabled");
 
   // The C library names them at load, GPU ones from bit 48 up included, and the groups split them.
@@ -222,11 +222,6 @@ test(`[${runtime}] Capability detection`, () => {
   assert.strictEqual(Capability.gpus & Capability.metal, Capability.metal);
   assert.strictEqual(Capability.any, (1n << 64n) - 1n);
 
-  // Narrowing to nothing keeps serial, and asking for everything restores the default set.
-  assert.strictEqual(cpu.capabilitiesEnable(0n), Capability.serial);
-  assert.strictEqual(cpu.capabilitiesEnabled(), Capability.serial);
-  assert.strictEqual(cpu.capabilitiesEnable(Capability.any), enabled);
-
   // One CPU, refusing the ordinal past it, and GPUs counted by their runtimes where there are any.
   assert.strictEqual(Device.count("cpu"), 1);
   assert.throws(() => new Device("cpu", 1));
@@ -236,7 +231,6 @@ test(`[${runtime}] Capability detection`, () => {
     assert.throws(() => new Device(kind, count));
     const gpu = new Device(kind, 0);
     assert.strictEqual(gpu.capabilitiesCompiled() & Capability.cpus, 0n);
-    assert.throws(() => gpu.capabilitiesEnable(Capability.any));
   }
 
   // Every engine in the support matrix validates the SIMD128 probe; relaxed SIMD varies by engine.

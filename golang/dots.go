@@ -42,15 +42,15 @@ func (p DotsPackedMatrix) Shape() (columns, depth int) {
 	blob := unsafe.Pointer(&p.data[0])
 	switch p.dtype {
 	case "f64":
-		check(C.nk_dots_packed_shape_f64_best(blob, &w, &d, capabilities(), nil))
+		check(C.nk_dots_packed_shape_f64_best(blob, &w, &d, C.nk_cap_cpus_k, nil))
 	case "f32":
-		check(C.nk_dots_packed_shape_f32_best(blob, &w, &d, capabilities(), nil))
+		check(C.nk_dots_packed_shape_f32_best(blob, &w, &d, C.nk_cap_cpus_k, nil))
 	case "i8":
-		check(C.nk_dots_packed_shape_i8_best(blob, &w, &d, capabilities(), nil))
+		check(C.nk_dots_packed_shape_i8_best(blob, &w, &d, C.nk_cap_cpus_k, nil))
 	case "u8":
-		check(C.nk_dots_packed_shape_u8_best(blob, &w, &d, capabilities(), nil))
+		check(C.nk_dots_packed_shape_u8_best(blob, &w, &d, C.nk_cap_cpus_k, nil))
 	case "u1":
-		check(C.nk_dots_packed_shape_u1_best(blob, &w, &d, capabilities(), nil))
+		check(C.nk_dots_packed_shape_u1_best(blob, &w, &d, C.nk_cap_cpus_k, nil))
 	}
 	return int(w), int(d)
 }
@@ -62,13 +62,13 @@ func NewDotsPackedMatrixF64(b []float64, columns, depth int) DotsPackedMatrix {
 		panic("input slice too short for the given columns and depth")
 	}
 	var size C.nk_size_t
-	check(C.nk_dots_pack_size_f64_best(C.nk_size_t(columns), C.nk_size_t(depth), capabilities(), &size))
+	check(C.nk_dots_pack_size_f64_best(C.nk_size_t(columns), C.nk_size_t(depth), C.nk_cap_cpus_k, &size))
 	data := make([]byte, size)
 	check(C.nk_dots_pack_f64_best(
 		(*C.nk_f64_t)(&b[0]),
 		C.nk_size_t(columns), C.nk_size_t(depth),
 		C.nk_size_t(depth*8),
-		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), capabilities(), nil))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), C.nk_cap_cpus_k, nil))
 	return DotsPackedMatrix{data: data, columns: columns, depth: depth, dtype: "f64"}
 }
 
@@ -79,13 +79,13 @@ func NewDotsPackedMatrixF32(b []float32, columns, depth int) DotsPackedMatrix {
 		panic("input slice too short for the given columns and depth")
 	}
 	var size C.nk_size_t
-	check(C.nk_dots_pack_size_f32_best(C.nk_size_t(columns), C.nk_size_t(depth), capabilities(), &size))
+	check(C.nk_dots_pack_size_f32_best(C.nk_size_t(columns), C.nk_size_t(depth), C.nk_cap_cpus_k, &size))
 	data := make([]byte, size)
 	check(C.nk_dots_pack_f32_best(
 		(*C.nk_f32_t)(&b[0]),
 		C.nk_size_t(columns), C.nk_size_t(depth),
 		C.nk_size_t(depth*4),
-		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), capabilities(), nil))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), C.nk_cap_cpus_k, nil))
 	return DotsPackedMatrix{data: data, columns: columns, depth: depth, dtype: "f32"}
 }
 
@@ -96,13 +96,13 @@ func NewDotsPackedMatrixI8(b []int8, columns, depth int) DotsPackedMatrix {
 		panic("input slice too short for the given columns and depth")
 	}
 	var size C.nk_size_t
-	check(C.nk_dots_pack_size_i8_best(C.nk_size_t(columns), C.nk_size_t(depth), capabilities(), &size))
+	check(C.nk_dots_pack_size_i8_best(C.nk_size_t(columns), C.nk_size_t(depth), C.nk_cap_cpus_k, &size))
 	data := make([]byte, size)
 	check(C.nk_dots_pack_i8_best(
 		(*C.nk_i8_t)(&b[0]),
 		C.nk_size_t(columns), C.nk_size_t(depth),
 		C.nk_size_t(depth),
-		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), capabilities(), nil))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), C.nk_cap_cpus_k, nil))
 	return DotsPackedMatrix{data: data, columns: columns, depth: depth, dtype: "i8"}
 }
 
@@ -113,13 +113,13 @@ func NewDotsPackedMatrixU8(b []uint8, columns, depth int) DotsPackedMatrix {
 		panic("input slice too short for the given columns and depth")
 	}
 	var size C.nk_size_t
-	check(C.nk_dots_pack_size_u8_best(C.nk_size_t(columns), C.nk_size_t(depth), capabilities(), &size))
+	check(C.nk_dots_pack_size_u8_best(C.nk_size_t(columns), C.nk_size_t(depth), C.nk_cap_cpus_k, &size))
 	data := make([]byte, size)
 	check(C.nk_dots_pack_u8_best(
 		(*C.nk_u8_t)(&b[0]),
 		C.nk_size_t(columns), C.nk_size_t(depth),
 		C.nk_size_t(depth),
-		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), capabilities(), nil))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), C.nk_cap_cpus_k, nil))
 	return DotsPackedMatrix{data: data, columns: columns, depth: depth, dtype: "u8"}
 }
 
@@ -133,13 +133,13 @@ func NewDotsPackedMatrixU1(b []byte, columns, depth int) DotsPackedMatrix {
 		panic("input slice too short for the given columns and depth")
 	}
 	var size C.nk_size_t
-	check(C.nk_dots_pack_size_u1_best(C.nk_size_t(columns), C.nk_size_t(depth), capabilities(), &size))
+	check(C.nk_dots_pack_size_u1_best(C.nk_size_t(columns), C.nk_size_t(depth), C.nk_cap_cpus_k, &size))
 	data := make([]byte, size)
 	check(C.nk_dots_pack_u1_best(
 		(*C.nk_u1x8_t)(&b[0]),
 		C.nk_size_t(columns), C.nk_size_t(depth),
 		C.nk_size_t(bytesPerVec),
-		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), capabilities(), nil))
+		unsafe.Pointer(&data[0]), C.nk_size_t(0), C.nk_size_t(columns), C.nk_cap_cpus_k, nil))
 	return DotsPackedMatrix{data: data, columns: columns, depth: depth, dtype: "u1"}
 }
 
@@ -166,7 +166,7 @@ func DotsPackedF64(a []float64, b DotsPackedMatrix, c []float64, rows int) {
 		(*C.nk_f64_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*8),
-		C.nk_size_t(b.columns*8), capabilities(), nil))
+		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
 }
 
 // DotsPackedF32 computes the dot product of each of rows float32 rows of a with every packed row
@@ -188,7 +188,7 @@ func DotsPackedF32(a []float32, b DotsPackedMatrix, c []float64, rows int) {
 		(*C.nk_f64_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth*4),
-		C.nk_size_t(b.columns*8), capabilities(), nil))
+		C.nk_size_t(b.columns*8), C.nk_cap_cpus_k, nil))
 }
 
 // DotsPackedI8 computes the dot product of each of rows int8 rows of a with every packed row of
@@ -210,7 +210,7 @@ func DotsPackedI8(a []int8, b DotsPackedMatrix, c []int32, rows int) {
 		(*C.nk_i32_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), capabilities(), nil))
+		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // DotsPackedU8 computes the dot product of each of rows uint8 rows of a with every packed row of
@@ -232,7 +232,7 @@ func DotsPackedU8(a []uint8, b DotsPackedMatrix, c []uint32, rows int) {
 		(*C.nk_u32_t)(&c[0]),
 		C.nk_size_t(rows), C.nk_size_t(b.columns), C.nk_size_t(b.depth),
 		C.nk_size_t(b.depth),
-		C.nk_size_t(b.columns*4), capabilities(), nil))
+		C.nk_size_t(b.columns*4), C.nk_cap_cpus_k, nil))
 }
 
 // endregion
@@ -259,7 +259,7 @@ func dotsSymmetricF64(vectors []float64, nVectors, depth int, result []float64, 
 		C.nk_size_t(depth*8),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricF32 computes the dot product between every pair of nVectors float32 vectors of depth
@@ -282,7 +282,7 @@ func dotsSymmetricF32(vectors []float32, nVectors, depth int, result []float64, 
 		C.nk_size_t(depth*4),
 		(*C.nk_f64_t)(&result[0]),
 		C.nk_size_t(nVectors*8),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricI8 computes the dot product between every pair of nVectors int8 vectors of depth
@@ -305,7 +305,7 @@ func dotsSymmetricI8(vectors []int8, nVectors, depth int, result []int32, rowSta
 		C.nk_size_t(depth),
 		(*C.nk_i32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // DotsSymmetricU8 computes the dot product between every pair of nVectors uint8 vectors of depth
@@ -328,7 +328,7 @@ func dotsSymmetricU8(vectors []uint8, nVectors, depth int, result []uint32, rowS
 		C.nk_size_t(depth),
 		(*C.nk_u32_t)(&result[0]),
 		C.nk_size_t(nVectors*4),
-		C.nk_size_t(rowStart), C.nk_size_t(rowCount), capabilities(), nil))
+		C.nk_size_t(rowStart), C.nk_size_t(rowCount), C.nk_cap_cpus_k, nil))
 }
 
 // endregion

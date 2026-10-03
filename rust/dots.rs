@@ -18,7 +18,7 @@ use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{Allocator, Error, Global, PackedBuffer, Tensor, TensorMut, TensorRef, TensorView},
     types::{bf16, e2m1x2, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement},
 };
@@ -834,19 +834,13 @@ impl Dots for f32 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_f32_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_f32_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_f32_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_f32_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -867,7 +861,7 @@ impl Dots for f32 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -892,7 +886,7 @@ impl Dots for f32 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -917,7 +911,7 @@ impl Dots for f32 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -929,19 +923,13 @@ impl Dots for f64 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_f64_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_f64_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_f64_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_f64_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -962,7 +950,7 @@ impl Dots for f64 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -987,7 +975,7 @@ impl Dots for f64 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1012,7 +1000,7 @@ impl Dots for f64 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1024,19 +1012,13 @@ impl Dots for f16 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_f16_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_f16_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_f16_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_f16_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1057,7 +1039,7 @@ impl Dots for f16 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1082,7 +1064,7 @@ impl Dots for f16 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1107,7 +1089,7 @@ impl Dots for f16 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1119,19 +1101,13 @@ impl Dots for bf16 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_bf16_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_bf16_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_bf16_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_bf16_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1152,7 +1128,7 @@ impl Dots for bf16 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1177,7 +1153,7 @@ impl Dots for bf16 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1202,7 +1178,7 @@ impl Dots for bf16 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1214,19 +1190,13 @@ impl Dots for i8 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_i8_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_i8_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_i8_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_i8_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1247,7 +1217,7 @@ impl Dots for i8 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1272,7 +1242,7 @@ impl Dots for i8 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1297,7 +1267,7 @@ impl Dots for i8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1309,19 +1279,13 @@ impl Dots for u8 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_u8_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_u8_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_u8_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_u8_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1342,7 +1306,7 @@ impl Dots for u8 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1367,7 +1331,7 @@ impl Dots for u8 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1392,7 +1356,7 @@ impl Dots for u8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1404,19 +1368,13 @@ impl Dots for e4m3 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e4m3_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e4m3_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_e4m3_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_e4m3_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1437,7 +1395,7 @@ impl Dots for e4m3 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1462,7 +1420,7 @@ impl Dots for e4m3 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1487,7 +1445,7 @@ impl Dots for e4m3 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1499,19 +1457,13 @@ impl Dots for e5m2 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e5m2_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e5m2_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_e5m2_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_e5m2_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1532,7 +1484,7 @@ impl Dots for e5m2 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1557,7 +1509,7 @@ impl Dots for e5m2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1582,7 +1534,7 @@ impl Dots for e5m2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1594,19 +1546,13 @@ impl Dots for e2m3 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e2m3_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e2m3_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_e2m3_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_e2m3_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1627,7 +1573,7 @@ impl Dots for e2m3 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1652,7 +1598,7 @@ impl Dots for e2m3 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1677,7 +1623,7 @@ impl Dots for e2m3 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1689,19 +1635,13 @@ impl Dots for e2m1x2 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e2m1_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e2m1_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_e2m1_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_e2m1_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1722,7 +1662,7 @@ impl Dots for e2m1x2 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1747,7 +1687,7 @@ impl Dots for e2m1x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1772,7 +1712,7 @@ impl Dots for e2m1x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1784,19 +1724,13 @@ impl Dots for e3m2 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_e3m2_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_e3m2_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_e3m2_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_e3m2_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1817,7 +1751,7 @@ impl Dots for e3m2 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1842,7 +1776,7 @@ impl Dots for e3m2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1867,7 +1801,7 @@ impl Dots for e3m2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1879,19 +1813,13 @@ impl Dots for u4x2 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_u4_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_u4_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_u4_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_u4_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -1912,7 +1840,7 @@ impl Dots for u4x2 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1937,7 +1865,7 @@ impl Dots for u4x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1962,7 +1890,7 @@ impl Dots for u4x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1974,19 +1902,13 @@ impl Dots for i4x2 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_i4_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_i4_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_i4_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_i4_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -2007,7 +1929,7 @@ impl Dots for i4x2 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2032,7 +1954,7 @@ impl Dots for i4x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2057,7 +1979,7 @@ impl Dots for i4x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2069,19 +1991,13 @@ impl Dots for u1x8 {
 
     fn dots_pack_size(columns: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_dots_pack_size_u1_best(columns, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_dots_pack_size_u1_best(columns, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut columns, mut depth) = (0usize, 0usize);
-        nk_dots_packed_shape_u1_best(
-            packed,
-            &mut columns,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_dots_packed_shape_u1_best(packed, &mut columns, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((columns, depth))
     }
 
@@ -2102,7 +2018,7 @@ impl Dots for u1x8 {
             packed,
             columns_begin,
             columns_end,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2127,7 +2043,7 @@ impl Dots for u1x8 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2152,7 +2068,7 @@ impl Dots for u1x8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()

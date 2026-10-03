@@ -1,4 +1,4 @@
-// Devices, their capability bits, the mask every kernel call passes, and the per-thread SIMD state.
+// Devices, their capability bits, and the per-thread SIMD state.
 //
 // File: golang/capabilities.go
 // Author: Ash Vardanian
@@ -10,7 +10,6 @@ import "C"
 import (
 	"errors"
 	"runtime"
-	"sync/atomic"
 )
 
 // Capability is one capability of a CPU or a GPU, or a set of them.
@@ -67,7 +66,7 @@ const (
 	CapApple9       Capability = C.nk_cap_apple9_k       // 2023: Apple GPU family 9
 	CapApple10      Capability = C.nk_cap_apple10_k      // Apple GPU family 10
 
-	CapCpus Capability = C.nk_cap_cpus_k // Every CPU capability
+	CapCpus Capability = C.nk_cap_cpus_k // Every CPU capability, which every kernel call passes
 	CapGpus Capability = C.nk_cap_gpus_k // Every GPU capability
 	CapAny  Capability = ^Capability(0)  // Every capability
 )
@@ -89,10 +88,6 @@ type Device struct {
 	Kind    DeviceKind
 	Ordinal int
 }
-
-// enabled holds the mask every kernel call passes, zero until the CPU's
-// [Device.CapabilitiesEnabled] first reads it.
-var enabled atomic.Uint64
 
 // CPU returns the host CPU, which every build has.
 func CPU() Device { return Device{Kind: DeviceCPU} }
@@ -162,16 +157,16 @@ func (d Device) CapabilitiesCompiled() Capability {
 	return Capability(capabilities)
 }
 
-// CapabilitiesEnabled returns the mask for d's kernel calls: [Device.CapabilitiesDetected] and
-// [Device.CapabilitiesCompiled] at once. On the CPU it is the mask every kernel call of this
-// package passes, narrowed by [Device.CapabilitiesEnable], and always has [CapSerial].
+// CapabilitiesEnabled returns the mask d's kernel calls run within: [Device.CapabilitiesDetected]
+// and [Device.CapabilitiesCompiled] at once. On the CPU the library settles it as it loads, it
+// always has [CapSerial], and every kernel call of this package passes [CapCpus] clamped to it.
 func (d Device) CapabilitiesEnabled() (Capability, error) {
 	var capabilities C.nk_capability_t
 	ordinal := C.nk_size_t(d.Ordinal)
 	var status C.nk_status_t
 	switch d.Kind {
 	case DeviceCPU:
-		return Capability(cpuEnabled()), nil
+		status = C.nk_cpu_capabilities_enabled(&capabilities)
 	case DeviceCUDA:
 		status = C.nk_cuda_capabilities_enabled(ordinal, &capabilities)
 	case DeviceROCm:
@@ -182,18 +177,6 @@ func (d Device) CapabilitiesEnabled() (Capability, error) {
 		status = C.nk_missing_gpu_k
 	}
 	return Capability(capabilities), statusError(status)
-}
-
-// CapabilitiesEnable makes wanted the CPU's enabled set, clamped to what it detects and this binary
-// compiled and keeping [CapSerial], and returns the set that took effect. GPUs keep no such set.
-// Repack matrices packed before the call, since packed kernels refuse another capability's layout.
-func (d Device) CapabilitiesEnable(wanted Capability) (Capability, error) {
-	if d.Kind != DeviceCPU {
-		return 0, statusError(C.nk_missing_kernel_k)
-	}
-	mask := wanted&available() | CapSerial
-	enabled.Store(uint64(mask))
-	return mask, nil
 }
 
 // ConfigureThread pins the goroutine to an OS thread, configures its SIMD state for capabilities,
@@ -207,25 +190,6 @@ func (d Device) ConfigureThread(capabilities Capability) (func(), error) {
 	C.nk_cpu_configure_thread(C.nk_capability_t(capabilities))
 	return runtime.UnlockOSThread, nil
 }
-
-// cpuEnabled returns the CPU's enabled mask, reading it on first use.
-func cpuEnabled() uint64 {
-	if mask := enabled.Load(); mask != 0 {
-		return mask
-	}
-	enabled.CompareAndSwap(0, uint64(available()))
-	return enabled.Load()
-}
-
-// available returns the capabilities this CPU supports and this binary contains.
-func available() Capability {
-	capabilities := C.nk_capability_t(CapSerial)
-	C.nk_cpu_capabilities_enabled(&capabilities)
-	return Capability(capabilities)
-}
-
-// capabilities returns the CPU's enabled mask as a kernel call takes it.
-func capabilities() C.nk_capability_t { return C.nk_capability_t(cpuEnabled()) }
 
 // statusError names a failed status, or returns nil on success.
 func statusError(status C.nk_status_t) error {

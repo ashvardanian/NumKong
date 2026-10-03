@@ -1409,56 +1409,57 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
     // Resident tiles step through the depth together, so a near-square block of them shares each
     // slab of A and B through L2: as many row tiles sweep the columns together as the block's side.
     int multiprocessors = 0;
-    nk_status_t const status = nk_device_attribute_simt_(cudaDevAttrMultiProcessorCount, &multiprocessors);
+    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMultiProcessorCount, &multiprocessors);
     if (status != nk_success_k) return status;
     nk_size_t const resident_tiles = (nk_size_t)multiprocessors >> paired;
     nk_size_t group_rows = 1;
     while (group_rows * group_rows < resident_tiles && group_rows < 16) ++group_rows;
     arguments.group_rows = group_rows;
     if (paired) return nk_cross_launch_pairs_blackwell_(kernel, tiles, &arguments, stream);
-    return nk_device_launch_resident_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
-                                      nk_cross_shared_bytes_blackwell_k, tiles, &arguments, stream);
+    return nk_launch_resident_cuda_(kernel, nk_cross_threads_blackwell_k, nk_cross_shared_bytes_blackwell_k,
+                                    nk_cross_shared_bytes_blackwell_k, tiles, &arguments, stream);
 }
 
 #pragma endregion Tile
 
-/*  The same shapes as @c nk_define_device_cross_packed_ and its kin, over the TMA launch: the site
+/*  The same shapes as @c nk_define_cross_packed_cuda_ and its kin, over the TMA launch: the site
  *  passes the tile's own leading arguments, from the MMA issue to the norm scale, last. */
 #pragma region Cross Macros
 
 /**
  *  @brief Generates C = A × Bᵀ, or its angular or euclidean distances, over a B packed by
- *      @c nk_define_device_cross_pack_, one block per resident slot walking @b [128,128] tiles.
+ *      @c nk_define_cross_pack_cuda_, one block per resident slot walking @b [128,128] tiles.
  *  @param[in] metric @c dot, @c angular or @c euclidean, naming both the entry and the epilogue.
  *  @param[in] ... The tile's own leading arguments, see @c nk_cross_tile_blackwell_.
  *  @sa nk_define_cross_packed_ for the host original.
  */
-#define nk_define_device_cross_tma_packed_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,   \
-                                           result_value_type, depth_simd_dimensions, dimensions_per_value, ...)        \
-    static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                          \
-        nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(                                              \
-            __grid_constant__ nk_cross_tile_arguments_blackwell_t const arguments) {                                   \
-        nk_cross_tile_blackwell_(nk_##input_type_name##_k, __VA_ARGS__, nk_cross_triangle_full_k,                      \
-                                 nk_cross_metric_##metric##_k, &arguments);                                            \
-    }                                                                                                                  \
-    NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                    \
-        nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
-        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
-        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                        \
-        nk_size_t const row_bytes = nk_device_cross_padded_values_(depth, depth_simd_dimensions, dimensions_per_value, \
-                                                                   sizeof(nk_##packed_value_type##_t)) *               \
-                                    sizeof(nk_##packed_value_type##_t);                                                \
-        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                      \
-        nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
-        nk_u8_t const *b_rows = (nk_u8_t const *)(header + 1);                                                         \
-        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);                 \
-        nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,        \
-                                      scales_stride, &header->tensor_scale};                                           \
-        return nk_cross_launch_blackwell_(                                                                             \
-            (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, &a, row_count, &b,         \
-            b_rows + column_count * (row_bytes + scales_stride), c_matrix, sizeof(nk_##result_value_type##_t), 0,      \
-            row_count, column_count, depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                    \
-            depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream);  \
+#define nk_define_cross_tma_packed_blackwell_(metric, input_type_name, isa_suffix, input_value_type,                  \
+                                              packed_value_type, result_value_type, depth_simd_dimensions,            \
+                                              dimensions_per_value, ...)                                              \
+    static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                         \
+        nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(                                             \
+            __grid_constant__ nk_cross_tile_arguments_blackwell_t const arguments) {                                  \
+        nk_cross_tile_blackwell_(nk_##input_type_name##_k, __VA_ARGS__, nk_cross_triangle_full_k,                     \
+                                 nk_cross_metric_##metric##_k, &arguments);                                           \
+    }                                                                                                                 \
+    NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                   \
+        nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                         \
+        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,           \
+        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                       \
+        nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,  \
+                                                                 sizeof(nk_##packed_value_type##_t)) *                \
+                                    sizeof(nk_##packed_value_type##_t);                                               \
+        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                     \
+        nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;     \
+        nk_u8_t const *b_rows = (nk_u8_t const *)(header + 1);                                                        \
+        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);                \
+        nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,       \
+                                      scales_stride, &header->tensor_scale};                                          \
+        return nk_cross_launch_blackwell_(                                                                            \
+            (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, &a, row_count, &b,        \
+            b_rows + column_count * (row_bytes + scales_stride), c_matrix, sizeof(nk_##result_value_type##_t), 0,     \
+            row_count, column_count, depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                   \
+            depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream); \
     }
 
 /**
@@ -1466,13 +1467,13 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
  *      [row_start, row_start + row_count): the upper triangle, with the diagonal for dots and zeros
  *      on it for distances, skipping tiles wholly below it.
  *
- *  Takes the parameters of @c nk_define_device_cross_tma_packed_, so one bundle feeds both.
+ *  Takes the parameters of @c nk_define_cross_tma_packed_blackwell_, so one bundle feeds both.
  *
  *  @sa nk_define_cross_symmetric_ for the host original.
  */
-#define nk_define_device_cross_tma_symmetric_(metric, input_type_name, isa_suffix, input_value_type,                   \
-                                              packed_value_type, result_value_type, depth_simd_dimensions,             \
-                                              dimensions_per_value, ...)                                               \
+#define nk_define_cross_tma_symmetric_blackwell_(metric, input_type_name, isa_suffix, input_value_type,                \
+                                                 packed_value_type, result_value_type, depth_simd_dimensions,          \
+                                                 dimensions_per_value, ...)                                            \
     static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                          \
         nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(                                           \
             __grid_constant__ nk_cross_tile_arguments_blackwell_t const arguments) {                                   \
@@ -1493,12 +1494,13 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
     }
 
 /** Both shapes of one metric over the TMA launch, packed and symmetric. */
-#define nk_define_device_cross_tma_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,       \
-                                    result_value_type, depth_simd_dimensions, dimensions_per_value, ...)            \
-    nk_define_device_cross_tma_packed_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,    \
-                                       result_value_type, depth_simd_dimensions, dimensions_per_value, __VA_ARGS__) \
-    nk_define_device_cross_tma_symmetric_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type, \
-                                          result_value_type, depth_simd_dimensions, dimensions_per_value, __VA_ARGS__)
+#define nk_define_cross_tma_blackwell_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,       \
+                                       result_value_type, depth_simd_dimensions, dimensions_per_value, ...)            \
+    nk_define_cross_tma_packed_blackwell_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,    \
+                                          result_value_type, depth_simd_dimensions, dimensions_per_value, __VA_ARGS__) \
+    nk_define_cross_tma_symmetric_blackwell_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type, \
+                                             result_value_type, depth_simd_dimensions, dimensions_per_value,           \
+                                             __VA_ARGS__)
 
 #pragma endregion Cross Macros
 
@@ -1562,7 +1564,7 @@ NUMKONG_DEVICE void nk_dots_mxfp8e5m2_mma_blackwell_(nk_u32_t accumulator, nk_u6
 
 #pragma region BF16
 
-nk_define_cross_pack_simt_(bf16, blackwell, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(bf16, blackwell, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, bf16, blackwell, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
                                /*dimensions_per_value=*/1, nk_dots_bf16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1572,7 +1574,7 @@ nk_define_cross_tma_blackwell_(dot, bf16, blackwell, bf16, bf16, f32, /*depth_si
 
 #pragma region F16
 
-nk_define_cross_pack_simt_(f16, blackwell, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(f16, blackwell, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, f16, blackwell, f16, f16, f32, /*depth_simd_dimensions=*/8,
                                /*dimensions_per_value=*/1, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1582,7 +1584,7 @@ nk_define_cross_tma_blackwell_(dot, f16, blackwell, f16, f16, f32, /*depth_simd_
 
 #pragma region E5M2
 
-nk_define_cross_pack_simt_(e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
                                /*dimensions_per_value=*/1, nk_dots_e5m2_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1592,7 +1594,7 @@ nk_define_cross_tma_blackwell_(dot, e5m2, blackwell, e5m2, e5m2, f32, /*depth_si
 
 #pragma region E4M3
 
-nk_define_cross_pack_simt_(e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
                                /*dimensions_per_value=*/1, nk_dots_e4m3_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1602,7 +1604,7 @@ nk_define_cross_tma_blackwell_(dot, e4m3, blackwell, e4m3, e4m3, f32, /*depth_si
 
 #pragma region E3M2
 
-nk_define_cross_pack_simt_(e3m2, blackwell, e3m2, e5m2, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e3m2, blackwell, e3m2, e5m2, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, e3m2, blackwell, e3m2, e5m2, f32, /*depth_simd_dimensions=*/16,
                                /*dimensions_per_value=*/1, nk_dots_e5m2_mma_blackwell_, nk_f6x4_to_f8x4_ada_,
@@ -1612,7 +1614,7 @@ nk_define_cross_tma_blackwell_(dot, e3m2, blackwell, e3m2, e5m2, f32, /*depth_si
 
 #pragma region E2M3
 
-nk_define_cross_pack_simt_(e2m3, blackwell, e2m3, e4m3, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m3, blackwell, e2m3, e4m3, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, e2m3, blackwell, e2m3, e4m3, f32, /*depth_simd_dimensions=*/16,
                                /*dimensions_per_value=*/1, nk_dots_e4m3_mma_blackwell_, nk_f6x4_to_f8x4_ada_,
@@ -1622,7 +1624,7 @@ nk_define_cross_tma_blackwell_(dot, e2m3, blackwell, e2m3, e4m3, f32, /*depth_si
 
 #pragma region E2M1
 
-nk_define_cross_pack_simt_(e2m1, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m1, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_tma_blackwell_(dot, e2m1, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                                /*dimensions_per_value=*/2, nk_dots_e2m1_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1632,7 +1634,7 @@ nk_define_cross_tma_blackwell_(dot, e2m1, blackwell, e2m1x2, e2m1x2, f32, /*dept
 
 #pragma region I8
 
-nk_define_cross_pack_simt_(i8, blackwell, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(i8, blackwell, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, i8, blackwell, i8, i8, i32, /*depth_simd_dimensions=*/16,
                                /*dimensions_per_value=*/1, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1642,7 +1644,7 @@ nk_define_cross_tma_blackwell_(dot, i8, blackwell, i8, i8, i32, /*depth_simd_dim
 
 #pragma region I4
 
-nk_define_cross_pack_simt_(i4, blackwell, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(i4, blackwell, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_tma_blackwell_(dot, i4, blackwell, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
                                /*dimensions_per_value=*/2, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1652,7 +1654,7 @@ nk_define_cross_tma_blackwell_(dot, i4, blackwell, i4x2, i4x2, i32, /*depth_simd
 
 #pragma region U8
 
-nk_define_cross_pack_simt_(u8, blackwell, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(u8, blackwell, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, u8, blackwell, u8, u8, u32, /*depth_simd_dimensions=*/16,
                                /*dimensions_per_value=*/1, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1662,7 +1664,7 @@ nk_define_cross_tma_blackwell_(dot, u8, blackwell, u8, u8, u32, /*depth_simd_dim
 
 #pragma region U4
 
-nk_define_cross_pack_simt_(u4, blackwell, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_cuda_(u4, blackwell, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_tma_blackwell_(dot, u4, blackwell, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
                                /*dimensions_per_value=*/2, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
@@ -1674,8 +1676,8 @@ nk_define_cross_tma_blackwell_(dot, u4, blackwell, u4x2, u4x2, u32, /*depth_simd
 
 nk_define_cross_pack_size_simt_(nvfp4, blackwell, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                                 /*dimensions_per_value=*/2)
-nk_define_cross_packed_shape_simt_(nvfp4, blackwell)
-nk_define_cross_pack_rows_simt_(nvfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_packed_shape_cuda_(nvfp4, blackwell)
+nk_define_cross_pack_rows_cuda_(nvfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
                                 nk_e2m1_lane_sumsq_,
                                 /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_tma_blackwell_(dot, nvfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
@@ -1683,8 +1685,8 @@ nk_define_cross_tma_blackwell_(dot, nvfp4, blackwell, e2m1x2, e2m1x2, f32, /*dep
                                /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 nk_define_cross_pack_size_simt_(mxfp4, blackwell, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                                 /*dimensions_per_value=*/2)
-nk_define_cross_packed_shape_simt_(mxfp4, blackwell)
-nk_define_cross_pack_rows_simt_(mxfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_packed_shape_cuda_(mxfp4, blackwell)
+nk_define_cross_pack_rows_cuda_(mxfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
                                 nk_e2m1_lane_sumsq_,
                                 /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_tma_blackwell_(dot, mxfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
@@ -1692,8 +1694,8 @@ nk_define_cross_tma_blackwell_(dot, mxfp4, blackwell, e2m1x2, e2m1x2, f32, /*dep
                                /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 nk_define_cross_pack_size_simt_(mxfp8e4m3, blackwell, e4m3, f32, /*depth_simd_dimensions=*/16,
                                 /*dimensions_per_value=*/1)
-nk_define_cross_packed_shape_simt_(mxfp8e4m3, blackwell)
-nk_define_cross_pack_rows_simt_(mxfp8e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_packed_shape_cuda_(mxfp8e4m3, blackwell)
+nk_define_cross_pack_rows_cuda_(mxfp8e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
                                 nk_e4m3_lane_sumsq_,
                                 /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, mxfp8e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
@@ -1701,8 +1703,8 @@ nk_define_cross_tma_blackwell_(dot, mxfp8e4m3, blackwell, e4m3, e4m3, f32, /*dep
                                /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 nk_define_cross_pack_size_simt_(mxfp8e5m2, blackwell, e5m2, f32, /*depth_simd_dimensions=*/16,
                                 /*dimensions_per_value=*/1)
-nk_define_cross_packed_shape_simt_(mxfp8e5m2, blackwell)
-nk_define_cross_pack_rows_simt_(mxfp8e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_packed_shape_cuda_(mxfp8e5m2, blackwell)
+nk_define_cross_pack_rows_cuda_(mxfp8e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
                                 nk_e5m2_lane_sumsq_,
                                 /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_tma_blackwell_(dot, mxfp8e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,

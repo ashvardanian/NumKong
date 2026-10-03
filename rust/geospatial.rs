@@ -25,7 +25,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Error},
 };
 
@@ -159,7 +159,7 @@ impl Haversine for f64 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -188,7 +188,7 @@ impl Vincenty for f64 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -219,7 +219,7 @@ impl Haversine for f32 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -248,7 +248,7 @@ impl Vincenty for f32 {
                 b_lon.as_ptr(),
                 coordinate_count,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }

@@ -284,7 +284,7 @@ def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.ra
     source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(np_rng, n_points, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["rmsd"]
 
     # High-precision baseline
@@ -299,7 +299,7 @@ def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.ra
     # SIMD result
     source_nk = make_nk(source_raw, dtype)
     target_nk = make_nk(target_raw, dtype)
-    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk)
+    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk, capabilities=capabilities)
     result = float(np.array(result_obj.rmsd))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
@@ -319,7 +319,7 @@ def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.
     source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(np_rng, n_points, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["kabsch"]
 
     # High-precision baseline → scalar RMSD after optimal rotation
@@ -328,7 +328,7 @@ def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.
     # SIMD result
     source_nk = make_nk(source_raw, dtype)
     target_nk = make_nk(target_raw, dtype)
-    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk)
+    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk, capabilities=capabilities)
     result = float(np.array(result_obj.rmsd))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
@@ -355,7 +355,7 @@ def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, np_rng: np
     target_raw, target_baseline = downcast_f32_to_dtype(target_f32, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["umeyama"]
 
     # High-precision baseline → scalar scale factor
@@ -364,7 +364,7 @@ def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, np_rng: np
     # SIMD result
     source_nk = make_nk(source_raw, dtype)
     target_nk = make_nk(target_raw, dtype)
-    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk)
+    result_ns, result_obj = timed_call(simd_kernel, source_nk, target_nk, capabilities=capabilities)
     result = float(np.array(result_obj.scale))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
@@ -377,9 +377,9 @@ def test_rmsd_self_zero(n_points: int, capability: str):
     """rmsd(cloud, cloud).rmsd ~ 0 for identical point clouds."""
     if n_points < 3:
         pytest.skip("RMSD requires at least 3 points")
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     point_cloud = nk.ones((n_points, 3), dtype="float64")
-    result = nk.rmsd(point_cloud, point_cloud)
+    result = nk.rmsd(point_cloud, point_cloud, capabilities=capabilities)
     assert_allclose(float(result.rmsd), 0.0)
 
 
@@ -394,8 +394,8 @@ def test_kabsch_identity(n_points: int, dtype: str, capability: str, np_rng: np.
     points_f32 = np_rng.standard_normal((n_points, 3)).astype(np.float32)
     points_raw, _ = downcast_f32_to_dtype(points_f32, dtype)
     point_cloud = make_nk(points_raw, dtype)
-    keep_one_capability(capability)
-    result = nk.kabsch(point_cloud, point_cloud)
+    capabilities = keep_one_capability(capability)
+    result = nk.kabsch(point_cloud, point_cloud, capabilities=capabilities)
     atol, rtol = tolerances_for_dtype(dtype)
     assert_allclose(float(np.array(result.rmsd)), 0.0, atol=atol, rtol=rtol)
     assert_allclose(float(np.array(result.scale)), 1.0, atol=atol, rtol=rtol)

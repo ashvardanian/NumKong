@@ -716,7 +716,7 @@ Capability detection is explicit, through module functions named after each devi
 import numpy as np
 import numkong as nk
 
-# `enabled` is what dispatch uses: detected on this CPU AND compiled into the wheel.
+# `enabled` is what dispatch runs within: detected on this CPU AND compiled into the wheel, settled as the library loads.
 print(repr(nk.cpu_capabilities_enabled()))
 print(nk.Capability.SKYLAKE in nk.cpu_capabilities_enabled()) # will AVX-512 kernels run here?
 
@@ -724,20 +724,17 @@ print(nk.Capability.SKYLAKE in nk.cpu_capabilities_enabled()) # will AVX-512 ker
 print(repr(nk.cpu_capabilities_detected())) # this CPU
 print(repr(nk.cpu_capabilities_compiled())) # this build
 
-# Narrow dispatch to one capability, e.g. to test it: what cannot run here is dropped, and serial always stays.
-nk.cpu_capabilities_enable(nk.Capability.HASWELL)
-nk.cpu_capabilities_enable(nk.cpu_capabilities_detected() & nk.cpu_capabilities_compiled()) # and back to everything
-
-# Prepare another thread that runs kernels, like AMX tiles on x86, as `cpu_capabilities_enable` does for its own.
+# Prepare a thread that runs kernels, like Arm's FPCR; the library already asked for AMX tiles as it loaded.
 nk.cpu_configure_thread(nk.cpu_capabilities_enabled())
 
-# Or narrow a single call, leaving the default of every other call alone.
+# Narrow a single call, e.g. to test one capability: what cannot run here is dropped.
 a = np.random.randn(1536).astype(np.float32)
 print(nk.dot(a, a, capabilities=nk.Capability.SERIAL)) # the reference kernel
 ```
 
 Every function that runs kernels takes the mask as `capabilities=` and a GPU stream as `stream=`, an integer pointer left `None` on the CPU.
-That mask keeps only this CPU's capabilities, as GPU tensors dispatch with their own device's, see [GPU Tensors through DLPack](#gpu-tensors-through-dlpack).
+It defaults to every CPU capability, which the library clamps to the enabled ones, so the binding keeps no mask of its own.
+That mask keeps only CPU capabilities, as GPU tensors dispatch with their own device's, see [GPU Tensors through DLPack](#gpu-tensors-through-dlpack).
 Packed operands, like `PackedMatrix`, remember the mask that packed them and are read with it, since each capability lays its packs out differently.
 The mask model is the one in [Dispatch Points & Capability Masks](../README.md#dispatch-points--capability-masks).
 
@@ -787,7 +784,7 @@ For Python, the intended user-facing story is external partitioning around the G
 
 Builds configured with `-C cmake.define.NUMKONG_BUILD_CUDA=ON` or `-C cmake.define.NUMKONG_BUILD_ROCM=ON` also carry the CUDA or ROCm kernels.
 `nk.cuda_count_devices()` counts the devices this process sees, zero without the runtime or its kernels, and `nk.cuda_capabilities_enabled(0)` reports the mask device 0 dispatches with, raising `ValueError` past the last.
-`nk.cuda_capabilities_detected` and `nk.cuda_capabilities_compiled` answer as their CPU twins do, `nk.rocm_*` and `nk.metal_*` do the same for the other vendors, and `cpu_capabilities_enable` and `cpu_configure_thread` are CPU only.
+`nk.cuda_capabilities_detected` and `nk.cuda_capabilities_compiled` answer as their CPU twins do, `nk.rocm_*` and `nk.metal_*` do the same for the other vendors, and `cpu_configure_thread` is CPU only.
 `nk.from_dlpack` imports a CUDA or ROCm tensor without a copy and records its device.
 Only `dots_pack` and the dots, angulars and euclideans `_packed` and `_symmetric` functions run on it, with that device's enabled capabilities.
 Element access, NumPy conversion, `cdist`, `maxsim` and every other CPU kernel raise `BufferError` rather than read device memory.

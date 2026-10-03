@@ -106,7 +106,7 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
     nk_unused_(cls);
 
     PyObject *width_obj = NULL, *depth_obj = NULL, *dtype_obj = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
     Py_ssize_t total = nargs + nkw;
 
@@ -573,7 +573,7 @@ static PyObject *api_symmetric_common( //
     PyObject *out_obj = NULL;
     Py_ssize_t start_row = -1, end_row = -1;
     nk_size_t threads = 1;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
@@ -750,7 +750,7 @@ static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObje
     PyObject *b_obj = NULL;
     PyObject *dtype_obj = NULL;
     PyObject *out_obj = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;

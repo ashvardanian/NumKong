@@ -32,7 +32,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Error},
     types::{bf16, f16},
 };
@@ -342,7 +342,7 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -376,7 +376,7 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -410,7 +410,7 @@ impl MeshAlignment for f64 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -449,7 +449,7 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -483,7 +483,7 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -517,7 +517,7 @@ impl MeshAlignment for f32 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -556,7 +556,7 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -590,7 +590,7 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -624,7 +624,7 @@ impl MeshAlignment for f16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -663,7 +663,7 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -697,7 +697,7 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -731,7 +731,7 @@ impl MeshAlignment for bf16 {
                 result.rotation_matrix.as_mut_ptr(),
                 &mut result.scale,
                 &mut result.rmsd,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }

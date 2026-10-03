@@ -18,9 +18,6 @@
 
 #pragma region Helpers
 
-/** The mask kernels run with: detected and compiled, unless @c capabilitiesEnable narrows it. */
-static nk_capability_t default_capabilities = nk_cap_serial_k;
-
 /** Throws the @c nk_status_name of a failed @p status; returns whether it succeeded. */
 static int check_status(napi_env env, nk_status_t status) {
     if (status == nk_success_k) return 1;
@@ -167,7 +164,7 @@ static napi_value dense(napi_env env, napi_callback_info info, nk_kernel_kind_t 
 
     nk_metric_dense_punned_t metric = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(kernel_kind, dtype, default_capabilities, (nk_kernel_punned_t *)&metric, &capability);
+    nk_find_kernel_punned(kernel_kind, dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&metric, &capability);
     if (!metric || !capability) {
         napi_throw_error(env, NULL, "Unsupported dtype for given metric");
         return NULL;
@@ -231,17 +228,15 @@ napi_value api_jaccard(napi_env env, napi_callback_info info) { return dense(env
 /** Device kinds, numbered as the TypeScript @c Device passes them. */
 enum { device_cpu_k, device_cuda_k, device_rocm_k, device_metal_k };
 
-/** Reads the @p count leading arguments of a @c Device call: a kind, then an ordinal or a mask. */
-static int read_device_arguments(napi_env env, napi_callback_info info, size_t count, uint32_t *kind, uint32_t *ordinal,
-                                 uint64_t *mask) {
+/** Reads the @p count leading arguments of a @c Device call: a kind, then an ordinal. */
+static int read_device_arguments(napi_env env, napi_callback_info info, size_t count, uint32_t *kind,
+                                 uint32_t *ordinal) {
     size_t argc = 2;
     napi_value args[2];
-    bool lossless;
     if (napi_get_cb_info(env, info, &argc, args, NULL, NULL) != napi_ok || argc < count ||
         napi_get_value_uint32(env, args[0], kind) != napi_ok ||
-        (count == 2 && ordinal && napi_get_value_uint32(env, args[1], ordinal) != napi_ok) ||
-        (count == 2 && mask && napi_get_value_bigint_uint64(env, args[1], mask, &lossless) != napi_ok)) {
-        napi_throw_error(env, NULL, "Expected a device kind, then an ordinal or a BigInt capability mask");
+        (count == 2 && napi_get_value_uint32(env, args[1], ordinal) != napi_ok)) {
+        napi_throw_error(env, NULL, "Expected a device kind, then an ordinal");
         return 0;
     }
     return 1;
@@ -258,7 +253,7 @@ static napi_value capabilities_or_throw(napi_env env, nk_status_t status, nk_cap
 /** Counts the devices of a kind: one CPU, or the GPUs its runtime sees, throwing without one. */
 napi_value api_device_count(napi_env env, napi_callback_info info) {
     uint32_t kind;
-    if (!read_device_arguments(env, info, 1, &kind, NULL, NULL)) return NULL;
+    if (!read_device_arguments(env, info, 1, &kind, NULL)) return NULL;
     nk_size_t count = 1;
     nk_status_t status = nk_success_k;
     switch (kind) {
@@ -277,7 +272,7 @@ napi_value api_device_count(napi_env env, napi_callback_info info) {
 /** The capabilities a device of a kind and ordinal runs, whether or not they were compiled in. */
 napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
     uint32_t kind, ordinal;
-    if (!read_device_arguments(env, info, 2, &kind, &ordinal, NULL)) return NULL;
+    if (!read_device_arguments(env, info, 2, &kind, &ordinal)) return NULL;
     nk_capability_t capabilities = 0;
     nk_status_t status;
     switch (kind) {
@@ -293,7 +288,7 @@ napi_value api_capabilities_detected(napi_env env, napi_callback_info info) {
 /** The capabilities compiled in for devices of a kind, whether or not a device runs them. */
 napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
     uint32_t kind;
-    if (!read_device_arguments(env, info, 1, &kind, NULL, NULL)) return NULL;
+    if (!read_device_arguments(env, info, 1, &kind, NULL)) return NULL;
     nk_capability_t capabilities = 0;
     nk_status_t status;
     switch (kind) {
@@ -306,33 +301,20 @@ napi_value api_capabilities_compiled(napi_env env, napi_callback_info info) {
     return capabilities_or_throw(env, status, capabilities);
 }
 
-/** The mask a device's kernel calls pass; on the CPU, the one every kernel lookup here walks. */
+/** The mask a device's kernel calls run within; on the CPU, what the library settled as it loaded. */
 napi_value api_capabilities_enabled(napi_env env, napi_callback_info info) {
     uint32_t kind, ordinal;
-    if (!read_device_arguments(env, info, 2, &kind, &ordinal, NULL)) return NULL;
-    nk_capability_t capabilities = default_capabilities;
+    if (!read_device_arguments(env, info, 2, &kind, &ordinal)) return NULL;
+    nk_capability_t capabilities = 0;
     nk_status_t status;
     switch (kind) {
-    case device_cpu_k: status = nk_success_k; break;
+    case device_cpu_k: status = nk_cpu_capabilities_enabled(&capabilities); break;
     case device_cuda_k: status = nk_cuda_capabilities_enabled(ordinal, &capabilities); break;
     case device_rocm_k: status = nk_rocm_capabilities_enabled(ordinal, &capabilities); break;
     case device_metal_k: status = nk_metal_capabilities_enabled(ordinal, &capabilities); break;
     default: status = nk_missing_gpu_k;
     }
     return capabilities_or_throw(env, status, capabilities);
-}
-
-/** Makes a BigInt mask the CPU's enabled set, clamped to detected and compiled and keeping the
- *  serial fallback, and returns the set that took effect; GPUs keep no such set. */
-napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
-    uint32_t kind;
-    uint64_t wanted;
-    if (!read_device_arguments(env, info, 2, &kind, NULL, &wanted)) return NULL;
-    if (kind != device_cpu_k) return capabilities_or_throw(env, nk_missing_kernel_k, 0);
-    nk_capability_t available = nk_cap_serial_k;
-    if (!check_status(env, nk_cpu_capabilities_enabled(&available))) return NULL;
-    default_capabilities = ((nk_capability_t)wanted & available) | nk_cap_serial_k;
-    return capabilities_or_throw(env, nk_success_k, default_capabilities);
 }
 
 /** Exports @c Capability, mapping each capability's name to its BigInt bit, and the @c cpus,
@@ -381,7 +363,7 @@ static napi_value cast_to_f32(napi_env env, napi_callback_info info, nk_dtype_t 
     }
 
     nk_f32_t f32_val;
-    if (!check_status(env, nk_cast_best(&bits, src_dtype, &f32_val, nk_f32_k, 1, default_capabilities, NULL)))
+    if (!check_status(env, nk_cast_best(&bits, src_dtype, &f32_val, nk_f32_k, 1, nk_cap_cpus_k, NULL)))
         return NULL;
 
     napi_value result;
@@ -407,7 +389,7 @@ static napi_value cast_from_f32(napi_env env, napi_callback_info info, nk_dtype_
 
     nk_f32_t f32_val = (nk_f32_t)f32_dbl;
     uint32_t bits = 0;
-    if (!check_status(env, nk_cast_best(&f32_val, nk_f32_k, &bits, dst_dtype, 1, default_capabilities, NULL)))
+    if (!check_status(env, nk_cast_best(&f32_val, nk_f32_k, &bits, dst_dtype, 1, nk_cap_cpus_k, NULL)))
         return NULL;
 
     napi_value result;
@@ -483,7 +465,7 @@ napi_value api_cast(napi_env env, napi_callback_info info) {
         return NULL;
     }
 
-    check_status(env, nk_cast_best(src_data, src_dtype, dst_data, dst_dtype, src_len, default_capabilities, NULL));
+    check_status(env, nk_cast_best(src_data, src_dtype, dst_data, dst_dtype, src_len, nk_cap_cpus_k, NULL));
     return NULL; // Modifies dst_data in place
 }
 
@@ -516,7 +498,7 @@ static napi_value api_dots_pack_size(napi_env env, napi_callback_info info) {
 
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&size_fn,
                           &cap);
     if (!size_fn) {
         napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
@@ -565,7 +547,7 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     // Get packed size
     nk_dots_pack_size_punned_t size_fn = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, default_capabilities, (nk_kernel_punned_t *)&size_fn,
+    nk_find_kernel_punned(nk_kernel_dots_pack_size_k, dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&size_fn,
                           &cap);
     if (!size_fn) {
         napi_throw_error(env, NULL, "dots_pack_size not available for this dtype");
@@ -585,7 +567,7 @@ static napi_value api_dots_pack(napi_env env, napi_callback_info info) {
     // Pack
     nk_dots_pack_punned_t pack_fn = NULL;
     cap = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_dots_pack_k, dtype, default_capabilities, (nk_kernel_punned_t *)&pack_fn, &cap);
+    nk_find_kernel_punned(nk_kernel_dots_pack_k, dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&pack_fn, &cap);
     if (!pack_fn) {
         napi_throw_error(env, NULL, "dots_pack not available for this dtype");
         return NULL;
@@ -665,7 +647,7 @@ static napi_value api_packed_common(napi_env env, napi_callback_info info, nk_ke
 
     nk_dots_packed_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(kernel_kind, dtype, default_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(kernel_kind, dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel) {
         napi_throw_error(env, NULL, "Packed kernel not available for this dtype");
         return NULL;
@@ -748,7 +730,7 @@ static napi_value api_symmetric_common(napi_env env, napi_callback_info info, nk
 
     nk_dots_symmetric_punned_t kernel = NULL;
     nk_capability_t cap = nk_cap_serial_k;
-    nk_find_kernel_punned(kernel_kind, dtype, default_capabilities, (nk_kernel_punned_t *)&kernel, &cap);
+    nk_find_kernel_punned(kernel_kind, dtype, nk_cap_cpus_k, (nk_kernel_punned_t *)&kernel, &cap);
     if (!kernel) {
         napi_throw_error(env, NULL, "Symmetric kernel not available for this dtype");
         return NULL;
@@ -807,7 +789,6 @@ napi_value Init(napi_env env, napi_value exports) {
         export_function(env, exports, "capabilitiesDetected", api_capabilities_detected) != napi_ok ||
         export_function(env, exports, "capabilitiesCompiled", api_capabilities_compiled) != napi_ok ||
         export_function(env, exports, "capabilitiesEnabled", api_capabilities_enabled) != napi_ok ||
-        export_function(env, exports, "capabilitiesEnable", api_capabilities_enable) != napi_ok ||
         export_capability_names(env, exports) != napi_ok ||
         export_function(env, exports, "castF16ToF32", api_cast_f16_to_f32) != napi_ok ||
         export_function(env, exports, "castF32ToF16", api_cast_f32_to_f16) != napi_ok ||
@@ -828,8 +809,6 @@ napi_value Init(napi_env env, napi_value exports) {
         export_function(env, exports, "euclideansSymmetric", api_euclideans_symmetric) != napi_ok) {
         return NULL;
     }
-    nk_cpu_capabilities_enabled(&default_capabilities);
-    nk_cpu_configure_thread(default_capabilities);
     return exports;
 }
 

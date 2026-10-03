@@ -114,7 +114,7 @@ def test_inner_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: n
     b_raw, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_DOT["inner"]
 
     # High-precision baseline
@@ -128,7 +128,7 @@ def test_inner_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: n
         expected_ns, expected = 0, None
 
     # SIMD result — pass dtype for exotic types so the kernel knows the storage format
-    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, dtype)
+    result_ns, result = timed_call(simd_kernel, a_raw, b_raw, dtype, capabilities=capabilities)
 
     err_msg = LazyFormat(lambda: f"\ninner({dtype}, ndim={ndim}):\n  Accurate:  {accurate}\n  Got:       {result}")
 
@@ -147,10 +147,10 @@ def test_dot_vdot_complex_accuracy(ndim: int, dtype: str, capability: str, np_rn
     b_vector, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     accurate_ns, accurate = timed_call(np.dot, a_baseline, b_baseline)
     expected_ns, expected = timed_call(np.dot, a_vector, b_vector)
-    result_ns, result = timed_call(nk.dot, a_vector, b_vector)
+    result_ns, result = timed_call(nk.dot, a_vector, b_vector, capabilities=capabilities)
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=atol, rtol=rtol)
@@ -158,7 +158,7 @@ def test_dot_vdot_complex_accuracy(ndim: int, dtype: str, capability: str, np_rn
 
     accurate_ns, accurate = timed_call(np.vdot, a_baseline, b_baseline)
     expected_ns, expected = timed_call(np.vdot, a_vector, b_vector)
-    result_ns, result = timed_call(nk.vdot, a_vector, b_vector)
+    result_ns, result = timed_call(nk.vdot, a_vector, b_vector, capabilities=capabilities)
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=atol, rtol=rtol)
@@ -174,14 +174,14 @@ def test_dot_vdot_complex_explicit_dtype(ndim: int, capability: str, np_rng: np.
     a_real_parts = np_rng.standard_normal(ndim * 2).astype(dtype=np.float32)
     b_real_parts = np_rng.standard_normal(ndim * 2).astype(dtype=np.float32)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     expected = np.dot(a_real_parts.view(np.complex64), b_real_parts.view(np.complex64))
-    result = nk.dot(a_real_parts, b_real_parts, "complex64")
+    result = nk.dot(a_real_parts, b_real_parts, "complex64", capabilities=capabilities)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
     expected = np.vdot(a_real_parts.view(np.complex64), b_real_parts.view(np.complex64))
-    result = nk.vdot(a_real_parts, b_real_parts, "complex64")
+    result = nk.vdot(a_real_parts, b_real_parts, "complex64", capabilities=capabilities)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
 
@@ -206,9 +206,9 @@ def test_inner_float_overflow_detection(
     a = a.astype(dtype)
     b = b.astype(dtype)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel = KERNELS_OVERFLOW[metric]
-    result = simd_kernel(a, b)
+    result = simd_kernel(a, b, capabilities=capabilities)
     assert np.isinf(result), f"Expected ±inf, but got {result}"
 
     #! In the Euclidean (L2) distance, SciPy raises a `ValueError` from the underlying
@@ -226,9 +226,9 @@ def test_inner_float_overflow_detection(
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_inner_known(ndim: int, dtype: str, capability: str):
     """inner(ones, ones) should equal n."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
-    result = nk.inner(ones_vector, ones_vector)
+    result = nk.inner(ones_vector, ones_vector, capabilities=capabilities)
     assert abs(result - ndim) < NUMKONG_ATOL + NUMKONG_RTOL * ndim
 
 
@@ -237,10 +237,10 @@ def test_inner_known(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_inner_orthogonal(ndim: int, dtype: str, capability: str):
     """inner(ones, zeros) should equal 0."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
-    result = nk.inner(ones_vector, zeros_vector)
+    result = nk.inner(ones_vector, zeros_vector, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL
 
 
@@ -249,11 +249,11 @@ def test_inner_orthogonal(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_inner_symmetry(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Commutativity: inner(a, b) = inner(b, a)."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
-    ab = nk.inner(a, b)
-    ba = nk.inner(b, a)
+    ab = nk.inner(a, b, capabilities=capabilities)
+    ba = nk.inner(b, a, capabilities=capabilities)
     assert abs(ab - ba) < NUMKONG_ATOL, f"inner(a,b)={ab} != inner(b,a)={ba}"
 
 
@@ -262,12 +262,12 @@ def test_inner_symmetry(ndim: int, dtype: str, capability: str, rng: random.Rand
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Cauchy-Schwarz: |inner(a,b)|^2 <= inner(a,a) * inner(b,b)."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
-    ab = nk.inner(a, b)
-    aa = nk.inner(a, a)
-    bb = nk.inner(b, b)
+    ab = nk.inner(a, b, capabilities=capabilities)
+    aa = nk.inner(a, a, capabilities=capabilities)
+    bb = nk.inner(b, b, capabilities=capabilities)
     assert ab * ab <= aa * bb + NUMKONG_ATOL, (
         f"Cauchy-Schwarz violated: |inner(a,b)|²={ab * ab} > inner(a,a)*inner(b,b)={aa * bb}"
     )
@@ -288,10 +288,10 @@ def test_inner_integer_overflow_detection(ndim: int, metric: str, capability: st
     a = np.full(ndim, fill_value=-128, dtype=np.int8)
     b = np.full(ndim, fill_value=-128, dtype=np.int8)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel = KERNELS_OVERFLOW[metric]
     _ = baseline_kernel(a, b)
-    result = simd_kernel(a, b)
+    result = simd_kernel(a, b, capabilities=capabilities)
     assert np.isinf(result), f"Expected ±inf, but got {result}"
 
     try:

@@ -15,7 +15,7 @@
  *  We define both to avoid struct layout mismatches that caused crashes on NumPy 2.4.
  */
 
-#include "numkong.h" // `default_capabilities`
+#include "numkong.h" // `nk_cast_best`
 #include "numpy_interop.h"
 #include "types.h"
 
@@ -282,33 +282,33 @@ static int nk_np_nonzero_e3m2(void *d, void *a) { nk_unused_(a); return nk_np_no
 
 /*  Void callbacks drop the status: the default mask keeps serial, whose casts never fail. */
 // clang-format off
-static void nk_np_cast_bf16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_bf16_k, t, nk_f32_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f16_k, t, nk_f32_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e4m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e4m3_k, t, nk_f32_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e5m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e5m2_k, t, nk_f32_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e2m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e2m3_k, t, nk_f32_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e3m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e3m2_k, t, nk_f32_k, (nk_size_t)n, default_capabilities, NULL); }
+static void nk_np_cast_bf16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_bf16_k, t, nk_f32_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f16_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f16_k, t, nk_f32_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e4m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e4m3_k, t, nk_f32_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e5m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e5m2_k, t, nk_f32_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e2m3_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e2m3_k, t, nk_f32_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e3m2_to_f32(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e3m2_k, t, nk_f32_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
 
-static void nk_np_cast_f32_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_bf16_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f32_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_f16_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f32_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e4m3_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f32_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e5m2_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f32_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e2m3_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f32_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e3m2_k, (nk_size_t)n, default_capabilities, NULL); }
+static void nk_np_cast_f32_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_bf16_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f32_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_f16_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f32_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e4m3_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f32_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e5m2_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f32_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e2m3_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f32_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f32_k, t, nk_e3m2_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
 
-static void nk_np_cast_bf16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_bf16_k, t, nk_f64_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f16_k, t, nk_f64_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e4m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e4m3_k, t, nk_f64_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e5m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e5m2_k, t, nk_f64_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e2m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e2m3_k, t, nk_f64_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_e3m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e3m2_k, t, nk_f64_k, (nk_size_t)n, default_capabilities, NULL); }
+static void nk_np_cast_bf16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_bf16_k, t, nk_f64_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f16_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f16_k, t, nk_f64_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e4m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e4m3_k, t, nk_f64_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e5m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e5m2_k, t, nk_f64_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e2m3_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e2m3_k, t, nk_f64_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_e3m2_to_f64(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_e3m2_k, t, nk_f64_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
 
-static void nk_np_cast_f64_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_bf16_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f64_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_f16_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f64_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e4m3_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f64_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e5m2_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f64_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e2m3_k, (nk_size_t)n, default_capabilities, NULL); }
-static void nk_np_cast_f64_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e3m2_k, (nk_size_t)n, default_capabilities, NULL); }
+static void nk_np_cast_f64_to_bf16(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_bf16_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f64_to_f16(void *f, void *t, npy_intp n, void *fa, void *ta)  { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_f16_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f64_to_e4m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e4m3_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f64_to_e5m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e5m2_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f64_to_e2m3(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e2m3_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
+static void nk_np_cast_f64_to_e3m2(void *f, void *t, npy_intp n, void *fa, void *ta) { nk_unused_(fa); nk_unused_(ta); nk_cast_best(f, nk_f64_k, t, nk_e3m2_k, (nk_size_t)n, nk_cap_cpus_k, NULL); }
 // clang-format on
 
 /** Initialize an ArrFuncs struct with the 5 required function pointers. */

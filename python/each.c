@@ -81,7 +81,7 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_buffer a_buffer, b_buffer, c_buffer, out_buffer;
@@ -233,7 +233,7 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_buffer a_buffer, b_buffer, out_buffer;
@@ -378,7 +378,7 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_buffer a_buffer, out_buffer;
@@ -505,7 +505,7 @@ PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t const po
     PyObject *return_obj = NULL;
     PyObject *x_obj = NULL, *gamma_obj = NULL, *out_obj = NULL;
     PyObject *groups_obj = NULL, *epsilon_value = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_buffer x_buffer, gamma_buffer, out_buffer;
@@ -655,7 +655,7 @@ PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t const pos
     nk_unused_(self);
     PyObject *return_obj = NULL;
     PyObject *gate_obj = NULL, *up_obj = NULL, *out_obj = NULL, *gate_scale_value = NULL, *output_scale_value = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_buffer gate_buffer, up_buffer, out_buffer;
@@ -1042,7 +1042,7 @@ PyObject *api_add(PyObject *self, PyObject *const *args, Py_ssize_t const positi
 
     PyObject *a_obj = NULL, *b_obj = NULL;
     PyObject *out_obj = NULL, *a_dtype_obj = NULL, *b_dtype_obj = NULL, *out_dtype_obj = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
@@ -1361,7 +1361,7 @@ PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t const p
 
     PyObject *a_obj = NULL, *b_obj = NULL;
     PyObject *out_obj = NULL, *a_dtype_obj = NULL, *b_dtype_obj = NULL, *out_dtype_obj = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;

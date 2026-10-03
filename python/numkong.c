@@ -937,17 +937,13 @@ int parse_tensor_nd(PyObject *obj, Py_buffer *buffer, nk_tensor_view_t *view, nk
 /** The `numkong.Capability` flags class, built at import, that every capability query speaks. */
 static PyObject *capability_type = NULL;
 
-nk_capability_t default_capabilities = nk_cap_serial_k;
-
 int parse_dispatch_keyword(PyObject *key, PyObject *value, nk_capability_t *capabilities, void **stream) {
     if (PyUnicode_CompareWithASCIIString(key, "capabilities") == 0) {
         if (value == Py_None) return 1;
         unsigned long long const bits = PyLong_AsUnsignedLongLong(value);
         if (bits == (unsigned long long)-1 && PyErr_Occurred()) return 0;
-        nk_capability_t detected = nk_cap_serial_k;
-        nk_cpu_capabilities_detected(&detected);
-        // A capability this CPU lacks would fault, and a GPU one would get host pointers
-        *capabilities = (nk_capability_t)bits & detected;
+        // The library drops what this CPU lacks, and a GPU capability would get host pointers
+        *capabilities = (nk_capability_t)bits & nk_cap_cpus_k;
         return 1;
     }
     if (PyUnicode_CompareWithASCIIString(key, "stream") == 0) {
@@ -1065,46 +1061,22 @@ static PyObject *api_cpu_capabilities_compiled(PyObject *self, PyObject *unused)
     return capabilities_reported(nk_cpu_capabilities_compiled);
 }
 
-static char const doc_cpu_capabilities_enabled[] =                                                  //
-    "Get the CPU capabilities kernels run with, unless a call passes `capabilities=`.\n\n"          //
-    "Starts as `cpu_capabilities_detected() & cpu_capabilities_compiled()`, changes only through\n" //
-    "`cpu_capabilities_enable`, and always has SERIAL.\n\n"                                         //
-    "Signature:\n"                                                                                  //
+static char const doc_cpu_capabilities_enabled[] =                                                   //
+    "Get the CPU capabilities kernels run within, unless a call passes a narrower `capabilities=`.\n\n" //
+    "`cpu_capabilities_detected() & cpu_capabilities_compiled()`, which the library settles as it\n"   //
+    "loads, always with SERIAL.\n\n"                                                                   //
+    "Signature:\n"                                                                                     //
     "    >>> def cpu_capabilities_enabled() -> Capability: ...";
 
 static PyObject *api_cpu_capabilities_enabled(PyObject *self, PyObject *unused) {
     nk_unused_(self), nk_unused_(unused);
-    return capability_from_mask(default_capabilities);
+    return capabilities_reported(nk_cpu_capabilities_enabled);
 }
 
-static char const doc_cpu_capabilities_enable[] =                                                         //
-    "Make `wanted` the CPU capabilities kernels run with, and configure the calling thread for them.\n\n" //
-    "Capabilities this CPU cannot execute or this binary lacks are dropped and SERIAL is always kept,\n"  //
-    "so dispatch never reaches a kernel that cannot run here. Mostly useful for testing capabilities\n"   //
-    "one by one.\n\n"                                                                                     //
-    "Args:\n"                                                                                             //
-    "    wanted (Capability): Capabilities to dispatch between, for example `Capability.HASWELL`.\n\n"    //
-    "Returns:\n"                                                                                          //
-    "    Capability: The capabilities enabled after clamping.\n\n"                                        //
-    "Signature:\n"                                                                                        //
-    "    >>> def cpu_capabilities_enable(wanted, /) -> Capability: ...";
-
-static PyObject *api_cpu_capabilities_enable(PyObject *self, PyObject *wanted) {
-    nk_unused_(self);
-    unsigned long long const wanted_bits = PyLong_AsUnsignedLongLong(wanted);
-    if (wanted_bits == (unsigned long long)-1 && PyErr_Occurred()) return NULL;
-    nk_capability_t available = nk_cap_serial_k;
-    if (!check_status(nk_cpu_capabilities_enabled(&available))) return NULL;
-    nk_capability_t const enabled = ((nk_capability_t)wanted_bits & available) | nk_cap_serial_k;
-    if (!check_status(nk_cpu_configure_thread(enabled))) return NULL;
-    default_capabilities = enabled;
-    return capability_from_mask(enabled);
-}
-
-static char const doc_cpu_configure_thread[] =                                                    //
-    "Prepare the calling thread for kernels of `capabilities`, like AMX tiles or Arm's FPCR.\n\n" //
-    "`cpu_capabilities_enable` already does it for its own thread; call this on every other\n"    //
-    "thread that runs kernels.\n\n"                                                               //
+static char const doc_cpu_configure_thread[] =                                                     //
+    "Prepare the calling thread for kernels of `capabilities`, like Arm's FPCR or AMX tiles.\n\n" //
+    "The library already asks for AMX tiles for the whole process as it loads; call this on every\n" //
+    "thread whose kernels need more.\n\n"                                                         //
     "Args:\n"                                                                                     //
     "    capabilities (Capability): The mask kernels on this thread run with.\n\n"                //
     "Signature:\n"                                                                                //
@@ -1391,7 +1363,6 @@ static PyMethodDef nk_methods[] = {
     {"cpu_capabilities_detected", api_cpu_capabilities_detected, METH_NOARGS, doc_cpu_capabilities_detected},
     {"cpu_capabilities_compiled", api_cpu_capabilities_compiled, METH_NOARGS, doc_cpu_capabilities_compiled},
     {"cpu_capabilities_enabled", api_cpu_capabilities_enabled, METH_NOARGS, doc_cpu_capabilities_enabled},
-    {"cpu_capabilities_enable", api_cpu_capabilities_enable, METH_O, doc_cpu_capabilities_enable},
     {"cpu_configure_thread", api_cpu_configure_thread, METH_O, doc_cpu_configure_thread},
     {"cuda_count_devices", api_cuda_count_devices, METH_NOARGS, doc_count_devices},
     {"cuda_capabilities_detected", api_cuda_capabilities_detected, METH_O, doc_capabilities_detected},
@@ -1579,9 +1550,6 @@ PyMODINIT_FUNC PyInit__numkong(void) {
         Py_XDECREF(m);
         return NULL;
     }
-
-    nk_cpu_capabilities_enabled(&default_capabilities);
-    nk_cpu_configure_thread(default_capabilities);
 
     // Register scalar types (bfloat16, float8_e4m3, float8_e5m2)
     if (nk_register_scalar_types(m) < 0) {

@@ -417,14 +417,14 @@ include(cmake/nk_isa_probe.cmake)
 # flag; every other header-only unit follows its own flags in `types.h`, which leave those kits off.
 set(NUMKONG_IN_HEADER_ONLY_TEST_ "$<STREQUAL:$<TARGET_PROPERTY:NAME>,numkong_cpu_header_test>")
 if ("NUMKONG_TARGET_LOONGSONASX=1" IN_LIST nk_compile_definitions_)
-    set_source_files_properties(c/cpu/loongsonasx.c PROPERTIES COMPILE_OPTIONS ${nk_kit_flags_LOONGSONASX})
+    set_source_files_properties(c/target/loongsonasx.c PROPERTIES COMPILE_OPTIONS ${nk_kit_flags_LOONGSONASX})
     set_source_files_properties(
         test/cross_loongarch64.cpp PROPERTIES COMPILE_OPTIONS
                                               "$<${NUMKONG_IN_HEADER_ONLY_TEST_}:${nk_kit_flags_LOONGSONASX}>"
     )
 endif ()
 if ("NUMKONG_TARGET_POWERVSX=1" IN_LIST nk_compile_definitions_)
-    set_source_files_properties(c/cpu/powervsx.c PROPERTIES COMPILE_OPTIONS ${nk_kit_flags_POWERVSX})
+    set_source_files_properties(c/target/powervsx.c PROPERTIES COMPILE_OPTIONS ${nk_kit_flags_POWERVSX})
     set_source_files_properties(
         test/cross_ppc64.cpp PROPERTIES COMPILE_OPTIONS "$<${NUMKONG_IN_HEADER_ONLY_TEST_}:${nk_kit_flags_POWERVSX}>"
     )
@@ -653,41 +653,41 @@ set(NUMKONG_LIBRARY_UNITS_
     c/dispatch/probability.c
     c/dispatch/geospatial.c
     c/dispatch/mesh.c
-    c/cpu/serial.c
-    c/cpu/haswell.c
-    c/cpu/alder.c
-    c/cpu/sierra.c
-    c/cpu/skylake.c
-    c/cpu/icelake.c
-    c/cpu/genoa.c
-    c/cpu/turin.c
-    c/cpu/sapphire.c
-    c/cpu/diamond.c
-    c/cpu/sapphireamx.c
-    c/cpu/graniteamx.c
-    c/cpu/diamondamx.c
-    c/cpu/neon.c
-    c/cpu/neonhalf.c
-    c/cpu/neonbfdot.c
-    c/cpu/neonfhm.c
-    c/cpu/neonsdot.c
-    c/cpu/neonfp8.c
-    c/cpu/sve.c
-    c/cpu/svehalf.c
-    c/cpu/svesdot.c
-    c/cpu/svebfdot.c
-    c/cpu/sve2.c
-    c/cpu/sme.c
-    c/cpu/smef64.c
-    c/cpu/smebi32.c
-    c/cpu/rvv.c
-    c/cpu/rvvhalf.c
-    c/cpu/rvvbf16.c
-    c/cpu/rvvbb.c
-    c/cpu/v128.c
-    c/cpu/v128relaxed.c
-    c/cpu/powervsx.c
-    c/cpu/loongsonasx.c
+    c/target/serial.c
+    c/target/haswell.c
+    c/target/alder.c
+    c/target/sierra.c
+    c/target/skylake.c
+    c/target/icelake.c
+    c/target/genoa.c
+    c/target/turin.c
+    c/target/sapphire.c
+    c/target/diamond.c
+    c/target/sapphireamx.c
+    c/target/graniteamx.c
+    c/target/diamondamx.c
+    c/target/neon.c
+    c/target/neonhalf.c
+    c/target/neonbfdot.c
+    c/target/neonfhm.c
+    c/target/neonsdot.c
+    c/target/neonfp8.c
+    c/target/sve.c
+    c/target/svehalf.c
+    c/target/svesdot.c
+    c/target/svebfdot.c
+    c/target/sve2.c
+    c/target/sme.c
+    c/target/smef64.c
+    c/target/smebi32.c
+    c/target/rvv.c
+    c/target/rvvhalf.c
+    c/target/rvvbf16.c
+    c/target/rvvbb.c
+    c/target/v128.c
+    c/target/v128relaxed.c
+    c/target/powervsx.c
+    c/target/loongsonasx.c
 )
 
 # Build tests
@@ -1113,17 +1113,14 @@ function (numkong_gpu_codes_ codes capability_codes output)
     set(${output} "${kept}" PARENT_SCOPE)
 endfunction ()
 
-# Adds one GPU generation's unit, like c/cuda/hopper.cu, to both libraries: compiled for `codes` alone, in the
+# Adds one GPU generation's unit, like c/target/hopper.cu, to both libraries: compiled for `codes` alone, in the
 # language its extension names and without the CPU kits. A unit without codes to compile is skipped. The rest are the
 # runtime libraries its calls need.
 function (numkong_add_gpu_unit_ source codes)
     if (NOT codes)
         return()
     endif ()
-    get_filename_component(vendor "${source}" DIRECTORY)
-    get_filename_component(vendor "${vendor}" NAME)
-    get_filename_component(generation "${source}" NAME_WE)
-    set(unit "${vendor}_${generation}")
+    get_filename_component(unit "${source}" NAME_WE)
     add_library(numkong_${unit}_ OBJECT ${source})
     target_include_directories(numkong_${unit}_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
     # C++20 makes `NUMKONG_CONSTEXPR` constexpr, which kernels reach through relaxed constexpr.
@@ -1172,11 +1169,11 @@ if (NUMKONG_BUILD_CUDA)
         "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_BLACKWELLRTX_CODES_}"
         NUMKONG_BLACKWELLRTX_UNIT_CODES_
     )
-    numkong_add_gpu_unit_(c/cuda/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/cuda/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/cuda/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/cuda/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/cuda/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/target/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/target/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/target/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/target/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/target/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" CUDA::cudart)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_CUDA_=1 ${NUMKONG_CUDA_FAMILY_DEFINITIONS_})
     endforeach ()
@@ -1188,9 +1185,9 @@ if (NUMKONG_BUILD_ROCM)
     find_package(hip REQUIRED)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA4_CODES_}" NUMKONG_CDNA4_UNIT_CODES_)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA5_CODES_}" NUMKONG_CDNA5_UNIT_CODES_)
-    numkong_add_gpu_unit_(c/rocm/rocm.hip "${NUMKONG_ROCM_ARCHITECTURES}" hip::host)
-    numkong_add_gpu_unit_(c/rocm/cdna4.hip "${NUMKONG_CDNA4_UNIT_CODES_}" hip::host)
-    numkong_add_gpu_unit_(c/rocm/cdna5.hip "${NUMKONG_CDNA5_UNIT_CODES_}" hip::host)
+    numkong_add_gpu_unit_(c/target/rocm.hip "${NUMKONG_ROCM_ARCHITECTURES}" hip::host)
+    numkong_add_gpu_unit_(c/target/cdna4.hip "${NUMKONG_CDNA4_UNIT_CODES_}" hip::host)
+    numkong_add_gpu_unit_(c/target/cdna5.hip "${NUMKONG_CDNA5_UNIT_CODES_}" hip::host)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_ROCM_=1 ${NUMKONG_ROCM_FAMILY_DEFINITIONS_})
     endforeach ()
@@ -1201,7 +1198,7 @@ endif ()
 
 if (NUMKONG_BUILD_METAL)
     # Metal compiles its kernels on the device, so the C units hold only the host side of each Apple capability.
-    add_library(numkong_metal_ OBJECT c/metal/metal.c c/metal/apple9.c c/metal/apple10.c)
+    add_library(numkong_metal_ OBJECT c/target/metal.c c/target/apple9.c c/target/apple10.c)
     target_include_directories(numkong_metal_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
     set_target_properties(numkong_metal_ PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(

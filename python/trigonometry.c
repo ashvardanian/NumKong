@@ -60,7 +60,7 @@ static PyObject *implement_trigonometry(nk_kernel_kind_t kernel_kind, PyObject *
     // Once parsed, the arguments will be stored in these variables:
 
     nk_dtype_t dtype = nk_dtype_unknown_k;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_buffer a_buffer, out_buffer;

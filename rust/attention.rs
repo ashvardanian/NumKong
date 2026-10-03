@@ -42,7 +42,7 @@ use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     scalar::Roots,
     tensor::{Allocator, Error, Global, PackedBuffer, Tensor, TensorMut, TensorRef},
     types::{bf16, e4m3, StorageElement},
@@ -396,7 +396,7 @@ impl Attention for bf16 {
                 depth,
                 segment_lengths.as_ptr(),
                 segment_lengths.len(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 &mut bytes,
             )
         }
@@ -411,7 +411,7 @@ impl Attention for bf16 {
             &mut heads,
             &mut depth,
             &mut segments,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()?;
@@ -446,7 +446,7 @@ impl Attention for bf16 {
                 key_value_packed,
                 task_begin,
                 task_end,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -481,7 +481,7 @@ impl Attention for bf16 {
                 scale,
                 task_start,
                 task_count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -520,7 +520,7 @@ impl Attention for bf16 {
                 window,
                 task_start,
                 task_count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -537,7 +537,7 @@ impl Attention for e4m3 {
                 depth,
                 segment_lengths.as_ptr(),
                 segment_lengths.len(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 &mut bytes,
             )
         }
@@ -552,7 +552,7 @@ impl Attention for e4m3 {
             &mut heads,
             &mut depth,
             &mut segments,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()?;
@@ -587,7 +587,7 @@ impl Attention for e4m3 {
                 key_value_packed,
                 task_begin,
                 task_end,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -622,7 +622,7 @@ impl Attention for e4m3 {
                 scale,
                 task_start,
                 task_count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -661,7 +661,7 @@ impl Attention for e4m3 {
                 window,
                 task_start,
                 task_count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -678,7 +678,7 @@ impl Attention for i8 {
                 depth,
                 segment_lengths.as_ptr(),
                 segment_lengths.len(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 &mut bytes,
             )
         }
@@ -693,7 +693,7 @@ impl Attention for i8 {
             &mut heads,
             &mut depth,
             &mut segments,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()?;
@@ -728,7 +728,7 @@ impl Attention for i8 {
                 key_value_packed,
                 task_begin,
                 task_end,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -763,7 +763,7 @@ impl Attention for i8 {
                 scale,
                 task_start,
                 task_count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -802,7 +802,7 @@ impl Attention for i8 {
                 window,
                 task_start,
                 task_count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()
@@ -1747,7 +1747,7 @@ impl AttentionRope for f32 {
                 depth,
                 stride,
                 stride,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -1816,7 +1816,7 @@ impl AttentionRope for bf16 {
                 depth,
                 stride,
                 stride,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -1885,7 +1885,7 @@ impl AttentionRope for e4m3 {
                 depth,
                 stride,
                 stride,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;

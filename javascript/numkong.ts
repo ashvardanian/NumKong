@@ -174,7 +174,6 @@ function deviceKindIndex(kind: DeviceKind): number {
  *
  *  const cpu = Device.cpu();
  *  if (cpu.capabilitiesEnabled() & Capability.haswell) console.log('AVX2 kernels in use');
- *  cpu.capabilitiesEnable(cpu.capabilitiesEnabled() & ~Capability.skylake);
  *  ```
  */
 export class Device {
@@ -211,22 +210,11 @@ export class Device {
     return addon.capabilitiesCompiled(deviceKindIndex(this.kind));
   }
 
-  /** The capabilities this device's kernel calls pass: detected and compiled at once, as a bitmask.
-   *  On the CPU it is what every kernel call passes, narrowed by {@link Device.capabilitiesEnable},
-   *  and always includes `Capability.serial`. */
+  /** The capabilities this device's kernel calls run within: detected and compiled at once, as a
+   *  bitmask. On the CPU the library settles it as it loads, and it always includes
+   *  `Capability.serial`. */
   capabilitiesEnabled(): bigint {
     return addon.capabilitiesEnabled(deviceKindIndex(this.kind), this.ordinal);
-  }
-
-  /**
-   *  Makes `wanted` the CPU's enabled set, clamped to what it detects and this build compiled, and
-   *  keeping the serial fallback. Pack matrices again afterwards.
-   *  @param wanted - Bitmask of {@link Capability} bits.
-   *  @returns The enabled set that took effect.
-   *  @throws On a GPU, which keeps no such set.
-   */
-  capabilitiesEnable(wanted: bigint): bigint {
-    return addon.capabilitiesEnable(deviceKindIndex(this.kind), wanted);
   }
 }
 

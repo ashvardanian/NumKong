@@ -134,35 +134,47 @@ StatementMacros:
   - nk_define_cross_normalized_packed_
   - nk_define_cross_normalized_symmetric_
   - nk_define_cross_pack_size_simt_
-  - nk_define_cross_packed_shape_simt_
-  - nk_define_cross_pack_rows_simt_
-  - nk_define_cross_pack_simt_
-  - nk_define_cross_packed_simt_
-  - nk_define_cross_symmetric_simt_
-  - nk_define_cross_simt_
+  - nk_define_cross_packed_shape_cuda_
+  - nk_define_cross_packed_shape_rocm_
+  - nk_define_cross_pack_rows_cuda_
+  - nk_define_cross_pack_rows_rocm_
+  - nk_define_cross_pack_cuda_
+  - nk_define_cross_pack_rocm_
+  - nk_define_cross_packed_cuda_
+  - nk_define_cross_packed_rocm_
+  - nk_define_cross_symmetric_cuda_
+  - nk_define_cross_symmetric_rocm_
+  - nk_define_cross_cuda_
+  - nk_define_cross_rocm_
   - nk_define_cross_tma_packed_blackwell_
   - nk_define_cross_tma_symmetric_blackwell_
   - nk_define_cross_tma_blackwell_
   - nk_define_cross_metal_
   - nk_define_lane_sumsq_simt_
-  - nk_define_each_sum_simt_
-  - nk_define_each_rmsnorm_simt_
-  - nk_define_each_swiglu_simt_
-  - nk_define_each_scale_simt_
-  - nk_define_each_blend_simt_
-  - nk_define_each_fma_simt_
+  - nk_define_each_sum_cuda_
+  - nk_define_each_sum_rocm_
+  - nk_define_each_rmsnorm_cuda_
+  - nk_define_each_rmsnorm_rocm_
+  - nk_define_each_swiglu_cuda_
+  - nk_define_each_swiglu_rocm_
+  - nk_define_each_scale_cuda_
+  - nk_define_each_blend_cuda_
+  - nk_define_each_fma_cuda_
   - nk_define_attention_pack_size_simt_
-  - nk_define_attention_packed_shape_simt_
-  - nk_define_attention_pack_simt_
-  - nk_define_attention_baseline_packed_simt_
-  - nk_define_attention_baseline_simt_
-  - nk_define_attention_packed_simt_
+  - nk_define_attention_packed_shape_cuda_
+  - nk_define_attention_packed_shape_rocm_
+  - nk_define_attention_pack_cuda_
+  - nk_define_attention_pack_rocm_
+  - nk_define_attention_baseline_cuda_
+  - nk_define_attention_baseline_rocm_
+  - nk_define_attention_packed_cuda_
+  - nk_define_attention_packed_rocm_
   - nk_define_attention_pack_blackwell_
   - nk_define_attention_tma_blackwell_
-  - nk_define_attention_rope_simt_
+  - nk_define_attention_rope_cuda_
   - nk_define_attention_rope_
-  - nk_define_reduce_moments_simt_
-  - nk_define_reduce_minmax_simt_
+  - nk_define_reduce_moments_cuda_
+  - nk_define_reduce_minmax_cuda_
 
 # Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:

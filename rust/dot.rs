@@ -50,7 +50,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Error},
     types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, i4x2, u1x8, u4x2, StorageElement},
 };
@@ -276,7 +276,7 @@ impl Dot for f64 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -296,7 +296,7 @@ impl Dot for f32 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -316,7 +316,7 @@ impl Dot for f16 {
                 second.as_ptr() as *const u16,
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -336,7 +336,7 @@ impl Dot for bf16 {
                 second.as_ptr() as *const u16,
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -356,7 +356,7 @@ impl Dot for i8 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -376,7 +376,7 @@ impl Dot for u8 {
                 second.as_ptr(),
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -396,7 +396,7 @@ impl Dot for e4m3 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -416,7 +416,7 @@ impl Dot for e5m2 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -436,7 +436,7 @@ impl Dot for e2m3 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -456,7 +456,7 @@ impl Dot for e3m2 {
                 second.as_ptr() as *const u8,
                 first.len(),
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -477,7 +477,7 @@ impl Dot for i4x2 {
                 second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -498,7 +498,7 @@ impl Dot for u4x2 {
                 second.as_ptr() as *const u8,
                 element_count,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -519,7 +519,7 @@ impl Dot for u1x8 {
                 second.as_ptr() as *const u8,
                 n,
                 &mut result,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -539,7 +539,7 @@ impl Dot for f16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -562,7 +562,7 @@ impl Dot for bf16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -585,7 +585,7 @@ impl Dot for f32c {
                 second.as_ptr() as *const f32,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -608,7 +608,7 @@ impl Dot for f64c {
                 second.as_ptr() as *const f64,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -665,7 +665,7 @@ impl VDot for f16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -687,7 +687,7 @@ impl VDot for bf16c {
                 second.as_ptr() as *const u16,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -709,7 +709,7 @@ impl VDot for f32c {
                 second.as_ptr() as *const f32,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -731,7 +731,7 @@ impl VDot for f64c {
                 second.as_ptr() as *const f64,
                 first.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }

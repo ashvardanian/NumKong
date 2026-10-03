@@ -17,7 +17,7 @@ use core::{ffi::c_void, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{Allocator, Error, Tensor, TensorMut, TensorRef, TensorView},
     types::{bf16, e2m1x2, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u4x2, StorageElement},
 };
@@ -797,7 +797,7 @@ impl Angulars for f32 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -822,7 +822,7 @@ impl Angulars for f32 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -851,7 +851,7 @@ impl Euclideans for f32 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -876,7 +876,7 @@ impl Euclideans for f32 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -905,7 +905,7 @@ impl Angulars for f64 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -930,7 +930,7 @@ impl Angulars for f64 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -959,7 +959,7 @@ impl Euclideans for f64 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -984,7 +984,7 @@ impl Euclideans for f64 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1013,7 +1013,7 @@ impl Angulars for f16 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1038,7 +1038,7 @@ impl Angulars for f16 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1067,7 +1067,7 @@ impl Euclideans for f16 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1092,7 +1092,7 @@ impl Euclideans for f16 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1121,7 +1121,7 @@ impl Angulars for bf16 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1146,7 +1146,7 @@ impl Angulars for bf16 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1175,7 +1175,7 @@ impl Euclideans for bf16 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1200,7 +1200,7 @@ impl Euclideans for bf16 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1229,7 +1229,7 @@ impl Angulars for i8 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1254,7 +1254,7 @@ impl Angulars for i8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1283,7 +1283,7 @@ impl Euclideans for i8 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1308,7 +1308,7 @@ impl Euclideans for i8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1337,7 +1337,7 @@ impl Angulars for u8 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1362,7 +1362,7 @@ impl Angulars for u8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1391,7 +1391,7 @@ impl Euclideans for u8 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1416,7 +1416,7 @@ impl Euclideans for u8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1445,7 +1445,7 @@ impl Angulars for e4m3 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1470,7 +1470,7 @@ impl Angulars for e4m3 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1499,7 +1499,7 @@ impl Euclideans for e4m3 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1524,7 +1524,7 @@ impl Euclideans for e4m3 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1553,7 +1553,7 @@ impl Angulars for e5m2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1578,7 +1578,7 @@ impl Angulars for e5m2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1607,7 +1607,7 @@ impl Euclideans for e5m2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1632,7 +1632,7 @@ impl Euclideans for e5m2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1661,7 +1661,7 @@ impl Angulars for e2m3 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1686,7 +1686,7 @@ impl Angulars for e2m3 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1715,7 +1715,7 @@ impl Angulars for e2m1x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1740,7 +1740,7 @@ impl Angulars for e2m1x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1769,7 +1769,7 @@ impl Euclideans for e2m3 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1794,7 +1794,7 @@ impl Euclideans for e2m3 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1823,7 +1823,7 @@ impl Euclideans for e2m1x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1848,7 +1848,7 @@ impl Euclideans for e2m1x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1877,7 +1877,7 @@ impl Angulars for e3m2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1902,7 +1902,7 @@ impl Angulars for e3m2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1931,7 +1931,7 @@ impl Euclideans for e3m2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1956,7 +1956,7 @@ impl Euclideans for e3m2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -1985,7 +1985,7 @@ impl Angulars for u4x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2009,7 +2009,7 @@ impl Angulars for u4x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2036,7 +2036,7 @@ impl Euclideans for u4x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2060,7 +2060,7 @@ impl Euclideans for u4x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2087,7 +2087,7 @@ impl Angulars for i4x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2111,7 +2111,7 @@ impl Angulars for i4x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2138,7 +2138,7 @@ impl Euclideans for i4x2 {
             depth,
             query_stride,
             output_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -2162,7 +2162,7 @@ impl Euclideans for i4x2 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()

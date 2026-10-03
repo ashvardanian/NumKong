@@ -25,7 +25,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::Error,
     types::bf16,
 };
@@ -116,7 +116,7 @@ impl SparseIntersect for u16 {
                 b.len(),
                 core::ptr::null_mut(),
                 &mut count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -141,7 +141,7 @@ impl SparseIntersect for u16 {
                 b.len(),
                 result.as_mut_ptr(),
                 &mut count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -161,7 +161,7 @@ impl SparseIntersect for u32 {
                 b.len(),
                 core::ptr::null_mut(),
                 &mut count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -186,7 +186,7 @@ impl SparseIntersect for u32 {
                 b.len(),
                 result.as_mut_ptr(),
                 &mut count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -206,7 +206,7 @@ impl SparseIntersect for u64 {
                 b.len(),
                 core::ptr::null_mut(),
                 &mut count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -231,7 +231,7 @@ impl SparseIntersect for u64 {
                 b.len(),
                 result.as_mut_ptr(),
                 &mut count,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -297,7 +297,7 @@ impl SparseDot for u16 {
                 a_indices.len(),
                 b_indices.len(),
                 &mut product,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -330,7 +330,7 @@ impl SparseDot for u32 {
                 a_indices.len(),
                 b_indices.len(),
                 &mut product,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;

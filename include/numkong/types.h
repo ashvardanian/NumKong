@@ -187,7 +187,8 @@
 #endif
 #endif
 
-#if NUMKONG_DEBUG && __STDC_HOSTED__ && !defined(__CUDA_ARCH__) && !defined(__METAL_VERSION__)
+#if NUMKONG_DEBUG && __STDC_HOSTED__ && !defined(__CUDA_ARCH__) && !defined(__HIP_DEVICE_COMPILE__) && \
+    !defined(__METAL_VERSION__)
 #include <stdio.h>  // `fprintf`, `stderr`
 #include <stdlib.h> // `abort`
 #endif
@@ -200,14 +201,18 @@
  */
 #if defined(__METAL_VERSION__)
 #define nk_assert_(condition)
-#elif NUMKONG_DEBUG && defined(__CUDA_ARCH__) // ? CUDA code for GPUs
-static __device__ __noinline__ void nk_assert_cuda_failure_(char const *condition, char const *file, int line) {
+#elif NUMKONG_DEBUG && (defined(__CUDA_ARCH__) || defined(__HIP_DEVICE_COMPILE__)) // ? CUDA or HIP code for GPUs
+static __device__ __noinline__ void nk_assert_device_failure_(char const *condition, char const *file, int line) {
     printf("Assertion failed: %s, in file %s, line %d\n", condition, file, line);
+#if defined(__HIP_DEVICE_COMPILE__)
+    abort();
+#else
     __trap();
+#endif
 }
-#define nk_assert_(condition)                                                          \
-    do {                                                                               \
-        if (!(condition)) { nk_assert_cuda_failure_(#condition, __FILE__, __LINE__); } \
+#define nk_assert_(condition)                                                            \
+    do {                                                                                 \
+        if (!(condition)) { nk_assert_device_failure_(#condition, __FILE__, __LINE__); } \
     } while (0)
 #elif NUMKONG_DEBUG && __STDC_HOSTED__ // ? CPU code with LibC
 NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *condition, char const *file, int line) {

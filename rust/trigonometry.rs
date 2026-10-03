@@ -6,7 +6,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef},
     types::{f16, StorageElement},
 };
@@ -102,7 +102,7 @@ impl TrigSin for f64 {
                 inputs.as_ptr(),
                 inputs.len(),
                 outputs.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -112,7 +112,7 @@ impl TrigSin for f64 {
     fn sin_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_sin_f64_best(p as *const f64, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
+        unsafe { nk_trig_sin_f64_best(p as *const f64, len, p, Capabilities::CPUS.bits(), null_mut()) }.check()
     }
 }
 
@@ -124,7 +124,7 @@ impl TrigSin for f32 {
                 inputs.as_ptr(),
                 inputs.len(),
                 outputs.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -134,7 +134,7 @@ impl TrigSin for f32 {
     fn sin_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_sin_f32_best(p as *const f32, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
+        unsafe { nk_trig_sin_f32_best(p as *const f32, len, p, Capabilities::CPUS.bits(), null_mut()) }.check()
     }
 }
 
@@ -146,7 +146,7 @@ impl TrigSin for f16 {
                 inputs.as_ptr() as *const u16,
                 inputs.len(),
                 outputs.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -161,7 +161,7 @@ impl TrigSin for f16 {
                 p as *const u16,
                 len,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -195,7 +195,7 @@ impl TrigCos for f64 {
                 inputs.as_ptr(),
                 inputs.len(),
                 outputs.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -205,7 +205,7 @@ impl TrigCos for f64 {
     fn cos_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_cos_f64_best(p as *const f64, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
+        unsafe { nk_trig_cos_f64_best(p as *const f64, len, p, Capabilities::CPUS.bits(), null_mut()) }.check()
     }
 }
 
@@ -217,7 +217,7 @@ impl TrigCos for f32 {
                 inputs.as_ptr(),
                 inputs.len(),
                 outputs.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -227,7 +227,7 @@ impl TrigCos for f32 {
     fn cos_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_cos_f32_best(p as *const f32, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
+        unsafe { nk_trig_cos_f32_best(p as *const f32, len, p, Capabilities::CPUS.bits(), null_mut()) }.check()
     }
 }
 
@@ -239,7 +239,7 @@ impl TrigCos for f16 {
                 inputs.as_ptr() as *const u16,
                 inputs.len(),
                 outputs.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -254,7 +254,7 @@ impl TrigCos for f16 {
                 p as *const u16,
                 len,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -288,7 +288,7 @@ impl TrigAtan for f64 {
                 inputs.as_ptr(),
                 inputs.len(),
                 outputs.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -298,7 +298,7 @@ impl TrigAtan for f64 {
     fn atan_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_atan_f64_best(p as *const f64, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
+        unsafe { nk_trig_atan_f64_best(p as *const f64, len, p, Capabilities::CPUS.bits(), null_mut()) }.check()
     }
 }
 
@@ -310,7 +310,7 @@ impl TrigAtan for f32 {
                 inputs.as_ptr(),
                 inputs.len(),
                 outputs.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -320,7 +320,7 @@ impl TrigAtan for f32 {
     fn atan_inplace(data: &mut [Self]) -> Result<(), Error> {
         let len = data.len();
         let p = data.as_mut_ptr();
-        unsafe { nk_trig_atan_f32_best(p as *const f32, len, p, enabled_cpu_capabilities_mask(), null_mut()) }.check()
+        unsafe { nk_trig_atan_f32_best(p as *const f32, len, p, Capabilities::CPUS.bits(), null_mut()) }.check()
     }
 }
 
@@ -332,7 +332,7 @@ impl TrigAtan for f16 {
                 inputs.as_ptr() as *const u16,
                 inputs.len(),
                 outputs.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -347,7 +347,7 @@ impl TrigAtan for f16 {
                 p as *const u16,
                 len,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }

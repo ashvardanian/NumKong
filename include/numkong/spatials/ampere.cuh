@@ -20,7 +20,7 @@
 #if NUMKONG_ARCH_CUDA_AMPERE_
 
 #include "numkong/dots/ampere.cuh"
-#include "numkong/spatials/simt.cuh"
+#include "numkong/spatials/cuda.cuh"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -31,10 +31,10 @@ extern "C" {
 
 #pragma region BF16
 
-nk_define_cross_simt_(angular, bf16, ampere, ampere, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(angular, bf16, ampere, ampere, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_bf16_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_bf16_norm_update_, /*norm_scale=*/1.0f)
-nk_define_cross_simt_(euclidean, bf16, ampere, ampere, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(euclidean, bf16, ampere, ampere, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_bf16_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_bf16_norm_update_, /*norm_scale=*/1.0f)
 
@@ -42,10 +42,10 @@ nk_define_cross_simt_(euclidean, bf16, ampere, ampere, bf16, bf16, f32, /*depth_
 
 #pragma region F16
 
-nk_define_cross_simt_(angular, f16, ampere, ampere, f16, f16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(angular, f16, ampere, ampere, f16, f16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_f16_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_f16_norm_update_, /*norm_scale=*/1.0f)
-nk_define_cross_simt_(euclidean, f16, ampere, ampere, f16, f16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_cuda_(euclidean, f16, ampere, ampere, f16, f16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_f16_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_f16_norm_update_, /*norm_scale=*/1.0f)
 
@@ -53,10 +53,10 @@ nk_define_cross_simt_(euclidean, f16, ampere, ampere, f16, f16, f32, /*depth_sim
 
 #pragma region E5M2
 
-nk_define_cross_simt_(angular, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(angular, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_simt_(euclidean, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(euclidean, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_e5m2_norm_update_ampere_, /*norm_scale=*/1.0f)
 
@@ -64,11 +64,11 @@ nk_define_cross_simt_(euclidean, e5m2, ampere, ampere, e5m2, e5m2, f32, /*depth_
 
 #pragma region E4M3
 
-nk_define_cross_simt_(angular, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(angular, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/65536.0f, nk_cross_norm_f32_k, nk_e4m3_norm_update_ampere_,
                       /*norm_scale=*/65536.0f)
-nk_define_cross_simt_(euclidean, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(euclidean, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/65536.0f, nk_cross_norm_f32_k, nk_e4m3_norm_update_ampere_,
                       /*norm_scale=*/65536.0f)
@@ -77,11 +77,11 @@ nk_define_cross_simt_(euclidean, e4m3, ampere, ampere, e4m3, e4m3, f32, /*depth_
 
 #pragma region E3M2
 
-nk_define_cross_simt_(angular, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(angular, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/16777216.0f, nk_cross_norm_f32_k, nk_e3m2_norm_update_ampere_,
                       /*norm_scale=*/16777216.0f)
-nk_define_cross_simt_(euclidean, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(euclidean, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_ampere_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/16777216.0f, nk_cross_norm_f32_k, nk_e3m2_norm_update_ampere_,
                       /*norm_scale=*/16777216.0f)
@@ -90,19 +90,19 @@ nk_define_cross_simt_(euclidean, e3m2, ampere, ampere, e3m2, e3m2, f32, /*depth_
 
 #pragma region E2M3
 
-nk_define_cross_packed_simt_(angular, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_packed_cuda_(angular, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
                              /*dimensions_per_value=*/1, nk_dots_e2m3_packed_multiply_ampere_,
                              nk_cross_epilogue_i32_to_f32_k, /*output_scale=*/0.015625f, nk_cross_norm_f32_k,
                              nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f)
-nk_define_cross_packed_simt_(euclidean, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_packed_cuda_(euclidean, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
                              /*dimensions_per_value=*/1, nk_dots_e2m3_packed_multiply_ampere_,
                              nk_cross_epilogue_i32_to_f32_k, /*output_scale=*/0.015625f, nk_cross_norm_f32_k,
                              nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f)
-nk_define_cross_symmetric_simt_(angular, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_symmetric_cuda_(angular, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
                                 /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_ampere_,
                                 nk_cross_epilogue_i32_to_f32_k, /*output_scale=*/0.015625f, nk_cross_norm_f32_k,
                                 nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f)
-nk_define_cross_symmetric_simt_(euclidean, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_symmetric_cuda_(euclidean, e2m3, ampere, ampere, e2m3, i8, f32, /*depth_simd_dimensions=*/16,
                                 /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_ampere_,
                                 nk_cross_epilogue_i32_to_f32_k, /*output_scale=*/0.015625f, nk_cross_norm_f32_k,
                                 nk_e2m3_norm_update_ampere_, /*norm_scale=*/0.015625f)
@@ -111,10 +111,10 @@ nk_define_cross_symmetric_simt_(euclidean, e2m3, ampere, ampere, e2m3, i8, f32, 
 
 #pragma region E2M1
 
-nk_define_cross_simt_(angular, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(angular, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_ampere_, nk_cross_epilogue_i32_to_f32_k,
                       /*output_scale=*/0.25f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f)
-nk_define_cross_simt_(euclidean, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(euclidean, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_ampere_, nk_cross_epilogue_i32_to_f32_k,
                       /*output_scale=*/0.25f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f)
 
@@ -122,10 +122,10 @@ nk_define_cross_simt_(euclidean, e2m1, ampere, ampere, e2m1x2, e2m1x2, f32, /*de
 
 #pragma region I8
 
-nk_define_cross_simt_(angular, i8, ampere, ampere, i8, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(angular, i8, ampere, ampere, i8, i8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_i8_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_simt_(euclidean, i8, ampere, ampere, i8, i8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(euclidean, i8, ampere, ampere, i8, i8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_i8_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_ampere_, /*norm_scale=*/1.0f)
 
@@ -133,10 +133,10 @@ nk_define_cross_simt_(euclidean, i8, ampere, ampere, i8, i8, f32, /*depth_simd_d
 
 #pragma region I4
 
-nk_define_cross_simt_(angular, i4, ampere, ampere, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(angular, i4, ampere, ampere, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_simt_(euclidean, i4, ampere, ampere, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(euclidean, i4, ampere, ampere, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_ampere_, /*norm_scale=*/1.0f)
 
@@ -144,10 +144,10 @@ nk_define_cross_simt_(euclidean, i4, ampere, ampere, i4x2, i4x2, f32, /*depth_si
 
 #pragma region U8
 
-nk_define_cross_simt_(angular, u8, ampere, ampere, u8, u8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(angular, u8, ampere, ampere, u8, u8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_u8_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_simt_(euclidean, u8, ampere, ampere, u8, u8, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_cuda_(euclidean, u8, ampere, ampere, u8, u8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_u8_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_ampere_, /*norm_scale=*/1.0f)
 
@@ -155,10 +155,10 @@ nk_define_cross_simt_(euclidean, u8, ampere, ampere, u8, u8, f32, /*depth_simd_d
 
 #pragma region U4
 
-nk_define_cross_simt_(angular, u4, ampere, ampere, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(angular, u4, ampere, ampere, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_simt_(euclidean, u4, ampere, ampere, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_cuda_(euclidean, u4, ampere, ampere, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_ampere_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_ampere_, /*norm_scale=*/1.0f)
 

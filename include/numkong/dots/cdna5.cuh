@@ -430,9 +430,9 @@ NUMKONG_DEVICE void nk_dots_u4_multiply_cdna5_(nk_fui32_t accumulators[4][2][8],
 
 #pragma region BF16
 
-nk_define_cross_pack_simt_(bf16, cdna5, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(bf16, cdna5, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, bf16, cdna5, cdna5, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+nk_define_cross_rocm_(dot, bf16, cdna5, cdna5, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_bf16_multiply_cdna5_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -440,9 +440,9 @@ nk_define_cross_simt_(dot, bf16, cdna5, cdna5, bf16, bf16, f32, /*depth_simd_dim
 
 #pragma region F16
 
-nk_define_cross_pack_simt_(f16, cdna5, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(f16, cdna5, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, f16, cdna5, cdna5, f16, f16, f32, /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1,
+nk_define_cross_rocm_(dot, f16, cdna5, cdna5, f16, f16, f32, /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1,
                       nk_dots_f16_multiply_cdna5_, nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
                       NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -450,9 +450,9 @@ nk_define_cross_simt_(dot, f16, cdna5, cdna5, f16, f16, f32, /*depth_simd_dimens
 
 #pragma region E5M2
 
-nk_define_cross_pack_simt_(e5m2, cdna5, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e5m2, cdna5, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e5m2, cdna5, cdna5, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_rocm_(dot, e5m2, cdna5, cdna5, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_cdna5_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -460,9 +460,9 @@ nk_define_cross_simt_(dot, e5m2, cdna5, cdna5, e5m2, e5m2, f32, /*depth_simd_dim
 
 #pragma region E4M3
 
-nk_define_cross_pack_simt_(e4m3, cdna5, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e4m3, cdna5, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e4m3, cdna5, cdna5, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_rocm_(dot, e4m3, cdna5, cdna5, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_cdna5_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -470,9 +470,9 @@ nk_define_cross_simt_(dot, e4m3, cdna5, cdna5, e4m3, e4m3, f32, /*depth_simd_dim
 
 #pragma region E3M2
 
-nk_define_cross_pack_simt_(e3m2, cdna5, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e3m2, cdna5, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e3m2, cdna5, cdna5, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_rocm_(dot, e3m2, cdna5, cdna5, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_cdna5_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -480,9 +480,9 @@ nk_define_cross_simt_(dot, e3m2, cdna5, cdna5, e3m2, e3m2, f32, /*depth_simd_dim
 
 #pragma region E2M3
 
-nk_define_cross_pack_simt_(e2m3, cdna5, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e2m3, cdna5, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, e2m3, cdna5, cdna5, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+nk_define_cross_rocm_(dot, e2m3, cdna5, cdna5, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_cdna5_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -490,9 +490,9 @@ nk_define_cross_simt_(dot, e2m3, cdna5, cdna5, e2m3, e2m3, f32, /*depth_simd_dim
 
 #pragma region E2M1
 
-nk_define_cross_pack_simt_(e2m1, cdna5, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e2m1, cdna5, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, e2m1, cdna5, cdna5, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+nk_define_cross_rocm_(dot, e2m1, cdna5, cdna5, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_cdna5_, nk_cross_epilogue_f32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -500,9 +500,9 @@ nk_define_cross_simt_(dot, e2m1, cdna5, cdna5, e2m1x2, e2m1x2, f32, /*depth_simd
 
 #pragma region I8
 
-nk_define_cross_pack_simt_(i8, cdna5, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(i8, cdna5, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, i8, cdna5, cdna5, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
+nk_define_cross_rocm_(dot, i8, cdna5, cdna5, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_i8_multiply_cdna5_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
                       NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -510,9 +510,9 @@ nk_define_cross_simt_(dot, i8, cdna5, cdna5, i8, i8, i32, /*depth_simd_dimension
 
 #pragma region I4
 
-nk_define_cross_pack_simt_(i4, cdna5, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(i4, cdna5, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, i4, cdna5, cdna5, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
+nk_define_cross_rocm_(dot, i4, cdna5, cdna5, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_cdna5_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -520,9 +520,9 @@ nk_define_cross_simt_(dot, i4, cdna5, cdna5, i4x2, i4x2, i32, /*depth_simd_dimen
 
 #pragma region U8
 
-nk_define_cross_pack_simt_(u8, cdna5, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(u8, cdna5, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_simt_(dot, u8, cdna5, cdna5, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
+nk_define_cross_rocm_(dot, u8, cdna5, cdna5, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_u8_multiply_cdna5_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
                       NUMKONG_NULL, /*norm_scale=*/1.0f)
 
@@ -530,9 +530,9 @@ nk_define_cross_simt_(dot, u8, cdna5, cdna5, u8, u8, u32, /*depth_simd_dimension
 
 #pragma region U4
 
-nk_define_cross_pack_simt_(u4, cdna5, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(u4, cdna5, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_simt_(dot, u4, cdna5, cdna5, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
+nk_define_cross_rocm_(dot, u4, cdna5, cdna5, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_cdna5_, nk_cross_epilogue_i32_k,
                       /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 

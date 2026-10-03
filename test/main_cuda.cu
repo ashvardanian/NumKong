@@ -24,7 +24,7 @@
 #include <vector> // `std::vector`
 
 #include "harness.hpp" // `error_stats_section_t`
-#include "harness.cuh" // `cuda_backend_t`, `device_capabilities`
+#include "harness.cuh" // `cuda_backend_t`
 #include "each.hpp"    // `test_scale`, `test_sum`, `test_blend`, `test_fma`, `test_rmsnorm`, `test_swiglu`
 #include "cast.hpp"    // `test_cast_pairs`, `check_block_scaled_casts`
 #include "reduce.hpp"  // `test_reduce_moments`, `test_reduce_minmax`
@@ -277,17 +277,17 @@ static bool test_device_tensor_view_ops_() {
     for (std::size_t i = 0; i < count; ++i) sum_all += static_cast<float>(flat[i]);
     float const host_checksum = 2.0f * sum_all + host(1, 2) + static_cast<float>(count);
 
-    float *device_data = nullptr, *device_out = nullptr;
-    nk_cuda_assert_(cudaMalloc(&device_data, count * sizeof(float)));
-    nk_cuda_assert_(cudaMalloc(&device_out, sizeof(float)));
-    nk_cuda_assert_(cudaMemcpy(device_data, host.data(), count * sizeof(float), cudaMemcpyHostToDevice));
-    tensor_view_ops_kernel_<<<1, 1>>>(device_data, rows, columns, device_out);
+    using bytes_t = nk::vector<char, cuda_backend_t::allocator<char>>;
+    auto [device_data, data_status] = bytes_t::uninitialized(count * sizeof(float));
+    auto [device_out, out_status] = bytes_t::uninitialized(sizeof(float));
+    if (nk::failed(data_status) || nk::failed(out_status)) return false;
+    std::memcpy(device_data.raw_values_data(), host.data(), count * sizeof(float));
+    auto *const out = reinterpret_cast<float *>(device_out.raw_values_data());
+    tensor_view_ops_kernel_<<<1, 1>>>(reinterpret_cast<float const *>(device_data.raw_values_data()), rows, columns,
+                                      out);
     nk_cuda_assert_(cudaGetLastError());
-    nk_cuda_assert_(cudaDeviceSynchronize());
-    float device_checksum = 0.0f;
-    nk_cuda_assert_(cudaMemcpy(&device_checksum, device_out, sizeof(float), cudaMemcpyDeviceToHost));
-    nk_cuda_assert_(cudaFree(device_data));
-    nk_cuda_assert_(cudaFree(device_out));
+    if (nk_stream_synchronize_cuda(nullptr) != nk_success_k) return false;
+    float const device_checksum = *out;
     float const diff = device_checksum > host_checksum ? device_checksum - host_checksum //
                                                        : host_checksum - device_checksum;
     return diff < 1e-3f * (1.0f + host_checksum);
@@ -482,20 +482,18 @@ constexpr std::size_t batch_size_ = 1u << 20;
 template <typename source_type_, typename destination_type_, typename kernel_type_>
 static bool run_kernel_batch_(source_type_ const *host_source, destination_type_ *host_destination, std::size_t count,
                               kernel_type_ kernel) {
-    source_type_ *device_source = nullptr;
-    destination_type_ *device_destination = nullptr;
-    nk_cuda_assert_(cudaMalloc(&device_source, count * sizeof(source_type_)));
-    nk_cuda_assert_(cudaMalloc(&device_destination, count * sizeof(destination_type_)));
-    nk_cuda_assert_(cudaMemcpy(device_source, host_source, count * sizeof(source_type_), cudaMemcpyHostToDevice));
+    using bytes_t = nk::vector<char, cuda_backend_t::allocator<char>>;
+    auto [device_source, source_status] = bytes_t::uninitialized(count * sizeof(source_type_));
+    auto [device_destination, destination_status] = bytes_t::uninitialized(count * sizeof(destination_type_));
+    if (nk::failed(source_status) || nk::failed(destination_status)) return false;
+    std::memcpy(device_source.raw_values_data(), host_source, count * sizeof(source_type_));
     dim3 block(256);
     dim3 grid(static_cast<unsigned>(nk::divide_round_up(count, block.x)));
-    kernel(device_source, device_destination, count, grid, block);
+    kernel(reinterpret_cast<source_type_ const *>(device_source.raw_values_data()),
+           reinterpret_cast<destination_type_ *>(device_destination.raw_values_data()), count, grid, block);
     nk_cuda_assert_(cudaGetLastError());
-    nk_cuda_assert_(cudaDeviceSynchronize());
-    nk_cuda_assert_(
-        cudaMemcpy(host_destination, device_destination, count * sizeof(destination_type_), cudaMemcpyDeviceToHost));
-    nk_cuda_assert_(cudaFree(device_source));
-    nk_cuda_assert_(cudaFree(device_destination));
+    if (nk_stream_synchronize_cuda(nullptr) != nk_success_k) return false;
+    std::memcpy(host_destination, device_destination.raw_values_data(), count * sizeof(destination_type_));
     return true;
 }
 
@@ -800,7 +798,7 @@ int main(int, char **argv) {
         fmt::println("- CUDA: no device");
         return 0;
     }
-    nk_capability_t const capabilities = device_capabilities<cuda_runtime_t>();
+    nk_capability_t const capabilities = cuda_backend_t::capabilities();
     char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
     nk_capabilities_name(capabilities, names, sizeof(names));
     fmt::println("- CUDA: {} devices, the first running {}", devices.value, names);

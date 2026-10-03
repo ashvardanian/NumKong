@@ -68,7 +68,7 @@ extension Float64: NumKongHaversine {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Device.cpuEnabled.native,
+            Capabilities.cpus.native,
             nil
         ) == nk_success_k
     }
@@ -97,7 +97,7 @@ extension Float64: NumKongVincenty {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Device.cpuEnabled.native,
+            Capabilities.cpus.native,
             nil
         ) == nk_success_k
     }
@@ -126,7 +126,7 @@ extension Float32: NumKongHaversine {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Device.cpuEnabled.native,
+            Capabilities.cpus.native,
             nil
         ) == nk_success_k
     }
@@ -155,7 +155,7 @@ extension Float32: NumKongVincenty {
             bLon.baseAddress!,
             nk_size_t(n),
             result.baseAddress!,
-            Device.cpuEnabled.native,
+            Capabilities.cpus.native,
             nil
         ) == nk_success_k
     }
@@ -170,7 +170,7 @@ extension Float64 {
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f64_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
+            nk_haversine_f64_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
         }
     }
 
@@ -180,7 +180,7 @@ extension Float64 {
     ) -> [Float64]?
     where A.Element == Float64, B.Element == Float64, C.Element == Float64, D.Element == Float64 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f64_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
+            nk_vincenty_f64_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
         }
     }
 }
@@ -192,7 +192,7 @@ extension Float32 {
     ) -> [Float32]?
     where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_haversine_f32_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
+            nk_haversine_f32_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
         }
     }
 
@@ -202,7 +202,7 @@ extension Float32 {
     ) -> [Float32]?
     where A.Element == Float32, B.Element == Float32, C.Element == Float32, D.Element == Float32 {
         _nkWithGeoQuad(aLat, aLon, bLat, bLon) { a, b, c, d, r, n in
-            nk_vincenty_f32_best(a, b, c, d, nk_size_t(n), r, Device.cpuEnabled.native, nil)
+            nk_vincenty_f32_best(a, b, c, d, nk_size_t(n), r, Capabilities.cpus.native, nil)
         }
     }
 }
@@ -300,7 +300,8 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     public static let apple9 = Capabilities(rawValue: 1 << 61)
     public static let apple10 = Capabilities(rawValue: 1 << 62)
 
-    /// Every CPU capability, the bits below the first GPU vendor's.
+    /// Every CPU capability, the bits below the first GPU vendor's, which every CPU kernel call
+    /// passes, as the library clamps it to ``Device/capabilitiesEnabled``.
     public static let cpus = Capabilities(rawValue: (1 << 48) - 1)
     /// Every GPU capability.
     public static let gpus: Capabilities = [
@@ -370,14 +371,6 @@ public struct Device: Sendable, Equatable {
     /// The host CPU, which every build has.
     public static let cpu = Device(kind: .cpu, unchecked: 0)
 
-    /// The CPU mask every kernel call passes; ``capabilitiesEnable(_:)`` writes it unsynchronized,
-    /// so narrow before threads start.
-    @usableFromInline nonisolated(unsafe) static var cpuEnabled: Capabilities = {
-        var mask = Capabilities.serial.native
-        _ = nk_cpu_capabilities_enabled(&mask)
-        return Capabilities(rawValue: UInt64(mask))
-    }()
-
     private init(kind: DeviceKind, unchecked ordinal: Int) {
         self.kind = kind
         self.ordinal = ordinal
@@ -432,35 +425,21 @@ public struct Device: Sendable, Equatable {
         return Capabilities(rawValue: UInt64(mask))
     }
 
-    /// What this device's kernel calls pass: ``capabilitiesDetected`` and ``capabilitiesCompiled``
-    /// at once. On the CPU it is what every kernel call of this module passes, narrowed by
-    /// ``capabilitiesEnable(_:)``, and always contains ``Capabilities/serial``.
+    /// What this device's kernel calls run within: ``capabilitiesDetected`` and
+    /// ``capabilitiesCompiled`` at once. On the CPU the library settles it as it loads, and it always
+    /// contains ``Capabilities/serial``.
     public var capabilitiesEnabled: Capabilities {
         get throws {
             var mask: nk_capability_t = 0
             let device = nk_size_t(ordinal)
             switch kind {
-            case .cpu: return Device.cpuEnabled
+            case .cpu: try _nkCheck(nk_cpu_capabilities_enabled(&mask))
             case .cuda: try _nkCheck(nk_cuda_capabilities_enabled(device, &mask))
             case .rocm: try _nkCheck(nk_rocm_capabilities_enabled(device, &mask))
             case .metal: try _nkCheck(nk_metal_capabilities_enabled(device, &mask))
             }
             return Capabilities(rawValue: UInt64(mask))
         }
-    }
-
-    /// Makes `wanted` the CPU's ``capabilitiesEnabled`` set, clamped to what it detects and this
-    /// binary compiled and keeping ``Capabilities/serial``. Matrices packed before the call must be
-    /// packed again under the new set.
-    /// - Returns: The set that took effect.
-    /// - Throws: ``Error`` on a GPU, which keeps no such set.
-    @discardableResult
-    public func capabilitiesEnable(_ wanted: Capabilities) throws -> Capabilities {
-        guard kind == .cpu else { throw fail(.missingKernel, "GPUs keep no capability set") }
-        var mask = Capabilities.serial.native
-        _ = nk_cpu_capabilities_enabled(&mask)
-        Device.cpuEnabled = wanted.intersection(Capabilities(rawValue: UInt64(mask))).union(.serial)
-        return Device.cpuEnabled
     }
 
     /// Configures the current thread for `capabilities`, usually ``capabilitiesEnabled``, e.g. AMX

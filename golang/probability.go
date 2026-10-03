@@ -18,7 +18,7 @@ func KullbackLeiblerF64(a, b []float64) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	check(C.nk_kld_f64_best((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
+	check(C.nk_kld_f64_best((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result, C.nk_cap_cpus_k, nil))
 	return float64(result)
 }
 
@@ -32,7 +32,7 @@ func KullbackLeiblerF32(a, b []float32) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	check(C.nk_kld_f32_best((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
+	check(C.nk_kld_f32_best((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result, C.nk_cap_cpus_k, nil))
 	return float64(result)
 }
 
@@ -46,7 +46,7 @@ func JensenShannonF64(a, b []float64) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	check(C.nk_jsd_f64_best((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
+	check(C.nk_jsd_f64_best((*C.nk_f64_t)(&a[0]), (*C.nk_f64_t)(&b[0]), C.nk_size_t(len(a)), &result, C.nk_cap_cpus_k, nil))
 	return float64(result)
 }
 
@@ -60,6 +60,6 @@ func JensenShannonF32(a, b []float32) float64 {
 		return 0
 	}
 	var result C.nk_f64_t
-	check(C.nk_jsd_f32_best((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
+	check(C.nk_jsd_f32_best((*C.nk_f32_t)(&a[0]), (*C.nk_f32_t)(&b[0]), C.nk_size_t(len(a)), &result, C.nk_cap_cpus_k, nil))
 	return float64(result)
 }

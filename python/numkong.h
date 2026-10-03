@@ -283,9 +283,6 @@ int py_object_is_scalar(PyObject *obj);
  */
 int py_number_to_f64(PyObject *obj, nk_f64_t *value);
 
-/** The CPU mask kernels run with by default, which @c Device.capabilities_enable sets. */
-extern nk_capability_t default_capabilities;
-
 /**
  *  @brief Parse the `capabilities=` or `stream=` keyword of every kernel-running function.
  *  @param[in] key Keyword name; any other than these two raises @c TypeError.

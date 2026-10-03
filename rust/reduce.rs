@@ -19,7 +19,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{Error, MinMaxAxisResult, MinMaxResult, MomentsAxisResult, Tensor, TensorMut, TensorRef},
     types::{bf16, e2m3, e3m2, e4m3, e5m2, f16, i4x2, u1x8, u4x2, StorageElement},
     vector::VectorIndex,
@@ -459,7 +459,7 @@ where
         stride,
         &mut sum,
         &mut sumsq,
-        enabled_cpu_capabilities_mask(),
+        Capabilities::CPUS.bits(),
         null_mut(),
     )
     .check()?;
@@ -689,7 +689,7 @@ where
         &mut result.min_index,
         &mut result.max_value,
         &mut result.max_index,
-        enabled_cpu_capabilities_mask(),
+        Capabilities::CPUS.bits(),
         null_mut(),
     )
     .check()?;

@@ -18,7 +18,7 @@
 
 #if NUMKONG_ARCH_CUDA_AMPERE_
 
-#include "numkong/attention/simt.cuh" // `nk_attention_schedule_next_`, `nk_attention_fallback_`
+#include "numkong/attention/cuda.cuh" // `nk_attention_schedule_next_`, `nk_attention_fallback_`
 #include "numkong/dots/ampere.cuh" // `nk_mma_bf16_ampere_`, `nk_load_matrices_x4_ampere_`, `nk_copy_b128_async_ampere_`
 
 #if defined(__cplusplus)
@@ -758,12 +758,12 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_mma_ampere_(
         queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
         scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
     if (depth > nk_attention_wide_depth_ampere_k)
-        return nk_launch_resident_simt_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
+        return nk_launch_resident_cuda_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
                                         stream);
     nk_attention_width_t const width = depth <= nk_attention_narrow_depth_ampere_k ? nk_attention_width_128_k
                                                                                    : nk_attention_width_256_k;
     nk_size_t const shared_bytes = nk_attention_shared_layout_ampere_(dtype, mma_dtype, width, depth, &arguments);
-    return nk_launch_resident_simt_(
+    return nk_launch_resident_cuda_(
         width == nk_attention_width_128_k ? narrow_kernel : wide_kernel, nk_attention_threads_k, shared_bytes,
         nk_attention_shared_ceiling_ampere_(dtype, mma_dtype, width), NUMKONG_SIZE_MAX, &arguments, stream);
 }
@@ -802,23 +802,23 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_f16_mma_(
 #pragma region Instantiations
 
 nk_define_attention_pack_size_simt_(bf16, ampere, 2)
-nk_define_attention_packed_shape_simt_(bf16, ampere)
-nk_define_attention_pack_simt_(bf16, ampere, bf16)
-nk_define_attention_packed_simt_(bf16, ampere, ampere, nk_attention_launch_ampere_, bf16, nk_cross_epilogue_f32_k,
+nk_define_attention_packed_shape_cuda_(bf16, ampere)
+nk_define_attention_pack_cuda_(bf16, ampere, bf16)
+nk_define_attention_packed_cuda_(bf16, ampere, ampere, nk_attention_launch_ampere_, bf16, nk_cross_epilogue_f32_k,
                                  nk_attention_scores_bf16_ampere_, nk_mma_bf16_ampere_,
                                  nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
 
 nk_define_attention_pack_size_simt_(e4m3, ampere, 1)
-nk_define_attention_packed_shape_simt_(e4m3, ampere)
-nk_define_attention_pack_simt_(e4m3, ampere, e4m3)
-nk_define_attention_packed_simt_(e4m3, ampere, ampere_f16_mma, nk_attention_launch_ampere_f16_mma_, e4m3,
+nk_define_attention_packed_shape_cuda_(e4m3, ampere)
+nk_define_attention_pack_cuda_(e4m3, ampere, e4m3)
+nk_define_attention_packed_cuda_(e4m3, ampere, ampere_f16_mma, nk_attention_launch_ampere_f16_mma_, e4m3,
                                  nk_cross_epilogue_f32_k, nk_attention_scores_e4m3_ampere_, nk_mma_f16_ampere_,
                                  nk_attention_weights_f16_ampere_, 65536.0f, 256.0f)
 
 nk_define_attention_pack_size_simt_(i8, ampere, 1)
-nk_define_attention_packed_shape_simt_(i8, ampere)
-nk_define_attention_pack_simt_(i8, ampere, i8)
-nk_define_attention_packed_simt_(i8, ampere, ampere, nk_attention_launch_ampere_, i8, nk_cross_epilogue_i32_to_f32_k,
+nk_define_attention_packed_shape_cuda_(i8, ampere)
+nk_define_attention_pack_cuda_(i8, ampere, i8)
+nk_define_attention_packed_cuda_(i8, ampere, ampere, nk_attention_launch_ampere_, i8, nk_cross_epilogue_i32_to_f32_k,
                                  nk_attention_scores_i8_ampere_, nk_mma_u8i8_ampere_, nk_attention_weights_u8_ampere_,
                                  1.0f, 1.0f)
 

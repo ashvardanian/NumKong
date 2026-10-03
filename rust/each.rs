@@ -50,7 +50,7 @@
 use core::{ffi::c_void, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{check_len, Allocator, Error, Tensor, TensorMut, TensorRef},
     types::{bf16, bf16c, e2m3, e3m2, e4m3, e5m2, f16, f16c, f32c, f64c, StorageElement},
 };
@@ -1005,7 +1005,7 @@ impl EachScale for f64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1022,7 +1022,7 @@ impl EachScale for f64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1041,7 +1041,7 @@ impl EachScale for f32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1058,7 +1058,7 @@ impl EachScale for f32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1077,7 +1077,7 @@ impl EachScale for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1094,7 +1094,7 @@ impl EachScale for f16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1113,7 +1113,7 @@ impl EachScale for bf16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1130,7 +1130,7 @@ impl EachScale for bf16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1149,7 +1149,7 @@ impl EachScale for i8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1166,7 +1166,7 @@ impl EachScale for i8 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1185,7 +1185,7 @@ impl EachScale for u8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1202,7 +1202,7 @@ impl EachScale for u8 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1221,7 +1221,7 @@ impl EachScale for i16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1238,7 +1238,7 @@ impl EachScale for i16 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1257,7 +1257,7 @@ impl EachScale for u16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1274,7 +1274,7 @@ impl EachScale for u16 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1293,7 +1293,7 @@ impl EachScale for i32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1310,7 +1310,7 @@ impl EachScale for i32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1329,7 +1329,7 @@ impl EachScale for u32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1346,7 +1346,7 @@ impl EachScale for u32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1365,7 +1365,7 @@ impl EachScale for i64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1382,7 +1382,7 @@ impl EachScale for i64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1401,7 +1401,7 @@ impl EachScale for u64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1418,7 +1418,7 @@ impl EachScale for u64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1437,7 +1437,7 @@ impl EachScale for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1454,7 +1454,7 @@ impl EachScale for e4m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1473,7 +1473,7 @@ impl EachScale for e5m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1490,7 +1490,7 @@ impl EachScale for e5m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1509,7 +1509,7 @@ impl EachScale for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1526,7 +1526,7 @@ impl EachScale for e2m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1545,7 +1545,7 @@ impl EachScale for e3m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1562,7 +1562,7 @@ impl EachScale for e3m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1581,7 +1581,7 @@ impl EachScale for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1598,7 +1598,7 @@ impl EachScale for f64c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1617,7 +1617,7 @@ impl EachScale for f32c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1634,7 +1634,7 @@ impl EachScale for f32c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1698,7 +1698,7 @@ impl EachSum for f64 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1715,7 +1715,7 @@ impl EachSum for f64 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1733,7 +1733,7 @@ impl EachSum for f32 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1750,7 +1750,7 @@ impl EachSum for f32 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1768,7 +1768,7 @@ impl EachSum for f16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1785,7 +1785,7 @@ impl EachSum for f16 {
                 other.as_ptr() as *const u16,
                 len,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1803,7 +1803,7 @@ impl EachSum for bf16 {
                 b.as_ptr() as *const u16,
                 a.len(),
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1820,7 +1820,7 @@ impl EachSum for bf16 {
                 other.as_ptr() as *const u16,
                 len,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1838,7 +1838,7 @@ impl EachSum for i8 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1855,7 +1855,7 @@ impl EachSum for i8 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1873,7 +1873,7 @@ impl EachSum for u8 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1890,7 +1890,7 @@ impl EachSum for u8 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1908,7 +1908,7 @@ impl EachSum for i16 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1925,7 +1925,7 @@ impl EachSum for i16 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1943,7 +1943,7 @@ impl EachSum for u16 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1960,7 +1960,7 @@ impl EachSum for u16 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1978,7 +1978,7 @@ impl EachSum for i32 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -1995,7 +1995,7 @@ impl EachSum for i32 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2013,7 +2013,7 @@ impl EachSum for u32 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2030,7 +2030,7 @@ impl EachSum for u32 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2048,7 +2048,7 @@ impl EachSum for i64 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2065,7 +2065,7 @@ impl EachSum for i64 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2083,7 +2083,7 @@ impl EachSum for u64 {
                 b.as_ptr(),
                 a.len(),
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2100,7 +2100,7 @@ impl EachSum for u64 {
                 other.as_ptr(),
                 len,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2118,7 +2118,7 @@ impl EachSum for e4m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2135,7 +2135,7 @@ impl EachSum for e4m3 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2153,7 +2153,7 @@ impl EachSum for e5m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2170,7 +2170,7 @@ impl EachSum for e5m2 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2188,7 +2188,7 @@ impl EachSum for e2m3 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2205,7 +2205,7 @@ impl EachSum for e2m3 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2223,7 +2223,7 @@ impl EachSum for e3m2 {
                 b.as_ptr() as *const u8,
                 a.len(),
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2240,7 +2240,7 @@ impl EachSum for e3m2 {
                 other.as_ptr() as *const u8,
                 len,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2258,7 +2258,7 @@ impl EachSum for f64c {
                 b.as_ptr() as *const f64,
                 a.len(),
                 result.as_mut_ptr() as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2275,7 +2275,7 @@ impl EachSum for f64c {
                 other.as_ptr() as *const f64,
                 len,
                 p as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2293,7 +2293,7 @@ impl EachSum for f32c {
                 b.as_ptr() as *const f32,
                 a.len(),
                 result.as_mut_ptr() as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2310,7 +2310,7 @@ impl EachSum for f32c {
                 other.as_ptr() as *const f32,
                 len,
                 p as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2387,7 +2387,7 @@ impl EachBlend for f64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2406,7 +2406,7 @@ impl EachBlend for f64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2427,7 +2427,7 @@ impl EachBlend for f32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2446,7 +2446,7 @@ impl EachBlend for f32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2467,7 +2467,7 @@ impl EachBlend for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2486,7 +2486,7 @@ impl EachBlend for f16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2507,7 +2507,7 @@ impl EachBlend for bf16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2526,7 +2526,7 @@ impl EachBlend for bf16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2547,7 +2547,7 @@ impl EachBlend for i8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2566,7 +2566,7 @@ impl EachBlend for i8 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2587,7 +2587,7 @@ impl EachBlend for u8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2606,7 +2606,7 @@ impl EachBlend for u8 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2627,7 +2627,7 @@ impl EachBlend for i16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2646,7 +2646,7 @@ impl EachBlend for i16 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2667,7 +2667,7 @@ impl EachBlend for u16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2686,7 +2686,7 @@ impl EachBlend for u16 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2707,7 +2707,7 @@ impl EachBlend for i32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2726,7 +2726,7 @@ impl EachBlend for i32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2747,7 +2747,7 @@ impl EachBlend for u32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2766,7 +2766,7 @@ impl EachBlend for u32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2787,7 +2787,7 @@ impl EachBlend for i64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2806,7 +2806,7 @@ impl EachBlend for i64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2827,7 +2827,7 @@ impl EachBlend for u64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2846,7 +2846,7 @@ impl EachBlend for u64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2867,7 +2867,7 @@ impl EachBlend for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2886,7 +2886,7 @@ impl EachBlend for e4m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2907,7 +2907,7 @@ impl EachBlend for e5m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2926,7 +2926,7 @@ impl EachBlend for e5m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2947,7 +2947,7 @@ impl EachBlend for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2966,7 +2966,7 @@ impl EachBlend for e2m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -2987,7 +2987,7 @@ impl EachBlend for e3m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3006,7 +3006,7 @@ impl EachBlend for e3m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3033,7 +3033,7 @@ impl EachBlend for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3057,7 +3057,7 @@ impl EachBlend for f64c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3084,7 +3084,7 @@ impl EachBlend for f32c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3108,7 +3108,7 @@ impl EachBlend for f32c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3209,7 +3209,7 @@ impl EachFma for f64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3229,7 +3229,7 @@ impl EachFma for f64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3252,7 +3252,7 @@ impl EachFma for f32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3272,7 +3272,7 @@ impl EachFma for f32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3295,7 +3295,7 @@ impl EachFma for f16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3315,7 +3315,7 @@ impl EachFma for f16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3338,7 +3338,7 @@ impl EachFma for bf16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3358,7 +3358,7 @@ impl EachFma for bf16 {
                 &alpha,
                 &beta,
                 p as *mut u16,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3381,7 +3381,7 @@ impl EachFma for i8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3401,7 +3401,7 @@ impl EachFma for i8 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3424,7 +3424,7 @@ impl EachFma for u8 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3444,7 +3444,7 @@ impl EachFma for u8 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3467,7 +3467,7 @@ impl EachFma for e4m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3487,7 +3487,7 @@ impl EachFma for e4m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3510,7 +3510,7 @@ impl EachFma for e5m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3530,7 +3530,7 @@ impl EachFma for e5m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3553,7 +3553,7 @@ impl EachFma for e2m3 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3573,7 +3573,7 @@ impl EachFma for e2m3 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3596,7 +3596,7 @@ impl EachFma for e3m2 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr() as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3616,7 +3616,7 @@ impl EachFma for e3m2 {
                 &alpha,
                 &beta,
                 p as *mut u8,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3639,7 +3639,7 @@ impl EachFma for i16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3659,7 +3659,7 @@ impl EachFma for i16 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3682,7 +3682,7 @@ impl EachFma for u16 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3702,7 +3702,7 @@ impl EachFma for u16 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3725,7 +3725,7 @@ impl EachFma for i32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3745,7 +3745,7 @@ impl EachFma for i32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3768,7 +3768,7 @@ impl EachFma for u32 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3788,7 +3788,7 @@ impl EachFma for u32 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3811,7 +3811,7 @@ impl EachFma for i64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3831,7 +3831,7 @@ impl EachFma for i64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3854,7 +3854,7 @@ impl EachFma for u64 {
                 &alpha,
                 &beta,
                 result.as_mut_ptr(),
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3874,7 +3874,7 @@ impl EachFma for u64 {
                 &alpha,
                 &beta,
                 p,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3904,7 +3904,7 @@ impl EachFma for f64c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3924,7 +3924,7 @@ impl EachFma for f64c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f64,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3954,7 +3954,7 @@ impl EachFma for f32c {
                 &alpha.re,
                 &beta.re,
                 result.as_mut_ptr() as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -3974,7 +3974,7 @@ impl EachFma for f32c {
                 &alpha.re,
                 &beta.re,
                 p as *mut f32,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
         }
@@ -4454,7 +4454,7 @@ impl EachSwiGlu for f32 {
                 y_stride,
                 gate_scale,
                 output_scale,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -4499,7 +4499,7 @@ impl EachSwiGlu for bf16 {
                 y_stride,
                 gate_scale,
                 output_scale,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -4544,7 +4544,7 @@ impl EachSwiGlu for e4m3 {
                 y_stride,
                 gate_scale,
                 output_scale,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -4695,7 +4695,7 @@ impl EachRmsNorm for f32 {
                 x_stride,
                 y_stride,
                 epsilon,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -4737,7 +4737,7 @@ impl EachRmsNorm for bf16 {
                 x_stride,
                 y_stride,
                 epsilon,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;
@@ -4779,7 +4779,7 @@ impl EachRmsNorm for e4m3 {
                 x_stride,
                 y_stride,
                 epsilon,
-                enabled_cpu_capabilities_mask(),
+                Capabilities::CPUS.bits(),
                 null_mut(),
             )
             .check()?;

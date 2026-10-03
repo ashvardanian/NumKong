@@ -13,6 +13,7 @@
 
 set -u
 export LC_ALL=C # Byte-wise regexes, immune to the committer's locale
+unset FORCE_COLOR CLICOLOR_FORCE # Plain tool output, since the checks parse it by its colons
 
 rejection_count=0
 
@@ -2831,6 +2832,29 @@ check_cuda_headers_stay_c() {
         "            write C, and launch with cudaLaunchKernel and an explicit dim3 instead of <<< >>>:"
 }
 
+# Rejects a `<<< >>>` launch in a c/ unit, because it drops the launch status that every library launch reports.
+check_launches_report_status() {
+    local launches
+    launches=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns | grep -F '<<<' || true)
+    [ -z "$launches" ] || reject_with_reason "$launches" \
+        "$staged_path launches with <<< >>>, which loses the launch status; call the vendor's launch API:"
+}
+
+# Rejects `__CUDACC__`, `__HIP__` and `__HIP_DEVICE_COMPILE__` in host-side files, because each vendor's host
+# code lives in its own `cuda.cuh` or `rocm.cuh` behind one top guard; only shared kernels in `simt.cuh` may
+# spell a device helper per vendor, and types.h derives the architecture macros from the compiler.
+check_vendor_tested_only_in_kernels() {
+    local tests
+    tests=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
+        grep -nE '__CUDACC__|__HIP__|__HIP_DEVICE_COMPILE__' |
+        added_list="$staged_added_line_numbers_list" guarded="${staged_path##*/}" awk -F: '
+            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+            !guard_seen && ENVIRON["guarded"] ~ /^(cuda|rocm)\.cuh$/ && $2 ~ /^#if / { guard_seen = 1; next }
+            ($1 + 0) in added' || true)
+    [ -z "$tests" ] || reject_with_reason "$tests" \
+        "$staged_path tests the GPU compiler in host code; put the body in the vendor's cuda.cuh or rocm.cuh:"
+}
+
 # Rejects lowercase `nk_` names defined by `set` in CMakeLists.txt, because its internal variables are
 # `NUMKONG_*_`, told apart from the `NUMKONG_*` options by the trailing underscore; the cmake/ modules
 # keep their lowercase `nk_*_` internals.
@@ -2940,8 +2964,16 @@ run_project_checks() {
     esac
     case "$staged_path" in
     include/numkong/*.cuh | include/numkong/*/*.cuh) check_cuda_headers_stay_c ;;
+    c/*.cu | c/*.hip) check_launches_report_status ;;
     CMakeLists.txt) check_cmake_internal_variables_uppercase ;;
     python/*.c | python/*.h) check_cpython_format_shortcuts_absent ;;
+    esac
+    case "$staged_path" in
+    include/numkong/types.h | include/numkong/*/simt.cuh) ;;
+    include/numkong/*.h | include/numkong/*/*.h | include/numkong/cuda.cuh | include/numkong/rocm.cuh | \
+        include/numkong/*/cuda.cuh | include/numkong/*/rocm.cuh | c/*.c | c/*.h | c/*.cu | c/*.hip)
+        check_vendor_tested_only_in_kernels
+        ;;
     esac
     case "$staged_path" in
     test/harness.* | test/main.* | test/main_*.*) ;;

@@ -125,13 +125,13 @@ def test_jensenshannon_random_accuracy(ndim: int, dtype: str, capability: str, n
     a_distribution /= np.sum(a_distribution)
     b_distribution /= np.sum(b_distribution)
 
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_PROBABILITY["jensenshannon"]
     accurate_ns, accurate = timed_call(
         baseline_kernel, a_distribution.astype(np.float64), b_distribution.astype(np.float64)
     )
     expected_ns, expected = timed_call(baseline_kernel, a_distribution, b_distribution)
-    result_ns, result = timed_call(simd_kernel, a_distribution, b_distribution)
+    result_ns, result = timed_call(simd_kernel, a_distribution, b_distribution, capabilities=capabilities)
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
@@ -143,9 +143,9 @@ def test_jensenshannon_random_accuracy(ndim: int, dtype: str, capability: str, n
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_kullbackleibler_self_zero(ndim: int, dtype: str, capability: str):
     """KL divergence of a uniform distribution with itself should be ~0."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
-    result = nk.kullbackleibler(uniform_distribution, uniform_distribution)
+    result = nk.kullbackleibler(uniform_distribution, uniform_distribution, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"KL(p,p) = {result}, expected ~0"
 
 
@@ -154,9 +154,9 @@ def test_kullbackleibler_self_zero(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_jensenshannon_self_zero(ndim: int, dtype: str, capability: str):
     """Jensen-Shannon distance of a uniform distribution with itself should be ~0."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
-    result = nk.jensenshannon(uniform_distribution, uniform_distribution)
+    result = nk.jensenshannon(uniform_distribution, uniform_distribution, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"JS(p,p) = {result}, expected ~0"
 
 
@@ -165,10 +165,10 @@ def test_jensenshannon_self_zero(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize("capability", possible_capabilities)
 def test_jensenshannon_symmetry_nonneg(ndim: int, dtype: str, capability: str, rng: random.Random):
     """Jensen-Shannon should be symmetric and non-negative."""
-    keep_one_capability(capability)
+    capabilities = keep_one_capability(capability)
     p = make_positive_buffer(rng, ndim, dtype)
     q = make_positive_buffer(rng, ndim, dtype)
-    js_pq = nk.jensenshannon(p, q)
-    js_qp = nk.jensenshannon(q, p)
+    js_pq = nk.jensenshannon(p, q, capabilities=capabilities)
+    js_qp = nk.jensenshannon(q, p, capabilities=capabilities)
     assert abs(js_pq - js_qp) < NUMKONG_ATOL, f"JS not symmetric: js(p,q)={js_pq}, js(q,p)={js_qp}"
     assert js_pq >= -NUMKONG_ATOL, f"JS negative: {js_pq}"

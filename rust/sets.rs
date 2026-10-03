@@ -17,7 +17,7 @@ use core::{ffi::c_void, ptr::null_mut};
 use forkunion as fu;
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{Allocator, Error, Tensor, TensorMut, TensorRef, TensorView},
     types::{u1x8, StorageElement},
 };
@@ -157,7 +157,7 @@ impl Hammings for u1x8 {
             depth,
             v_stride,
             r_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -182,7 +182,7 @@ impl Hammings for u1x8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -270,7 +270,7 @@ impl Jaccards for u1x8 {
             depth,
             v_stride,
             r_stride,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -295,7 +295,7 @@ impl Jaccards for u1x8 {
             result_stride,
             row_start,
             row_count,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()

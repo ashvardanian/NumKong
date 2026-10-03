@@ -42,7 +42,7 @@
 use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
 
 use crate::{
-    capabilities::{enabled_cpu_capabilities_mask, nk_capability_t, nk_size_t, nk_status_t, StatusCode},
+    capabilities::{nk_capability_t, nk_size_t, nk_status_t, Capabilities, StatusCode},
     tensor::{Allocator, Error, Global, PackedBuffer, TensorRef},
     types::{bf16, f16, StorageElement},
 };
@@ -211,20 +211,14 @@ impl MaxSim for f32 {
 
     fn maxsim_pack_size(vectors: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_maxsim_pack_size_f32_best(vectors, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_maxsim_pack_size_f32_best(vectors, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
 
     unsafe fn maxsim_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut vectors, mut depth) = (0usize, 0usize);
-        nk_maxsim_packed_shape_f32_best(
-            packed,
-            &mut vectors,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_maxsim_packed_shape_f32_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((vectors, depth))
     }
 
@@ -241,7 +235,7 @@ impl MaxSim for f32 {
             depth,
             stride,
             packed,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -262,7 +256,7 @@ impl MaxSim for f32 {
             document_count,
             depth,
             result,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -274,20 +268,14 @@ impl MaxSim for f16 {
 
     fn maxsim_pack_size(vectors: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_maxsim_pack_size_f16_best(vectors, depth, enabled_cpu_capabilities_mask(), &mut bytes) }.check()?;
+        unsafe { nk_maxsim_pack_size_f16_best(vectors, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
 
     unsafe fn maxsim_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut vectors, mut depth) = (0usize, 0usize);
-        nk_maxsim_packed_shape_f16_best(
-            packed,
-            &mut vectors,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_maxsim_packed_shape_f16_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((vectors, depth))
     }
 
@@ -304,7 +292,7 @@ impl MaxSim for f16 {
             depth,
             stride,
             packed,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -325,7 +313,7 @@ impl MaxSim for f16 {
             document_count,
             depth,
             result,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -337,21 +325,14 @@ impl MaxSim for bf16 {
 
     fn maxsim_pack_size(vectors: usize, depth: usize) -> Result<usize, Error> {
         let mut bytes = 0;
-        unsafe { nk_maxsim_pack_size_bf16_best(vectors, depth, enabled_cpu_capabilities_mask(), &mut bytes) }
-            .check()?;
+        unsafe { nk_maxsim_pack_size_bf16_best(vectors, depth, Capabilities::CPUS.bits(), &mut bytes) }.check()?;
         Ok(bytes)
     }
 
     unsafe fn maxsim_packed_shape(packed: *const u8) -> Result<(usize, usize), Error> {
         let (mut vectors, mut depth) = (0usize, 0usize);
-        nk_maxsim_packed_shape_bf16_best(
-            packed,
-            &mut vectors,
-            &mut depth,
-            enabled_cpu_capabilities_mask(),
-            null_mut(),
-        )
-        .check()?;
+        nk_maxsim_packed_shape_bf16_best(packed, &mut vectors, &mut depth, Capabilities::CPUS.bits(), null_mut())
+            .check()?;
         Ok((vectors, depth))
     }
 
@@ -368,7 +349,7 @@ impl MaxSim for bf16 {
             depth,
             stride,
             packed,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()
@@ -389,7 +370,7 @@ impl MaxSim for bf16 {
             document_count,
             depth,
             result,
-            enabled_cpu_capabilities_mask(),
+            Capabilities::CPUS.bits(),
             null_mut(),
         )
         .check()

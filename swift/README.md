@@ -439,7 +439,7 @@ Capability detection is exposed directly for diagnostics and tests:
 ```swift
 import NumKong
 
-// `capabilitiesEnabled` is what dispatch uses: detected on this CPU AND compiled into the binary.
+// `capabilitiesEnabled` is what dispatch runs within: detected on this CPU AND compiled into the binary.
 let enabled = try Device.cpu.capabilitiesEnabled
 print(enabled)                 // like "serial,neon,neonhalf,neonfhm,neonsdot"
 print(enabled.contains(.neon)) // `Capabilities` is an `OptionSet`
@@ -448,9 +448,8 @@ print(enabled.contains(.neon)) // `Capabilities` is an `OptionSet`
 let onThisCpu = try Device.cpu.capabilitiesDetected
 let inThisBinary = Device.cpu.capabilitiesCompiled
 
-// Narrow dispatch, then set up each thread that runs kernels:
-let narrowed = try Device.cpu.capabilitiesEnable(enabled.subtracting(.sme))
-try Device.cpu.configureThread(narrowed)
+// Set up each thread that runs kernels:
+try Device.cpu.configureThread(enabled)
 
 // GPUs are devices too, by their runtime's own ordinal:
 for ordinal in 0..<((try? Device.count(.metal)) ?? 0) {
@@ -461,9 +460,8 @@ for ordinal in 0..<((try? Device.count(.metal)) ?? 0) {
 - `Device.cpu` is the host CPU, and `Device(kind:ordinal:)` any device `Device.count(_:)` counts, throwing an `Error` past the last one.
 - `capabilitiesDetected` is what the device can execute, from CPUID or HWCAP on the CPU.
 - `capabilitiesCompiled` is what this binary contains for devices of its kind, from the ISA probes at build time.
-- `capabilitiesEnabled` is what dispatch uses, both axes at once unless narrowed, and on the CPU always contains `.serial`.
-- `capabilitiesEnable(_:)` makes its argument the CPU's enabled set, clamped to both axes, and returns what took effect.
-  Narrow it before starting threads, and pack matrices again afterwards, since packed kernels refuse another capability's layout.
+- `capabilitiesEnabled` is what dispatch runs within, both axes at once, which the library settles for the CPU as it loads, and on the CPU always contains `.serial`.
+  Every CPU kernel call passes `Capabilities.cpus`, which the library clamps to it, so the module keeps no mask of its own.
 - `configureThread(_:)` sets per-thread state such as Intel AMX tiles for the given CPU capabilities, usually the enabled ones.
 
 Reach for `capabilitiesEnabled` unless you specifically mean one of the raw axes.

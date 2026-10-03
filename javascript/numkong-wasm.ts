@@ -92,8 +92,9 @@ let HEAPU32: Uint32Array;
 let HEAPF32: Float32Array;
 let HEAPF64: Float64Array;
 
-/** The mask kernels run with, which {@link Device.capabilitiesEnable} narrows. */
-let defaultCapabilities: bigint = 1n;
+/** Every CPU capability, `nk_cap_cpus_k`, the bits below 48: kernel calls pass it, and the library
+ *  clamps it to the ones this host runs. */
+const cpus: bigint = (1n << 48n) - 1n;
 
 /** Convert a number, e.g. from `_malloc` or `byteOffset`, to the pointer type expected by raw C
  *  function exports. In wasm64, pointers are BigInt, an i64. */
@@ -148,10 +149,9 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   // Pre-allocate an 8-byte result buffer (never freed during module lifetime)
   // _malloc always returns number (Emscripten-wrapped in both modes)
   resultPtr = wasmModule._malloc(8);
-  defaultCapabilities = queryCapabilities('_nk_cpu_capabilities_enabled');
 
-  // 1024 is `NUMKONG_CAPABILITIES_NAME_CAPACITY`; bits from 48 up, past `nk_cap_cpus_k`, are GPUs.
-  const cpus = (1n << 48n) - 1n, any = (1n << 64n) - 1n;
+  // 1024 is `NUMKONG_CAPABILITIES_NAME_CAPACITY`; bits past `cpus` are GPUs.
+  const any = (1n << 64n) - 1n;
   const names: Record<string, bigint> = {};
   const namePtr = wasmModule._malloc(1024);
   let gpus = 0n;
@@ -303,7 +303,7 @@ function distance(metric: string, a: TensorBase | any, b: TensorBase | any): num
     }
 
     // In wasm64, raw C exports expect BigInt for pointer args; nk_size_t is always i32 (number)
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), defaultCapabilities, toWasmPtr(0)));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), cpus, toWasmPtr(0)));
 
     // Read result
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
@@ -394,7 +394,7 @@ export function hamming(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
     }
 
     checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr),
-                   defaultCapabilities, toWasmPtr(0)));
+                   cpus, toWasmPtr(0)));
 
     return readResult(resultPtr, 'u32');
   } finally {
@@ -440,7 +440,7 @@ export function jaccard(a: TensorBase | Uint8Array | any, b: TensorBase | Uint8A
     }
 
     checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), lengthA * dimensionsPerValue(DType.U1), toWasmPtr(resultPtr),
-                   defaultCapabilities, toWasmPtr(0)));
+                   cpus, toWasmPtr(0)));
 
     return readResult(resultPtr, 'f32');
   } finally {
@@ -484,7 +484,7 @@ export function kullbackleibler(a: TensorBase | Float64Array | Float32Array, b: 
       throw new Error(`Function ${fnName} not available in WASM module`);
     }
 
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), defaultCapabilities, toWasmPtr(0)));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), cpus, toWasmPtr(0)));
 
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
   } finally {
@@ -530,7 +530,7 @@ export function jensenshannon(a: TensorBase | Float64Array | Float32Array, b: Te
       throw new Error(`Function ${fnName} not available in WASM module`);
     }
 
-    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), defaultCapabilities, toWasmPtr(0)));
+    checkStatus(fn(toWasmPtr(aOff), toWasmPtr(bOff), n, toWasmPtr(resultPtr), cpus, toWasmPtr(0)));
 
     return readResult(resultPtr, resolvedA.typeInfo.resultType);
   } finally {
@@ -549,8 +549,8 @@ function requireModule(): any {
 /** Which runtime a device belongs to, as the `nk_<kind>_*` C functions name it. */
 export type DeviceKind = 'cpu' | 'cuda' | 'rocm' | 'metal';
 
-/** `nk_missing_gpu_k` and `nk_missing_kernel_k`, the statuses GPU kinds report here. */
-const missingGpuStatus = -16, missingKernelStatus = -19;
+/** `nk_missing_gpu_k`, the status GPU kinds report here. */
+const missingGpuStatus = -16;
 
 /** One device NumKong can run kernels on. A WebAssembly module has only the host CPU: every GPU
  *  kind counts none, and the constructor refuses them. */
@@ -589,23 +589,10 @@ export class Device {
     return queryCapabilities('_nk_cpu_capabilities_compiled');
   }
 
-  /** The SIMD capabilities every kernel call passes: detected and compiled at once, unless narrowed
-   *  by {@link Device.capabilitiesEnable}, as a bitmask. Always includes `Capability.serial`. */
+  /** The SIMD capabilities every kernel call runs within: detected and compiled at once, which the
+   *  library settles as it loads, as a bitmask. Always includes `Capability.serial`. */
   capabilitiesEnabled(): bigint {
-    requireModule();
-    return defaultCapabilities;
-  }
-
-  /**
-   *  Makes `wanted` the enabled set, clamped to what the host detects and this module compiled, and
-   *  keeping the serial fallback. Pack matrices again afterwards.
-   *  @param wanted - Bitmask of {@link Capability} bits.
-   *  @returns The enabled set that took effect.
-   */
-  capabilitiesEnable(wanted: bigint): bigint {
-    if (this.kind !== 'cpu') checkStatus(missingKernelStatus);
-    defaultCapabilities = (wanted & queryCapabilities('_nk_cpu_capabilities_enabled')) | 1n;
-    return defaultCapabilities;
+    return queryCapabilities('_nk_cpu_capabilities_enabled');
   }
 }
 
@@ -674,7 +661,7 @@ export function dotsPackedSize(columns: number, depth: number, dtype: DType): nu
   if (!fn || typeof fn !== 'function') {
     throw new Error(`Function ${fnName} not available in WASM module`);
   }
-  checkStatus(fn(columns, depth, defaultCapabilities, toWasmPtr(resultPtr)));
+  checkStatus(fn(columns, depth, cpus, toWasmPtr(resultPtr)));
   return new Uint32Array(Module.wasmMemory.buffer, resultPtr, 1)[0];
 }
 
@@ -695,7 +682,7 @@ export function dotsPackedShape(packed: PackedMatrix): { columns: number; depth:
   const blobPtr = allocAndCopyResolved(packed.buffer, 0, packed.byteLength);
   const outPtr = Module._malloc(8); // two nk_size_t out-params (i32 each in WASM)
   try {
-    checkStatus(fn(toWasmPtr(blobPtr), toWasmPtr(outPtr), toWasmPtr(outPtr + 4), defaultCapabilities, toWasmPtr(0)));
+    checkStatus(fn(toWasmPtr(blobPtr), toWasmPtr(outPtr), toWasmPtr(outPtr + 4), cpus, toWasmPtr(0)));
     const columns = HEAPU32[outPtr / 4];
     const depth = HEAPU32[(outPtr + 4) / 4];
     return { columns, depth };
@@ -731,7 +718,7 @@ export function dotsPack(matrix: Matrix): PackedMatrix {
       matrix.rowStride,
       toWasmPtr(packedPtr),
       0, matrix.rows,
-      defaultCapabilities, toWasmPtr(0),
+      cpus, toWasmPtr(0),
     ));
   } catch (error) {
     Module._free(packedPtr);
@@ -783,7 +770,7 @@ function wasmPackedOperation(metricPrefix: string, family: KernelFamily, a: Matr
       toWasmPtr(aPtr), toWasmPtr(packedPtr), toWasmPtr(resultPtr),
       a.rows, packed.columns, a.columns,
       a.rowStride, out.rowStride,
-      defaultCapabilities, toWasmPtr(0),
+      cpus, toWasmPtr(0),
     ));
 
     // Copy result back
@@ -825,7 +812,7 @@ function wasmSymmetricOperation(metricPrefix: string, family: KernelFamily, vect
       vectors.rowStride,
       toWasmPtr(resultPtr), out.rowStride,
       rowStart, count,
-      defaultCapabilities, toWasmPtr(0),
+      cpus, toWasmPtr(0),
     ));
 
     // Copy result back

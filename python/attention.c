@@ -261,7 +261,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
 
     PyObject *k_obj = NULL, *v_obj = NULL, *offsets_obj = NULL, *lengths_obj = NULL;
     nk_size_t depth = 0, threads = 1;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_ssize_t nkw = kwnames ? PyTuple_Size(kwnames) : 0;
@@ -598,7 +598,7 @@ PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *ar
     // A KV-cache is read with the mask that packed it, unless `capabilities=` says otherwise.
     nk_capability_t capabilities = PyObject_TypeCheck(args[1], &AttentionPackedMatrixType)
                                        ? ((AttentionPackedMatrix *)args[1])->capabilities
-                                       : default_capabilities;
+                                       : nk_cap_cpus_k;
     void *stream = NULL;
     if (nargs >= 3) query_offsets_object = args[2];
     for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
@@ -655,7 +655,7 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
     // A KV-cache is read with the mask that packed it, unless `capabilities=` says otherwise.
     nk_capability_t capabilities = PyObject_TypeCheck(args[1], &AttentionPackedMatrixType)
                                        ? ((AttentionPackedMatrix *)args[1])->capabilities
-                                       : default_capabilities;
+                                       : nk_cap_cpus_k;
     void *stream = NULL;
     if (nargs >= 3) query_offsets_object = args[2];
     for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
@@ -726,7 +726,7 @@ PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t c
     nk_unused_(self);
     PyObject *x_object = NULL, *cos_object = NULL, *sin_object = NULL, *head_count_object = NULL, *depth_object = NULL;
     PyObject *out_object = NULL;
-    nk_capability_t capabilities = default_capabilities;
+    nk_capability_t capabilities = nk_cap_cpus_k;
     void *stream = NULL;
 
     Py_buffer x_buffer, y_buffer, cos_buffer, sin_buffer;

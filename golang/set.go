@@ -18,7 +18,7 @@ func HammingU8(a, b []uint8) uint32 {
 		return 0
 	}
 	var result C.nk_u32_t
-	check(C.nk_hamming_u8_best((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
+	check(C.nk_hamming_u8_best((*C.nk_u8_t)(&a[0]), (*C.nk_u8_t)(&b[0]), C.nk_size_t(len(a)), &result, C.nk_cap_cpus_k, nil))
 	return uint32(result)
 }
 
@@ -34,7 +34,7 @@ func HammingU1(a, b []byte, depth int) uint32 {
 		return 0
 	}
 	var result C.nk_u32_t
-	check(C.nk_hamming_u1_best((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(depth), &result, capabilities(), nil))
+	check(C.nk_hamming_u1_best((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(depth), &result, C.nk_cap_cpus_k, nil))
 	return uint32(result)
 }
 
@@ -50,7 +50,7 @@ func JaccardU1(a, b []byte, depth int) float32 {
 		return 0
 	}
 	var result C.nk_f32_t
-	check(C.nk_jaccard_u1_best((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(depth), &result, capabilities(), nil))
+	check(C.nk_jaccard_u1_best((*C.nk_u1x8_t)(&a[0]), (*C.nk_u1x8_t)(&b[0]), C.nk_size_t(depth), &result, C.nk_cap_cpus_k, nil))
 	return float32(result)
 }
 
@@ -64,7 +64,7 @@ func JaccardU16(a, b []uint16) float32 {
 		return 0
 	}
 	var result C.nk_f32_t
-	check(C.nk_jaccard_u16_best((*C.nk_u16_t)(&a[0]), (*C.nk_u16_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
+	check(C.nk_jaccard_u16_best((*C.nk_u16_t)(&a[0]), (*C.nk_u16_t)(&b[0]), C.nk_size_t(len(a)), &result, C.nk_cap_cpus_k, nil))
 	return float32(result)
 }
 
@@ -78,6 +78,6 @@ func JaccardU32(a, b []uint32) float32 {
 		return 0
 	}
 	var result C.nk_f32_t
-	check(C.nk_jaccard_u32_best((*C.nk_u32_t)(&a[0]), (*C.nk_u32_t)(&b[0]), C.nk_size_t(len(a)), &result, capabilities(), nil))
+	check(C.nk_jaccard_u32_best((*C.nk_u32_t)(&a[0]), (*C.nk_u32_t)(&b[0]), C.nk_size_t(len(a)), &result, C.nk_cap_cpus_k, nil))
 	return float32(result)
 }
