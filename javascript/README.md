@@ -254,7 +254,7 @@ console.log((cpu.capabilitiesEnabled() & Capability.haswell) !== 0n);
 cpu.capabilitiesEnable(cpu.capabilitiesEnabled() & ~Capability.skylake); // stop dispatching to AVX-512
 
 const metal = new Device("metal", 0); // throws without that GPU
-console.log(metal.capabilitiesEnabled() & Capability.devices);
+console.log(metal.capabilitiesEnabled() & Capability.gpus);
 ```
 
 `Device.cpu()` is the host CPU, and `new Device(kind, ordinal)` any device `Device.count(kind)` counts, with `kind` one of `"cpu"`, `"cuda"`, `"rocm"` or `"metal"`.

@@ -354,7 +354,8 @@ Every operation has one dispatch point, like `nk_dot_f32_best`, beside its capab
 Each capability is one capability bit, and a capability mask names the capabilities of one device.
 The dispatch point holds a constant list of its capabilities for every capability group, `serial` first on the CPU, and runs the best capability the mask shares with the group that mask describes.
 GPUs are more ISAs behind the same names: a mask holding `nk_cap_cuda_k` picks among the NVIDIA capabilities, `nk_cap_rocm_k` among the AMD ones, and `nk_cap_metal_k` among the Apple ones.
-The stream is that device's `cudaStream_t`, `hipStream_t`, or `nk_metal_queue_t *`, and null on the CPU.
+The stream is that device's `cudaStream_t`, `hipStream_t`, or `id<MTLCommandQueue>`, and null on the CPU: it names the device, and null on a GPU picks its default stream.
+`nk_memory_allocate_unified_best` hands out memory both the host and that device address, and `nk_stream_synchronize_best` waits for the work queued on the stream.
 
 ```c
 nk_capability_t cpu = nk_cap_serial_k, gpu = 0;

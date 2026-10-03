@@ -6,24 +6,24 @@
  *      and GPU detection.
  *
  *  A capability is one bit, like @c nk_cap_haswell_k or @c nk_cap_ampere_k, and a capability group
- *  is the range of bits of one kind of hardware: the CPU's, NVIDIA's, AMD's or Apple's. Every batch
+ *  is the range of bits of one kind of hardware: the CPU's, CUDA's, ROCm's or Metal's. Every batch
  *  kernel, on every capability, returns an @c nk_status_t and takes a trailing @c stream: null on
- *  the CPU, a @c cudaStream_t, @c hipStream_t or @ref nk_metal_queue_t pointer on a GPU. A dispatch
+ *  the CPU, a @c cudaStream_t, @c hipStream_t or @c id<MTLCommandQueue> on a GPU. A dispatch
  *  point, like @c nk_dot_f32_best, holds its kernels of every capability group and runs the best
  *  capability its mask shares with the group that mask describes.
  *
  *  @section gpu_devices GPU Devices
  *
- *  NumKong lists every GPU of every vendor this build targets in one flat order: CUDA devices
- *  first, then ROCm devices, then Metal devices, each in its own runtime's order. A device index
- *  names one of them. Its capability mask, the vendor's baseline and the capabilities the device
- *  runs, is what every dispatch point takes for that device, beside a stream of that vendor:
+ *  Each vendor numbers its own devices; a stream names one. Only the functions reporting a
+ *  device's capabilities or making a stream on it take its ordinal, and everything else takes that
+ *  capability mask and a stream of that vendor:
  *
- *  - CUDA: a @c cudaStream_t, or null for the legacy default stream.
- *  - ROCm: a @c hipStream_t, or null.
- *  - Metal: a pointer to an @ref nk_metal_queue_t from @ref nk_metal_queue_init.
+ *  - CUDA: a @c cudaStream_t, or null for the legacy default stream of the current device.
+ *  - ROCm: a @c hipStream_t, or null for the null stream of the current device.
+ *  - Metal: an @c id<MTLCommandQueue>, or null for the library's queue on the default device.
  *
- *  A GPU entry queues its work on the stream and returns without waiting.
+ *  A GPU entry queues its work on the stream and returns without waiting, and
+ *  @ref nk_stream_synchronize_best waits for it.
  *
  *  @section x86_targets Choosing x86 Target Generations
  *
@@ -247,7 +247,7 @@ typedef nk_u64_t nk_capability_t;
 #define nk_cap_apple10_k      ((nk_capability_t)1 << 62)
 
 /** Every GPU capability above, which the CPU dispatch never detects, compiles or enables. */
-#define nk_cap_devices_k                                                                                             \
+#define nk_cap_gpus_k                                                                                                \
     (nk_cap_cuda_k | nk_cap_ampere_k | nk_cap_ada_k | nk_cap_hopper_k | nk_cap_blackwell_k | nk_cap_blackwellrtx_k | \
      nk_cap_rocm_k | nk_cap_cdna4_k | nk_cap_cdna5_k | nk_cap_metal_k | nk_cap_apple9_k | nk_cap_apple10_k)
 
@@ -1311,7 +1311,7 @@ NUMKONG_API nk_size_t nk_capabilities_name(nk_capability_t capabilities, char *b
 
 /** How many CUDA devices the runtime sees, or zero. */
 NUMKONG_INLINE nk_size_t nk_cuda_count_devices_(void) {
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
     int count = 0;
     return cudaGetDeviceCount(&count) == cudaSuccess ? (nk_size_t)count : 0;
 #else
@@ -1319,14 +1319,14 @@ NUMKONG_INLINE nk_size_t nk_cuda_count_devices_(void) {
 #endif
 }
 
-/** The capabilities CUDA device @p device runs, by the runtime's own ordinal. */
-NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+/** The capabilities CUDA device @p ordinal runs, by the runtime's own ordinal. */
+NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
     *capabilities = 0;
-    if (device >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)
+    if (ordinal >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
     int major = 0, minor = 0;
-    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)device) != cudaSuccess ||
-        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, (int)device) != cudaSuccess)
+    if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)ordinal) != cudaSuccess ||
+        cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, (int)ordinal) != cudaSuccess)
         return nk_device_code_mismatch_k;
     nk_capability_t detected = nk_cap_cuda_k;
     if (major * 10 + minor >= 80) detected |= nk_cap_ampere_k;
@@ -1339,6 +1339,33 @@ NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t device, nk_c
     return nk_success_k;
 }
 
+/** Creates a stream on CUDA device @p ordinal, leaving the caller's current device as it was. */
+NUMKONG_INLINE nk_status_t nk_cuda_stream_init_(nk_size_t ordinal, void **stream) {
+    *stream = NUMKONG_NULL;
+    if (ordinal >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+    int caller = 0;
+    cudaStream_t created = 0;
+    if (cudaGetDevice(&caller) != cudaSuccess || cudaSetDevice((int)ordinal) != cudaSuccess) return nk_missing_gpu_k;
+    cudaError_t const error = cudaStreamCreate(&created);
+    nk_unused_(cudaSetDevice(caller));
+    if (error != cudaSuccess) return nk_bad_alloc_k;
+    *stream = (void *)created;
+#endif
+    return nk_success_k;
+}
+
+/** Destroys @p stream once the work queued on it completes; a null stream is the default one. */
+NUMKONG_INLINE nk_status_t nk_cuda_stream_free_(void *stream) {
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+    if (!stream) return nk_success_k;
+    return cudaStreamDestroy((cudaStream_t)stream) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#else
+    nk_unused_(stream);
+    return nk_missing_gpu_k;
+#endif
+}
+
 /** How many ROCm devices the runtime sees, or zero. */
 NUMKONG_INLINE nk_size_t nk_rocm_count_devices_(void) {
 #if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
@@ -1349,13 +1376,13 @@ NUMKONG_INLINE nk_size_t nk_rocm_count_devices_(void) {
 #endif
 }
 
-/** The capabilities ROCm device @p device runs, by the runtime's own ordinal. */
-NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+/** The capabilities ROCm device @p ordinal runs, by the runtime's own ordinal. */
+NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
     *capabilities = 0;
-    if (device >= nk_rocm_count_devices_()) return nk_missing_gpu_k;
+    if (ordinal >= nk_rocm_count_devices_()) return nk_missing_gpu_k;
 #if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
     hipDeviceProp_t properties;
-    if (hipGetDeviceProperties(&properties, (int)device) != hipSuccess) return nk_device_code_mismatch_k;
+    if (hipGetDeviceProperties(&properties, (int)ordinal) != hipSuccess) return nk_device_code_mismatch_k;
     char const *const name = properties.gcnArchName;
     nk_capability_t detected = nk_cap_rocm_k;
     if (strncmp(name, "gfx950", 6) == 0) detected |= nk_cap_cdna4_k;
@@ -1365,11 +1392,38 @@ NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t device, nk_c
     return nk_success_k;
 }
 
+/** Creates a stream on ROCm device @p ordinal, leaving the caller's current device as it was. */
+NUMKONG_INLINE nk_status_t nk_rocm_stream_init_(nk_size_t ordinal, void **stream) {
+    *stream = NUMKONG_NULL;
+    if (ordinal >= nk_rocm_count_devices_()) return nk_missing_gpu_k;
+#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+    int caller = 0;
+    hipStream_t created = 0;
+    if (hipGetDevice(&caller) != hipSuccess || hipSetDevice((int)ordinal) != hipSuccess) return nk_missing_gpu_k;
+    hipError_t const error = hipStreamCreate(&created);
+    nk_unused_(hipSetDevice(caller));
+    if (error != hipSuccess) return nk_bad_alloc_k;
+    *stream = (void *)created;
+#endif
+    return nk_success_k;
+}
+
+/** Destroys @p stream once the work queued on it completes; a null stream is the default one. */
+NUMKONG_INLINE nk_status_t nk_rocm_stream_free_(void *stream) {
+#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+    if (!stream) return nk_success_k;
+    return hipStreamDestroy((hipStream_t)stream) == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
+#else
+    nk_unused_(stream);
+    return nk_missing_gpu_k;
+#endif
+}
+
 /*  Launches and copies for the kernel units, answered by the vendor compiler building the unit. */
 #if (NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)) || (NUMKONG_ARCH_ROCM_ && defined(__HIP__))
 
 /** The runtime's current device ordinal. */
-NUMKONG_INLINE nk_status_t nk_device_current_(int *device) {
+NUMKONG_INLINE nk_status_t nk_device_current_simt_(int *device) {
 #if defined(__HIP__)
     return hipGetDevice(device) == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
 #else
@@ -1380,8 +1434,8 @@ NUMKONG_INLINE nk_status_t nk_device_current_(int *device) {
 /** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
  *  address. The vendor's own error stays readable through @c cudaGetLastError or
  *  @c hipGetLastError. */
-NUMKONG_INLINE nk_status_t nk_device_launch_(void const *kernel, nk_size_t blocks, unsigned threads, void **arguments,
-                                             nk_size_t shared_bytes, void *stream) {
+NUMKONG_INLINE nk_status_t nk_launch_simt_(void const *kernel, nk_size_t blocks, unsigned threads, void **arguments,
+                                           nk_size_t shared_bytes, void *stream) {
     dim3 grid, block;
     grid.x = (unsigned)blocks, grid.y = 1, grid.z = 1;
     block.x = threads, block.y = 1, block.z = 1;
@@ -1401,11 +1455,11 @@ NUMKONG_INLINE nk_status_t nk_device_launch_(void const *kernel, nk_size_t block
  *  @param[in] shared_ceiling Dynamic shared memory the kernel may take at any depth, or zero for
  *      the runtime's default ceiling.
  */
-NUMKONG_INLINE nk_status_t nk_device_launch_resident_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
-                                                      nk_size_t shared_ceiling, nk_size_t blocks_wanted,
-                                                      void *arguments, void *stream) {
+NUMKONG_INLINE nk_status_t nk_launch_resident_simt_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
+                                                    nk_size_t shared_ceiling, nk_size_t blocks_wanted, void *arguments,
+                                                    void *stream) {
     int device = 0, multiprocessors = 0, per_multiprocessor = 0;
-    nk_status_t const status = nk_device_current_(&device);
+    nk_status_t const status = nk_device_current_simt_(&device);
     if (status != nk_success_k) return status;
 #if defined(__HIP__)
     if ((shared_ceiling &&
@@ -1426,15 +1480,15 @@ NUMKONG_INLINE nk_status_t nk_device_launch_resident_(void const *kernel, unsign
     if (blocks == 0) return nk_device_code_mismatch_k;
     void *launch_arguments[1];
     launch_arguments[0] = arguments;
-    return nk_device_launch_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads, launch_arguments,
-                             shared_bytes, stream);
+    return nk_launch_simt_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads, launch_arguments,
+                           shared_bytes, stream);
 }
 
 /** Reads @p attribute, a @c cudaDeviceAttr or @c hipDeviceAttribute_t, of the current device into
  *  @p value. */
-NUMKONG_INLINE nk_status_t nk_device_attribute_(int attribute, int *value) {
+NUMKONG_INLINE nk_status_t nk_device_attribute_simt_(int attribute, int *value) {
     int device = 0;
-    nk_status_t const status = nk_device_current_(&device);
+    nk_status_t const status = nk_device_current_simt_(&device);
     if (status != nk_success_k) return status;
 #if defined(__HIP__)
     return hipDeviceGetAttribute(value, (hipDeviceAttribute_t)attribute, device) == hipSuccess
@@ -1448,7 +1502,7 @@ NUMKONG_INLINE nk_status_t nk_device_attribute_(int attribute, int *value) {
 }
 
 /** Copies @p bytes from the device back to @p host once everything queued on @p stream is done. */
-NUMKONG_INLINE nk_status_t nk_device_read_(void *host, void const *device, nk_size_t bytes, void *stream) {
+NUMKONG_INLINE nk_status_t nk_read_simt_(void *host, void const *device, nk_size_t bytes, void *stream) {
 #if defined(__HIP__)
     hipError_t status = hipMemcpyAsync(host, device, bytes, hipMemcpyDeviceToHost, (hipStream_t)stream);
     if (status == hipSuccess) status = hipStreamSynchronize((hipStream_t)stream);
@@ -1471,12 +1525,12 @@ NUMKONG_INLINE nk_size_t nk_metal_count_devices_(void) {
 #endif
 }
 
-/** The capabilities Metal device @p device runs, in the order the system lists them. */
-NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t device, nk_capability_t *capabilities) {
+/** The capabilities Metal device @p ordinal runs, in the order the system lists them. */
+NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
     *capabilities = 0;
-    if (device >= nk_metal_count_devices_()) return nk_missing_gpu_k;
+    if (ordinal >= nk_metal_count_devices_()) return nk_missing_gpu_k;
 #if NUMKONG_WITH_METAL
-    void *const metal_device = nk_metal_device_(device);
+    void *const metal_device = nk_metal_device_(ordinal);
     if (!metal_device) return nk_device_code_mismatch_k;
     SEL const supports = sel_registerName("supportsFamily:");
     nk_size_t const apple9 = 1009, apple10 = 1010; // `MTLGPUFamilyApple9` and `MTLGPUFamilyApple10`
@@ -1489,6 +1543,33 @@ NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t device, nk_
     *capabilities = detected;
 #endif
     return nk_success_k;
+}
+
+/** Opens a retained @c id<MTLCommandQueue> on Metal device @p ordinal, in the order the system
+ *  lists them. */
+NUMKONG_INLINE nk_status_t nk_metal_stream_init_(nk_size_t ordinal, void **stream) {
+    *stream = NUMKONG_NULL;
+    if (ordinal >= nk_metal_count_devices_()) return nk_missing_gpu_k;
+#if NUMKONG_WITH_METAL
+    void *const metal_device = nk_metal_device_(ordinal);
+    if (!metal_device) return nk_device_code_mismatch_k;
+    *stream = nk_metal_get_(metal_device, "newCommandQueue");
+    nk_metal_do_(metal_device, "release");
+    if (!*stream) return nk_bad_alloc_k;
+#endif
+    return nk_success_k;
+}
+
+/** Waits for @p stream 's committed work and its deferred frees, then releases it. */
+NUMKONG_INLINE nk_status_t nk_metal_stream_free_(void *stream) {
+#if NUMKONG_WITH_METAL
+    nk_status_t const status = nk_stream_synchronize_metal(stream);
+    nk_metal_do_(stream, "release");
+    return status;
+#else
+    nk_unused_(stream);
+    return nk_missing_gpu_k;
+#endif
 }
 
 /** The CUDA capabilities this binary holds kernels for: the baseline and what
@@ -1521,7 +1602,9 @@ NUMKONG_CONSTEXPR nk_capability_t nk_metal_capabilities_compiled_(void) {
  *  - @b nk_cuda_capabilities_enabled() — both at once: the mask for its dispatch points.
  *
  *  ROCm and Metal have the same four. Nothing is cached, as the runtimes answer from their own
- *  state: ask once per device and keep the mask. */
+ *  state: ask once per device and keep the mask. Each vendor also makes a stream on one device with
+ *  @b nk_cuda_stream_init() and frees it with @b nk_cuda_stream_free(), for a caller without the
+ *  vendor's runtime at hand. */
 
 /**
  *  @brief Counts the CUDA devices the process sees.
@@ -1530,43 +1613,131 @@ NUMKONG_CONSTEXPR nk_capability_t nk_metal_capabilities_compiled_(void) {
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count);
 
 /**
- *  @brief Reports the capabilities CUDA device @p device runs.
- *  @param[in] device The CUDA runtime's ordinal, like @c cudaSetDevice takes.
+ *  @brief Reports the capabilities CUDA device @p ordinal runs.
+ *  @param[in] ordinal The CUDA runtime's ordinal, like @c cudaSetDevice takes.
  *  @param[out] capabilities The CUDA baseline and what the device runs, zero on failure.
  *  @return @c nk_success_k, @c nk_missing_gpu_k past the last device, or
  *      @c nk_device_code_mismatch_k when the runtime fails to answer.
  */
-NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** Reports the CUDA capabilities this binary holds kernels for. */
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities);
 
 /** @copydoc nk_cuda_capabilities_detected, narrowed to what this binary holds kernels for. */
-NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
+
+/** Creates a stream on CUDA device @p ordinal with @c cudaStreamCreate, for any consumer to use. */
+NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream);
+
+/** Destroys a stream of @ref nk_cuda_stream_init with @c cudaStreamDestroy, once its work ends. */
+NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream);
 
 /** @copydoc nk_cuda_count_devices, for ROCm. */
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count);
 
 /** @copydoc nk_cuda_capabilities_detected, for ROCm, whose ordinal @c hipSetDevice takes. */
-NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** @copydoc nk_cuda_capabilities_compiled, for ROCm. */
 NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities);
 
 /** @copydoc nk_cuda_capabilities_enabled, for ROCm. */
-NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
+
+/** Creates a stream on ROCm device @p ordinal with @c hipStreamCreate, for any consumer to use. */
+NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream);
+
+/** Destroys a stream of @ref nk_rocm_stream_init with @c hipStreamDestroy, once its work ends. */
+NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream);
 
 /** @copydoc nk_cuda_count_devices, for Metal. */
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count);
 
 /** @copydoc nk_cuda_capabilities_detected, for Metal, whose devices count in system order. */
-NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t device, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities);
 
 /** @copydoc nk_cuda_capabilities_compiled, for Metal. */
 NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities);
 
 /** @copydoc nk_cuda_capabilities_enabled, for Metal. */
-NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities);
+NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities);
+
+/** Opens an @c id<MTLCommandQueue> stream on Metal device @p ordinal with @c newCommandQueue. */
+NUMKONG_API nk_status_t nk_metal_stream_init(nk_size_t ordinal, void **stream);
+
+/** Waits for a queue of @ref nk_metal_stream_init, then releases it. */
+NUMKONG_API nk_status_t nk_metal_stream_free(void *stream);
+
+/**
+ *  @brief Allocates @p bytes that the host and the device of @p stream both address.
+ *  @param[in] bytes The size of the block, where zero hands out a null one.
+ *  @param[out] pointer The block, starting on a 64-byte boundary, or null on failure.
+ *  @param[in] capabilities The group to allocate for, like @c nk_cuda_capabilities_enabled reports.
+ *  @param[in] stream Null on the CPU, or a stream of that group, naming the device.
+ *  @return @c nk_success_k, @c nk_bad_alloc_k, or @c nk_missing_gpu_k for a group without a device
+ *      or missing from this build.
+ *
+ *  CUDA and ROCm hand out managed memory, and Metal a shared buffer every kernel on that device
+ *  binds, so the host reads what a kernel wrote once the stream is synchronized.
+ */
+NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **pointer, nk_capability_t capabilities,
+                                                        void *stream);
+
+/**
+ *  @brief Returns a block of @ref nk_memory_allocate_unified_best once the work queued on
+ *      @p stream is done with it.
+ *  @param[in] pointer The block, or null for none.
+ *  @param[in] bytes The size it was allocated with.
+ *  @return @c nk_success_k, @c nk_device_memory_mismatch_k for a block the group never handed out,
+ *      or @c nk_missing_gpu_k.
+ *
+ *  CUDA and ROCm wait for the device first, and Metal releases the buffer once the work committed
+ *  to @p stream so far completes.
+ */
+NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t bytes, nk_capability_t capabilities,
+                                                    void *stream);
+
+/**
+ *  @brief Waits for everything queued on @p stream.
+ *  @return @c nk_success_k, @c nk_device_code_mismatch_k when queued work failed, or
+ *      @c nk_missing_gpu_k.
+ */
+NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, void *stream);
+
+/** @copydoc nk_memory_allocate_unified_best */
+NUMKONG_API nk_status_t nk_memory_allocate_unified_serial(nk_size_t bytes, void **pointer, void *stream);
+/** @copydoc nk_memory_free_unified_best */
+NUMKONG_API nk_status_t nk_memory_free_unified_serial(void *pointer, nk_size_t bytes, void *stream);
+/** @copydoc nk_stream_synchronize_best */
+NUMKONG_API nk_status_t nk_stream_synchronize_serial(void *stream);
+
+#if NUMKONG_TARGET_CUDA
+/** @copydoc nk_memory_allocate_unified_best */
+NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer, void *stream);
+/** @copydoc nk_memory_free_unified_best */
+NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, void *stream);
+/** @copydoc nk_stream_synchronize_best */
+NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream);
+#endif // NUMKONG_TARGET_CUDA
+
+#if NUMKONG_TARGET_ROCM
+/** @copydoc nk_memory_allocate_unified_best */
+NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, void *stream);
+/** @copydoc nk_memory_free_unified_best */
+NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, void *stream);
+/** @copydoc nk_stream_synchronize_best */
+NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream);
+#endif // NUMKONG_TARGET_ROCM
+
+#if NUMKONG_WITH_METAL
+/** @copydoc nk_memory_allocate_unified_best */
+NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, void *stream);
+/** @copydoc nk_memory_free_unified_best */
+NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, void *stream);
+/** @copydoc nk_stream_synchronize_best */
+NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream);
+#endif // NUMKONG_WITH_METAL
 
 /**
  *  @brief Finds the kernel of @p kind for @p dtype that the best of @p capabilities runs.
@@ -1586,49 +1757,76 @@ NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
     *count = nk_cuda_count_devices_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
-    return nk_cuda_capabilities_detected_(device, capabilities);
+NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+    return nk_cuda_capabilities_detected_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_cuda_capabilities_compiled_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_cuda_capabilities_detected_(device, capabilities);
+NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_status_t const status = nk_cuda_capabilities_detected_(ordinal, capabilities);
     *capabilities &= nk_cuda_capabilities_compiled_();
     return status;
 }
+NUMKONG_API nk_status_t nk_cuda_stream_init(nk_size_t ordinal, void **stream) {
+    return nk_cuda_stream_init_(ordinal, stream);
+}
+NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream) { return nk_cuda_stream_free_(stream); }
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
     *count = nk_rocm_count_devices_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
-    return nk_rocm_capabilities_detected_(device, capabilities);
+NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+    return nk_rocm_capabilities_detected_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_rocm_capabilities_compiled_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_rocm_capabilities_detected_(device, capabilities);
+NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_status_t const status = nk_rocm_capabilities_detected_(ordinal, capabilities);
     *capabilities &= nk_rocm_capabilities_compiled_();
     return status;
 }
+NUMKONG_API nk_status_t nk_rocm_stream_init(nk_size_t ordinal, void **stream) {
+    return nk_rocm_stream_init_(ordinal, stream);
+}
+NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) { return nk_rocm_stream_free_(stream); }
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
     *count = nk_metal_count_devices_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
-NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t device, nk_capability_t *capabilities) {
-    return nk_metal_capabilities_detected_(device, capabilities);
+NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
+    return nk_metal_capabilities_detected_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_metal_capabilities_compiled_();
     return nk_success_k;
 }
-NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t device, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_metal_capabilities_detected_(device, capabilities);
+NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
+    nk_status_t const status = nk_metal_capabilities_detected_(ordinal, capabilities);
     *capabilities &= nk_metal_capabilities_compiled_();
     return status;
+}
+NUMKONG_API nk_status_t nk_metal_stream_init(nk_size_t ordinal, void **stream) {
+    return nk_metal_stream_init_(ordinal, stream);
+}
+NUMKONG_API nk_status_t nk_metal_stream_free(void *stream) { return nk_metal_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **pointer, nk_capability_t capabilities,
+                                                        void *stream) {
+    nk_unused_(bytes), nk_unused_(capabilities), nk_unused_(stream);
+    *pointer = NUMKONG_NULL;
+    return nk_missing_library_k;
+}
+NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t bytes, nk_capability_t capabilities,
+                                                    void *stream) {
+    nk_unused_(pointer), nk_unused_(bytes), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, void *stream) {
+    nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
 }
 NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t dtype, nk_capability_t capabilities,
                                               nk_kernel_punned_t *kernel, nk_capability_t *capability) {

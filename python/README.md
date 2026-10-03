@@ -52,7 +52,7 @@ python -m pip install .
 Quick runtime check:
 
 ```sh
-python -c "import numkong as nk; print(repr(nk.Device.cpu().capabilities_enabled()))"
+python -c "import numkong as nk; print(repr(nk.cpu_capabilities_enabled()))"
 ```
 
 ## Wheel Compatibility and Building from Source
@@ -710,28 +710,26 @@ Rows that see no key come back as zeros.
 
 ## Capabilities, GIL Behavior, and Parallel Partitioning
 
-Capability detection is explicit, and asked of a `Device`:
+Capability detection is explicit, through module functions named after each device group:
 
 ```python
 import numpy as np
 import numkong as nk
 
-cpu = nk.Device.cpu() # the same as nk.Device("cpu", 0)
-
 # `enabled` is what dispatch uses: detected on this CPU AND compiled into the wheel.
-print(repr(cpu.capabilities_enabled()))
-print(nk.Capability.SKYLAKE in cpu.capabilities_enabled()) # will AVX-512 kernels run here?
+print(repr(nk.cpu_capabilities_enabled()))
+print(nk.Capability.SKYLAKE in nk.cpu_capabilities_enabled()) # will AVX-512 kernels run here?
 
 # The two raw axes, when you specifically mean one of them:
-print(repr(cpu.capabilities_detected())) # this CPU
-print(repr(cpu.capabilities_compiled())) # this build
+print(repr(nk.cpu_capabilities_detected())) # this CPU
+print(repr(nk.cpu_capabilities_compiled())) # this build
 
 # Narrow dispatch to one capability, e.g. to test it: what cannot run here is dropped, and serial always stays.
-cpu.capabilities_enable(nk.Capability.HASWELL)
-cpu.capabilities_enable(cpu.capabilities_detected() & cpu.capabilities_compiled()) # and back to everything
+nk.cpu_capabilities_enable(nk.Capability.HASWELL)
+nk.cpu_capabilities_enable(nk.cpu_capabilities_detected() & nk.cpu_capabilities_compiled()) # and back to everything
 
-# Prepare another thread that runs kernels, like AMX tiles on x86, as `capabilities_enable` does for its own.
-cpu.configure_thread(cpu.capabilities_enabled())
+# Prepare another thread that runs kernels, like AMX tiles on x86, as `cpu_capabilities_enable` does for its own.
+nk.cpu_configure_thread(nk.cpu_capabilities_enabled())
 
 # Or narrow a single call, leaving the default of every other call alone.
 a = np.random.randn(1536).astype(np.float32)
@@ -788,13 +786,14 @@ For Python, the intended user-facing story is external partitioning around the G
 ## GPU Tensors through DLPack
 
 Builds configured with `-C cmake.define.NUMKONG_BUILD_CUDA=ON` or `-C cmake.define.NUMKONG_BUILD_ROCM=ON` also carry the CUDA or ROCm kernels.
-`nk.Device.count("cuda")` counts the devices this process sees, zero without the runtime or its kernels, and `nk.Device("cuda", 0)` names one, raising `ValueError` past the last.
-Its `capabilities_detected()`, `capabilities_compiled()` and `capabilities_enabled()` answer as they do for the CPU, while `capabilities_enable` and `configure_thread` are CPU only.
-`nk.from_dlpack` imports a CUDA or ROCm tensor without a copy and records its device as `tensor.device`.
-Only `dots_pack` and the dots, angulars and euclideans `_packed` and `_symmetric` functions run on it, with `tensor.device.capabilities_enabled()`.
+`nk.cuda_count_devices()` counts the devices this process sees, zero without the runtime or its kernels, and `nk.cuda_capabilities_enabled(0)` reports the mask device 0 dispatches with, raising `ValueError` past the last.
+`nk.cuda_capabilities_detected` and `nk.cuda_capabilities_compiled` answer as their CPU twins do, `nk.rocm_*` and `nk.metal_*` do the same for the other vendors, and `cpu_capabilities_enable` and `cpu_configure_thread` are CPU only.
+`nk.from_dlpack` imports a CUDA or ROCm tensor without a copy and records its device.
+Only `dots_pack` and the dots, angulars and euclideans `_packed` and `_symmetric` functions run on it, with that device's enabled capabilities.
 Element access, NumPy conversion, `cdist`, `maxsim` and every other CPU kernel raise `BufferError` rather than read device memory.
 NumKong allocates no device memory, so every GPU call writes into an `out=` Tensor on the same device, and mixing devices raises `ValueError`.
-A GPU call queues one launch on `stream=`, an integer handle defaulting to 0, the legacy stream, and returns before it finishes, as PyTorch does.
+A GPU call queues one launch on `stream=`, an integer handle defaulting to 0, the legacy stream, and returns before it finishes, as PyTorch does, and `nk.synchronize(capabilities, stream=stream)` waits for it.
+`nk.cuda_stream_init(ordinal)` makes such a handle on any device by its ordinal, and `nk.cuda_stream_free(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
 Metal tensors are host-readable and keep running on the CPU kernels.
 
 ```python
@@ -803,7 +802,7 @@ import numkong as nk
 
 left = torch.randn(4096, 768, device="cuda", dtype=torch.bfloat16)
 right = torch.randn(8192, 768, device="cuda", dtype=torch.bfloat16)
-capabilities = nk.from_dlpack(right).device.capabilities_enabled()
+capabilities = nk.cuda_capabilities_enabled(right.device.index)
 packed_storage = torch.empty(nk.PackedMatrix.pack_size(8192, 768, "bf16", capabilities=capabilities),
                              device="cuda", dtype=torch.uint8)
 result = torch.empty(4096, 8192, device="cuda", dtype=torch.float32)
@@ -811,7 +810,7 @@ result = torch.empty(4096, 8192, device="cuda", dtype=torch.float32)
 stream = torch.cuda.current_stream().cuda_stream
 packed = nk.dots_pack(nk.from_dlpack(right), out=nk.from_dlpack(packed_storage), stream=stream)
 nk.dots_packed(nk.from_dlpack(left), packed, out=nk.from_dlpack(result), stream=stream)
-torch.cuda.current_stream().synchronize()
+nk.synchronize(capabilities, stream=stream)
 ```
 
 ## Addressing External Memory

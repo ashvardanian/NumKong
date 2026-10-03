@@ -1409,7 +1409,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
     // Resident tiles step through the depth together, so a near-square block of them shares each
     // slab of A and B through L2: as many row tiles sweep the columns together as the block's side.
     int multiprocessors = 0;
-    nk_status_t const status = nk_device_attribute_(cudaDevAttrMultiProcessorCount, &multiprocessors);
+    nk_status_t const status = nk_device_attribute_simt_(cudaDevAttrMultiProcessorCount, &multiprocessors);
     if (status != nk_success_k) return status;
     nk_size_t const resident_tiles = (nk_size_t)multiprocessors >> paired;
     nk_size_t group_rows = 1;
@@ -1562,152 +1562,152 @@ NUMKONG_DEVICE void nk_dots_mxfp8e5m2_mma_blackwell_(nk_u32_t accumulator, nk_u6
 
 #pragma region BF16
 
-nk_define_device_cross_pack_(bf16, blackwell, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
-                             /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, bf16, blackwell, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
-                            /*dimensions_per_value=*/1, nk_dots_bf16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(bf16, blackwell, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, bf16, blackwell, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+                               /*dimensions_per_value=*/1, nk_dots_bf16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion BF16
 
 #pragma region F16
 
-nk_define_device_cross_pack_(f16, blackwell, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
-                             /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, f16, blackwell, f16, f16, f32, /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1,
-                            nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL, /*output_scale=*/1.0f,
-                            nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(f16, blackwell, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, f16, blackwell, f16, f16, f32, /*depth_simd_dimensions=*/8,
+                               /*dimensions_per_value=*/1, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion F16
 
 #pragma region E5M2
 
-nk_define_device_cross_pack_(e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
-                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
-                            /*dimensions_per_value=*/1, nk_dots_e5m2_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_e5m2_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E5M2
 
 #pragma region E4M3
 
-nk_define_device_cross_pack_(e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
-                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
-                            /*dimensions_per_value=*/1, nk_dots_e4m3_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_e4m3_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E4M3
 
 #pragma region E3M2
 
-nk_define_device_cross_pack_(e3m2, blackwell, e3m2, e5m2, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
-                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, e3m2, blackwell, e3m2, e5m2, f32, /*depth_simd_dimensions=*/16,
-                            /*dimensions_per_value=*/1, nk_dots_e5m2_mma_blackwell_, nk_f6x4_to_f8x4_ada_,
-                            /*output_scale=*/16777216.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(e3m2, blackwell, e3m2, e5m2, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, e3m2, blackwell, e3m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_e5m2_mma_blackwell_, nk_f6x4_to_f8x4_ada_,
+                               /*output_scale=*/16777216.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E3M2
 
 #pragma region E2M3
 
-nk_define_device_cross_pack_(e2m3, blackwell, e2m3, e4m3, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
-                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, e2m3, blackwell, e2m3, e4m3, f32, /*depth_simd_dimensions=*/16,
-                            /*dimensions_per_value=*/1, nk_dots_e4m3_mma_blackwell_, nk_f6x4_to_f8x4_ada_,
-                            /*output_scale=*/4096.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(e2m3, blackwell, e2m3, e4m3, nk_load_f6_to_f8_ada_, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, e2m3, blackwell, e2m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_e4m3_mma_blackwell_, nk_f6x4_to_f8x4_ada_,
+                               /*output_scale=*/4096.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E2M3
 
 #pragma region E2M1
 
-nk_define_device_cross_pack_(e2m1, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
-                             /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_device_cross_tma_(dot, e2m1, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                            /*dimensions_per_value=*/2, nk_dots_e2m1_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(e2m1, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_cross_tma_blackwell_(dot, e2m1, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                               /*dimensions_per_value=*/2, nk_dots_e2m1_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion E2M1
 
 #pragma region I8
 
-nk_define_device_cross_pack_(i8, blackwell, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
-                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, i8, blackwell, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
-                            nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL, /*output_scale=*/1.0f,
-                            nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(i8, blackwell, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, i8, blackwell, i8, i8, i32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion I8
 
 #pragma region I4
 
-nk_define_device_cross_pack_(i4, blackwell, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
-                             /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_device_cross_tma_(dot, i4, blackwell, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
-                            /*dimensions_per_value=*/2, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(i4, blackwell, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
+                           /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_cross_tma_blackwell_(dot, i4, blackwell, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
+                               /*dimensions_per_value=*/2, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion I4
 
 #pragma region U8
 
-nk_define_device_cross_pack_(u8, blackwell, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
-                             /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, u8, blackwell, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
-                            nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL, /*output_scale=*/1.0f,
-                            nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(u8, blackwell, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
+                           /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, u8, blackwell, u8, u8, u32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion U8
 
 #pragma region U4
 
-nk_define_device_cross_pack_(u4, blackwell, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
-                             /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_device_cross_tma_(dot, u4, blackwell, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
-                            /*dimensions_per_value=*/2, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_simt_(u4, blackwell, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
+                           /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_cross_tma_blackwell_(dot, u4, blackwell, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
+                               /*dimensions_per_value=*/2, nk_dots_f16_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion U4
 
 #pragma region Block Scaled Floats
 
-nk_define_device_cross_pack_size_(nvfp4, blackwell, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                                  /*dimensions_per_value=*/2)
-nk_define_device_cross_packed_shape_(nvfp4, blackwell)
-nk_define_device_cross_pack_rows_(nvfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
-                                  nk_e2m1_lane_sumsq_,
-                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_device_cross_tma_(dot, nvfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                            /*dimensions_per_value=*/2, nk_dots_nvfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
-nk_define_device_cross_pack_size_(mxfp4, blackwell, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                                  /*dimensions_per_value=*/2)
-nk_define_device_cross_packed_shape_(mxfp4, blackwell)
-nk_define_device_cross_pack_rows_(mxfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
-                                  nk_e2m1_lane_sumsq_,
-                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_device_cross_tma_(dot, mxfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                            /*dimensions_per_value=*/2, nk_dots_mxfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
-nk_define_device_cross_pack_size_(mxfp8e4m3, blackwell, e4m3, f32, /*depth_simd_dimensions=*/16,
-                                  /*dimensions_per_value=*/1)
-nk_define_device_cross_packed_shape_(mxfp8e4m3, blackwell)
-nk_define_device_cross_pack_rows_(mxfp8e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
-                                  nk_e4m3_lane_sumsq_,
-                                  /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, mxfp8e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
-                            /*dimensions_per_value=*/1, nk_dots_mxfp8e4m3_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
-nk_define_device_cross_pack_size_(mxfp8e5m2, blackwell, e5m2, f32, /*depth_simd_dimensions=*/16,
-                                  /*dimensions_per_value=*/1)
-nk_define_device_cross_packed_shape_(mxfp8e5m2, blackwell)
-nk_define_device_cross_pack_rows_(mxfp8e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
-                                  nk_e5m2_lane_sumsq_,
-                                  /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_device_cross_tma_(dot, mxfp8e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
-                            /*dimensions_per_value=*/1, nk_dots_mxfp8e5m2_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
-                            /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_size_simt_(nvfp4, blackwell, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                                /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_simt_(nvfp4, blackwell)
+nk_define_cross_pack_rows_simt_(nvfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+                                nk_e2m1_lane_sumsq_,
+                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_cross_tma_blackwell_(dot, nvfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                               /*dimensions_per_value=*/2, nk_dots_nvfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_size_simt_(mxfp4, blackwell, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                                /*dimensions_per_value=*/2)
+nk_define_cross_packed_shape_simt_(mxfp4, blackwell)
+nk_define_cross_pack_rows_simt_(mxfp4, blackwell, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+                                nk_e2m1_lane_sumsq_,
+                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+nk_define_cross_tma_blackwell_(dot, mxfp4, blackwell, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                               /*dimensions_per_value=*/2, nk_dots_mxfp4_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_size_simt_(mxfp8e4m3, blackwell, e4m3, f32, /*depth_simd_dimensions=*/16,
+                                /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_simt_(mxfp8e4m3, blackwell)
+nk_define_cross_pack_rows_simt_(mxfp8e4m3, blackwell, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+                                nk_e4m3_lane_sumsq_,
+                                /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, mxfp8e4m3, blackwell, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_mxfp8e4m3_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_pack_size_simt_(mxfp8e5m2, blackwell, e5m2, f32, /*depth_simd_dimensions=*/16,
+                                /*dimensions_per_value=*/1)
+nk_define_cross_packed_shape_simt_(mxfp8e5m2, blackwell)
+nk_define_cross_pack_rows_simt_(mxfp8e5m2, blackwell, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+                                nk_e5m2_lane_sumsq_,
+                                /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+nk_define_cross_tma_blackwell_(dot, mxfp8e5m2, blackwell, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                               /*dimensions_per_value=*/1, nk_dots_mxfp8e5m2_mma_blackwell_, /*widen_fn=*/NUMKONG_NULL,
+                               /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
 
 #pragma endregion Block Scaled Floats
 

@@ -898,7 +898,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #include <wasm_simd128.h>
 #endif
 /*  Host-only units include neither runtime, as the two clash; vendor units probe the devices. */
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__)
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
 #include <cuda_fp16.h>    // `__half2float`
 #include <cuda_runtime.h> // `cudaLaunchKernel`, `cudaStream_t`
 #endif

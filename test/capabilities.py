@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Test capability reporting and narrowing: nk.Device and its capabilities_{detected,compiled,enabled,enable}.
+"""Test capability reporting and narrowing: nk.{cpu,cuda,rocm,metal}_capabilities_{detected,compiled,enabled}.
 
 Capabilities are reported along two independent axes — `detected` (what this CPU can execute)
 and `compiled` (what the ISA probes baked into this build) — plus `enabled` (what dispatch uses,
-their intersection unless narrowed by `capabilities_enable`, or for one call by `capabilities=`).
+their intersection unless narrowed by `cpu_capabilities_enable`, or for one call by `capabilities=`).
 
 Conflating the axes is a silent performance cliff rather than a build error, which is how
 SIMD-free wheels once shipped with every check green: `detected` is true of the machine no
@@ -22,9 +22,6 @@ import pytest
 from base import SETTINGS
 
 import numkong as nk
-
-
-cpu = nk.Device.cpu()
 
 
 BASELINE_BY_MACHINE: dict[tuple[str, ...], nk.Capability] = {
@@ -50,9 +47,9 @@ def baseline_for_this_machine() -> nk.Capability | None:
 @pytest.fixture(autouse=True)
 def restore_enabled_capabilities():
     """Restores the enabled set each test found, which `keep_one_capability` caches across tests."""
-    enabled = cpu.capabilities_enabled()
+    enabled = nk.cpu_capabilities_enabled()
     yield
-    cpu.capabilities_enable(enabled)
+    nk.cpu_capabilities_enable(enabled)
 
 
 def test_capability_members_are_the_cpu_capabilities():
@@ -80,9 +77,9 @@ def test_enabling_everything_keeps_what_runs_here():
     Without the clamp, enabling an ISA that was compiled in but that this CPU lacks points
     dispatch at instructions the hardware refuses to execute.
     """
-    detected, compiled = cpu.capabilities_detected(), cpu.capabilities_compiled()
-    enabled = cpu.capabilities_enable(detected | compiled)
-    assert enabled == detected & compiled == cpu.capabilities_enabled()
+    detected, compiled = nk.cpu_capabilities_detected(), nk.cpu_capabilities_compiled()
+    enabled = nk.cpu_capabilities_enable(detected | compiled)
+    assert enabled == detected & compiled == nk.cpu_capabilities_enabled()
     assert nk.Capability.SERIAL in enabled, "the serial fallback is always both detected and compiled in"
 
 
@@ -99,10 +96,10 @@ def test_compiled_covers_the_baseline_this_machine_detects():
     baseline = baseline_for_this_machine()
     if baseline is None:
         pytest.skip(f"no SIMD baseline is guaranteed on {platform.machine()}")
-    if baseline not in cpu.capabilities_detected():
+    if baseline not in nk.cpu_capabilities_detected():
         pytest.skip(f"this CPU does not report {baseline.name}; nothing to verify")
 
-    assert baseline in cpu.capabilities_compiled(), (
+    assert baseline in nk.cpu_capabilities_compiled(), (
         f"this CPU reports {baseline.name} but no {baseline.name} kernels were compiled in — "
         f"the ISA probes failed at build time and this build is scalar"
     )
@@ -110,39 +107,50 @@ def test_compiled_covers_the_baseline_this_machine_detects():
 
 def test_enable_drops_the_tiers_left_out():
     """`capabilities_enable` makes `wanted` the enabled set, so a capability left out stops dispatching."""
-    available = cpu.capabilities_detected() & cpu.capabilities_compiled()
+    available = nk.cpu_capabilities_detected() & nk.cpu_capabilities_compiled()
     capabilities = [
         capability for capability in nk.Capability if capability in available and capability != nk.Capability.SERIAL
     ]
     if not capabilities:
         pytest.skip("scalar build: no capability other than serial to toggle")
 
-    enabled = cpu.capabilities_enable(available ^ capabilities[0])
-    assert capabilities[0] not in enabled and enabled == cpu.capabilities_enabled()
-    assert cpu.capabilities_enable(available) == available
+    enabled = nk.cpu_capabilities_enable(available ^ capabilities[0])
+    assert capabilities[0] not in enabled and enabled == nk.cpu_capabilities_enabled()
+    assert nk.cpu_capabilities_enable(available) == available
 
 
 def test_serial_survives_enabling_nothing():
     """The serial fallback always remains, so a kernel is always found."""
-    assert cpu.capabilities_enable(nk.Capability(0)) == nk.Capability.SERIAL
+    assert nk.cpu_capabilities_enable(nk.Capability(0)) == nk.Capability.SERIAL
 
 
-def test_device_names_one_device_it_sees():
-    """A `Device` is a kind and an ordinal, compared by value, and refuses an ordinal past the ones this process sees."""
-    assert cpu == nk.Device("cpu") == nk.Device(kind="cpu", ordinal=0) and hash(cpu) == hash(nk.Device("cpu"))
-    assert (cpu.kind, cpu.ordinal, repr(cpu)) == ("cpu", 0, "Device('cpu', 0)")
-    assert nk.zeros((2,), dtype="float32").device == cpu, "host tensors live on the CPU"
-    assert nk.Device.count("cpu") == 1
-    for kind in ("cpu", "cuda", "rocm", "metal"):
-        count = nk.Device.count(kind)
-        for ordinal in (-1, count):
-            with pytest.raises(ValueError):
-                nk.Device(kind, ordinal)
-        if count and kind != "cpu":
-            device = nk.Device(kind, count - 1)
-            assert device.capabilities_enabled() == device.capabilities_detected() & device.capabilities_compiled()
-    with pytest.raises(ValueError):
-        nk.Device("tpu")
+@pytest.mark.parametrize("vendor", ["cuda", "rocm", "metal"])
+def test_gpu_producers_refuse_an_ordinal_they_do_not_see(vendor: str):
+    """Each vendor reports the devices it counts, and raises ValueError past them, or for any in a build without it.
+
+    A GPU it counts synchronizes its default stream, and one it does not refuses to.
+    """
+    count = getattr(nk, f"{vendor}_count_devices")()
+    detected = getattr(nk, f"{vendor}_capabilities_detected")
+    enabled = getattr(nk, f"{vendor}_capabilities_enabled")
+    compiled = getattr(nk, f"{vendor}_capabilities_compiled")()
+    for ordinal in (-1, count):
+        with pytest.raises(ValueError):
+            enabled(ordinal)
+    if count:
+        assert enabled(count - 1) == detected(count - 1) & compiled
+        nk.synchronize(enabled(count - 1))
+    else:
+        with pytest.raises(RuntimeError):
+            nk.synchronize(1 << {"cuda": 48, "rocm": 56, "metal": 60}[vendor])
+
+
+def test_synchronize_on_the_cpu_returns():
+    """The CPU has nothing queued, so its synchronization returns at once, and a stream must be a pointer."""
+    nk.synchronize(nk.cpu_capabilities_enabled())
+    nk.synchronize(nk.cpu_capabilities_enabled(), stream=None)
+    with pytest.raises(TypeError):
+        nk.synchronize(nk.cpu_capabilities_enabled(), stream="not a pointer")
 
 
 def test_capabilities_keyword_narrows_one_call():
@@ -151,9 +159,9 @@ def test_capabilities_keyword_narrows_one_call():
     Unlike `capabilities_enable`, the keyword keeps no serial fallback, so a mask of no capability finds no kernel.
     """
     a, b = array.array("f", [0.25] * 64), array.array("f", [0.5] * 64)
-    enabled = cpu.capabilities_enabled()
+    enabled = nk.cpu_capabilities_enabled()
     assert nk.dot(a, b, capabilities=nk.Capability.SERIAL) == nk.dot(a, b) == 8.0
-    assert cpu.capabilities_enabled() == enabled
+    assert nk.cpu_capabilities_enabled() == enabled
     with pytest.raises(LookupError):
         nk.dot(a, b, capabilities=nk.Capability(0))
     with pytest.raises(TypeError):
@@ -168,7 +176,7 @@ def test_packed_matrix_keeps_the_mask_it_was_packed_with():
     vectors = memoryview(array.array("f", [float(i % 7) for i in range(8 * 64)])).cast("B").cast("f", [8, 64])
     packed = nk.dots_pack(vectors)
     expected = nk.dots_packed(vectors, packed)
-    cpu.capabilities_enable(nk.Capability.SERIAL)
+    nk.cpu_capabilities_enable(nk.Capability.SERIAL)
     serial_packed = nk.dots_pack(vectors)
     assert nk.dots_packed(vectors, packed) == expected
     assert nk.dots_packed(vectors, serial_packed) == expected

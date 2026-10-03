@@ -11,11 +11,10 @@ That matters for fp16, bf16, fp8, packed bits, and strided reductions.
 ## Quickstart
 
 ```rust
-use numkong::{Device, Dot};
+use numkong::{Capabilities, Dot};
 
 fn main() {
-    let cpu = Device::cpu();
-    cpu.configure_thread(cpu.capabilities_enabled().unwrap()).unwrap();
+    Capabilities::cpu_enabled().configure_thread().unwrap();
     let a = [1.0_f32, 2.0, 3.0];
     let b = [4.0_f32, 5.0, 6.0];
     let dot = f32::dot(&a, &b).unwrap();
@@ -117,37 +116,37 @@ RUSTFLAGS="-C target-feature=+relaxed-simd" cargo build --target wasm32-wasip1
 
 ## Runtime Dispatch and Capabilities
 
-A `Device` is the host CPU or one GPU, and `Device::configure_thread` enables CPU-specific acceleration features such as Intel AMX.
+`Capabilities` answers for the CPU and each GPU group through its associated functions, and `Capabilities::configure_thread` enables CPU-specific acceleration features such as Intel AMX.
 It must be called once per thread before using AMX operations.
 
 ```rust
-use numkong::{Capability, Device, DeviceKind};
+use numkong::{Capabilities, Capability};
 
-let cpu = Device::cpu();
-let enabled = cpu.capabilities_enabled().unwrap();
-cpu.configure_thread(enabled).unwrap();
+let enabled = Capabilities::cpu_enabled();
+enabled.configure_thread().unwrap();
 
 println!("dispatching to {enabled}"); // like "serial,neon,neonhalf"
 if enabled.contains(Capability::SapphireAmx) {
     println!("AMX enabled");
 }
 
-for ordinal in 0..Device::count(DeviceKind::Cuda).unwrap() {
-    let gpu = Device::new(DeviceKind::Cuda, ordinal).unwrap();
-    println!("CUDA device {ordinal} runs {}", gpu.capabilities_enabled().unwrap()); // like "cuda,ampere,hopper"
+for ordinal in 0..Capabilities::cuda_count_devices().unwrap() {
+    println!("CUDA device {ordinal} runs {}", Capabilities::cuda_enabled(ordinal).unwrap()); // like "cuda,ampere,hopper"
 }
 ```
 
-A device reports its `Capabilities`, a set of `Capability` bits, along two independent axes, plus the set dispatch uses:
+Each group reports a `Capabilities` set of `Capability` bits along two independent axes, plus the set dispatch uses:
 
-- `capabilities_detected()`: what the device can execute, from CPUID or HWCAP on the CPU and from the runtime on a GPU
-- `capabilities_compiled()`: what this binary contains, from the probes at build time
-- `capabilities_enabled()`: what dispatch uses, i.e. both axes at once unless narrowed
+- `cpu_detected()`, `cuda_detected(ordinal)` and their ROCm and Metal kin: what the device can execute, from CPUID or HWCAP on the CPU and from the runtime on a GPU
+- `cpu_compiled()`, `cuda_compiled()` and their kin: what this binary contains, from the probes at build time
+- `cpu_enabled()`, `cuda_enabled(ordinal)` and their kin: what dispatch uses, i.e. both axes at once unless narrowed
 
-Reach for `capabilities_enabled()` unless you specifically mean one of the raw axes.
-`capabilities_detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
-Narrow CPU dispatch with `cpu.capabilities_enable(enabled.without(Capability::Skylake))`, which clamps to both axes, always keeps `Capability::Serial`, and returns the set that stuck.
-It is the one piece of process state the crate keeps: every kernel call passes the CPU's `capabilities_enabled()` as its capability mask, and packed kernels refuse another capability's layout, so pack matrices again after narrowing.
+Reach for the `_enabled` ones unless you specifically mean one of the raw axes.
+`cpu_detected()` describes the machine and says nothing about whether a kernel was compiled in, so a build whose ISA probes failed still reports your CPU's full feature set while containing no SIMD kernels at all.
+Narrow CPU dispatch with `Capabilities::cpu_enable(enabled.without(Capability::Skylake))`, which clamps to both axes, always keeps `Capability::Serial`, and returns the set that stuck.
+It is the one piece of process state the crate keeps: every kernel call passes `Capabilities::cpu_enabled()` as its capability mask, and packed kernels refuse another capability's layout, so pack matrices again after narrowing.
+`UnifiedAllocator::new(capabilities)` allocates memory the host and that group's device both address, and `capabilities.synchronize(stream)` waits for a stream of that group.
+`Capabilities::cuda_stream_init(ordinal)` makes such a stream on any device by its ordinal, and `Capabilities::cuda_stream_free(stream)` frees it once synchronized, with `rocm_` and `metal_` twins.
 
 Call `configure_thread` at the start of every thread that will use AMX operations.
 In a thread-pool setting, each worker thread needs its own call.

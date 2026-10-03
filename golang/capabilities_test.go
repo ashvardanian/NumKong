@@ -93,8 +93,8 @@ func TestCapabilitiesEnable(t *testing.T) {
 }
 
 func TestDevices(t *testing.T) {
-	if numkong.CapCpus&numkong.CapDevices != 0 || numkong.CapCpus|numkong.CapDevices|numkong.CapAny != numkong.CapAny {
-		t.Errorf("CapCpus %v and CapDevices %v overlap or escape CapAny", numkong.CapCpus, numkong.CapDevices)
+	if numkong.CapCpus&numkong.CapGpus != 0 || numkong.CapCpus|numkong.CapGpus|numkong.CapAny != numkong.CapAny {
+		t.Errorf("CapCpus %v and CapGpus %v overlap or escape CapAny", numkong.CapCpus, numkong.CapGpus)
 	}
 	if count, err := numkong.CountDevices(numkong.DeviceCPU); count != 1 || err != nil {
 		t.Errorf("CountDevices(DeviceCPU) = %d, %v, expected one CPU", count, err)

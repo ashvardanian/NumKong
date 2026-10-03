@@ -4,7 +4,7 @@
  *  @date September 24, 2026
  *  @brief Batched Dot Products for Apple GPUs of Metal family 10, on the Neural Accelerators.
  *
- *  @sa include/numkong/dots/apple10.h, which embeds and launches this source after `simt.metal`
+ *  @sa include/numkong/dots/apple10.h, which embeds and launches this source after `metal.metal`
  *  @sa include/numkong/dots/ampere.cuh, the CUDA sibling
  *
  *  Only @c matmul2d reaches the accelerators; @c simdgroup_matrix runs at the plain FP32 rate.

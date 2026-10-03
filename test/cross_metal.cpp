@@ -7,60 +7,55 @@
  *  Runs the dots scenarios of `cross.hpp` through a @c metal_backend_t for the Metal baseline and
  *  every Apple GPU family the device runs, against the serial `nk::` references on the host.
  */
-#include "numkong/metal.h" // `nk_metal_queue_t`
+#include "numkong/metal.h" // `nk_memory_allocate_unified_metal`
 
 #include "harness.hpp" // `error_stats_section_t`, `call_best`
 #include "cross.hpp"   // `test_dots_packed`
 
 namespace ashvardanian::numkong::test {
 
-/** Shared memory both the host and @c queue's kernels dereference, so any @c nk::vector factory
- *  can use it. A default-constructed allocator has no queue and hands out nothing. */
+/** Unified memory of the system default device, which the host and its kernels both dereference,
+ *  so any @c nk::vector factory can use it. */
 template <typename value_type_>
 struct metal_shared_allocator {
     using value_type = value_type_;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using propagate_on_container_move_assignment = std::true_type;
-    using is_always_equal = std::false_type;
+    using is_always_equal = std::true_type;
 
     template <typename other_type_>
     struct rebind {
         using other = metal_shared_allocator<other_type_>;
     };
 
-    nk_metal_queue_t *queue = nullptr;
-
     constexpr metal_shared_allocator() noexcept = default;
-    constexpr explicit metal_shared_allocator(nk_metal_queue_t &queue) noexcept : queue(&queue) {}
     template <typename other_type_>
-    constexpr metal_shared_allocator(metal_shared_allocator<other_type_> const &other) noexcept : queue(other.queue) {}
+    constexpr metal_shared_allocator(metal_shared_allocator<other_type_> const &) noexcept {}
 
     [[nodiscard]] value_type *allocate(std::size_t count) noexcept {
-        if (!queue) return nullptr;
-        return static_cast<value_type *>(nk_metal_allocate(queue, count * sizeof(value_type)));
+        void *pointer = nullptr;
+        nk_status_t const status = nk_memory_allocate_unified_metal(count * sizeof(value_type), &pointer, nullptr);
+        return status == nk_success_k ? static_cast<value_type *>(pointer) : nullptr;
     }
-    void deallocate(value_type *pointer, std::size_t) noexcept {
-        if (pointer) nk_metal_free(queue, pointer);
+    void deallocate(value_type *pointer, std::size_t count) noexcept {
+        [[maybe_unused]] nk_status_t const status = nk_memory_free_unified_metal(pointer, count * sizeof(value_type),
+                                                                                 nullptr);
     }
     template <typename other_type_>
-    constexpr bool operator==(metal_shared_allocator<other_type_> const &other) const noexcept {
-        return queue == other.queue;
+    constexpr bool operator==(metal_shared_allocator<other_type_> const &) const noexcept {
+        return true;
     }
 };
 
-/** Runs the Metal kernels on @c queue over its shared memory, keeping the first failed status.
- *  Unlike a CUDA stream, the queue is an explicit value: @c main opens it, and every allocator and
- *  backend holds a reference to it, since a kernel reaches only the blocks of its own queue. */
+/** Runs the Metal kernels on the null stream, the library's queue on the system default device,
+ *  over its unified memory, keeping the first failed status. */
 struct metal_backend_t {
 
-    /** The allocator every kernel operand comes from, readable by the host once the queue is
+    /** The allocator every kernel operand comes from, readable by the host once the stream is
      *  synchronized. */
     template <typename value_type_>
     using allocator = metal_shared_allocator<value_type_>;
-
-    /** Where every call encodes and every operand is recorded, owned by @c main. */
-    nk_metal_queue_t &queue;
 
     /** The first failure since the last synchronization. */
     nk_status_t status = nk_success_k;
@@ -70,33 +65,33 @@ struct metal_backend_t {
 
     /** Copies @p bytes once every queued call has finished with them. */
     void copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        keep(nk_metal_synchronize(&queue));
+        keep(nk_stream_synchronize_metal(nullptr));
         std::memcpy(destination, source, bytes);
     }
 
     /** Zeroes @p bytes once every queued call has finished with them. */
     void zero(void *destination, std::size_t bytes) noexcept {
-        keep(nk_metal_synchronize(&queue));
+        keep(nk_stream_synchronize_metal(nullptr));
         std::memset(destination, 0, bytes);
     }
 
-    /** Encodes @p kernel with @p arguments on the queue. */
+    /** Encodes @p kernel with @p arguments on the null stream. */
     template <typename kernel_type_, typename... arguments_types_>
     void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        keep(kernel(arguments..., static_cast<void *>(&queue)));
+        keep(kernel(arguments..., nullptr));
     }
 
     /** Calls @p kernel on operands it must refuse, reporting whether it returned
      *  @c nk_misaligned_k unencoded. */
     template <typename kernel_type_, typename... arguments_types_>
     bool refuses_misaligned(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        return kernel(arguments..., static_cast<void *>(&queue)) == nk_misaligned_k;
+        return kernel(arguments..., nullptr) == nk_misaligned_k;
     }
 
-    /** Waits for the queue, returning the name of the first failure since the last call, or
+    /** Waits for the stream, returning the name of the first failure since the last call, or
      *  @c nullptr. */
     char const *synchronize() noexcept {
-        keep(nk_metal_synchronize(&queue));
+        keep(nk_stream_synchronize_metal(nullptr));
         nk_status_t const failure = status;
         status = nk_success_k;
         return failure == nk_success_k ? nullptr : nk_status_name(failure);
@@ -107,12 +102,6 @@ struct metal_backend_t {
         if (status == nk_success_k) status = result;
     }
 };
-
-/** Blocks recorded on @p backend's own queue. */
-template <typename value_type_>
-metal_shared_allocator<value_type_> allocator_of(metal_backend_t const &backend) noexcept {
-    return metal_shared_allocator<value_type_>(backend.queue);
-}
 
 /** The capabilities of the first Metal device, where every backend encodes. */
 inline nk_capability_t metal_capabilities() noexcept {
@@ -127,8 +116,8 @@ inline constexpr auto gpu_best =
     [](auto... arguments) noexcept { return call_best<best_>(metal_capabilities(), arguments...); };
 
 /** Every Metal baseline entry point, on any Apple GPU of family 7 or newer. */
-static void test_cross_metal_baseline(error_stats_section_t &check, nk_metal_queue_t &queue) {
-    metal_backend_t const backend {queue};
+static void test_cross_metal_baseline(error_stats_section_t &check) {
+    metal_backend_t const backend {};
     check.section("Cross Metal", nk_cap_metal_k);
     check("dots_packed_i8_metal", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_metal,
           nk_dots_pack_i8_metal, nk_dots_packed_i8_metal);
@@ -261,9 +250,9 @@ static void test_cross_metal_baseline(error_stats_section_t &check, nk_metal_que
 }
 
 /** Every Apple9 entry point, on devices whose families include it. */
-static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check, [[maybe_unused]] nk_metal_queue_t &queue) {
+static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_APPLE9
-    metal_backend_t const backend {queue};
+    metal_backend_t const backend {};
     check.section("Cross Apple9", nk_cap_apple9_k);
     check("dots_packed_f16_apple9", test_dots_packed<f16_t, metal_backend_t>, backend, nk_dots_pack_size_f16_apple9,
           nk_dots_pack_f16_apple9, nk_dots_packed_f16_apple9);
@@ -353,10 +342,9 @@ static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check, [[m
 }
 
 /** Every Apple10 entry point, on devices whose families include it. */
-static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check,
-                               [[maybe_unused]] nk_metal_queue_t &queue) {
+static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_APPLE10
-    metal_backend_t const backend {queue};
+    metal_backend_t const backend {};
     check.section("Cross Apple10", nk_cap_apple10_k);
     check("dots_packed_i8_apple10", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_apple10,
           nk_dots_pack_i8_apple10, nk_dots_packed_i8_apple10);
@@ -469,22 +457,22 @@ static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check,
 #endif
 }
 
-void test_cross_metal(error_stats_section_t &check, nk_metal_queue_t &queue) {
-    test_cross_metal_baseline(check, queue);
-    test_cross_apple9(check, queue);
-    test_cross_apple10(check, queue);
+void test_cross_metal(error_stats_section_t &check) {
+    test_cross_metal_baseline(check);
+    test_cross_apple9(check);
+    test_cross_apple10(check);
 }
 
 /** The dispatching entry points, over the capabilities of the device the backend encodes on. */
-void test_cross_dispatch(error_stats_section_t &check, [[maybe_unused]] nk_metal_queue_t &queue) {
+void test_cross_dispatch(error_stats_section_t &check) {
     check.section("Cross Dispatch", nk_cap_metal_k);
 #if NUMKONG_HEADER_ONLY
     check("dots_packed_i8_dispatch", [](settings_t const &settings) {
-        return test_missing_library<nk_dots_packed_i8_best>(settings, nullptr, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
-                                                            0, nullptr);
+        return test_missing_library<nk_dots_packed_i8_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
+                                                            nullptr);
     });
 #else
-    metal_backend_t const backend {queue};
+    metal_backend_t const backend {};
     check("dots_packed_i8_dispatch", test_dots_packed<i8_t, metal_backend_t>, backend,
           gpu_best<nk_dots_pack_size_i8_best>, gpu_best<nk_dots_pack_i8_best>, gpu_best<nk_dots_packed_i8_best>);
 #endif

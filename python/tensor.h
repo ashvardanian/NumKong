@@ -139,12 +139,6 @@ extern PyTypeObject ScaledTensorType;
 /** Tensor iterator Python type object. */
 extern PyTypeObject TensorIterType;
 
-/** `numkong.Device` Python type object, defined with the capability queries in `numkong.c`. */
-extern PyTypeObject DeviceType;
-
-/** Wrap @p device as a `numkong.Device`, for `Tensor.device`. */
-PyObject *device_to_py_object(DLDevice device);
-
 /**
  *  @brief Allocate a new Tensor with uninitialized data.
  *  @param[in] dtype Logical dtype for elements.
@@ -195,7 +189,8 @@ int tensor_on_host(Tensor const *tensor);
 int tensor_export_buffer(Tensor *tensor, Py_buffer *view, int flags);
 
 /**
- *  @brief Find the capabilities @c Device.capabilities_enabled reports for GPU @p device.
+ *  @brief Find the capabilities @c nk_cuda_capabilities_enabled or @c nk_rocm_capabilities_enabled
+ *      reports for GPU @p device.
  *  @return 1 on success, 0 with a @c ValueError when that device has none.
  */
 int device_capabilities(DLDevice device, nk_capability_t *capabilities);

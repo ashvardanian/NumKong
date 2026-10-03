@@ -133,34 +133,36 @@ StatementMacros:
   - nk_define_cross_compensated_symmetric_
   - nk_define_cross_normalized_packed_
   - nk_define_cross_normalized_symmetric_
-  - nk_define_device_cross_pack_size_
-  - nk_define_device_cross_packed_shape_
-  - nk_define_device_cross_pack_rows_
-  - nk_define_device_cross_pack_
-  - nk_define_device_cross_packed_
-  - nk_define_device_cross_symmetric_
-  - nk_define_device_cross_
-  - nk_define_device_cross_tma_packed_
-  - nk_define_device_cross_tma_symmetric_
-  - nk_define_device_cross_tma_
-  - nk_define_device_cross_msl_
-  - nk_define_device_lane_sumsq_
-  - nk_define_device_each_sum_
-  - nk_define_device_each_rmsnorm_
-  - nk_define_device_each_swiglu_
-  - nk_define_device_each_scale_
-  - nk_define_device_each_blend_
-  - nk_define_device_each_fma_
-  - nk_define_device_attention_pack_size_
-  - nk_define_device_attention_packed_shape_
-  - nk_define_device_attention_pack_
-  - nk_define_device_attention_baseline_packed_
-  - nk_define_device_attention_baseline_
-  - nk_define_device_attention_packed_
-  - nk_define_device_attention_rope_
+  - nk_define_cross_pack_size_simt_
+  - nk_define_cross_packed_shape_simt_
+  - nk_define_cross_pack_rows_simt_
+  - nk_define_cross_pack_simt_
+  - nk_define_cross_packed_simt_
+  - nk_define_cross_symmetric_simt_
+  - nk_define_cross_simt_
+  - nk_define_cross_tma_packed_blackwell_
+  - nk_define_cross_tma_symmetric_blackwell_
+  - nk_define_cross_tma_blackwell_
+  - nk_define_cross_metal_
+  - nk_define_lane_sumsq_simt_
+  - nk_define_each_sum_simt_
+  - nk_define_each_rmsnorm_simt_
+  - nk_define_each_swiglu_simt_
+  - nk_define_each_scale_simt_
+  - nk_define_each_blend_simt_
+  - nk_define_each_fma_simt_
+  - nk_define_attention_pack_size_simt_
+  - nk_define_attention_packed_shape_simt_
+  - nk_define_attention_pack_simt_
+  - nk_define_attention_baseline_packed_simt_
+  - nk_define_attention_baseline_simt_
+  - nk_define_attention_packed_simt_
+  - nk_define_attention_pack_blackwell_
+  - nk_define_attention_tma_blackwell_
+  - nk_define_attention_rope_simt_
   - nk_define_attention_rope_
-  - nk_define_device_reduce_moments_
-  - nk_define_device_reduce_minmax_
+  - nk_define_reduce_moments_simt_
+  - nk_define_reduce_minmax_simt_
 
 # Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:

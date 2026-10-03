@@ -1,10 +1,10 @@
 /**
- *  @file include/numkong/dots/simt.metal
+ *  @file include/numkong/dots/metal.metal
  *  @author Ash Vardanian
  *  @date September 25, 2026
  *  @brief Batched Dot Products on the SIMT cores of every Apple GPU, from Metal family 7 on.
  *
- *  @sa include/numkong/dots/simt.h, which embeds and launches this source
+ *  @sa include/numkong/dots/metal.h, which embeds and launches this source
  *  @sa include/numkong/dots/simt.cuh, the CUDA and ROCm sibling
  *
  *  The baseline every Apple capability stands on, needing only Metal 3.1: no @c matmul2d and no
@@ -222,7 +222,7 @@ struct nk_cross_packed_buffer_header_t {
     ulong capability;
 };
 
-static_assert(sizeof(nk_cross_pack_arguments_metal_t) == 56, "mirrors the C record in dots/simt.h");
+static_assert(sizeof(nk_cross_pack_arguments_metal_t) == 56, "mirrors the C record in dots/metal.h");
 static_assert(sizeof(nk_cross_packed_buffer_header_t) == 64, "mirrors the C header in dots/serial.h");
 
 /** Packs one column: the row zero-padded to its padded depth, then its sum of squares among the
@@ -276,7 +276,7 @@ struct nk_cross_arguments_metal_t {
     uint upper_triangle;
 };
 
-static_assert(sizeof(nk_cross_arguments_metal_t) == 48, "mirrors the C record in dots/simt.h");
+static_assert(sizeof(nk_cross_arguments_metal_t) == 48, "mirrors the C record in dots/metal.h");
 
 /** One @b [64,64] tile of C = A × Bᵀ, with B given row-major as @b [columns,depth], on the SIMT
  *  cores: each of 256 threads owns a 4 × 4 grid of outputs strided by 16, so threadgroup reads

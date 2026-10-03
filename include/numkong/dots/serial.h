@@ -133,7 +133,7 @@ typedef struct {
 /** Values one packed row spans: @p depth rounded up to @p depth_simd_dimensions, in values of
  *  @p dimensions_per_value, plus one more step when that lands on a power-of-two byte stride, as
  *  @c nk_define_cross_pack_size_ pads. The Metal packs size their rows with it, while the CUDA and
- *  ROCm packs skip the extra step through @c nk_device_cross_padded_values_. */
+ *  ROCm packs skip the extra step through @c nk_cross_padded_values_simt_. */
 NUMKONG_INLINE nk_size_t nk_cross_padded_values_(nk_size_t depth, nk_size_t depth_simd_dimensions,
                                                  nk_size_t dimensions_per_value, nk_size_t value_bytes) {
     nk_size_t values = nk_size_round_up_to_multiple_(depth, depth_simd_dimensions) / dimensions_per_value;

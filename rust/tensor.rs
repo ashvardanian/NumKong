@@ -435,7 +435,7 @@ pub enum Error {
     /// Operation not supported for sub-byte types: i4x2, u4x2, u1x8.
     SubByteUnsupported,
     /// A kernel refused its operands with this [`Status`], like a matrix packed under other
-    /// capabilities than the current [`crate::Device::capabilities_enabled`].
+    /// capabilities than the current [`crate::Capabilities::cpu_enabled`].
     KernelFailed { status: Status },
 }
 

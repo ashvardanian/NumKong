@@ -5,11 +5,9 @@
  *  @brief Metal test: the capability report, the cross-kernel sections of `cross_metal.cpp`, and
  *      the dispatching entry points.
  *
- *  Every section runs on the queue @c main opens. `NUMKONG_FILTER=<regex>` keeps only the matching
- *  sections and kernels.
+ *  Every section runs on the null stream, the library's queue on the system default device.
+ *  `NUMKONG_FILTER=<regex>` keeps only the matching sections and kernels.
  */
-#include "numkong/metal.h" // `nk_metal_queue_t`
-
 #include "harness.hpp" // `error_stats_section_t`
 
 using namespace ashvardanian::numkong::test;
@@ -19,10 +17,10 @@ char const *volatile nk::test::nk_test_current_kernel_ = nullptr;
 namespace ashvardanian::numkong::test {
 
 /** Every Metal capability this build compiled, from @c test/cross_metal.cpp. */
-void test_cross_metal(error_stats_section_t &check, nk_metal_queue_t &queue);
+void test_cross_metal(error_stats_section_t &check);
 
 /** The dispatching entry points, from @c test/cross_metal.cpp. */
-void test_cross_dispatch(error_stats_section_t &check, nk_metal_queue_t &queue);
+void test_cross_dispatch(error_stats_section_t &check);
 
 } // namespace ashvardanian::numkong::test
 
@@ -53,19 +51,13 @@ int main(int, char **argv) {
     char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
     nk_capabilities_name(capabilities, names, sizeof(names));
     fmt::println("- Metal: {} devices, the first running {}", devices.value, names);
-    nk_metal_queue_t queue;
-    if (nk_metal_queue_init(&queue, 0) != nk_success_k) {
-        fmt::println("- Metal: the first device refused a queue");
-        return 1;
-    }
 
     error_stats_section_t check(env.settings, capabilities | nk_cap_serial_k);
     check.section("Metal capabilities", nk_cap_serial_k); // the report itself is under test, so never gate on it
     check("gpu_capabilities_metal", test_metal_capabilities, 0);
 
-    test_cross_metal(check, queue);
-    test_cross_dispatch(check, queue);
-    nk_metal_queue_free(&queue);
+    test_cross_metal(check);
+    test_cross_dispatch(check);
 
     int const passed = static_cast<int>(check.kernel_count - check.failure_count);
     int const failed = static_cast<int>(check.failure_count);

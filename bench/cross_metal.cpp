@@ -4,10 +4,10 @@
  *  @date September 25, 2026
  *  @brief Batch operation benchmarks for the Metal kernels, the twin of `cross_cuda.cu`.
  *
- *  Runs the drivers of `cross.hpp` through a @c metal_backend_t, each run on a queue of its own,
- *  over that queue's shared memory. Metal has no C-level events, so every window of launches is
- *  timed by wall clock through the synchronization after it. Input sets rotate until their
- *  footprint is at least twice the system-level cache.
+ *  Runs the drivers of `cross.hpp` through a @c metal_backend_t, on the null stream, the library's
+ *  queue on the system default device, over its unified memory. Metal has no C-level events, so
+ *  every window of launches is timed by wall clock through the synchronization after it. Input sets
+ *  rotate until their footprint is at least twice the system-level cache.
  */
 #include <cstddef> // `std::size_t`, `std::ptrdiff_t`
 #include <cstring> // `std::memcpy`, `std::memset`
@@ -15,10 +15,9 @@
 #include <algorithm>   // `std::max`, `std::min`
 #include <bit>         // `std::bit_ceil`
 #include <chrono>      // `std::chrono::steady_clock`
-#include <type_traits> // `std::true_type`, `std::false_type`
+#include <type_traits> // `std::true_type`
 
-#include "numkong/metal.h" // `nk_metal_allocate`, `nk_metal_free`
-#include "numkong/numkong.h"
+#include "numkong/numkong.h" // `nk_memory_allocate_unified_metal`, `nk_stream_synchronize_metal`
 
 #include "cross.hpp"
 
@@ -26,69 +25,51 @@
 
 namespace ashvardanian::numkong::bench {
 
-/** Shared memory both the host and @c queue's kernels dereference, so any @c nk::vector factory
- *  can use it. A default-constructed allocator has no queue and hands out nothing. */
+/** Unified memory of the system default device, which the host and its kernels both dereference,
+ *  so any @c nk::vector factory can use it. */
 template <typename value_type_>
 struct metal_shared_allocator {
     using value_type = value_type_;
     using size_type = std::size_t;
     using difference_type = std::ptrdiff_t;
     using propagate_on_container_move_assignment = std::true_type;
-    using is_always_equal = std::false_type;
+    using is_always_equal = std::true_type;
 
     template <typename other_type_>
     struct rebind {
         using other = metal_shared_allocator<other_type_>;
     };
 
-    nk_metal_queue_t *queue = nullptr;
-
     constexpr metal_shared_allocator() noexcept = default;
-    constexpr explicit metal_shared_allocator(nk_metal_queue_t &queue) noexcept : queue(&queue) {}
     template <typename other_type_>
-    constexpr metal_shared_allocator(metal_shared_allocator<other_type_> const &other) noexcept : queue(other.queue) {}
+    constexpr metal_shared_allocator(metal_shared_allocator<other_type_> const &) noexcept {}
 
     [[nodiscard]] value_type *allocate(std::size_t count) noexcept {
-        if (!queue) return nullptr;
-        return static_cast<value_type *>(nk_metal_allocate(queue, count * sizeof(value_type)));
+        void *pointer = nullptr;
+        nk_status_t const status = nk_memory_allocate_unified_metal(count * sizeof(value_type), &pointer, nullptr);
+        return status == nk_success_k ? static_cast<value_type *>(pointer) : nullptr;
     }
-    void deallocate(value_type *pointer, std::size_t) noexcept {
-        if (pointer) nk_metal_free(queue, pointer);
+    void deallocate(value_type *pointer, std::size_t count) noexcept {
+        [[maybe_unused]] nk_status_t const status = nk_memory_free_unified_metal(pointer, count * sizeof(value_type),
+                                                                                 nullptr);
     }
     template <typename other_type_>
-    constexpr bool operator==(metal_shared_allocator<other_type_> const &other) const noexcept {
-        return queue == other.queue;
+    constexpr bool operator==(metal_shared_allocator<other_type_> const &) const noexcept {
+        return true;
     }
 };
 
-/** Runs the Metal kernels on @c queue over its shared memory, timing windows of calls by wall clock
- *  through their synchronization. */
+/** Runs the Metal kernels on the null stream over unified memory, timing windows of calls by wall
+ *  clock through their synchronization. */
 struct metal_backend_t {
 
-    /** The allocator every kernel operand comes from, readable by the host once the queue is
+    /** The allocator every kernel operand comes from, readable by the host once the stream is
      *  synchronized. */
     template <typename value_type_>
     using allocator = metal_shared_allocator<value_type_>;
 
-    /** Where every call encodes and every operand is recorded. Each copy opens its own on first use
-     *  and closes it with itself. */
-    mutable nk_metal_queue_t queue {};
-
     /** The first failure since the last synchronization. */
     nk_status_t status = nk_success_k;
-
-    metal_backend_t() noexcept = default;
-    metal_backend_t(metal_backend_t const &) noexcept {}
-    metal_backend_t &operator=(metal_backend_t const &) = delete;
-    ~metal_backend_t() noexcept {
-        if (queue.device) nk_metal_queue_free(&queue);
-    }
-
-    /** The queue, opened by the first call that needs it. */
-    nk_metal_queue_t &opened() const noexcept {
-        if (!queue.device && nk_metal_queue_init(&queue, 0) != nk_success_k) queue = {};
-        return queue;
-    }
 
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
@@ -104,20 +85,20 @@ struct metal_backend_t {
 
     /** Copies @p bytes once every queued call has finished with them. */
     void copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        keep(nk_metal_synchronize(&opened()));
+        keep(nk_stream_synchronize_metal(nullptr));
         std::memcpy(destination, source, bytes);
     }
 
     /** Zeroes @p bytes once every queued call has finished with them. */
     void zero(void *destination, std::size_t bytes) noexcept {
-        keep(nk_metal_synchronize(&opened()));
+        keep(nk_stream_synchronize_metal(nullptr));
         std::memset(destination, 0, bytes);
     }
 
-    /** Encodes @p kernel with @p arguments on the queue. */
+    /** Encodes @p kernel with @p arguments on the null stream. */
     template <typename kernel_type_, typename... arguments_types_>
     void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        keep(kernel(arguments..., static_cast<void *>(&opened())));
+        keep(kernel(arguments..., nullptr));
     }
 
     /** Times windows of @p launch calls through their synchronization, doubling a window until it
@@ -129,7 +110,7 @@ struct metal_backend_t {
         for ([[maybe_unused]] std::size_t call : loop) {
             auto const start = steady_clock_t::now();
             for (std::size_t index = 0; index != window; ++index) launch((calls + index) & (sets_count - 1));
-            keep(nk_metal_synchronize(&opened()));
+            keep(nk_stream_synchronize_metal(nullptr));
             if (status != nk_success_k) break;
             auto const elapsed = steady_clock_t::now() - start;
             loop.add_window(elapsed, window);
@@ -139,10 +120,10 @@ struct metal_backend_t {
         }
     }
 
-    /** Waits for the queue, returning the name of the first failure since the last call, or
+    /** Waits for the stream, returning the name of the first failure since the last call, or
      *  @c nullptr. */
     char const *synchronize() noexcept {
-        keep(nk_metal_synchronize(&opened()));
+        keep(nk_stream_synchronize_metal(nullptr));
         nk_status_t const failure = status;
         status = nk_success_k;
         return failure == nk_success_k ? nullptr : nk_status_name(failure);
@@ -153,12 +134,6 @@ struct metal_backend_t {
         if (status == nk_success_k) status = result;
     }
 };
-
-/** Blocks recorded on @p backend's own queue. */
-template <typename value_type_>
-metal_shared_allocator<value_type_> allocator_of(metal_backend_t const &backend) noexcept {
-    return metal_shared_allocator<value_type_>(backend.opened());
-}
 
 } // namespace ashvardanian::numkong::bench
 

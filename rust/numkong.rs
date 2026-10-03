@@ -20,7 +20,7 @@
 //! - [`geospatial`]: Geospatial distances — Haversine, Vincenty
 //! - [`sparse`]: Sparse set operations
 //! - [`mod@cast`]: Type casting between scalar formats
-//! - [`capabilities`]: Devices and the capabilities they detect, compile and enable
+//! - [`capabilities`]: Capabilities CPUs and GPUs detect, compile and enable, and unified memory
 //! - [`dots`]: Batched GEMM over pre-packed matrices
 //! - [`spatials`]: Batched spatial distances — angular, Euclidean — over pre-packed matrices
 //! - [`sets`]: Batched binary/set metrics — Hamming, Jaccard — over pre-packed matrices
@@ -52,8 +52,7 @@
 //! let l2sq_dist = f32::sqeuclidean(a, b);
 //!
 //! // Enable AMX and other platform-specific SIMD features
-//! let cpu = numkong::Device::cpu();
-//! cpu.configure_thread(cpu.capabilities_enabled().unwrap()).unwrap();
+//! numkong::Capabilities::cpu_enabled().configure_thread().unwrap();
 //! ```
 //!
 //! ## Mixed Precision Support
@@ -196,7 +195,7 @@ pub use cast::{
 };
 
 // Re-export capabilities
-pub use capabilities::{Capabilities, Capability, Device, DeviceKind, Status};
+pub use capabilities::{Capabilities, Capability, Status, UnifiedAllocator};
 
 // Re-export tensor types
 pub use tensor::{

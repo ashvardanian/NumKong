@@ -231,7 +231,7 @@ export class Device {
 }
 
 /** Lowercase capability names, like `haswell`, `neon` or `ampere`, mapped to their bits, and the
- *  `cpus`, `devices` and `any` groups to theirs. */
+ *  `cpus`, `gpus` and `any` groups to theirs. */
 export const Capability: Readonly<Record<string, bigint>> = Object.freeze(addon.Capability);
 
 /**

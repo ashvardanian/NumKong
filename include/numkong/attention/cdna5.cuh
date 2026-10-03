@@ -407,26 +407,26 @@ NUMKONG_DEVICE void nk_attention_tile_cdna5_(nk_dtype_t dtype, nk_attention_widt
 
 #pragma region Instantiations
 
-nk_define_device_attention_pack_size_(bf16, cdna5, 2)
-nk_define_device_attention_packed_shape_(bf16, cdna5)
-nk_define_device_attention_pack_(bf16, cdna5, bf16)
-nk_define_device_attention_packed_(bf16, cdna5, cdna5, nk_attention_launch_cdna4_, bf16, nk_cross_epilogue_f32_k,
-                                   nk_attention_scores_bf16_cdna5_, nk_attention_values_bf16_cdna5_,
-                                   nk_attention_weights_bf16_cdna5_, 1.0f, 1.0f)
+nk_define_attention_pack_size_simt_(bf16, cdna5, 2)
+nk_define_attention_packed_shape_simt_(bf16, cdna5)
+nk_define_attention_pack_simt_(bf16, cdna5, bf16)
+nk_define_attention_packed_simt_(bf16, cdna5, cdna5, nk_attention_launch_cdna4_, bf16, nk_cross_epilogue_f32_k,
+                                 nk_attention_scores_bf16_cdna5_, nk_attention_values_bf16_cdna5_,
+                                 nk_attention_weights_bf16_cdna5_, 1.0f, 1.0f)
 
-nk_define_device_attention_pack_size_(e4m3, cdna5, 1)
-nk_define_device_attention_packed_shape_(e4m3, cdna5)
-nk_define_device_attention_pack_(e4m3, cdna5, e4m3)
-nk_define_device_attention_packed_(e4m3, cdna5, cdna5, nk_attention_launch_cdna4_, e4m3, nk_cross_epilogue_f32_k,
-                                   nk_attention_scores_e4m3_cdna5_, nk_attention_values_e4m3_cdna5_,
-                                   nk_attention_weights_f16_cdna5_, 1.0f, 256.0f)
+nk_define_attention_pack_size_simt_(e4m3, cdna5, 1)
+nk_define_attention_packed_shape_simt_(e4m3, cdna5)
+nk_define_attention_pack_simt_(e4m3, cdna5, e4m3)
+nk_define_attention_packed_simt_(e4m3, cdna5, cdna5, nk_attention_launch_cdna4_, e4m3, nk_cross_epilogue_f32_k,
+                                 nk_attention_scores_e4m3_cdna5_, nk_attention_values_e4m3_cdna5_,
+                                 nk_attention_weights_f16_cdna5_, 1.0f, 256.0f)
 
-nk_define_device_attention_pack_size_(i8, cdna5, 1)
-nk_define_device_attention_packed_shape_(i8, cdna5)
-nk_define_device_attention_pack_(i8, cdna5, i8)
-nk_define_device_attention_packed_(i8, cdna5, cdna5, nk_attention_launch_cdna4_, i8, nk_cross_epilogue_i32_to_f32_k,
-                                   nk_attention_scores_i8_cdna5_, nk_attention_values_i8_cdna5_,
-                                   nk_attention_weights_u8_cdna5_, 1.0f, 1.0f)
+nk_define_attention_pack_size_simt_(i8, cdna5, 1)
+nk_define_attention_packed_shape_simt_(i8, cdna5)
+nk_define_attention_pack_simt_(i8, cdna5, i8)
+nk_define_attention_packed_simt_(i8, cdna5, cdna5, nk_attention_launch_cdna4_, i8, nk_cross_epilogue_i32_to_f32_k,
+                                 nk_attention_scores_i8_cdna5_, nk_attention_values_i8_cdna5_,
+                                 nk_attention_weights_u8_cdna5_, 1.0f, 1.0f)
 
 #pragma endregion Instantiations
 

@@ -37,7 +37,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_size_bf16_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -49,7 +49,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_size_bf16_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -72,7 +72,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -122,7 +122,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_e4m3_capabilities(v
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -140,7 +140,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_e4m3_capabilities(v
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_size_e4m3_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -161,12 +161,12 @@ static nk_capability_kernels_t const *nk_attention_pack_size_e4m3_capabilities(v
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
-         nvidia},
+         cuda},
 #else
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -210,7 +210,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_size_i8_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -222,7 +222,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_size_i8_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -245,7 +245,7 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -292,7 +292,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -304,7 +304,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -327,7 +327,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -377,7 +377,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_e4m3_capabilitie
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -395,7 +395,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_e4m3_capabilitie
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_packed_shape_e4m3_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -416,12 +416,12 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_e4m3_capabilitie
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
-         nvidia},
+         cuda},
 #else
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -465,7 +465,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_packed_shape_i8_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -477,7 +477,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_packed_shape_i8_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -500,7 +500,7 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -547,7 +547,7 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_bf16_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -559,7 +559,7 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_bf16_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -582,7 +582,7 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -638,7 +638,7 @@ static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) 
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_e4m3_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -656,7 +656,7 @@ static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) 
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_e4m3_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -677,12 +677,12 @@ static nk_capability_kernels_t const *nk_attention_pack_e4m3_capabilities(void) 
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
-         nvidia},
+         cuda},
 #else
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -732,7 +732,7 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_i8_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -744,7 +744,7 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_pack_i8_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -767,7 +767,7 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -819,7 +819,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_bf16_cap
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -831,7 +831,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_bf16_cap
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_bidirectional_packed_bf16_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -854,7 +854,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_bf16_cap
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -905,7 +905,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_bf16_capabiliti
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -917,7 +917,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_bf16_capabiliti
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_causal_packed_bf16_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -940,7 +940,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_bf16_capabiliti
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -994,7 +994,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_e4m3_cap
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -1012,7 +1012,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_e4m3_cap
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_bidirectional_packed_e4m3_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -1033,12 +1033,12 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_e4m3_cap
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
-         nvidia},
+         cuda},
 #else
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1092,7 +1092,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_e4m3_capabiliti
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -1110,7 +1110,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_e4m3_capabiliti
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_causal_packed_e4m3_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -1131,12 +1131,12 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_e4m3_capabiliti
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
              nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
-         nvidia},
+         cuda},
 #else
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1184,7 +1184,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_i8_capab
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -1196,7 +1196,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_i8_capab
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_bidirectional_packed_i8_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -1219,7 +1219,7 @@ static nk_capability_kernels_t const *nk_attention_bidirectional_packed_i8_capab
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1269,7 +1269,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_i8_capabilities
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_causal_packed_i8_cuda,
 #if NUMKONG_TARGET_AMPERE
@@ -1281,7 +1281,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_i8_capabilities
     };
 #endif
 #if NUMKONG_ARCH_ROCM_
-    static nk_kernel_punned_t const amd[] = {
+    static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_causal_packed_i8_rocm,
 #if NUMKONG_TARGET_CDNA4
@@ -1304,7 +1304,7 @@ static nk_capability_kernels_t const *nk_attention_causal_packed_i8_capabilities
         {0, nk_no_kernels_},
 #endif
 #if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, amd},
+        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1337,7 +1337,7 @@ static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_rope_f32_cuda,
     };
@@ -1345,7 +1345,7 @@ static nk_capability_kernels_t const *nk_attention_rope_f32_capabilities(void) {
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, nvidia},
+        {nk_cap_cuda_k, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1376,7 +1376,7 @@ static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) 
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_rope_bf16_cuda,
     };
@@ -1384,7 +1384,7 @@ static nk_capability_kernels_t const *nk_attention_rope_bf16_capabilities(void) 
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, nvidia},
+        {nk_cap_cuda_k, cuda},
 #else
         {0, nk_no_kernels_},
 #endif
@@ -1415,7 +1415,7 @@ static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) 
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_attention_rope_e4m3_cuda,
     };
@@ -1423,7 +1423,7 @@ static nk_capability_kernels_t const *nk_attention_rope_e4m3_capabilities(void) 
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, nvidia},
+        {nk_cap_cuda_k, cuda},
 #else
         {0, nk_no_kernels_},
 #endif

@@ -482,7 +482,7 @@ if gpu, err := nk.NewDevice(nk.DeviceMetal, 0); err == nil {
 
 `CapabilitiesDetected` and `CapabilitiesCompiled` report the two raw axes, what the device executes and what this binary contains for its kind.
 Every kernel call dispatches over the CPU's `CapabilitiesEnabled`, so a matrix packed before `CapabilitiesEnable` narrows it must be packed again: packed kernels refuse another capability's layout.
-Every capability is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSapphireAmx`, `CapSme`, `CapAmpere`, and `CapApple9`, and `CapCpus`, `CapDevices`, and `CapAny` group them.
+Every capability is a typed `Capability` constant, like `CapSerial`, `CapNeon`, `CapHaswell`, `CapSapphireAmx`, `CapSme`, `CapAmpere`, and `CapApple9`, and `CapCpus`, `CapGpus`, and `CapAny` group them.
 These are useful for logging the active platform or gating optional benchmark paths.
 
 ## cGo Integration Notes

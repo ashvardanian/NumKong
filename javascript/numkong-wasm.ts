@@ -154,15 +154,15 @@ export function initWasm(wasmModule: EmscriptenModule): void {
   const cpus = (1n << 48n) - 1n, any = (1n << 64n) - 1n;
   const names: Record<string, bigint> = {};
   const namePtr = wasmModule._malloc(1024);
-  let devices = 0n;
+  let gpus = 0n;
   for (let bit = 1n; bit <= any; bit <<= 1n) {
     const length = wasmModule._nk_capabilities_name(bit, toWasmPtr(namePtr), 1024);
     if (!length) continue;
     names[String.fromCharCode(...HEAPU8.subarray(namePtr, namePtr + length))] = bit;
-    if (bit > cpus) devices |= bit;
+    if (bit > cpus) gpus |= bit;
   }
   wasmModule._free(namePtr);
-  Capability = Object.freeze({ ...names, cpus, devices, any });
+  Capability = Object.freeze({ ...names, cpus, gpus, any });
 }
 
 /** Type information for dispatching */
@@ -610,7 +610,7 @@ export class Device {
 }
 
 /** Lowercase capability names, like `v128` or `ampere`, mapped to their bits, and the `cpus`,
- *  `devices` and `any` groups to theirs, by {@link initWasm}. */
+ *  `gpus` and `any` groups to theirs, by {@link initWasm}. */
 export let Capability: Readonly<Record<string, bigint>>;
 
 /** `FinalizationRegistry` for WASM `PackedMatrix` cleanup, an ES2021 feature from Node 14. */

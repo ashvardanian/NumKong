@@ -1,5 +1,5 @@
 /**
- *  @file c/amd/cdna4.hip
+ *  @file c/rocm/cdna4.hip
  *  @author Ash Vardanian
  *  @date September 28, 2026
  *  @brief Every family's @c cdna4 kernels, defined once for the NumKong library.

@@ -336,7 +336,7 @@ napi_value api_capabilities_enable(napi_env env, napi_callback_info info) {
 }
 
 /** Exports @c Capability, mapping each capability's name to its BigInt bit, and the @c cpus,
- *  @c devices and @c any groups to theirs. */
+ *  @c gpus and @c any groups to theirs. */
 static napi_status export_capability_names(napi_env env, napi_value exports) {
     napi_value names, value;
     napi_status status = napi_create_object(env, &names);
@@ -352,7 +352,7 @@ static napi_status export_capability_names(napi_env env, napi_value exports) {
     struct {
         char const *name;
         nk_capability_t mask;
-    } const groups[] = {{"cpus", nk_cap_cpus_k}, {"devices", nk_cap_devices_k}, {"any", nk_cap_any_k}};
+    } const groups[] = {{"cpus", nk_cap_cpus_k}, {"gpus", nk_cap_gpus_k}, {"any", nk_cap_any_k}};
     for (size_t group = 0; group != sizeof(groups) / sizeof(groups[0]); ++group)
         if ((status = napi_create_bigint_uint64(env, (uint64_t)groups[group].mask, &value)) != napi_ok ||
             (status = napi_set_named_property(env, names, groups[group].name, value)) != napi_ok)

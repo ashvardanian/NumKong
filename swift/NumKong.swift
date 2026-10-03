@@ -303,7 +303,7 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     /// Every CPU capability, the bits below the first GPU vendor's.
     public static let cpus = Capabilities(rawValue: (1 << 48) - 1)
     /// Every GPU capability.
-    public static let devices: Capabilities = [
+    public static let gpus: Capabilities = [
         .cuda, .ampere, .ada, .hopper, .blackwell, .blackwellRtx, .rocm, .cdna4, .cdna5, .metal, .apple9, .apple10,
     ]
     /// Every capability.

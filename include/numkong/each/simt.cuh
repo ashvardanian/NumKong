@@ -23,7 +23,7 @@
 
 #include "numkong/cast/simt.cuh"   // `nk_bf16_to_f32_simt_`, `nk_f32_to_i8_simt_`
 #include "numkong/reduce/simt.cuh" // `nk_f32_two_sum_simt_`, `nk_f32_mul_rn_simt_`
-#include "numkong/dots/simt.cuh"   // `nk_device_launch_`
+#include "numkong/dots/simt.cuh"   // `nk_launch_simt_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -64,8 +64,8 @@ NUMKONG_INLINE nk_status_t nk_each_launch_(void const *kernel, nk_size_t count, 
     nk_size_t const blocks = nk_size_divide_round_up_(count, nk_each_threads_simt_k), blocks_limit = (nk_size_t)1 << 20;
     void *launch_arguments[1];
     launch_arguments[0] = arguments;
-    return nk_device_launch_(kernel, blocks < blocks_limit ? blocks : blocks_limit, nk_each_threads_simt_k,
-                             launch_arguments, 0, stream);
+    return nk_launch_simt_(kernel, blocks < blocks_limit ? blocks : blocks_limit, nk_each_threads_simt_k,
+                           launch_arguments, 0, stream);
 }
 
 NUMKONG_INLINE nk_status_t nk_each_swiglu_launch_(void const *kernel, nk_size_t value_bytes, void const *gate,
@@ -100,7 +100,7 @@ NUMKONG_INLINE nk_status_t nk_each_elementwise_launch_(void const *kernel, nk_si
 
 /** Generates the SwiGLU kernel of @p input_type and its host entry point for @p isa_suffix, after
  *  @c nk_define_each_swiglu_ of the serial backend. */
-#define nk_define_device_each_swiglu_(input_type, isa_suffix, load_and_convert, convert_and_store)                     \
+#define nk_define_each_swiglu_simt_(input_type, isa_suffix, load_and_convert, convert_and_store)                       \
     static __global__ void nk_each_swiglu_##input_type##_##isa_suffix##_kernel_(                                       \
         nk_each_swiglu_arguments_t arguments) {                                                                        \
         nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;                                                    \
@@ -132,54 +132,54 @@ NUMKONG_INLINE nk_status_t nk_each_elementwise_launch_(void const *kernel, nk_si
 
 /** Generates the element-wise sum kernel of @p input_type and its host entry point for
  *  @p isa_suffix, after @c nk_define_each_sum_ of the serial backend. */
-#define nk_define_device_each_sum_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store) \
-    static __global__ void nk_each_sum_##input_type##_##isa_suffix##_kernel_(                                     \
-        nk_each_elementwise_arguments_t arguments) {                                                              \
-        nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;                                               \
-        for (nk_size_t cell = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; cell < arguments.count;           \
-             cell += stride) {                                                                                    \
-            nk_##accumulator_type##_t a_value, b_value;                                                           \
-            load_and_convert((nk_##input_type##_t const *)arguments.a + cell, &a_value);                          \
-            load_and_convert((nk_##input_type##_t const *)arguments.b + cell, &b_value);                          \
-            nk_##accumulator_type##_t const sum = a_value + b_value;                                              \
-            convert_and_store(&sum, (nk_##input_type##_t *)arguments.result + cell);                              \
-        }                                                                                                         \
-    }                                                                                                             \
-    NUMKONG_API nk_status_t nk_each_sum_##input_type##_##isa_suffix(nk_##input_type##_t const *a,                 \
-                                                                    nk_##input_type##_t const *b, nk_size_t n,    \
-                                                                    nk_##input_type##_t *result, void *stream) {  \
-        return nk_each_elementwise_launch_((void const *)&nk_each_sum_##input_type##_##isa_suffix##_kernel_,      \
-                                           sizeof(nk_##input_type##_t), 1, a, b, NUMKONG_NULL, NUMKONG_NULL,      \
-                                           NUMKONG_NULL, n, result, stream);                                      \
+#define nk_define_each_sum_simt_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store)  \
+    static __global__ void nk_each_sum_##input_type##_##isa_suffix##_kernel_(                                    \
+        nk_each_elementwise_arguments_t arguments) {                                                             \
+        nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;                                              \
+        for (nk_size_t cell = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; cell < arguments.count;          \
+             cell += stride) {                                                                                   \
+            nk_##accumulator_type##_t a_value, b_value;                                                          \
+            load_and_convert((nk_##input_type##_t const *)arguments.a + cell, &a_value);                         \
+            load_and_convert((nk_##input_type##_t const *)arguments.b + cell, &b_value);                         \
+            nk_##accumulator_type##_t const sum = a_value + b_value;                                             \
+            convert_and_store(&sum, (nk_##input_type##_t *)arguments.result + cell);                             \
+        }                                                                                                        \
+    }                                                                                                            \
+    NUMKONG_API nk_status_t nk_each_sum_##input_type##_##isa_suffix(nk_##input_type##_t const *a,                \
+                                                                    nk_##input_type##_t const *b, nk_size_t n,   \
+                                                                    nk_##input_type##_t *result, void *stream) { \
+        return nk_each_elementwise_launch_((void const *)&nk_each_sum_##input_type##_##isa_suffix##_kernel_,     \
+                                           sizeof(nk_##input_type##_t), 1, a, b, NUMKONG_NULL, NUMKONG_NULL,     \
+                                           NUMKONG_NULL, n, result, stream);                                     \
     }
 
 /** Generates the element-wise scale kernel of @p input_type, α · a + β, and its host entry point
  *  for @p isa_suffix, after @c nk_define_each_scale_ of the serial backend. */
-#define nk_define_device_each_scale_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store) \
-    static __global__ void nk_each_scale_##input_type##_##isa_suffix##_kernel_(                                     \
-        nk_each_elementwise_arguments_t arguments) {                                                                \
-        nk_##accumulator_type##_t const alpha = *(nk_##accumulator_type##_t const *)arguments.alpha;                \
-        nk_##accumulator_type##_t const beta = *(nk_##accumulator_type##_t const *)arguments.beta;                  \
-        nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;                                                 \
-        for (nk_size_t cell = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; cell < arguments.count;             \
-             cell += stride) {                                                                                      \
-            nk_##accumulator_type##_t a_value;                                                                      \
-            load_and_convert((nk_##input_type##_t const *)arguments.a + cell, &a_value);                            \
-            nk_##accumulator_type##_t const result = alpha * a_value + beta;                                        \
-            convert_and_store(&result, (nk_##input_type##_t *)arguments.result + cell);                             \
-        }                                                                                                           \
-    }                                                                                                               \
-    NUMKONG_API nk_status_t nk_each_scale_##input_type##_##isa_suffix(                                              \
-        nk_##input_type##_t const *a, nk_size_t n, nk_##accumulator_type##_t const *alpha,                          \
-        nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, void *stream) {                         \
-        return nk_each_elementwise_launch_((void const *)&nk_each_scale_##input_type##_##isa_suffix##_kernel_,      \
-                                           sizeof(nk_##input_type##_t), sizeof(nk_##accumulator_type##_t), a,       \
-                                           NUMKONG_NULL, NUMKONG_NULL, alpha, beta, n, result, stream);             \
+#define nk_define_each_scale_simt_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store) \
+    static __global__ void nk_each_scale_##input_type##_##isa_suffix##_kernel_(                                   \
+        nk_each_elementwise_arguments_t arguments) {                                                              \
+        nk_##accumulator_type##_t const alpha = *(nk_##accumulator_type##_t const *)arguments.alpha;              \
+        nk_##accumulator_type##_t const beta = *(nk_##accumulator_type##_t const *)arguments.beta;                \
+        nk_size_t const stride = (nk_size_t)gridDim.x * blockDim.x;                                               \
+        for (nk_size_t cell = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x; cell < arguments.count;           \
+             cell += stride) {                                                                                    \
+            nk_##accumulator_type##_t a_value;                                                                    \
+            load_and_convert((nk_##input_type##_t const *)arguments.a + cell, &a_value);                          \
+            nk_##accumulator_type##_t const result = alpha * a_value + beta;                                      \
+            convert_and_store(&result, (nk_##input_type##_t *)arguments.result + cell);                           \
+        }                                                                                                         \
+    }                                                                                                             \
+    NUMKONG_API nk_status_t nk_each_scale_##input_type##_##isa_suffix(                                            \
+        nk_##input_type##_t const *a, nk_size_t n, nk_##accumulator_type##_t const *alpha,                        \
+        nk_##accumulator_type##_t const *beta, nk_##input_type##_t *result, void *stream) {                       \
+        return nk_each_elementwise_launch_((void const *)&nk_each_scale_##input_type##_##isa_suffix##_kernel_,    \
+                                           sizeof(nk_##input_type##_t), sizeof(nk_##accumulator_type##_t), a,     \
+                                           NUMKONG_NULL, NUMKONG_NULL, alpha, beta, n, result, stream);           \
     }
 
 /** Generates the element-wise blend kernel of @p input_type, α · a + β · b, and its host entry
  *  point for @p isa_suffix, after @c nk_define_each_blend_ of the serial backend. */
-#define nk_define_device_each_blend_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store) \
+#define nk_define_each_blend_simt_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store)   \
     static __global__ void nk_each_blend_##input_type##_##isa_suffix##_kernel_(                                     \
         nk_each_elementwise_arguments_t arguments) {                                                                \
         nk_##accumulator_type##_t const alpha = *(nk_##accumulator_type##_t const *)arguments.alpha;                \
@@ -205,7 +205,7 @@ NUMKONG_INLINE nk_status_t nk_each_elementwise_launch_(void const *kernel, nk_si
 
 /** Generates the element-wise FMA kernel of @p input_type, α · a · b + β · c, and its host entry
  *  point for @p isa_suffix, after @c nk_define_each_fma_ of the serial backend. */
-#define nk_define_device_each_fma_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store)   \
+#define nk_define_each_fma_simt_(input_type, accumulator_type, isa_suffix, load_and_convert, convert_and_store)     \
     static __global__ void nk_each_fma_##input_type##_##isa_suffix##_kernel_(                                       \
         nk_each_elementwise_arguments_t arguments) {                                                                \
         nk_##accumulator_type##_t const alpha = *(nk_##accumulator_type##_t const *)arguments.alpha;                \
@@ -281,13 +281,13 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_(void const *kernel, nk_size_t
     nk_size_t const blocks_limit = (nk_size_t)1 << 30;
     void *launch_arguments[1];
     launch_arguments[0] = &arguments;
-    return nk_device_launch_(kernel, arguments.vectors < blocks_limit ? arguments.vectors : blocks_limit,
-                             nk_each_threads_simt_k, launch_arguments, 0, stream);
+    return nk_launch_simt_(kernel, arguments.vectors < blocks_limit ? arguments.vectors : blocks_limit,
+                           nk_each_threads_simt_k, launch_arguments, 0, stream);
 }
 
 /** Generates the RMSNorm kernel of @p input_type and its host entry point for @p isa_suffix, after
  *  @c nk_define_each_rmsnorm_ of the serial backend, one block per vector. */
-#define nk_define_device_each_rmsnorm_(input_type, isa_suffix, load_and_convert, convert_and_store)                    \
+#define nk_define_each_rmsnorm_simt_(input_type, isa_suffix, load_and_convert, convert_and_store)                      \
     static __global__ void nk_each_rmsnorm_##input_type##_##isa_suffix##_kernel_(                                      \
         nk_each_rmsnorm_arguments_t arguments) {                                                                       \
         __shared__ nk_f32_t partials[2 * nk_each_threads_simt_k];                                                      \
@@ -322,20 +322,20 @@ NUMKONG_INLINE nk_status_t nk_each_rmsnorm_launch_(void const *kernel, nk_size_t
     }
 
 #if NUMKONG_TARGET_CUDA
-nk_define_device_each_sum_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_sum_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_sum_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
-nk_define_device_each_sum_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_sum_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
-nk_define_device_each_sum_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
-nk_define_device_each_sum_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
-nk_define_device_each_sum_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
-nk_define_device_each_sum_(i8, i64, cuda, nk_assign_from_to_, nk_i64_to_i8_serial_)
-nk_define_device_each_sum_(u8, i64, cuda, nk_assign_from_to_, nk_i64_to_u8_serial_)
-nk_define_device_each_sum_(i16, i64, cuda, nk_assign_from_to_, nk_i64_to_i16_serial_)
-nk_define_device_each_sum_(u16, i64, cuda, nk_assign_from_to_, nk_i64_to_u16_serial_)
-nk_define_device_each_sum_(i32, i64, cuda, nk_assign_from_to_, nk_i64_to_i32_serial_)
-nk_define_device_each_sum_(u32, i64, cuda, nk_assign_from_to_, nk_i64_to_u32_serial_)
+nk_define_each_sum_simt_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_sum_simt_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_sum_simt_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
+nk_define_each_sum_simt_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_sum_simt_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_sum_simt_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
+nk_define_each_sum_simt_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
+nk_define_each_sum_simt_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
+nk_define_each_sum_simt_(i8, i64, cuda, nk_assign_from_to_, nk_i64_to_i8_serial_)
+nk_define_each_sum_simt_(u8, i64, cuda, nk_assign_from_to_, nk_i64_to_u8_serial_)
+nk_define_each_sum_simt_(i16, i64, cuda, nk_assign_from_to_, nk_i64_to_i16_serial_)
+nk_define_each_sum_simt_(u16, i64, cuda, nk_assign_from_to_, nk_i64_to_u16_serial_)
+nk_define_each_sum_simt_(i32, i64, cuda, nk_assign_from_to_, nk_i64_to_i32_serial_)
+nk_define_each_sum_simt_(u32, i64, cuda, nk_assign_from_to_, nk_i64_to_u32_serial_)
 
 static __global__ void nk_each_sum_i64_cuda_kernel_(nk_each_elementwise_arguments_t arguments) {
     nk_i64_t const *a = (nk_i64_t const *)arguments.a, *b = (nk_i64_t const *)arguments.b;
@@ -363,54 +363,54 @@ NUMKONG_API nk_status_t nk_each_sum_u64_cuda(nk_u64_t const *a, nk_u64_t const *
                                        NUMKONG_NULL, NUMKONG_NULL, NUMKONG_NULL, n, result, stream);
 }
 
-nk_define_device_each_scale_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_scale_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_scale_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
-nk_define_device_each_scale_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_scale_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
-nk_define_device_each_scale_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
-nk_define_device_each_scale_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
-nk_define_device_each_scale_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
-nk_define_device_each_scale_(i8, f32, cuda, nk_assign_from_to_, nk_f32_to_i8_simt_)
-nk_define_device_each_scale_(u8, f32, cuda, nk_assign_from_to_, nk_f32_to_u8_simt_)
-nk_define_device_each_scale_(i16, f32, cuda, nk_assign_from_to_, nk_f32_to_i16_simt_)
-nk_define_device_each_scale_(u16, f32, cuda, nk_assign_from_to_, nk_f32_to_u16_simt_)
-nk_define_device_each_scale_(i32, f64, cuda, nk_assign_from_to_, nk_f64_to_i32_simt_)
-nk_define_device_each_scale_(u32, f64, cuda, nk_assign_from_to_, nk_f64_to_u32_simt_)
-nk_define_device_each_scale_(i64, f64, cuda, nk_assign_from_to_, nk_f64_to_i64_simt_)
-nk_define_device_each_scale_(u64, f64, cuda, nk_assign_from_to_, nk_f64_to_u64_simt_)
-nk_define_device_each_blend_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_blend_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_blend_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
-nk_define_device_each_blend_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_blend_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
-nk_define_device_each_blend_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
-nk_define_device_each_blend_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
-nk_define_device_each_blend_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
-nk_define_device_each_blend_(i8, f32, cuda, nk_assign_from_to_, nk_f32_to_i8_simt_)
-nk_define_device_each_blend_(u8, f32, cuda, nk_assign_from_to_, nk_f32_to_u8_simt_)
-nk_define_device_each_blend_(i16, f32, cuda, nk_assign_from_to_, nk_f32_to_i16_simt_)
-nk_define_device_each_blend_(u16, f32, cuda, nk_assign_from_to_, nk_f32_to_u16_simt_)
-nk_define_device_each_blend_(i32, f64, cuda, nk_assign_from_to_, nk_f64_to_i32_simt_)
-nk_define_device_each_blend_(u32, f64, cuda, nk_assign_from_to_, nk_f64_to_u32_simt_)
-nk_define_device_each_blend_(i64, f64, cuda, nk_assign_from_to_, nk_f64_to_i64_simt_)
-nk_define_device_each_blend_(u64, f64, cuda, nk_assign_from_to_, nk_f64_to_u64_simt_)
-nk_define_device_each_fma_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_fma_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_fma_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
-nk_define_device_each_fma_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_fma_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
-nk_define_device_each_fma_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
-nk_define_device_each_fma_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
-nk_define_device_each_fma_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
-nk_define_device_each_fma_(i8, f32, cuda, nk_assign_from_to_, nk_f32_to_i8_simt_)
-nk_define_device_each_fma_(u8, f32, cuda, nk_assign_from_to_, nk_f32_to_u8_simt_)
-nk_define_device_each_fma_(i16, f32, cuda, nk_assign_from_to_, nk_f32_to_i16_simt_)
-nk_define_device_each_fma_(u16, f32, cuda, nk_assign_from_to_, nk_f32_to_u16_simt_)
-nk_define_device_each_fma_(i32, f64, cuda, nk_assign_from_to_, nk_f64_to_i32_simt_)
-nk_define_device_each_fma_(u32, f64, cuda, nk_assign_from_to_, nk_f64_to_u32_simt_)
-nk_define_device_each_fma_(i64, f64, cuda, nk_assign_from_to_, nk_f64_to_i64_simt_)
-nk_define_device_each_fma_(u64, f64, cuda, nk_assign_from_to_, nk_f64_to_u64_simt_)
+nk_define_each_scale_simt_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_scale_simt_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_scale_simt_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
+nk_define_each_scale_simt_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_scale_simt_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_scale_simt_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
+nk_define_each_scale_simt_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
+nk_define_each_scale_simt_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
+nk_define_each_scale_simt_(i8, f32, cuda, nk_assign_from_to_, nk_f32_to_i8_simt_)
+nk_define_each_scale_simt_(u8, f32, cuda, nk_assign_from_to_, nk_f32_to_u8_simt_)
+nk_define_each_scale_simt_(i16, f32, cuda, nk_assign_from_to_, nk_f32_to_i16_simt_)
+nk_define_each_scale_simt_(u16, f32, cuda, nk_assign_from_to_, nk_f32_to_u16_simt_)
+nk_define_each_scale_simt_(i32, f64, cuda, nk_assign_from_to_, nk_f64_to_i32_simt_)
+nk_define_each_scale_simt_(u32, f64, cuda, nk_assign_from_to_, nk_f64_to_u32_simt_)
+nk_define_each_scale_simt_(i64, f64, cuda, nk_assign_from_to_, nk_f64_to_i64_simt_)
+nk_define_each_scale_simt_(u64, f64, cuda, nk_assign_from_to_, nk_f64_to_u64_simt_)
+nk_define_each_blend_simt_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_blend_simt_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_blend_simt_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
+nk_define_each_blend_simt_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_blend_simt_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_blend_simt_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
+nk_define_each_blend_simt_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
+nk_define_each_blend_simt_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
+nk_define_each_blend_simt_(i8, f32, cuda, nk_assign_from_to_, nk_f32_to_i8_simt_)
+nk_define_each_blend_simt_(u8, f32, cuda, nk_assign_from_to_, nk_f32_to_u8_simt_)
+nk_define_each_blend_simt_(i16, f32, cuda, nk_assign_from_to_, nk_f32_to_i16_simt_)
+nk_define_each_blend_simt_(u16, f32, cuda, nk_assign_from_to_, nk_f32_to_u16_simt_)
+nk_define_each_blend_simt_(i32, f64, cuda, nk_assign_from_to_, nk_f64_to_i32_simt_)
+nk_define_each_blend_simt_(u32, f64, cuda, nk_assign_from_to_, nk_f64_to_u32_simt_)
+nk_define_each_blend_simt_(i64, f64, cuda, nk_assign_from_to_, nk_f64_to_i64_simt_)
+nk_define_each_blend_simt_(u64, f64, cuda, nk_assign_from_to_, nk_f64_to_u64_simt_)
+nk_define_each_fma_simt_(f64, f64, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_fma_simt_(f32, f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_fma_simt_(f16, f32, cuda, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
+nk_define_each_fma_simt_(bf16, f32, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_fma_simt_(e4m3, f32, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_fma_simt_(e5m2, f32, cuda, nk_e5m2_to_f32_simt_, nk_f32_to_e5m2_simt_)
+nk_define_each_fma_simt_(e2m3, f32, cuda, nk_e2m3_to_f32_simt_, nk_f32_to_e2m3_simt_)
+nk_define_each_fma_simt_(e3m2, f32, cuda, nk_e3m2_to_f32_simt_, nk_f32_to_e3m2_simt_)
+nk_define_each_fma_simt_(i8, f32, cuda, nk_assign_from_to_, nk_f32_to_i8_simt_)
+nk_define_each_fma_simt_(u8, f32, cuda, nk_assign_from_to_, nk_f32_to_u8_simt_)
+nk_define_each_fma_simt_(i16, f32, cuda, nk_assign_from_to_, nk_f32_to_i16_simt_)
+nk_define_each_fma_simt_(u16, f32, cuda, nk_assign_from_to_, nk_f32_to_u16_simt_)
+nk_define_each_fma_simt_(i32, f64, cuda, nk_assign_from_to_, nk_f64_to_i32_simt_)
+nk_define_each_fma_simt_(u32, f64, cuda, nk_assign_from_to_, nk_f64_to_u32_simt_)
+nk_define_each_fma_simt_(i64, f64, cuda, nk_assign_from_to_, nk_f64_to_i64_simt_)
+nk_define_each_fma_simt_(u64, f64, cuda, nk_assign_from_to_, nk_f64_to_u64_simt_)
 NUMKONG_API nk_status_t nk_each_sum_f32c_cuda(nk_f32c_t const *a, nk_f32c_t const *b, nk_size_t n, nk_f32c_t *result,
                                               void *stream) {
     return nk_each_elementwise_launch_((void const *)&nk_each_sum_f32_cuda_kernel_, sizeof(nk_f32_t), 1, a, b,
@@ -575,30 +575,30 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_cuda(nk_f64c_t const *a, nk_f64c_t cons
                                        a, b, c, alpha, beta, n, result, stream);
 }
 
-nk_define_device_each_rmsnorm_(f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_rmsnorm_(bf16, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_rmsnorm_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
-nk_define_device_each_swiglu_(f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_swiglu_(bf16, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_swiglu_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_rmsnorm_simt_(f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_rmsnorm_simt_(bf16, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_rmsnorm_simt_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_swiglu_simt_(f32, cuda, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_swiglu_simt_(bf16, cuda, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_swiglu_simt_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
 #elif NUMKONG_TARGET_ROCM
-nk_define_device_each_sum_(f32, f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_sum_(f16, f32, rocm, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
-nk_define_device_each_sum_(bf16, f32, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_rmsnorm_(f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_rmsnorm_(bf16, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_rmsnorm_(e4m3, rocm, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
-nk_define_device_each_swiglu_(f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_device_each_swiglu_(bf16, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
-nk_define_device_each_swiglu_(e4m3, rocm, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_sum_simt_(f32, f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_sum_simt_(f16, f32, rocm, nk_f16_to_f32_simt_, nk_f32_to_f16_simt_)
+nk_define_each_sum_simt_(bf16, f32, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_rmsnorm_simt_(f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_rmsnorm_simt_(bf16, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_rmsnorm_simt_(e4m3, rocm, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
+nk_define_each_swiglu_simt_(f32, rocm, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_swiglu_simt_(bf16, rocm, nk_bf16_to_f32_simt_, nk_f32_to_bf16_simt_)
+nk_define_each_swiglu_simt_(e4m3, rocm, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_simt_)
 #endif
 
-#undef nk_define_device_each_sum_
-#undef nk_define_device_each_scale_
-#undef nk_define_device_each_blend_
-#undef nk_define_device_each_fma_
-#undef nk_define_device_each_rmsnorm_
-#undef nk_define_device_each_swiglu_
+#undef nk_define_each_sum_simt_
+#undef nk_define_each_scale_simt_
+#undef nk_define_each_blend_simt_
+#undef nk_define_each_fma_simt_
+#undef nk_define_each_rmsnorm_simt_
+#undef nk_define_each_swiglu_simt_
 
 #if defined(__cplusplus)
 } // extern "C"

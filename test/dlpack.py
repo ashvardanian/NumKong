@@ -334,7 +334,7 @@ def test_cupy_device_memory_keeps_its_device():
     """Plain ``cudaMalloc`` GPU memory (kDLCUDA) imports as a GPU tensor on that device."""
     cupy = _cupy_or_skip()
     src = cupy.arange(16, dtype=cupy.float32)
-    assert nk.from_dlpack(src).device == nk.Device("cuda", src.device.id)
+    assert nk.from_dlpack(src).__dlpack_device__() == (2, src.device.id)  # kDLCUDA
 
 
 def test_cupy_managed_memory_accepted():

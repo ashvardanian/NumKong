@@ -26,8 +26,7 @@
 //! use numkong::{MaxSimPackedMatrix, Tensor};
 //!
 //! // Required once per thread before scoring: enables AMX tile state on x86.
-//! let cpu = numkong::Device::cpu();
-//! cpu.configure_thread(cpu.capabilities_enabled().unwrap()).unwrap();
+//! numkong::Capabilities::cpu_enabled().configure_thread().unwrap();
 //!
 //! let queries = Tensor::<f32>::full(&[32, 128], 1.0).unwrap();
 //! let documents = Tensor::<f32>::full(&[1024, 128], 1.0).unwrap();

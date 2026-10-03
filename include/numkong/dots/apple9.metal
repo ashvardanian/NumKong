@@ -4,13 +4,13 @@
  *  @date September 25, 2026
  *  @brief Batched Dot Products for Apple GPUs of Metal family 9, on @c simdgroup_matrix products.
  *
- *  @sa include/numkong/dots/apple9.h, which embeds and launches this source after `simt.metal`
+ *  @sa include/numkong/dots/apple9.h, which embeds and launches this source after `metal.metal`
  *  @sa include/numkong/dots/apple10.metal, the M5 capability on the Neural Accelerators
  *
  *  Four simdgroups own a @b [64,64] output tile, each a @b [32,32] quadrant held as sixteen 8 × 8
  *  @c float accumulators, over steps of 32 dimensions staged into threadgroup tiles of @c half, or
  *  of @c bfloat for BF16. The 8-, 6- and 4-bit floats widen to @c half exactly on the way in, as
- *  `simt.metal` widens them, and every product of two staged values is exact in @c float, so only
+ *  `metal.metal` widens them, and every product of two staged values is exact in @c float, so only
  *  the sums round.
  */
 

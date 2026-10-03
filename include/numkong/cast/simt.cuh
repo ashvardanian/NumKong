@@ -654,8 +654,8 @@ NUMKONG_INLINE nk_status_t nk_cast_launch_simt_(void const *kernel, void const *
         ((nk_size_t)to & (nk_dtype_alignment_(to_dtype) - 1)))
         return nk_misaligned_k;
     if (!nk_cast_plan_simt_(from, from_dtype, count, to, to_dtype, &arguments)) return nk_success_k;
-    return nk_device_launch_resident_(kernel, 256, 0, 0, nk_size_divide_round_up_(arguments.units, 256), &arguments,
-                                      stream);
+    return nk_launch_resident_simt_(kernel, 256, 0, 0, nk_size_divide_round_up_(arguments.units, 256), &arguments,
+                                    stream);
 }
 
 /** Everything one block-scaled cast shares, passed by value as its kernel's only argument. A plain
@@ -875,14 +875,13 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_simt_(void const *kernel,
     if (!count && !arguments.to_tensor_scale) return status;
     if (arguments.to_tensor_scale && count) {
         arguments.phase = nk_cast_block_scaled_amax_k;
-        status = nk_device_launch_resident_(kernel, 256, 0, 0, nk_size_divide_round_up_(count, 256), &arguments,
-                                            stream);
+        status = nk_launch_resident_simt_(kernel, 256, 0, 0, nk_size_divide_round_up_(count, 256), &arguments, stream);
     }
     if (status != nk_success_k) return status;
     arguments.phase = nk_cast_block_scaled_chunks_k;
     // One block at least, so an empty cast still writes the tensor scale it derives
     nk_size_t const blocks = nk_size_divide_round_up_(arguments.chunks, 256);
-    return nk_device_launch_resident_(kernel, 256, 0, 0, blocks ? blocks : 1, &arguments, stream);
+    return nk_launch_resident_simt_(kernel, 256, 0, 0, blocks ? blocks : 1, &arguments, stream);
 }
 
 #if NUMKONG_TARGET_CUDA

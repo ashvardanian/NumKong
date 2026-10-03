@@ -5738,7 +5738,7 @@ NUMKONG_API nk_status_t nk_dots_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/dots/blackwellrtx.cuh"
 #include "numkong/dots/cdna4.cuh"
 #include "numkong/dots/cdna5.cuh"
-#include "numkong/dots/simt.h"
+#include "numkong/dots/metal.h"
 #include "numkong/dots/apple9.h"
 #include "numkong/dots/apple10.h"
 

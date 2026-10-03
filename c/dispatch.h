@@ -35,9 +35,9 @@ static nk_kernel_punned_t const nk_no_kernels_[1] = {NUMKONG_NULL};
 /** The capability groups a binary may hold: its CPU's, and one per GPU vendor it was built for. */
 typedef enum {
     nk_capability_group_cpu_k,
-    nk_capability_group_nvidia_k,
-    nk_capability_group_amd_k,
-    nk_capability_group_apple_k,
+    nk_capability_group_cuda_k,
+    nk_capability_group_rocm_k,
+    nk_capability_group_metal_k,
     nk_capability_groups_k,
 } nk_capability_group_t;
 

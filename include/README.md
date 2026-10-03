@@ -649,13 +649,17 @@ GPUs are more ISAs with a mask of their own, one device at a time.
 Each vendor has its own queries, and a device index is that runtime's own ordinal: the one `cudaSetDevice` or `hipSetDevice` takes, or the position in Metal's device list.
 `nk_cuda_count_devices` counts the devices, and `nk_cuda_capabilities_detected`, `nk_cuda_capabilities_compiled`, and `nk_cuda_capabilities_enabled` report one device's capabilities the way their CPU twins do; `nk_rocm_*` and `nk_metal_*` are the same for the other vendors.
 Each vendor's baseline, `nk_cap_cuda_k`, `nk_cap_rocm_k`, or `nk_cap_metal_k`, plays the role of `nk_cap_serial_k`.
-A GPU capability, like `nk_dots_packed_bf16_ampere`, takes its CPU twin's arguments, queues on the trailing stream — a `cudaStream_t`, a `hipStream_t`, or an `nk_metal_queue_t *` from `nk_metal_queue_init` — and returns without waiting.
+A GPU capability, like `nk_dots_packed_bf16_ampere`, takes its CPU twin's arguments, queues on the trailing stream — a `cudaStream_t`, a `hipStream_t`, or an `id<MTLCommandQueue>`, with null for the default one — and returns without waiting.
+Only the capability queries take an ordinal; the stream names the device for everything else.
+`nk_memory_allocate_unified_best` and `nk_memory_free_unified_best` hand out and return memory the host and that device both address, and `nk_stream_synchronize_best` waits for the stream.
 
 ```c
 nk_size_t devices = 0;
 nk_capability_t gpu = 0;
-if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enabled(0, &gpu) == nk_success_k)
+if (nk_cuda_count_devices(&devices) == nk_success_k && nk_cuda_capabilities_enabled(0, &gpu) == nk_success_k) {
     nk_dots_packed_bf16_best(a, b_packed, c, rows, columns, depth, a_stride, c_stride, gpu, cuda_stream);
+    nk_stream_synchronize_best(gpu, cuda_stream);
+}
 ```
 
 `nk_capabilities_name` spells any such mask as the names bindings accept, like "serial,neon,neonhalf", into a buffer of `NUMKONG_CAPABILITIES_NAME_CAPACITY` bytes.

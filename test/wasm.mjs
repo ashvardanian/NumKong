@@ -218,8 +218,8 @@ test(`[${runtime}] Capability detection`, () => {
   assert(Object.isFrozen(Capability), "Capability must be frozen");
   assert.strictEqual(Capability.v128, 1n << 31n);
   assert.strictEqual(Capability.ampere, 1n << 49n);
-  assert.strictEqual(Capability.cpus & Capability.devices, 0n);
-  assert.strictEqual(Capability.devices & Capability.metal, Capability.metal);
+  assert.strictEqual(Capability.cpus & Capability.gpus, 0n);
+  assert.strictEqual(Capability.gpus & Capability.metal, Capability.metal);
   assert.strictEqual(Capability.any, (1n << 64n) - 1n);
 
   // Narrowing to nothing keeps serial, and asking for everything restores the default set.

@@ -83,7 +83,7 @@ NUMKONG_INLINE nk_status_t nk_reduce_moments_launch_simt_(void const *kernel, nk
     nk_status_t status = nk_reduce_memset_simt_(arguments.first, 0, sum_bytes, stream);
     if (status == nk_success_k) status = nk_reduce_memset_simt_(arguments.second, 0, sumsq_bytes, stream);
     if (status != nk_success_k || !arguments.count) return status;
-    return nk_device_launch_resident_(
+    return nk_launch_resident_simt_(
         kernel, nk_reduce_threads_simt_k, 0, 0,
         nk_size_divide_round_up_(arguments.count, nk_reduce_threads_simt_k * nk_reduce_batch_simt_k), &arguments,
         stream);
@@ -97,13 +97,13 @@ NUMKONG_INLINE nk_status_t nk_reduce_minmax_launch_simt_(void const *kernel, voi
     if (status == nk_success_k)
         status = nk_reduce_memset_simt_(arguments.second_index, 0xFF, sizeof(nk_size_t), stream);
     if (status == nk_success_k && arguments.count)
-        status = nk_device_launch_resident_(
+        status = nk_launch_resident_simt_(
             kernel, nk_reduce_threads_simt_k, 0, 0,
             nk_size_divide_round_up_(arguments.count, nk_reduce_threads_simt_k * nk_reduce_batch_simt_k), &arguments,
             stream);
     void *launch_arguments[1];
     launch_arguments[0] = &arguments;
-    return status == nk_success_k ? nk_device_launch_(finish_kernel, 1, 1, launch_arguments, 0, stream) : status;
+    return status == nk_success_k ? nk_launch_simt_(finish_kernel, 1, 1, launch_arguments, 0, stream) : status;
 }
 
 /** This thread's place among every thread of the grid, and their count. */
@@ -582,7 +582,7 @@ NUMKONG_DEVICE void nk_reduce_pairs_moments_simt_(nk_dtype_t dtype, nk_reduce_ar
 
 /** Generates the moments kernel of @p input_type and its host entry point for @p isa_suffix,
  *  summing through the @p family of @c nk_reduce_<family>_moments_simt_. */
-#define nk_define_device_reduce_moments_(input_type, input_value_type, family, sum_type, sumsq_type, isa_suffix) \
+#define nk_define_reduce_moments_simt_(input_type, input_value_type, family, sum_type, sumsq_type, isa_suffix)   \
     static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                           \
         nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {               \
         nk_reduce_##family##_moments_simt_(nk_##input_type##_k, &arguments);                                     \
@@ -599,13 +599,13 @@ NUMKONG_DEVICE void nk_reduce_pairs_moments_simt_(nk_dtype_t dtype, nk_reduce_ar
 
 /** Generates the min/max kernel of @p input_type and its host entry point for @p isa_suffix, its
  *  sides starting from the serial kernels' @p min_sentinel and @p max_sentinel bits. */
-#define nk_define_device_reduce_minmax_(input_type, input_value_type, output_type, min_sentinel, max_sentinel,      \
-                                        isa_suffix)                                                                 \
+#define nk_define_reduce_minmax_simt_(input_type, input_value_type, output_type, min_sentinel, max_sentinel,        \
+                                      isa_suffix)                                                                   \
     static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                              \
         nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                   \
         nk_reduce_minmax_simt_(nk_##input_type##_k, &arguments);                                                    \
     }                                                                                                               \
-    static __global__ void nk_reduce_minmax_##input_type##_##isa_suffix##_finish_kernel_(                           \
+    static __global__ void nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_(                           \
         nk_reduce_arguments_t arguments) {                                                                          \
         nk_reduce_minmax_finish_simt_(nk_##input_type##_k, min_sentinel, max_sentinel, &arguments);                 \
     }                                                                                                               \
@@ -614,56 +614,56 @@ NUMKONG_DEVICE void nk_reduce_pairs_moments_simt_(nk_dtype_t dtype, nk_reduce_ar
         nk_size_t *min_index, nk_##output_type##_t *max_value, nk_size_t *max_index, void *stream) {                \
         return nk_reduce_minmax_launch_simt_(                                                                       \
             (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_,                                  \
-            (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_finish_kernel_,                           \
+            (void const *)&nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_,                           \
             nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, min_value, min_index, \
                                       max_value, max_index),                                                        \
             stream);                                                                                                \
     }
 
 #if NUMKONG_TARGET_CUDA
-nk_define_device_reduce_moments_(f64, f64, f64, f64, f64, cuda)
-nk_define_device_reduce_moments_(f32, f32, pairs, f64, f64, cuda)
-nk_define_device_reduce_moments_(f16, f16, f32, f32, f32, cuda)
-nk_define_device_reduce_moments_(bf16, bf16, pairs, f32, f32, cuda)
-nk_define_device_reduce_moments_(e4m3, e4m3, f32, f32, f32, cuda)
-nk_define_device_reduce_moments_(e5m2, e5m2, f32, f32, f32, cuda)
-nk_define_device_reduce_moments_(e2m3, e2m3, f32, f32, f32, cuda)
-nk_define_device_reduce_moments_(e3m2, e3m2, f32, f32, f32, cuda)
-nk_define_device_reduce_moments_(e2m1, e2m1x2, integer, f32, f32, cuda)
-nk_define_device_reduce_moments_(i8, i8, integer, i64, u64, cuda)
-nk_define_device_reduce_moments_(u8, u8, integer, u64, u64, cuda)
-nk_define_device_reduce_moments_(i16, i16, integer, i64, u64, cuda)
-nk_define_device_reduce_moments_(u16, u16, integer, u64, u64, cuda)
-nk_define_device_reduce_moments_(i32, i32, integer, i64, u64, cuda)
-nk_define_device_reduce_moments_(u32, u32, integer, u64, u64, cuda)
-nk_define_device_reduce_moments_(i64, i64, integer, i64, u64, cuda)
-nk_define_device_reduce_moments_(u64, u64, integer, u64, u64, cuda)
-nk_define_device_reduce_moments_(i4, i4x2, integer, i64, u64, cuda)
-nk_define_device_reduce_moments_(u4, u4x2, integer, u64, u64, cuda)
-nk_define_device_reduce_moments_(u1, u1x8, integer, u64, u64, cuda)
-nk_define_device_reduce_minmax_(f64, f64, f64, 0x7FF0000000000000ull, 0xFFF0000000000000ull, cuda)
-nk_define_device_reduce_minmax_(f32, f32, f32, 0x7F800000u, 0xFF800000u, cuda)
-nk_define_device_reduce_minmax_(f16, f16, f16, 0x7BFFu, 0xFBFFu, cuda)
-nk_define_device_reduce_minmax_(bf16, bf16, bf16, 0x7F7Fu, 0xFF7Fu, cuda)
-nk_define_device_reduce_minmax_(e4m3, e4m3, e4m3, NUMKONG_E4M3_MAX, NUMKONG_E4M3_MIN, cuda)
-nk_define_device_reduce_minmax_(e5m2, e5m2, e5m2, NUMKONG_E5M2_MAX, NUMKONG_E5M2_MIN, cuda)
-nk_define_device_reduce_minmax_(e2m3, e2m3, e2m3, NUMKONG_E2M3_MAX, NUMKONG_E2M3_MIN, cuda)
-nk_define_device_reduce_minmax_(e3m2, e3m2, e3m2, NUMKONG_E3M2_MAX, NUMKONG_E3M2_MIN, cuda)
-nk_define_device_reduce_minmax_(i8, i8, i8, 0x7Fu, 0x80u, cuda)
-nk_define_device_reduce_minmax_(u8, u8, u8, 0xFFu, 0u, cuda)
-nk_define_device_reduce_minmax_(i16, i16, i16, 0x7FFFu, 0x8000u, cuda)
-nk_define_device_reduce_minmax_(u16, u16, u16, 0xFFFFu, 0u, cuda)
-nk_define_device_reduce_minmax_(i32, i32, i32, 0x7FFFFFFFu, 0x80000000u, cuda)
-nk_define_device_reduce_minmax_(u32, u32, u32, 0xFFFFFFFFu, 0u, cuda)
-nk_define_device_reduce_minmax_(i64, i64, i64, 0x7FFFFFFFFFFFFFFFull, 0x8000000000000000ull, cuda)
-nk_define_device_reduce_minmax_(u64, u64, u64, NUMKONG_U64_MAX, 0u, cuda)
-nk_define_device_reduce_minmax_(i4, i4x2, i8, 0x07u, 0xF8u, cuda)
-nk_define_device_reduce_minmax_(u4, u4x2, u8, 0x0Fu, 0u, cuda)
-nk_define_device_reduce_minmax_(u1, u1x8, u8, 1u, 0u, cuda)
+nk_define_reduce_moments_simt_(f64, f64, f64, f64, f64, cuda)
+nk_define_reduce_moments_simt_(f32, f32, pairs, f64, f64, cuda)
+nk_define_reduce_moments_simt_(f16, f16, f32, f32, f32, cuda)
+nk_define_reduce_moments_simt_(bf16, bf16, pairs, f32, f32, cuda)
+nk_define_reduce_moments_simt_(e4m3, e4m3, f32, f32, f32, cuda)
+nk_define_reduce_moments_simt_(e5m2, e5m2, f32, f32, f32, cuda)
+nk_define_reduce_moments_simt_(e2m3, e2m3, f32, f32, f32, cuda)
+nk_define_reduce_moments_simt_(e3m2, e3m2, f32, f32, f32, cuda)
+nk_define_reduce_moments_simt_(e2m1, e2m1x2, integer, f32, f32, cuda)
+nk_define_reduce_moments_simt_(i8, i8, integer, i64, u64, cuda)
+nk_define_reduce_moments_simt_(u8, u8, integer, u64, u64, cuda)
+nk_define_reduce_moments_simt_(i16, i16, integer, i64, u64, cuda)
+nk_define_reduce_moments_simt_(u16, u16, integer, u64, u64, cuda)
+nk_define_reduce_moments_simt_(i32, i32, integer, i64, u64, cuda)
+nk_define_reduce_moments_simt_(u32, u32, integer, u64, u64, cuda)
+nk_define_reduce_moments_simt_(i64, i64, integer, i64, u64, cuda)
+nk_define_reduce_moments_simt_(u64, u64, integer, u64, u64, cuda)
+nk_define_reduce_moments_simt_(i4, i4x2, integer, i64, u64, cuda)
+nk_define_reduce_moments_simt_(u4, u4x2, integer, u64, u64, cuda)
+nk_define_reduce_moments_simt_(u1, u1x8, integer, u64, u64, cuda)
+nk_define_reduce_minmax_simt_(f64, f64, f64, 0x7FF0000000000000ull, 0xFFF0000000000000ull, cuda)
+nk_define_reduce_minmax_simt_(f32, f32, f32, 0x7F800000u, 0xFF800000u, cuda)
+nk_define_reduce_minmax_simt_(f16, f16, f16, 0x7BFFu, 0xFBFFu, cuda)
+nk_define_reduce_minmax_simt_(bf16, bf16, bf16, 0x7F7Fu, 0xFF7Fu, cuda)
+nk_define_reduce_minmax_simt_(e4m3, e4m3, e4m3, NUMKONG_E4M3_MAX, NUMKONG_E4M3_MIN, cuda)
+nk_define_reduce_minmax_simt_(e5m2, e5m2, e5m2, NUMKONG_E5M2_MAX, NUMKONG_E5M2_MIN, cuda)
+nk_define_reduce_minmax_simt_(e2m3, e2m3, e2m3, NUMKONG_E2M3_MAX, NUMKONG_E2M3_MIN, cuda)
+nk_define_reduce_minmax_simt_(e3m2, e3m2, e3m2, NUMKONG_E3M2_MAX, NUMKONG_E3M2_MIN, cuda)
+nk_define_reduce_minmax_simt_(i8, i8, i8, 0x7Fu, 0x80u, cuda)
+nk_define_reduce_minmax_simt_(u8, u8, u8, 0xFFu, 0u, cuda)
+nk_define_reduce_minmax_simt_(i16, i16, i16, 0x7FFFu, 0x8000u, cuda)
+nk_define_reduce_minmax_simt_(u16, u16, u16, 0xFFFFu, 0u, cuda)
+nk_define_reduce_minmax_simt_(i32, i32, i32, 0x7FFFFFFFu, 0x80000000u, cuda)
+nk_define_reduce_minmax_simt_(u32, u32, u32, 0xFFFFFFFFu, 0u, cuda)
+nk_define_reduce_minmax_simt_(i64, i64, i64, 0x7FFFFFFFFFFFFFFFull, 0x8000000000000000ull, cuda)
+nk_define_reduce_minmax_simt_(u64, u64, u64, NUMKONG_U64_MAX, 0u, cuda)
+nk_define_reduce_minmax_simt_(i4, i4x2, i8, 0x07u, 0xF8u, cuda)
+nk_define_reduce_minmax_simt_(u4, u4x2, u8, 0x0Fu, 0u, cuda)
+nk_define_reduce_minmax_simt_(u1, u1x8, u8, 1u, 0u, cuda)
 #endif
 
-#undef nk_define_device_reduce_moments_
-#undef nk_define_device_reduce_minmax_
+#undef nk_define_reduce_moments_simt_
+#undef nk_define_reduce_minmax_simt_
 
 #if defined(__cplusplus)
 } // extern "C"

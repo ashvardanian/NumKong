@@ -1113,7 +1113,7 @@ function (numkong_gpu_codes_ codes capability_codes output)
     set(${output} "${kept}" PARENT_SCOPE)
 endfunction ()
 
-# Adds one GPU generation's unit, like c/nvidia/hopper.cu, to both libraries: compiled for `codes` alone, in the
+# Adds one GPU generation's unit, like c/cuda/hopper.cu, to both libraries: compiled for `codes` alone, in the
 # language its extension names and without the CPU kits. A unit without codes to compile is skipped. The rest are the
 # runtime libraries its calls need.
 function (numkong_add_gpu_unit_ source codes)
@@ -1172,25 +1172,25 @@ if (NUMKONG_BUILD_CUDA)
         "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_BLACKWELLRTX_CODES_}"
         NUMKONG_BLACKWELLRTX_UNIT_CODES_
     )
-    numkong_add_gpu_unit_(c/nvidia/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/nvidia/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/nvidia/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/nvidia/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart)
-    numkong_add_gpu_unit_(c/nvidia/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/cuda/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/cuda/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/cuda/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/cuda/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/cuda/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" CUDA::cudart)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_CUDA_=1 ${NUMKONG_CUDA_FAMILY_DEFINITIONS_})
     endforeach ()
 endif ()
 
 # Both GPU vendors may share one library: their units are separate files, each vendor has its own capability group,
-# and NumKong numbers CUDA devices before ROCm ones.
+# and each numbers its own devices.
 if (NUMKONG_BUILD_ROCM)
     find_package(hip REQUIRED)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA4_CODES_}" NUMKONG_CDNA4_UNIT_CODES_)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA5_CODES_}" NUMKONG_CDNA5_UNIT_CODES_)
-    numkong_add_gpu_unit_(c/amd/rocm.hip "${NUMKONG_ROCM_ARCHITECTURES}" hip::host)
-    numkong_add_gpu_unit_(c/amd/cdna4.hip "${NUMKONG_CDNA4_UNIT_CODES_}" hip::host)
-    numkong_add_gpu_unit_(c/amd/cdna5.hip "${NUMKONG_CDNA5_UNIT_CODES_}" hip::host)
+    numkong_add_gpu_unit_(c/rocm/rocm.hip "${NUMKONG_ROCM_ARCHITECTURES}" hip::host)
+    numkong_add_gpu_unit_(c/rocm/cdna4.hip "${NUMKONG_CDNA4_UNIT_CODES_}" hip::host)
+    numkong_add_gpu_unit_(c/rocm/cdna5.hip "${NUMKONG_CDNA5_UNIT_CODES_}" hip::host)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_ROCM_=1 ${NUMKONG_ROCM_FAMILY_DEFINITIONS_})
     endforeach ()
@@ -1201,15 +1201,15 @@ endif ()
 
 if (NUMKONG_BUILD_METAL)
     # Metal compiles its kernels on the device, so the C units hold only the host side of each Apple capability.
-    add_library(numkong_apple_ OBJECT c/apple/metal.c c/apple/apple9.c c/apple/apple10.c)
-    target_include_directories(numkong_apple_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
-    set_target_properties(numkong_apple_ PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    add_library(numkong_metal_ OBJECT c/metal/metal.c c/metal/apple9.c c/metal/apple10.c)
+    target_include_directories(numkong_metal_ PRIVATE "${PROJECT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/c")
+    set_target_properties(numkong_metal_ PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_compile_definitions(
-        numkong_apple_ PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_} ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
+        numkong_metal_ PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_} ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
     )
-    target_compile_options(numkong_apple_ PRIVATE -fvisibility=hidden)
+    target_compile_options(numkong_metal_ PRIVATE -fvisibility=hidden)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-        target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_apple_>)
+        target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_metal_>)
         target_compile_definitions(${nk_library_} PRIVATE ${NUMKONG_METAL_FAMILY_DEFINITIONS_})
         target_link_libraries(${nk_library_} PUBLIC "-framework Metal" "-framework Foundation")
     endforeach ()

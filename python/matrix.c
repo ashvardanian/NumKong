@@ -172,7 +172,7 @@ static PyObject *PackedMatrix_pack_size(PyObject *cls, PyObject *const *args, Py
 static PyMethodDef PackedMatrix_methods[] = {
     {"pack_size", (PyCFunction)PackedMatrix_pack_size, METH_CLASS | METH_FASTCALL | METH_KEYWORDS,
      "Return packed buffer size in bytes for a matrix shape and dtype, under the CPU's enabled capabilities\n" //
-     "or the `capabilities=` mask, like `b.device.capabilities_enabled()` to size a GPU `dots_pack(b, out=...)`."},
+     "or the `capabilities=` mask, like `cuda_capabilities_enabled(0)` to size a GPU `dots_pack(b, out=...)`."},
     {NULL, NULL, 0, NULL},
 };
 
@@ -721,28 +721,28 @@ cleanup:
     return return_obj;
 }
 
-char const doc_dots_pack[] =                                                                 //
-    "dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix\n\n"              //
-    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                  //
-    "Args:\n"                                                                                //
-    "    b (array_like): Source matrix with shape [columns,depth], or a CUDA or ROCm\n"      //
-    "        Tensor from from_dlpack() to pack on that GPU.\n"                               //
-    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"              //
-    "        Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                   //
-    "        'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                    //
-    "    out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n"  //
-    "        of PackedMatrix.pack_size(..., capabilities=b.device.capabilities_enabled())\n" //
-    "        bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"     //
-    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"      //
-    "        the legacy stream. The call returns before the packing finishes.\n\n"           //
-    "Returns:\n"                                                                             //
-    "    PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"                    //
-    "        angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n"           //
-    "        A GPU one keeps its device and that device's capabilities.\n\n"                 //
-    "Example:\n"                                                                             //
-    "    >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                                //
-    "    >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"                //
-    "Signature:\n"                                                                           //
+char const doc_dots_pack[] =                                                                //
+    "dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix\n\n"             //
+    "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                 //
+    "Args:\n"                                                                               //
+    "    b (array_like): Source matrix with shape [columns,depth], or a CUDA or ROCm\n"     //
+    "        Tensor from from_dlpack() to pack on that GPU.\n"                              //
+    "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"             //
+    "        Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                  //
+    "        'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                   //
+    "    out (Tensor, optional): Required for a GPU b: a C-contiguous Tensor on its GPU,\n" //
+    "        of PackedMatrix.pack_size(..., capabilities=cuda_capabilities_enabled(0))\n"   //
+    "        bytes or more, holding the packed bytes for the PackedMatrix's lifetime.\n"    //
+    "    stream (int, optional): The GPU stream handle to queue on, defaulting to 0,\n"     //
+    "        the legacy stream. The call returns before the packing finishes.\n\n"          //
+    "Returns:\n"                                                                            //
+    "    PackedMatrix: Opaque packed matrix accepted by dots_packed(),\n"                   //
+    "        angulars_packed(), euclideans_packed(), and Tensor @ PackedMatrix.\n"          //
+    "        A GPU one keeps its device and that device's capabilities.\n\n"                //
+    "Example:\n"                                                                            //
+    "    >>> b_packed = nk.dots_pack(b, dtype=nk.bfloat16)\n"                               //
+    "    >>> distances = nk.dots_packed(a, b_packed)  # shape: [100,200]\n\n"               //
+    "Signature:\n"                                                                          //
     "    >>> def dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix: ...";
 
 static PyObject *api_pack_common(PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames, nk_dtype_t default_dtype) {

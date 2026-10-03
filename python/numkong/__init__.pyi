@@ -395,11 +395,6 @@ class Tensor(memoryview):
         """Allocated element capacity of the owned buffer (>= size)."""
         ...
 
-    @property
-    def device(self) -> Device:
-        """The device the data lives on: the CPU, or the GPU a `from_dlpack` tensor was imported from."""
-        ...
-
     def resize(self, *shape: int) -> Tensor:
         """Reshape in place within capacity without moving storage; returns self."""
         ...
@@ -722,48 +717,102 @@ class _Dispatch(TypedDict, total=False):
     stream: int | None
     """A GPU stream pointer, left None on the CPU."""
 
-_DeviceKind: TypeAlias = Literal["cpu", "cuda", "rocm", "metal"]
+# Capabilities of the CPU and each GPU, and GPU streams, the only calls taking a device ordinal.
+def cpu_capabilities_detected() -> Capability:
+    """What this CPU can execute."""
+    ...
 
-class Device:
-    """One device NumKong runs kernels on, raising ValueError for an ordinal it does not see."""
+def cpu_capabilities_compiled() -> Capability:
+    """What this binary holds CPU kernels for."""
+    ...
 
-    def __init__(self, kind: _DeviceKind, ordinal: int = 0) -> None: ...
-    @staticmethod
-    def cpu() -> Device:
-        """The CPU, the one device every process has."""
-        ...
+def cpu_capabilities_enabled() -> Capability:
+    """What CPU kernels run with: both of the above, narrowed by `cpu_capabilities_enable`."""
+    ...
 
-    @staticmethod
-    def count(kind: _DeviceKind, /) -> int:
-        """How many devices of `kind` this process sees: one CPU, zero without a runtime or its kernels."""
-        ...
+def cpu_capabilities_enable(wanted: Capability, /) -> Capability:
+    """Make `wanted`, clamped to what runs and always with SERIAL, the CPU's enabled set."""
+    ...
 
-    @property
-    def kind(self) -> _DeviceKind: ...
-    @property
-    def ordinal(self) -> int: ...
-    def capabilities_detected(self) -> Capability:
-        """What this device can execute."""
-        ...
+def cpu_configure_thread(capabilities: Capability, /) -> None:
+    """Prepare the calling thread for the CPU kernels of `capabilities`."""
+    ...
 
-    def capabilities_compiled(self) -> Capability:
-        """What this binary holds kernels for, on devices of this kind."""
-        ...
+def cuda_count_devices() -> int:
+    """How many CUDA devices this process sees, zero without the runtime or its kernels."""
+    ...
 
-    def capabilities_enabled(self) -> Capability:
-        """What kernels run with here: both of the above, narrowed on the CPU by `capabilities_enable`."""
-        ...
+def cuda_capabilities_detected(ordinal: int, /) -> Capability:
+    """What CUDA device `ordinal` can execute, raising ValueError past the last one."""
+    ...
 
-    def capabilities_enable(self, wanted: Capability, /) -> Capability:
-        """Make `wanted`, clamped to what runs and always with SERIAL, the CPU's enabled set."""
-        ...
+def cuda_capabilities_compiled() -> Capability:
+    """What this binary holds CUDA kernels for."""
+    ...
 
-    def configure_thread(self, capabilities: Capability, /) -> None:
-        """Prepare the calling thread for the kernels of `capabilities`, CPU only."""
-        ...
+def cuda_capabilities_enabled(ordinal: int, /) -> Capability:
+    """The mask CUDA device `ordinal` dispatches with, raising ValueError past the last one."""
+    ...
 
-    def __eq__(self, other: object) -> bool: ...
-    def __hash__(self) -> int: ...
+def cuda_stream_init(ordinal: int, /) -> int:
+    """A new `cudaStream_t` on CUDA device `ordinal` as an integer, raising ValueError past the last one."""
+    ...
+
+def cuda_stream_free(stream: int, /) -> None:
+    """Free a stream `cuda_stream_init` made, once `synchronize` joined its work."""
+    ...
+
+def rocm_count_devices() -> int:
+    """How many ROCm devices this process sees, zero without the runtime or its kernels."""
+    ...
+
+def rocm_capabilities_detected(ordinal: int, /) -> Capability:
+    """What ROCm device `ordinal` can execute, raising ValueError past the last one."""
+    ...
+
+def rocm_capabilities_compiled() -> Capability:
+    """What this binary holds ROCm kernels for."""
+    ...
+
+def rocm_capabilities_enabled(ordinal: int, /) -> Capability:
+    """The mask ROCm device `ordinal` dispatches with, raising ValueError past the last one."""
+    ...
+
+def rocm_stream_init(ordinal: int, /) -> int:
+    """A new `hipStream_t` on ROCm device `ordinal` as an integer, raising ValueError past the last one."""
+    ...
+
+def rocm_stream_free(stream: int, /) -> None:
+    """Free a stream `rocm_stream_init` made, once `synchronize` joined its work."""
+    ...
+
+def metal_count_devices() -> int:
+    """How many Metal devices this process sees, zero without the runtime or its kernels."""
+    ...
+
+def metal_capabilities_detected(ordinal: int, /) -> Capability:
+    """What Metal device `ordinal` can execute, raising ValueError past the last one."""
+    ...
+
+def metal_capabilities_compiled() -> Capability:
+    """What this binary holds Metal kernels for."""
+    ...
+
+def metal_capabilities_enabled(ordinal: int, /) -> Capability:
+    """The mask Metal device `ordinal` dispatches with, raising ValueError past the last one."""
+    ...
+
+def metal_stream_init(ordinal: int, /) -> int:
+    """A new `id<MTLCommandQueue>` on Metal device `ordinal` as an integer, raising ValueError past the last one."""
+    ...
+
+def metal_stream_free(stream: int, /) -> None:
+    """Free a stream `metal_stream_init` made, once `synchronize` joined its work."""
+    ...
+
+def synchronize(capabilities: Capability | int, /, stream: int | None = None) -> None:
+    """Wait for everything queued on `stream` of the device `capabilities` describes, None for its default."""
+    ...
 
 # Kernel pointer accessors, to the CPU's enabled capabilities.
 # Each takes a trailing `void *stream`, null on the CPU, and returns an `nk_status_t`.

@@ -1136,11 +1136,6 @@ static PyObject *Tensor_get_capacity(PyObject *self, void *closure) {
     return PyLong_FromSize_t(((Tensor *)self)->capacity);
 }
 
-static PyObject *Tensor_get_device(PyObject *self, void *closure) {
-    nk_unused_(closure);
-    return device_to_py_object(((Tensor *)self)->device);
-}
-
 /** Product of a shape's extents, the element count. */
 static size_t shape_numel_(size_t rank, Py_ssize_t const *shape) {
     size_t numel = 1;
@@ -1343,7 +1338,6 @@ static PyGetSetDef Tensor_getset[] = {
     {"is_contiguous", Tensor_get_is_contiguous, NULL, "Whether the tensor is C-contiguous", NULL},
     {"data_ptr", Tensor_get_data_ptr, NULL, "Integer address of the data buffer", NULL},
     {"capacity", Tensor_get_capacity, NULL, "Allocated element capacity of the owned buffer (>= size)", NULL},
-    {"device", Tensor_get_device, NULL, "The Device the data lives on: the CPU, or a from_dlpack GPU", NULL},
     {NULL, NULL, NULL, NULL, NULL},
 };
 

@@ -36,7 +36,7 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
 #endif
     };
 #if NUMKONG_ARCH_CUDA_
-    static nk_kernel_punned_t const nvidia[] = {
+    static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_cast_cuda,
     };
@@ -48,7 +48,7 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX,
          cpu},
 #if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, nvidia},
+        {nk_cap_cuda_k, cuda},
 #else
         {0, nk_no_kernels_},
 #endif

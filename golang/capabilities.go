@@ -67,9 +67,9 @@ const (
 	CapApple9       Capability = C.nk_cap_apple9_k       // 2023: Apple GPU family 9
 	CapApple10      Capability = C.nk_cap_apple10_k      // Apple GPU family 10
 
-	CapCpus    Capability = C.nk_cap_cpus_k    // Every CPU capability
-	CapDevices Capability = C.nk_cap_devices_k // Every GPU capability
-	CapAny     Capability = ^Capability(0)     // Every capability
+	CapCpus Capability = C.nk_cap_cpus_k // Every CPU capability
+	CapGpus Capability = C.nk_cap_gpus_k // Every GPU capability
+	CapAny  Capability = ^Capability(0)  // Every capability
 )
 
 // DeviceKind is the runtime a device belongs to, as the `nk_<kind>_*` C functions name it.

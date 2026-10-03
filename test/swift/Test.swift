@@ -150,8 +150,8 @@ let kernels: [Kernel] = {
         (.apple9, "apple9"), (.apple10, "apple10"),
     ]
     for (capability, name) in names { #expect(capability.description == name) }
-    #expect(Capabilities.cpus.union(.devices).isSubset(of: .any))
-    #expect(Capabilities.cpus.intersection(.devices).isEmpty)
+    #expect(Capabilities.cpus.union(.gpus).isSubset(of: .any))
+    #expect(Capabilities.cpus.intersection(.gpus).isEmpty)
     #expect(enabled.contains(.serial))
     #expect(enabled.isSubset(of: try cpu.capabilitiesDetected.union(cpu.capabilitiesCompiled)))
     #expect(try Device.count(.cpu) == 1)

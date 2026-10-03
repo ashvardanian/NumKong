@@ -320,7 +320,7 @@ pip install --group test-oracles                    # optional reference librari
 python -X faulthandler -m pytest -x                 # to run tests
 
 # to check supported SIMD instructions:
-python -c "import numkong; print(repr(numkong.Device.cpu().capabilities_enabled()))"
+python -c "import numkong; print(repr(numkong.cpu_capabilities_enabled()))"
 ```
 
 Alternatively, use `uv` to create the virtual environment.
@@ -512,7 +512,7 @@ Every such kernel is wired in four places beyond its capability's header:
 
 1. __Declaration__: add the `NUMKONG_API` declaration with the matching `@copydoc` under its `NUMKONG_TARGET_*` guard in the first half of `include/numkong/<family>.h`.
 2. __Capability kernels__: add the kernel under its `NUMKONG_TARGET_*` guard to its capability group's array in `nk_<operation>_<dtype>_capabilities` in `c/dispatch/<family>.c`, in the order of the capability bits, and its bit to that group's mask.
-   Its unit, like `c/cpu/haswell.c` or `c/nvidia/hopper.cu`, defines it; a new capability gets a new unit.
+   Its unit, like `c/cpu/haswell.c` or `c/cuda/hopper.cu`, defines it; a new capability gets a new unit.
 3. __Precision tests__: register the kernel in `numkong_cpu_test`, usually in the existing `test/<family>.cpp` suite.
 4. __Benchmarks__: register the kernel in `numkong_bench`, usually in the existing `bench/<family>.cpp` suite.
 
@@ -600,6 +600,43 @@ Kernels: `nk_<operation>_<dtype>_<capability>` — e.g. `nk_dot_f32_sve`, `nk_do
 Dispatch points replace the capability with `best` — e.g. `nk_dot_f32_best` — and the static lists of their kernels in every capability group add `capabilities` — e.g. `nk_dot_f32_capabilities`.
 Internal helpers use a trailing underscore: `nk_reduce_add_f32x16_skylake_`.
 Conversions: `nk_<src>x<count>_to_<dst>x<count>_<isa>_` — e.g. `nk_e4m3x8_to_f32x8_haswell_`.
+Helpers, types and constants put the capability last as well, and only a role suffix may follow it: `_t` for a type, `_k` for a constant, `_kernel_` for a GPU entry point, or the trailing `_` of an internal name, like `nk_attention_pack_directory_simt_kernel_`.
+
+Code that several capabilities share belongs to one of three layers, named in the capability's place:
+
+- `serial`, portable and capability-neutral, in each family's `serial.h`.
+- `simt`, the single C source that CUDA and HIP both compile, in each family's `simt.cuh`, like `nk_cast_bit_simt_`.
+- `metal`, what every Metal tier shares, in a family's `metal.h` and the `metal.metal` shaders it embeds, like `nk_cross_encode_metal_`.
+
+A constant identical across the GPU layers is defined once in `serial.h` with the adjective `gpu`, and one whose value differs per layer takes its layer instead.
+
+### GPU Naming
+
+The GPU capability groups are `cuda`, `rocm` and `metal`, beside the CPU's `cpu`.
+Each word names its group's baseline bit, like `nk_cap_cuda_k`, its functions and its library units, like `c/cuda/hopper.cu`, and no symbol or source path names a vendor, like `nvidia`, `amd` or `apple`.
+A function that touches a device is either a producer or a consumer:
+
+- A __producer__ reports a device's capabilities or opens a stream on it.
+  It starts with its group, and it is the only kind of function that takes a device's `ordinal`: `nk_cuda_count_devices(&count)`, `nk_cuda_capabilities_enabled(ordinal, &capabilities)` and `nk_cuda_stream_init(ordinal, &stream)`.
+- A __consumer__ takes the `capabilities` it picks from and a trailing `void *stream`, but never an ordinal, since the stream names its device: `nk_memory_allocate_unified_best(bytes, &pointer, capabilities, stream)`.
+  It ends in `best` like any dispatch point, and its twins end in their capability, like `nk_memory_allocate_unified_cuda(bytes, &pointer, stream)`.
+
+A null stream is the default stream of the default device: the calling thread's current device on CUDA and ROCm, and the system default device on Metal.
+On the CPU the stream must be null.
+Each of these words has one meaning across the library:
+
+| Word                                             | Meaning                                                                          | Appears as                                                                        |
+| :----------------------------------------------- | :------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
+| `cpu`, `cuda`, `rocm`, `metal`                   | A capability group and its baseline bit                                          | Producer prefix, twin and kernel suffix, `c/<group>/`                             |
+| `simt`                                           | The single C source CUDA and HIP both compile                                    | `<family>/simt.cuh`, the suffixes `_simt_`, `_simt_t`, `_simt_k`                  |
+| `metal`, as a layer                              | What every Metal tier shares                                                     | `<family>/metal.h`, `<family>/metal.metal`, the suffix `_metal_`                  |
+| `gpu`                                            | Adjective for every GPU group                                                    | `nk_cap_gpus_k`, `nk_missing_gpu_k`                                               |
+| `device`                                         | A processor kernels run on, which a stream belongs to                            | `nk_cuda_count_devices`, `nk_device_memory_mismatch_k`, `nk_device_current_simt_` |
+| `ordinal`                                        | A device's index within its group, as its runtime numbers it                     | Producer parameters only                                                          |
+| `stream`                                         | A `cudaStream_t`, `hipStream_t` or `id<MTLCommandQueue>`, which names its device | The trailing `void *stream` of every consumer                                     |
+| `unified`                                        | Memory both the host and the stream's device address                             | `nk_memory_allocate_unified_best`                                                 |
+| A capability, like `hopper`, `cdna4` or `apple9` | One bit of a mask                                                                | The last token before the role suffix                                             |
+| `kernel`                                         | A GPU entry point                                                                | `_kernel_`, right after the capability                                            |
 
 ### Macro Naming
 
@@ -621,7 +658,7 @@ A name without it is a public contract, either a switch you may set or a value y
 Architectures are spelled as one token each, `X8664`, `X8632`, `ARM64`, `RISCV64`, `PPC64`, `LOONGARCH64`, `S390X` and `WASM`, and GPU architectures `CUDA` and `ROCM`.
 A GPU architecture holds beside the host's architecture in both compiler passes, so it never follows a CPU architecture in an `#elif` chain.
 Metal has no compiler macro on the host side, so its host API is a switch the build sets where it links Metal and Foundation.
-The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `c/dispatch/*.c` list the kernels that the `c/nvidia/*.cu` and `c/amd/*.hip` units compile.
+The library also sets `NUMKONG_ARCH_CUDA_` or `NUMKONG_ARCH_ROCM_` for its host-only units, so `c/dispatch/*.c` list the kernels that the `c/cuda/*.cu` and `c/rocm/*.hip` units compile.
 The build passes every unit the same `NUMKONG_TARGET_*` verdicts, so a unit turns off each capability its headers include besides its own, like `c/cpu/genoa.c` turning off Haswell, Skylake and Icelake, and each kernel is defined in exactly one unit.
 A new cross-capability include needs the same line in the unit, or the link reports the kernels defined twice.
 A capability's helpers follow `NUMKONG_ARCH_<ARCH>_<NAME>_`: its own target, or any capability whose headers include its headers.
