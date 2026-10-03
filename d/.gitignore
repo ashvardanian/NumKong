@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/libnumkong_d
+libnumkong_d.so
+libnumkong_d.dylib
+libnumkong_d.dll
+libnumkong_d.a
+libnumkong_d.a
+libnumkong_d.lib
+libnumkong_d-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
