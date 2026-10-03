@@ -35,10 +35,8 @@ from base import (
     collect_errors,
     create_stats,
     downcast_f32_to_dtype,
-    keep_one_capability,
     make_nk,
     numpy_available,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
     timed_call,
@@ -275,8 +273,7 @@ def _make_point_pair(generator: np.random.Generator, n_points, dtype):
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_rmsd_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
     """RMSD of random point clouds against high-precision baseline."""
     if n_points < 3:
         pytest.skip("RMSD requires at least 3 points")
@@ -284,7 +281,6 @@ def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.ra
     source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(np_rng, n_points, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["rmsd"]
 
     # High-precision baseline
@@ -303,15 +299,26 @@ def test_rmsd_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.ra
     result = float(np.array(result_obj.rmsd))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
-    collect_errors("rmsd", n_points, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "rmsd",
+        n_points,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_kabsch_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
     """Kabsch RMSD of random point clouds against high-precision Jacobi SVD baseline."""
     if n_points < 3:
         pytest.skip("Kabsch requires at least 3 non-degenerate points")
@@ -319,7 +326,6 @@ def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.
     source_raw, source_baseline, target_raw, target_baseline = _make_point_pair(np_rng, n_points, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["kabsch"]
 
     # High-precision baseline → scalar RMSD after optimal rotation
@@ -332,15 +338,26 @@ def test_kabsch_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.
     result = float(np.array(result_obj.rmsd))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
-    collect_errors("kabsch", n_points, dtype, accurate, accurate_ns, None, 0, result, result_ns, stats)
+    collect_errors(
+        "kabsch",
+        n_points,
+        dtype,
+        accurate,
+        accurate_ns,
+        None,
+        0,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_umeyama_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
     """Umeyama scale of random point clouds against high-precision baseline."""
     if n_points < 3:
         pytest.skip("Umeyama requires at least 3 non-degenerate points")
@@ -355,7 +372,6 @@ def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, np_rng: np
     target_raw, target_baseline = downcast_f32_to_dtype(target_f32, dtype)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_MESH["umeyama"]
 
     # High-precision baseline → scalar scale factor
@@ -368,16 +384,26 @@ def test_umeyama_accuracy(n_points: int, dtype: str, capability: str, np_rng: np
     result = float(np.array(result_obj.scale))
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol)
-    collect_errors("umeyama", n_points, dtype, accurate, accurate_ns, None, 0, result, result_ns, stats)
+    collect_errors(
+        "umeyama",
+        n_points,
+        dtype,
+        accurate,
+        accurate_ns,
+        None,
+        0,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.parametrize("n_points", SETTINGS.dims)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_rmsd_self_zero(n_points: int, capability: str):
+def test_rmsd_self_zero(capabilities, n_points: int):
     """rmsd(cloud, cloud).rmsd ~ 0 for identical point clouds."""
     if n_points < 3:
         pytest.skip("RMSD requires at least 3 points")
-    capabilities = keep_one_capability(capability)
     point_cloud = nk.ones((n_points, 3), dtype="float64")
     result = nk.rmsd(point_cloud, point_cloud, capabilities=capabilities)
     assert_allclose(float(result.rmsd), 0.0)
@@ -386,15 +412,13 @@ def test_rmsd_self_zero(n_points: int, capability: str):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("n_points", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_kabsch_identity(n_points: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_kabsch_identity(capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
     """Kabsch on identical points: expects RMSD~0 and scale~1."""
     if n_points < 3:
         pytest.skip("Kabsch requires at least 3 non-degenerate points")
     points_f32 = np_rng.standard_normal((n_points, 3)).astype(np.float32)
     points_raw, _ = downcast_f32_to_dtype(points_f32, dtype)
     point_cloud = make_nk(points_raw, dtype)
-    capabilities = keep_one_capability(capability)
     result = nk.kabsch(point_cloud, point_cloud, capabilities=capabilities)
     atol, rtol = tolerances_for_dtype(dtype)
     assert_allclose(float(np.array(result.rmsd)), 0.0, atol=atol, rtol=rtol)

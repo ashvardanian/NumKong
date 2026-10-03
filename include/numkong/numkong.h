@@ -12,6 +12,7 @@
 #define NUMKONG_NUMKONG_H
 
 #include "numkong/capabilities.h" // Capabilities, kernel kinds, the pick and detection, like `nk_find_kernel_punned`
+#include "numkong/memory.h"       // Host and device allocations
 #include "numkong/scalar.h"       // Scalar math: sqrt, rsqrt, fma, saturating, order, like `nk_f32_sqrt_best`
 #include "numkong/cast.h"         // Type conversions, like `nk_cast_best`
 #include "numkong/set.h"          // Hamming, Jaccard, like `nk_hamming_u1_best`

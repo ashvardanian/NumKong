@@ -38,11 +38,9 @@ from base import (
     SETTINGS,
     assert_allclose,
     create_stats,
-    keep_one_capability,
     make_random,
     ml_dtypes_available,
     numpy_available,
-    possible_capabilities,
     print_stats_report,
     round_up_to,
     scipy_available,
@@ -80,8 +78,7 @@ def round_and_clip_even(values, out_dtype):
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("input_dtype", ["float64", "float32"])
 @pytest.mark.parametrize("metric", ["dot", "angular", "euclidean"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, np_rng: np.random.Generator):
+def test_cdist_batch_metrics(capabilities, ndim, input_dtype, metric, np_rng: np.random.Generator):
     """Verify the SIMD batch dispatch for dot, angular, and euclidean.
 
     Sets ``out_dtype`` equal to ``input_dtype`` (float64 or float32) so that the
@@ -94,7 +91,6 @@ def test_cdist_batch_metrics(ndim, input_dtype, metric, capability, np_rng: np.r
     is ``np.dot`` (SciPy has no ``cdist`` metric for inner product); other
     metrics use ``scipy.spatial.distance.cdist``.
     """
-    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 7, 11
     a_matrix, _ = make_random((num_rows_a, ndim), input_dtype, np_rng)
@@ -173,8 +169,7 @@ def test_cdist_self_distance(ndim, input_dtype, metric, np_rng: np.random.Genera
 @pytest.mark.parametrize("input_dtype", ["float64", "float32", "float16"])
 @pytest.mark.parametrize("out_dtype", [None, "float32", "int32"])
 @pytest.mark.parametrize("metric", ["angular", "sqeuclidean", "euclidean", "dot"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, np_rng: np.random.Generator):
+def test_cdist_float_accuracy(capabilities, ndim, input_dtype, out_dtype, metric, np_rng: np.random.Generator):
     """Broad coverage of cdist for standard IEEE float inputs.
 
     Exercises four metrics (angular, sqeuclidean, euclidean, dot) across three
@@ -195,7 +190,6 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
     """
     if metric == "angular" and ndim == 1:
         pytest.skip("angular at ndim=1 is degenerate (0/0 from single-element norms)")
-    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_matrix_extended, _ = make_random((num_rows_a, ndim + 1), input_dtype, np_rng)
@@ -239,8 +233,7 @@ def test_cdist_float_accuracy(ndim, input_dtype, out_dtype, metric, capability, 
 @pytest.mark.parametrize("input_dtype", ["complex128", "complex64"])
 @pytest.mark.parametrize("out_dtype", [None, "complex128", "complex64"])
 @pytest.mark.parametrize("metric", ["dot", "vdot"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability, np_rng: np.random.Generator):
+def test_cdist_complex(capabilities, ndim, input_dtype, out_dtype, metric, np_rng: np.random.Generator):
     """Verify cdist for complex-valued dot and vdot metrics.
 
     Tests three output modes (default complex128, explicit complex128,
@@ -254,7 +247,6 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability, np_rng:
     Inputs are strided (sliced from wider allocations). Dimensions from
     ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
-    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_matrix_extended = np_rng.standard_normal((num_rows_a, ndim + 1)).astype(input_dtype)
@@ -295,8 +287,7 @@ def test_cdist_complex(ndim, input_dtype, out_dtype, metric, capability, np_rng:
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("out_dtype", [None, "float32", "float16", "int8"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_hamming(ndim, out_dtype, capability, np_rng: np.random.Generator):
+def test_cdist_hamming(capabilities, ndim, out_dtype, np_rng: np.random.Generator):
     """Verify cdist Hamming distance on packed bit vectors.
 
     Generates random binary matrices, packs them via ``np.packbits``, and passes
@@ -312,7 +303,6 @@ def test_cdist_hamming(ndim, out_dtype, capability, np_rng: np.random.Generator)
     ``NUMKONG_REPETITIONS``, default 10). Dimensions from
     ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
-    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_bits = np_rng.integers(2, size=(num_rows_a, ndim)).astype(np.uint8)
@@ -345,8 +335,7 @@ def test_cdist_hamming(ndim, out_dtype, capability, np_rng: np.random.Generator)
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("out_dtype", [None, "float32"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_jaccard(ndim, out_dtype, capability, np_rng: np.random.Generator):
+def test_cdist_jaccard(capabilities, ndim, out_dtype, np_rng: np.random.Generator):
     """Verify cdist Jaccard distance on packed bit vectors.
 
     Same ``np.packbits`` + ``dtype="uint1"`` pattern as the Hamming test, but
@@ -359,7 +348,6 @@ def test_cdist_jaccard(ndim, out_dtype, capability, np_rng: np.random.Generator)
     Randomised via ``@pytest.mark.repeat``; dimensions from
     ``NUMKONG_DIMS``; capabilities from platform auto-detection.
     """
-    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 10, 15
     a_bits = np_rng.integers(2, size=(num_rows_a, ndim)).astype(np.uint8)
@@ -388,8 +376,7 @@ def test_cdist_jaccard(ndim, out_dtype, capability, np_rng: np.random.Generator)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("input_dtype", ["float64", "float32"])
 @pytest.mark.parametrize("metric", ["kld", "jsd"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_cdist_probability(ndim, input_dtype, metric, capability, np_rng: np.random.Generator):
+def test_cdist_probability(capabilities, ndim, input_dtype, metric, np_rng: np.random.Generator):
     """Verify cdist for Kullback-Leibler divergence and Jensen-Shannon distance.
 
     Inputs are positive probability vectors (softmax of randn + epsilon) using
@@ -408,7 +395,6 @@ def test_cdist_probability(ndim, input_dtype, metric, capability, np_rng: np.ran
     Dimensions from ``NUMKONG_DIMS``; capabilities from platform
     auto-detection.
     """
-    capabilities = keep_one_capability(capability)
 
     num_rows_a, num_rows_b = 7, 11
     # Positive normalized vectors (softmax of randn)

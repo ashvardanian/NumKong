@@ -42,12 +42,10 @@ from base import (
     SETTINGS,
     assert_allclose,
     f32_downcast_to_bf16,
-    keep_one_capability,
     make_nk,
     make_random,
     ml_dtypes_available,
     numpy_available,
-    possible_capabilities,
     to_array,
     tolerances_for_dtype,
 )
@@ -997,9 +995,7 @@ def test_ndarray_hash(dtype: str, shape):
 @pytest.mark.parametrize(
     "shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d"), pytest.param((4, 5, 5), id="3d")]
 )
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_ndarray_sum(dtype: str, shape, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_ndarray_sum(capabilities, dtype: str, shape, np_rng: np.random.Generator):
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     # NumKong sums integers in 64 bits, while NumPy's default integer accumulator is 32-bit under Emscripten.
@@ -1010,9 +1006,7 @@ def test_ndarray_sum(dtype: str, shape, capability: str, np_rng: np.random.Gener
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", _REDUCE_DTYPES)
 @pytest.mark.parametrize("shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d")])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_ndarray_min_max(dtype: str, shape, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_ndarray_min_max(capabilities, dtype: str, shape, np_rng: np.random.Generator):
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     assert_op_matches(nk_arr.min(capabilities=capabilities), np.min(np_arr), dtype)
@@ -1023,9 +1017,7 @@ def test_ndarray_min_max(dtype: str, shape, capability: str, np_rng: np.random.G
 @pytest.mark.parametrize("dtype", _ARITH_DTYPES)
 @pytest.mark.parametrize("shape", [pytest.param((100,), id="1d"), pytest.param((10, 10), id="2d")])
 @pytest.mark.parametrize("op", ["argmin", "argmax"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_ndarray_argmin_argmax_methods(dtype: str, shape, op: str, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_ndarray_argmin_argmax_methods(capabilities, dtype: str, shape, op: str, np_rng: np.random.Generator):
     np_arr = random_ndarray(np_rng, dtype, shape)
     nk_arr = make_nk(np_arr, dtype)
     baseline_kernel, simd_kernel = KERNELS_TENSOR[op]
@@ -1062,9 +1054,7 @@ def test_ndarray_unary(dtype: str, np_rng: np.random.Generator):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_reduction_on_strided_array(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_reduction_on_strided_array(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
     np_arr, _ = make_random((10, 10), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1079,9 +1069,7 @@ def test_reduction_on_strided_array(dtype: str, op: str, capability: str, np_rng
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_reduction_on_transposed_array(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_reduction_on_transposed_array(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
     np_arr, _ = make_random((5, 8), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1096,9 +1084,7 @@ def test_reduction_on_transposed_array(dtype: str, op: str, capability: str, np_
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["sum", "min", "max"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_reduction_on_subview(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_reduction_on_subview(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
     np_arr, _ = make_random((20, 20), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1113,9 +1099,7 @@ def test_reduction_on_subview(dtype: str, op: str, capability: str, np_rng: np.r
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", [pytest.param("float64", id="f64"), pytest.param("float32", id="f32")])
 @pytest.mark.parametrize("op", ["argmin", "argmax"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_argreduction_on_subview(dtype: str, op: str, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_argreduction_on_subview(capabilities, dtype: str, op: str, np_rng: np.random.Generator):
     np_arr, _ = make_random((20, 20), dtype, np_rng)
     nk_arr = make_nk(np_arr, dtype)
 
@@ -1402,10 +1386,8 @@ def test_nk_dtype_numpy_roundtrip():
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_packed_row_range(capability: str, np_rng: np.random.Generator):
+def test_dots_packed_row_range(capabilities, np_rng: np.random.Generator):
     """Test dots_packed with start_row/end_row splits produce the same result."""
-    capabilities = keep_one_capability(capability)
     rows, depth, columns = 100, 64, 50
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
     right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
@@ -1421,14 +1403,12 @@ def test_dots_packed_row_range(capability: str, np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_symmetric_row_range(capability: str, np_rng: np.random.Generator):
+def test_dots_symmetric_row_range(capabilities, np_rng: np.random.Generator):
     """Test dots_symmetric with start_row/end_row.
 
     Only the upper triangle of the output is guaranteed to be initialized,
     so we compare only the upper-triangle entries that fall within each row range.
     """
-    capabilities = keep_one_capability(capability)
     count, depth = 64, 32
     vectors, _ = make_random((count, depth), "float32", np_rng)
 
@@ -1444,15 +1424,13 @@ def test_dots_symmetric_row_range(capability: str, np_rng: np.random.Generator):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("rows", [63, 64, 129])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_packed_threads(threads, rows, capability, np_rng: np.random.Generator):
+def test_dots_packed_threads(capabilities, threads, rows, np_rng: np.random.Generator):
     """Verify dots_packed and @ match the serial path across tile boundaries and thread counts.
 
     The packed row tile is 64, so heights straddling one and two tiles exercise both the whole-tile
     and tail-chunk branches of the parallel loop. threads=0 (all cores) must match threads=1 regardless
     of any prior explicit count — the num_threads() clause fix, not the poisoned global ICV.
     """
-    capabilities = keep_one_capability(capability)
     depth, columns = 64, 32
     left_matrix, _ = make_random((rows, depth), "float32", np_rng)
     right_matrix = np.ascontiguousarray(make_random((columns, depth), "float32", np_rng)[0])
@@ -1469,14 +1447,12 @@ def test_dots_packed_threads(threads, rows, capability, np_rng: np.random.Genera
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("threads", [0, 1, 4])
 @pytest.mark.parametrize("count", [31, 32, 65])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_symmetric_threads(threads, count, capability, np_rng: np.random.Generator):
+def test_dots_symmetric_threads(capabilities, threads, count, np_rng: np.random.Generator):
     """Verify dots_symmetric matches the serial path across tile boundaries and thread counts.
 
     The symmetric row tile is 32; only the upper triangle is guaranteed written. threads=0 (all cores)
     must match threads=1 regardless of any prior explicit count — the num_threads() clause fix.
     """
-    capabilities = keep_one_capability(capability)
     depth = 32
     vectors, _ = make_random((count, depth), "float32", np_rng)
     mask = np.triu(np.ones((count, count), dtype=bool))

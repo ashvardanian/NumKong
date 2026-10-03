@@ -40,11 +40,9 @@ from base import (
     collect_errors,
     collect_warnings,
     create_stats,
-    keep_one_capability,
     make_random,
     make_random_buffer,
     numpy_available,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
     timed_call,
@@ -107,14 +105,12 @@ KERNELS_OVERFLOW: dict[str, tuple[Callable | None, Callable]] = {
         "uint8",
     ],
 )
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_inner_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Inner product of random vectors across all numeric dtypes, verified against high-precision Decimal baseline."""
     a_raw, a_baseline = make_random((ndim,), dtype, np_rng)
     b_raw, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_DOT["inner"]
 
     # High-precision baseline
@@ -133,28 +129,50 @@ def test_inner_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: n
     err_msg = LazyFormat(lambda: f"\ninner({dtype}, ndim={ndim}):\n  Accurate:  {accurate}\n  Got:       {result}")
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol, err_msg=err_msg)
-    collect_errors("inner", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "inner",
+        ndim,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["complex64", "complex128"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dot_vdot_complex_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_dot_vdot_complex_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Complex dot and vdot products against NumPy for complex64 and complex128 inputs."""
     a_vector, a_baseline = make_random((ndim,), dtype, np_rng)
     b_vector, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    capabilities = keep_one_capability(capability)
     accurate_ns, accurate = timed_call(np.dot, a_baseline, b_baseline)
     expected_ns, expected = timed_call(np.dot, a_vector, b_vector)
     result_ns, result = timed_call(nk.dot, a_vector, b_vector, capabilities=capabilities)
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=atol, rtol=rtol)
-    collect_errors("dot", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "dot",
+        ndim,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
     accurate_ns, accurate = timed_call(np.vdot, a_baseline, b_baseline)
     expected_ns, expected = timed_call(np.vdot, a_vector, b_vector)
@@ -162,19 +180,29 @@ def test_dot_vdot_complex_accuracy(ndim: int, dtype: str, capability: str, np_rn
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=atol, rtol=rtol)
-    collect_errors("vdot", ndim, dtype + "c", accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "vdot",
+        ndim,
+        dtype + "c",
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dot_vdot_complex_explicit_dtype(ndim: int, capability: str, np_rng: np.random.Generator):
+def test_dot_vdot_complex_explicit_dtype(capabilities, ndim: int, np_rng: np.random.Generator):
     """Complex dot and vdot with explicit dtype='complex64' passed to float32 storage."""
     a_real_parts = np_rng.standard_normal(ndim * 2).astype(dtype=np.float32)
     b_real_parts = np_rng.standard_normal(ndim * 2).astype(dtype=np.float32)
 
-    capabilities = keep_one_capability(capability)
     expected = np.dot(a_real_parts.view(np.complex64), b_real_parts.view(np.complex64))
     result = nk.dot(a_real_parts, b_real_parts, "complex64", capabilities=capabilities)
 
@@ -192,10 +220,7 @@ def test_dot_vdot_complex_explicit_dtype(ndim: int, capability: str, np_rng: np.
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 @pytest.mark.parametrize("metric", ["inner", "euclidean", "sqeuclidean", "angular"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_float_overflow_detection(
-    ndim: int, dtype: str, metric: str, capability: str, np_rng: np.random.Generator
-):
+def test_inner_float_overflow_detection(capabilities, ndim: int, dtype: str, metric: str, np_rng: np.random.Generator):
     """Tests if the floating-point kernels are capable of detecting overflow yield the same ±inf result."""
 
     a = np_rng.standard_normal(ndim)
@@ -206,7 +231,6 @@ def test_inner_float_overflow_detection(
     a = a.astype(dtype)
     b = b.astype(dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel = KERNELS_OVERFLOW[metric]
     result = simd_kernel(a, b, capabilities=capabilities)
     assert np.isinf(result), f"Expected ±inf, but got {result}"
@@ -223,10 +247,8 @@ def test_inner_float_overflow_detection(
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_known(ndim: int, dtype: str, capability: str):
+def test_inner_known(capabilities, ndim: int, dtype: str):
     """inner(ones, ones) should equal n."""
-    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     result = nk.inner(ones_vector, ones_vector, capabilities=capabilities)
     assert abs(result - ndim) < NUMKONG_ATOL + NUMKONG_RTOL * ndim
@@ -234,10 +256,8 @@ def test_inner_known(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_orthogonal(ndim: int, dtype: str, capability: str):
+def test_inner_orthogonal(capabilities, ndim: int, dtype: str):
     """inner(ones, zeros) should equal 0."""
-    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
     result = nk.inner(ones_vector, zeros_vector, capabilities=capabilities)
@@ -246,10 +266,8 @@ def test_inner_orthogonal(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_symmetry(ndim: int, dtype: str, capability: str, rng: random.Random):
+def test_inner_symmetry(capabilities, ndim: int, dtype: str, rng: random.Random):
     """Commutativity: inner(a, b) = inner(b, a)."""
-    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     ab = nk.inner(a, b, capabilities=capabilities)
@@ -259,10 +277,8 @@ def test_inner_symmetry(ndim: int, dtype: str, capability: str, rng: random.Rand
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str, rng: random.Random):
+def test_inner_cauchy_schwarz(capabilities, ndim: int, dtype: str, rng: random.Random):
     """Cauchy-Schwarz: |inner(a,b)|^2 <= inner(a,a) * inner(b,b)."""
-    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     ab = nk.inner(a, b, capabilities=capabilities)
@@ -278,8 +294,7 @@ def test_inner_cauchy_schwarz(ndim: int, dtype: str, capability: str, rng: rando
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", [131072, 262144])
 @pytest.mark.parametrize("metric", ["inner", "euclidean", "sqeuclidean", "angular"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_inner_integer_overflow_detection(ndim: int, metric: str, capability: str):
+def test_inner_integer_overflow_detection(capabilities, ndim: int, metric: str):
     """Tests if the integral kernels are capable of detecting overflow yield the same ±inf result,
     as with 2^16 elements accumulating "u32(u16(u8)*u16(u8))+u32" products should overflow and the
     same is true for 2^17 elements with "i32(i15(i8))*i32(i15(i8))" products.
@@ -288,7 +303,6 @@ def test_inner_integer_overflow_detection(ndim: int, metric: str, capability: st
     a = np.full(ndim, fill_value=-128, dtype=np.int8)
     b = np.full(ndim, fill_value=-128, dtype=np.int8)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel = KERNELS_OVERFLOW[metric]
     _ = baseline_kernel(a, b)
     result = simd_kernel(a, b, capabilities=capabilities)

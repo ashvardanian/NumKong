@@ -37,9 +37,7 @@ from base import (
     assert_allclose,
     collect_errors,
     create_stats,
-    keep_one_capability,
     make_positive_buffer,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
     timed_call,
@@ -117,15 +115,13 @@ KERNELS_PROBABILITY: dict[str, tuple[Callable, Callable, Callable]] = {
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_jensenshannon_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_jensenshannon_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Jensen-Shannon distance of random probability distributions against SciPy baseline."""
     a_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
     b_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
     a_distribution /= np.sum(a_distribution)
     b_distribution /= np.sum(b_distribution)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_PROBABILITY["jensenshannon"]
     accurate_ns, accurate = timed_call(
         baseline_kernel, a_distribution.astype(np.float64), b_distribution.astype(np.float64)
@@ -135,15 +131,25 @@ def test_jensenshannon_random_accuracy(ndim: int, dtype: str, capability: str, n
     result = np.asarray(result)
 
     assert_allclose(result, expected, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
-    collect_errors("jensenshannon", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "jensenshannon",
+        ndim,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_kullbackleibler_self_zero(ndim: int, dtype: str, capability: str):
+def test_kullbackleibler_self_zero(capabilities, ndim: int, dtype: str):
     """KL divergence of a uniform distribution with itself should be ~0."""
-    capabilities = keep_one_capability(capability)
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
     result = nk.kullbackleibler(uniform_distribution, uniform_distribution, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"KL(p,p) = {result}, expected ~0"
@@ -151,10 +157,8 @@ def test_kullbackleibler_self_zero(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_jensenshannon_self_zero(ndim: int, dtype: str, capability: str):
+def test_jensenshannon_self_zero(capabilities, ndim: int, dtype: str):
     """Jensen-Shannon distance of a uniform distribution with itself should be ~0."""
-    capabilities = keep_one_capability(capability)
     uniform_distribution = nk.full((ndim,), 1.0 / ndim, dtype=dtype)
     result = nk.jensenshannon(uniform_distribution, uniform_distribution, capabilities=capabilities)
     assert abs(result) < NUMKONG_ATOL, f"JS(p,p) = {result}, expected ~0"
@@ -162,10 +166,8 @@ def test_jensenshannon_self_zero(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_jensenshannon_symmetry_nonneg(ndim: int, dtype: str, capability: str, rng: random.Random):
+def test_jensenshannon_symmetry_nonneg(capabilities, ndim: int, dtype: str, rng: random.Random):
     """Jensen-Shannon should be symmetric and non-negative."""
-    capabilities = keep_one_capability(capability)
     p = make_positive_buffer(rng, ndim, dtype)
     q = make_positive_buffer(rng, ndim, dtype)
     js_pq = nk.jensenshannon(p, q, capabilities=capabilities)

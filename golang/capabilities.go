@@ -18,56 +18,56 @@ type Capability uint64
 // CPU capability bit masks, each capability group ascending by dispatch preference
 const (
 	CapSerial      Capability = C.nk_cap_serial_k      // Always: Fallback
-	CapNeon        Capability = C.nk_cap_neon_k        // 2013: ARM NEON
-	CapNeonHalf    Capability = C.nk_cap_neonhalf_k    // 2017: ARM NEON FP16
-	CapNeonBfDot   Capability = C.nk_cap_neonbfdot_k   // 2020: ARM NEON BF16
-	CapNeonFhm     Capability = C.nk_cap_neonfhm_k     // 2018: ARM NEON FP16 FML
-	CapNeonSdot    Capability = C.nk_cap_neonsdot_k    // 2017: ARM NEON i8 dot
-	CapNeonFp8     Capability = C.nk_cap_neonfp8_k     // ARM NEON FP8
-	CapSve         Capability = C.nk_cap_sve_k         // 2020: ARM SVE
-	CapSveHalf     Capability = C.nk_cap_svehalf_k     // 2020: ARM SVE FP16
-	CapSveSdot     Capability = C.nk_cap_svesdot_k     // 2020: ARM SVE i8 dot
-	CapSveBfDot    Capability = C.nk_cap_svebfdot_k    // 2021: ARM SVE BF16
-	CapSve2        Capability = C.nk_cap_sve2_k        // 2022: ARM SVE2
-	CapSme         Capability = C.nk_cap_sme_k         // 2024: ARM SME
-	CapSmeF64      Capability = C.nk_cap_smef64_k      // 2024: ARM SME F64
-	CapSmeBi32     Capability = C.nk_cap_smebi32_k     // 2025+: ARM SME BI32I32
+	CapNEON        Capability = C.nk_cap_neon_k        // 2013: ARM NEON
+	CapNEONHalf    Capability = C.nk_cap_neonhalf_k    // 2017: ARM NEON FP16
+	CapNEONBFDot   Capability = C.nk_cap_neonbfdot_k   // 2020: ARM NEON BF16
+	CapNEONFHM     Capability = C.nk_cap_neonfhm_k     // 2018: ARM NEON FP16 FML
+	CapNEONSDot    Capability = C.nk_cap_neonsdot_k    // 2017: ARM NEON i8 dot
+	CapNEONFP8     Capability = C.nk_cap_neonfp8_k     // ARM NEON FP8
+	CapSVE         Capability = C.nk_cap_sve_k         // 2020: ARM SVE
+	CapSVEHalf     Capability = C.nk_cap_svehalf_k     // 2020: ARM SVE FP16
+	CapSVESDot     Capability = C.nk_cap_svesdot_k     // 2020: ARM SVE i8 dot
+	CapSVEBFDot    Capability = C.nk_cap_svebfdot_k    // 2021: ARM SVE BF16
+	CapSVE2        Capability = C.nk_cap_sve2_k        // 2022: ARM SVE2
+	CapSME         Capability = C.nk_cap_sme_k         // 2024: ARM SME
+	CapSMEF64      Capability = C.nk_cap_smef64_k      // 2024: ARM SME F64
+	CapSMEBi32     Capability = C.nk_cap_smebi32_k     // 2025+: ARM SME BI32I32
 	CapHaswell     Capability = C.nk_cap_haswell_k     // 2013: Intel AVX2
 	CapAlder       Capability = C.nk_cap_alder_k       // 2021: Intel AVX2+VNNI
 	CapSierra      Capability = C.nk_cap_sierra_k      // 2024: Intel AVXVNNIINT8
 	CapSkylake     Capability = C.nk_cap_skylake_k     // 2017: Intel AVX-512
-	CapIcelake     Capability = C.nk_cap_icelake_k     // 2019: Intel AVX-512 VNNI
+	CapIceLake     Capability = C.nk_cap_icelake_k     // 2019: Intel AVX-512 VNNI
 	CapGenoa       Capability = C.nk_cap_genoa_k       // 2020: AMD AVX-512 BF16
 	CapTurin       Capability = C.nk_cap_turin_k       // 2024: AMD Turin AVX-512 CD
 	CapSapphire    Capability = C.nk_cap_sapphire_k    // 2023: Intel AVX-512 FP16
 	CapDiamond     Capability = C.nk_cap_diamond_k     // 2025+: Intel AVX10.2
-	CapSapphireAmx Capability = C.nk_cap_sapphireamx_k // 2023: Intel Sapphire AMX
-	CapGraniteAmx  Capability = C.nk_cap_graniteamx_k  // 2024: Intel Granite AMX FP16
-	CapDiamondAmx  Capability = C.nk_cap_diamondamx_k  // Intel Diamond Rapids AMX
-	CapRvv         Capability = C.nk_cap_rvv_k         // 2023: RISC-V Vector
-	CapRvvBf16     Capability = C.nk_cap_rvvbf16_k     // 2023: RISC-V Zvfbfwma
-	CapRvvHalf     Capability = C.nk_cap_rvvhalf_k     // 2023: RISC-V Zvfh
-	CapRvvBB       Capability = C.nk_cap_rvvbb_k       // RISC-V: Byte-Byte extensions
+	CapSapphireAMX Capability = C.nk_cap_sapphireamx_k // 2023: Intel Sapphire AMX
+	CapGraniteAMX  Capability = C.nk_cap_graniteamx_k  // 2024: Intel Granite AMX FP16
+	CapDiamondAMX  Capability = C.nk_cap_diamondamx_k  // Intel Diamond Rapids AMX
+	CapRVV         Capability = C.nk_cap_rvv_k         // 2023: RISC-V Vector
+	CapRVVBF16     Capability = C.nk_cap_rvvbf16_k     // 2023: RISC-V Zvfbfwma
+	CapRVVHalf     Capability = C.nk_cap_rvvhalf_k     // 2023: RISC-V Zvfh
+	CapRVVBB       Capability = C.nk_cap_rvvbb_k       // RISC-V: Byte-Byte extensions
 	CapV128        Capability = C.nk_cap_v128_k        // 2021: WASM SIMD128
 	CapV128Relaxed Capability = C.nk_cap_v128relaxed_k // 2022: WASM Relaxed SIMD
-	CapPowerVsx    Capability = C.nk_cap_powervsx_k    // Power VSX 128-bit SIMD
-	CapLoongsonAsx Capability = C.nk_cap_loongsonasx_k // LoongArch LASX 256-bit SIMD
+	CapPowerVSX    Capability = C.nk_cap_powervsx_k    // Power VSX 128-bit SIMD
+	CapLoongsonASX Capability = C.nk_cap_loongsonasx_k // LoongArch LASX 256-bit SIMD
 
-	CapCuda         Capability = C.nk_cap_cuda_k         // Any CUDA device
+	CapCUDA         Capability = C.nk_cap_cuda_k         // Any CUDA device
 	CapAmpere       Capability = C.nk_cap_ampere_k       // 2020: NVIDIA SM 8.0
 	CapAda          Capability = C.nk_cap_ada_k          // 2022: NVIDIA SM 8.9
 	CapHopper       Capability = C.nk_cap_hopper_k       // 2022: NVIDIA SM 9.x
 	CapBlackwell    Capability = C.nk_cap_blackwell_k    // 2024: NVIDIA SM 10.x
-	CapBlackwellRtx Capability = C.nk_cap_blackwellrtx_k // 2025: NVIDIA SM 12.x
-	CapRocm         Capability = C.nk_cap_rocm_k         // Any ROCm device
-	CapCdna4        Capability = C.nk_cap_cdna4_k        // 2025: AMD gfx950
-	CapCdna5        Capability = C.nk_cap_cdna5_k        // AMD gfx1250
+	CapBlackwellRTX Capability = C.nk_cap_blackwellrtx_k // 2025: NVIDIA SM 12.x
+	CapROCm         Capability = C.nk_cap_rocm_k         // Any ROCm device
+	CapCDNA4        Capability = C.nk_cap_cdna4_k        // 2025: AMD gfx950
+	CapCDNA5        Capability = C.nk_cap_cdna5_k        // AMD gfx1250
 	CapMetal        Capability = C.nk_cap_metal_k        // Any Metal device
 	CapApple9       Capability = C.nk_cap_apple9_k       // 2023: Apple GPU family 9
 	CapApple10      Capability = C.nk_cap_apple10_k      // Apple GPU family 10
 
-	CapCpus Capability = C.nk_cap_cpus_k // Every CPU capability, which every kernel call passes
-	CapGpus Capability = C.nk_cap_gpus_k // Every GPU capability
+	CapCPUs Capability = C.nk_cap_cpus_k // Every CPU capability, which every kernel call passes
+	CapGPUs Capability = C.nk_cap_gpus_k // Every GPU capability
 	CapAny  Capability = ^Capability(0)  // Every capability
 )
 
@@ -159,7 +159,7 @@ func (d Device) CapabilitiesCompiled() Capability {
 
 // CapabilitiesEnabled returns the mask d's kernel calls run within: [Device.CapabilitiesDetected]
 // and [Device.CapabilitiesCompiled] at once. On the CPU the library settles it as it loads, it
-// always has [CapSerial], and every kernel call of this package passes [CapCpus] clamped to it.
+// always has [CapSerial], and every kernel call of this package passes [CapCPUs] clamped to it.
 func (d Device) CapabilitiesEnabled() (Capability, error) {
 	var capabilities C.nk_capability_t
 	ordinal := C.nk_size_t(d.Ordinal)

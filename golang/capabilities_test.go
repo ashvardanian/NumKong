@@ -14,49 +14,49 @@ import (
 func TestCapabilityNames(t *testing.T) {
 	for capability, expected := range map[numkong.Capability]string{
 		numkong.CapSerial:       "serial",
-		numkong.CapNeon:         "neon",
-		numkong.CapNeonHalf:     "neonhalf",
-		numkong.CapNeonBfDot:    "neonbfdot",
-		numkong.CapNeonFhm:      "neonfhm",
-		numkong.CapNeonSdot:     "neonsdot",
-		numkong.CapNeonFp8:      "neonfp8",
-		numkong.CapSve:          "sve",
-		numkong.CapSveHalf:      "svehalf",
-		numkong.CapSveSdot:      "svesdot",
-		numkong.CapSveBfDot:     "svebfdot",
-		numkong.CapSve2:         "sve2",
-		numkong.CapSme:          "sme",
-		numkong.CapSmeF64:       "smef64",
-		numkong.CapSmeBi32:      "smebi32",
+		numkong.CapNEON:         "neon",
+		numkong.CapNEONHalf:     "neonhalf",
+		numkong.CapNEONBFDot:    "neonbfdot",
+		numkong.CapNEONFHM:      "neonfhm",
+		numkong.CapNEONSDot:     "neonsdot",
+		numkong.CapNEONFP8:      "neonfp8",
+		numkong.CapSVE:          "sve",
+		numkong.CapSVEHalf:      "svehalf",
+		numkong.CapSVESDot:      "svesdot",
+		numkong.CapSVEBFDot:     "svebfdot",
+		numkong.CapSVE2:         "sve2",
+		numkong.CapSME:          "sme",
+		numkong.CapSMEF64:       "smef64",
+		numkong.CapSMEBi32:      "smebi32",
 		numkong.CapHaswell:      "haswell",
 		numkong.CapAlder:        "alder",
 		numkong.CapSierra:       "sierra",
 		numkong.CapSkylake:      "skylake",
-		numkong.CapIcelake:      "icelake",
+		numkong.CapIceLake:      "icelake",
 		numkong.CapGenoa:        "genoa",
 		numkong.CapTurin:        "turin",
 		numkong.CapSapphire:     "sapphire",
 		numkong.CapDiamond:      "diamond",
-		numkong.CapSapphireAmx:  "sapphireamx",
-		numkong.CapGraniteAmx:   "graniteamx",
-		numkong.CapDiamondAmx:   "diamondamx",
-		numkong.CapRvv:          "rvv",
-		numkong.CapRvvBf16:      "rvvbf16",
-		numkong.CapRvvHalf:      "rvvhalf",
-		numkong.CapRvvBB:        "rvvbb",
+		numkong.CapSapphireAMX:  "sapphireamx",
+		numkong.CapGraniteAMX:   "graniteamx",
+		numkong.CapDiamondAMX:   "diamondamx",
+		numkong.CapRVV:          "rvv",
+		numkong.CapRVVBF16:      "rvvbf16",
+		numkong.CapRVVHalf:      "rvvhalf",
+		numkong.CapRVVBB:        "rvvbb",
 		numkong.CapV128:         "v128",
 		numkong.CapV128Relaxed:  "v128relaxed",
-		numkong.CapPowerVsx:     "powervsx",
-		numkong.CapLoongsonAsx:  "loongsonasx",
-		numkong.CapCuda:         "cuda",
+		numkong.CapPowerVSX:     "powervsx",
+		numkong.CapLoongsonASX:  "loongsonasx",
+		numkong.CapCUDA:         "cuda",
 		numkong.CapAmpere:       "ampere",
 		numkong.CapAda:          "ada",
 		numkong.CapHopper:       "hopper",
 		numkong.CapBlackwell:    "blackwell",
-		numkong.CapBlackwellRtx: "blackwellrtx",
-		numkong.CapRocm:         "rocm",
-		numkong.CapCdna4:        "cdna4",
-		numkong.CapCdna5:        "cdna5",
+		numkong.CapBlackwellRTX: "blackwellrtx",
+		numkong.CapROCm:         "rocm",
+		numkong.CapCDNA4:        "cdna4",
+		numkong.CapCDNA5:        "cdna5",
 		numkong.CapMetal:        "metal",
 		numkong.CapApple9:       "apple9",
 		numkong.CapApple10:      "apple10",
@@ -83,8 +83,8 @@ func TestCapabilitiesEnabled(t *testing.T) {
 }
 
 func TestDevices(t *testing.T) {
-	if numkong.CapCpus&numkong.CapGpus != 0 || numkong.CapCpus|numkong.CapGpus|numkong.CapAny != numkong.CapAny {
-		t.Errorf("CapCpus %v and CapGpus %v overlap or escape CapAny", numkong.CapCpus, numkong.CapGpus)
+	if numkong.CapCPUs&numkong.CapGPUs != 0 || numkong.CapCPUs|numkong.CapGPUs|numkong.CapAny != numkong.CapAny {
+		t.Errorf("CapCPUs %v and CapGPUs %v overlap or escape CapAny", numkong.CapCPUs, numkong.CapGPUs)
 	}
 	if count, err := numkong.CountDevices(numkong.DeviceCPU); count != 1 || err != nil {
 		t.Errorf("CountDevices(DeviceCPU) = %d, %v, expected one CPU", count, err)
@@ -98,7 +98,7 @@ func TestDevices(t *testing.T) {
 			continue
 		}
 		gpu, err := numkong.NewDevice(kind, 0)
-		if err != nil || gpu.CapabilitiesCompiled()&numkong.CapCpus != 0 {
+		if err != nil || gpu.CapabilitiesCompiled()&numkong.CapCPUs != 0 {
 			t.Errorf("NewDevice(%d, 0) = %v, compiling %v", kind, err, gpu.CapabilitiesCompiled())
 		}
 		if _, err := gpu.ConfigureThread(numkong.CapAny); err == nil {

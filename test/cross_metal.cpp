@@ -7,7 +7,8 @@
  *  Runs the dots scenarios of `cross.hpp` through a @c metal_backend_t for the Metal baseline and
  *  every Apple GPU family the device runs, against the serial `nk::` references on the host.
  */
-#include "numkong/metal.h" // `nk_memory_allocate_unified_metal`
+#include "numkong/metal.h"
+#include "numkong/memory.h" // `nk_memory_allocate_unified_metal`
 
 #include "harness.hpp" // `error_stats_section_t`, `call_best`
 #include "cross.hpp"   // `test_dots_packed`
@@ -115,10 +116,42 @@ template <auto best_>
 inline constexpr auto gpu_best =
     [](auto... arguments) noexcept { return call_best<best_>(metal_capabilities(), arguments...); };
 
+static error_stats_t test_metal_deferred_free(settings_t const &) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    void *pointer = nullptr;
+    stats.expect(nk_memory_allocate_unified_metal(16, &pointer, nullptr));
+    if (!pointer) return stats;
+    nk_metal_context_t *const context = nk_metal_context_(nullptr);
+    os_unfair_lock_lock(&context->lock);
+    nk_metal_pending_t *const grown = (nk_metal_pending_t *)nk_metal_reserve_(
+        context->pending, context->pending_count, &context->pending_capacity, sizeof(nk_metal_pending_t));
+    if (grown) {
+        context->pending = grown;
+        nk_metal_pending_t *pending = &grown[context->pending_count++];
+        memset(pending, 0, sizeof(*pending));
+        pending->queue = nk_metal_get_(context->queue, "retain");
+        pending->waiters = 1; // A synchronizer has detached commands and is waiting outside the lock.
+    }
+    os_unfair_lock_unlock(&context->lock);
+    stats.expect(grown != nullptr, "pending entry allocation failed");
+    stats.expect(nk_memory_free_unified_metal(pointer, 16, nullptr));
+    if (!grown) return stats;
+    stats.expect(nk_stream_synchronize_metal(nullptr));
+    os_unfair_lock_lock(&context->lock);
+    nk_metal_pending_t *pending = nk_metal_pending_(context, context->queue);
+    bool const retained = pending && pending->waiters == 1 && pending->frees_count == 1;
+    if (pending) --pending->waiters;
+    os_unfair_lock_unlock(&context->lock);
+    stats.expect(retained, "another synchronizer released a buffer while a waiter was active");
+    stats.expect(nk_stream_synchronize_metal(nullptr));
+    return stats;
+}
+
 /** Every Metal baseline entry point, on any Apple GPU of family 7 or newer. */
 static void test_cross_metal_baseline(error_stats_section_t &check) {
     metal_backend_t const backend {};
     check.section("Cross Metal", nk_cap_metal_k);
+    check("deferred_free_metal", test_metal_deferred_free);
     check("dots_packed_i8_metal", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_metal,
           nk_dots_pack_i8_metal, nk_dots_packed_i8_metal);
     check("dots_pack_i8_metal",

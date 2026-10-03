@@ -38,11 +38,9 @@ from base import (
     assert_allclose,
     collect_errors,
     create_stats,
-    keep_one_capability,
     make_random,
     make_random_buffer,
     numpy_available,
-    possible_capabilities,
     print_stats_report,
     timed_call,
 )
@@ -102,12 +100,8 @@ trigonometry_shapes = [(d,) for d in SETTINGS.dims] + ([(6, 8), (4, 5, 3)] if nu
 @pytest.mark.parametrize("shape", trigonometry_shapes)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("metric", list(KERNELS_TRIGONOMETRY.keys()))
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_trigonometry_random_accuracy(
-    shape: tuple, dtype: str, metric: str, capability: str, np_rng: np.random.Generator
-):
+def test_trigonometry_random_accuracy(capabilities, shape: tuple, dtype: str, metric: str, np_rng: np.random.Generator):
     """sin, cos, atan on random inputs of any rank against high-precision baselines."""
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_TRIGONOMETRY[metric]
 
     if numpy_available:
@@ -139,15 +133,14 @@ def test_trigonometry_random_accuracy(
         result,
         result_ns,
         stats,
+        capability=capabilities.name.lower().replace("|", "+"),
     )
 
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_trigonometry_at_zero(ndim: int, dtype: str, capability: str):
+def test_trigonometry_at_zero(capabilities, ndim: int, dtype: str):
     """sin(0)~0, cos(0)~1, atan(0)~0."""
-    capabilities = keep_one_capability(capability)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
     sin_values = list(nk.sin(zeros_vector, capabilities=capabilities))
     cos_values = list(nk.cos(zeros_vector, capabilities=capabilities))
@@ -160,10 +153,8 @@ def test_trigonometry_at_zero(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_trigonometry_known_values(ndim: int, dtype: str, capability: str):
+def test_trigonometry_known_values(capabilities, ndim: int, dtype: str):
     """sin(pi/2)~1, cos(pi/2)~0, atan(1)~pi/4 for all elements."""
-    capabilities = keep_one_capability(capability)
     half_pi = nk.full((ndim,), math.pi / 2, dtype=dtype)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     sin_values = list(nk.sin(half_pi, capabilities=capabilities))
@@ -177,10 +168,8 @@ def test_trigonometry_known_values(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_pythagorean_identity(ndim: int, dtype: str, capability: str, rng: random.Random):
+def test_pythagorean_identity(capabilities, ndim: int, dtype: str, rng: random.Random):
     """sin^2(x) + cos^2(x) ~ 1."""
-    capabilities = keep_one_capability(capability)
     input_angles = make_random_buffer(rng, ndim, dtype)
     sin_values = list(nk.sin(input_angles, capabilities=capabilities))
     cos_values = list(nk.cos(input_angles, capabilities=capabilities))
@@ -191,10 +180,8 @@ def test_pythagorean_identity(ndim: int, dtype: str, capability: str, rng: rando
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_trigonometry_odd_even(ndim: int, dtype: str, capability: str):
+def test_trigonometry_odd_even(capabilities, ndim: int, dtype: str):
     """sin(-x) ~ -sin(x) (odd), cos(-x) ~ cos(x) (even)."""
-    capabilities = keep_one_capability(capability)
     for random_angles in [0.5, 1.0, 2.0]:
         positive_input = nk.full((ndim,), random_angles, dtype=dtype)
         negative_input = nk.full((ndim,), -random_angles, dtype=dtype)

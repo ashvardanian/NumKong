@@ -614,18 +614,6 @@ lacks silently tests the serial fallback while claiming to cover the SIMD kernel
 CPU capability group, serial first, so no per-architecture list is needed.
 """
 
-current_capability: str | None = None
-"""The capability the running test passes as `capabilities=`, which error reports name."""
-
-
-def keep_one_capability(capability: str) -> nk.Capability:
-    """The `capabilities=` mask running `capability`, which this binary must have compiled in, or
-    the serial fallback where it lacks a kernel."""
-    global current_capability
-    assert capability in possible_capabilities, f"Capability {capability} is not available on this platform."
-    current_capability = capability
-    return nk.Capability[capability.upper()] | nk.Capability.SERIAL
-
 
 @dataclass(frozen=True)
 class ErrorRow:
@@ -713,10 +701,11 @@ def collect_errors(
     nk_result: Any,
     nk_nanoseconds: Nanoseconds,
     stats: Stats,
+    *,
+    capability: str,
 ) -> None:
     """Calculates the errors of one call and adds them to `stats`."""
     errors = _compute_errors(accurate_result, baseline_result, nk_result)
-    capability = current_capability or "unknown"
     row = ErrorRow(metric, dims, dtype, capability, *errors, accurate_nanoseconds, baseline_nanoseconds, nk_nanoseconds)
     stats.rows.append(row)
 

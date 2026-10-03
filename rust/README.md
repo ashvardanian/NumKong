@@ -92,7 +92,7 @@ numkong = { version = "7", features = ["cuda"] }
 
 Backend selection follows the target architecture.
 ARM gets NEON, SVE, and SME, with SME available on Linux, FreeBSD, and macOS.
-x86-64 gets Haswell (AVX2), Skylake/Icelake/Sapphire Rapids AVX-512 variants, and AMX on Linux and Windows only.
+x86-64 gets Haswell (AVX2), Skylake/Ice Lake/Sapphire Rapids AVX-512 variants, and AMX on Linux and Windows only.
 RISC-V gets RVV backends on Linux and FreeBSD.
 WebAssembly gets the one SIMD capability the Rust target declares, as the next section shows.
 A backend the compiler cannot build is left out, and `NUMKONG_TARGET_ARCH=native` tunes the scaffolding for the build host, as described in [CONTRIBUTING.md](../CONTRIBUTING.md#target-baseline-policy).

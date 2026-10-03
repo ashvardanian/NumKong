@@ -36,11 +36,9 @@ from base import (
     assert_allclose,
     collect_errors,
     create_stats,
-    keep_one_capability,
     make_nk,
     make_random,
     numpy_available,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
     round_up_to,
@@ -105,10 +103,8 @@ KERNELS_CROSS: dict[str, tuple[Callable | None, Callable, Callable]] = {
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_batch_sqeuclidean_broadcasting(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Batch sqeuclidean with NxD-vs-NxD, NxD-vs-1xD, strided, transposed, and out_dtype scenarios."""
-    capabilities = keep_one_capability(capability)
 
     # NxD vs NxD
     a_matrix, _ = make_random((10, ndim), dtype, np_rng)
@@ -200,16 +196,13 @@ def test_batch_sqeuclidean_broadcasting(ndim: int, dtype: str, capability: str, 
         "uint8",
     ],
 )
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_symmetric(num_vectors: int, vector_depth: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_dots_symmetric(capabilities, num_vectors: int, vector_depth: int, dtype: str, np_rng: np.random.Generator):
     """Test nk.dots_symmetric against high-precision matmul (upper triangle)."""
 
     vector_depth = round_up_to(vector_depth, PACKING_GRANULARITY.get(dtype, 1))
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_CROSS["dots_symmetric"]
     atol, rtol = tolerances_for_dtype(dtype)
     vectors_raw, vectors_baseline = make_random((num_vectors, vector_depth), dtype, np_rng)
-
-    capabilities = keep_one_capability(capability)
 
     accurate_ns, accurate = timed_call(precise_kernel or baseline_kernel, vectors_baseline, dtype=dtype)
 
@@ -250,19 +243,18 @@ def test_dots_symmetric(num_vectors: int, vector_depth: int, dtype: str, capabil
         result[mask],
         result_ns,
         stats,
+        capability=capabilities.name.lower().replace("|", "+"),
     )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_hammings_symmetric(capability: str, np_rng: np.random.Generator):
+def test_hammings_symmetric(capabilities, np_rng: np.random.Generator):
     """Test nk.hammings_symmetric against pairwise Hamming (upper triangle)."""
     num_vectors, bit_depth = 16, 128
     bits = np_rng.integers(2, size=(num_vectors, bit_depth)).astype(np.uint8)
     packed = np.packbits(bits, axis=1)
 
-    capabilities = keep_one_capability(capability)
     result = np.asarray(nk.hammings_symmetric(packed, dtype="uint1", capabilities=capabilities))
 
     mask = np.triu(np.ones((num_vectors, num_vectors), dtype=bool))
@@ -295,9 +287,8 @@ def test_hammings_symmetric(capability: str, np_rng: np.random.Generator):
         "uint8",
     ],
 )
-@pytest.mark.parametrize("capability", possible_capabilities)
 def test_dots_pack_and_packed(
-    rows: int, columns: int, depth: int, dtype: str, capability: str, np_rng: np.random.Generator
+    capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
 ):
     """Test dots_pack + dots_packed against high-precision matmul."""
 
@@ -306,8 +297,6 @@ def test_dots_pack_and_packed(
     atol, rtol = tolerances_for_dtype(dtype)
     a_raw, a_baseline = make_random((rows, depth), dtype, np_rng)
     b_raw, b_baseline = make_random((columns, depth), dtype, np_rng)
-
-    capabilities = keep_one_capability(capability)
 
     # SIMD path — wrap in nk.Tensor so dots_packed can infer dtype; packed Tensors count logical dimensions
     a_tensor, b_tensor = make_nk(a_raw, dtype), make_nk(b_raw, dtype)
@@ -330,7 +319,17 @@ def test_dots_pack_and_packed(
     assert_allclose(np.asarray(out), result, atol=1e-10, rtol=1e-10)
 
     collect_errors(
-        "dots_packed", rows * depth, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats
+        "dots_packed",
+        rows * depth,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
     )
 
 
@@ -350,14 +349,12 @@ def test_dots_pack_infers_dtype(numpy_dtype, np_rng: np.random.Generator):
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_dots_pack_matmul_operator(capability: str, np_rng: np.random.Generator):
+def test_dots_pack_matmul_operator(capabilities, np_rng: np.random.Generator):
     """Test the @ operator with a PackedMatrix (Tensor @ PackedMatrix)."""
     rows, columns, depth = 8, 16, 64
     a_matrix, _ = make_random((rows, depth), "float32", np_rng)
     b_matrix, _ = make_random((columns, depth), "float32", np_rng)
 
-    capabilities = keep_one_capability(capability)
     a_tensor = nk.zeros((rows, depth), dtype="float32")
     a_tensor_view = np.asarray(a_tensor)
     np.copyto(a_tensor_view, a_matrix)
@@ -371,8 +368,7 @@ def test_dots_pack_matmul_operator(capability: str, np_rng: np.random.Generator)
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_hammings_pack_and_packed(capability: str, np_rng: np.random.Generator):
+def test_hammings_pack_and_packed(capabilities, np_rng: np.random.Generator):
     """Test hammings_pack + hammings_packed against pairwise Hamming."""
     num_rows_a, num_rows_b, bit_depth = 8, 16, 128
     a_bits = np_rng.integers(2, size=(num_rows_a, bit_depth)).astype(np.uint8)
@@ -380,7 +376,6 @@ def test_hammings_pack_and_packed(capability: str, np_rng: np.random.Generator):
     a_packed = np.packbits(a_bits, axis=1)
     b_packed_raw = np.packbits(b_bits, axis=1)
 
-    capabilities = keep_one_capability(capability)
     b_packed = nk.hammings_pack(b_packed_raw, dtype="uint1", capabilities=capabilities)
     result = np.asarray(nk.hammings_packed(a_packed, b_packed, capabilities=capabilities))
 
@@ -395,14 +390,12 @@ def test_hammings_pack_and_packed(capability: str, np_rng: np.random.Generator):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("metric", ["angular", "euclidean"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatials_pack_and_packed(metric: str, capability: str, np_rng: np.random.Generator):
+def test_spatials_pack_and_packed(capabilities, metric: str, np_rng: np.random.Generator):
     """Test dots_pack + angulars/euclideans_packed against SciPy cdist."""
     num_rows_a, num_rows_b, depth = 8, 16, 64
     a, _ = make_random((num_rows_a, depth), "float32", np_rng)
     b, _ = make_random((num_rows_b, depth), "float32", np_rng)
 
-    capabilities = keep_one_capability(capability)
     b_packed = nk.dots_pack(b, dtype="float32", capabilities=capabilities)
     if metric == "angular":
         result = np.asarray(nk.angulars_packed(a, b_packed, capabilities=capabilities))
@@ -417,13 +410,11 @@ def test_spatials_pack_and_packed(metric: str, capability: str, np_rng: np.rando
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
 @pytest.mark.parametrize("metric", ["angular", "euclidean"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatials_symmetric(metric: str, capability: str, np_rng: np.random.Generator):
+def test_spatials_symmetric(capabilities, metric: str, np_rng: np.random.Generator):
     """Test angulars/euclideans_symmetric against SciPy cdist (upper triangle)."""
     num_rows, depth = 16, 64
     vectors, _ = make_random((num_rows, depth), "float32", np_rng)
 
-    capabilities = keep_one_capability(capability)
     if metric == "angular":
         result = np.asarray(nk.angulars_symmetric(vectors, dtype="float32", capabilities=capabilities))
         expected = spd.cdist(vectors, vectors, "cosine")
@@ -437,8 +428,7 @@ def test_spatials_symmetric(metric: str, capability: str, np_rng: np.random.Gene
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_jaccards_pack_and_packed(capability: str, np_rng: np.random.Generator):
+def test_jaccards_pack_and_packed(capabilities, np_rng: np.random.Generator):
     """Test hammings_pack + jaccards_packed against SciPy cdist."""
     num_rows_a, num_rows_b, bit_depth = 8, 16, 128
     a_bits = np_rng.integers(2, size=(num_rows_a, bit_depth)).astype(np.uint8)
@@ -446,7 +436,6 @@ def test_jaccards_pack_and_packed(capability: str, np_rng: np.random.Generator):
     a_packed = np.packbits(a_bits, axis=1)
     b_packed_raw = np.packbits(b_bits, axis=1)
 
-    capabilities = keep_one_capability(capability)
     b_packed = nk.hammings_pack(b_packed_raw, dtype="uint1", capabilities=capabilities)
     result = np.asarray(nk.jaccards_packed(a_packed, b_packed, capabilities=capabilities))
     expected = spd.cdist(a_bits, b_bits, "jaccard")
@@ -456,14 +445,12 @@ def test_jaccards_pack_and_packed(capability: str, np_rng: np.random.Generator):
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.skipif(not scipy_available, reason="SciPy is not installed")
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_jaccards_symmetric(capability: str, np_rng: np.random.Generator):
+def test_jaccards_symmetric(capabilities, np_rng: np.random.Generator):
     """Test jaccards_symmetric against SciPy cdist (upper triangle)."""
     num_rows, bit_depth = 16, 128
     bits = np_rng.integers(2, size=(num_rows, bit_depth)).astype(np.uint8)
     packed = np.packbits(bits, axis=1)
 
-    capabilities = keep_one_capability(capability)
     result = np.asarray(nk.jaccards_symmetric(packed, dtype="uint1", capabilities=capabilities))
     expected = spd.cdist(bits, bits, "jaccard")
 

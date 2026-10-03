@@ -40,9 +40,7 @@ from base import (
     create_stats,
     downcast_f32_to_dtype,
     hex_array,
-    keep_one_capability,
     numpy_available,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
     timed_call,
@@ -135,8 +133,7 @@ KERNELS_CURVED: dict[str, tuple[Callable, Callable, Callable]] = {
     ],
 )
 @pytest.mark.parametrize("metric", ["bilinear", "mahalanobis"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability: str, np_rng: np.random.Generator):
+def test_curved_random_accuracy(capabilities, ndim: int, dtypes: str, metric: str, np_rng: np.random.Generator):
     """Bilinear and Mahalanobis for float and bfloat16 dtypes against high-precision baselines."""
     dtype, compute_dtype = dtypes
 
@@ -151,7 +148,6 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
     b_raw, b_baseline = downcast_f32_to_dtype(b_vector_f32, dtype)
     c_raw, c_baseline = downcast_f32_to_dtype(c_matrix_f32, dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_CURVED[metric]
 
     # High-precision baseline
@@ -184,21 +180,31 @@ def test_curved_random_accuracy(ndim: int, dtypes: str, metric: str, capability:
     )
 
     assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL, err_msg=err_msg)
-    collect_errors(metric, ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        metric,
+        ndim,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
 @pytest.mark.parametrize("dtype", ["complex128", "complex64"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_bilinear_complex_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_bilinear_complex_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Complex bilinear form against NumPy at extended precision."""
     a_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)
     b_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)
     c_matrix = (np_rng.standard_normal((ndim, ndim)) + 1.0j * np_rng.standard_normal((ndim, ndim))).astype(dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_CURVED["bilinear"]
     precise_dtype = np.clongdouble if dtype == "complex128" else np.complex128
     accurate_ns, accurate = timed_call(
@@ -212,4 +218,16 @@ def test_bilinear_complex_accuracy(ndim: int, dtype: str, capability: str, np_rn
     result = np.asarray(result)
 
     assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
-    collect_errors("bilinear", ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "bilinear",
+        ndim,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )

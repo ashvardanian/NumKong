@@ -37,11 +37,9 @@ from base import (
     collect_errors,
     collect_warnings,
     create_stats,
-    keep_one_capability,
     make_nk,
     make_random,
     numpy_available,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
     timed_call,
@@ -237,14 +235,12 @@ def random_coefficients(generator: np.random.Generator, dtype, alpha_div=2, beta
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_scale_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_scale_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """scale(alpha * x + beta) across float/int dtypes and ranks against a high-precision Decimal baseline."""
     input_raw, input_baseline = make_random(shape, dtype, np_rng)
 
     alpha, beta = random_coefficients(np_rng, dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["scale"]
 
     # High-precision baseline (per-element Decimal on the flattened data)
@@ -259,7 +255,17 @@ def test_scale_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng
 
     assert_allclose(result, accurate)
     collect_errors(
-        "scale", len(accurate), dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats
+        "scale",
+        len(accurate),
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
     )
 
     # out= into a same-shape buffer returns None and matches the allocated result
@@ -271,13 +277,11 @@ def test_scale_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_add_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_add_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Elementwise addition across float/int dtypes and ranks against a high-precision Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["add"]
 
     # High-precision baseline (per-element Decimal on the flattened data)
@@ -291,7 +295,19 @@ def test_add_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: 
     result = flatten_for_baseline(result)
 
     assert_allclose(result, accurate)
-    collect_errors("add", len(accurate), dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "add",
+        len(accurate),
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
     # out= into a same-shape buffer returns None and matches the allocated result
     out_nk = nk.zeros(shape, dtype=dtype)
@@ -302,15 +318,13 @@ def test_add_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: 
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_blend_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_blend_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Weighted sum (alpha * x + beta * y) across float/int dtypes and ranks against a Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
 
     alpha, beta = random_coefficients(np_rng, dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["blend"]
 
     # High-precision baseline (per-element Decimal on the flattened data)
@@ -332,7 +346,17 @@ def test_blend_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng
 
     assert_allclose(result, accurate)
     collect_errors(
-        "blend", len(accurate), dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats
+        "blend",
+        len(accurate),
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
     )
 
     # out= into a same-shape buffer returns None and matches the allocated result
@@ -344,8 +368,7 @@ def test_blend_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_fma_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_fma_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Fused multiply-add (alpha * x * y + beta * z) across float/int dtypes and ranks against a Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
@@ -353,7 +376,6 @@ def test_fma_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: 
 
     alpha, beta = random_coefficients(np_rng, dtype, 512, 3)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_EACH["fma"]
 
     # High-precision baseline (per-element Decimal on the flattened data)
@@ -380,7 +402,19 @@ def test_fma_random_accuracy(shape: tuple, dtype: str, capability: str, np_rng: 
     result = flatten_for_baseline(result)
 
     assert_allclose(result, accurate)
-    collect_errors("fma", len(accurate), dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        "fma",
+        len(accurate),
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
     # out= into a same-shape buffer returns None and matches the allocated result
     out_nk = nk.zeros(shape, dtype=dtype)
@@ -431,10 +465,8 @@ def test_add_multiply_mixed_dtype_promotion(first_dtype: str, second_dtype: str,
     ],
 )
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str, np_rng: np.random.Generator):
+def test_add_multiply_noncontiguous(capabilities, dtype: str, kernel, np_rng: np.random.Generator):
     """Add and multiply on non-contiguous, strided, and shape-mismatched arrays."""
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_EACH[kernel]
     first_dtype, second_dtype, output_dtype = dtype
     operator = {"add": "+", "multiply": "*"}[kernel]
@@ -578,12 +610,10 @@ def test_add_multiply_noncontiguous(dtype: str, kernel, capability: str, np_rng:
     ],
 )
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_add_multiply_broadcast(ndim: int, dtype: str, kernel, capability: str, np_rng: np.random.Generator):
+def test_add_multiply_broadcast(capabilities, ndim: int, dtype: str, kernel, np_rng: np.random.Generator):
     """Add and multiply with scalar-vector and mixed-dtype broadcasting."""
     first_dtype, second_dtype, output_dtype = dtype
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_EACH[kernel]
 
     # Vector-Vector
@@ -628,9 +658,7 @@ def test_add_multiply_broadcast(ndim: int, dtype: str, kernel, capability: str, 
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_scale_edge_cases(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_scale_edge_cases(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     baseline_kernel, simd_kernel, _ = KERNELS_EACH["scale"]
 
     a = np_rng.standard_normal(ndim).astype(dtype)
@@ -697,9 +725,7 @@ def test_scale_edge_cases(ndim: int, dtype: str, capability: str, np_rng: np.ran
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_add_edge_cases(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
-    capabilities = keep_one_capability(capability)
+def test_add_edge_cases(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     baseline_kernel, simd_kernel, _ = KERNELS_EACH["add"]
 
     # Standard random
@@ -794,10 +820,8 @@ def test_blend_numpy_buffer_protocol(dtype: str, np_rng: np.random.Generator):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_add_known(ndim: int, dtype: str, capability: str):
+def test_add_known(capabilities, ndim: int, dtype: str):
     """add(full(2), full(3)) ~ 5."""
-    capabilities = keep_one_capability(capability)
     a = nk.full((ndim,), 2.0, dtype=dtype)
     b = nk.full((ndim,), 3.0, dtype=dtype)
     result = list(nk.add(a, b, capabilities=capabilities))
@@ -807,10 +831,8 @@ def test_add_known(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_multiply_known(ndim: int, dtype: str, capability: str):
+def test_multiply_known(capabilities, ndim: int, dtype: str):
     """multiply(full(2), full(3)) ~ 6."""
-    capabilities = keep_one_capability(capability)
     a = nk.full((ndim,), 2.0, dtype=dtype)
     b = nk.full((ndim,), 3.0, dtype=dtype)
     result = list(nk.multiply(a, b, capabilities=capabilities))
@@ -820,10 +842,8 @@ def test_multiply_known(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_scale_identity(ndim: int, dtype: str, capability: str):
+def test_scale_identity(capabilities, ndim: int, dtype: str):
     """scale(v, alpha=1, beta=0) ~ v."""
-    capabilities = keep_one_capability(capability)
     input_vector = nk.full((ndim,), 7.5, dtype=dtype)
     result = list(nk.scale(input_vector, alpha=1.0, beta=0.0, capabilities=capabilities))
     for i in range(ndim):
@@ -832,10 +852,8 @@ def test_scale_identity(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_blend_known(ndim: int, dtype: str, capability: str):
+def test_blend_known(capabilities, ndim: int, dtype: str):
     """blend(full(a), full(b), alpha=2, beta=3) ~ 2a + 3b."""
-    capabilities = keep_one_capability(capability)
     a_val, b_val = 4.0, 5.0
     a = nk.full((ndim,), a_val, dtype=dtype)
     b = nk.full((ndim,), b_val, dtype=dtype)
@@ -851,10 +869,8 @@ def test_blend_known(ndim: int, dtype: str, capability: str):
 @pytest.mark.parametrize(
     "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
 )
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_swiglu(shape, with_up, dtype, capability, np_rng: np.random.Generator):
+def test_swiglu(capabilities, shape, with_up, dtype, np_rng: np.random.Generator):
     """Test nk.swiglu() (and plain SiLU when up=None) against a float64 reference."""
-    capabilities = keep_one_capability(capability)
     gate_raw, gate_base = make_random(shape, dtype, np_rng)
     nk_gate = make_nk(gate_raw, dtype)
     if with_up:
@@ -883,10 +899,8 @@ def test_swiglu(shape, with_up, dtype, capability, np_rng: np.random.Generator):
 @pytest.mark.parametrize(
     "dtype", [pytest.param("float32", id="f32"), pytest.param("bf16", id="bf16"), pytest.param("e4m3", id="e4m3")]
 )
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_rmsnorm(shape, groups, with_gamma, dtype, capability, np_rng: np.random.Generator):
+def test_rmsnorm(capabilities, shape, groups, with_gamma, dtype, np_rng: np.random.Generator):
     """Test nk.rmsnorm() against a float64 reference; low-precision dtypes use dtype-aware tolerances."""
-    capabilities = keep_one_capability(capability)
     _rows, width = shape
     if width % groups != 0:
         pytest.skip("width not divisible by groups")
@@ -921,14 +935,12 @@ def test_rmsnorm_strided_qk_norm(np_rng: np.random.Generator):
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
 @pytest.mark.parametrize("second_is_scalar", [True, False], ids=["scalar_b", "array_b"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_strided_out_with_dtype_change(kernel: str, second_is_scalar: bool, capability: str):
+def test_strided_out_with_dtype_change(capabilities, kernel: str, second_is_scalar: bool):
     """A strided `out` of a differing dtype must be scattered, not packed over its neighbours.
 
     The scalar and array forms of `b` select different implementations, and each of
     `add`/`multiply` has its own pair, so this covers all four writeback paths.
     """
-    capabilities = keep_one_capability(capability)
     simd_kernel = getattr(nk, kernel)
     first = np.arange(6, dtype=np.int16)
     second = 5 if second_is_scalar else np.arange(6, dtype=np.int16)

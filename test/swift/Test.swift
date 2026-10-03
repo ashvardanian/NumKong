@@ -136,17 +136,17 @@ let kernels: [Kernel] = {
     let enabled = try cpu.capabilitiesEnabled
     print("Capabilities: \(enabled)")
     let names: [(Capabilities, String)] = [
-        (.serial, "serial"), (.neon, "neon"), (.neonHalf, "neonhalf"), (.neonBfDot, "neonbfdot"),
-        (.neonFhm, "neonfhm"), (.neonSDot, "neonsdot"), (.neonFp8, "neonfp8"), (.sve, "sve"),
-        (.sveHalf, "svehalf"), (.sveSDot, "svesdot"), (.sveBfDot, "svebfdot"), (.sve2, "sve2"),
-        (.sme, "sme"), (.smeF64, "smef64"), (.smeBi32, "smebi32"), (.haswell, "haswell"),
-        (.alder, "alder"), (.sierra, "sierra"), (.skylake, "skylake"), (.icelake, "icelake"),
+        (.serial, "serial"), (.neon, "neon"), (.neonHalf, "neonhalf"), (.neonBFDot, "neonbfdot"),
+        (.neonFHM, "neonfhm"), (.neonSDot, "neonsdot"), (.neonFP8, "neonfp8"), (.sve, "sve"),
+        (.sveHalf, "svehalf"), (.sveSDot, "svesdot"), (.sveBFDot, "svebfdot"), (.sve2, "sve2"),
+        (.sme, "sme"), (.smeF64, "smef64"), (.smeBI32, "smebi32"), (.haswell, "haswell"),
+        (.alder, "alder"), (.sierra, "sierra"), (.skylake, "skylake"), (.iceLake, "icelake"),
         (.genoa, "genoa"), (.turin, "turin"), (.sapphire, "sapphire"), (.diamond, "diamond"),
-        (.sapphireAmx, "sapphireamx"), (.graniteAmx, "graniteamx"), (.diamondAmx, "diamondamx"), (.rvv, "rvv"),
-        (.rvvBf16, "rvvbf16"), (.rvvHalf, "rvvhalf"), (.rvvBB, "rvvbb"), (.v128, "v128"),
-        (.v128Relaxed, "v128relaxed"), (.powerVsx, "powervsx"), (.loongsonAsx, "loongsonasx"), (.cuda, "cuda"),
+        (.sapphireAMX, "sapphireamx"), (.graniteAMX, "graniteamx"), (.diamondAMX, "diamondamx"), (.rvv, "rvv"),
+        (.rvvBF16, "rvvbf16"), (.rvvHalf, "rvvhalf"), (.rvvBB, "rvvbb"), (.v128, "v128"),
+        (.v128Relaxed, "v128relaxed"), (.powerVSX, "powervsx"), (.loongsonASX, "loongsonasx"), (.cuda, "cuda"),
         (.ampere, "ampere"), (.ada, "ada"), (.hopper, "hopper"), (.blackwell, "blackwell"),
-        (.blackwellRtx, "blackwellrtx"), (.rocm, "rocm"), (.cdna4, "cdna4"), (.cdna5, "cdna5"), (.metal, "metal"),
+        (.blackwellRTX, "blackwellrtx"), (.rocm, "rocm"), (.cdna4, "cdna4"), (.cdna5, "cdna5"), (.metal, "metal"),
         (.apple9, "apple9"), (.apple10, "apple10"),
     ]
     for (capability, name) in names { #expect(capability.description == name) }

@@ -112,8 +112,8 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_metal_(char const *kernel, void 
 
     // An empty window still writes the header when it starts at column zero, so one group runs.
     nk_size_t const simdgroups_per_group = 8;
-    nk_size_t const columns = columns_end > columns_begin ? columns_end - columns_begin : 0;
-    nk_size_t const groups = columns ? nk_size_divide_round_up_(columns, simdgroups_per_group) : 1;
+    nk_size_t const columns_count = columns_end > columns_begin ? columns_end - columns_begin : 0;
+    nk_size_t const groups = columns_count ? nk_size_divide_round_up_(columns_count, simdgroups_per_group) : 1;
     nk_metal_bind_(call.encoder, b_buffer ? b_buffer : packed_buffer, b_buffer ? b_offset : packed_offset, 0);
     nk_metal_bind_(call.encoder, packed_buffer, packed_offset, 1);
     nk_metal_bind_bytes_(call.encoder, &arguments, sizeof(arguments), 2);

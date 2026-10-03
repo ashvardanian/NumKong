@@ -12,10 +12,8 @@ import numpy as np
 import pytest
 from base import (
     assert_allclose,
-    keep_one_capability,
     make_nk,
     make_random,
-    possible_capabilities,
     tolerances_for_dtype,
 )
 
@@ -279,10 +277,8 @@ def baseline_rope(x, cos, sin, head_count, depth):
         pytest.param("e4m3", id="e4m3"),
     ],
 )
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_attention_rope(geom, dtype, capability, np_rng: np.random.Generator):
+def test_attention_rope(capabilities, geom, dtype, np_rng: np.random.Generator):
     """Test nk.attention_rope() out-of-place and in-place (out == x) against a float64 rotate-half reference."""
-    capabilities = keep_one_capability(capability)
     rows, head_count, depth = geom
     width = head_count * depth
     angles = np_rng.standard_normal((rows, depth // 2)).astype(np.float32) * 0.5

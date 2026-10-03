@@ -11,7 +11,9 @@ import random
 from typing import TYPE_CHECKING
 
 import pytest
-from base import SETTINGS, StreamKey, stream_key
+from base import SETTINGS, StreamKey, possible_capabilities, stream_key
+
+import numkong as nk
 
 
 if TYPE_CHECKING:
@@ -47,8 +49,13 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
 
 @pytest.fixture
 def seed(request: pytest.FixtureRequest) -> StreamKey:
-    """This test's key: the run seed mixed with its name, parameters and repeat step, as in C++."""
-    return stream_key(SETTINGS.seed, request.node.name)
+    """Share inputs across CPU masks while keeping other parameters and repeat steps distinct."""
+    name = request.node.name
+    callspec = getattr(request.node, "callspec", None)
+    if callspec is not None and {"capability", "capabilities"} & callspec.params.keys():
+        parameters = {key: value for key, value in callspec.params.items() if key not in {"capability", "capabilities"}}
+        name = (request.node.originalname or request.node.name) + repr(parameters)
+    return stream_key(SETTINGS.seed, name)
 
 
 @pytest.fixture
@@ -63,3 +70,15 @@ def np_rng(seed: StreamKey) -> np.random.Generator:
     numpy = pytest.importorskip("numpy")
     generator: np.random.Generator = numpy.random.default_rng(seed)
     return generator
+
+
+@pytest.fixture(params=possible_capabilities, ids=lambda name: name if name == "serial" else name + "+serial")
+def capability(request: pytest.FixtureRequest) -> str:
+    """The requested CPU capability; correctness sweeps permit serial fallback."""
+    return request.param
+
+
+@pytest.fixture
+def capabilities(capability: str) -> nk.Capability:
+    """A per-call CPU mask with a serial fallback for unsupported operation/type pairs."""
+    return nk.Capability[capability.upper()] | nk.Capability.SERIAL

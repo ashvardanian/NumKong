@@ -36,10 +36,8 @@ from base import (
     collect_warnings,
     create_stats,
     downcast_f32_to_dtype,
-    keep_one_capability,
     make_nk,
     numpy_available,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
 )
@@ -114,12 +112,10 @@ def _make_matrix(generator: np.random.Generator, rows, columns, dtype):
 @pytest.mark.parametrize("columns", SETTINGS.dims_width)
 @pytest.mark.parametrize("depth", SETTINGS.dims_depth)
 @pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
 def test_maxsim_pack_and_packed(
-    rows: int, columns: int, depth: int, dtype: str, capability: str, np_rng: np.random.Generator
+    capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
 ):
     """Pack + compute vs baseline."""
-    capabilities = keep_one_capability(capability)
     baseline_kernel, _, _precise_kernel = KERNELS_MAXSIM["maxsim"]
     dtype_str = _MAXSIM_DTYPE[dtype]
     queries = _make_matrix(np_rng, rows, depth, dtype)
@@ -152,10 +148,8 @@ def test_maxsim_pack_and_packed(
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_maxsim_convenience(dtype: str, capability: str, np_rng: np.random.Generator):
+def test_maxsim_convenience(capabilities, dtype: str, np_rng: np.random.Generator):
     """Verify maxsim() matches maxsim_pack + maxsim_packed."""
-    capabilities = keep_one_capability(capability)
     n_q, n_d, depth = 4, 8, 32
     dtype_str = _MAXSIM_DTYPE[dtype]
     queries = _make_matrix(np_rng, n_q, depth, dtype)
@@ -173,19 +167,15 @@ def test_maxsim_convenience(dtype: str, capability: str, np_rng: np.random.Gener
     assert_allclose(packed_result, conv_result)
 
 
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_maxsim_self_zero(capability: str):
+def test_maxsim_self_zero(capabilities):
     """Identical queries and documents should give score near zero."""
-    capabilities = keep_one_capability(capability)
     vectors = nk.ones((8, 64), dtype="float32")
     result = nk.maxsim(vectors, vectors, dtype="f32", capabilities=capabilities)
     assert_allclose(result, 0.0, err_msg="Expected near-zero self-distance")
 
 
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_maxsim_type_errors(capability: str, rng: random.Random):
+def test_maxsim_type_errors(capabilities, rng: random.Random):
     """Wrong type and mismatched dtype/depth."""
-    capabilities = keep_one_capability(capability)
     query = nk.hash((4, 32), seed=rng.getrandbits(32), dtype="float32")
     documents = nk.hash((8, 32), seed=rng.getrandbits(32), dtype="float32")
     query_packed = nk.maxsim_pack(query, dtype="f32", capabilities=capabilities)

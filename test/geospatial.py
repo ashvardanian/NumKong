@@ -35,9 +35,7 @@ from base import (
     assert_allclose,
     collect_errors,
     create_stats,
-    keep_one_capability,
     numpy_available,
-    possible_capabilities,
     print_stats_report,
     timed_call,
 )
@@ -191,17 +189,27 @@ def _check_geospatial_accuracy(
     assert ret is None
     assert_allclose(np.asarray(out_nk), result, atol=1e-10, rtol=1e-10)
 
-    collect_errors(metric, ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        metric,
+        ndim,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_haversine_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_haversine_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Haversine great-circle distance against baseline for random coordinates."""
-    capabilities = keep_one_capability(capability)
     _check_geospatial_accuracy(
         np_rng, "haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2, capabilities=capabilities
     )
@@ -211,10 +219,8 @@ def test_haversine_random_accuracy(ndim: int, dtype: str, capability: str, np_rn
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_vincenty_random_accuracy(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_vincenty_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Vincenty ellipsoidal geodesic distance against baseline for random coordinates."""
-    capabilities = keep_one_capability(capability)
     rtol = 1.0 if dtype == "float32" else 1e-2
     _check_geospatial_accuracy(
         np_rng, "vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol, capabilities=capabilities
@@ -240,10 +246,8 @@ def test_haversine_known():
     assert 3800 < result_kilometers < 4100, f"Expected ~3940 km, got {result_kilometers:.0f} km"
 
 
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_haversine_self_zero(capability: str):
+def test_haversine_self_zero(capabilities):
     """haversine(lat, lon, lat, lon) ~ 0."""
-    capabilities = keep_one_capability(capability)
     lat = nk.full((1,), 0.5, dtype="float64")
     lon = nk.full((1,), 0.5, dtype="float64")
     result = nk.haversine(lat, lon, lat, lon, capabilities=capabilities)
@@ -251,10 +255,8 @@ def test_haversine_self_zero(capability: str):
     assert abs(val) < 1.0, f"haversine(self) = {val}, expected ~0"
 
 
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_vincenty_self_zero(capability: str):
+def test_vincenty_self_zero(capabilities):
     """vincenty(lat, lon, lat, lon) ~ 0."""
-    capabilities = keep_one_capability(capability)
     lat = nk.full((1,), 0.5, dtype="float64")
     lon = nk.full((1,), 0.5, dtype="float64")
     result = nk.vincenty(lat, lon, lat, lon, capabilities=capabilities)

@@ -191,14 +191,14 @@ pub enum Capability {
     Serial = 1 << 0,        // Always: Fallback
     Neon = 1 << 1,          // ARM NEON
     NeonHalf = 1 << 2,      // ARM NEON FP16
-    NeonBfdot = 1 << 3,     // ARM NEON BF16
+    NeonBfDot = 1 << 3,     // ARM NEON BF16
     NeonFhm = 1 << 4,       // ARM NEON FP16 FML
     NeonSdot = 1 << 5,      // ARM NEON i8 dot
     NeonFp8 = 1 << 6,       // ARM NEON FP8
     Sve = 1 << 7,           // ARM SVE
     SveHalf = 1 << 8,       // ARM SVE FP16
     SveSdot = 1 << 9,       // ARM SVE i8 dot
-    SveBfdot = 1 << 10,     // ARM SVE BF16
+    SveBfDot = 1 << 10,     // ARM SVE BF16
     Sve2 = 1 << 11,         // ARM SVE2
     Sme = 1 << 12,          // ARM SME
     SmeF64 = 1 << 13,       // ARM SME F64
@@ -207,7 +207,7 @@ pub enum Capability {
     Alder = 1 << 16,        // Intel AVX2+VNNI
     Sierra = 1 << 17,       // Intel AVXVNNIINT8
     Skylake = 1 << 18,      // Intel AVX-512
-    Icelake = 1 << 19,      // Intel AVX-512 VNNI
+    IceLake = 1 << 19,      // Intel AVX-512 VNNI
     Genoa = 1 << 20,        // AMD AVX-512 BF16
     Turin = 1 << 21,        // AMD Turin AVX-512 CD
     Sapphire = 1 << 22,     // Intel AVX-512 FP16
@@ -242,14 +242,14 @@ const CAPABILITIES: [Capability; 47] = [
     Capability::Serial,
     Capability::Neon,
     Capability::NeonHalf,
-    Capability::NeonBfdot,
+    Capability::NeonBfDot,
     Capability::NeonFhm,
     Capability::NeonSdot,
     Capability::NeonFp8,
     Capability::Sve,
     Capability::SveHalf,
     Capability::SveSdot,
-    Capability::SveBfdot,
+    Capability::SveBfDot,
     Capability::Sve2,
     Capability::Sme,
     Capability::SmeF64,
@@ -258,7 +258,7 @@ const CAPABILITIES: [Capability; 47] = [
     Capability::Alder,
     Capability::Sierra,
     Capability::Skylake,
-    Capability::Icelake,
+    Capability::IceLake,
     Capability::Genoa,
     Capability::Turin,
     Capability::Sapphire,

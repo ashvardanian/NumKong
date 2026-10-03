@@ -138,6 +138,7 @@ typedef struct {
     /** The command buffers committed to it, in commit order. */
     void **commands;
     nk_size_t commands_count, commands_capacity;
+    nk_size_t waiters;
 
     /** The @c id<MTLBuffer> of every block freed while those commands may still read it. */
     void **frees;
@@ -429,20 +430,36 @@ NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t by
 NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream) {
     nk_metal_context_t *const context = nk_metal_context_(stream);
     if (!context) return nk_missing_gpu_k;
-    nk_metal_pending_t drained;
-    memset(&drained, 0, sizeof(drained));
+    void *const queue = stream ? stream : context->queue;
+    void **commands = NULL;
+    nk_size_t commands_count = 0;
     os_unfair_lock_lock(&context->lock);
-    nk_metal_pending_t *const pending = nk_metal_pending_(context, stream ? stream : context->queue);
-    if (pending) drained = *pending, *pending = context->pending[--context->pending_count];
+    nk_metal_pending_t *pending = nk_metal_pending_(context, queue);
+    if (pending) {
+        commands = pending->commands, commands_count = pending->commands_count;
+        pending->commands = NULL, pending->commands_count = 0, pending->commands_capacity = 0;
+        ++pending->waiters;
+    }
     os_unfair_lock_unlock(&context->lock);
+    if (!pending) return nk_success_k;
 
     nk_status_t status = nk_success_k;
     nk_size_t const completed = 4; // `MTLCommandBufferStatusCompleted`
-    for (nk_size_t index = 0; index != drained.commands_count; ++index) {
-        nk_metal_do_(drained.commands[index], "waitUntilCompleted");
-        if (nk_metal_count_(drained.commands[index], "status") != completed) status = nk_device_code_mismatch_k;
-        nk_metal_do_(drained.commands[index], "release");
+    for (nk_size_t index = 0; index != commands_count; ++index) {
+        nk_metal_do_(commands[index], "waitUntilCompleted");
+        if (nk_metal_count_(commands[index], "status") != completed) status = nk_device_code_mismatch_k;
+        nk_metal_do_(commands[index], "release");
     }
+    free(commands);
+
+    nk_metal_pending_t drained;
+    memset(&drained, 0, sizeof(drained));
+    os_unfair_lock_lock(&context->lock);
+    // Other launches may have moved the entry while commands completed.
+    pending = nk_metal_pending_(context, queue);
+    if (--pending->waiters == 0 && pending->commands_count == 0)
+        drained = *pending, *pending = context->pending[--context->pending_count];
+    os_unfair_lock_unlock(&context->lock);
     for (nk_size_t index = 0; index != drained.frees_count; ++index) nk_metal_do_(drained.frees[index], "release");
     if (drained.queue) nk_metal_do_(drained.queue, "release");
     free(drained.commands);

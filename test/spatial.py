@@ -41,11 +41,9 @@ from base import (
     assert_allclose,
     collect_errors,
     create_stats,
-    keep_one_capability,
     make_random,
     make_random_buffer,
     numpy_available,
-    possible_capabilities,
     precise_decimal,
     print_stats_report,
     timed_call,
@@ -139,14 +137,12 @@ KERNELS_SPATIAL: dict[str, tuple[Callable | None, Callable, Callable]] = {
     ],
 )
 @pytest.mark.parametrize("metric", ["euclidean", "sqeuclidean", "angular"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatial_random_accuracy(ndim: int, dtype: str, metric: str, capability: str, np_rng: np.random.Generator):
+def test_spatial_random_accuracy(capabilities, ndim: int, dtype: str, metric: str, np_rng: np.random.Generator):
     """Spatial distances across all numeric dtypes against high-precision Decimal baselines."""
     a_raw, a_baseline = make_random((ndim,), dtype, np_rng)
     b_raw, b_baseline = make_random((ndim,), dtype, np_rng)
     atol, rtol = tolerances_for_dtype(dtype)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_SPATIAL[metric]
 
     # High-precision baseline
@@ -171,18 +167,28 @@ def test_spatial_random_accuracy(ndim: int, dtype: str, metric: str, capability:
     err_msg = LazyFormat(lambda: f"\n{metric}({dtype}, ndim={ndim}):\n  Accurate:  {accurate}\n  Got:       {result}")
 
     assert_allclose(result, accurate, atol=atol, rtol=rtol, err_msg=err_msg)
-    collect_errors(metric, ndim, dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats)
+    collect_errors(
+        metric,
+        ndim,
+        dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
+    )
 
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_angular_zero_vector(ndim: int, dtype: str, capability: str, np_rng: np.random.Generator):
+def test_angular_zero_vector(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Tests the nk.angular() function with zero vectors, to catch division by zero errors."""
     a = np.zeros(ndim, dtype=dtype)
     b = (np_rng.standard_normal(ndim) + 1).astype(dtype)
-    capabilities = keep_one_capability(capability)
 
     result = nk.angular(a, b, capabilities=capabilities)
     assert result == 1, f"Expected 1, but got {result}"
@@ -198,10 +204,8 @@ def test_angular_zero_vector(ndim: int, dtype: str, capability: str, np_rng: np.
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatial_self_distance_zero(ndim: int, dtype: str, capability: str):
+def test_spatial_self_distance_zero(capabilities, ndim: int, dtype: str):
     """d(v, v) should be 0 for euclidean, sqeuclidean, and angular."""
-    capabilities = keep_one_capability(capability)
     v = nk.full((ndim,), 1.5, dtype=dtype)
     atol = NUMKONG_ATOL
     assert abs(nk.euclidean(v, v, capabilities=capabilities)) < atol
@@ -211,10 +215,8 @@ def test_spatial_self_distance_zero(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_euclidean_known(ndim: int, dtype: str, capability: str):
+def test_euclidean_known(capabilities, ndim: int, dtype: str):
     """euclidean(ones, zeros) = sqrt(n)."""
-    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
     result = nk.euclidean(ones_vector, zeros_vector, capabilities=capabilities)
@@ -224,10 +226,8 @@ def test_euclidean_known(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_sqeuclidean_known(ndim: int, dtype: str, capability: str):
+def test_sqeuclidean_known(capabilities, ndim: int, dtype: str):
     """sqeuclidean(ones, zeros) = n."""
-    capabilities = keep_one_capability(capability)
     ones_vector = nk.ones((ndim,), dtype=dtype)
     zeros_vector = nk.zeros((ndim,), dtype=dtype)
     result = nk.sqeuclidean(ones_vector, zeros_vector, capabilities=capabilities)
@@ -236,10 +236,8 @@ def test_sqeuclidean_known(ndim: int, dtype: str, capability: str):
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatial_symmetry(ndim: int, dtype: str, capability: str, rng: random.Random):
+def test_spatial_symmetry(capabilities, ndim: int, dtype: str, rng: random.Random):
     """Commutativity: d(a, b) = d(b, a) for all spatial metrics."""
-    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     for metric_fn in [nk.euclidean, nk.sqeuclidean, nk.angular]:
@@ -250,10 +248,8 @@ def test_spatial_symmetry(ndim: int, dtype: str, capability: str, rng: random.Ra
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_spatial_non_negative(ndim: int, dtype: str, capability: str, rng: random.Random):
+def test_spatial_non_negative(capabilities, ndim: int, dtype: str, rng: random.Random):
     """Non-negativity: d(a, b) >= 0 for all spatial metrics."""
-    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     for metric_fn in [nk.euclidean, nk.sqeuclidean, nk.angular]:
@@ -263,10 +259,8 @@ def test_spatial_non_negative(ndim: int, dtype: str, capability: str, rng: rando
 
 @pytest.mark.parametrize("ndim", algebraic_ndims)
 @pytest.mark.parametrize("dtype", algebraic_dtypes)
-@pytest.mark.parametrize("capability", possible_capabilities)
-def test_euclidean_triangle_inequality(ndim: int, dtype: str, capability: str, rng: random.Random):
+def test_euclidean_triangle_inequality(capabilities, ndim: int, dtype: str, rng: random.Random):
     """Triangle inequality: euclidean(a, c) <= euclidean(a, b) + euclidean(b, c)."""
-    capabilities = keep_one_capability(capability)
     a = make_random_buffer(rng, ndim, dtype)
     b = make_random_buffer(rng, ndim, dtype)
     c = make_random_buffer(rng, ndim, dtype)

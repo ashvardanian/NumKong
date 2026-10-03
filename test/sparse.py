@@ -38,10 +38,8 @@ from base import (
     collect_errors,
     create_stats,
     downcast_f32_to_dtype,
-    keep_one_capability,
     make_nk,
     numpy_available,
-    possible_capabilities,
     print_stats_report,
     timed_call,
 )
@@ -73,9 +71,8 @@ KERNELS_SPARSE: dict[str, tuple[Callable, Callable, None]] = {
 
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
-@pytest.mark.parametrize("capability", possible_capabilities)
 @pytest.mark.parametrize("index_dtype,weight_dtype", [("uint32", "float32"), ("uint16", "bfloat16")])
-def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str, np_rng: np.random.Generator):
+def test_sparse_dot(capabilities, index_dtype: str, weight_dtype: str, np_rng: np.random.Generator):
     """Test nk.sparse_dot against manual weighted intersection."""
     baseline_kernel, simd_kernel, _ = KERNELS_SPARSE["sparse_dot"]
     sparse_dim = SETTINGS.sparse_dims[0]
@@ -86,7 +83,6 @@ def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str, np_rng
     a_val, a_f64 = downcast_f32_to_dtype(np_rng.standard_normal(len(a_idx)).astype(np.float32), weight_dtype)
     b_val, b_f64 = downcast_f32_to_dtype(np_rng.standard_normal(len(b_idx)).astype(np.float32), weight_dtype)
 
-    capabilities = keep_one_capability(capability)
     result_ns, result = timed_call(
         simd_kernel, a_idx, make_nk(a_val, weight_dtype), b_idx, make_nk(b_val, weight_dtype), capabilities=capabilities
     )
@@ -98,7 +94,17 @@ def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str, np_rng
 
     assert_allclose(result, accurate, atol=NUMKONG_ATOL, rtol=NUMKONG_RTOL)
     collect_errors(
-        "sparse_dot", len(a_idx), weight_dtype, accurate, accurate_ns, expected, expected_ns, result, result_ns, stats
+        "sparse_dot",
+        len(a_idx),
+        weight_dtype,
+        accurate,
+        accurate_ns,
+        expected,
+        expected_ns,
+        result,
+        result_ns,
+        stats,
+        capability=capabilities.name.lower().replace("|", "+"),
     )
 
 
@@ -107,9 +113,12 @@ def test_sparse_dot(capability: str, index_dtype: str, weight_dtype: str, np_rng
 @pytest.mark.parametrize("dtype", ["uint64", "uint32", "uint16"])
 @pytest.mark.parametrize("first_length_bound", [10, 100, 1000])
 @pytest.mark.parametrize("second_length_bound", [10, 100, 1000])
-@pytest.mark.parametrize("capability", possible_capabilities)
 def test_intersect(
-    dtype: str, first_length_bound: int, second_length_bound: int, capability: str, np_rng: np.random.Generator
+    capabilities,
+    dtype: str,
+    first_length_bound: int,
+    second_length_bound: int,
+    np_rng: np.random.Generator,
 ):
     """Compares the nk.intersect() function with numpy.intersect1d."""
     a_length = np_rng.integers(1, first_length_bound)
@@ -120,7 +129,6 @@ def test_intersect(
     a = np.unique(a)
     b = np.unique(b)
 
-    capabilities = keep_one_capability(capability)
     baseline_kernel, simd_kernel, _ = KERNELS_SPARSE["intersect"]
     expected = baseline_kernel(a, b)
     result = simd_kernel(a, b, capabilities=capabilities)
