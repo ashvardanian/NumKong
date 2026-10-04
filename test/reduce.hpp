@@ -45,8 +45,17 @@ error_stats_t test_reduce_moments(settings_t const &settings, typename input_typ
          steady_clock_t::now() < deadline;) {
         std::size_t stride = stride_distribution(generator);
         fill_random(settings, generator, buffer);
-        backend.call(kernel, buffer.raw_values_data(), n, stride, sum.raw_values_data(), sumsq.raw_values_data());
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        if (nk_status_t const status = backend.call(kernel, buffer.raw_values_data(), n, stride, sum.raw_values_data(),
+                                                    sumsq.raw_values_data());
+            status != nk_success_k) {
+            stats.expect(status);
+            stats.expect(backend.synchronize());
+            return stats;
+        }
+        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+            stats.expect(status);
+            return stats;
+        }
         sum_reference_t sum_reference;
         sumsq_reference_t sumsq_reference;
         stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
@@ -75,9 +84,18 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
     auto indices = indices_t::zeros(2).value;
     auto *index_values = reinterpret_cast<nk_size_t *>(indices.raw_values_data());
     auto compare = [&](std::size_t stride) {
-        backend.call(kernel, buffer.raw_values_data(), n, stride, extrema.raw_values_data() + 0, index_values + 0,
-                     extrema.raw_values_data() + 1, index_values + 1);
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        if (nk_status_t const status = backend.call(kernel, buffer.raw_values_data(), n, stride,
+                                                    extrema.raw_values_data() + 0, index_values + 0,
+                                                    extrema.raw_values_data() + 1, index_values + 1);
+            status != nk_success_k) {
+            stats.expect(status);
+            stats.expect(backend.synchronize());
+            return status;
+        }
+        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+            stats.expect(status);
+            return status;
+        }
         output_t reference_min, reference_max;
         std::size_t reference_min_index, reference_max_index;
         stats.expect(nk::reduce_minmax<input_type_, output_t>(buffer.values_data(), n, stride, &reference_min,
@@ -85,22 +103,23 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
                                                               &reference_max_index, no_tiers_k));
         stats.accumulate(index_values[0], static_cast<nk_size_t>(reference_min_index));
         stats.accumulate(index_values[1], static_cast<nk_size_t>(reference_max_index));
-        if (reference_min_index == NUMKONG_SIZE_MAX) return; // No index, so the values are only sentinels
+        if (reference_min_index == NUMKONG_SIZE_MAX) return nk_success_k; // No index, so the values are only sentinels
         stats.accumulate(output_t::from_raw(extrema.raw_values_data()[0]), reference_min);
         stats.accumulate(output_t::from_raw(extrema.raw_values_data()[1]), reference_max);
+        return nk_success_k;
     };
     // Uniform inputs never win a strict comparison, yet only an all-NaN one lacks an index
     std::fill_n(buffer.values_data(), buffer.size_values(), nk::finite_max<input_type_>());
-    compare(sizeof(input_type_));
+    if (compare(sizeof(input_type_)) != nk_success_k) return stats;
     if constexpr (nk::nan_capable_dtype<input_type_>) {
         std::fill_n(buffer.values_data(), buffer.size_values(), input_type_::quiet_nan());
-        compare(sizeof(input_type_));
+        if (compare(sizeof(input_type_)) != nk_success_k) return stats;
     }
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;) {
         std::size_t stride = stride_distribution(generator);
         fill_random(settings, generator, buffer);
-        compare(stride);
+        if (compare(stride) != nk_success_k) return stats;
     }
     return stats;
 }

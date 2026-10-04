@@ -66,9 +66,6 @@ struct device_backend {
     /** Where every call launches. */
     void *stream = shared_stream();
 
-    /** The first failure since the last synchronization. */
-    nk_status_t status = nk_success_k;
-
     /** The capabilities of the first device, where every backend launches, or zero. */
     static nk_capability_t capabilities() noexcept {
         nk_capability_t capabilities = 0;
@@ -93,21 +90,25 @@ struct device_backend {
     }
 
     /** Copies @p bytes once every queued call has finished with them. */
-    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        keep(synchronize_(stream));
+    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
+        nk_status_t const status = synchronize_(stream);
+        if (status != nk_success_k) return status;
         std::memcpy(destination, source, bytes);
+        return nk_success_k;
     }
 
     /** Zeroes @p bytes once every queued call has finished with them. */
-    void zero(void *destination, std::size_t bytes) noexcept {
-        keep(synchronize_(stream));
+    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
+        nk_status_t const status = synchronize_(stream);
+        if (status != nk_success_k) return status;
         std::memset(destination, 0, bytes);
+        return nk_success_k;
     }
 
     /** Launches @p kernel with @p arguments on the stream. */
     template <typename kernel_type_, typename... arguments_types_>
-    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        keep(kernel(arguments..., stream));
+    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        return kernel(arguments..., stream);
     }
 
     /** Calls @p kernel on operands it must refuse, reporting whether it returned
@@ -117,19 +118,8 @@ struct device_backend {
         return kernel(arguments..., stream) == nk_misaligned_k;
     }
 
-    /** Waits for the stream, returning the name of the first failure since the last call, or
-     *  @c nullptr. */
-    char const *synchronize() noexcept {
-        keep(synchronize_(stream));
-        nk_status_t const failure = status;
-        status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_name(failure);
-    }
-
-    /** Remembers @p result unless an earlier failure is pending. */
-    void keep(nk_status_t result) noexcept {
-        if (status == nk_success_k) status = result;
-    }
+    /** Waits for submitted work. */
+    nk_status_t synchronize() noexcept { return synchronize_(stream); }
 };
 
 /** The dispatch point @p best_ over the first device of @p backend_type_, where it launches:

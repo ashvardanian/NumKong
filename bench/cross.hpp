@@ -79,37 +79,28 @@ struct host_backend_t {
         return {{"", 8, 8, env.settings.matrix_width, env.settings.matrix_depth, env.settings.matrix_height}};
     }
 
-    /** Copies @p bytes between host buffers. */
-    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
+    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
         std::memcpy(destination, source, bytes);
+        return nk_success_k;
     }
 
-    /** Zeroes @p bytes of a host buffer. */
-    void zero(void *destination, std::size_t bytes) noexcept { std::memset(destination, 0, bytes); }
+    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
+        std::memset(destination, 0, bytes);
+        return nk_success_k;
+    }
 
-    /** The first failure since the last synchronization. */
-    nk_status_t status = nk_success_k;
-
-    /** Calls @p kernel with @p arguments and no stream, keeping its status. */
     template <typename kernel_type_, typename... arguments_types_>
-    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        if (status == nk_success_k) status = kernel(arguments..., nullptr);
+    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        return kernel(arguments..., nullptr);
     }
 
-    /** Returns the name of the first failure since the last call, or @c nullptr. */
-    char const *synchronize() noexcept {
-        nk_status_t const failure = status;
-        status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_name(failure);
-    }
+    nk_status_t synchronize() noexcept { return nk_success_k; }
 
-    /** Calls @p launch once per iteration over rotating sets. */
     template <typename launch_type_>
-    void time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
-        for (std::size_t call : loop) {
-            launch(call & (sets_count - 1));
-            if (status != nk_success_k) break;
-        }
+    nk_status_t time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
+        for (std::size_t call : loop)
+            if (nk_status_t const status = launch(call & (sets_count - 1)); status != nk_success_k) return status;
+        return nk_success_k;
     }
 };
 
@@ -120,26 +111,29 @@ typename backend_type_::template allocator<value_type_> allocator_of(backend_typ
     return {};
 }
 
-/** A backend copy of @p count values at @p source, left empty when the allocation fails. */
+/** A backend copy of @p count values at @p source, returning the allocation or copy status. */
 template <typename backend_type_, typename value_type_>
-nk::vector<value_type_, typename backend_type_::template allocator<value_type_>> upload(backend_type_ &backend,
-                                                                                        value_type_ const *source,
-                                                                                        std::size_t count) {
+nk::expected<nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>> upload(
+    backend_type_ &backend, value_type_ const *source, std::size_t count) {
     auto destination = nk::vector<value_type_, typename backend_type_::template allocator<value_type_>>::uninitialized(
         count, allocator_of<value_type_>(backend));
-    if (!destination.value.empty())
-        backend.copy(destination.value.raw_values_data(), source, destination.value.size_bytes());
-    return std::move(destination.value);
+    if (nk::failed(destination.status)) return destination;
+    if (nk_status_t const status = backend.copy(destination.value.raw_values_data(), source,
+                                                destination.value.size_bytes());
+        status != nk_success_k)
+        return {{}, static_cast<nk::status_t>(status)};
+    return destination;
 }
 
 /** Launches set 0 once, then times @p launch over rotating sets; returns false once skipped. */
 template <typename backend_type_, typename launch_type_>
 bool time_rotating(loop_t &loop, backend_type_ &backend, std::size_t sets_count, launch_type_ launch) {
-    launch(std::size_t(0));
-    if (char const *failure = backend.synchronize()) return loop.skip(failure), false;
-    backend.time(loop, sets_count, launch);
-    if (char const *failure = backend.synchronize()) return loop.skip(failure), false;
-    return true;
+    nk_status_t const launch_status = launch(std::size_t(0));
+    nk_status_t const ready_status = backend.synchronize();
+    if (!succeeded(loop, launch_status) || !succeeded(loop, ready_status)) return false;
+    nk_status_t const time_status = backend.time(loop, sets_count, launch);
+    nk_status_t const drain_status = backend.synchronize();
+    return succeeded(loop, time_status) && succeeded(loop, drain_status);
 }
 
 /** The `<columns>` suffix of a one-row benchmark name, `<rows x columns>` for more rows. */
@@ -147,11 +141,10 @@ inline std::string token_rows_name(std::string const &name, std::size_t rows, st
     return name + "<" + (rows == 1 ? "" : std::to_string(rows) + "x") + std::to_string(columns) + ">";
 }
 
-/** A backend copy of @p count random values of @p input_dtype_ under @p seed, empty when the
- *  allocation fails. */
+/** Uploads seeded random values, returning the allocation or copy status. */
 template <nk_dtype_t input_dtype_, typename backend_type_>
-nk::vector<typename nk::type_for<input_dtype_>::type,
-           typename backend_type_::template allocator<typename nk::type_for<input_dtype_>::type>>
+nk::expected<nk::vector<typename nk::type_for<input_dtype_>::type,
+                        typename backend_type_::template allocator<typename nk::type_for<input_dtype_>::type>>>
 random_upload(backend_type_ &backend, std::size_t count, seed_t seed) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     auto host = make_vector<input_t>(count);
@@ -249,15 +242,17 @@ random_matrices(seed_t seed, std::size_t rows, std::size_t columns, std::size_t 
 /** Accuracy of @p c against the reference over its written entries, or 4096 sampled under @p seed:
  *  mean ULP in the output's precision for floats, share of exact matches for integers. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_>
-double sampled_accuracy(backend_type_ &backend,
-                        nk::vector<output_type_, typename backend_type_::template allocator<output_type_>> const &c,
-                        nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> first,
-                        nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> second, std::size_t depth,
-                        reference_metric_t metric, written_entries_t written, seed_t seed) {
+nk::expected<double> sampled_accuracy(
+    backend_type_ &backend, nk::vector<output_type_, typename backend_type_::template allocator<output_type_>> const &c,
+    nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> first,
+    nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> second, std::size_t depth, reference_metric_t metric,
+    written_entries_t written, seed_t seed) {
     using output_raw_t = typename output_type_::raw_t;
     std::size_t const entries = first.extent(0) * second.extent(0), samples = std::min(entries, std::size_t(4096));
     std::vector<output_raw_t> result(entries);
-    backend.copy(result.data(), c.raw_values_data(), entries * sizeof(output_raw_t));
+    if (nk_status_t const status = backend.copy(result.data(), c.raw_values_data(), entries * sizeof(output_raw_t));
+        status != nk_success_k)
+        return {0, static_cast<nk::status_t>(status)};
     std::vector<double> first_decoded(depth), second_decoded(depth);
     std::mt19937 generator(seed.value);
     std::uniform_int_distribution<std::size_t> entry_distribution(0, entries - 1);
@@ -279,7 +274,7 @@ double sampled_accuracy(backend_type_ &backend,
         else score_sum += double(ulp_distance_f32(result[entry], float(expected)));
         ++measured;
     }
-    return score_sum / double(std::max(measured, std::size_t(1)));
+    return {score_sum / double(std::max(measured, std::size_t(1))), nk::status_t::success_k};
 }
 
 /** Fills `scalar-ops`, and @c exact for integer outputs or @c ulp for floats. */
@@ -334,13 +329,15 @@ struct unit_block_scales {
     blocks_t blocks;
     mutable typename cref_of_<typename nk::type_for<input_dtype_>::type>::type reference {};
 
-    unit_block_scales(backend_type_ &backend, std::size_t rows, std::size_t stride) {
+    nk_status_t initialize(backend_type_ &backend, std::size_t rows, std::size_t stride) {
         if constexpr (format.block_size) {
             std::size_t const scale_stride = stride / format.block_bytes;
             blocks = blocks_t::uninitialized({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
             std::vector<scale_t> const host(rows * scale_stride, scale_t(1.0f));
-            if (!blocks.empty()) backend.copy(blocks.data(), host.data(), host.size() * sizeof(scale_t));
+            if (blocks.empty()) return nk_bad_alloc_k;
+            return backend.copy(blocks.data(), host.data(), host.size() * sizeof(scale_t));
         }
+        return nk_success_k;
     }
 
     template <typename codes_pointer_type_>
@@ -367,11 +364,14 @@ void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backen
     auto const [a, b] = random_matrices<element_dtype_, backend_type_>(env.settings.seed, rows, columns, depth);
     if (a.empty() || b.empty()) return loop.skip("input allocation failed");
     std::size_t const a_stride = a.stride_bytes(0), row_bytes = b.stride_bytes(0), a_bytes = rows * a_stride;
-    unit_block_scales<input_dtype_, backend_type_> const a_scales(backend, rows, a_stride),
-        b_scales(backend, columns, row_bytes);
+    unit_block_scales<input_dtype_, backend_type_> a_scales, b_scales;
+    if (!succeeded(loop, a_scales.initialize(backend, rows, a_stride)) ||
+        !succeeded(loop, b_scales.initialize(backend, columns, row_bytes)))
+        return;
     nk_size_t packed_bytes = 0;
     if (!succeeded(loop, packed_size_fn(columns, depth, &packed_bytes))) return;
-    auto const b_uploaded = upload(backend, b.data(), b.numel());
+    auto const [b_uploaded, b_uploaded_status] = upload(backend, b.data(), b.numel());
+    if (!nk::succeeded(b_uploaded_status)) return loop.skip(nk::status_name(b_uploaded_status));
     if (b_uploaded.empty()) return loop.skip("B allocation failed");
 
     // One B upload, packed into every set, since the sets differ only in where they live.
@@ -382,21 +382,26 @@ void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backen
                set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
                set_t::outputs_t::uninitialized(rows * columns, allocator_of<output_type_>(backend)).value};
         if (set.a.empty() || set.b.empty() || set.c.empty()) return loop.skip("set allocation failed");
-        backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
-        backend.zero(set.b.raw_values_data(), packed_bytes), backend.zero(set.c.raw_values_data(), set.c.size_bytes());
-        backend.call(pack_fn, b_scales.operand(b_uploaded.raw_values_data()), columns, depth, row_bytes,
-                     set.b.raw_values_data(), std::size_t(0), columns);
+        if (!succeeded(loop, backend.copy(set.a.raw_values_data(), a.data(), a_bytes))) return;
+        if (!succeeded(loop, backend.zero(set.b.raw_values_data(), packed_bytes))) return;
+        if (!succeeded(loop, backend.zero(set.c.raw_values_data(), set.c.size_bytes()))) return;
+        nk_status_t const submission_status = backend.call(pack_fn, b_scales.operand(b_uploaded.raw_values_data()),
+                                                           columns, depth, row_bytes, set.b.raw_values_data(),
+                                                           std::size_t(0), columns);
+        nk_status_t const completion_status = backend.synchronize();
+        if (!succeeded(loop, submission_status) || !succeeded(loop, completion_status)) return;
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        backend.call(kernel,
-                     a_scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
-                     static_cast<void const *>(set.b.raw_values_data()), set.c.raw_values_data(), rows, columns, depth,
-                     a_stride, columns * sizeof(output_type_));
+        return backend.call(
+            kernel, a_scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
+            static_cast<void const *>(set.b.raw_values_data()), set.c.raw_values_data(), rows, columns, depth, a_stride,
+            columns * sizeof(output_type_));
     });
     if (!timed) return;
-    double const score = sampled_accuracy<element_dtype_, output_type_>(
+    auto const [score, score_status] = sampled_accuracy<element_dtype_, output_type_>(
         backend, sets[0].c, a.view(), b.view(), depth, metric, written_entries_t::full_k, env.settings.seed);
+    if (!nk::succeeded(score_status)) return loop.skip(nk::status_name(score_status));
     report_matrix<output_type_>(loop, 2.0 * rows * columns * depth, score);
 }
 
@@ -412,25 +417,28 @@ void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ bac
     auto const &a = matrices[0];
     if (a.empty()) return loop.skip("input allocation failed");
     std::size_t const a_stride = a.stride_bytes(0), a_bytes = rows * a_stride;
-    unit_block_scales<input_dtype_, backend_type_> const scales(backend, rows, a_stride);
+    unit_block_scales<input_dtype_, backend_type_> scales;
+    if (!succeeded(loop, scales.initialize(backend, rows, a_stride))) return;
     std::vector<set_t> sets(backend.input_sets(bytes_t {a_bytes + rows * rows * sizeof(output_type_)}));
     for (set_t &set : sets) {
         set.a = set_t::bytes_t::uninitialized(a_bytes, allocator_of<char>(backend)).value;
         set.c = set_t::outputs_t::uninitialized(rows * rows, allocator_of<output_type_>(backend)).value;
         if (set.a.empty() || set.c.empty()) return loop.skip("set allocation failed");
-        backend.copy(set.a.raw_values_data(), a.data(), a_bytes);
-        backend.zero(set.c.raw_values_data(), set.c.size_bytes());
+        if (!succeeded(loop, backend.copy(set.a.raw_values_data(), a.data(), a_bytes))) return;
+        if (!succeeded(loop, backend.zero(set.c.raw_values_data(), set.c.size_bytes()))) return;
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        backend.call(kernel, scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())),
-                     rows, depth, a_stride, set.c.raw_values_data(), rows * sizeof(output_type_), std::size_t(0), rows);
+        return backend.call(
+            kernel, scales.operand(reinterpret_cast<typename input_t::raw_t const *>(set.a.raw_values_data())), rows,
+            depth, a_stride, set.c.raw_values_data(), rows * sizeof(output_type_), std::size_t(0), rows);
     });
     if (!timed) return;
     written_entries_t const written = metric == reference_metric_t::dot_k ? written_entries_t::upper_triangle_k
                                                                           : written_entries_t::strict_upper_triangle_k;
-    double const score = sampled_accuracy<element_dtype_, output_type_>(backend, sets[0].c, a.view(), a.view(), depth,
-                                                                        metric, written, env.settings.seed);
+    auto const [score, score_status] = sampled_accuracy<element_dtype_, output_type_>(
+        backend, sets[0].c, a.view(), a.view(), depth, metric, written, env.settings.seed);
+    if (!nk::succeeded(score_status)) return loop.skip(nk::status_name(score_status));
     report_matrix<output_type_>(loop, 1.0 * rows * (rows + 1) * depth, score);
 }
 
@@ -575,29 +583,31 @@ std::array<nk::vector<typename nk::type_for<input_dtype_>::type>, 3> random_atte
 /** Packs the keys and values of the one segment of @p shape, whose @p directory holds key offsets
  *  then lengths. */
 template <typename backend_type_, typename pack_kernel_type_, typename raw_type_>
-void attention_pack(backend_type_ &backend, pack_kernel_type_ pack_fn, attention_shape_t shape, raw_type_ const *keys,
-                    raw_type_ const *values, nk_u32_t const *directory, void *packed) {
+nk_status_t attention_pack(backend_type_ &backend, pack_kernel_type_ pack_fn, attention_shape_t shape,
+                           raw_type_ const *keys, raw_type_ const *values, nk_u32_t const *directory, void *packed) {
     std::size_t const key_stride = shape.key_value_head_count * shape.depth * sizeof(raw_type_);
-    backend.call(pack_fn, keys, values, shape.key_value_head_count, shape.depth, directory, directory + 1,
-                 std::size_t(1), key_stride, key_stride, packed, std::size_t(0), shape.key_value_head_count);
+    return backend.call(pack_fn, keys, values, shape.key_value_head_count, shape.depth, directory, directory + 1,
+                        std::size_t(1), key_stride, key_stride, packed, std::size_t(0), shape.key_value_head_count);
 }
 
 /** Runs @p attention_fn over the one segment of @p shape under @p visibility_, queries aligned to
  *  the keys' end. */
 template <attention_visibility_t visibility_, typename backend_type_, typename attention_kernel_type_,
           typename raw_type_>
-void attend(backend_type_ &backend, attention_kernel_type_ attention_fn, attention_shape_t shape,
-            nk_u32_t const *directory, raw_type_ const *queries, void const *packed, nk_f32_t *output) {
+nk_status_t attend(backend_type_ &backend, attention_kernel_type_ attention_fn, attention_shape_t shape,
+                   nk_u32_t const *directory, raw_type_ const *queries, void const *packed, nk_f32_t *output) {
     std::size_t const query_stride = shape.head_count * shape.depth * sizeof(raw_type_);
     std::size_t const output_stride = shape.head_count * shape.depth * sizeof(nk_f32_t);
     nk_f32_t const scale = 1.0f / std::sqrt(float(shape.depth));
     if constexpr (visibility_ == attention_visibility_t::bidirectional_k)
-        backend.call(attention_fn, queries, packed, output, shape.head_count, shape.key_value_head_count, shape.depth,
-                     directory + 2, query_stride, output_stride, scale, std::size_t(0), shape.head_count);
+        return backend.call(attention_fn, queries, packed, output, shape.head_count, shape.key_value_head_count,
+                            shape.depth, directory + 2, query_stride, output_stride, scale, std::size_t(0),
+                            shape.head_count);
     else
-        backend.call(attention_fn, queries, packed, output, shape.head_count, shape.key_value_head_count, shape.depth,
-                     directory + 2, query_stride, output_stride, scale, nk_i64_t(shape.keys) - nk_i64_t(shape.queries),
-                     attention_window(visibility_), std::size_t(0), shape.head_count);
+        return backend.call(attention_fn, queries, packed, output, shape.head_count, shape.key_value_head_count,
+                            shape.depth, directory + 2, query_stride, output_stride, scale,
+                            nk_i64_t(shape.keys) - nk_i64_t(shape.queries), attention_window(visibility_),
+                            std::size_t(0), shape.head_count);
 }
 
 /** Queries, the packed key/value cache, and one F32-row-per-query output, for one rotation slot in
@@ -629,10 +639,13 @@ void measure_attention(loop_t &loop, environment_t const &env, backend_type_ bac
     using input_t = typename nk::type_for<input_dtype_>::type;
     using set_t = attention_set<backend_type_, input_t>;
     auto const [queries, keys, values] = random_attention<input_dtype_>(shape, env.settings.seed);
-    auto const keys_uploaded = upload(backend, keys.values_data(), keys.size());
-    auto const values_uploaded = upload(backend, values.values_data(), values.size());
+    auto const [keys_uploaded, keys_uploaded_status] = upload(backend, keys.values_data(), keys.size());
+    if (!nk::succeeded(keys_uploaded_status)) return loop.skip(nk::status_name(keys_uploaded_status));
+    auto const [values_uploaded, values_uploaded_status] = upload(backend, values.values_data(), values.size());
+    if (!nk::succeeded(values_uploaded_status)) return loop.skip(nk::status_name(values_uploaded_status));
     nk_u32_t const offsets[4] = {0, nk_u32_t(shape.keys), 0, nk_u32_t(shape.queries)};
-    auto const directory = upload(backend, offsets, 4);
+    auto const [directory, directory_status] = upload(backend, offsets, 4);
+    if (!nk::succeeded(directory_status)) return loop.skip(nk::status_name(directory_status));
     if (keys_uploaded.empty() || values_uploaded.empty() || directory.empty())
         return loop.skip("input allocation failed");
     nk_u32_t const lengths[1] = {nk_u32_t(shape.keys)};
@@ -642,19 +655,24 @@ void measure_attention(loop_t &loop, environment_t const &env, backend_type_ bac
     std::vector<set_t> sets(
         backend.input_sets(bytes_t {queries.size_bytes() + packed_bytes + output_count * sizeof(nk_f32_t)}));
     for (set_t &set : sets) {
-        set = {upload(backend, queries.values_data(), queries.size()),
-               set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
+        auto [uploaded, upload_status] = upload(backend, queries.values_data(), queries.size());
+        if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+        set = {std::move(uploaded), set_t::bytes_t::uninitialized(packed_bytes, allocator_of<char>(backend)).value,
                set_t::outputs_t::uninitialized(output_count, allocator_of<nk::f32_t>(backend)).value};
         if (set.queries.empty() || set.packed.empty() || set.output.empty()) return loop.skip("set allocation failed");
-        backend.zero(set.packed.raw_values_data(), packed_bytes);
-        backend.zero(set.output.raw_values_data(), set.output.size_bytes());
-        attention_pack(backend, pack_fn, shape, keys_uploaded.raw_values_data(), values_uploaded.raw_values_data(),
-                       directory.raw_values_data(), set.packed.raw_values_data());
+        if (!succeeded(loop, backend.zero(set.packed.raw_values_data(), packed_bytes))) return;
+        if (!succeeded(loop, backend.zero(set.output.raw_values_data(), set.output.size_bytes()))) return;
+        nk_status_t const submission_status = attention_pack(backend, pack_fn, shape, keys_uploaded.raw_values_data(),
+                                                             values_uploaded.raw_values_data(),
+                                                             directory.raw_values_data(), set.packed.raw_values_data());
+        nk_status_t const completion_status = backend.synchronize();
+        if (!succeeded(loop, submission_status) || !succeeded(loop, completion_status)) return;
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         set_t &set = sets[index];
-        attend<visibility_>(backend, attention_fn, shape, directory.raw_values_data(), set.queries.raw_values_data(),
-                            set.packed.raw_values_data(), set.output.raw_values_data());
+        return attend<visibility_>(backend, attention_fn, shape, directory.raw_values_data(),
+                                   set.queries.raw_values_data(), set.packed.raw_values_data(),
+                                   set.output.raw_values_data());
     });
     if (timed) report_attention(loop, visibility_, shape);
 }
@@ -705,16 +723,20 @@ void measure_attention_rope(loop_t &loop, environment_t const &env, backend_type
     std::size_t const count = rows * dimensions, angles = rows * dimensions / 2;
     std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
     std::vector<nk::f32_t> const halves(angles, nk::f32_t(0.5f));
-    auto const cosines = upload(backend, halves.data(), angles), sines = upload(backend, halves.data(), angles);
+    auto const [cosines, cosines_status] = upload(backend, halves.data(), angles),
+                         sines = upload(backend, halves.data(), angles);
+    if (!nk::succeeded(cosines_status)) return loop.skip(nk::status_name(cosines_status));
     if (cosines.empty() || sines.empty()) return loop.skip("angle allocation failed");
     std::vector<values_t> sets(backend.input_sets(dtype_bytes(input_dtype_, count)));
-    for (values_t &set : sets)
-        if ((set = random_upload<input_dtype_>(backend, count, env.settings.seed)).empty())
-            return loop.skip("set allocation failed");
+    for (values_t &set : sets) {
+        auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+        if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+        set = std::move(uploaded);
+    }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         auto *tokens = sets[index].raw_values_data();
-        backend.call(kernel, tokens, cosines.raw_values_data(), sines.raw_values_data(), tokens, rows, std::size_t(1),
-                     dimensions, stride, stride);
+        return backend.call(kernel, tokens, cosines.raw_values_data(), sines.raw_values_data(), tokens, rows,
+                            std::size_t(1), dimensions, stride, stride);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
 }
@@ -745,29 +767,33 @@ void measure_each(loop_t &loop, environment_t const &env, backend_type_ backend,
                                : kernel_kind_ == nk_kernel_each_scale_k ? 1
                                                                         : 2;
     alpha_t const host_coefficients[2] = {alpha_t(0.2f), alpha_t(0.3f)};
-    auto const coefficients = upload(backend, host_coefficients, 2);
+    auto const [coefficients, coefficients_status] = upload(backend, host_coefficients, 2);
+    if (!nk::succeeded(coefficients_status)) return loop.skip(nk::status_name(coefficients_status));
     if (coefficients.empty()) return loop.skip("coefficient allocation failed");
     auto const *alpha = coefficients.raw_values_data(), *beta = alpha + 1;
     std::vector<std::array<values_t, 4>> sets(backend.input_sets(dtype_bytes(input_dtype_, (inputs + 1) * count)));
     for (std::array<values_t, 4> &set : sets) {
-        for (std::size_t input = 0; input != inputs; ++input)
-            if ((set[input] = random_upload<input_dtype_>(backend, count, env.settings.seed)).empty())
-                return loop.skip("set allocation failed");
+        for (std::size_t input = 0; input != inputs; ++input) {
+            auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+            if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+            set[input] = std::move(uploaded);
+        }
         set[3] = values_t::uninitialized(count, allocator_of<input_t>(backend)).value;
         if (set[3].empty()) return loop.skip("set allocation failed");
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         auto &set = sets[index];
         if constexpr (kernel_kind_ == nk_kernel_each_sum_k)
-            backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), count, set[3].raw_values_data());
+            return backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), count,
+                                set[3].raw_values_data());
         else if constexpr (kernel_kind_ == nk_kernel_each_scale_k)
-            backend.call(kernel, set[0].raw_values_data(), count, alpha, beta, set[3].raw_values_data());
+            return backend.call(kernel, set[0].raw_values_data(), count, alpha, beta, set[3].raw_values_data());
         else if constexpr (kernel_kind_ == nk_kernel_each_blend_k)
-            backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), count, alpha, beta,
-                         set[3].raw_values_data());
+            return backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), count, alpha, beta,
+                                set[3].raw_values_data());
         else
-            backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), set[2].raw_values_data(), count,
-                         alpha, beta, set[3].raw_values_data());
+            return backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), set[2].raw_values_data(),
+                                count, alpha, beta, set[3].raw_values_data());
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, inputs * count).value));
 }
@@ -791,15 +817,23 @@ void measure_swiglu(loop_t &loop, environment_t const &env, backend_type_ backen
     std::size_t const count = rows * columns, stride = columns * sizeof(typename input_t::raw_t);
     std::vector<std::array<values_t, 3>> sets(backend.input_sets(dtype_bytes(input_dtype_, 3 * count)));
     for (std::array<values_t, 3> &set : sets) {
-        set[0] = random_upload<input_dtype_>(backend, count, env.settings.seed);
-        set[1] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+        {
+            auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+            if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+            set[0] = std::move(uploaded);
+        }
+        {
+            auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+            if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+            set[1] = std::move(uploaded);
+        }
         set[2] = values_t::uninitialized(count, allocator_of<input_t>(backend)).value;
         if (set[0].empty() || set[1].empty() || set[2].empty()) return loop.skip("set allocation failed");
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
         auto &set = sets[index];
-        backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), set[2].raw_values_data(), rows,
-                     columns, stride, stride, stride, 1.0f, 1.0f);
+        return backend.call(kernel, set[0].raw_values_data(), set[1].raw_values_data(), set[2].raw_values_data(), rows,
+                            columns, stride, stride, stride, 1.0f, 1.0f);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, 2 * count).value));
 }
@@ -820,17 +854,22 @@ void measure_rmsnorm(loop_t &loop, environment_t const &env, backend_type_ backe
     using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
     std::size_t const count = rows * columns, stride = columns * sizeof(typename input_t::raw_t);
     std::vector<nk::f32_t> const ones(columns, nk::f32_t(1.0f));
-    auto const gamma = upload(backend, ones.data(), columns);
+    auto const [gamma, gamma_status] = upload(backend, ones.data(), columns);
+    if (!nk::succeeded(gamma_status)) return loop.skip(nk::status_name(gamma_status));
     if (gamma.empty()) return loop.skip("gamma allocation failed");
     std::vector<std::array<values_t, 2>> sets(backend.input_sets(dtype_bytes(input_dtype_, 2 * count)));
     for (std::array<values_t, 2> &set : sets) {
-        set[0] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+        {
+            auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+            if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+            set[0] = std::move(uploaded);
+        }
         set[1] = values_t::uninitialized(count, allocator_of<input_t>(backend)).value;
         if (set[0].empty() || set[1].empty()) return loop.skip("set allocation failed");
     }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
-        backend.call(kernel, sets[index][0].raw_values_data(), gamma.raw_values_data(),
-                     sets[index][1].raw_values_data(), rows, std::size_t(1), columns, stride, stride, 1e-6f);
+        return backend.call(kernel, sets[index][0].raw_values_data(), gamma.raw_values_data(),
+                            sets[index][1].raw_values_data(), rows, std::size_t(1), columns, stride, stride, 1e-6f);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
 }
@@ -856,13 +895,17 @@ void measure_cast_rows(loop_t &loop, environment_t const &env, backend_type_ bac
     std::vector<sources_t> sources(sets_count);
     std::vector<targets_t> targets(sets_count);
     for (std::size_t set = 0; set != sets_count; ++set) {
-        sources[set] = random_upload<from_dtype_>(backend, count, env.settings.seed);
+        {
+            auto [uploaded, upload_status] = random_upload<from_dtype_>(backend, count, env.settings.seed);
+            if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+            sources[set] = std::move(uploaded);
+        }
         targets[set] = targets_t::uninitialized(count, allocator_of<to_t>(backend)).value;
         if (sources[set].empty() || targets[set].empty()) return loop.skip("set allocation failed");
     }
     bool const timed = time_rotating(loop, backend, sets_count, [&](std::size_t index) {
-        backend.call(kernel, static_cast<void const *>(sources[index].raw_values_data()), from_dtype_,
-                     static_cast<void *>(targets[index].raw_values_data()), to_dtype_, count);
+        return backend.call(kernel, static_cast<void const *>(sources[index].raw_values_data()), from_dtype_,
+                            static_cast<void *>(targets[index].raw_values_data()), to_dtype_, count);
     });
     if (timed) loop.byte_rate(double(per_set.value));
 }
@@ -884,7 +927,9 @@ void measure_block_scaled_rows(loop_t &loop, environment_t const &env, backend_t
     std::size_t const elements_bytes = nk_block_scaled_elements_size(count, format);
     std::size_t const scales_bytes = nk_block_scaled_scales_size(count, format);
     nk_f32_t const unit_scale = 1.0f;
-    auto tensor_scale_bytes = upload(backend, reinterpret_cast<char const *>(&unit_scale), sizeof(unit_scale));
+    auto const [tensor_scale_bytes, tensor_scale_bytes_status] = upload(
+        backend, reinterpret_cast<char const *>(&unit_scale), sizeof(unit_scale));
+    if (!nk::succeeded(tensor_scale_bytes_status)) return loop.skip(nk::status_name(tensor_scale_bytes_status));
     if (tensor_scale_bytes.empty()) return loop.skip("tensor scale allocation failed");
     auto *tensor_scale = reinterpret_cast<nk_f32_t *>(tensor_scale_bytes.raw_values_data());
     bytes_t const per_set {count * sizeof(nk_f32_t) + elements_bytes + scales_bytes};
@@ -894,7 +939,11 @@ void measure_block_scaled_rows(loop_t &loop, environment_t const &env, backend_t
     std::vector<ref_t> refs(sets_count);
     std::vector<cref_t> crefs(sets_count);
     for (std::size_t set = 0; set != sets_count; ++set) {
-        values[set] = random_upload<nk_f32_k>(backend, count, env.settings.seed);
+        {
+            auto [uploaded, upload_status] = random_upload<nk_f32_k>(backend, count, env.settings.seed);
+            if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+            values[set] = std::move(uploaded);
+        }
         elements[set] = codes_t::uninitialized(elements_bytes, allocator_of<char>(backend)).value;
         scales[set] = codes_t::uninitialized(scales_bytes, allocator_of<char>(backend)).value;
         if (values[set].empty() || elements[set].empty() || scales[set].empty())
@@ -905,16 +954,19 @@ void measure_block_scaled_rows(loop_t &loop, environment_t const &env, backend_t
         crefs[set].scales = refs[set].scales;
         if constexpr (format.tensor_scale_dtype == nk_f32_k) refs[set].tensor_scale = tensor_scale;
         if constexpr (format.tensor_scale_dtype == nk_f32_k) crefs[set].tensor_scale = tensor_scale;
-        backend.call(kernel, static_cast<void const *>(values[set].raw_values_data()), nk_f32_k,
-                     static_cast<void *>(&refs[set]), dtype_, count);
+        nk_status_t const submission_status = backend.call(kernel,
+                                                           static_cast<void const *>(values[set].raw_values_data()),
+                                                           nk_f32_k, static_cast<void *>(&refs[set]), dtype_, count);
+        nk_status_t const completion_status = backend.synchronize();
+        if (!succeeded(loop, submission_status) || !succeeded(loop, completion_status)) return;
     }
     bool const timed = time_rotating(loop, backend, sets_count, [&](std::size_t index) {
         if constexpr (direction_ == block_scaled_direction_t::encode_k)
-            backend.call(kernel, static_cast<void const *>(values[index].raw_values_data()), nk_f32_k,
-                         static_cast<void *>(&refs[index]), dtype_, count);
+            return backend.call(kernel, static_cast<void const *>(values[index].raw_values_data()), nk_f32_k,
+                                static_cast<void *>(&refs[index]), dtype_, count);
         else
-            backend.call(kernel, static_cast<void const *>(&crefs[index]), dtype_,
-                         static_cast<void *>(values[index].raw_values_data()), nk_f32_k, count);
+            return backend.call(kernel, static_cast<void const *>(&crefs[index]), dtype_,
+                                static_cast<void *>(values[index].raw_values_data()), nk_f32_k, count);
     });
     if (timed) loop.byte_rate(double(per_set.value));
 }
@@ -936,12 +988,14 @@ void measure_moments_rows(loop_t &loop, environment_t const &env, backend_type_ 
                      .value;
     if (sum.empty() || sumsq.empty()) return loop.skip("output allocation failed");
     std::vector<values_t> sets(backend.input_sets(dtype_bytes(input_dtype_, count)));
-    for (values_t &set : sets)
-        if ((set = random_upload<input_dtype_>(backend, count, env.settings.seed)).empty())
-            return loop.skip("set allocation failed");
+    for (values_t &set : sets) {
+        auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+        if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+        set = std::move(uploaded);
+    }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
-        backend.call(kernel, sets[index].raw_values_data(), count, sizeof(typename input_t::raw_t),
-                     sum.raw_values_data(), sumsq.raw_values_data());
+        return backend.call(kernel, sets[index].raw_values_data(), count, sizeof(typename input_t::raw_t),
+                            sum.raw_values_data(), sumsq.raw_values_data());
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
 }
@@ -963,12 +1017,14 @@ void measure_minmax_rows(loop_t &loop, environment_t const &env, backend_type_ b
     if (extrema.empty() || indices.empty()) return loop.skip("output allocation failed");
     auto *index_values = reinterpret_cast<nk_size_t *>(indices.raw_values_data());
     std::vector<values_t> sets(backend.input_sets(dtype_bytes(input_dtype_, count)));
-    for (values_t &set : sets)
-        if ((set = random_upload<input_dtype_>(backend, count, env.settings.seed)).empty())
-            return loop.skip("set allocation failed");
+    for (values_t &set : sets) {
+        auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
+        if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
+        set = std::move(uploaded);
+    }
     bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
-        backend.call(kernel, sets[index].raw_values_data(), count, sizeof(typename input_t::raw_t),
-                     extrema.raw_values_data(), index_values, extrema.raw_values_data() + 1, index_values + 1);
+        return backend.call(kernel, sets[index].raw_values_data(), count, sizeof(typename input_t::raw_t),
+                            extrema.raw_values_data(), index_values, extrema.raw_values_data() + 1, index_values + 1);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
 }

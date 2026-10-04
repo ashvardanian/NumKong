@@ -58,28 +58,29 @@ struct metal_backend_t {
     template <typename value_type_>
     using allocator = metal_shared_allocator<value_type_>;
 
-    /** The first failure since the last synchronization. */
-    nk_status_t status = nk_success_k;
-
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
 
     /** Copies @p bytes once every queued call has finished with them. */
-    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        keep(nk_stream_synchronize_metal(nullptr));
+    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
+        nk_status_t const status = nk_stream_synchronize_metal(nullptr);
+        if (status != nk_success_k) return status;
         std::memcpy(destination, source, bytes);
+        return nk_success_k;
     }
 
     /** Zeroes @p bytes once every queued call has finished with them. */
-    void zero(void *destination, std::size_t bytes) noexcept {
-        keep(nk_stream_synchronize_metal(nullptr));
+    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
+        nk_status_t const status = nk_stream_synchronize_metal(nullptr);
+        if (status != nk_success_k) return status;
         std::memset(destination, 0, bytes);
+        return nk_success_k;
     }
 
     /** Encodes @p kernel with @p arguments on the null stream. */
     template <typename kernel_type_, typename... arguments_types_>
-    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        keep(kernel(arguments..., nullptr));
+    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        return kernel(arguments..., nullptr);
     }
 
     /** Calls @p kernel on operands it must refuse, reporting whether it returned
@@ -89,19 +90,8 @@ struct metal_backend_t {
         return kernel(arguments..., nullptr) == nk_misaligned_k;
     }
 
-    /** Waits for the stream, returning the name of the first failure since the last call, or
-     *  @c nullptr. */
-    char const *synchronize() noexcept {
-        keep(nk_stream_synchronize_metal(nullptr));
-        nk_status_t const failure = status;
-        status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_name(failure);
-    }
-
-    /** Remembers @p result unless an earlier failure is pending. */
-    void keep(nk_status_t result) noexcept {
-        if (status == nk_success_k) status = result;
-    }
+    /** Waits for submitted work. */
+    nk_status_t synchronize() noexcept { return nk_stream_synchronize_metal(nullptr); }
 };
 
 /** The capabilities of the first Metal device, where every backend encodes. */

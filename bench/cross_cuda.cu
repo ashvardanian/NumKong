@@ -93,8 +93,7 @@ struct cuda_device_allocator {
 template <typename value_type_>
 using device_vector = nk::vector<value_type_, cuda_device_allocator<value_type_>>;
 
-/** Runs the CUDA kernels on @c stream over device memory, keeping the first failed status and
- *  timing windows of launches with CUDA events. */
+/** Runs kernels over device memory, timing launch windows with CUDA events. */
 struct cuda_backend_t {
 
     /** Device memory, so timed buffers never page-migrate. */
@@ -103,9 +102,6 @@ struct cuda_backend_t {
 
     /** Where every call launches. */
     void *stream = cudaStreamPerThread;
-
-    /** The first failure since the last synchronization. */
-    nk_status_t status = nk_success_k;
 
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes `cp.async` requires of A
      *  rows. */
@@ -130,60 +126,66 @@ struct cuda_backend_t {
         return {{"prefill", 32, 8, 128, 4096, 4096}, {"decode", 32, 8, 128, 1, 4096}};
     }
 
-    /** Copies @p bytes in whichever direction the pointers imply. */
-    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        keep(cudaMemcpy(destination, source, bytes, cudaMemcpyDefault));
+    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
+        return cudaMemcpy(destination, source, bytes, cudaMemcpyDefault) == cudaSuccess ? nk_success_k
+                                                                                        : nk_device_code_mismatch_k;
     }
 
-    /** Zeroes @p bytes of a device buffer. */
-    void zero(void *destination, std::size_t bytes) noexcept { keep(cudaMemset(destination, 0, bytes)); }
+    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
+        return cudaMemset(destination, 0, bytes) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+    }
 
-    /** Launches @p kernel with @p arguments on the stream. */
     template <typename kernel_type_, typename... arguments_types_>
-    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        keep(kernel(arguments..., stream));
+    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        auto const status = kernel(arguments..., stream);
+        if constexpr (std::is_same_v<decltype(status), cudaError_t const>)
+            return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+        else return status;
     }
 
-    /** Times windows of @p launch calls between two CUDA events, doubling a window until it spans a
-     *  millisecond. */
     template <typename launch_type_>
-    void time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
+    nk_status_t time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
         cudaEvent_t start = nullptr, stop = nullptr;
-        cudaEventCreate(&start), cudaEventCreate(&stop);
+        if (cudaEventCreate(&start) != cudaSuccess) return nk_device_code_mismatch_k;
+        if (cudaEventCreate(&stop) != cudaSuccess) {
+            cudaEventDestroy(start);
+            return nk_device_code_mismatch_k;
+        }
+        nk_status_t status = nk_success_k;
         std::size_t calls = 0, window = 1;
         for ([[maybe_unused]] std::size_t call : loop) {
-            cudaEventRecord(start, (cudaStream_t)stream);
-            for (std::size_t index = 0; index != window; ++index) launch((calls + index) & (sets_count - 1));
-            cudaEventRecord(stop, (cudaStream_t)stream);
-            keep(cudaEventSynchronize(stop));
+            if (cudaEventRecord(start, (cudaStream_t)stream) != cudaSuccess) {
+                status = nk_device_code_mismatch_k;
+                break;
+            }
+            for (std::size_t index = 0; index != window; ++index) {
+                status = launch((calls + index) & (sets_count - 1));
+                if (status != nk_success_k) break;
+            }
             if (status != nk_success_k) break;
+            if (cudaEventRecord(stop, (cudaStream_t)stream) != cudaSuccess ||
+                cudaEventSynchronize(stop) != cudaSuccess) {
+                status = nk_device_code_mismatch_k;
+                break;
+            }
             float milliseconds = 0;
-            keep(cudaEventElapsedTime(&milliseconds, start, stop));
+            if (cudaEventElapsedTime(&milliseconds, start, stop) != cudaSuccess) {
+                status = nk_device_code_mismatch_k;
+                break;
+            }
             std::chrono::duration<float, std::milli> const elapsed {milliseconds};
             loop.add_window(elapsed, window);
             calls += window;
-            // Launch latency only amortizes over a millisecond of work
             if (elapsed < std::chrono::milliseconds(1)) window *= 2;
         }
-        cudaEventDestroy(start), cudaEventDestroy(stop);
+        cudaError_t const start_status = cudaEventDestroy(start), stop_status = cudaEventDestroy(stop);
+        if (status != nk_success_k) return status;
+        return start_status == cudaSuccess && stop_status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
     }
 
-    /** Waits for the stream, returning the name of the first failure since the last call, or
-     *  @c nullptr. */
-    char const *synchronize() noexcept {
-        keep(cudaStreamSynchronize((cudaStream_t)stream));
-        nk_status_t const failure = status;
-        status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_name(failure);
+    nk_status_t synchronize() noexcept {
+        return cudaStreamSynchronize((cudaStream_t)stream) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
     }
-
-    /** Remembers @p result unless an earlier failure is pending. */
-    void keep(nk_status_t result) noexcept {
-        if (status == nk_success_k) status = result;
-    }
-
-    /** Remembers a baseline's or runtime call's failure as the kernel it would have failed. */
-    void keep(cudaError_t result) noexcept { keep(result == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k); }
 };
 
 /** Prints why a baseline row is missing, when @p name passes the filter. */

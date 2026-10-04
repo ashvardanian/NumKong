@@ -1133,37 +1133,29 @@ struct host_backend_t {
     template <typename value_type_>
     using allocator = aligned_allocator<value_type_>;
 
-    /** The first failure since the last synchronization. */
-    nk_status_t status = nk_success_k;
-
     /** Row stride for @p row_bytes: exactly one row, keeping the tightest stride covered. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }
 
     /** Copies @p bytes between host buffers. */
-    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
+    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
         std::memcpy(destination, source, bytes);
+        return nk_success_k;
     }
 
     /** Zeroes @p bytes of a host buffer. */
-    void zero(void *destination, std::size_t bytes) noexcept { std::memset(destination, 0, bytes); }
+    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
+        std::memset(destination, 0, bytes);
+        return nk_success_k;
+    }
 
     /** Calls @p kernel with @p arguments and the null stream of the CPU. */
     template <typename kernel_type_, typename... arguments_types_>
-    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        keep(kernel(arguments..., nullptr));
+    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        return kernel(arguments..., nullptr);
     }
 
-    /** Returns the name of the first failure since the last call, or @c nullptr. */
-    char const *synchronize() noexcept {
-        nk_status_t const failure = status;
-        status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_name(failure);
-    }
-
-    /** Remembers @p result unless an earlier failure is pending. */
-    void keep(nk_status_t result) noexcept {
-        if (status == nk_success_k) status = result;
-    }
+    /** Waits for submitted work. */
+    nk_status_t synchronize() noexcept { return nk_success_k; }
 };
 
 /** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory

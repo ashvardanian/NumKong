@@ -59,8 +59,17 @@ error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scal
         fill_random(settings, generator, input);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        backend.call(kernel, input.raw_values_data(), count, alpha, beta, result.raw_values_data());
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        if (nk_status_t const status = backend.call(kernel, input.raw_values_data(), count, alpha, beta,
+                                                    result.raw_values_data());
+            status != nk_success_k) {
+            stats.expect(status);
+            stats.expect(backend.synchronize());
+            return stats;
+        }
+        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+            stats.expect(status);
+            return stats;
+        }
         for (std::size_t i = 0; i < count; i++)
             stats.accumulate(result[i], value_t(input[i]) * value_t(*alpha) + value_t(*beta));
     }
@@ -92,8 +101,17 @@ error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blen
         fill_random(settings, generator, b);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, alpha, beta, result.raw_values_data());
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        if (nk_status_t const status = backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, alpha,
+                                                    beta, result.raw_values_data());
+            status != nk_success_k) {
+            stats.expect(status);
+            stats.expect(backend.synchronize());
+            return stats;
+        }
+        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+            stats.expect(status);
+            return stats;
+        }
         for (std::size_t i = 0; i < count; i++)
             stats.accumulate(result[i], value_t(a[i]) * value_t(*alpha) + value_t(b[i]) * value_t(*beta));
     }
@@ -126,9 +144,17 @@ error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_ke
         fill_random(settings, generator, c);
         *alpha = random_coef<scalar_t>(generator), *beta = random_coef<scalar_t>(generator);
 
-        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), c.raw_values_data(), count, alpha, beta,
-                     result.raw_values_data());
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        if (nk_status_t const status = backend.call(kernel, a.raw_values_data(), b.raw_values_data(),
+                                                    c.raw_values_data(), count, alpha, beta, result.raw_values_data());
+            status != nk_success_k) {
+            stats.expect(status);
+            stats.expect(backend.synchronize());
+            return stats;
+        }
+        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+            stats.expect(status);
+            return stats;
+        }
         for (std::size_t i = 0; i < count; i++)
             stats.accumulate(result[i],
                              value_t(a[i]) * value_t(b[i]) * value_t(*alpha) + value_t(c[i]) * value_t(*beta));
@@ -156,8 +182,17 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
         fill_random(settings, generator, a);
         fill_random(settings, generator, b);
 
-        backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count, result.raw_values_data());
-        if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+        if (nk_status_t const status = backend.call(kernel, a.raw_values_data(), b.raw_values_data(), count,
+                                                    result.raw_values_data());
+            status != nk_success_k) {
+            stats.expect(status);
+            stats.expect(backend.synchronize());
+            return stats;
+        }
+        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+            stats.expect(status);
+            return stats;
+        }
         stats.expect(nk::add<scalar_t>(a.values_data(), b.values_data(), count, reference.values_data(), no_tiers_k));
 
         for (std::size_t i = 0; i < count; i++) stats.accumulate(result[i], reference[i]);
@@ -190,9 +225,17 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
             for (std::size_t col = 0; col < columns; col++) gamma.raw_values_data()[col] = gain_distribution(generator);
             nk_f32_t const *gains = groups == 1 ? gamma.raw_values_data() : nullptr;
 
-            backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(), rows, groups, columns, row_bytes,
-                         row_bytes, epsilon);
-            if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+            if (nk_status_t const status = backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(),
+                                                        rows, groups, columns, row_bytes, row_bytes, epsilon);
+                status != nk_success_k) {
+                stats.expect(status);
+                stats.expect(backend.synchronize());
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t group = 0; group < groups; group++) {
@@ -235,9 +278,18 @@ error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu
             auto const *gate = fused.raw_values_data();
             auto const *up = gated ? gate + columns : nullptr;
 
-            backend.call(swiglu_fn, gate, up, y.raw_values_data(), rows, columns, fused_values * sizeof(scalar_t),
-                         fused_values * sizeof(scalar_t), output_values * sizeof(scalar_t), gate_scale, output_scale);
-            if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+            if (nk_status_t const status = backend.call(
+                    swiglu_fn, gate, up, y.raw_values_data(), rows, columns, fused_values * sizeof(scalar_t),
+                    fused_values * sizeof(scalar_t), output_values * sizeof(scalar_t), gate_scale, output_scale);
+                status != nk_success_k) {
+                stats.expect(status);
+                stats.expect(backend.synchronize());
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t col = 0; col < columns; col++) {

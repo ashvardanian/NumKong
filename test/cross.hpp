@@ -53,12 +53,6 @@ enum class attention_weights_t : unsigned {
     bits_11_k = 11,
 };
 
-/** Waits for @p backend, failing @p stats with the name of its first failed call. */
-template <typename backend_type_>
-void synchronize(backend_type_ &backend, error_stats_t &stats) noexcept {
-    if (char const *failure = backend.synchronize()) stats.expect(false, failure);
-}
-
 /** The bytes @p packed_size_fn asks to pack its @p arguments into, failing @p stats when it has no
  *  kernel. Pack sizes are host arithmetic on every backend, so they run here. */
 template <typename packed_size_kernel_type_, typename... arguments_types_>
@@ -349,17 +343,22 @@ inline std::vector<attention_causal_case_t> attention_causal_cases() {
  *  grid. */
 template <typename backend_type_, typename pack_kernel_type_, typename scalar_vector_type_,
           typename packed_vector_type_>
-void pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pack_fn, scalar_vector_type_ const &keys,
-                                   scalar_vector_type_ const &values, attention_segments<backend_type_> const &segments,
-                                   attention_layout_t const &layout, packed_vector_type_ &key_value_packed) {
+nk_status_t pack_attention_in_two_windows(backend_type_ &backend, pack_kernel_type_ pack_fn,
+                                          scalar_vector_type_ const &keys, scalar_vector_type_ const &values,
+                                          attention_segments<backend_type_> const &segments,
+                                          attention_layout_t const &layout, packed_vector_type_ &key_value_packed) {
     using scalar_t = typename scalar_vector_type_::value_type;
     std::size_t const stride = layout.key_value_width() * sizeof(scalar_t);
     std::size_t const tasks = segments.count() * layout.key_value_head_count;
     std::size_t const windows[2][2] = {{0, 1}, {1, tasks + 7}};
-    for (auto const &window : windows)
-        backend.call(pack_fn, keys.raw_values_data(), values.raw_values_data(), layout.key_value_head_count,
-                     layout.depth, segments.key_offsets.values_data(), segments.lengths.values_data(), segments.count(),
-                     stride, stride, key_value_packed.raw_values_data(), window[0], window[1]);
+    for (auto const &window : windows) {
+        nk_status_t const status = backend.call(
+            pack_fn, keys.raw_values_data(), values.raw_values_data(), layout.key_value_head_count, layout.depth,
+            segments.key_offsets.values_data(), segments.lengths.values_data(), segments.count(), stride, stride,
+            key_value_packed.raw_values_data(), window[0], window[1]);
+        if (status != nk_success_k) return status;
+    }
+    return nk_success_k;
 }
 
 /** Causal reference: the serial bidirectional kernel per query row, over a pack of exactly the keys
@@ -655,11 +654,18 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                        b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, b_stride, 0.75f);
 
             // Run kernel being tested
-            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, b_stride,
-                         b_packed.raw_values_data(), 0, columns);
-            backend.call(dots_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
-                         c.raw_values_data(), rows, columns, depth, a_stride, c_stride);
-            synchronize(backend, stats);
+            {
+                nk_status_t submission_status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns,
+                                                             depth, b_stride, b_packed.raw_values_data(), 0, columns);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(dots_fn, a_scales.operand(a.raw_values_data()),
+                                                     b_packed.raw_values_data(), c.raw_values_data(), rows, columns,
+                                                     depth, a_stride, c_stride);
+                nk_status_t const synchronization_status = backend.synchronize();
+                stats.expect(submission_status);
+                stats.expect(synchronization_status);
+                if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+            }
 
             // Compute reference using nk:: template
             stats.expect(nk::dots_pack<scalar_type_>(b_scales.operand(b.values_data()), columns, depth, b_stride,
@@ -738,14 +744,23 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
 
             nk_size_t shape_width = 0, shape_depth = 0;
             // Run kernel being tested: one pack of every column, one in two column windows, then the shape
-            backend.call(pack_fn_, b_scales.operand(b.raw_values_data()), columns, depth, row_bytes,
-                         whole.raw_values_data(), 0, columns);
-            backend.call(pack_fn_, b_scales.operand(b.raw_values_data()), columns, depth, row_bytes,
-                         windows.raw_values_data(), 0, columns / 2);
-            backend.call(pack_fn_, b_scales.operand(b.raw_values_data()), columns, depth, row_bytes,
-                         windows.raw_values_data(), columns / 2, columns);
-            backend.call(packed_shape_fn_, whole.raw_values_data(), &shape_width, &shape_depth);
-            synchronize(backend, stats);
+            {
+                nk_status_t submission_status = backend.call(pack_fn_, b_scales.operand(b.raw_values_data()), columns,
+                                                             depth, row_bytes, whole.raw_values_data(), 0, columns);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(pack_fn_, b_scales.operand(b.raw_values_data()), columns, depth,
+                                                     row_bytes, windows.raw_values_data(), 0, columns / 2);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(pack_fn_, b_scales.operand(b.raw_values_data()), columns, depth,
+                                                     row_bytes, windows.raw_values_data(), columns / 2, columns);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(packed_shape_fn_, whole.raw_values_data(), &shape_width,
+                                                     &shape_depth);
+                nk_status_t const synchronization_status = backend.synchronize();
+                stats.expect(submission_status);
+                stats.expect(synchronization_status);
+                if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+            }
 
             stats.expect(shape_width == columns && shape_depth == depth, "packed_shape disagrees with the pack");
             stats.expect(std::memcmp(whole.raw_values_data(), windows.raw_values_data(), whole.size_bytes()) == 0,
@@ -836,9 +851,18 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
             auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
 
             // Run kernel being tested
-            backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride, c.raw_values_data(),
-                         c_stride, row_start, test_case.row_count);
-            synchronize(backend, stats);
+            if (nk_status_t const status = backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth,
+                                                        stride, c.raw_values_data(), c_stride, row_start,
+                                                        test_case.row_count);
+                status != nk_success_k) {
+                stats.expect(status);
+                stats.expect(backend.synchronize());
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             // Compute reference using nk:: template
             stats.expect(nk::dots_symmetric<scalar_type_, reference_t>(
@@ -942,15 +966,26 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
                                                 cells, word_stride, 0, count),
                      "symmetric took a result stride off the result size");
     }
-    synchronize(backend, stats);
+    if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+        stats.expect(status);
+        return stats;
+    }
     stats.expect(overwritten_bytes(output, 0, output.size_bytes()) == 0, "a refused call wrote its output");
 
     // A NaN input reaches every sum it enters, however the capability widens its codes
     if constexpr (nk::nan_capable_dtype<scalar_t>) {
         reinterpret_cast<scalar_t *>(rows.raw_values_data())[0] = scalar_t::quiet_nan();
-        backend.call(symmetric_fn_, scales.operand(aligned), count, depth, aligned_stride, cells, output_stride, 0,
-                     count);
-        synchronize(backend, stats);
+        if (nk_status_t const status = backend.call(symmetric_fn_, scales.operand(aligned), count, depth,
+                                                    aligned_stride, cells, output_stride, 0, count);
+            status != nk_success_k) {
+            stats.expect(status);
+            stats.expect(backend.synchronize());
+            return stats;
+        }
+        if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+            stats.expect(status);
+            return stats;
+        }
         stats.expect(std::isnan(static_cast<double>(cells[0])), "a NaN input summed to a finite dot");
     }
     return stats;
@@ -1222,13 +1257,21 @@ error_stats_t test_angulars_packed(settings_t const &settings, pack_size_kernel_
                 }
 
             // The norms of the second window's columns come from a pack not starting at zero
-            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k, stride, b_packed.raw_values_data(), 0,
-                         n / 2);
-            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k, stride, b_packed.raw_values_data(),
-                         n / 2, n);
-            backend.call(angulars_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
-                         c.raw_values_data(), m, n, k, stride, c_stride);
-            synchronize(backend, stats);
+            {
+                nk_status_t submission_status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k,
+                                                             stride, b_packed.raw_values_data(), 0, n / 2);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k, stride,
+                                                     b_packed.raw_values_data(), n / 2, n);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(angulars_fn, a_scales.operand(a.raw_values_data()),
+                                                     b_packed.raw_values_data(), c.raw_values_data(), m, n, k, stride,
+                                                     c_stride);
+                nk_status_t const synchronization_status = backend.synchronize();
+                stats.expect(submission_status);
+                stats.expect(synchronization_status);
+                if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+            }
 
             for (std::size_t i = 0; i < m * n; i++) accumulate_angular(stats, c[i], c_ref[i], k);
         }
@@ -1301,13 +1344,21 @@ error_stats_t test_euclideans_packed(settings_t const &settings, pack_size_kerne
                 }
 
             // The norms of the second window's columns come from a pack not starting at zero
-            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k, stride, b_packed.raw_values_data(), 0,
-                         n / 2);
-            backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k, stride, b_packed.raw_values_data(),
-                         n / 2, n);
-            backend.call(euclideans_fn, a_scales.operand(a.raw_values_data()), b_packed.raw_values_data(),
-                         c.raw_values_data(), m, n, k, stride, c_stride);
-            synchronize(backend, stats);
+            {
+                nk_status_t submission_status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k,
+                                                             stride, b_packed.raw_values_data(), 0, n / 2);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), n, k, stride,
+                                                     b_packed.raw_values_data(), n / 2, n);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(euclideans_fn, a_scales.operand(a.raw_values_data()),
+                                                     b_packed.raw_values_data(), c.raw_values_data(), m, n, k, stride,
+                                                     c_stride);
+                nk_status_t const synchronization_status = backend.synchronize();
+                stats.expect(submission_status);
+                stats.expect(synchronization_status);
+                if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+            }
 
             for (std::size_t i = 0; i < m; i++)
                 for (std::size_t j = 0; j < n; j++)
@@ -1366,9 +1417,20 @@ error_stats_t test_angulars_symmetric(settings_t const &settings, symmetric_kern
                 }
             }
 
-            backend.call(symmetric_fn, scales.operand(a.raw_values_data()), n, k, stride, c.raw_values_data(), c_stride,
-                         0, n);
-            synchronize(backend, stats);
+            if (nk_status_t const status = backend.call(symmetric_fn, scales.operand(a.raw_values_data()), n, k, stride,
+                                                        c.raw_values_data(), c_stride, 0, n);
+                status != nk_success_k) {
+
+                stats.expect(status);
+
+                stats.expect(backend.synchronize());
+
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             for (std::size_t i = 0; i < n; i++)
                 for (std::size_t j = i; j < n; j++) accumulate_angular(stats, c[i * n + j], c_ref[i * n + j], k);
@@ -1426,9 +1488,20 @@ error_stats_t test_euclideans_symmetric(settings_t const &settings, symmetric_ke
                 }
             }
 
-            backend.call(symmetric_fn, scales.operand(a.raw_values_data()), n, k, stride, c.raw_values_data(), c_stride,
-                         0, n);
-            synchronize(backend, stats);
+            if (nk_status_t const status = backend.call(symmetric_fn, scales.operand(a.raw_values_data()), n, k, stride,
+                                                        c.raw_values_data(), c_stride, 0, n);
+                status != nk_success_k) {
+
+                stats.expect(status);
+
+                stats.expect(backend.synchronize());
+
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             for (std::size_t i = 0; i < n; i++)
                 for (std::size_t j = i; j < n; j++)
@@ -1486,12 +1559,26 @@ error_stats_t test_attention_bidirectional_packed(settings_t const &settings, pa
             // Allocated before any launch: Windows faults on host writes to managed memory then
             auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
             // Run kernel being tested: pack in two windows, then attention over the whole task grid
-            pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
-            backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
-                         output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-                         segments.query_offsets.values_data(), query_stride, output_stride, layout.scale, 0,
-                         total_tasks);
-            synchronize(backend, stats);
+            if (nk_status_t const status = pack_attention_in_two_windows(backend, pack_fn, keys, values, segments,
+                                                                         layout, key_value_packed);
+                status != nk_success_k) {
+                stats.expect(status);
+                stats.expect(backend.synchronize());
+                return stats;
+            }
+            if (nk_status_t const status = backend.call(
+                    attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
+                    output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
+                    segments.query_offsets.values_data(), query_stride, output_stride, layout.scale, 0, total_tasks);
+                status != nk_success_k) {
+                stats.expect(status);
+                stats.expect(backend.synchronize());
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             auto const reference_size = nk::attention_pack_size<scalar_t>(
                 layout.key_value_head_count, layout.depth, segments.lengths.values_data(), segments.count(), 0);
@@ -1557,16 +1644,30 @@ error_stats_t test_attention_causal_packed(settings_t const &settings, pack_size
                                                                    segments.count()))
                                         .value;
             auto output = results_t::zeros(segments.query_tokens() * layout.query_width()).value;
-            pack_attention_in_two_windows(backend, pack_fn, keys, values, segments, layout, key_value_packed);
-            backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
-                         output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-                         segments.query_offsets.values_data(), query_stride, output_stride, layout.scale,
-                         test_case.diagonal_offset, test_case.window, 0, first_window_tasks);
-            backend.call(attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
-                         output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
-                         segments.query_offsets.values_data(), query_stride, output_stride, layout.scale,
-                         test_case.diagonal_offset, test_case.window, first_window_tasks, unbounded_window);
-            synchronize(backend, stats);
+            if (nk_status_t const status = pack_attention_in_two_windows(backend, pack_fn, keys, values, segments,
+                                                                         layout, key_value_packed);
+                status != nk_success_k) {
+                stats.expect(status);
+                stats.expect(backend.synchronize());
+                return stats;
+            }
+            {
+                nk_status_t submission_status = backend.call(
+                    attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
+                    output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
+                    segments.query_offsets.values_data(), query_stride, output_stride, layout.scale,
+                    test_case.diagonal_offset, test_case.window, 0, first_window_tasks);
+                if (submission_status == nk_success_k)
+                    submission_status = backend.call(
+                        attention_fn, queries.raw_values_data(), key_value_packed.raw_values_data(),
+                        output.raw_values_data(), layout.head_count, layout.key_value_head_count, layout.depth,
+                        segments.query_offsets.values_data(), query_stride, output_stride, layout.scale,
+                        test_case.diagonal_offset, test_case.window, first_window_tasks, unbounded_window);
+                nk_status_t const synchronization_status = backend.synchronize();
+                stats.expect(submission_status);
+                stats.expect(synchronization_status);
+                if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+            }
 
             auto const reference = reference_by_rows(stats, queries, keys, values, segments, layout,
                                                      test_case.diagonal_offset, test_case.window);
@@ -1601,11 +1702,30 @@ error_stats_t test_attention_rope(settings_t const &settings, rope_kernel_type_ 
                 float const angle = angle_distribution(generator);
                 cosines.raw_values_data()[i] = std::cos(angle), sines.raw_values_data()[i] = std::sin(angle);
             }
-            if (in_place) backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes);
+            if (in_place) {
+                if (nk_status_t const status = backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes);
+                    status != nk_success_k) {
+                    stats.expect(status);
+                    stats.expect(backend.synchronize());
+                    return stats;
+                }
+            }
 
-            backend.call(rope_fn, in_place ? y.raw_values_data() : x.raw_values_data(), cosines.raw_values_data(),
-                         sines.raw_values_data(), y.raw_values_data(), rows, head_count, depth, row_bytes, row_bytes);
-            if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+            if (nk_status_t const status = backend.call(
+                    rope_fn, in_place ? y.raw_values_data() : x.raw_values_data(), cosines.raw_values_data(),
+                    sines.raw_values_data(), y.raw_values_data(), rows, head_count, depth, row_bytes, row_bytes);
+                status != nk_success_k) {
+
+                stats.expect(status);
+
+                stats.expect(backend.synchronize());
+
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             for (std::size_t row = 0; row < rows; row++)
                 for (std::size_t head = 0; head < head_count; head++)

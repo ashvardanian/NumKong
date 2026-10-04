@@ -68,9 +68,6 @@ struct metal_backend_t {
     template <typename value_type_>
     using allocator = metal_shared_allocator<value_type_>;
 
-    /** The first failure since the last synchronization. */
-    nk_status_t status = nk_success_k;
-
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
     static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
 
@@ -83,56 +80,42 @@ struct metal_backend_t {
         return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
     }
 
-    /** Copies @p bytes once every queued call has finished with them. */
-    void copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        keep(nk_stream_synchronize_metal(nullptr));
+    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
+        if (nk_status_t const status = synchronize(); status != nk_success_k) return status;
         std::memcpy(destination, source, bytes);
+        return nk_success_k;
     }
 
-    /** Zeroes @p bytes once every queued call has finished with them. */
-    void zero(void *destination, std::size_t bytes) noexcept {
-        keep(nk_stream_synchronize_metal(nullptr));
+    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
+        if (nk_status_t const status = synchronize(); status != nk_success_k) return status;
         std::memset(destination, 0, bytes);
+        return nk_success_k;
     }
 
-    /** Encodes @p kernel with @p arguments on the null stream. */
     template <typename kernel_type_, typename... arguments_types_>
-    void call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        keep(kernel(arguments..., nullptr));
+    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        return kernel(arguments..., nullptr);
     }
 
-    /** Times windows of @p launch calls through their synchronization, doubling a window until it
-     *  spans a millisecond. */
     template <typename launch_type_>
-    void time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
+    nk_status_t time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
         using steady_clock_t = std::chrono::steady_clock;
         std::size_t calls = 0, window = 1;
         for ([[maybe_unused]] std::size_t call : loop) {
             auto const start = steady_clock_t::now();
-            for (std::size_t index = 0; index != window; ++index) launch((calls + index) & (sets_count - 1));
-            keep(nk_stream_synchronize_metal(nullptr));
-            if (status != nk_success_k) break;
+            for (std::size_t index = 0; index != window; ++index)
+                if (nk_status_t const status = launch((calls + index) & (sets_count - 1)); status != nk_success_k)
+                    return status;
+            if (nk_status_t const status = synchronize(); status != nk_success_k) return status;
             auto const elapsed = steady_clock_t::now() - start;
             loop.add_window(elapsed, window);
             calls += window;
-            // Encoding overlaps the device only across a window of calls
             if (elapsed < std::chrono::milliseconds(1)) window *= 2;
         }
+        return nk_success_k;
     }
 
-    /** Waits for the stream, returning the name of the first failure since the last call, or
-     *  @c nullptr. */
-    char const *synchronize() noexcept {
-        keep(nk_stream_synchronize_metal(nullptr));
-        nk_status_t const failure = status;
-        status = nk_success_k;
-        return failure == nk_success_k ? nullptr : nk_status_name(failure);
-    }
-
-    /** Remembers @p result unless an earlier failure is pending. */
-    void keep(nk_status_t result) noexcept {
-        if (status == nk_success_k) status = result;
-    }
+    nk_status_t synchronize() noexcept { return nk_stream_synchronize_metal(nullptr); }
 };
 
 } // namespace ashvardanian::numkong::bench

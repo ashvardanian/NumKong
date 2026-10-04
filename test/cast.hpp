@@ -138,9 +138,18 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
             target.tensor_scale_value() = reference.tensor_scale_value() = tensor_scale;
             stats.expect(nk_cast_serial(source_operand, from_type_::dtype(), reference_operand, to_type_::dtype(),
                                         dimensions, nullptr));
-            backend.call(kernel, static_cast<void const *>(source_operand), from_type_::dtype(), target_operand,
-                         to_type_::dtype(), static_cast<nk_size_t>(dimensions));
-            if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+            if (nk_status_t const status = backend.call(kernel, static_cast<void const *>(source_operand),
+                                                        from_type_::dtype(), target_operand, to_type_::dtype(),
+                                                        static_cast<nk_size_t>(dimensions));
+                status != nk_success_k) {
+                stats.expect(status);
+                stats.expect(backend.synchronize());
+                return stats;
+            }
+            if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                stats.expect(status);
+                return stats;
+            }
 
             if constexpr (target_t::scaled) {
                 compare_bytes(target.elements, reference.elements);
@@ -182,9 +191,18 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
                 std::memset(reference.raw_values_data(), 0, capacity);
                 stats.expect(nk_cast_serial(source.raw_values_data(), from_type, reference.raw_values_data(), to_type,
                                             count, nullptr));
-                backend.call(kernel, static_cast<void const *>(source.raw_values_data()), from_type,
-                             static_cast<void *>(target.raw_values_data()), to_type, count);
-                if (char const *failure = backend.synchronize()) stats.expect(false, failure);
+                if (nk_status_t const status = backend.call(kernel, static_cast<void const *>(source.raw_values_data()),
+                                                            from_type, static_cast<void *>(target.raw_values_data()),
+                                                            to_type, count);
+                    status != nk_success_k) {
+                    stats.expect(status);
+                    stats.expect(backend.synchronize());
+                    return stats;
+                }
+                if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
+                    stats.expect(status);
+                    return stats;
+                }
                 std::size_t const to_bytes = count * nk_dtype_bits(to_type) / NUMKONG_BITS_PER_BYTE;
                 for (std::size_t i = 0; i < to_bytes; ++i)
                     stats.accumulate(target.raw_values_data()[i], reference.raw_values_data()[i]);
