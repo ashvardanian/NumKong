@@ -11,6 +11,13 @@
 #define NK_NATIVE_F16       0
 #define NK_NATIVE_BF16      0
 
+/*  This header is included only by the shared-library translation units.
+ *  Defining `NK_DYNAMIC` here selects dllexport; consumers, who never include
+ *  this file, get dllimport from `types.h` once `NK_DYNAMIC_DISPATCH` is set. */
+#if (defined(_WIN32) || defined(__CYGWIN__)) && !defined(NK_DYNAMIC)
+#define NK_DYNAMIC __declspec(dllexport)
+#endif
+
 /*  NK_TARGET_* defines are set by the build system:
  *  - Python: setup.py
  *  - Rust: build.rs

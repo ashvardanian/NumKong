@@ -753,7 +753,7 @@ if (NK_BUILD_SHARED)
         # fail on unsupported OS/runtime combinations.
     endif ()
 
-    target_compile_definitions(nk_shared PUBLIC NK_DYNAMIC_DISPATCH=1 PRIVATE NK_BUILDING_LIBRARY=1)
+    target_compile_definitions(nk_shared PUBLIC NK_DYNAMIC_DISPATCH=1)
 
     install(
         TARGETS nk_shared
