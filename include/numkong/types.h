@@ -113,9 +113,10 @@
 #define NK_INTERNAL inline static
 #endif // defined(__GNUC__) || defined(__clang__)
 
+#ifndef NK_DYNAMIC
 #if NK_DYNAMIC_DISPATCH
 #if defined(_WIN32) || defined(__CYGWIN__)
-#define NK_DYNAMIC __declspec(dllexport)
+#define NK_DYNAMIC __declspec(dllimport)
 #elif defined(__GNUC__) || defined(__clang__)
 #define NK_DYNAMIC __attribute__((visibility("default")))
 #else
@@ -124,6 +125,7 @@
 #else
 #define NK_DYNAMIC NK_PUBLIC
 #endif // NK_DYNAMIC_DISPATCH
+#endif // !defined(NK_DYNAMIC)
 
 // Vector union types use type punning by design (write as f16, read as f32, etc.).
 // Without this, GCC at -O2 assumes strict aliasing and may optimize away valid accesses.
