@@ -120,14 +120,12 @@ typedef struct {
     nk_size_t bytes;
 } nk_metal_block_t;
 
-/** One compiled kernel, keyed by its function name. */
+/** A compiled entry point and the source library it shares with other pipelines. */
 typedef struct {
-    char const *name;
-    void *pipeline;
+    char const *source, *name;
+    nk_size_t language_version;
+    void *library, *pipeline;
 } nk_metal_pipeline_t;
-
-/** Pipelines one device keeps; a family registers a handful, so the bound is never approached. */
-enum { nk_metal_pipelines_max_k = 64 };
 
 /** One stream with work committed since its last synchronization. */
 typedef struct {
@@ -145,34 +143,16 @@ typedef struct {
     nk_size_t frees_count, frees_capacity;
 } nk_metal_pending_t;
 
-/** The library's state for one @c id<MTLDevice>, built on first use and kept for the process, like
- *  a CUDA primary context. */
+/** Per-device allocations, pending work, and compiled kernels, guarded by one lock. */
 typedef struct {
-
-    /** The @c id<MTLDevice>. */
-    void *device;
-
-    /** The @c id<MTLCommandQueue> a null stream names. */
-    void *queue;
-
-    /** Guards every field below. */
+    void *device, *queue;
     os_unfair_lock lock;
-
-    /** Every block handed out and not yet freed, ascending by host address. */
     nk_metal_block_t *blocks;
     nk_size_t blocks_count, blocks_capacity;
-
-    /** Every stream with committed work. */
     nk_metal_pending_t *pending;
     nk_size_t pending_count, pending_capacity;
-
-    /** The one @c id<MTLLibrary> per family source, keyed by the whole source text. */
-    void *libraries[8];
-    char const *library_sources[8];
-
-    /** Every pipeline built so far. */
-    nk_metal_pipeline_t pipelines[nk_metal_pipelines_max_k];
-    nk_size_t pipelines_count;
+    nk_metal_pipeline_t *pipelines;
+    nk_size_t pipelines_count, pipelines_capacity;
 } nk_metal_context_t;
 
 /** One call being encoded, on its caller's stack: the context and queue of its stream, and its
@@ -204,7 +184,9 @@ NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(void *stream);
  *  leaving @p items as they were. */
 NUMKONG_INLINE void *nk_metal_reserve_(void *items, nk_size_t count, nk_size_t *capacity, nk_size_t size) {
     if (count < *capacity) return items;
+    if (*capacity > ((nk_size_t)-1) / 2) return NULL;
     nk_size_t const grown_capacity = *capacity ? *capacity * 2 : 16;
+    if (!size || grown_capacity > ((nk_size_t)-1) / size) return NULL;
     void *const grown = realloc(items, grown_capacity * size);
     if (grown) *capacity = grown_capacity;
     return grown;
@@ -253,45 +235,55 @@ NUMKONG_INLINE void *nk_metal_resolve_(nk_metal_context_t *context, void const *
  */
 NUMKONG_INLINE void *nk_metal_pipeline_(nk_metal_context_t *context, char const *source, char const *name,
                                         nk_size_t language_version) {
-    void *pipeline = NULL;
+    void *library = NULL;
     os_unfair_lock_lock(&context->lock);
-    for (nk_size_t index = 0; index != context->pipelines_count && !pipeline; ++index)
-        if (strcmp(context->pipelines[index].name, name) == 0) pipeline = context->pipelines[index].pipeline;
-
-    // Each family's source is a distinct string, so libraries key on the text.
-    nk_size_t const slots = sizeof(context->libraries) / sizeof(context->libraries[0]);
-    nk_size_t slot = 0;
-    while (slot != slots && context->library_sources[slot] && strcmp(context->library_sources[slot], source) != 0)
-        ++slot;
-    if (!pipeline && slot != slots && context->pipelines_count != nk_metal_pipelines_max_k) {
-        void *const pool = objc_autoreleasePoolPush();
-        if (!context->libraries[slot]) {
-            void *const options = nk_metal_get_(nk_metal_get_(nk_metal_class_("MTLCompileOptions"), "alloc"), "init");
-            ((void (*)(void *, SEL, nk_size_t))objc_msgSend)(options, sel_registerName("setLanguageVersion:"),
-                                                             language_version);
+    for (nk_size_t index = 0; index != context->pipelines_count; ++index) {
+        nk_metal_pipeline_t const *const entry = context->pipelines + index;
+        if (entry->language_version != language_version || (entry->source != source && strcmp(entry->source, source)))
+            continue;
+        library = entry->library;
+        if (strcmp(entry->name, name)) continue;
+        void *const pipeline = entry->pipeline;
+        os_unfair_lock_unlock(&context->lock);
+        return pipeline;
+    }
+    nk_metal_pipeline_t *const pipelines = (nk_metal_pipeline_t *)nk_metal_reserve_(
+        context->pipelines, context->pipelines_count, &context->pipelines_capacity, sizeof(nk_metal_pipeline_t));
+    if (!pipelines) {
+        os_unfair_lock_unlock(&context->lock);
+        return NULL;
+    }
+    context->pipelines = pipelines;
+    int const new_library = !library;
+    void *const pool = objc_autoreleasePoolPush();
+    if (new_library) {
+        void *const options = nk_metal_get_(nk_metal_get_(nk_metal_class_("MTLCompileOptions"), "alloc"), "init");
+        ((void (*)(void *, SEL, nk_size_t))objc_msgSend)(options, sel_registerName("setLanguageVersion:"),
+                                                         language_version);
+        void *error = NULL;
+        library = ((void *(*)(void *, SEL, void *, void *, void **))objc_msgSend)(
+            context->device, sel_registerName("newLibraryWithSource:options:error:"), nk_metal_string_(source), options,
+            &error);
+        nk_metal_do_(options, "release");
+    }
+    void *pipeline = NULL;
+    if (library) {
+        void *const function = ((void *(*)(void *, SEL, void *))objc_msgSend)(
+            library, sel_registerName("newFunctionWithName:"), nk_metal_string_(name));
+        if (function) {
             void *error = NULL;
-            context->libraries[slot] = ((void *(*)(void *, SEL, void *, void *, void **))objc_msgSend)(
-                context->device, sel_registerName("newLibraryWithSource:options:error:"), nk_metal_string_(source),
-                options, &error);
-            nk_metal_do_(options, "release");
-            if (context->libraries[slot]) context->library_sources[slot] = source;
-        }
-        if (context->libraries[slot]) {
-            void *const function = ((void *(*)(void *, SEL, void *))objc_msgSend)(
-                context->libraries[slot], sel_registerName("newFunctionWithName:"), nk_metal_string_(name));
-            void *error = NULL;
-            if (function)
-                pipeline = ((void *(*)(void *, SEL, void *, void **))objc_msgSend)(
-                    context->device, sel_registerName("newComputePipelineStateWithFunction:error:"), function, &error);
-            if (function) nk_metal_do_(function, "release");
-        }
-        objc_autoreleasePoolPop(pool);
-        if (pipeline) {
-            context->pipelines[context->pipelines_count].name = name;
-            context->pipelines[context->pipelines_count].pipeline = pipeline;
-            ++context->pipelines_count;
+            pipeline = ((void *(*)(void *, SEL, void *, void **))objc_msgSend)(
+                context->device, sel_registerName("newComputePipelineStateWithFunction:error:"), function, &error);
+            nk_metal_do_(function, "release");
         }
     }
+    objc_autoreleasePoolPop(pool);
+    if (pipeline) {
+        nk_metal_pipeline_t *const entry = context->pipelines + context->pipelines_count++;
+        entry->source = source, entry->name = name, entry->language_version = language_version;
+        entry->library = library, entry->pipeline = pipeline;
+    }
+    else if (new_library && library) nk_metal_do_(library, "release");
     os_unfair_lock_unlock(&context->lock);
     return pipeline;
 }
