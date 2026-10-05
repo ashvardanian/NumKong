@@ -12,7 +12,6 @@ Date: September 4, 2024
 
 from __future__ import annotations
 
-import atexit
 import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -37,20 +36,14 @@ from base import (
     LazyFormat,
     assert_allclose,
     collect_errors,
-    create_stats,
     downcast_f32_to_dtype,
     hex_array,
     numpy_available,
     precise_decimal,
-    print_stats_report,
     timed_call,
 )
 
 import numkong as nk
-
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def baseline_bilinear(x, y, z, dtype=None):
@@ -133,7 +126,7 @@ KERNELS_CURVED: dict[str, tuple[Callable, Callable, Callable]] = {
     ],
 )
 @pytest.mark.parametrize("metric", ["bilinear", "mahalanobis"])
-def test_curved_random_accuracy(capabilities, ndim: int, dtypes: str, metric: str, np_rng: np.random.Generator):
+def test_curved_random_accuracy(stats, capabilities, ndim: int, dtypes: str, metric: str, np_rng: np.random.Generator):
     """Bilinear and Mahalanobis for float and bfloat16 dtypes against high-precision baselines."""
     dtype, compute_dtype = dtypes
 
@@ -199,7 +192,7 @@ def test_curved_random_accuracy(capabilities, ndim: int, dtypes: str, metric: st
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.curved_dims)
 @pytest.mark.parametrize("dtype", ["complex128", "complex64"])
-def test_bilinear_complex_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+def test_bilinear_complex_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Complex bilinear form against NumPy at extended precision."""
     a_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)
     b_vector = (np_rng.standard_normal(ndim) + 1.0j * np_rng.standard_normal(ndim)).astype(dtype)

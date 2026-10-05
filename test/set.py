@@ -13,7 +13,6 @@ Date: February 22, 2024
 from __future__ import annotations
 
 import array
-import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -37,9 +36,7 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_errors,
-    create_stats,
     numpy_available,
-    print_stats_report,
     round_up_to,
     scipy_available,
     timed_call,
@@ -49,8 +46,6 @@ import numkong as nk
 
 
 algebraic_ndims = [7, 97]
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 try:
     import scipy.spatial.distance as spd
@@ -83,7 +78,7 @@ KERNELS_SET: dict[str, tuple[Callable, Callable, None]] = {
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("metric", ["jaccard", "hamming"])
-def test_hamming_jaccard_random_accuracy(capabilities, ndim: int, metric: str, np_rng: np.random.Generator):
+def test_hamming_jaccard_random_accuracy(stats, capabilities, ndim: int, metric: str, np_rng: np.random.Generator):
     """Hamming and Jaccard distances for dense bit arrays against SciPy baselines."""
     ndim = round_up_to(ndim, PACKING_GRANULARITY["uint1"])
     a_bits = np_rng.integers(2, size=ndim).astype(np.uint8)

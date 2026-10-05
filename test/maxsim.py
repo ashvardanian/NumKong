@@ -12,7 +12,6 @@ Date: March 9, 2026
 
 from __future__ import annotations
 
-import atexit
 import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -34,19 +33,14 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_warnings,
-    create_stats,
     downcast_f32_to_dtype,
     make_nk,
     numpy_available,
     precise_decimal,
-    print_stats_report,
 )
 
 import numkong as nk
 
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 _MAXSIM_DTYPE = {"float32": "f32", "bfloat16": "bf16", "float16": "f16"}
 
@@ -113,7 +107,7 @@ def _make_matrix(generator: np.random.Generator, rows, columns, dtype):
 @pytest.mark.parametrize("depth", SETTINGS.dims_depth)
 @pytest.mark.parametrize("dtype", ["float32", "bfloat16", "float16"])
 def test_maxsim_pack_and_packed(
-    capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
+    stats, capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
 ):
     """Pack + compute vs baseline."""
     baseline_kernel, _, _precise_kernel = KERNELS_MAXSIM["maxsim"]

@@ -12,7 +12,6 @@ Date: February 22, 2024
 
 from __future__ import annotations
 
-import atexit
 import math
 import random
 import warnings
@@ -40,12 +39,10 @@ from base import (
     LazyFormat,
     assert_allclose,
     collect_errors,
-    create_stats,
     make_random,
     make_random_buffer,
     numpy_available,
     precise_decimal,
-    print_stats_report,
     timed_call,
     tolerances_for_dtype,
 )
@@ -55,8 +52,6 @@ import numkong as nk
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 try:
     import scipy.spatial.distance as spd
@@ -137,7 +132,7 @@ KERNELS_SPATIAL: dict[str, tuple[Callable | None, Callable, Callable]] = {
     ],
 )
 @pytest.mark.parametrize("metric", ["euclidean", "sqeuclidean", "angular"])
-def test_spatial_random_accuracy(capabilities, ndim: int, dtype: str, metric: str, np_rng: np.random.Generator):
+def test_spatial_random_accuracy(stats, capabilities, ndim: int, dtype: str, metric: str, np_rng: np.random.Generator):
     """Spatial distances across all numeric dtypes against high-precision Decimal baselines."""
     a_raw, a_baseline = make_random((ndim,), dtype, np_rng)
     b_raw, b_baseline = make_random((ndim,), dtype, np_rng)

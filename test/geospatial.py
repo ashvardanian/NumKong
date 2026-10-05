@@ -13,7 +13,6 @@ Date: December 22, 2025
 
 from __future__ import annotations
 
-import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -34,17 +33,12 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_errors,
-    create_stats,
     numpy_available,
-    print_stats_report,
     timed_call,
 )
 
 import numkong as nk
 
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 _max_angle_rad = np.radians(SETTINGS.max_coord_angle_degrees) if numpy_available else None
 
@@ -143,7 +137,7 @@ KERNELS_GEOSPATIAL: dict[str, tuple[Callable, Callable, None]] = {
 
 
 def _check_geospatial_accuracy(
-    generator: np.random.Generator, metric, ndim, dtype, coord_scale, atol, rtol, capabilities: nk.Capability
+    stats, generator: np.random.Generator, metric, ndim, dtype, coord_scale, atol, rtol, capabilities: nk.Capability
 ):
     """Shared accuracy check for geospatial kernels."""
     baseline_kernel, simd_kernel, _ = KERNELS_GEOSPATIAL[metric]
@@ -208,10 +202,10 @@ def _check_geospatial_accuracy(
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
-def test_haversine_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+def test_haversine_random_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Haversine great-circle distance against baseline for random coordinates."""
     _check_geospatial_accuracy(
-        np_rng, "haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2, capabilities=capabilities
+        stats, np_rng, "haversine", ndim, dtype, coord_scale=1.0, atol=10.0, rtol=1e-2, capabilities=capabilities
     )
 
 
@@ -219,11 +213,11 @@ def test_haversine_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: 
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32"])
-def test_vincenty_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+def test_vincenty_random_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Vincenty ellipsoidal geodesic distance against baseline for random coordinates."""
     rtol = 1.0 if dtype == "float32" else 1e-2
     _check_geospatial_accuracy(
-        np_rng, "vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol, capabilities=capabilities
+        stats, np_rng, "vincenty", ndim, dtype, coord_scale=0.9, atol=100.0, rtol=rtol, capabilities=capabilities
     )
 
 

@@ -12,7 +12,6 @@ Date: February 27, 2026
 
 from __future__ import annotations
 
-import atexit
 import math
 import random
 from collections.abc import Callable
@@ -37,11 +36,9 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_errors,
-    create_stats,
     make_random,
     make_random_buffer,
     numpy_available,
-    print_stats_report,
     timed_call,
 )
 
@@ -50,8 +47,6 @@ import numkong as nk
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def baseline_sin(a, dtype=None):
@@ -100,7 +95,9 @@ trigonometry_shapes = [(d,) for d in SETTINGS.dims] + ([(6, 8), (4, 5, 3)] if nu
 @pytest.mark.parametrize("shape", trigonometry_shapes)
 @pytest.mark.parametrize("dtype", ["float32", "float64"])
 @pytest.mark.parametrize("metric", list(KERNELS_TRIGONOMETRY.keys()))
-def test_trigonometry_random_accuracy(capabilities, shape: tuple, dtype: str, metric: str, np_rng: np.random.Generator):
+def test_trigonometry_random_accuracy(
+    stats, capabilities, shape: tuple, dtype: str, metric: str, np_rng: np.random.Generator
+):
     """sin, cos, atan on random inputs of any rank against high-precision baselines."""
     baseline_kernel, simd_kernel, precise_kernel = KERNELS_TRIGONOMETRY[metric]
 

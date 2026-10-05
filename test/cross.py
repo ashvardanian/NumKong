@@ -10,7 +10,6 @@ Author: Ash Vardanian
 Date: February 27, 2026
 """
 
-import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -35,12 +34,10 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_errors,
-    create_stats,
     make_nk,
     make_random,
     numpy_available,
     precise_decimal,
-    print_stats_report,
     round_up_to,
     scipy_available,
     timed_call,
@@ -54,9 +51,6 @@ try:
     import scipy.spatial.distance as spd
 except ImportError:
     spd = None  # type: ignore[assignment]
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def baseline_dots_symmetric(vectors, dtype=None):
@@ -196,7 +190,9 @@ def test_batch_sqeuclidean_broadcasting(capabilities, ndim: int, dtype: str, np_
         "uint8",
     ],
 )
-def test_dots_symmetric(capabilities, num_vectors: int, vector_depth: int, dtype: str, np_rng: np.random.Generator):
+def test_dots_symmetric(
+    stats, capabilities, num_vectors: int, vector_depth: int, dtype: str, np_rng: np.random.Generator
+):
     """Test nk.dots_symmetric against high-precision matmul (upper triangle)."""
 
     vector_depth = round_up_to(vector_depth, PACKING_GRANULARITY.get(dtype, 1))
@@ -288,7 +284,7 @@ def test_hammings_symmetric(capabilities, np_rng: np.random.Generator):
     ],
 )
 def test_dots_pack_and_packed(
-    capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
+    stats, capabilities, rows: int, columns: int, depth: int, dtype: str, np_rng: np.random.Generator
 ):
     """Test dots_pack + dots_packed against high-precision matmul."""
 

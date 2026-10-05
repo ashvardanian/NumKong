@@ -12,7 +12,6 @@ Date: February 27, 2026
 
 from __future__ import annotations
 
-import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -33,21 +32,16 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_errors,
-    create_stats,
     downcast_f32_to_dtype,
     make_nk,
     numpy_available,
     precise_decimal,
-    print_stats_report,
     timed_call,
     tolerances_for_dtype,
 )
 
 import numkong as nk
 
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 try:
     from scipy.spatial import procrustes as scipy_procrustes
@@ -273,7 +267,7 @@ def _make_point_pair(generator: np.random.Generator, n_points, dtype):
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
-def test_rmsd_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
+def test_rmsd_accuracy(stats, capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
     """RMSD of random point clouds against high-precision baseline."""
     if n_points < 3:
         pytest.skip("RMSD requires at least 3 points")
@@ -318,7 +312,7 @@ def test_rmsd_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.rando
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
-def test_kabsch_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
+def test_kabsch_accuracy(stats, capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
     """Kabsch RMSD of random point clouds against high-precision Jacobi SVD baseline."""
     if n_points < 3:
         pytest.skip("Kabsch requires at least 3 non-degenerate points")
@@ -357,7 +351,7 @@ def test_kabsch_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.ran
 @pytest.mark.repeat(SETTINGS.reduced_repetitions)
 @pytest.mark.parametrize("n_points", [SETTINGS.mesh_points])
 @pytest.mark.parametrize("dtype", ["float64", "float32", "bfloat16", "float16"])
-def test_umeyama_accuracy(capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
+def test_umeyama_accuracy(stats, capabilities, n_points: int, dtype: str, np_rng: np.random.Generator):
     """Umeyama scale of random point clouds against high-precision baseline."""
     if n_points < 3:
         pytest.skip("Umeyama requires at least 3 non-degenerate points")

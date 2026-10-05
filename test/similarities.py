@@ -10,7 +10,6 @@ Author: Ash Vardanian
 Date: September 9, 2024
 """
 
-import atexit
 from typing import TYPE_CHECKING
 
 import pytest
@@ -37,11 +36,9 @@ from base import (
     PACKING_GRANULARITY,
     SETTINGS,
     assert_allclose,
-    create_stats,
     make_random,
     ml_dtypes_available,
     numpy_available,
-    print_stats_report,
     round_up_to,
     scipy_available,
     scipy_metric_name,
@@ -59,9 +56,6 @@ try:
     import ml_dtypes
 except ImportError:
     ml_dtypes = None  # type: ignore[assignment]
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def round_and_clip_even(values, out_dtype):

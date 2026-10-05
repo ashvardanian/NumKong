@@ -12,7 +12,6 @@ Date: September 1, 2024
 
 from __future__ import annotations
 
-import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -36,19 +35,13 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_errors,
-    create_stats,
     downcast_f32_to_dtype,
     make_nk,
     numpy_available,
-    print_stats_report,
     timed_call,
 )
 
 import numkong as nk
-
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def baseline_intersect(x, y, dtype=None):
@@ -72,7 +65,7 @@ KERNELS_SPARSE: dict[str, tuple[Callable, Callable, None]] = {
 @pytest.mark.skipif(not numpy_available, reason="NumPy is not installed")
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("index_dtype,weight_dtype", [("uint32", "float32"), ("uint16", "bfloat16")])
-def test_sparse_dot(capabilities, index_dtype: str, weight_dtype: str, np_rng: np.random.Generator):
+def test_sparse_dot(stats, capabilities, index_dtype: str, weight_dtype: str, np_rng: np.random.Generator):
     """Test nk.sparse_dot against manual weighted intersection."""
     baseline_kernel, simd_kernel, _ = KERNELS_SPARSE["sparse_dot"]
     sparse_dim = SETTINGS.sparse_dims[0]

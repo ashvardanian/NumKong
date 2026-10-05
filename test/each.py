@@ -12,7 +12,6 @@ Date: October 26, 2024
 
 from __future__ import annotations
 
-import atexit
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -36,12 +35,10 @@ from base import (
     assert_allclose,
     collect_errors,
     collect_warnings,
-    create_stats,
     make_nk,
     make_random,
     numpy_available,
     precise_decimal,
-    print_stats_report,
     timed_call,
     tolerances_for_dtype,
 )
@@ -51,8 +48,6 @@ import numkong as nk
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def normalize_elementwise(r, dtype_new):
@@ -235,7 +230,7 @@ def random_coefficients(generator: np.random.Generator, dtype, alpha_div=2, beta
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_scale_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+def test_scale_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """scale(alpha * x + beta) across float/int dtypes and ranks against a high-precision Decimal baseline."""
     input_raw, input_baseline = make_random(shape, dtype, np_rng)
 
@@ -277,7 +272,7 @@ def test_scale_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: n
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_add_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+def test_add_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Elementwise addition across float/int dtypes and ranks against a high-precision Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
@@ -318,7 +313,7 @@ def test_add_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_blend_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+def test_blend_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Weighted sum (alpha * x + beta * y) across float/int dtypes and ranks against a Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
@@ -368,7 +363,7 @@ def test_blend_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: n
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("shape", elementwise_shapes)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16", "int8", "uint8"])
-def test_fma_random_accuracy(capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
+def test_fma_random_accuracy(stats, capabilities, shape: tuple, dtype: str, np_rng: np.random.Generator):
     """Fused multiply-add (alpha * x * y + beta * z) across float/int dtypes and ranks against a Decimal baseline."""
     a_raw, a_baseline = make_random(shape, dtype, np_rng)
     b_raw, b_baseline = make_random(shape, dtype, np_rng)
@@ -465,7 +460,7 @@ def test_add_multiply_mixed_dtype_promotion(first_dtype: str, second_dtype: str,
     ],
 )
 @pytest.mark.parametrize("kernel", ["add", "multiply"])
-def test_add_multiply_noncontiguous(capabilities, dtype: str, kernel, np_rng: np.random.Generator):
+def test_add_multiply_noncontiguous(stats, capabilities, dtype: str, kernel, np_rng: np.random.Generator):
     """Add and multiply on non-contiguous, strided, and shape-mismatched arrays."""
     baseline_kernel, simd_kernel, _ = KERNELS_EACH[kernel]
     first_dtype, second_dtype, output_dtype = dtype

@@ -10,7 +10,6 @@ Author: Ash Vardanian
 Date: December 28, 2025
 """
 
-import atexit
 import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -33,12 +32,10 @@ from base import (
     NUMKONG_RTOL,
     SETTINGS,
     assert_allclose,
-    create_stats,
     make_nk,
     make_random,
     numpy_available,
     precise_decimal,
-    print_stats_report,
     tolerances_for_dtype,
 )
 
@@ -47,8 +44,6 @@ import numkong as nk
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def baseline_moments(a, dtype=None):

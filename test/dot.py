@@ -12,7 +12,6 @@ Date: September 5, 2024
 
 from __future__ import annotations
 
-import atexit
 import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -39,12 +38,10 @@ from base import (
     assert_allclose,
     collect_errors,
     collect_warnings,
-    create_stats,
     make_random,
     make_random_buffer,
     numpy_available,
     precise_decimal,
-    print_stats_report,
     timed_call,
     tolerances_for_dtype,
 )
@@ -55,9 +52,6 @@ import numkong as nk
 
 algebraic_dtypes = ["float32", "float64"]
 algebraic_ndims = [7, 97]
-
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 
 def baseline_inner(a, b, dtype=None):
@@ -105,7 +99,7 @@ KERNELS_OVERFLOW: dict[str, tuple[Callable | None, Callable]] = {
         "uint8",
     ],
 )
-def test_inner_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+def test_inner_random_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Inner product of random vectors across all numeric dtypes, verified against high-precision Decimal baseline."""
     a_raw, a_baseline = make_random((ndim,), dtype, np_rng)
     b_raw, b_baseline = make_random((ndim,), dtype, np_rng)
@@ -148,7 +142,7 @@ def test_inner_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.r
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["complex64", "complex128"])
-def test_dot_vdot_complex_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+def test_dot_vdot_complex_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Complex dot and vdot products against NumPy for complex64 and complex128 inputs."""
     a_vector, a_baseline = make_random((ndim,), dtype, np_rng)
     b_vector, b_baseline = make_random((ndim,), dtype, np_rng)
@@ -220,7 +214,9 @@ def test_dot_vdot_complex_explicit_dtype(capabilities, ndim: int, np_rng: np.ran
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float64", "float32", "float16"])
 @pytest.mark.parametrize("metric", ["inner", "euclidean", "sqeuclidean", "angular"])
-def test_inner_float_overflow_detection(capabilities, ndim: int, dtype: str, metric: str, np_rng: np.random.Generator):
+def test_inner_float_overflow_detection(
+    stats, capabilities, ndim: int, dtype: str, metric: str, np_rng: np.random.Generator
+):
     """Tests if the floating-point kernels are capable of detecting overflow yield the same ±inf result."""
 
     a = np_rng.standard_normal(ndim)
@@ -294,7 +290,7 @@ def test_inner_cauchy_schwarz(capabilities, ndim: int, dtype: str, rng: random.R
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", [131072, 262144])
 @pytest.mark.parametrize("metric", ["inner", "euclidean", "sqeuclidean", "angular"])
-def test_inner_integer_overflow_detection(capabilities, ndim: int, metric: str):
+def test_inner_integer_overflow_detection(stats, capabilities, ndim: int, metric: str):
     """Tests if the integral kernels are capable of detecting overflow yield the same ±inf result,
     as with 2^16 elements accumulating "u32(u16(u8)*u16(u8))+u32" products should overflow and the
     same is true for 2^17 elements with "i32(i15(i8))*i32(i15(i8))" products.

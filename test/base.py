@@ -634,15 +634,11 @@ class ErrorRow:
 
 @dataclass
 class Stats:
-    """Every `ErrorRow` and warning a module collected, printed once at exit."""
+    """Errors and warnings attributed to one test item, or aggregated for its module."""
 
+    test_name: str = ""
     rows: list[ErrorRow] = field(default_factory=list)
     warnings: list[tuple[str, str]] = field(default_factory=list)
-
-
-def create_stats() -> Stats:
-    """A fresh, empty collection for one module's error report."""
-    return Stats()
 
 
 def _infer_dtype_name(value: Any) -> str:
@@ -712,9 +708,7 @@ def collect_errors(
 
 def collect_warnings(message: str, stats: Stats) -> None:
     """Collects warnings for the final report."""
-    full_name = os.environ.get("PYTEST_CURRENT_TEST", "unknown::unknown").split(" ")[0]
-    function_name = full_name.split("::")[-1].split("[")[0]
-    stats.warnings.append((function_name, message))
+    stats.warnings.append((stats.test_name, message))
 
 
 def format_scientific(value: float) -> str:
@@ -766,11 +760,15 @@ class ReportLine:
 
 def print_stats_report(stats: Stats) -> None:
     """Print a condensed error/speedup report: two rows per (metric, dtype) showing min/max dims."""
-    if not stats.rows:
-        return
     # Windows consoles default to cp1252, which lacks the report's brackets.
     if isinstance(sys.stdout, io.TextIOWrapper):
         sys.stdout.reconfigure(errors="replace")
+    if stats.warnings:
+        print("\nWarnings:")
+        for (name, message), count in sorted(collections.Counter(stats.warnings).items()):
+            print(f"- {count}x times: {name}: {message}")
+    if not stats.rows:
+        return
 
     # Stage 1: Group rows by (metric, dims, dtype, capability) and compute per-group means.
     def group_key(row: ErrorRow) -> tuple[str, int, str, str]:
@@ -859,12 +857,6 @@ def print_stats_report(stats: Stats) -> None:
             f"{pad_with_ansi_color(worst_nk_s, col_w['worst_nk'], nk_err_code)}"
             f"{pad_with_ansi_color(best_spd_s, col_w['best_spd'], spd_code)}"
         )
-
-    warnings_list = [f"{name}: {message}" for name, message in sorted(stats.warnings)]
-    if warnings_list:
-        print("\nWarnings:")
-        for warning, count in sorted(collections.Counter(warnings_list).items()):
-            print(f"- {count}x times: {warning}")
 
 
 ARRAY_TYPECODES: dict[BufferDType, tuple[str, float, float]] = {

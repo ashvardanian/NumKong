@@ -7,11 +7,14 @@ Date: September 25, 2026
 
 from __future__ import annotations
 
+import contextlib
+import io
 import random
+from collections.abc import Generator
 from typing import TYPE_CHECKING
 
 import pytest
-from base import SETTINGS, StreamKey, possible_capabilities, stream_key
+from base import SETTINGS, Stats, StreamKey, possible_capabilities, print_stats_report, stream_key
 
 import numkong as nk
 
@@ -82,3 +85,27 @@ def capability(request: pytest.FixtureRequest) -> str:
 def capabilities(capability: str) -> nk.Capability:
     """A per-call CPU mask with a serial fallback for unsupported operation/type pairs."""
     return nk.Capability[capability.upper()] | nk.Capability.SERIAL
+
+
+_stats_reports = pytest.StashKey[dict[str, Stats]]()
+
+
+@pytest.fixture
+def stats(request: pytest.FixtureRequest) -> Generator[Stats, None, None]:
+    reports = request.config.stash.setdefault(_stats_reports, {})
+    item_stats = Stats(test_name=request.node.nodeid)
+    yield item_stats
+    report = reports.setdefault(request.node.module.__name__, Stats())
+    report.rows.extend(item_stats.rows)
+    report.warnings.extend(item_stats.warnings)
+
+
+def pytest_terminal_summary(terminalreporter, config: pytest.Config) -> None:
+    for module, report in sorted(config.stash.get(_stats_reports, {}).items()):
+        if not report.rows and not report.warnings:
+            continue
+        terminalreporter.section(module)
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            print_stats_report(report)
+        terminalreporter.write(output.getvalue())

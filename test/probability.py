@@ -12,7 +12,6 @@ Date: February 22, 2024
 
 from __future__ import annotations
 
-import atexit
 import random
 from collections.abc import Callable
 from typing import TYPE_CHECKING
@@ -36,10 +35,8 @@ from base import (
     SETTINGS,
     assert_allclose,
     collect_errors,
-    create_stats,
     make_positive_buffer,
     precise_decimal,
-    print_stats_report,
     timed_call,
 )
 
@@ -47,8 +44,6 @@ import numkong as nk
 
 
 algebraic_ndims = [7, 97]
-stats = create_stats()
-atexit.register(print_stats_report, stats)
 
 try:
     import scipy.spatial.distance as spd
@@ -115,7 +110,7 @@ KERNELS_PROBABILITY: dict[str, tuple[Callable, Callable, Callable]] = {
 @pytest.mark.repeat(SETTINGS.repetitions)
 @pytest.mark.parametrize("ndim", SETTINGS.dims)
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
-def test_jensenshannon_random_accuracy(capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
+def test_jensenshannon_random_accuracy(stats, capabilities, ndim: int, dtype: str, np_rng: np.random.Generator):
     """Jensen-Shannon distance of random probability distributions against SciPy baseline."""
     a_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
     b_distribution = np.abs(np_rng.standard_normal(ndim)).astype(dtype)
