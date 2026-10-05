@@ -577,15 +577,17 @@ impl UnifiedAllocator {
 unsafe impl Allocator for UnifiedAllocator {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         if layout.size() == 0 {
-            return Ok(NonNull::slice_from_raw_parts(NonNull::dangling(), 0));
+            return Ok(NonNull::slice_from_raw_parts(
+                NonNull::new(core::ptr::without_provenance_mut(layout.align())).ok_or(AllocError)?,
+                0,
+            ));
         }
         let mut pointer = core::ptr::null_mut();
         unsafe { nk_memory_allocate_unified_best(layout.size(), &mut pointer, self.0 .0, core::ptr::null_mut()) }
             .check()
             .map_err(|_| AllocError)?;
         let block = NonNull::new(pointer.cast::<u8>()).ok_or(AllocError)?;
-        if block.as_ptr() as usize % layout.align() != 0 {
-            // SAFETY: the block came from this allocator, with the size of `layout`.
+        if block.as_ptr().addr() % layout.align() != 0 {
             unsafe { self.deallocate(block, layout) };
             return Err(AllocError);
         }
@@ -757,6 +759,14 @@ mod tests {
         use crate::tensor::{Tensor, SIMD_ALIGNMENT};
 
         let cpu = Capabilities::cpu_enabled();
+        let allocator = UnifiedAllocator::new(cpu);
+        let empty_layout = Layout::from_size_align(0, 256).unwrap();
+        for allocator in [&allocator as &dyn Allocator, &crate::tensor::Global] {
+            let empty = allocator.allocate(empty_layout).unwrap();
+            assert_eq!(empty.as_ptr().cast::<u8>().addr() % 256, 0);
+            let empty = allocator.allocate_zeroed(empty_layout).unwrap();
+            assert_eq!(empty.as_ptr().cast::<u8>().addr() % 256, 0);
+        }
         let ones = Tensor::<f32, UnifiedAllocator>::ones_in(&[3, 5], UnifiedAllocator::new(cpu)).unwrap();
         assert!(ones.as_slice().iter().all(|&one| one == 1.0));
         assert_eq!(ones.as_slice().as_ptr() as usize % SIMD_ALIGNMENT, 0);

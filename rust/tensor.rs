@@ -149,7 +149,10 @@ unsafe impl Allocator for Global {
     #[inline]
     fn allocate(&self, layout: core::alloc::Layout) -> Result<NonNull<[u8]>, AllocError> {
         if layout.size() == 0 {
-            return Ok(NonNull::slice_from_raw_parts(NonNull::dangling(), 0));
+            return Ok(NonNull::slice_from_raw_parts(
+                NonNull::new(core::ptr::without_provenance_mut(layout.align())).ok_or(AllocError)?,
+                0,
+            ));
         }
         #[cfg(feature = "alloc")]
         {
@@ -169,7 +172,10 @@ unsafe impl Allocator for Global {
     #[inline]
     fn allocate_zeroed(&self, layout: core::alloc::Layout) -> Result<NonNull<[u8]>, AllocError> {
         if layout.size() == 0 {
-            return Ok(NonNull::slice_from_raw_parts(NonNull::dangling(), 0));
+            return Ok(NonNull::slice_from_raw_parts(
+                NonNull::new(core::ptr::without_provenance_mut(layout.align())).ok_or(AllocError)?,
+                0,
+            ));
         }
         #[cfg(feature = "alloc")]
         {
