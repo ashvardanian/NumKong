@@ -14,7 +14,7 @@
  *  made for this ISA.
  *
  *  The panel structure matches the family design — per query row, KV is swept in panels with an
- *  exact online correction and the family's base-2 degree-4 softmax polynomial; scores keep four KV
+ *  exact online correction and the family's base-2 degree-7 softmax polynomial; scores keep four KV
  *  rows in flight. Packed payload per segment: K planes then V planes,
  *  `[key_value_head][position][channel]` in the source dtype with channels zero-padded to a
  *  multiple of 8. `depth > 256` routes to the width-agnostic serial kernel.

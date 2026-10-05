@@ -1872,7 +1872,10 @@ NUMKONG_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
     x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
     __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
     __m256 r_f32x8 = _mm256_sub_ps(x_f32x8, n_f32x8);
-    __m256 p_f32x8 = _mm256_set1_ps(9.61812910e-3f);
+    __m256 p_f32x8 = _mm256_set1_ps(1.52527338e-5f);
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.54035304e-4f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.33335581e-3f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(9.61812910e-3f));
     p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(5.55041087e-2f));
     p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(2.40226507e-1f));
     p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(6.93147181e-1f));

@@ -1430,12 +1430,15 @@ NUMKONG_API nk_status_t nk_each_blend_i8_neon(nk_i8_t const *a, nk_i8_t const *b
 }
 #endif // NUMKONG_TARGET_NEON
 
-/** Vectorized `2^x` (NEON); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+/** Vectorized `2^x` (NEON), with a seventh-degree polynomial on [-0.5, 0.5]. */
 NUMKONG_INLINE float32x4_t nk_exp2_f32x4_neon_(float32x4_t x_f32x4) {
     x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
     float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);
     float32x4_t const reduced_f32x4 = vsubq_f32(x_f32x4, whole_f32x4);
-    float32x4_t poly_f32x4 = vdupq_n_f32(9.61812910e-3f);
+    float32x4_t poly_f32x4 = vdupq_n_f32(1.52527338e-5f);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.54035304e-4f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.33335581e-3f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(9.61812910e-3f), poly_f32x4, reduced_f32x4);
     poly_f32x4 = vfmaq_f32(vdupq_n_f32(5.55041087e-2f), poly_f32x4, reduced_f32x4);
     poly_f32x4 = vfmaq_f32(vdupq_n_f32(2.40226507e-1f), poly_f32x4, reduced_f32x4);
     poly_f32x4 = vfmaq_f32(vdupq_n_f32(6.93147181e-1f), poly_f32x4, reduced_f32x4);

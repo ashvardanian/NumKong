@@ -13,7 +13,7 @@
  *  chose, trading one cheap pack-time pass for halved KV streaming traffic against F32 planes.
  *
  *  The panel structure matches the family design — per query row, KV is swept in panels with an
- *  exact online correction, a base-2 streaming softmax sharing the family's degree-4 polynomial,
+ *  exact online correction, a base-2 streaming softmax sharing the family's degree-7 polynomial,
  *  and a score core with four KV rows in flight on the dual FMA ports. Packed payload per segment:
  *  K planes then V planes, `[key_value_head][position][channel]` in 16-bit scalars with channels
  *  zero-padded to a multiple of 16. `depth > 256` routes to the width-agnostic serial kernel from

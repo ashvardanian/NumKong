@@ -1351,7 +1351,13 @@ NUMKONG_INLINE vfloat32m4_t nk_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_size_t v
     vint32m4_t whole_i32m4 = __riscv_vfcvt_x_f_v_i32m4(x_f32m4, vector_length);
     vfloat32m4_t reduced_f32m4 = __riscv_vfsub_vv_f32m4(x_f32m4, __riscv_vfcvt_f_x_v_f32m4(whole_i32m4, vector_length),
                                                         vector_length);
-    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(9.61812910e-3f, vector_length);
+    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(1.52527338e-5f, vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(1.54035304e-4f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(1.33335581e-3f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(9.61812910e-3f, vector_length), vector_length);
     poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
                                          __riscv_vfmv_v_f_f32m4(5.55041087e-2f, vector_length), vector_length);
     poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,

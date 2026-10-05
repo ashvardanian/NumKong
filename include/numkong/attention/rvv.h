@@ -13,7 +13,7 @@
  *  and position counts, including odd ones, at full speed.
  *
  *  The panel structure matches the family design — per query row, KV is swept in panels with an
- *  exact online correction and a base-2 streaming softmax sharing the family's degree-4 polynomial
+ *  exact online correction and a base-2 streaming softmax sharing the family's degree-7 polynomial
  *  from nk_f32_exp2_serial_. Score and accumulation loops keep operands at LMUL m1/m2 to leave
  *  register-group headroom; the softmax elementwise passes over the score row run wider at e32m4.
  *

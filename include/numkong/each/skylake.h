@@ -1811,7 +1811,10 @@ NUMKONG_INLINE __m512 nk_exp2_f32x16_skylake_(__m512 x_f32x16) {
     x_f32x16 = _mm512_max_ps(_mm512_min_ps(x_f32x16, _mm512_set1_ps(127.0f)), _mm512_set1_ps(-125.0f));
     __m512 n_f32x16 = _mm512_roundscale_ps(x_f32x16, _MM_FROUND_TO_NEAREST_INT);
     __m512 r_f32x16 = _mm512_sub_ps(x_f32x16, n_f32x16);
-    __m512 p_f32x16 = _mm512_set1_ps(9.61812910e-3f);
+    __m512 p_f32x16 = _mm512_set1_ps(1.52527338e-5f);
+    p_f32x16 = _mm512_fmadd_ps(p_f32x16, r_f32x16, _mm512_set1_ps(1.54035304e-4f));
+    p_f32x16 = _mm512_fmadd_ps(p_f32x16, r_f32x16, _mm512_set1_ps(1.33335581e-3f));
+    p_f32x16 = _mm512_fmadd_ps(p_f32x16, r_f32x16, _mm512_set1_ps(9.61812910e-3f));
     p_f32x16 = _mm512_fmadd_ps(p_f32x16, r_f32x16, _mm512_set1_ps(5.55041087e-2f));
     p_f32x16 = _mm512_fmadd_ps(p_f32x16, r_f32x16, _mm512_set1_ps(2.40226507e-1f));
     p_f32x16 = _mm512_fmadd_ps(p_f32x16, r_f32x16, _mm512_set1_ps(6.93147181e-1f));

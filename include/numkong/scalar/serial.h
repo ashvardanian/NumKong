@@ -929,17 +929,17 @@ NUMKONG_API nk_f64_t nk_f64_atan2_serial(nk_f64_t const y_input, nk_f64_t const 
 }
 #endif // NUMKONG_TARGET_SERIAL
 
-/** Scalar `2^x` via a degree-4 minimax polynomial; no libm. The lower clamp is −125 (not the F32
- *  limit) so the smallest result stays a normal float: a denormal operand in a downstream multiply
- *  costs a ~150-cycle microcode assist on most cores. Shared reference for every fused kernel
- *  needing a sigmoid / SiLU / softmax weight; the SIMD backends match this polynomial to keep
- *  serial and vector paths in agreement. */
+/** Scalar `2^x` via a degree-7 polynomial, shared by sigmoid, SiLU, and softmax.
+ *  Clamps to [-125, 127] to avoid denormal penalties in later multiplies. */
 NUMKONG_INLINE nk_f32_t nk_f32_exp2_serial_(nk_f32_t x) {
     x = x > 127.0f ? 127.0f : x;
     x = x < -125.0f ? -125.0f : x;
     nk_i32_t whole = (nk_i32_t)(x >= 0 ? x + 0.5f : x - 0.5f);
     nk_f32_t reduced = x - (nk_f32_t)whole; // in [-0.5, 0.5]
-    nk_f32_t poly = 9.61812910e-3f;
+    nk_f32_t poly = 1.52527338e-5f;
+    poly = poly * reduced + 1.54035304e-4f;
+    poly = poly * reduced + 1.33335581e-3f;
+    poly = poly * reduced + 9.61812910e-3f;
     poly = poly * reduced + 5.55041087e-2f;
     poly = poly * reduced + 2.40226507e-1f;
     poly = poly * reduced + 6.93147181e-1f;

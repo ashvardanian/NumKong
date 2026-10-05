@@ -14,7 +14,7 @@
  *  512-position panels with an exact online running-max correction; the F32 score row, 2 KB, stays
  *  L1-resident. `depth > 256` routes to the width-agnostic serial kernel.
  *
- *  The base-2 exponent is the family's shared degree-4 polynomial, evaluated 4-wide with
+ *  The base-2 exponent is the family's shared degree-7 polynomial, evaluated 4-wide with
  *  @c wasm_f32x4_relaxed_madd after a @c wasm_f32x4_nearest range reduction and the same
  *  denormal-avoiding [−125, 127] clamps as @c nk_f32_exp2_serial_; scalar panel tails call the
  *  serial helper directly to keep the family polynomial end-to-end.

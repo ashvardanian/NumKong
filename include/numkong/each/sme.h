@@ -37,7 +37,10 @@ NUMKONG_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NUMKONG_STREAMI
                          svdup_f32(-125.0f));
     svfloat32_t const n_f32x = svrintn_f32_x(predicate_all_b32x, x_f32x);
     svfloat32_t const r_f32x = svsub_f32_x(predicate_all_b32x, x_f32x, n_f32x);
-    svfloat32_t p_f32x = svdup_f32(9.61812910e-3f);
+    svfloat32_t p_f32x = svdup_f32(1.52527338e-5f);
+    p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(1.54035304e-4f));
+    p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(1.33335581e-3f));
+    p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(9.61812910e-3f));
     p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(5.55041087e-2f));
     p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(2.40226507e-1f));
     p_f32x = svmad_f32_x(predicate_all_b32x, p_f32x, r_f32x, svdup_f32(6.93147181e-1f));
@@ -48,7 +51,7 @@ NUMKONG_INLINE svfloat32_t nk_exp2_f32x_sme_(svfloat32_t x_f32x) NUMKONG_STREAMI
 }
 
 /** Degree-3 evaluation of `2^r` over the reduced fraction `r ∈ [-0.5, 0.5]`, 32 lanes at a time:
- *  the family coefficients with the degree-4 term dropped, which falls below the F16 resolution of
+ *  the family coefficients truncated to degree 3, which falls below the F16 resolution of
  *  the weights it feeds. */
 NUMKONG_INLINE svfloat16_t nk_exp2_polynomial_f16x_sme_(svfloat16_t reduced_f16x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b16x = svptrue_b16();
