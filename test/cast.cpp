@@ -198,6 +198,7 @@ void test_casts(error_stats_section_t &check) {
     check("cast_e5m2_to_f32_neon", test_cast<e5m2_t, f32_t>, nk_cast_neon);
     check("cast_e5m2_to_f16_neon", test_cast<e5m2_t, f16_t>, nk_cast_neon);
     check("cast_f32_to_e5m2_neon", test_cast<f32_t, e5m2_t>, nk_cast_neon);
+    check_block_scaled_casts(check, "neon", nk_cast_neon);
 #endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_V128RELAXED

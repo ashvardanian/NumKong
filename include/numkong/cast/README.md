@@ -100,6 +100,9 @@ The reverse direction (`nk_f32_to_e4m3_serial`) is bit manipulation with RNE rou
 The SIMD backends do not gather from these tables.
 On x86 the Float8 paths ride the F16C converters described below, and NEON looks up Float16 high bytes with `VQTBL4` over a 128-byte table in `nk_e4m3x16_to_f16x8x2_neon_` and its siblings.
 
+NEON E4M3 narrowing rounds and rebiases the Float32 magnitude as one integer encoding, clamps finite overflow to 448, and handles subnormals on their fixed 2⁻⁹ grid.
+The shared converter preserves signed zero, ties-to-even, and the E4M3 NaN encoding across casts and fused token kernels.
+
 ### BFloat16 as Truncated Float32
 
 `nk_bf16_to_f32_serial` zero-extends by left-shifting 16 bits — exact, no rounding error, single-cycle on all platforms.
@@ -215,55 +218,84 @@ Measured with Wasmtime v42 (Cranelift backend).
 
 ### Apple M5
 
+Refreshed rates on Apple M5 Pro use a 1-second warm-up and at least 2 seconds of timed calls, with CPU and GPU measurement windows isolated from other benchmark runs.
+
 #### Native
 
-| Kernel           |        ↓ 256 |         ↓ 1K |         ↓ 4K |        ↑ 256 |         ↑ 1K |         ↑ 4K |
-| :--------------- | -----------: | -----------: | -----------: | -----------: | -----------: | -----------: |
-| __f32 ↔ bf16__   | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |    1.28 gb/s |    1.26 gb/s |    1.31 gb/s |    1.28 gb/s |    1.25 gb/s |    1.29 gb/s |
-| `nk_cast_neon`   |    18.0 gb/s |    22.1 gb/s |    21.6 gb/s |    55.3 gb/s |    54.9 gb/s |    53.4 gb/s |
-| __f32 ↔ f16__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |    1.28 gb/s |    1.22 gb/s |    1.23 gb/s |    1.28 gb/s |    1.22 gb/s |    1.30 gb/s |
-| `nk_cast_neon`   |    18.7 gb/s |    20.4 gb/s |    23.3 gb/s |    48.5 gb/s |    56.1 gb/s |    65.4 gb/s |
-| __f32 ↔ e5m2__   | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.634 gb/s |   0.578 gb/s |   0.559 gb/s |    1.09 gb/s |    1.09 gb/s |    1.15 gb/s |
-| `nk_cast_neon`   |    7.92 gb/s |    7.87 gb/s |    7.78 gb/s |    37.8 gb/s |    43.3 gb/s |    43.3 gb/s |
-| __f32 ↔ e4m3__   | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.636 gb/s |   0.576 gb/s |   0.546 gb/s |   0.950 gb/s |   0.941 gb/s |   0.950 gb/s |
-| `nk_cast_neon`   |    7.31 gb/s |    7.37 gb/s |    7.13 gb/s |    17.6 gb/s |    17.9 gb/s |    17.0 gb/s |
-| __f32 ↔ e3m2__   | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.654 gb/s |   0.589 gb/s |   0.555 gb/s |    1.09 gb/s |    1.05 gb/s |    1.07 gb/s |
-| `nk_cast_neon`   |    8.33 gb/s |    8.40 gb/s |    8.30 gb/s |    23.2 gb/s |    23.3 gb/s |    22.7 gb/s |
-| __f32 ↔ e2m3__   | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.858 gb/s |   0.785 gb/s |   0.666 gb/s |    1.13 gb/s |    1.13 gb/s |    1.17 gb/s |
-| `nk_cast_neon`   |    8.28 gb/s |    8.41 gb/s |    8.21 gb/s |    23.2 gb/s |    23.4 gb/s |    22.9 gb/s |
-| __f32 ↔ i16__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.731 gb/s |   0.632 gb/s |   0.631 gb/s |    1.34 gb/s |    1.29 gb/s |    1.39 gb/s |
-| `nk_cast_neon`   |    18.1 gb/s |    21.0 gb/s |    22.3 gb/s |    18.5 gb/s |    21.6 gb/s |    24.1 gb/s |
-| __f32 ↔ u16__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.853 gb/s |   0.766 gb/s |   0.676 gb/s |    1.28 gb/s |    1.27 gb/s |    1.38 gb/s |
-| `nk_cast_neon`   |    18.9 gb/s |    19.2 gb/s |    20.6 gb/s |    14.5 gb/s |    17.2 gb/s |    16.2 gb/s |
-| __f32 ↔ i8__     | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.675 gb/s |   0.574 gb/s |   0.538 gb/s |    1.13 gb/s |    1.13 gb/s |    1.19 gb/s |
-| `nk_cast_neon`   |    17.0 gb/s |    22.8 gb/s |    20.2 gb/s |    15.2 gb/s |    17.6 gb/s |    18.4 gb/s |
-| __f32 ↔ u8__     | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |   0.901 gb/s |   0.740 gb/s |   0.673 gb/s |    1.20 gb/s |    1.16 gb/s |    1.30 gb/s |
-| `nk_cast_neon`   |    16.3 gb/s |    18.4 gb/s |    18.1 gb/s |    12.9 gb/s |    16.6 gb/s |    14.1 gb/s |
-| __f64 ↔ f32__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |    2.47 gb/s |    2.42 gb/s |    2.51 gb/s |    2.41 gb/s |    2.37 gb/s |    2.47 gb/s |
-| `nk_cast_neon`   |    2.67 gb/s |    2.42 gb/s |    2.54 gb/s |    2.46 gb/s |    2.45 gb/s |    2.39 gb/s |
-| __f64 ↔ i64__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |    2.25 gb/s |    1.86 gb/s |    1.73 gb/s |    3.53 gb/s |    3.36 gb/s |    3.75 gb/s |
-| `nk_cast_neon`   |    2.34 gb/s |    1.81 gb/s |    1.66 gb/s |    3.57 gb/s |    3.43 gb/s |    3.53 gb/s |
-| __f64 ↔ u64__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |    2.38 gb/s |    2.04 gb/s |    1.92 gb/s |    3.46 gb/s |    3.26 gb/s |    3.60 gb/s |
-| `nk_cast_neon`   |    2.50 gb/s |    1.96 gb/s |    1.83 gb/s |    3.43 gb/s |    3.36 gb/s |    3.33 gb/s |
-| __f64 ↔ i32__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |    1.47 gb/s |    1.23 gb/s |    1.20 gb/s |    2.47 gb/s |    2.40 gb/s |    2.64 gb/s |
-| `nk_cast_neon`   |    1.50 gb/s |    1.24 gb/s |    1.15 gb/s |    2.54 gb/s |    2.45 gb/s |    2.48 gb/s |
-| __f64 ↔ u32__    | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
-| `nk_cast_serial` |    1.70 gb/s |    1.42 gb/s |    1.37 gb/s |    2.37 gb/s |    2.31 gb/s |    2.51 gb/s |
-| `nk_cast_neon`   |    1.76 gb/s |    1.42 gb/s |    1.29 gb/s |    2.38 gb/s |    2.37 gb/s |    2.41 gb/s |
+| Kernel              |        ↓ 256 |         ↓ 1K |         ↓ 4K |        ↑ 256 |         ↑ 1K |         ↑ 4K |
+| :------------------ | -----------: | -----------: | -----------: | -----------: | -----------: | -----------: |
+| __f32 ↔ bf16__      | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.28 gb/s |    1.26 gb/s |    1.31 gb/s |    1.28 gb/s |    1.25 gb/s |    1.29 gb/s |
+| `nk_cast_neon`      |    18.0 gb/s |    22.1 gb/s |    21.6 gb/s |    55.3 gb/s |    54.9 gb/s |    53.4 gb/s |
+| __f32 ↔ f16__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.28 gb/s |    1.22 gb/s |    1.23 gb/s |    1.28 gb/s |    1.22 gb/s |    1.30 gb/s |
+| `nk_cast_neon`      |    18.7 gb/s |    20.4 gb/s |    23.3 gb/s |    48.5 gb/s |    56.1 gb/s |    65.4 gb/s |
+| __f32 ↔ e5m2__      | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.634 gb/s |   0.578 gb/s |   0.559 gb/s |    1.09 gb/s |    1.09 gb/s |    1.15 gb/s |
+| `nk_cast_neon`      |    7.92 gb/s |    7.87 gb/s |    7.78 gb/s |    37.8 gb/s |    43.3 gb/s |    43.3 gb/s |
+| __f32 ↔ e4m3__      | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.636 gb/s |   0.576 gb/s |   0.546 gb/s |   0.950 gb/s |   0.941 gb/s |   0.950 gb/s |
+| `nk_cast_neon`      |    10.7 gb/s |    12.6 gb/s |    11.7 gb/s |    17.6 gb/s |    17.9 gb/s |    17.0 gb/s |
+| __f32 ↔ e3m2__      | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.654 gb/s |   0.589 gb/s |   0.555 gb/s |    1.09 gb/s |    1.05 gb/s |    1.07 gb/s |
+| `nk_cast_neon`      |    8.33 gb/s |    8.40 gb/s |    8.30 gb/s |    23.2 gb/s |    23.3 gb/s |    22.7 gb/s |
+| __f32 ↔ e2m3__      | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.858 gb/s |   0.785 gb/s |   0.666 gb/s |    1.13 gb/s |    1.13 gb/s |    1.17 gb/s |
+| `nk_cast_neon`      |    8.28 gb/s |    8.41 gb/s |    8.21 gb/s |    23.2 gb/s |    23.4 gb/s |    22.9 gb/s |
+| __f32 ↔ i16__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.731 gb/s |   0.632 gb/s |   0.631 gb/s |    1.34 gb/s |    1.29 gb/s |    1.39 gb/s |
+| `nk_cast_neon`      |    18.1 gb/s |    21.0 gb/s |    22.3 gb/s |    18.5 gb/s |    21.6 gb/s |    24.1 gb/s |
+| __f32 ↔ u16__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.853 gb/s |   0.766 gb/s |   0.676 gb/s |    1.28 gb/s |    1.27 gb/s |    1.38 gb/s |
+| `nk_cast_neon`      |    18.9 gb/s |    19.2 gb/s |    20.6 gb/s |    14.5 gb/s |    17.2 gb/s |    16.2 gb/s |
+| __f32 ↔ i8__        | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.675 gb/s |   0.574 gb/s |   0.538 gb/s |    1.13 gb/s |    1.13 gb/s |    1.19 gb/s |
+| `nk_cast_neon`      |    17.0 gb/s |    22.8 gb/s |    20.2 gb/s |    15.2 gb/s |    17.6 gb/s |    18.4 gb/s |
+| __f32 ↔ u8__        | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.901 gb/s |   0.740 gb/s |   0.673 gb/s |    1.20 gb/s |    1.16 gb/s |    1.30 gb/s |
+| `nk_cast_neon`      |    16.3 gb/s |    18.4 gb/s |    18.1 gb/s |    12.9 gb/s |    16.6 gb/s |    14.1 gb/s |
+| __f64 ↔ f32__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    2.47 gb/s |    2.42 gb/s |    2.51 gb/s |    2.41 gb/s |    2.37 gb/s |    2.47 gb/s |
+| `nk_cast_neon`      |    2.67 gb/s |    2.42 gb/s |    2.54 gb/s |    2.46 gb/s |    2.45 gb/s |    2.39 gb/s |
+| __f64 ↔ i64__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    2.25 gb/s |    1.86 gb/s |    1.73 gb/s |    3.53 gb/s |    3.36 gb/s |    3.75 gb/s |
+| `nk_cast_neon`      |    2.34 gb/s |    1.81 gb/s |    1.66 gb/s |    3.57 gb/s |    3.43 gb/s |    3.53 gb/s |
+| __f64 ↔ u64__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    2.38 gb/s |    2.04 gb/s |    1.92 gb/s |    3.46 gb/s |    3.26 gb/s |    3.60 gb/s |
+| `nk_cast_neon`      |    2.50 gb/s |    1.96 gb/s |    1.83 gb/s |    3.43 gb/s |    3.36 gb/s |    3.33 gb/s |
+| __f64 ↔ i32__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.47 gb/s |    1.23 gb/s |    1.20 gb/s |    2.47 gb/s |    2.40 gb/s |    2.64 gb/s |
+| `nk_cast_neon`      |    1.50 gb/s |    1.24 gb/s |    1.15 gb/s |    2.54 gb/s |    2.45 gb/s |    2.48 gb/s |
+| __f64 ↔ u32__       | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.70 gb/s |    1.42 gb/s |    1.37 gb/s |    2.37 gb/s |    2.31 gb/s |    2.51 gb/s |
+| `nk_cast_neon`      |    1.76 gb/s |    1.42 gb/s |    1.29 gb/s |    2.38 gb/s |    2.37 gb/s |    2.41 gb/s |
+| __f32 ↔ i4__        | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.65 gb/s |    1.77 gb/s |    1.95 gb/s |    1.79 gb/s |    1.78 gb/s |    1.83 gb/s |
+| `nk_cast_neon`      |    12.8 gb/s |    13.8 gb/s |    12.0 gb/s |    12.0 gb/s |    11.4 gb/s |    12.1 gb/s |
+| __f32 ↔ u4__        | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.63 gb/s |    1.66 gb/s |    1.92 gb/s |    1.76 gb/s |    1.83 gb/s |    1.84 gb/s |
+| `nk_cast_neon`      |    11.9 gb/s |    12.9 gb/s |    11.0 gb/s |    12.1 gb/s |    11.9 gb/s |    12.6 gb/s |
+| __f32 ↔ e2m1__      | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.18 gb/s |    1.21 gb/s |    1.12 gb/s |    1.74 gb/s |    1.77 gb/s |    1.80 gb/s |
+| `nk_cast_neon`      |    9.42 gb/s |    9.80 gb/s |    9.65 gb/s |    10.1 gb/s |    10.3 gb/s |    10.4 gb/s |
+| __f32 ↔ mxfp8e4m3__ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.897 gb/s |   0.861 gb/s |   0.778 gb/s |    1.42 gb/s |    1.46 gb/s |    1.34 gb/s |
+| `nk_cast_neon`      |    3.47 gb/s |    3.57 gb/s |    3.59 gb/s |    11.6 gb/s |    13.1 gb/s |    13.4 gb/s |
+| __f32 ↔ mxfp8e5m2__ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.910 gb/s |   0.883 gb/s |   0.819 gb/s |    1.94 gb/s |    1.91 gb/s |    1.75 gb/s |
+| `nk_cast_neon`      |    3.75 gb/s |    3.86 gb/s |    3.88 gb/s |    13.2 gb/s |    15.0 gb/s |    15.2 gb/s |
+| __f32 ↔ mxfp6e2m3__ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.883 gb/s |   0.892 gb/s |   0.878 gb/s |    1.85 gb/s |    1.91 gb/s |    1.77 gb/s |
+| `nk_cast_neon`      |    3.84 gb/s |    3.96 gb/s |    3.98 gb/s |    12.6 gb/s |    14.1 gb/s |    14.4 gb/s |
+| __f32 ↔ mxfp6e3m2__ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |   0.912 gb/s |   0.937 gb/s |   0.873 gb/s |    1.83 gb/s |    1.94 gb/s |    1.85 gb/s |
+| `nk_cast_neon`      |    3.91 gb/s |    4.03 gb/s |    4.04 gb/s |    12.0 gb/s |    13.3 gb/s |    13.6 gb/s |
+| __f32 ↔ mxfp4__     | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.22 gb/s |    1.19 gb/s |    1.12 gb/s |    4.09 gb/s |    4.28 gb/s |    4.24 gb/s |
+| `nk_cast_neon`      |    3.94 gb/s |    4.03 gb/s |    4.02 gb/s |    7.94 gb/s |    8.65 gb/s |    8.73 gb/s |
+| __f32 ↔ nvfp4__     | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ | ░░░░░░░░░░░░ |
+| `nk_cast_serial`    |    1.38 gb/s |    1.26 gb/s |    1.21 gb/s |    3.28 gb/s |    3.39 gb/s |    3.37 gb/s |
+| `nk_cast_neon`      |    2.10 gb/s |    2.09 gb/s |    1.88 gb/s |    6.15 gb/s |    6.55 gb/s |    6.47 gb/s |
 
 #### WASM
 
