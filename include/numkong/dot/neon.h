@@ -137,6 +137,227 @@ NUMKONG_INLINE void nk_dot2_f64x2_neon_(float64x2_t *sum_f64x2, float64x2_t *com
     *compensation_f64x2 = vaddq_f64(*compensation_f64x2, vaddq_f64(sum_error_f64x2, product_error_f64x2));
 }
 
+/** Scaled partial sums stay in vector lanes until the output tile is finalized. */
+typedef struct nk_dot_scaled_state_neon_t {
+    float64x2_t sum_f64x2;
+} nk_dot_scaled_state_neon_t;
+
+NUMKONG_INLINE void nk_dot_scaled_init_neon(nk_dot_scaled_state_neon_t *state) { state->sum_f64x2 = vdupq_n_f64(0); }
+
+NUMKONG_INLINE void nk_dot_scaled_finalize_neon(                                          //
+    nk_dot_scaled_state_neon_t const *state_a, nk_dot_scaled_state_neon_t const *state_b, //
+    nk_dot_scaled_state_neon_t const *state_c, nk_dot_scaled_state_neon_t const *state_d, //
+    nk_size_t total_dimensions, nk_b128_vec_t *result) {
+    nk_unused_(total_dimensions);
+    float64x2_t const sums_ab_f64x2 = vpaddq_f64(state_a->sum_f64x2, state_b->sum_f64x2);
+    float64x2_t const sums_cd_f64x2 = vpaddq_f64(state_c->sum_f64x2, state_d->sum_f64x2);
+    result->f32x4 = vcombine_f32(vcvt_f32_f64(sums_ab_f64x2), vcvt_f32_f64(sums_cd_f64x2));
+}
+
+typedef struct nk_dot_scaled_i8x16_operand_neon_t {
+    int8x16_t values_i8x16;
+    nk_f64_t scale;
+} nk_dot_scaled_i8x16_operand_neon_t;
+
+typedef struct nk_dot_scaled_i8x32_operand_neon_t {
+    int8x16_t values_i8x16[2];
+    nk_f64_t scale;
+} nk_dot_scaled_i8x32_operand_neon_t;
+
+typedef struct nk_dot_scaled_i16x32_operand_neon_t {
+    int16x8_t values_i16x8[4];
+    nk_f64_t scale;
+} nk_dot_scaled_i16x32_operand_neon_t;
+
+typedef struct nk_dot_scaled_f16x32_operand_neon_t {
+    float16x8_t values_f16x8[4];
+    nk_f64_t scale;
+} nk_dot_scaled_f16x32_operand_neon_t;
+
+/** Doubled E2M1 values fit in signed bytes, including the signed-zero code. */
+NUMKONG_INLINE int8x16_t nk_e2m1x16_to_i8x16_neon_(uint8x8_t packed_u8x8) {
+    uint8x16_t codes_u8x16 = vcombine_u8(vshr_n_u8(packed_u8x8, 4), vand_u8(packed_u8x8, vdup_n_u8(15)));
+    uint8x16_t exponent_u8x16 = vandq_u8(vshrq_n_u8(codes_u8x16, 1), vdupq_n_u8(3));
+    uint8x16_t mantissa_u8x16 = vorrq_u8(vandq_u8(codes_u8x16, vdupq_n_u8(1)),
+                                         vandq_u8(vcgtq_u8(exponent_u8x16, vdupq_n_u8(0)), vdupq_n_u8(2)));
+    int8x16_t values_i8x16 = vreinterpretq_s8_u8(
+        vshlq_u8(mantissa_u8x16, vreinterpretq_s8_u8(vqsubq_u8(exponent_u8x16, vdupq_n_u8(1)))));
+    return vbslq_s8(vtstq_u8(codes_u8x16, vdupq_n_u8(8)), vnegq_s8(values_i8x16), values_i8x16);
+}
+
+/** E2M3 values multiplied by eight fit in signed bytes. */
+NUMKONG_INLINE int8x16_t nk_e2m3x16_to_i8x16_neon_(uint8x16_t codes_u8x16) {
+    uint8x16_t exponent_u8x16 = vandq_u8(vshrq_n_u8(codes_u8x16, 3), vdupq_n_u8(3));
+    uint8x16_t mantissa_u8x16 = vorrq_u8(vandq_u8(codes_u8x16, vdupq_n_u8(7)),
+                                         vandq_u8(vcgtq_u8(exponent_u8x16, vdupq_n_u8(0)), vdupq_n_u8(8)));
+    int8x16_t values_i8x16 = vreinterpretq_s8_u8(
+        vshlq_u8(mantissa_u8x16, vreinterpretq_s8_u8(vqsubq_u8(exponent_u8x16, vdupq_n_u8(1)))));
+    return vbslq_s8(vtstq_u8(codes_u8x16, vdupq_n_u8(32)), vnegq_s8(values_i8x16), values_i8x16);
+}
+
+/** E3M2 values multiplied by sixteen fit in signed halfwords. */
+NUMKONG_INLINE int16x8_t nk_e3m2x8_to_i16x8_neon_(uint8x8_t codes_u8x8) {
+    uint16x8_t codes_u16x8 = vmovl_u8(codes_u8x8);
+    uint16x8_t exponent_u16x8 = vandq_u16(vshrq_n_u16(codes_u16x8, 2), vdupq_n_u16(7));
+    uint16x8_t mantissa_u16x8 = vorrq_u16(vandq_u16(codes_u16x8, vdupq_n_u16(3)),
+                                          vandq_u16(vcgtq_u16(exponent_u16x8, vdupq_n_u16(0)), vdupq_n_u16(4)));
+    int16x8_t values_i16x8 = vreinterpretq_s16_u16(
+        vshlq_u16(mantissa_u16x8, vreinterpretq_s16_u16(vqsubq_u16(exponent_u16x8, vdupq_n_u16(1)))));
+    return vbslq_s16(vtstq_u16(codes_u16x8, vdupq_n_u16(32)), vnegq_s16(values_i16x8), values_i16x8);
+}
+
+NUMKONG_INLINE void nk_load_nvfp4x1_to_i8x16_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                   nk_dot_scaled_i8x16_operand_neon_t *dst) {
+    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
+    dst->values_i8x16 = nk_e2m1x16_to_i8x16_neon_(vld1_u8(src));
+    dst->scale = 0.5 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 8], nk_ue4m3_k);
+}
+
+NUMKONG_INLINE void nk_partial_load_nvfp4x1_to_i8x16_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                           nk_dot_scaled_i8x16_operand_neon_t *dst, nk_size_t n) {
+    nk_assert_(n == 16);
+    nk_load_nvfp4x1_to_i8x16_neon_(codes, scales, offset, dst);
+}
+
+NUMKONG_INLINE void nk_load_mxfp4x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                   nk_dot_scaled_i8x32_operand_neon_t *dst) {
+    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
+    dst->values_i8x16[0] = nk_e2m1x16_to_i8x16_neon_(vld1_u8(src));
+    dst->values_i8x16[1] = nk_e2m1x16_to_i8x16_neon_(vld1_u8(src + 8));
+    dst->scale = 0.5 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 16], nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp4x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                           nk_dot_scaled_i8x32_operand_neon_t *dst, nk_size_t n) {
+    nk_assert_(n == 32);
+    nk_load_mxfp4x1_to_i8x32_neon_(codes, scales, offset, dst);
+}
+
+NUMKONG_INLINE void nk_load_mxfp6e2m3x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                       nk_dot_scaled_i8x32_operand_neon_t *dst) {
+    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
+    dst->values_i8x16[0] = nk_e2m3x16_to_i8x16_neon_(vld1q_u8(src));
+    dst->values_i8x16[1] = nk_e2m3x16_to_i8x16_neon_(vld1q_u8(src + 16));
+    dst->scale = 0.125 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp6e2m3x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales,
+                                                               nk_size_t offset,
+                                                               nk_dot_scaled_i8x32_operand_neon_t *dst, nk_size_t n) {
+    nk_assert_(n == 32);
+    nk_load_mxfp6e2m3x1_to_i8x32_neon_(codes, scales, offset, dst);
+}
+
+NUMKONG_INLINE void nk_load_mxfp6e3m2x1_to_i16x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                        nk_dot_scaled_i16x32_operand_neon_t *dst) {
+    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
+    for (nk_size_t i = 0; i != 4; ++i) dst->values_i16x8[i] = nk_e3m2x8_to_i16x8_neon_(vld1_u8(src + i * 8));
+    dst->scale = 0.0625 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp6e3m2x1_to_i16x32_neon_(void const *codes, nk_u8_t const *scales,
+                                                                nk_size_t offset,
+                                                                nk_dot_scaled_i16x32_operand_neon_t *dst, nk_size_t n) {
+    nk_assert_(n == 32);
+    nk_load_mxfp6e3m2x1_to_i16x32_neon_(codes, scales, offset, dst);
+}
+
+NUMKONG_INLINE void nk_load_mxfp8e4m3x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                        nk_dot_scaled_f16x32_operand_neon_t *dst) {
+    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
+    nk_e4m3x16_to_f16x8x2_neon_(vld1q_u8(src), &dst->values_f16x8[0], &dst->values_f16x8[1]);
+    nk_e4m3x16_to_f16x8x2_neon_(vld1q_u8(src + 16), &dst->values_f16x8[2], &dst->values_f16x8[3]);
+    dst->scale = (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp8e4m3x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales,
+                                                                nk_size_t offset,
+                                                                nk_dot_scaled_f16x32_operand_neon_t *dst, nk_size_t n) {
+    nk_assert_(n == 32);
+    nk_load_mxfp8e4m3x1_to_f16x32_neon_(codes, scales, offset, dst);
+}
+
+NUMKONG_INLINE void nk_load_mxfp8e5m2x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                        nk_dot_scaled_f16x32_operand_neon_t *dst) {
+    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
+    for (nk_size_t i = 0; i != 4; ++i) dst->values_f16x8[i] = nk_e5m2x8_to_f16x8_neon_(vld1_u8(src + i * 8));
+    dst->scale = (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp8e5m2x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales,
+                                                                nk_size_t offset,
+                                                                nk_dot_scaled_f16x32_operand_neon_t *dst, nk_size_t n) {
+    nk_assert_(n == 32);
+    nk_load_mxfp8e5m2x1_to_f16x32_neon_(codes, scales, offset, dst);
+}
+
+NUMKONG_INLINE float64x2_t nk_i32x4_sum_as_f64x2_neon_(int32x4_t sums_i32x4) {
+    int64x2_t sums_i64x2 = vpaddlq_s32(sums_i32x4);
+    return vcvtq_f64_s64(sums_i64x2);
+}
+
+NUMKONG_INLINE void nk_dot_scaled_i8x16_update_neon_(nk_dot_scaled_state_neon_t *state,
+                                                     nk_dot_scaled_i8x16_operand_neon_t a,
+                                                     nk_dot_scaled_i8x16_operand_neon_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    int32x4_t sums_i32x4 = vdupq_n_s32(0);
+    sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_s8(vget_low_s8(a.values_i8x16), vget_low_s8(b.values_i8x16)));
+    sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_high_s8(a.values_i8x16, b.values_i8x16));
+    float64x2_t const sums_f64x2 = nk_i32x4_sum_as_f64x2_neon_(sums_i32x4);
+    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
+}
+
+NUMKONG_INLINE void nk_dot_scaled_i8x32_update_neon_(nk_dot_scaled_state_neon_t *state,
+                                                     nk_dot_scaled_i8x32_operand_neon_t a,
+                                                     nk_dot_scaled_i8x32_operand_neon_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    int32x4_t sums_i32x4 = vdupq_n_s32(0);
+    for (nk_size_t i = 0; i != 2; ++i) {
+        sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_s8(vget_low_s8(a.values_i8x16[i]), vget_low_s8(b.values_i8x16[i])));
+        sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_high_s8(a.values_i8x16[i], b.values_i8x16[i]));
+    }
+    float64x2_t const sums_f64x2 = nk_i32x4_sum_as_f64x2_neon_(sums_i32x4);
+    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
+}
+
+NUMKONG_INLINE void nk_dot_scaled_i16x32_update_neon_(nk_dot_scaled_state_neon_t *state,
+                                                      nk_dot_scaled_i16x32_operand_neon_t a,
+                                                      nk_dot_scaled_i16x32_operand_neon_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    int32x4_t sums_i32x4 = vdupq_n_s32(0);
+    for (nk_size_t i = 0; i != 4; ++i) {
+        sums_i32x4 = vmlal_s16(sums_i32x4, vget_low_s16(a.values_i16x8[i]), vget_low_s16(b.values_i16x8[i]));
+        sums_i32x4 = vmlal_high_s16(sums_i32x4, a.values_i16x8[i], b.values_i16x8[i]);
+    }
+    float64x2_t const sums_f64x2 = nk_i32x4_sum_as_f64x2_neon_(sums_i32x4);
+    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
+}
+
+NUMKONG_INLINE void nk_dot_scaled_f16x32_update_neon_(nk_dot_scaled_state_neon_t *state,
+                                                      nk_dot_scaled_f16x32_operand_neon_t a,
+                                                      nk_dot_scaled_f16x32_operand_neon_t b, nk_size_t depth_offset,
+                                                      nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    float64x2_t sums_f64x2 = vdupq_n_f64(0);
+    for (nk_size_t i = 0; i != 4; ++i) {
+        float32x4_t low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(a.values_f16x8[i])),
+                                          vcvt_f32_f16(vget_low_f16(b.values_f16x8[i])));
+        float32x4_t high_f32x4 = vmulq_f32(vcvt_high_f32_f16(a.values_f16x8[i]), vcvt_high_f32_f16(b.values_f16x8[i]));
+        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_f64_f32(vget_low_f32(low_f32x4)));
+        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_high_f64_f32(low_f32x4));
+        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_f64_f32(vget_low_f32(high_f32x4)));
+        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_high_f64_f32(high_f32x4));
+    }
+    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
+}
+
 #pragma region F32 and F64 Floats
 
 /** Dot product of F32 vectors, widened to F64 and accumulated in F64. */

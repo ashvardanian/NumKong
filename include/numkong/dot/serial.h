@@ -792,20 +792,12 @@ NUMKONG_INLINE void nk_dot_e2m1x16_finalize_serial(                             
 
 #pragma region Block Scaled Floats
 
-/** Block-scaled state: an F64 sum of whole blocks, each exact before its two scales multiply in,
- *  and the scale rows of the A row and the B column it pairs, bound once per tile. */
+/** Accumulates whole scaled blocks in F64. */
 typedef struct nk_dot_scaled_state_serial_t {
     nk_f64_t sum;
-    nk_u8_t const *a_scales;
-    nk_u8_t const *b_scales;
 } nk_dot_scaled_state_serial_t;
 
 NUMKONG_INLINE void nk_dot_scaled_init_serial(nk_dot_scaled_state_serial_t *state) { state->sum = 0; }
-
-NUMKONG_INLINE void nk_dot_scaled_bind_serial_(nk_dot_scaled_state_serial_t *state, nk_u8_t const *a_scales,
-                                               nk_u8_t const *b_scales) {
-    state->a_scales = a_scales, state->b_scales = b_scales;
-}
 
 NUMKONG_INLINE void nk_dot_scaled_finalize_serial(                                            //
     nk_dot_scaled_state_serial_t const *state_a, nk_dot_scaled_state_serial_t const *state_b, //
@@ -816,56 +808,182 @@ NUMKONG_INLINE void nk_dot_scaled_finalize_serial(                              
     result->f32s[2] = (nk_f32_t)state_c->sum, result->f32s[3] = (nk_f32_t)state_d->sum;
 }
 
-/** Adds 16 E2M1 products, doubled into exact integers, times the scales of block @p block, whose
- *  @p scale_dtype decodes them. */
-NUMKONG_INLINE void nk_dot_scaled_e2m1x16_update_serial_(nk_dot_scaled_state_serial_t *state, nk_b64_vec_t a,
-                                                         nk_b64_vec_t b, nk_size_t block, nk_dtype_t scale_dtype) {
+NUMKONG_INLINE void nk_load_nvfp4_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset, nk_nvfp4_t *dst) {
+    nk_copy_bytes_(dst->elements_, (nk_u8_t const *)codes + offset, 8);
+    dst->scale_ = scales[offset / 8];
+}
+
+NUMKONG_INLINE void nk_partial_load_nvfp4_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                  nk_nvfp4_t *dst, nk_size_t n) {
+    nk_nvfp4_t block = {0};
+    nk_copy_bytes_(block.elements_, (nk_u8_t const *)codes + offset, n / 2);
+    block.scale_ = scales[offset / 8];
+    *dst = block;
+}
+
+NUMKONG_INLINE void nk_load_mxfp4_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset, nk_mxfp4_t *dst) {
+    nk_copy_bytes_(dst->elements_, (nk_u8_t const *)codes + offset, 16);
+    dst->scale_ = scales[offset / 16];
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp4_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                  nk_mxfp4_t *dst, nk_size_t n) {
+    nk_mxfp4_t block = {0};
+    nk_copy_bytes_(block.elements_, (nk_u8_t const *)codes + offset, n / 2);
+    block.scale_ = scales[offset / 16];
+    *dst = block;
+}
+
+NUMKONG_INLINE void nk_load_mxfp6e2m3_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                              nk_mxfp6e2m3_t *dst) {
+    nk_copy_bytes_(dst->elements_, (nk_u8_t const *)codes + offset, 32);
+    dst->scale_ = scales[offset / 32];
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp6e2m3_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                      nk_mxfp6e2m3_t *dst, nk_size_t n) {
+    nk_mxfp6e2m3_t block = {0};
+    nk_copy_bytes_(block.elements_, (nk_u8_t const *)codes + offset, n);
+    block.scale_ = scales[offset / 32];
+    *dst = block;
+}
+
+NUMKONG_INLINE void nk_load_mxfp6e3m2_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                              nk_mxfp6e3m2_t *dst) {
+    nk_copy_bytes_(dst->elements_, (nk_u8_t const *)codes + offset, 32);
+    dst->scale_ = scales[offset / 32];
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp6e3m2_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                      nk_mxfp6e3m2_t *dst, nk_size_t n) {
+    nk_mxfp6e3m2_t block = {0};
+    nk_copy_bytes_(block.elements_, (nk_u8_t const *)codes + offset, n);
+    block.scale_ = scales[offset / 32];
+    *dst = block;
+}
+
+NUMKONG_INLINE void nk_load_mxfp8e4m3_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                              nk_mxfp8e4m3_t *dst) {
+    nk_copy_bytes_(dst->elements_, (nk_u8_t const *)codes + offset, 32);
+    dst->scale_ = scales[offset / 32];
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp8e4m3_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                      nk_mxfp8e4m3_t *dst, nk_size_t n) {
+    nk_mxfp8e4m3_t block = {0};
+    nk_copy_bytes_(block.elements_, (nk_u8_t const *)codes + offset, n);
+    block.scale_ = scales[offset / 32];
+    *dst = block;
+}
+
+NUMKONG_INLINE void nk_load_mxfp8e5m2_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                              nk_mxfp8e5m2_t *dst) {
+    nk_copy_bytes_(dst->elements_, (nk_u8_t const *)codes + offset, 32);
+    dst->scale_ = scales[offset / 32];
+}
+
+NUMKONG_INLINE void nk_partial_load_mxfp8e5m2_serial_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
+                                                      nk_mxfp8e5m2_t *dst, nk_size_t n) {
+    nk_mxfp8e5m2_t block = {0};
+    nk_copy_bytes_(block.elements_, (nk_u8_t const *)codes + offset, n);
+    block.scale_ = scales[offset / 32];
+    *dst = block;
+}
+
+NUMKONG_INLINE void nk_dot_nvfp4x1_update_serial(nk_dot_scaled_state_serial_t *state, nk_nvfp4_t a, nk_nvfp4_t b,
+                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
     nk_dot_e2m1x16_state_serial_t doubled;
     nk_dot_e2m1x16_init_serial(&doubled);
-    nk_dot_e2m1x16_update_serial(&doubled, a, b, 0, 16);
-    state->sum += (nk_f64_t)doubled.sum * 0.25 *
-                  nk_block_scaled_decode_scale_serial_(state->a_scales[block], scale_dtype) *
-                  nk_block_scaled_decode_scale_serial_(state->b_scales[block], scale_dtype);
+    nk_b64_vec_t a_vec, b_vec;
+    nk_copy_bytes_(&a_vec, a.elements_, 8);
+    nk_copy_bytes_(&b_vec, b.elements_, 8);
+    nk_dot_e2m1x16_update_serial(&doubled, a_vec, b_vec, 0, 16);
+    nk_f64_t const block_sum = (nk_f64_t)doubled.sum * 0.25;
+    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(a.scale_, nk_ue4m3_k) *
+                  nk_block_scaled_decode_scale_serial_(b.scale_, nk_ue4m3_k);
 }
 
-NUMKONG_INLINE void nk_dot_nvfp4x16_update_serial(nk_dot_scaled_state_serial_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
-                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_mxfp4x1_update_serial(nk_dot_scaled_state_serial_t *state, nk_mxfp4_t a, nk_mxfp4_t b,
+                                                 nk_size_t depth_offset, nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
-    nk_dot_scaled_e2m1x16_update_serial_(state, a, b, depth_offset / 16, nk_ue4m3_k);
+    nk_dot_e2m1x16_state_serial_t doubled;
+    nk_dot_e2m1x16_init_serial(&doubled);
+    for (nk_size_t i = 0; i != 16; i += 8) {
+        nk_b64_vec_t a_vec, b_vec;
+        nk_copy_bytes_(&a_vec, a.elements_ + i, 8);
+        nk_copy_bytes_(&b_vec, b.elements_ + i, 8);
+        nk_dot_e2m1x16_update_serial(&doubled, a_vec, b_vec, 0, 16);
+    }
+    nk_f64_t const block_sum = (nk_f64_t)doubled.sum * 0.25;
+    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(a.scale_, nk_ue8m0_k) *
+                  nk_block_scaled_decode_scale_serial_(b.scale_, nk_ue8m0_k);
 }
 
-NUMKONG_INLINE void nk_dot_mxfp4x16_update_serial(nk_dot_scaled_state_serial_t *state, nk_b64_vec_t a, nk_b64_vec_t b,
-                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
-    nk_unused_(active_dimensions);
-    nk_dot_scaled_e2m1x16_update_serial_(state, a, b, depth_offset / 32, nk_ue8m0_k);
-}
-
-/** Adds 16 FP8 products, each exact in F64 and so is their sum, times the UE8M0 scales of the
- *  32-value block at @p depth_offset. */
-NUMKONG_INLINE void nk_dot_mxfp8e4m3x16_update_serial(nk_dot_scaled_state_serial_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
-    nk_unused_(active_dimensions);
-    nk_f64_t block_sum = 0;
-    nk_f32_t a_value, b_value;
-    for (nk_size_t i = 0; i != 16; ++i)
-        nk_e4m3_to_f32_(a.e4m3s + i, &a_value), nk_e4m3_to_f32_(b.e4m3s + i, &b_value),
-            block_sum += (nk_f64_t)a_value * b_value;
-    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(state->a_scales[depth_offset / 32], nk_ue8m0_k) *
-                  nk_block_scaled_decode_scale_serial_(state->b_scales[depth_offset / 32], nk_ue8m0_k);
-}
-
-NUMKONG_INLINE void nk_dot_mxfp8e5m2x16_update_serial(nk_dot_scaled_state_serial_t *state, nk_b128_vec_t a,
-                                                      nk_b128_vec_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
+NUMKONG_INLINE void nk_dot_mxfp6e2m3x1_update_serial(nk_dot_scaled_state_serial_t *state, nk_mxfp6e2m3_t a,
+                                                     nk_mxfp6e2m3_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
     nk_unused_(active_dimensions);
     nk_f64_t block_sum = 0;
-    nk_f32_t a_value, b_value;
-    for (nk_size_t i = 0; i != 16; ++i)
-        nk_e5m2_to_f32_(a.e5m2s + i, &a_value), nk_e5m2_to_f32_(b.e5m2s + i, &b_value),
-            block_sum += (nk_f64_t)a_value * b_value;
-    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(state->a_scales[depth_offset / 32], nk_ue8m0_k) *
-                  nk_block_scaled_decode_scale_serial_(state->b_scales[depth_offset / 32], nk_ue8m0_k);
+    for (nk_size_t i = 0; i != 32; ++i) {
+        nk_f32_t a_value, b_value;
+        nk_e2m3_to_f32_(a.elements_ + i, &a_value);
+        nk_e2m3_to_f32_(b.elements_ + i, &b_value);
+        block_sum += (nk_f64_t)a_value * b_value;
+    }
+    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(a.scale_, nk_ue8m0_k) *
+                  nk_block_scaled_decode_scale_serial_(b.scale_, nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_dot_mxfp6e3m2x1_update_serial(nk_dot_scaled_state_serial_t *state, nk_mxfp6e3m2_t a,
+                                                     nk_mxfp6e3m2_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    nk_f64_t block_sum = 0;
+    for (nk_size_t i = 0; i != 32; ++i) {
+        nk_f32_t a_value, b_value;
+        nk_e3m2_to_f32_(a.elements_ + i, &a_value);
+        nk_e3m2_to_f32_(b.elements_ + i, &b_value);
+        block_sum += (nk_f64_t)a_value * b_value;
+    }
+    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(a.scale_, nk_ue8m0_k) *
+                  nk_block_scaled_decode_scale_serial_(b.scale_, nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_dot_mxfp8e4m3x1_update_serial(nk_dot_scaled_state_serial_t *state, nk_mxfp8e4m3_t a,
+                                                     nk_mxfp8e4m3_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    nk_f64_t block_sum = 0;
+    for (nk_size_t i = 0; i != 32; ++i) {
+        nk_f32_t a_value, b_value;
+        nk_e4m3_to_f32_(a.elements_ + i, &a_value);
+        nk_e4m3_to_f32_(b.elements_ + i, &b_value);
+        block_sum += (nk_f64_t)a_value * b_value;
+    }
+    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(a.scale_, nk_ue8m0_k) *
+                  nk_block_scaled_decode_scale_serial_(b.scale_, nk_ue8m0_k);
+}
+
+NUMKONG_INLINE void nk_dot_mxfp8e5m2x1_update_serial(nk_dot_scaled_state_serial_t *state, nk_mxfp8e5m2_t a,
+                                                     nk_mxfp8e5m2_t b, nk_size_t depth_offset,
+                                                     nk_size_t active_dimensions) {
+    nk_unused_(depth_offset);
+    nk_unused_(active_dimensions);
+    nk_f64_t block_sum = 0;
+    for (nk_size_t i = 0; i != 32; ++i) {
+        nk_f32_t a_value, b_value;
+        nk_e5m2_to_f32_(a.elements_ + i, &a_value);
+        nk_e5m2_to_f32_(b.elements_ + i, &b_value);
+        block_sum += (nk_f64_t)a_value * b_value;
+    }
+    state->sum += block_sum * nk_block_scaled_decode_scale_serial_(a.scale_, nk_ue8m0_k) *
+                  nk_block_scaled_decode_scale_serial_(b.scale_, nk_ue8m0_k);
 }
 
 #pragma endregion Block Scaled Floats

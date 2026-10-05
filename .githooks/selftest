@@ -2407,6 +2407,69 @@ NUMKONG_API void nk_probe_haswell(void) {
 }
 FIXTURE
 
+assert_rejects "type-punned vector members without dtype" "names a SIMD register" include/numkong/probe/skylake.h <<'FIXTURE'
+typedef struct probe_t {
+    nk_b512_vec_t low, high;
+} probe_t;
+FIXTURE
+
+assert_rejects "second vector member without dtype" "names a SIMD register" include/numkong/probe/skylake.h <<'FIXTURE'
+typedef struct probe_t {
+    __m512 low_f32x16, high;
+} probe_t;
+FIXTURE
+
+assert_accepts "named vector members and initializer commas" include/numkong/probe/skylake.h <<'FIXTURE'
+typedef struct probe_t {
+    __m512 low_f32x16, high_f32x16;
+    nk_b512_vec_t input_vec, output_vec;
+} probe_t;
+NUMKONG_INLINE void probe(nk_b512_vec_t a, nk_b512_vec_t b) {
+    __m512 sum_f32x16 = _mm512_add_ps(a.zmm_ps, b.zmm_ps), zero_f32x16 = _mm512_setzero_ps();
+}
+FIXTURE
+
+for backend in skylake diamondamx sve2 smef64 rvvhalf; do
+    assert_rejects "serial partial loader on $backend" "uses a serial partial loader in a predicated backend" "include/numkong/probe/$backend.h" <<'FIXTURE'
+NUMKONG_INLINE void probe(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b8x16_serial_(src, dst, n);
+}
+FIXTURE
+done
+
+for backend in neon haswell; do
+    assert_accepts "serial byte tail without byte predication on $backend" "include/numkong/probe/$backend.h" <<'FIXTURE'
+NUMKONG_INLINE void probe(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b8x16_serial_(src, dst, n);
+}
+FIXTURE
+done
+
+assert_accepts "masked partial loader on Skylake" include/numkong/probe/skylake.h <<'FIXTURE'
+NUMKONG_INLINE void probe(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+    nk_partial_load_b8x16_skylake_(src, dst, n);
+}
+FIXTURE
+
+assert_rejects "Metal template parameter without private suffix" "exposes a template parameter name" include/numkong/probe.metal <<'FIXTURE'
+template <typename stage_t, uint dtype>
+struct probe {};
+FIXTURE
+
+assert_rejects "C++ template value parameter without private suffix" "exposes a template parameter name" include/numkong/probe.hpp <<'FIXTURE'
+template <typename value_type_,
+          unsigned width>
+struct probe {};
+FIXTURE
+
+assert_accepts "Metal private template parameters and local aliases" include/numkong/probe.metal <<'FIXTURE'
+template <typename stage_type_, uint dtype_>
+struct probe {
+    using stage_t = stage_type_;
+    static constexpr uint dtype = dtype_;
+};
+FIXTURE
+
 assert_rejects "repeated backend target guard" "repeats its backend target guard" include/numkong/probe/sme.h <<'FIXTURE'
 #if NUMKONG_TARGET_SME
 int first(void);

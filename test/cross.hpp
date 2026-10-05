@@ -438,9 +438,9 @@ constexpr std::size_t stride_step_v =
         : sizeof(typename nk::type_for<nk_block_scaled_format_of_dtype(scalar_type_::dtype()).element_dtype>::type);
 
 /** The scales of one operand in @p backend_type_'s memory: one byte per block of each row, rows
- *  @c stride / block_bytes apart, each a power of two within three binades of one, exact in UE4M3
- *  and UE8M0, plus for NVFP4 one non-unit tensor scale. @c operand wraps codes into what kernels
- *  take: the codes themselves for plain dtypes, else a reference to them and these scales. */
+ *  @c stride / block_bytes apart, using finite nonzero UE4M3 scales or UE8M0 powers of two within
+ *  three binades of one, plus for NVFP4 one non-unit tensor scale. @c operand wraps codes into what
+ *  kernels take: codes for plain dtypes, else a reference to them and these scales. */
 template <typename scalar_type_, typename backend_type_>
 struct operand_scales {
     static constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
@@ -480,10 +480,14 @@ auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t 
                           scale_stride = stride / operand_t::format.block_bytes;
         operand.scale_stride = scale_stride;
         operand.blocks = operand_t::blocks_t::zeros({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
-        std::uniform_int_distribution<int> exponents(-3, 3);
+        std::uniform_int_distribution<int> exponents(-3, 3), finite_scales(1, 126);
         for (std::size_t row = 0; row != rows; ++row)
-            for (std::size_t block = 0; block != blocks; ++block)
-                operand.blocks.data()[row * scale_stride + block] = scale_t(std::ldexp(1.0f, exponents(generator)));
+            for (std::size_t block = 0; block != blocks; ++block) {
+                if constexpr (operand_t::format.scale_dtype == nk_ue4m3_k)
+                    operand.blocks.data()[row * scale_stride + block] = scale_t::from_raw(finite_scales(generator));
+                else
+                    operand.blocks.data()[row * scale_stride + block] = scale_t(std::ldexp(1.0f, exponents(generator)));
+            }
         if constexpr (operand_t::format.tensor_scale_dtype == nk_f32_k) {
             operand.tensor_scale = operand_t::tensor_scale_t::zeros(1, allocator_of<f32_t>(backend)).value;
             operand.tensor_scale[0] = f32_t(tensor_scale);
@@ -648,6 +652,11 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                 else fill_random(settings, generator, a), fill_random(settings, generator, b);
             }
             else fill_random(settings, generator, a), fill_random(settings, generator, b);
+            if constexpr (scalar_type_::dtype() == nk_mxfp6e2m3_k || scalar_type_::dtype() == nk_mxfp6e3m2_k)
+                if (rows == 1 && columns == 1) {
+                    std::memset(a.raw_values_data(), 0x1F, row_bytes);
+                    std::memset(b.raw_values_data(), 0x3F, row_bytes);
+                }
             fill_padding_canary(a, rows, row_bytes, a_stride), fill_padding_canary(b, columns, row_bytes, b_stride);
             fill_canary(c);
             auto const a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, a_stride, 1.5f),

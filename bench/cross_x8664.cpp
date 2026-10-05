@@ -204,6 +204,10 @@ void bench_cross_x8664(environment_t const &env) {
                                     nk_dots_pack_nvfp4_skylake, nk_dots_packed_nvfp4_skylake);
         run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_skylake", nk_dots_pack_size_mxfp4_skylake,
                                     nk_dots_pack_mxfp4_skylake, nk_dots_packed_mxfp4_skylake);
+        run_dots_packed<nk_mxfp6e2m3_k>(env, "dots_packed_mxfp6e2m3_skylake", nk_dots_pack_size_mxfp6e2m3_skylake,
+                                        nk_dots_pack_mxfp6e2m3_skylake, nk_dots_packed_mxfp6e2m3_skylake);
+        run_dots_packed<nk_mxfp6e3m2_k>(env, "dots_packed_mxfp6e3m2_skylake", nk_dots_pack_size_mxfp6e3m2_skylake,
+                                        nk_dots_pack_mxfp6e3m2_skylake, nk_dots_packed_mxfp6e3m2_skylake);
         run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_skylake", nk_dots_pack_size_mxfp8e4m3_skylake,
                                         nk_dots_pack_mxfp8e4m3_skylake, nk_dots_packed_mxfp8e4m3_skylake);
         run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_skylake", nk_dots_pack_size_mxfp8e5m2_skylake,
@@ -220,6 +224,10 @@ void bench_cross_x8664(environment_t const &env) {
         run_dots_symmetric<e2m1_k>(env, "dots_symmetric_e2m1_skylake", nk_dots_symmetric_e2m1_skylake);
         run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_skylake", nk_dots_symmetric_nvfp4_skylake);
         run_dots_symmetric<nk_mxfp4_k>(env, "dots_symmetric_mxfp4_skylake", nk_dots_symmetric_mxfp4_skylake);
+        run_dots_symmetric<nk_mxfp6e2m3_k>(env, "dots_symmetric_mxfp6e2m3_skylake",
+                                           nk_dots_symmetric_mxfp6e2m3_skylake);
+        run_dots_symmetric<nk_mxfp6e3m2_k>(env, "dots_symmetric_mxfp6e3m2_skylake",
+                                           nk_dots_symmetric_mxfp6e3m2_skylake);
         run_dots_symmetric<nk_mxfp8e4m3_k>(env, "dots_symmetric_mxfp8e4m3_skylake",
                                            nk_dots_symmetric_mxfp8e4m3_skylake);
         run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_skylake",
@@ -247,6 +255,12 @@ void bench_cross_x8664(environment_t const &env) {
                                         nk_dots_pack_nvfp4_skylake, nk_angulars_packed_nvfp4_skylake);
         run_angulars_packed<nk_mxfp4_k>(env, "angulars_packed_mxfp4_skylake", nk_dots_pack_size_mxfp4_skylake,
                                         nk_dots_pack_mxfp4_skylake, nk_angulars_packed_mxfp4_skylake);
+        run_angulars_packed<nk_mxfp6e2m3_k>(env, "angulars_packed_mxfp6e2m3_skylake",
+                                            nk_dots_pack_size_mxfp6e2m3_skylake, nk_dots_pack_mxfp6e2m3_skylake,
+                                            nk_angulars_packed_mxfp6e2m3_skylake);
+        run_angulars_packed<nk_mxfp6e3m2_k>(env, "angulars_packed_mxfp6e3m2_skylake",
+                                            nk_dots_pack_size_mxfp6e3m2_skylake, nk_dots_pack_mxfp6e3m2_skylake,
+                                            nk_angulars_packed_mxfp6e3m2_skylake);
         run_angulars_packed<nk_mxfp8e4m3_k>(env, "angulars_packed_mxfp8e4m3_skylake",
                                             nk_dots_pack_size_mxfp8e4m3_skylake, nk_dots_pack_mxfp8e4m3_skylake,
                                             nk_angulars_packed_mxfp8e4m3_skylake);
@@ -267,6 +281,10 @@ void bench_cross_x8664(environment_t const &env) {
                                            nk_angulars_symmetric_nvfp4_skylake);
         run_angulars_symmetric<nk_mxfp4_k>(env, "angulars_symmetric_mxfp4_skylake",
                                            nk_angulars_symmetric_mxfp4_skylake);
+        run_angulars_symmetric<nk_mxfp6e2m3_k>(env, "angulars_symmetric_mxfp6e2m3_skylake",
+                                               nk_angulars_symmetric_mxfp6e2m3_skylake);
+        run_angulars_symmetric<nk_mxfp6e3m2_k>(env, "angulars_symmetric_mxfp6e3m2_skylake",
+                                               nk_angulars_symmetric_mxfp6e3m2_skylake);
         run_angulars_symmetric<nk_mxfp8e4m3_k>(env, "angulars_symmetric_mxfp8e4m3_skylake",
                                                nk_angulars_symmetric_mxfp8e4m3_skylake);
         run_angulars_symmetric<nk_mxfp8e5m2_k>(env, "angulars_symmetric_mxfp8e5m2_skylake",
@@ -294,6 +312,12 @@ void bench_cross_x8664(environment_t const &env) {
                                           nk_dots_pack_nvfp4_skylake, nk_euclideans_packed_nvfp4_skylake);
         run_euclideans_packed<nk_mxfp4_k>(env, "euclideans_packed_mxfp4_skylake", nk_dots_pack_size_mxfp4_skylake,
                                           nk_dots_pack_mxfp4_skylake, nk_euclideans_packed_mxfp4_skylake);
+        run_euclideans_packed<nk_mxfp6e2m3_k>(env, "euclideans_packed_mxfp6e2m3_skylake",
+                                              nk_dots_pack_size_mxfp6e2m3_skylake, nk_dots_pack_mxfp6e2m3_skylake,
+                                              nk_euclideans_packed_mxfp6e2m3_skylake);
+        run_euclideans_packed<nk_mxfp6e3m2_k>(env, "euclideans_packed_mxfp6e3m2_skylake",
+                                              nk_dots_pack_size_mxfp6e3m2_skylake, nk_dots_pack_mxfp6e3m2_skylake,
+                                              nk_euclideans_packed_mxfp6e3m2_skylake);
         run_euclideans_packed<nk_mxfp8e4m3_k>(env, "euclideans_packed_mxfp8e4m3_skylake",
                                               nk_dots_pack_size_mxfp8e4m3_skylake, nk_dots_pack_mxfp8e4m3_skylake,
                                               nk_euclideans_packed_mxfp8e4m3_skylake);
@@ -320,6 +344,10 @@ void bench_cross_x8664(environment_t const &env) {
                                              nk_euclideans_symmetric_nvfp4_skylake);
         run_euclideans_symmetric<nk_mxfp4_k>(env, "euclideans_symmetric_mxfp4_skylake",
                                              nk_euclideans_symmetric_mxfp4_skylake);
+        run_euclideans_symmetric<nk_mxfp6e2m3_k>(env, "euclideans_symmetric_mxfp6e2m3_skylake",
+                                                 nk_euclideans_symmetric_mxfp6e2m3_skylake);
+        run_euclideans_symmetric<nk_mxfp6e3m2_k>(env, "euclideans_symmetric_mxfp6e3m2_skylake",
+                                                 nk_euclideans_symmetric_mxfp6e3m2_skylake);
         run_euclideans_symmetric<nk_mxfp8e4m3_k>(env, "euclideans_symmetric_mxfp8e4m3_skylake",
                                                  nk_euclideans_symmetric_mxfp8e4m3_skylake);
         run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_skylake",

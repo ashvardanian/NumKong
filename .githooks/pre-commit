@@ -1991,6 +1991,49 @@ check_abbreviations_spelled_out() {
         "$staged_path abbreviates a word this project spells out; write \`high\`, \`low\`, \`accumulator\`, and so on:"
 }
 
+# Template parameters are private names; public aliases belong inside the instantiated type.
+check_template_parameter_names() {
+    local names
+    names=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
+        added_list="$staged_added_line_numbers_list" awk '
+        BEGIN {
+            count = split(ENVIRON["added_list"], lines, "\n")
+            for (index_ = 1; index_ <= count; ++index_) added[lines[index_] + 0] = 1
+        }
+        function check_parameter(    declaration, words, count, name) {
+            declaration = parameter
+            sub(/=.*/, "", declaration)
+            gsub(/\.\.\./, " ", declaration)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", declaration)
+            count = split(declaration, words, /[[:space:]]+/)
+            name = words[count]
+            if (changed && count > 1 && name ~ /^[A-Za-z_][A-Za-z0-9_]*$/ && name !~ /_$/)
+                printf "line %d: %s\n", FNR, declaration
+            parameter = ""; changed = 0
+        }
+        {
+            code = $0
+            while (code != "") {
+                if (!depth) {
+                    if (!match(code, /(^|[^A-Za-z0-9_])template[[:space:]]*</)) break
+                    code = substr(code, RSTART + RLENGTH)
+                    depth = 1; parameter = ""; changed = 0
+                }
+                character = substr(code, 1, 1); code = substr(code, 2)
+                if (FNR in added) changed = 1
+                if (character == "<") ++depth
+                else if (character == ">") {
+                    if (!--depth) { check_parameter(); continue }
+                }
+                else if (character == "," && depth == 1) { check_parameter(); continue }
+                parameter = parameter character
+            }
+            if (depth) parameter = parameter " "
+        }' || true)
+    [ -z "$names" ] || reject_with_reason "$names" \
+        "$staged_path exposes a template parameter name; append an underscore and define public aliases inside:"
+}
+
 # Rejects a split string literal whose non-final fragment lacks a trailing `//`, because clang-format
 # restitches unpinned fragments into a staircase.
 check_split_string_literal_pinned() {
@@ -2624,6 +2667,7 @@ run_shared_checks() {
         check_void_discards
         check_thread_local
         check_type_suffixes
+        check_template_parameter_names
         check_header_date
         check_retval
         check_deprecations
@@ -2782,21 +2826,35 @@ check_register_names_carry_dtype_and_width() {
             if (isa == "rvv") return name ~ /_b(1|2|4|8|16|32|64)$/
         }
         function name_exempt(name) { return name ~ /(_vec|_tail|_tile)$/ || name == "state" }
+        function check_declarators(text, type, is_mask,    name, rest, character, depth, position) {
+            while (text != "") {
+                sub(/^[[:space:]]*(const[[:space:]]+)?/, "", text)
+                name = text; sub(/[^A-Za-z0-9_].*/, "", name)
+                rest = substr(text, length(name) + 1)
+                if (rest ~ /^[[:space:]]*\(/) return
+                if (name != "" && !name_exempt(name) && !(is_mask ? mask_name_valid(name) : vector_name_valid(name)))
+                    printf "line %d: %s %s\n", FNR, type, name
+                depth = 0
+                for (position = 1; position <= length(rest); ++position) {
+                    character = substr(rest, position, 1)
+                    if (character ~ /[([{]/) ++depth
+                    else if (character ~ /[)\]}]/) { if (!depth) return; --depth }
+                    else if (!depth && character == ";") return
+                    else if (!depth && character == ",") break
+                }
+                text = substr(rest, position + 1)
+            }
+        }
         (FNR in added) && !(FNR in exempt) {
             token_count = split($0, tokens, /[[:space:]]+/)
             for (token_index = 1; token_index <= token_count; ++token_index) {
                 token = tokens[token_index]
                 is_mask = (token ~ /^(__mmask[0-9]+|svbool_t|vbool[0-9]+_t)$/)
-                is_vector = (token ~ /^(__m(128|256|512)[id]?|__m512bh|v128_t|(float|int|uint|bfloat|poly)[0-9]+x[0-9]+(x[234])?_t|sv(float|int|uint|bfloat)[0-9]*_t|v(float|int|uint|bfloat)[0-9]+m[1248](x[234])?_t|nk_v[a-z0-9]+_t)$/)
+                is_vector = (token ~ /^(__m(128|256|512)[id]?|__m512bh|v128_t|(float|int|uint|bfloat|poly)[0-9]+x[0-9]+(x[234])?_t|sv(float|int|uint|bfloat)[0-9]*_t|v(float|int|uint|bfloat)[0-9]+m[1248](x[234])?_t|nk_v[a-z0-9]+_t|nk_b(32|64|128|256|512)_vec_t)$/)
                 if (!is_mask && !is_vector) continue
-                name = tokens[token_index + 1]
-                if (name == "const") name = tokens[token_index + 2]
-                if (name ~ /\(/) break
-                sub(/[=;,].*/, "", name)
-                if (name == "" || name ~ /[^A-Za-z0-9_]/) continue
-                if (name_exempt(name)) break
-                if (is_mask ? mask_name_valid(name) : vector_name_valid(name)) break
-                printf "line %d: %s %s\n", FNR, token, name
+                prefix = substr($0, 1, index($0, token) - 1)
+                if (token ~ /^nk_b/ && prefix !~ /^[[:space:]]*((static|const)[[:space:]]+)*$/) continue
+                check_declarators(substr($0, index($0, token) + length(token)), token, is_mask)
                 break
             }
         }' || true)
@@ -2804,6 +2862,20 @@ check_register_names_carry_dtype_and_width() {
         "$staged_path names a SIMD register against the $register_grammar convention," \
         "            <role>_<dtype>x<lanes>, _<dtype>x or _<dtype>m<lmul>, with masks per ISA;" \
         "            rename it, or grandfather one line with a trailing \`// nk-nolint: naming\`:"
+}
+
+# Predicated backends load tails directly instead of staging them through serial helpers.
+check_predicated_loads_avoid_serial() {
+    local serial_loads
+    case "${staged_path##*/}" in
+    sve*.h | sme*.h | rvv*.h | skylake.h | icelake.h | genoa.h | sapphire*.h | graniteamx.h | \
+        turin.h | diamond*.h) ;;
+    *) return 0 ;;
+    esac
+    serial_loads=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
+        grep -E 'nk_partial_load_[A-Za-z0-9_]+_serial_' || true)
+    [ -z "$serial_loads" ] || reject_with_reason "$serial_loads" \
+        "$staged_path uses a serial partial loader in a predicated backend; use its masked or vector-length-controlled load:"
 }
 
 # Rejects new repetitions of the header's own target guard.
@@ -2990,6 +3062,7 @@ run_project_checks() {
     include/numkong/*/*.h | include/numkong/*/*.cuh)
         check_kernel_documented_at_declaration
         check_register_names_carry_dtype_and_width
+        check_predicated_loads_avoid_serial
         check_backend_target_guard_unique
         ;;
     esac
