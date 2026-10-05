@@ -127,20 +127,11 @@ typedef struct {
     void *library, *pipeline;
 } nk_metal_pipeline_t;
 
-/** One stream with work committed since its last synchronization. */
+/** Retained command buffers for one queue, in submission order. */
 typedef struct {
-
-    /** The @c id<MTLCommandQueue>, retained while pending. */
     void *queue;
-
-    /** The command buffers committed to it, in commit order. */
     void **commands;
-    nk_size_t commands_count, commands_capacity;
-    nk_size_t waiters;
-
-    /** The @c id<MTLBuffer> of every block freed while those commands may still read it. */
-    void **frees;
-    nk_size_t frees_count, frees_capacity;
+    nk_size_t commands_count, commands_capacity, waiters;
 } nk_metal_pending_t;
 
 /** Per-device allocations, pending work, and compiled kernels, guarded by one lock. */
@@ -155,8 +146,7 @@ typedef struct {
     nk_size_t pipelines_count, pipelines_capacity;
 } nk_metal_context_t;
 
-/** One call being encoded, on its caller's stack: the context and queue of its stream, and its
- *  command buffer and compute encoder. */
+/** The retained objects used to encode one call. */
 typedef struct {
     nk_metal_context_t *context;
     void *queue, *commands, *encoder;
@@ -201,31 +191,56 @@ NUMKONG_INLINE nk_metal_pending_t *nk_metal_pending_(nk_metal_context_t *context
 
 /** Opens @p call on @p stream: its device's context and the queue it names. */
 NUMKONG_INLINE nk_status_t nk_metal_enter_(void *stream, nk_metal_call_t *call) {
+    call->queue = NULL, call->commands = NULL, call->encoder = NULL;
     call->context = nk_metal_context_(stream);
-    call->queue = stream ? stream : call->context ? call->context->queue : NULL;
-    call->commands = NULL, call->encoder = NULL;
-    return call->context ? nk_success_k : nk_missing_gpu_k;
+    if (!call->context) return nk_missing_gpu_k;
+    call->queue = nk_metal_get_(stream ? stream : call->context->queue, "retain");
+    void *const pool = objc_autoreleasePoolPush();
+    call->commands = nk_metal_get_(nk_metal_get_(call->queue, "commandBuffer"), "retain");
+    if (call->commands) call->encoder = nk_metal_get_(nk_metal_get_(call->commands, "computeCommandEncoder"), "retain");
+    objc_autoreleasePoolPop(pool);
+    if (!call->encoder) {
+        if (call->commands) nk_metal_do_(call->commands, "release");
+        nk_metal_do_(call->queue, "release");
+        call->queue = NULL, call->commands = NULL;
+        return nk_device_code_mismatch_k;
+    }
+    return nk_success_k;
 }
 
 /**
- *  @brief Finds the block of @p context holding @p pointer, and its offset there.
+ *  @brief Finds and retains the allocation holding @p pointer for @p call.
  *  @return The block's @c id<MTLBuffer>, or null when @p pointer lies outside every block.
  */
-NUMKONG_INLINE void *nk_metal_resolve_(nk_metal_context_t *context, void const *pointer, nk_size_t *offset) {
-    char const *const address = (char const *)pointer;
+NUMKONG_INLINE void *nk_metal_resolve_(nk_metal_call_t *call, void const *pointer, nk_size_t bytes, nk_size_t *offset) {
+    nk_metal_context_t *const context = call->context;
+    nk_size_t const address = (nk_size_t)pointer;
     void *buffer = NULL;
     os_unfair_lock_lock(&context->lock);
     nk_size_t low = 0, high = context->blocks_count;
     while (low < high) {
         nk_size_t const middle = low + (high - low) / 2;
-        if (context->blocks[middle].host <= address) low = middle + 1;
+        if ((nk_size_t)context->blocks[middle].host <= address) low = middle + 1;
         else high = middle;
     }
     nk_metal_block_t const *const block = low ? context->blocks + low - 1 : NULL;
-    if (block && address < block->host + block->bytes)
-        buffer = block->buffer, *offset = (nk_size_t)(address - block->host);
+    nk_size_t const displacement = block ? address - (nk_size_t)block->host : 0;
+    if (block && displacement <= block->bytes && bytes <= block->bytes - displacement) {
+        buffer = block->buffer, *offset = displacement;
+        // The command buffer retains the resource before the registry lock is released.
+        ((void (*)(void *, SEL, void *, nk_size_t))objc_msgSend)(call->encoder, sel_registerName("useResource:usage:"),
+                                                                 buffer, 3);
+    }
     os_unfair_lock_unlock(&context->lock);
     return buffer;
+}
+
+NUMKONG_INLINE nk_status_t nk_metal_abort_(nk_metal_call_t *call, nk_status_t status) {
+    if (call->encoder) nk_metal_do_(call->encoder, "endEncoding"), nk_metal_do_(call->encoder, "release");
+    if (call->commands) nk_metal_do_(call->commands, "release");
+    if (call->queue) nk_metal_do_(call->queue, "release");
+    call->queue = NULL, call->commands = NULL, call->encoder = NULL;
+    return status;
 }
 
 /**
@@ -288,20 +303,10 @@ NUMKONG_INLINE void *nk_metal_pipeline_(nk_metal_context_t *context, char const 
     return pipeline;
 }
 
-/** Opens @p call's command buffer and compute encoder on @p pipeline; @ref nk_metal_dispatch_
- *  commits them. */
-NUMKONG_INLINE nk_status_t nk_metal_encoder_(nk_metal_call_t *call, void *pipeline) {
-    void *const pool = objc_autoreleasePoolPush();
-    call->commands = nk_metal_get_(nk_metal_get_(call->queue, "commandBuffer"), "retain");
-    if (call->commands) call->encoder = nk_metal_get_(nk_metal_get_(call->commands, "computeCommandEncoder"), "retain");
-    objc_autoreleasePoolPop(pool);
-    if (!call->encoder) {
-        if (call->commands) nk_metal_do_(call->commands, "release");
-        return nk_device_code_mismatch_k;
-    }
+/** Sets @p pipeline on the call's compute encoder. */
+NUMKONG_INLINE void nk_metal_encoder_(nk_metal_call_t *call, void *pipeline) {
     ((void (*)(void *, SEL, void *))objc_msgSend)(call->encoder, sel_registerName("setComputePipelineState:"),
                                                   pipeline);
-    return nk_success_k;
 }
 
 /** Binds @p buffer at @p offset to buffer slot @p index of @p encoder. */
@@ -323,6 +328,7 @@ NUMKONG_INLINE nk_status_t nk_metal_dispatch_(nk_metal_call_t *call, nk_metal_si
         call->encoder, sel_registerName("dispatchThreadgroups:threadsPerThreadgroup:"), groups, threads);
     nk_metal_do_(call->encoder, "endEncoding");
     nk_metal_do_(call->encoder, "release");
+    call->encoder = NULL;
 
     // Committing under the lock keeps every stream's commands in their commit order
     nk_metal_context_t *const context = call->context;
@@ -345,9 +351,8 @@ NUMKONG_INLINE nk_status_t nk_metal_dispatch_(nk_metal_call_t *call, nk_metal_si
         nk_metal_do_(call->commands, "commit");
     }
     os_unfair_lock_unlock(&context->lock);
-    if (commands) return nk_success_k;
-    nk_metal_do_(call->commands, "release");
-    return nk_bad_alloc_k;
+    if (commands) call->commands = NULL;
+    return nk_metal_abort_(call, commands ? nk_success_k : nk_bad_alloc_k);
 }
 
 NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(void *stream) {
@@ -388,7 +393,7 @@ NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, vo
         context->blocks, context->blocks_count, &context->blocks_capacity, sizeof(nk_metal_block_t));
     if (blocks) {
         nk_size_t position = context->blocks_count;
-        while (position != 0 && blocks[position - 1].host > host) --position;
+        while (position != 0 && (nk_size_t)blocks[position - 1].host > (nk_size_t)host) --position;
         memmove(blocks + position + 1, blocks + position,
                 (context->blocks_count - position) * sizeof(nk_metal_block_t));
         blocks[position].buffer = buffer, blocks[position].host = host, blocks[position].bytes = bytes;
@@ -412,22 +417,14 @@ NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_
     nk_size_t index = 0;
     while (index != context->blocks_count && context->blocks[index].host != (char *)pointer) ++index;
     nk_status_t status = index != context->blocks_count ? nk_success_k : nk_device_memory_mismatch_k;
-    nk_metal_pending_t *const pending = status == nk_success_k
-                                            ? nk_metal_pending_(context, stream ? stream : context->queue)
-                                            : NULL;
-    void **const frees = pending ? (void **)nk_metal_reserve_(pending->frees, pending->frees_count,
-                                                              &pending->frees_capacity, sizeof(void *))
-                                 : NULL;
-    if (pending && !frees) status = nk_bad_alloc_k;
     void *const buffer = status == nk_success_k ? context->blocks[index].buffer : NULL;
     if (buffer) {
         memmove(context->blocks + index, context->blocks + index + 1,
                 (context->blocks_count - index - 1) * sizeof(nk_metal_block_t));
         --context->blocks_count;
     }
-    if (buffer && frees) pending->frees = frees, frees[pending->frees_count++] = buffer;
     os_unfair_lock_unlock(&context->lock);
-    if (buffer && !frees) nk_metal_do_(buffer, "release");
+    if (buffer) nk_metal_do_(buffer, "release");
     return status;
 }
 
@@ -459,34 +456,46 @@ NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(void *stream) {
     os_unfair_lock_lock(&context->lock);
     nk_metal_pending_t *pending = nk_metal_pending_(context, queue);
     if (pending) {
-        commands = pending->commands, commands_count = pending->commands_count;
-        pending->commands = NULL, pending->commands_count = 0, pending->commands_capacity = 0;
+        commands_count = pending->commands_count;
+        if (commands_count) commands = (void **)malloc(commands_count * sizeof(void *));
+        if (commands_count && !commands) {
+            os_unfair_lock_unlock(&context->lock);
+            return nk_bad_alloc_k;
+        }
+        for (nk_size_t index = 0; index != commands_count; ++index)
+            commands[index] = nk_metal_get_(pending->commands[index], "retain");
         ++pending->waiters;
     }
     os_unfair_lock_unlock(&context->lock);
     if (!pending) return nk_success_k;
 
     nk_status_t status = nk_success_k;
-    nk_size_t const completed = 4; // `MTLCommandBufferStatusCompleted`
     for (nk_size_t index = 0; index != commands_count; ++index) {
         nk_metal_do_(commands[index], "waitUntilCompleted");
-        if (nk_metal_count_(commands[index], "status") != completed) status = nk_device_code_mismatch_k;
-        nk_metal_do_(commands[index], "release");
+        if (nk_metal_count_(commands[index], "status") != 4) status = nk_device_code_mismatch_k;
     }
-    free(commands);
 
-    nk_metal_pending_t drained;
-    memset(&drained, 0, sizeof(drained));
+    void *drained = NULL;
     os_unfair_lock_lock(&context->lock);
-    // Other launches may have moved the entry while commands completed.
     pending = nk_metal_pending_(context, queue);
-    if (--pending->waiters == 0 && pending->commands_count == 0)
-        drained = *pending, *pending = context->pending[--context->pending_count];
+    nk_size_t completed = 0;
+    // Other waiters may already have drained this snapshot; later submissions stay queued.
+    for (nk_size_t index = 0; commands_count && index != pending->commands_count; ++index)
+        if (pending->commands[index] == commands[commands_count - 1]) completed = index + 1;
+    for (nk_size_t index = 0; index != completed; ++index) nk_metal_do_(pending->commands[index], "release");
+    if (completed) {
+        pending->commands_count -= completed;
+        memmove(pending->commands, pending->commands + completed, pending->commands_count * sizeof(void *));
+    }
+    if (--pending->waiters == 0 && pending->commands_count == 0) {
+        drained = pending->queue;
+        free(pending->commands);
+        *pending = context->pending[--context->pending_count];
+    }
     os_unfair_lock_unlock(&context->lock);
-    for (nk_size_t index = 0; index != drained.frees_count; ++index) nk_metal_do_(drained.frees[index], "release");
-    if (drained.queue) nk_metal_do_(drained.queue, "release");
-    free(drained.commands);
-    free(drained.frees);
+    if (drained) nk_metal_do_(drained, "release");
+    for (nk_size_t index = 0; index != commands_count; ++index) nk_metal_do_(commands[index], "release");
+    free(commands);
     return status;
 }
 

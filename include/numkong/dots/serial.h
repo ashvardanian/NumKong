@@ -191,6 +191,8 @@ typedef nk_u4x2_t nk_cross_u4_operand_t;
 typedef nk_u1x8_t nk_cross_u1_operand_t;
 typedef nk_nvfp4_cref_t nk_cross_nvfp4_operand_t;
 typedef nk_mxfp4_cref_t nk_cross_mxfp4_operand_t;
+typedef nk_mxfp6e2m3_cref_t nk_cross_mxfp6e2m3_operand_t;
+typedef nk_mxfp6e3m2_cref_t nk_cross_mxfp6e3m2_operand_t;
 typedef nk_mxfp8e4m3_cref_t nk_cross_mxfp8e4m3_operand_t;
 typedef nk_mxfp8e5m2_cref_t nk_cross_mxfp8e5m2_operand_t;
 

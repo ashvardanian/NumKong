@@ -652,13 +652,27 @@ static nk_capability_kernels_t const *nk_dots_pack_size_nvfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -690,13 +704,27 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -720,13 +748,75 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp8e4m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_pack_size_mxfp6e2m3_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e2m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e2m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e2m3_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_pack_size_mxfp6e3m2_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e3m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e3m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e3m2_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -750,13 +840,27 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp8e5m2_capabilities(v
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -771,6 +875,20 @@ NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e4m3_best(nk_size_t columns, nk_s
                                                          nk_capability_t capabilities, nk_size_t *bytes) {
     nk_dots_pack_size_punned_t const kernel = (nk_dots_pack_size_punned_t)nk_kernel_pick_(
         capabilities, nk_dots_pack_size_mxfp8e4m3_capabilities());
+    return kernel ? kernel(columns, depth, bytes) : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_pack_size_mxfp6e2m3_best(nk_size_t columns, nk_size_t depth,
+                                                         nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_dots_pack_size_punned_t const kernel = (nk_dots_pack_size_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_pack_size_mxfp6e2m3_capabilities());
+    return kernel ? kernel(columns, depth, bytes) : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_pack_size_mxfp6e3m2_best(nk_size_t columns, nk_size_t depth,
+                                                         nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_dots_pack_size_punned_t const kernel = (nk_dots_pack_size_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_pack_size_mxfp6e3m2_capabilities());
     return kernel ? kernel(columns, depth, bytes) : nk_missing_kernel_k;
 }
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e5m2_best(nk_size_t columns, nk_size_t depth,
@@ -1254,6 +1372,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_i4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -1266,7 +1387,7 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -1330,6 +1451,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_size_u4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -1342,7 +1466,7 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -2045,13 +2169,27 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_nvfp4_capabilities(vo
         (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2083,13 +2221,27 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp4_capabilities(vo
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2113,13 +2265,75 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp8e4m3_capabilitie
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp6e2m3_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e2m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e2m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e2m3_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp6e3m2_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e3m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e3m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e3m2_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2143,13 +2357,27 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp8e5m2_capabilitie
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2164,6 +2392,20 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e4m3_best(void const *packed, 
                                                             nk_capability_t capabilities, void *stream) {
     nk_dots_packed_shape_punned_t const kernel = (nk_dots_packed_shape_punned_t)nk_kernel_pick_(
         capabilities, nk_dots_packed_shape_mxfp8e4m3_capabilities());
+    return kernel ? kernel(packed, columns, depth, stream) : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp6e2m3_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
+                                                            nk_capability_t capabilities, void *stream) {
+    nk_dots_packed_shape_punned_t const kernel = (nk_dots_packed_shape_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_packed_shape_mxfp6e2m3_capabilities());
+    return kernel ? kernel(packed, columns, depth, stream) : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp6e3m2_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
+                                                            nk_capability_t capabilities, void *stream) {
+    nk_dots_packed_shape_punned_t const kernel = (nk_dots_packed_shape_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_packed_shape_mxfp6e3m2_capabilities());
     return kernel ? kernel(packed, columns, depth, stream) : nk_missing_kernel_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e5m2_best(void const *packed, nk_size_t *columns, nk_size_t *depth,
@@ -2647,6 +2889,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i4_capabilities(void)
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_i4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -2659,7 +2904,7 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i4_capabilities(void)
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -2723,6 +2968,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u4_capabilities(void)
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_shape_u4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -2735,7 +2983,7 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u4_capabilities(void)
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -3450,13 +3698,27 @@ static nk_capability_kernels_t const *nk_dots_pack_nvfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_nvfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_nvfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_nvfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_nvfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3490,13 +3752,27 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_mxfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3520,13 +3796,75 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp8e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_pack_mxfp6e2m3_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp6e2m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp6e2m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp6e2m3_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_pack_mxfp6e3m2_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp6e3m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp6e3m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp6e3m2_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3550,13 +3888,27 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp8e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3574,6 +3926,24 @@ NUMKONG_API nk_status_t nk_dots_pack_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t const *b
                                                     nk_size_t columns_end, nk_capability_t capabilities, void *stream) {
     nk_dots_pack_punned_t const kernel = (nk_dots_pack_punned_t)nk_kernel_pick_(capabilities,
                                                                                 nk_dots_pack_mxfp8e4m3_capabilities());
+    return kernel ? kernel(b, columns, depth, b_stride, b_packed, columns_begin, columns_end, stream)
+                  : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_pack_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *b, nk_size_t columns, nk_size_t depth,
+                                                    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
+                                                    nk_size_t columns_end, nk_capability_t capabilities, void *stream) {
+    nk_dots_pack_punned_t const kernel = (nk_dots_pack_punned_t)nk_kernel_pick_(capabilities,
+                                                                                nk_dots_pack_mxfp6e2m3_capabilities());
+    return kernel ? kernel(b, columns, depth, b_stride, b_packed, columns_begin, columns_end, stream)
+                  : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_pack_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *b, nk_size_t columns, nk_size_t depth,
+                                                    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
+                                                    nk_size_t columns_end, nk_capability_t capabilities, void *stream) {
+    nk_dots_pack_punned_t const kernel = (nk_dots_pack_punned_t)nk_kernel_pick_(capabilities,
+                                                                                nk_dots_pack_mxfp6e3m2_capabilities());
     return kernel ? kernel(b, columns, depth, b_stride, b_packed, columns_begin, columns_end, stream)
                   : nk_missing_kernel_k;
 }
@@ -4070,6 +4440,9 @@ static nk_capability_kernels_t const *nk_dots_pack_i4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_pack_i4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_i4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -4082,7 +4455,7 @@ static nk_capability_kernels_t const *nk_dots_pack_i4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -4148,6 +4521,9 @@ static nk_capability_kernels_t const *nk_dots_pack_u4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_pack_u4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_pack_u4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -4160,7 +4536,7 @@ static nk_capability_kernels_t const *nk_dots_pack_u4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -4873,13 +5249,27 @@ static nk_capability_kernels_t const *nk_dots_packed_nvfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_nvfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_nvfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_nvfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_nvfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4913,13 +5303,27 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_mxfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4943,13 +5347,75 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp8e4m3_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_packed_mxfp6e2m3_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp6e2m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp6e2m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp6e2m3_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_packed_mxfp6e3m2_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp6e3m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp6e3m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp6e3m2_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4973,13 +5439,27 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp8e5m2_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4998,6 +5478,24 @@ NUMKONG_API nk_status_t nk_dots_packed_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t const 
                                                       nk_capability_t capabilities, void *stream) {
     nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
         capabilities, nk_dots_packed_mxfp8e4m3_capabilities());
+    return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_packed_mxfp6e2m3_capabilities());
+    return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_packed_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *a, void const *b_packed, nk_f32_t *c,
+                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
+                                                      nk_size_t a_stride, nk_size_t c_stride,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_dots_packed_punned_t const kernel = (nk_dots_packed_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_packed_mxfp6e3m2_capabilities());
     return kernel ? kernel(a, b_packed, c, rows, columns, depth, a_stride, c_stride, stream) : nk_missing_kernel_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_mxfp8e5m2_best(nk_mxfp8e5m2_cref_t const *a, void const *b_packed, nk_f32_t *c,
@@ -5488,6 +5986,9 @@ static nk_capability_kernels_t const *nk_dots_packed_i4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_packed_i4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_i4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -5500,7 +6001,7 @@ static nk_capability_kernels_t const *nk_dots_packed_i4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -5565,6 +6066,9 @@ static nk_capability_kernels_t const *nk_dots_packed_u4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_packed_u4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_packed_u4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -5577,7 +6081,7 @@ static nk_capability_kernels_t const *nk_dots_packed_u4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -6300,13 +6804,27 @@ static nk_capability_kernels_t const *nk_dots_symmetric_nvfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6341,13 +6859,27 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6371,13 +6903,75 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp8e4m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_symmetric_mxfp6e2m3_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e2m3_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e2m3_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e2m3_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
+    };
+    return lists;
+}
+
+static nk_capability_kernels_t const *nk_dots_symmetric_mxfp6e3m2_capabilities(void) {
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e3m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e3m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e3m2_apple10,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6401,13 +6995,27 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp8e5m2_capabilities(v
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_blackwell,
 #endif
     };
+    static nk_kernel_punned_t const metal[] = {
+        NUMKONG_NULL,
+#if NUMKONG_TARGET_METAL
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_metal,
+#endif
+#if NUMKONG_TARGET_APPLE9
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_apple9,
+#endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_apple10,
+#endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
         {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
-        {0, nk_no_kernels_},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6428,6 +7036,28 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e4m3_best(nk_mxfp8e4m3_cref_t con
                                                          void *stream) {
     nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
         capabilities, nk_dots_symmetric_mxfp8e4m3_capabilities());
+    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_mxfp6e2m3_best(nk_mxfp6e2m3_cref_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream) {
+    nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_symmetric_mxfp6e2m3_capabilities());
+    return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
+                  : nk_missing_kernel_k;
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_mxfp6e3m2_best(nk_mxfp6e3m2_cref_t const *vectors, nk_size_t vectors_count,
+                                                         nk_size_t depth, nk_size_t stride, nk_f32_t *result,
+                                                         nk_size_t result_stride, nk_size_t row_start,
+                                                         nk_size_t row_count, nk_capability_t capabilities,
+                                                         void *stream) {
+    nk_dots_symmetric_punned_t const kernel = (nk_dots_symmetric_punned_t)nk_kernel_pick_(
+        capabilities, nk_dots_symmetric_mxfp6e3m2_capabilities());
     return kernel ? kernel(vectors, vectors_count, depth, stride, result, result_stride, row_start, row_count, stream)
                   : nk_missing_kernel_k;
 }
@@ -6931,6 +7561,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_i4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -6943,7 +7576,7 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -7010,6 +7643,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u4_capabilities(void) {
 #if NUMKONG_TARGET_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_metal,
 #endif
+#if NUMKONG_TARGET_APPLE10
+        (nk_kernel_punned_t)&nk_dots_symmetric_u4_apple10,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
@@ -7022,7 +7658,7 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u4_capabilities(void) {
         {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
              nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
-        {nk_cap_metal_k * NUMKONG_TARGET_METAL, metal},
+        {nk_cap_metal_k * NUMKONG_TARGET_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -7207,6 +7843,26 @@ NUMKONG_API nk_status_t nk_dots_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
         case nk_kernel_dots_pack_k: lists = nk_dots_pack_mxfp8e4m3_capabilities(); break;
         case nk_kernel_dots_packed_k: lists = nk_dots_packed_mxfp8e4m3_capabilities(); break;
         case nk_kernel_dots_symmetric_k: lists = nk_dots_symmetric_mxfp8e4m3_capabilities(); break;
+        default: break;
+        }
+        break;
+    case nk_mxfp6e2m3_k:
+        switch (kind) {
+        case nk_kernel_dots_pack_size_k: lists = nk_dots_pack_size_mxfp6e2m3_capabilities(); break;
+        case nk_kernel_dots_packed_shape_k: lists = nk_dots_packed_shape_mxfp6e2m3_capabilities(); break;
+        case nk_kernel_dots_pack_k: lists = nk_dots_pack_mxfp6e2m3_capabilities(); break;
+        case nk_kernel_dots_packed_k: lists = nk_dots_packed_mxfp6e2m3_capabilities(); break;
+        case nk_kernel_dots_symmetric_k: lists = nk_dots_symmetric_mxfp6e2m3_capabilities(); break;
+        default: break;
+        }
+        break;
+    case nk_mxfp6e3m2_k:
+        switch (kind) {
+        case nk_kernel_dots_pack_size_k: lists = nk_dots_pack_size_mxfp6e3m2_capabilities(); break;
+        case nk_kernel_dots_packed_shape_k: lists = nk_dots_packed_shape_mxfp6e3m2_capabilities(); break;
+        case nk_kernel_dots_pack_k: lists = nk_dots_pack_mxfp6e3m2_capabilities(); break;
+        case nk_kernel_dots_packed_k: lists = nk_dots_packed_mxfp6e3m2_capabilities(); break;
+        case nk_kernel_dots_symmetric_k: lists = nk_dots_symmetric_mxfp6e3m2_capabilities(); break;
         default: break;
         }
         break;

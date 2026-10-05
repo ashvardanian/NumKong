@@ -150,6 +150,7 @@ StatementMacros:
   - nk_define_cross_tma_symmetric_blackwell_
   - nk_define_cross_tma_blackwell_
   - nk_define_cross_metal_
+  - nk_define_spatials_metal_
   - nk_define_lane_sumsq_simt_
   - nk_define_each_sum_cuda_
   - nk_define_each_sum_rocm_

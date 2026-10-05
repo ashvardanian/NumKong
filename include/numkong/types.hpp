@@ -6263,6 +6263,9 @@ struct mxfp6e2m3_t {
     using scale_t = ue8m0_t;
     using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxfp6e2m3_t>;
+    using dot_result_t = f32_t;
+    using angular_result_t = f32_t;
+    using euclidean_result_t = f32_t;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp6e2m3_k; }
     static constexpr char const *dtype_name() noexcept { return "mxfp6e2m3"; }
@@ -6310,6 +6313,9 @@ struct mxfp6e3m2_t {
     using scale_t = ue8m0_t;
     using tensor_scale_t = void;
     using sub_byte_ref_t = sub_byte_ref<mxfp6e3m2_t>;
+    using dot_result_t = f32_t;
+    using angular_result_t = f32_t;
+    using euclidean_result_t = f32_t;
 
     static constexpr nk_dtype_t dtype() noexcept { return nk_mxfp6e3m2_k; }
     static constexpr char const *dtype_name() noexcept { return "mxfp6e3m2"; }

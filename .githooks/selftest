@@ -2552,6 +2552,25 @@ NUMKONG_CONSTEXPR nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t
 static nk_size_t probe(nk_size_t count) { return nk_size_divide_round_up_(count, 16); }
 FIXTURE
 
+assert_rejects "Metal ceiling division" "hand-rolls a ceiling division" include/numkong/probe.metal <<'FIXTURE'
+uint probe(uint count, uint divisor) { return (count + divisor - 1) / divisor; }
+FIXTURE
+
+assert_rejects "folded Metal alignment division" "hand-rolls a ceiling division" include/numkong/probe.metal <<'FIXTURE'
+uint probe(uint blocks) { return blocks ? (blocks + 15u) / 16u * 16u : 0; }
+FIXTURE
+
+assert_rejects "Metal alignment mask" "alignment rounding" include/numkong/probe.metal <<'FIXTURE'
+ulong probe(ulong bytes) { return (bytes + 63) & ~63ul; }
+FIXTURE
+
+assert_accepts "Metal rounding helpers and unrelated arithmetic" include/numkong/probe.metal <<'FIXTURE'
+uint rounded(uint count) { return nk::round_up_to_multiple(count, 16u); }
+uint divided(uint count) { return nk::divide_round_up(count, 16u); }
+uint offset(uint count) { return (count + 3) / 16; }
+float normalized(float count) { return (count + 15) / 16.0f; }
+FIXTURE
+
 assert_rejects "CPython format-string shortcut" "calls a format-string shortcut of the CPython API" python/probe.c <<'FIXTURE'
 static PyObject *probe(PyObject *type, Py_ssize_t width) { return PyObject_CallFunction(type, "n", width); }
 FIXTURE

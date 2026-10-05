@@ -2925,20 +2925,38 @@ check_all_caps_macros_object_like() {
         "            or name a file-local generator snake_case_ and #undef it after use:"
 }
 
-# Rejects a hand-rolled ceiling division, `(value + divisor - 1) / divisor`, because the helpers name it;
-# their own bodies, the one place it is spelled out, are skipped. The one may carry a suffix, as in `1u`,
-# and either operand one level of parentheses, as in `(count - first)`.
+# Rejects expanded or constant-folded ceiling division and alignment rounding outside their helpers.
 check_ceiling_divisions_use_helpers() {
     local ceilings
     ceilings=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
         added_list="$staged_added_line_numbers_list" awk '
             BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
-            /^(NUMKONG_CONSTEXPR|constexpr)[^(]*[[:space:]](nk_[a-z0-9]+_)?divide_round_up_?\(/ { helper = 1; next }
+            /^(NUMKONG_CONSTEXPR|constexpr)[^(]*[[:space:]](nk_[a-z0-9]+_)?divide_round_up_?\(/ { helper = !/}/; next }
             helper { if (/^}/) helper = 0; next }
-            (FNR in added) && /\(([^()]|\([^()]*\))+\+([^()]|\([^()]*\))+-[[:space:]]*1[uUlL]*[[:space:]]*\)[[:space:]]*\// { printf "line %d: %s\n", FNR, $0 }' || true)
+            !(FNR in added) { next }
+            /\(([^()]|\([^()]*\))+\+([^()]|\([^()]*\))+-[[:space:]]*1[uUlL]*[[:space:]]*\)[[:space:]]*\// { printf "line %d: %s\n", FNR, $0; next }
+            {
+                rest = $0
+                while (match(rest, /\+[[:space:]]*[0-9]+[uUlL]*[[:space:]]*\)[[:space:]]*(\/|&[[:space:]]*~)[[:space:]]*[0-9]+[uUlL]*/)) {
+                    expression = substr(rest, RSTART, RLENGTH)
+                    rest = substr(rest, RSTART + RLENGTH)
+                    if (rest ~ /^[[:alnum:]_.]/) continue
+                    constants = expression
+                    gsub(/[^0-9]+/, " ", constants)
+                    sub(/^ /, "", constants)
+                    split(constants, operands, " ")
+                    power = operands[1] + 1
+                    while (power > 1 && power % 2 == 0) power /= 2
+                    if ((expression ~ /\// && operands[1] + 1 == operands[2] && operands[2] > 1) ||
+                        (expression ~ /&/ && operands[1] == operands[2] && power == 1)) {
+                        printf "line %d: %s\n", FNR, $0
+                        break
+                    }
+                }
+            }' || true)
     [ -z "$ceilings" ] || reject_with_reason "$ceilings" \
-        "$staged_path hand-rolls a ceiling division; write nk_size_divide_round_up_(value, divisor) in C" \
-        "            or nk::divide_round_up(value, divisor) in C++:"
+        "$staged_path hand-rolls a ceiling division or alignment rounding; use the divide_round_up or" \
+        "            round_up_to_multiple helpers (nk_size_*_ in C, nk::* in C++ and Metal):"
 }
 
 # Rejects a format-string shortcut of the CPython API in the binding glue: `Py_BuildValue`, `PyArg_Parse*`,
@@ -2966,7 +2984,7 @@ run_project_checks() {
         ;;
     esac
     case "$staged_path" in
-    *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip) check_ceiling_divisions_use_helpers ;;
+    *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.hip | *.metal) check_ceiling_divisions_use_helpers ;;
     esac
     case "$staged_path" in
     include/numkong/*/*.h | include/numkong/*/*.cuh)

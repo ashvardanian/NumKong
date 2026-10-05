@@ -30,8 +30,10 @@ extern "C" {
 
 /** The MSL source of every kernel below, compiled once per device. */
 static char const nk_dots_source_apple10_[] = {
-#embed "metal.metal" suffix(, )
-#embed "apple10.metal" suffix(, 0)
+#embed "numkong/types.metal" suffix(, )
+#embed "numkong/dots/metal.metal" suffix(, )
+#embed "numkong/dots/apple10.metal" suffix(, )
+#embed "numkong/spatials/apple10.metal" suffix(, 0)
 };
 
 #if defined(__clang__)
@@ -44,19 +46,24 @@ static char const nk_dots_source_apple10_[] = {
 enum { nk_cross_threads_apple10_k = 4 * 32 };
 
 /** @ref nk_cross_encode_metal_ over the @c apple10 kernels. */
-NUMKONG_INLINE nk_status_t nk_cross_launch_apple10_(char const *kernel, void const *a, void const *b,
+NUMKONG_INLINE nk_status_t nk_cross_launch_apple10_(char const *kernel, nk_cross_operand_t a, nk_cross_operand_t b,
                                                     nk_size_t b_extra_offset, void *c, nk_size_t result_bytes,
                                                     nk_size_t row_start, nk_size_t row_end, nk_size_t column_count,
-                                                    nk_size_t depth, nk_size_t a_stride, nk_size_t b_stride,
-                                                    nk_size_t c_stride, nk_u32_t upper_triangle, void *stream) {
+                                                    nk_size_t depth, nk_size_t input_row_bytes, nk_size_t b_tail_bytes,
+                                                    nk_size_t a_stride, nk_size_t b_stride, nk_size_t c_stride,
+                                                    nk_u32_t upper_triangle, nk_size_t tile_side,
+                                                    nk_size_t scale_blocks, void *stream) {
     return nk_cross_encode_metal_(nk_dots_source_apple10_, NUMKONG_METAL_LANGUAGE_4_0_, nk_cross_threads_apple10_k,
-                                  kernel, a, b, b_extra_offset, c, result_bytes, row_start, row_end, column_count,
-                                  depth, a_stride, b_stride, c_stride, upper_triangle, stream);
+                                  tile_side, kernel, a, b, b_extra_offset, c, result_bytes, row_start, row_end,
+                                  column_count, depth, input_row_bytes, b_tail_bytes, a_stride, b_stride, c_stride,
+                                  upper_triangle, scale_blocks, stream);
 }
 
 #pragma endregion Launchers
 
 nk_define_cross_metal_(i8, apple10, i8, i32, u32, 64, 1)
+nk_define_cross_metal_(i4, apple10, i4x2, i32, u32, 64, 2)
+nk_define_cross_metal_(u4, apple10, u4x2, u32, u32, 64, 2)
 nk_define_cross_metal_(u8, apple10, u8, u32, u32, 64, 1)
 nk_define_cross_metal_(f16, apple10, f16, f32, f32, 32, 1)
 nk_define_cross_metal_(bf16, apple10, bf16, f32, f32, 32, 1)
@@ -65,6 +72,12 @@ nk_define_cross_metal_(e5m2, apple10, e5m2, f32, f32, 64, 1)
 nk_define_cross_metal_(e3m2, apple10, e3m2, f32, f32, 64, 1)
 nk_define_cross_metal_(e2m3, apple10, e2m3, f32, f32, 64, 1)
 nk_define_cross_metal_(e2m1, apple10, e2m1x2, f32, f32, 128, 2)
+nk_define_cross_metal_(mxfp8e4m3, apple10, e4m3, f32, f32, 64, 1)
+nk_define_cross_metal_(mxfp8e5m2, apple10, e5m2, f32, f32, 64, 1)
+nk_define_cross_metal_(mxfp6e2m3, apple10, e2m3, f32, f32, 64, 1)
+nk_define_cross_metal_(mxfp6e3m2, apple10, e3m2, f32, f32, 64, 1)
+nk_define_cross_metal_(mxfp4, apple10, e2m1x2, f32, f32, 64, 2)
+nk_define_cross_metal_(nvfp4, apple10, e2m1x2, f32, f32, 64, 2)
 
 #if defined(__cplusplus)
 } // extern "C"
