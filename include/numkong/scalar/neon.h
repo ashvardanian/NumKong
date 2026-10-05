@@ -39,19 +39,31 @@ extern "C" {
 
 /** Reciprocal square root: the hardware estimate refined by two Newton steps. */
 NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_refined_neon_(nk_f32_t x) {
+    nk_fui32_t conv;
+    conv.f = x;
+    nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
+    x = x == NUMKONG_F32_INF ? 1.0f : x;
     nk_f32_t r = vrsqrtes_f32(x);
     r *= vrsqrtss_f32(x * r, r);
     r *= vrsqrtss_f32(x * r, r);
-    return r;
+    conv.f = 1.0f;
+    conv.u &= result_mask;
+    return r * conv.f;
 }
 
 /** Reciprocal square root: the hardware estimate refined by three Newton steps. */
 NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_refined_neon_(nk_f64_t x) {
+    nk_fui64_t conv;
+    conv.f = x;
+    nk_u64_t const result_mask = (nk_u64_t)0 - (conv.u != 0x7FF0000000000000ULL);
+    x = x == NUMKONG_F64_INF ? 1.0 : x;
     nk_f64_t r = vrsqrted_f64(x);
     r *= vrsqrtsd_f64(x * r, r);
     r *= vrsqrtsd_f64(x * r, r);
     r *= vrsqrtsd_f64(x * r, r);
-    return r;
+    conv.f = 1.0;
+    conv.u &= result_mask;
+    return r * conv.f;
 }
 
 NUMKONG_INLINE nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {

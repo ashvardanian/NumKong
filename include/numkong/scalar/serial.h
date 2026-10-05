@@ -30,20 +30,35 @@ extern "C" {
 NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_(nk_f32_t number) {
     nk_fui32_t conv;
     conv.f = number;
+    nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
+    int const subnormal = conv.u - 1 < 0x007FFFFFu;
+    // Normalize the seed input and keep infinity out of the Newton products.
+    number = (number == NUMKONG_F32_INF ? 1.0f : number) * (subnormal ? 0x1p24f : 1.0f);
+    conv.f = number;
     conv.u = 0x5F375A86 - (conv.u >> 1);
     nk_f32_t y = conv.f;
     y = y * (1.5f - 0.5f * number * y * y);
     y = y * (1.5f - 0.5f * number * y * y);
     y = y * (1.5f - 0.5f * number * y * y);
-    return y;
+    conv.f = subnormal ? 0x1p12f : 1.0f;
+    conv.u &= result_mask;
+    return y * conv.f;
 }
 
 /** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
-NUMKONG_INLINE nk_f32_t nk_f32_sqrt_(nk_f32_t number) { return number > 0 ? number * nk_f32_rsqrt_(number) : 0; }
+NUMKONG_INLINE nk_f32_t nk_f32_sqrt_(nk_f32_t number) {
+    nk_f32_t positive = number > 0 ? number : 0;
+    nk_f32_t finite = positive == NUMKONG_F32_INF ? 1.0f : positive;
+    return positive * nk_f32_rsqrt_(finite);
+}
 
 /** Reciprocal square root of @p number: a bit-trick seed and four Newton steps, ~69.3 bits. */
 NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_(nk_f64_t number) {
     nk_fui64_t conv;
+    conv.f = number;
+    nk_u64_t const result_mask = (nk_u64_t)0 - (conv.u != 0x7FF0000000000000ULL);
+    int const subnormal = conv.u - 1 < 0x000FFFFFFFFFFFFFULL;
+    number = (number == NUMKONG_F64_INF ? 1.0 : number) * (subnormal ? 0x1p54 : 1.0);
     conv.f = number;
     conv.u = 0x5FE6EB50C7B537A9ULL - (conv.u >> 1);
     nk_f64_t y = conv.f;
@@ -51,11 +66,17 @@ NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_(nk_f64_t number) {
     y = y * (1.5 - 0.5 * number * y * y);
     y = y * (1.5 - 0.5 * number * y * y);
     y = y * (1.5 - 0.5 * number * y * y);
-    return y;
+    conv.f = subnormal ? 0x1p27 : 1.0;
+    conv.u &= result_mask;
+    return y * conv.f;
 }
 
 /** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
-NUMKONG_INLINE nk_f64_t nk_f64_sqrt_(nk_f64_t number) { return number > 0 ? number * nk_f64_rsqrt_(number) : 0; }
+NUMKONG_INLINE nk_f64_t nk_f64_sqrt_(nk_f64_t number) {
+    nk_f64_t positive = number > 0 ? number : 0;
+    nk_f64_t finite = positive == NUMKONG_F64_INF ? 1.0 : positive;
+    return positive * nk_f64_rsqrt_(finite);
+}
 
 /** Fused multiply-add emulated in F64 with Dekker's TwoProduct and Knuth's TwoSum error terms. */
 NUMKONG_CONSTEXPR nk_f64_t nk_f64_fma_(nk_f64_t multiplicand, nk_f64_t multiplier,

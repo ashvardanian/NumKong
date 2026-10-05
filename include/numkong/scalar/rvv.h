@@ -30,6 +30,11 @@ extern "C" {
 
 /** Reciprocal square root of @p number: a 7-bit @c vfrsqrt7 estimate and two Newton steps. */
 NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_newton_rvv_(nk_f32_t number) {
+    nk_fui32_t conv;
+    conv.f = number;
+    nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
+    int const subnormal = conv.u - 1 < 0x007FFFFFu;
+    number = (number == NUMKONG_F32_INF ? 1.0f : number) * (subnormal ? 0x1p24f : 1.0f);
     vfloat32m1_t x_f32m1 = __riscv_vfmv_s_f_f32m1(number, 1);
     vfloat32m1_t estimate_f32m1 = __riscv_vfrsqrt7_v_f32m1(x_f32m1, 1);
     vfloat32m1_t half_f32m1 = __riscv_vfmv_s_f_f32m1(0.5f, 1);
@@ -45,11 +50,18 @@ NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_newton_rvv_(nk_f32_t number) {
     correction_f32m1 = __riscv_vfmul_vv_f32m1(half_x_f32m1, estimate_sq_f32m1, 1);
     factor_f32m1 = __riscv_vfsub_vv_f32m1(three_half_f32m1, correction_f32m1, 1);
     estimate_f32m1 = __riscv_vfmul_vv_f32m1(estimate_f32m1, factor_f32m1, 1);
-    return __riscv_vfmv_f_s_f32m1_f32(estimate_f32m1);
+    conv.f = subnormal ? 0x1p12f : 1.0f;
+    conv.u &= result_mask;
+    return __riscv_vfmv_f_s_f32m1_f32(estimate_f32m1) * conv.f;
 }
 
 /** Reciprocal square root of @p number: a 7-bit @c vfrsqrt7 estimate and three Newton steps. */
 NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_newton_rvv_(nk_f64_t number) {
+    nk_fui64_t conv;
+    conv.f = number;
+    nk_u64_t const result_mask = (nk_u64_t)0 - (conv.u != 0x7FF0000000000000ULL);
+    int const subnormal = conv.u - 1 < 0x000FFFFFFFFFFFFFULL;
+    number = (number == NUMKONG_F64_INF ? 1.0 : number) * (subnormal ? 0x1p54 : 1.0);
     vfloat64m1_t x_f64m1 = __riscv_vfmv_s_f_f64m1(number, 1);
     vfloat64m1_t estimate_f64m1 = __riscv_vfrsqrt7_v_f64m1(x_f64m1, 1);
     vfloat64m1_t half_f64m1 = __riscv_vfmv_s_f_f64m1(0.5, 1);
@@ -70,7 +82,9 @@ NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_newton_rvv_(nk_f64_t number) {
     correction_f64m1 = __riscv_vfmul_vv_f64m1(half_x_f64m1, estimate_sq_f64m1, 1);
     factor_f64m1 = __riscv_vfsub_vv_f64m1(three_half_f64m1, correction_f64m1, 1);
     estimate_f64m1 = __riscv_vfmul_vv_f64m1(estimate_f64m1, factor_f64m1, 1);
-    return __riscv_vfmv_f_s_f64m1_f64(estimate_f64m1);
+    conv.f = subnormal ? 0x1p27 : 1.0;
+    conv.u &= result_mask;
+    return __riscv_vfmv_f_s_f64m1_f64(estimate_f64m1) * conv.f;
 }
 
 #if NUMKONG_TARGET_RVV

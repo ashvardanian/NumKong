@@ -70,7 +70,12 @@ NUMKONG_INLINE nk_f64_t nk_f64_sqrt_lane_loongsonasx_(nk_f64_t x) {
 
 NUMKONG_API nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) { return nk_f32_rsqrt_lane_loongsonasx_(x); }
 
-NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) { return x > 0 ? x * nk_f32_rsqrt_lane_loongsonasx_(x) : 0; }
+NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) {
+    __m256 result_f32x8 = __lasx_xvfsqrt_s(nk_xvfreplgr2vr_s_(x));
+    nk_fui32_t conv;
+    conv.u = (nk_u32_t)__lasx_xvpickve2gr_w((__m256i)result_f32x8, 0);
+    return x > 0 ? conv.f : 0;
+}
 
 NUMKONG_API nk_f64_t nk_f64_sqrt_loongsonasx(nk_f64_t x) { return nk_f64_sqrt_lane_loongsonasx_(x); }
 

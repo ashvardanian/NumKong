@@ -321,41 +321,71 @@ static error_stats_t test_best_cast(settings_t const &settings) {
 
 #endif // !NUMKONG_HEADER_ONLY
 
-/** @c nk_f32_sqrt_best over each runnable capability alone runs that capability's function, or
- *  serial in a header-only build, and keeps serial for a mask of no CPU capability. */
-static error_stats_t test_best_f32_sqrt(settings_t const &) {
-    capability_kernel<nk_f32_t (*)(nk_f32_t)> const capabilities[] = {
-        {nk_cap_serial_k, nk_f32_sqrt_serial},
-#if NUMKONG_TARGET_NEON
-        {nk_cap_neon_k, nk_f32_sqrt_neon},
-#endif // NUMKONG_TARGET_NEON
-#if NUMKONG_TARGET_HASWELL
-        {nk_cap_haswell_k, nk_f32_sqrt_haswell},
-#endif // NUMKONG_TARGET_HASWELL
-#if NUMKONG_TARGET_RVV
-        {nk_cap_rvv_k, nk_f32_sqrt_rvv},
-#endif // NUMKONG_TARGET_RVV
-#if NUMKONG_TARGET_V128
-        {nk_cap_v128_k, nk_f32_sqrt_v128},
-#endif // NUMKONG_TARGET_V128
-#if NUMKONG_TARGET_POWERVSX
-        {nk_cap_powervsx_k, nk_f32_sqrt_powervsx},
-#endif // NUMKONG_TARGET_POWERVSX
-#if NUMKONG_TARGET_LOONGSONASX
-        {nk_cap_loongsonasx_k, nk_f32_sqrt_loongsonasx},
-#endif // NUMKONG_TARGET_LOONGSONASX
+/** Checks square roots and reciprocals on each runnable backend and their dispatch points. */
+template <typename scalar_type_>
+static error_stats_t test_best_sqrt(settings_t const &) {
+    auto select = [](auto f32, auto f64) {
+        if constexpr (std::is_same_v<scalar_type_, nk_f32_t>) return f32;
+        else return f64;
     };
+    struct {
+        nk_capability_t capability;
+        scalar_type_ (*sqrt)(scalar_type_), (*rsqrt)(scalar_type_);
+    } const capabilities[] = {
+        {nk_cap_serial_k, select(nk_f32_sqrt_serial, nk_f64_sqrt_serial),
+         select(nk_f32_rsqrt_serial, nk_f64_rsqrt_serial)},
+#if NUMKONG_TARGET_NEON
+        {nk_cap_neon_k, select(nk_f32_sqrt_neon, nk_f64_sqrt_neon), select(nk_f32_rsqrt_neon, nk_f64_rsqrt_neon)},
+#endif
+#if NUMKONG_TARGET_HASWELL
+        {nk_cap_haswell_k, select(nk_f32_sqrt_haswell, nk_f64_sqrt_haswell),
+         select(nk_f32_rsqrt_haswell, nk_f64_rsqrt_haswell)},
+#endif
+#if NUMKONG_TARGET_RVV
+        {nk_cap_rvv_k, select(nk_f32_sqrt_rvv, nk_f64_sqrt_rvv), select(nk_f32_rsqrt_rvv, nk_f64_rsqrt_rvv)},
+#endif
+#if NUMKONG_TARGET_V128
+        {nk_cap_v128_k, select(nk_f32_sqrt_v128, nk_f64_sqrt_v128), select(nk_f32_rsqrt_v128, nk_f64_rsqrt_v128)},
+#endif
+#if NUMKONG_TARGET_POWERVSX
+        {nk_cap_powervsx_k, select(nk_f32_sqrt_powervsx, nk_f64_sqrt_powervsx),
+         select(nk_f32_rsqrt_powervsx, nk_f64_rsqrt_powervsx)},
+#endif
+#if NUMKONG_TARGET_LOONGSONASX
+        {nk_cap_loongsonasx_k, select(nk_f32_sqrt_loongsonasx, nk_f64_sqrt_loongsonasx),
+         select(nk_f32_rsqrt_loongsonasx, nk_f64_rsqrt_loongsonasx)},
+#endif
+    };
+    auto const sqrt_best = select(nk_f32_sqrt_best, nk_f64_sqrt_best);
+    auto const rsqrt_best = select(nk_f32_rsqrt_best, nk_f64_rsqrt_best);
+    auto const sqrt_serial = capabilities[0].sqrt, rsqrt_serial = capabilities[0].rsqrt;
+    using limits = std::numeric_limits<scalar_type_>;
+    scalar_type_ const tolerance = 4 * limits::epsilon();
+    scalar_type_ const tiny = limits::denorm_min(), normal = limits::min();
+    scalar_type_ const inputs[] = {0, tiny, 3 * tiny,      normal - tiny,     normal, normal + tiny, 0.5,
+                                   2, 3,    limits::max(), limits::infinity()};
     error_stats_t stats(comparison_family_t::exact_k);
-    nk_f32_t const inputs[] = {0.0f, 1e-30f, 0.5f, 2.0f, 3.0f, 1e30f};
-    for (auto const &[capability, function] : capabilities) {
-        if (!(capability & runnable_capabilities())) continue;
-        for (nk_f32_t input : inputs)
-            stats.expect(
-                nk_f32_sqrt_best(input, capability) == (NUMKONG_HEADER_ONLY ? nk_f32_sqrt_serial : function)(input),
-                "the dispatch point ran another capability's function");
+    nk_capability_t const runnable = runnable_capabilities();
+    for (auto const &[capability, sqrt, rsqrt] : capabilities) {
+        if (!(capability & runnable)) continue;
+        auto const sqrt_dispatch = NUMKONG_HEADER_ONLY ? sqrt_serial : sqrt;
+        auto const rsqrt_dispatch = NUMKONG_HEADER_ONLY ? rsqrt_serial : rsqrt;
+        for (scalar_type_ input : inputs) {
+            scalar_type_ const expected = std::sqrt(input), root = sqrt(input);
+            stats.expect(root == expected || std::abs(root / expected - 1) <= tolerance,
+                         "square root differs from the reference");
+            stats.expect(sqrt_best(input, capability) == sqrt_dispatch(input),
+                         "square-root dispatch ran another capability's function");
+            if (input == 0) continue;
+            scalar_type_ const inverse_expected = 1 / expected, inverse_root = rsqrt(input);
+            stats.expect(inverse_root == inverse_expected || std::abs(inverse_root / inverse_expected - 1) <= tolerance,
+                         "reciprocal square root differs from the reference");
+            stats.expect(rsqrt_best(input, capability) == rsqrt_dispatch(input),
+                         "reciprocal-square-root dispatch ran another capability's function");
+        }
     }
-    stats.expect(nk_f32_sqrt_best(2.0f, nk_cap_cuda_k) == nk_f32_sqrt_serial(2.0f),
-                 "a GPU mask lost the serial capability");
+    stats.expect(sqrt_best(2, nk_cap_cuda_k) == sqrt_serial(2), "a GPU mask lost the serial square root");
+    stats.expect(rsqrt_best(2, nk_cap_cuda_k) == rsqrt_serial(2), "a GPU mask lost the serial reciprocal square root");
     return stats;
 }
 
@@ -528,7 +558,8 @@ static void test_dispatch_points(error_stats_section_t &check) {
     check("best_reduce_moments_f32", test_best_reduce_moments_f32);
     check("best_cast", test_best_cast);
 #endif // NUMKONG_HEADER_ONLY
-    check("best_f32_sqrt", test_best_f32_sqrt);
+    check("best_f32_sqrt", test_best_sqrt<nk_f32_t>);
+    check("best_f64_sqrt", test_best_sqrt<nk_f64_t>);
     check("find_kernel", test_find_kernel);
     check("device_capabilities", test_device_capabilities);
 }

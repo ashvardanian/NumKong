@@ -48,6 +48,11 @@ NUMKONG_API nk_f64_t nk_f64_sqrt_powervsx(nk_f64_t x) {
     return result;
 }
 NUMKONG_API nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) {
+    nk_fui32_t conv;
+    conv.f = x;
+    nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
+    int const subnormal = conv.u - 1 < 0x007FFFFFu;
+    x = (x == NUMKONG_F32_INF ? 1.0f : x) * (subnormal ? 0x1p24f : 1.0f);
     // xsrsqrtesp → ~12-bit estimate, then 2 Newton→Raphson iterations → ~24-bit precision
     nk_f32_t r;
     __asm__("xsrsqrtesp %0, %1" : "=f"(r) : "f"(x));
@@ -56,9 +61,16 @@ NUMKONG_API nk_f32_t nk_f32_rsqrt_powervsx(nk_f32_t x) {
     nk_f32_t three_half = 1.5f;
     r = r * (three_half - half_x * r * r);
     r = r * (three_half - half_x * r * r);
-    return r;
+    conv.f = subnormal ? 0x1p12f : 1.0f;
+    conv.u &= result_mask;
+    return r * conv.f;
 }
 NUMKONG_API nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) {
+    nk_fui64_t conv;
+    conv.f = x;
+    nk_u64_t const result_mask = (nk_u64_t)0 - (conv.u != 0x7FF0000000000000ULL);
+    int const subnormal = conv.u - 1 < 0x000FFFFFFFFFFFFFULL;
+    x = (x == NUMKONG_F64_INF ? 1.0 : x) * (subnormal ? 0x1p54 : 1.0);
     // xsrsqrtedp → ~14-bit estimate, then 3 Newton→Raphson iterations → ~48-bit precision
     nk_f64_t r;
     __asm__("xsrsqrtedp %0, %1" : "=d"(r) : "d"(x));
@@ -68,7 +80,9 @@ NUMKONG_API nk_f64_t nk_f64_rsqrt_powervsx(nk_f64_t x) {
     r = r * (three_half - half_x * r * r);
     r = r * (three_half - half_x * r * r);
     r = r * (three_half - half_x * r * r);
-    return r;
+    conv.f = subnormal ? 0x1p27 : 1.0;
+    conv.u &= result_mask;
+    return r * conv.f;
 }
 NUMKONG_API nk_f32_t nk_f32_fma_powervsx(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
     // xsmaddasp: result = a * b + c (scalar f32 FMA)

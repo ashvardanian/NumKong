@@ -41,11 +41,18 @@ extern "C" {
 NUMKONG_API nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
 NUMKONG_API nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
 NUMKONG_API nk_f32_t nk_f32_rsqrt_haswell(nk_f32_t x) {
+    nk_fui32_t conv;
+    conv.f = x;
+    nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
+    int const subnormal = conv.u - 1 < 0x007FFFFFu;
+    x = (x == NUMKONG_F32_INF ? 1.0f : x) * (subnormal ? 0x1p24f : 1.0f);
     __m128 x_f32x4 = _mm_set_ss(x);
     __m128 estimate_f32x4 = _mm_rsqrt_ss(x_f32x4);
     __m128 refinement_f32x4 = _mm_mul_ss(_mm_mul_ss(x_f32x4, estimate_f32x4), estimate_f32x4);
     refinement_f32x4 = _mm_sub_ss(_mm_set_ss(3.0f), refinement_f32x4);
-    return _mm_cvtss_f32(_mm_mul_ss(_mm_mul_ss(_mm_set_ss(0.5f), estimate_f32x4), refinement_f32x4));
+    conv.f = subnormal ? 0x1p12f : 1.0f;
+    conv.u &= result_mask;
+    return _mm_cvtss_f32(_mm_mul_ss(_mm_mul_ss(_mm_set_ss(0.5f), estimate_f32x4), refinement_f32x4)) * conv.f;
 }
 NUMKONG_API nk_f64_t nk_f64_rsqrt_haswell(nk_f64_t x) { return 1.0 / _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
 NUMKONG_API nk_f32_t nk_f32_fma_haswell(nk_f32_t a, nk_f32_t b, nk_f32_t c) {
