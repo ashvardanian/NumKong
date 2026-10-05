@@ -671,9 +671,9 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_serial(                   
         return nk_success_k;                                                                                           \
     }
 
-nk_define_attention_rope_(f32, nk_assign_from_to_, nk_assign_from_to_)
-nk_define_attention_rope_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
 nk_define_attention_rope_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
+nk_define_attention_rope_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
+nk_define_attention_rope_(f32, nk_assign_from_to_, nk_assign_from_to_)
 #undef nk_define_attention_rope_
 
 #if defined(__clang__)

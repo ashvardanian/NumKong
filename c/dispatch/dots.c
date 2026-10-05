@@ -48,10 +48,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_ampere,
 #endif
@@ -62,11 +63,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_cdna4,
 #endif
@@ -74,11 +75,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_apple9,
 #endif
@@ -86,7 +87,6 @@ static nk_capability_kernels_t const *nk_dots_pack_size_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_bf16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -95,23 +95,15 @@ static nk_capability_kernels_t const *nk_dots_pack_size_bf16_capabilities(void) 
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -158,10 +150,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_ampere,
 #endif
@@ -172,11 +165,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_cdna4,
 #endif
@@ -184,11 +177,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_apple9,
 #endif
@@ -196,7 +189,6 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_f16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -204,23 +196,15 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f16_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -267,10 +251,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_ampere,
 #endif
@@ -281,11 +266,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_cdna4,
 #endif
@@ -293,11 +278,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_apple9,
 #endif
@@ -305,7 +290,6 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e4m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -313,23 +297,15 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e4m3_capabilities(void) 
              nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -379,10 +355,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_ampere,
 #endif
@@ -393,11 +370,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_cdna4,
 #endif
@@ -405,11 +382,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_apple9,
 #endif
@@ -417,7 +394,6 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e5m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -426,23 +402,15 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e5m2_capabilities(void) 
              nk_cap_graniteamx_k * NUMKONG_TARGET_GRANITEAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -489,10 +457,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_ampere,
 #endif
@@ -506,11 +475,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_cdna4,
 #endif
@@ -518,11 +487,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_apple9,
 #endif
@@ -530,7 +499,6 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -538,23 +506,16 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m3_capabilities(void) 
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -601,10 +562,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_ampere,
 #endif
@@ -618,11 +580,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_cdna4,
 #endif
@@ -630,11 +592,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_apple9,
 #endif
@@ -642,7 +604,6 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e2m1_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -650,23 +611,16 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e2m1_capabilities(void) 
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -689,24 +643,20 @@ static nk_capability_kernels_t const *nk_dots_pack_size_nvfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -731,24 +681,20 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -765,24 +711,20 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp8e4m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -799,24 +741,20 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp8e5m2_capabilities(v
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -871,10 +809,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_ampere,
 #endif
@@ -885,11 +824,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_cdna4,
 #endif
@@ -897,11 +836,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_apple9,
 #endif
@@ -909,30 +848,21 @@ static nk_capability_kernels_t const *nk_dots_pack_size_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_size_e3m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -973,34 +903,26 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_f32_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_f32_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_f32_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -1042,34 +964,26 @@ static nk_capability_kernels_t const *nk_dots_pack_size_f64_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_f64_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_f64_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_f64_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -1123,10 +1037,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_ampere,
 #endif
@@ -1137,11 +1052,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_cdna4,
 #endif
@@ -1149,16 +1064,15 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_pack_size_i8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -1167,23 +1081,13 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -1236,10 +1140,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_ampere,
 #endif
@@ -1250,11 +1155,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_cdna4,
 #endif
@@ -1262,16 +1167,15 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_pack_size_u8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -1280,23 +1184,13 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -1328,10 +1222,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_ampere,
 #endif
@@ -1342,11 +1237,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_cdna4,
 #endif
@@ -1354,35 +1249,24 @@ static nk_capability_kernels_t const *nk_dots_pack_size_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_i4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -1414,10 +1298,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_ampere,
 #endif
@@ -1428,11 +1313,11 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_cdna4,
 #endif
@@ -1440,35 +1325,24 @@ static nk_capability_kernels_t const *nk_dots_pack_size_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_size_u4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -1567,10 +1441,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_bf16_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_ampere,
 #endif
@@ -1581,11 +1456,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_bf16_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_cdna4,
 #endif
@@ -1593,11 +1468,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_bf16_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_apple9,
 #endif
@@ -1605,7 +1480,6 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_bf16_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_bf16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1614,23 +1488,15 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_bf16_capabilities(voi
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1677,10 +1543,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f16_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_ampere,
 #endif
@@ -1691,11 +1558,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f16_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_cdna4,
 #endif
@@ -1703,11 +1570,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f16_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_apple9,
 #endif
@@ -1715,7 +1582,6 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f16_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_shape_f16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1723,23 +1589,15 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f16_capabilities(void
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1786,10 +1644,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e4m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_ampere,
 #endif
@@ -1800,11 +1659,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e4m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_cdna4,
 #endif
@@ -1812,11 +1671,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e4m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_apple9,
 #endif
@@ -1824,7 +1683,6 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e4m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e4m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1832,23 +1690,15 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e4m3_capabilities(voi
              nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -1898,10 +1748,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e5m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_ampere,
 #endif
@@ -1912,11 +1763,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e5m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_cdna4,
 #endif
@@ -1924,11 +1775,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e5m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_apple9,
 #endif
@@ -1936,7 +1787,6 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e5m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e5m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -1945,23 +1795,15 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e5m2_capabilities(voi
              nk_cap_graniteamx_k * NUMKONG_TARGET_GRANITEAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2008,10 +1850,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_ampere,
 #endif
@@ -2025,11 +1868,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_cdna4,
 #endif
@@ -2037,11 +1880,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_apple9,
 #endif
@@ -2049,7 +1892,6 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m3_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -2057,23 +1899,16 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m3_capabilities(voi
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2120,10 +1955,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m1_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_ampere,
 #endif
@@ -2137,11 +1973,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m1_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_cdna4,
 #endif
@@ -2149,11 +1985,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m1_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_apple9,
 #endif
@@ -2161,7 +1997,6 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m1_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e2m1_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -2169,23 +2004,16 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e2m1_capabilities(voi
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2208,24 +2036,20 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_nvfp4_capabilities(vo
         (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -2250,24 +2074,20 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp4_capabilities(vo
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -2284,24 +2104,20 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp8e4m3_capabilitie
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -2318,24 +2134,20 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp8e5m2_capabilitie
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -2390,10 +2202,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e3m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_ampere,
 #endif
@@ -2404,11 +2217,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e3m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_cdna4,
 #endif
@@ -2416,11 +2229,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e3m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_apple9,
 #endif
@@ -2428,30 +2241,21 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_e3m2_capabilities(voi
         (nk_kernel_punned_t)&nk_dots_packed_shape_e3m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -2492,34 +2296,26 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f32_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_shape_f32_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_f32_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_f32_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2561,34 +2357,26 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_f64_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_shape_f64_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_f64_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_f64_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -2642,10 +2430,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i8_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_ampere,
 #endif
@@ -2656,11 +2445,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i8_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_cdna4,
 #endif
@@ -2668,16 +2457,15 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i8_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_packed_shape_i8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -2686,23 +2474,13 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i8_capabilities(void)
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -2755,10 +2533,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u8_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_ampere,
 #endif
@@ -2769,11 +2548,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u8_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_cdna4,
 #endif
@@ -2781,16 +2560,15 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u8_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_packed_shape_u8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -2799,23 +2577,13 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u8_capabilities(void)
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -2847,10 +2615,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_ampere,
 #endif
@@ -2861,11 +2630,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_cdna4,
 #endif
@@ -2873,35 +2642,24 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_i4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_i4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -2933,10 +2691,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_ampere,
 #endif
@@ -2947,11 +2706,11 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_cdna4,
 #endif
@@ -2959,35 +2718,24 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_u4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_shape_u4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -3086,10 +2834,11 @@ static nk_capability_kernels_t const *nk_dots_pack_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_bf16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_bf16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_bf16_ampere,
 #endif
@@ -3100,11 +2849,11 @@ static nk_capability_kernels_t const *nk_dots_pack_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_bf16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_bf16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_bf16_cdna4,
 #endif
@@ -3112,11 +2861,11 @@ static nk_capability_kernels_t const *nk_dots_pack_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_bf16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_bf16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_bf16_apple9,
 #endif
@@ -3124,7 +2873,6 @@ static nk_capability_kernels_t const *nk_dots_pack_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_bf16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -3133,23 +2881,15 @@ static nk_capability_kernels_t const *nk_dots_pack_bf16_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3198,10 +2938,11 @@ static nk_capability_kernels_t const *nk_dots_pack_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_f16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_f16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_f16_ampere,
 #endif
@@ -3212,11 +2953,11 @@ static nk_capability_kernels_t const *nk_dots_pack_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_f16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_f16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_f16_cdna4,
 #endif
@@ -3224,11 +2965,11 @@ static nk_capability_kernels_t const *nk_dots_pack_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_f16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_f16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_f16_apple9,
 #endif
@@ -3236,7 +2977,6 @@ static nk_capability_kernels_t const *nk_dots_pack_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_f16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -3244,23 +2984,15 @@ static nk_capability_kernels_t const *nk_dots_pack_f16_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3309,10 +3041,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_ampere,
 #endif
@@ -3323,11 +3056,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_cdna4,
 #endif
@@ -3335,11 +3068,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_apple9,
 #endif
@@ -3347,7 +3080,6 @@ static nk_capability_kernels_t const *nk_dots_pack_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e4m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -3355,23 +3087,15 @@ static nk_capability_kernels_t const *nk_dots_pack_e4m3_capabilities(void) {
              nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3423,10 +3147,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_ampere,
 #endif
@@ -3437,11 +3162,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_cdna4,
 #endif
@@ -3449,11 +3174,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_apple9,
 #endif
@@ -3461,7 +3186,6 @@ static nk_capability_kernels_t const *nk_dots_pack_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e5m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -3470,23 +3194,15 @@ static nk_capability_kernels_t const *nk_dots_pack_e5m2_capabilities(void) {
              nk_cap_graniteamx_k * NUMKONG_TARGET_GRANITEAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3535,10 +3251,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_ampere,
 #endif
@@ -3552,11 +3269,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_cdna4,
 #endif
@@ -3564,11 +3281,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_apple9,
 #endif
@@ -3576,7 +3293,6 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -3584,23 +3300,16 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m3_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3649,10 +3358,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_ampere,
 #endif
@@ -3666,11 +3376,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_cdna4,
 #endif
@@ -3678,11 +3388,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_apple9,
 #endif
@@ -3690,7 +3400,6 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e2m1_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -3698,23 +3407,16 @@ static nk_capability_kernels_t const *nk_dots_pack_e2m1_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -3739,24 +3441,20 @@ static nk_capability_kernels_t const *nk_dots_pack_nvfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_nvfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_nvfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_nvfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -3783,24 +3481,20 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_mxfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_mxfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_mxfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -3817,24 +3511,20 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp8e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -3851,24 +3541,20 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp8e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -3929,10 +3615,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_ampere,
 #endif
@@ -3943,11 +3630,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_cdna4,
 #endif
@@ -3955,11 +3642,11 @@ static nk_capability_kernels_t const *nk_dots_pack_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_apple9,
 #endif
@@ -3967,30 +3654,21 @@ static nk_capability_kernels_t const *nk_dots_pack_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_e3m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4033,34 +3711,26 @@ static nk_capability_kernels_t const *nk_dots_pack_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_f32_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_f32_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_f32_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -4104,34 +3774,26 @@ static nk_capability_kernels_t const *nk_dots_pack_f64_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_f64_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_f64_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_f64_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -4187,10 +3849,11 @@ static nk_capability_kernels_t const *nk_dots_pack_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_i8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_i8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_i8_ampere,
 #endif
@@ -4201,11 +3864,11 @@ static nk_capability_kernels_t const *nk_dots_pack_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_i8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_i8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_i8_cdna4,
 #endif
@@ -4213,16 +3876,15 @@ static nk_capability_kernels_t const *nk_dots_pack_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_i8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_i8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_pack_i8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -4231,23 +3893,13 @@ static nk_capability_kernels_t const *nk_dots_pack_i8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -4302,10 +3954,11 @@ static nk_capability_kernels_t const *nk_dots_pack_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_u8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_u8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_u8_ampere,
 #endif
@@ -4316,11 +3969,11 @@ static nk_capability_kernels_t const *nk_dots_pack_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_u8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_u8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_u8_cdna4,
 #endif
@@ -4328,16 +3981,15 @@ static nk_capability_kernels_t const *nk_dots_pack_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_u8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_u8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_pack_u8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -4346,23 +3998,13 @@ static nk_capability_kernels_t const *nk_dots_pack_u8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -4396,10 +4038,11 @@ static nk_capability_kernels_t const *nk_dots_pack_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_i4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_i4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_i4_ampere,
 #endif
@@ -4410,11 +4053,11 @@ static nk_capability_kernels_t const *nk_dots_pack_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_i4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_i4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_i4_cdna4,
 #endif
@@ -4422,35 +4065,24 @@ static nk_capability_kernels_t const *nk_dots_pack_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_i4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_i4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -4484,10 +4116,11 @@ static nk_capability_kernels_t const *nk_dots_pack_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_u4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_pack_u4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_pack_u4_ampere,
 #endif
@@ -4498,11 +4131,11 @@ static nk_capability_kernels_t const *nk_dots_pack_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_u4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_pack_u4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_pack_u4_cdna4,
 #endif
@@ -4510,35 +4143,24 @@ static nk_capability_kernels_t const *nk_dots_pack_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_pack_u4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_pack_u4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -4641,10 +4263,11 @@ static nk_capability_kernels_t const *nk_dots_packed_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_bf16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_bf16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_bf16_ampere,
 #endif
@@ -4655,11 +4278,11 @@ static nk_capability_kernels_t const *nk_dots_packed_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_bf16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_bf16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_bf16_cdna4,
 #endif
@@ -4667,11 +4290,11 @@ static nk_capability_kernels_t const *nk_dots_packed_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_bf16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_bf16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_bf16_apple9,
 #endif
@@ -4679,7 +4302,6 @@ static nk_capability_kernels_t const *nk_dots_packed_bf16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_bf16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -4688,23 +4310,15 @@ static nk_capability_kernels_t const *nk_dots_packed_bf16_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4752,10 +4366,11 @@ static nk_capability_kernels_t const *nk_dots_packed_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_f16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_f16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_f16_ampere,
 #endif
@@ -4766,11 +4381,11 @@ static nk_capability_kernels_t const *nk_dots_packed_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_f16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_f16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_f16_cdna4,
 #endif
@@ -4778,11 +4393,11 @@ static nk_capability_kernels_t const *nk_dots_packed_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_f16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_f16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_f16_apple9,
 #endif
@@ -4790,7 +4405,6 @@ static nk_capability_kernels_t const *nk_dots_packed_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_f16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -4798,23 +4412,15 @@ static nk_capability_kernels_t const *nk_dots_packed_f16_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4862,10 +4468,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_ampere,
 #endif
@@ -4876,11 +4483,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_cdna4,
 #endif
@@ -4888,11 +4495,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_apple9,
 #endif
@@ -4900,7 +4507,6 @@ static nk_capability_kernels_t const *nk_dots_packed_e4m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e4m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -4908,23 +4514,15 @@ static nk_capability_kernels_t const *nk_dots_packed_e4m3_capabilities(void) {
              nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -4975,10 +4573,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_ampere,
 #endif
@@ -4989,11 +4588,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_cdna4,
 #endif
@@ -5001,11 +4600,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_apple9,
 #endif
@@ -5013,7 +4612,6 @@ static nk_capability_kernels_t const *nk_dots_packed_e5m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e5m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -5022,23 +4620,15 @@ static nk_capability_kernels_t const *nk_dots_packed_e5m2_capabilities(void) {
              nk_cap_graniteamx_k * NUMKONG_TARGET_GRANITEAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -5086,10 +4676,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_ampere,
 #endif
@@ -5103,11 +4694,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_cdna4,
 #endif
@@ -5115,11 +4706,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_apple9,
 #endif
@@ -5127,7 +4718,6 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m3_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -5135,23 +4725,16 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m3_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -5199,10 +4782,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_ampere,
 #endif
@@ -5216,11 +4800,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_cdna4,
 #endif
@@ -5228,11 +4812,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_apple9,
 #endif
@@ -5240,7 +4824,6 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m1_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e2m1_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -5248,23 +4831,16 @@ static nk_capability_kernels_t const *nk_dots_packed_e2m1_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -5288,24 +4864,20 @@ static nk_capability_kernels_t const *nk_dots_packed_nvfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_nvfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_nvfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_nvfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -5332,24 +4904,20 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_mxfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_mxfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_mxfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -5366,24 +4934,20 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp8e4m3_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -5400,24 +4964,20 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp8e5m2_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -5478,10 +5038,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_ampere,
 #endif
@@ -5492,11 +5053,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_cdna4,
 #endif
@@ -5504,11 +5065,11 @@ static nk_capability_kernels_t const *nk_dots_packed_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_apple9,
 #endif
@@ -5516,30 +5077,21 @@ static nk_capability_kernels_t const *nk_dots_packed_e3m2_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_e3m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -5581,34 +5133,26 @@ static nk_capability_kernels_t const *nk_dots_packed_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_f32_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_f32_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_f32_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -5651,34 +5195,26 @@ static nk_capability_kernels_t const *nk_dots_packed_f64_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_f64_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_f64_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_f64_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -5733,10 +5269,11 @@ static nk_capability_kernels_t const *nk_dots_packed_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_i8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_i8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_i8_ampere,
 #endif
@@ -5747,11 +5284,11 @@ static nk_capability_kernels_t const *nk_dots_packed_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_i8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_i8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_i8_cdna4,
 #endif
@@ -5759,16 +5296,15 @@ static nk_capability_kernels_t const *nk_dots_packed_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_i8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_i8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_packed_i8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -5777,23 +5313,13 @@ static nk_capability_kernels_t const *nk_dots_packed_i8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -5847,10 +5373,11 @@ static nk_capability_kernels_t const *nk_dots_packed_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_u8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_u8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_u8_ampere,
 #endif
@@ -5861,11 +5388,11 @@ static nk_capability_kernels_t const *nk_dots_packed_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_u8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_u8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_u8_cdna4,
 #endif
@@ -5873,16 +5400,15 @@ static nk_capability_kernels_t const *nk_dots_packed_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_u8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_u8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_packed_u8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -5891,23 +5417,13 @@ static nk_capability_kernels_t const *nk_dots_packed_u8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -5940,10 +5456,11 @@ static nk_capability_kernels_t const *nk_dots_packed_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_i4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_i4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_i4_ampere,
 #endif
@@ -5954,11 +5471,11 @@ static nk_capability_kernels_t const *nk_dots_packed_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_i4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_i4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_i4_cdna4,
 #endif
@@ -5966,35 +5483,24 @@ static nk_capability_kernels_t const *nk_dots_packed_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_i4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_i4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -6027,10 +5533,11 @@ static nk_capability_kernels_t const *nk_dots_packed_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_u4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_packed_u4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_packed_u4_ampere,
 #endif
@@ -6041,11 +5548,11 @@ static nk_capability_kernels_t const *nk_dots_packed_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_u4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_packed_u4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_packed_u4_cdna4,
 #endif
@@ -6053,35 +5560,24 @@ static nk_capability_kernels_t const *nk_dots_packed_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_packed_u4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_packed_u4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -6182,10 +5678,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_ampere,
 #endif
@@ -6196,11 +5693,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_cdna4,
 #endif
@@ -6208,11 +5705,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_apple9,
 #endif
@@ -6220,7 +5717,6 @@ static nk_capability_kernels_t const *nk_dots_symmetric_bf16_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_bf16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonbfdot_k * NUMKONG_TARGET_NEONBFDOT |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -6229,23 +5725,15 @@ static nk_capability_kernels_t const *nk_dots_symmetric_bf16_capabilities(void) 
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6295,10 +5783,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_ampere,
 #endif
@@ -6309,11 +5798,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_cdna4,
 #endif
@@ -6321,11 +5810,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_apple9,
 #endif
@@ -6333,7 +5822,6 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f16_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_f16_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -6341,23 +5829,15 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f16_capabilities(void) {
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6407,10 +5887,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_ampere,
 #endif
@@ -6421,11 +5902,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_cdna4,
 #endif
@@ -6433,11 +5914,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_apple9,
 #endif
@@ -6445,7 +5926,6 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e4m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -6453,23 +5933,15 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e4m3_capabilities(void) 
              nk_cap_diamond_k * NUMKONG_TARGET_DIAMOND | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6522,10 +5994,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_ampere,
 #endif
@@ -6536,11 +6009,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_cdna4,
 #endif
@@ -6548,11 +6021,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_apple9,
 #endif
@@ -6560,7 +6033,6 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e5m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonfhm_k * NUMKONG_TARGET_NEONFHM | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -6569,23 +6041,15 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e5m2_capabilities(void) 
              nk_cap_graniteamx_k * NUMKONG_TARGET_GRANITEAMX | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6635,10 +6099,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_ampere,
 #endif
@@ -6652,11 +6117,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_cdna4,
 #endif
@@ -6664,11 +6129,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_apple9,
 #endif
@@ -6676,7 +6141,6 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m3_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -6684,23 +6148,16 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m3_capabilities(void) 
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6750,10 +6207,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_ampere,
 #endif
@@ -6767,11 +6225,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_cdna4,
 #endif
@@ -6779,11 +6237,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_apple9,
 #endif
@@ -6791,7 +6249,6 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m1_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e2m1_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -6799,23 +6256,16 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e2m1_capabilities(void) 
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
+             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -6841,24 +6291,20 @@ static nk_capability_kernels_t const *nk_dots_symmetric_nvfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -6886,24 +6332,20 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp4_capabilities(void)
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -6920,24 +6362,20 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp8e4m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -6954,24 +6392,20 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp8e5m2_capabilities(v
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_sapphireamx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_cuda,
+#endif
 #if NUMKONG_TARGET_BLACKWELL
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_blackwell,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -7037,10 +6471,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_ampere,
 #endif
@@ -7051,11 +6486,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_blackwellrtx,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_cdna4,
 #endif
@@ -7063,11 +6498,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_metal,
+#endif
 #if NUMKONG_TARGET_APPLE9
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_apple9,
 #endif
@@ -7075,30 +6510,21 @@ static nk_capability_kernels_t const *nk_dots_symmetric_e3m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_symmetric_e3m2_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_neonfp8_k * NUMKONG_TARGET_NEONFP8 |
              nk_cap_sme_k * NUMKONG_TARGET_SME | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_sapphireamx_k * NUMKONG_TARGET_SAPPHIREAMX |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
-             nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL | nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple9_k * NUMKONG_TARGET_APPLE9 |
+             nk_cap_apple10_k * NUMKONG_TARGET_APPLE10,
+         metal},
     };
     return lists;
 }
@@ -7142,34 +6568,26 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f32_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_f32_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_f32_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_f32_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -7214,34 +6632,26 @@ static nk_capability_kernels_t const *nk_dots_symmetric_f64_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_f64_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_f64_cuda,
-    };
 #endif
-#if NUMKONG_ARCH_ROCM_
+    };
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_f64_rocm,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_smef64_k * NUMKONG_TARGET_SMEF64 |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k, cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_, rocm},
         {0, nk_no_kernels_},
     };
     return lists;
@@ -7298,10 +6708,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_ampere,
 #endif
@@ -7312,11 +6723,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_cdna4,
 #endif
@@ -7324,16 +6735,15 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_symmetric_i8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -7342,23 +6752,13 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -7414,10 +6814,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_loongsonasx,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_ampere,
 #endif
@@ -7428,11 +6829,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_cdna4,
 #endif
@@ -7440,16 +6841,15 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u8_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_metal,
+#endif
 #if NUMKONG_TARGET_APPLE10
         (nk_kernel_punned_t)&nk_dots_symmetric_u8_apple10,
 #endif
     };
-#endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_alder_k * NUMKONG_TARGET_ALDER |
@@ -7458,23 +6858,13 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u8_capabilities(void) {
              nk_cap_v128_k * NUMKONG_TARGET_V128 | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED |
              nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX | nk_cap_loongsonasx_k * NUMKONG_TARGET_LOONGSONASX,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL | nk_cap_apple10_k * NUMKONG_TARGET_APPLE10, metal},
     };
     return lists;
 }
@@ -7509,10 +6899,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_ampere,
 #endif
@@ -7523,11 +6914,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_cdna4,
 #endif
@@ -7535,35 +6926,24 @@ static nk_capability_kernels_t const *nk_dots_symmetric_i4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_i4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
@@ -7598,10 +6978,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_v128relaxed,
 #endif
     };
-#if NUMKONG_ARCH_CUDA_
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_CUDA_
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_cuda,
+#endif
 #if NUMKONG_TARGET_AMPERE
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_ampere,
 #endif
@@ -7612,11 +6993,11 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_blackwell,
 #endif
     };
-#endif
-#if NUMKONG_ARCH_ROCM_
     static nk_kernel_punned_t const rocm[] = {
         NUMKONG_NULL,
+#if NUMKONG_ARCH_ROCM_
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_rocm,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_cdna4,
 #endif
@@ -7624,35 +7005,24 @@ static nk_capability_kernels_t const *nk_dots_symmetric_u4_capabilities(void) {
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_cdna5,
 #endif
     };
-#endif
-#if NUMKONG_WITH_METAL
     static nk_kernel_punned_t const metal[] = {
         NUMKONG_NULL,
+#if NUMKONG_WITH_METAL
         (nk_kernel_punned_t)&nk_dots_symmetric_u4_metal,
-    };
 #endif
+    };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neonsdot_k * NUMKONG_TARGET_NEONSDOT | nk_cap_sme_k * NUMKONG_TARGET_SME |
              nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-#if NUMKONG_ARCH_CUDA_
-        {nk_cap_cuda_k | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE | nk_cap_hopper_k * NUMKONG_TARGET_HOPPER |
-             nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
+        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_ | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL,
          cuda},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_ARCH_ROCM_
-        {nk_cap_rocm_k | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5, rocm},
-#else
-        {0, nk_no_kernels_},
-#endif
-#if NUMKONG_WITH_METAL
-        {nk_cap_metal_k, metal},
-#else
-        {0, nk_no_kernels_},
-#endif
+        {nk_cap_rocm_k * NUMKONG_ARCH_ROCM_ | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
+             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+         rocm},
+        {nk_cap_metal_k * NUMKONG_WITH_METAL, metal},
     };
     return lists;
 }
