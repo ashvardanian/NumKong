@@ -22,6 +22,8 @@ void test_each(error_stats_section_t &check) {
     check("each_sum_f32_serial", test_sum<f32_t>, nk_each_sum_f32_serial);
     check("each_blend_f32_serial", test_blend<f32_t>, nk_each_blend_f32_serial);
     check("each_fma_f32_serial", test_fma<f32_t>, nk_each_fma_f32_serial);
+    check("each_swiglu_f32_serial", test_swiglu<f32_t>, nk_each_swiglu_f32_serial);
+    check("each_rmsnorm_f32_serial", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_serial);
     check("each_scale_e4m3_serial", test_scale<e4m3_t>, nk_each_scale_e4m3_serial);
     check("each_scale_e5m2_serial", test_scale<e5m2_t>, nk_each_scale_e5m2_serial);
     check("each_sum_e4m3_serial", test_sum<e4m3_t>, nk_each_sum_e4m3_serial);
@@ -29,6 +31,8 @@ void test_each(error_stats_section_t &check) {
     check("each_blend_e4m3_serial", test_blend<e4m3_t>, nk_each_blend_e4m3_serial);
     check("each_blend_e5m2_serial", test_blend<e5m2_t>, nk_each_blend_e5m2_serial);
     check("each_fma_e4m3_serial", test_fma<e4m3_t>, nk_each_fma_e4m3_serial);
+    check("each_swiglu_e4m3_serial", test_swiglu<e4m3_t>, nk_each_swiglu_e4m3_serial);
+    check("each_rmsnorm_e4m3_serial", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_serial);
     check("each_fma_e5m2_serial", test_fma<e5m2_t>, nk_each_fma_e5m2_serial);
     check("each_sum_f32c_serial", test_sum<f32c_t>, nk_each_sum_f32c_serial);
     check("each_sum_f64c_serial", test_sum<f64c_t>, nk_each_sum_f64c_serial);
@@ -52,11 +56,12 @@ void test_each(error_stats_section_t &check) {
     check("each_scale_bf16_serial", test_scale<bf16_t>, nk_each_scale_bf16_serial);
     check("each_blend_bf16_serial", test_blend<bf16_t>, nk_each_blend_bf16_serial);
     check("each_fma_bf16_serial", test_fma<bf16_t>, nk_each_fma_bf16_serial);
+    check("each_swiglu_f16_serial", test_swiglu<f16_t>, nk_each_swiglu_f16_serial);
+    check("each_swiglu_bf16_serial", test_swiglu<bf16_t>, nk_each_swiglu_bf16_serial);
+    check("each_rmsnorm_f16_serial", test_rmsnorm<f16_t>, nk_each_rmsnorm_f16_serial);
+    check("each_rmsnorm_bf16_serial", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_serial);
     check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
     check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
-    check("each_rmsnorm_f32_serial", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_serial);
-    check("each_rmsnorm_bf16_serial", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_serial);
-    check("each_rmsnorm_e4m3_serial", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_serial);
 
 #if !NUMKONG_HEADER_ONLY
     check.section("Elementwise Operations Runtime Dispatch", nk_cap_serial_k);
@@ -64,6 +69,7 @@ void test_each(error_stats_section_t &check) {
     check("each_sum_f32", test_sum<f32_t>, cpu_best<nk_each_sum_f32_best>);
     check("each_blend_f32", test_blend<f32_t>, cpu_best<nk_each_blend_f32_best>);
     check("each_fma_f32", test_fma<f32_t>, cpu_best<nk_each_fma_f32_best>);
+    check("each_swiglu_f32", test_swiglu<f32_t>, cpu_best<nk_each_swiglu_f32_best>);
     check("each_scale_e4m3", test_scale<e4m3_t>, cpu_best<nk_each_scale_e4m3_best>);
     check("each_scale_e5m2", test_scale<e5m2_t>, cpu_best<nk_each_scale_e5m2_best>);
     check("each_sum_e4m3", test_sum<e4m3_t>, cpu_best<nk_each_sum_e4m3_best>);
@@ -71,6 +77,7 @@ void test_each(error_stats_section_t &check) {
     check("each_blend_e4m3", test_blend<e4m3_t>, cpu_best<nk_each_blend_e4m3_best>);
     check("each_blend_e5m2", test_blend<e5m2_t>, cpu_best<nk_each_blend_e5m2_best>);
     check("each_fma_e4m3", test_fma<e4m3_t>, cpu_best<nk_each_fma_e4m3_best>);
+    check("each_swiglu_e4m3", test_swiglu<e4m3_t>, cpu_best<nk_each_swiglu_e4m3_best>);
     check("each_fma_e5m2", test_fma<e5m2_t>, cpu_best<nk_each_fma_e5m2_best>);
     check("each_sum_f32c", test_sum<f32c_t>, cpu_best<nk_each_sum_f32c_best>);
     check("each_sum_f64c", test_sum<f64c_t>, cpu_best<nk_each_sum_f64c_best>);
@@ -80,6 +87,9 @@ void test_each(error_stats_section_t &check) {
     check("each_blend_f64c", test_blend<f64c_t>, cpu_best<nk_each_blend_f64c_best>);
     check("each_fma_f32c", test_fma<f32c_t>, cpu_best<nk_each_fma_f32c_best>);
     check("each_fma_f64c", test_fma<f64c_t>, cpu_best<nk_each_fma_f64c_best>);
+    check("each_swiglu_f16", test_swiglu<f16_t>, cpu_best<nk_each_swiglu_f16_best>);
+    check("each_rmsnorm_f16", test_rmsnorm<f16_t>, cpu_best<nk_each_rmsnorm_f16_best>);
+    check("each_swiglu_bf16", test_swiglu<bf16_t>, cpu_best<nk_each_swiglu_bf16_best>);
 #endif
 
 #if NUMKONG_TARGET_NEON
@@ -94,15 +104,23 @@ void test_each(error_stats_section_t &check) {
     check("each_scale_f32_neon", test_scale<f32_t>, nk_each_scale_f32_neon);
     check("each_blend_f32_neon", test_blend<f32_t>, nk_each_blend_f32_neon);
     check("each_fma_f32_neon", test_fma<f32_t>, nk_each_fma_f32_neon);
-    // f16
+    check("each_swiglu_f32_neon", test_swiglu<f32_t>, nk_each_swiglu_f32_neon);
+    check("each_rmsnorm_f32_neon", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_neon);
+    // f16, bf16
     check("each_scale_f16_neon", test_scale<f16_t>, nk_each_scale_f16_neon);
     check("each_blend_f16_neon", test_blend<f16_t>, nk_each_blend_f16_neon);
     check("each_fma_f16_neon", test_fma<f16_t>, nk_each_fma_f16_neon);
+    check("each_swiglu_f16_neon", test_swiglu<f16_t>, nk_each_swiglu_f16_neon);
+    check("each_swiglu_bf16_neon", test_swiglu<bf16_t>, nk_each_swiglu_bf16_neon);
+    check("each_rmsnorm_f16_neon", test_rmsnorm<f16_t>, nk_each_rmsnorm_f16_neon);
+    check("each_rmsnorm_bf16_neon", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_neon);
     // e4m3, e5m2
     check("each_sum_e4m3_neon", test_sum<e4m3_t>, nk_each_sum_e4m3_neon);
     check("each_scale_e4m3_neon", test_scale<e4m3_t>, nk_each_scale_e4m3_neon);
     check("each_blend_e4m3_neon", test_blend<e4m3_t>, nk_each_blend_e4m3_neon);
     check("each_fma_e4m3_neon", test_fma<e4m3_t>, nk_each_fma_e4m3_neon);
+    check("each_swiglu_e4m3_neon", test_swiglu<e4m3_t>, nk_each_swiglu_e4m3_neon);
+    check("each_rmsnorm_e4m3_neon", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_neon);
     check("each_sum_e5m2_neon", test_sum<e5m2_t>, nk_each_sum_e5m2_neon);
     check("each_scale_e5m2_neon", test_scale<e5m2_t>, nk_each_scale_e5m2_neon);
     check("each_blend_e5m2_neon", test_blend<e5m2_t>, nk_each_blend_e5m2_neon);

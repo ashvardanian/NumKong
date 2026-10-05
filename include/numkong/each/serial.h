@@ -368,6 +368,7 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t co
     }
 
 nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_swiglu_(f16, nk_f16_to_f32_, nk_f32_to_f16_)
 nk_define_each_swiglu_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
 nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
 #undef nk_define_each_swiglu_
@@ -407,6 +408,7 @@ nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
     }
 
 nk_define_each_rmsnorm_(f32, nk_f64_t, nk_assign_from_to_, nk_assign_from_to_)
+nk_define_each_rmsnorm_(f16, nk_f32_t, nk_f16_to_f32_, nk_f32_to_f16_)
 nk_define_each_rmsnorm_(bf16, nk_f32_t, nk_bf16_to_f32_, nk_f32_to_bf16_)
 nk_define_each_rmsnorm_(e4m3, nk_f32_t, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
 #undef nk_define_each_rmsnorm_

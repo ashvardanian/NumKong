@@ -56,9 +56,14 @@ NUMKONG_INLINE void nk_reduce_moments_f32_neon_contiguous_( //
     nk_f32_t const *data_ptr, nk_size_t count,              //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     float64x2_t sum_f64x2 = vdupq_n_f64(0), sumsq_f64x2 = vdupq_n_f64(0);
-    nk_size_t idx = 0;
-    for (; idx + 4 <= count; idx += 4) {
-        float32x4_t data_f32x4 = vld1q_f32(data_ptr + idx);
+    for (nk_size_t i = 0; i < count; i += 4) {
+        float32x4_t data_f32x4;
+        if (count - i >= 4) data_f32x4 = vld1q_f32(data_ptr + i);
+        else {
+            nk_b128_vec_t partial_vec;
+            nk_partial_load_b32x4_serial_(data_ptr + i, &partial_vec, count - i);
+            data_f32x4 = partial_vec.f32x4;
+        }
         float64x2_t data_low_f64x2 = vcvt_f64_f32(vget_low_f32(data_f32x4));
         float64x2_t data_high_f64x2 = vcvt_high_f64_f32(data_f32x4);
         sum_f64x2 = vaddq_f64(sum_f64x2, data_low_f64x2);
@@ -67,10 +72,6 @@ NUMKONG_INLINE void nk_reduce_moments_f32_neon_contiguous_( //
         sumsq_f64x2 = vfmaq_f64(sumsq_f64x2, data_high_f64x2, data_high_f64x2);
     }
     nk_f64_t sum = vaddvq_f64(sum_f64x2), sumsq = vaddvq_f64(sumsq_f64x2);
-    for (; idx < count; ++idx) {
-        nk_f64_t value = (nk_f64_t)data_ptr[idx];
-        sum += value, sumsq += value * value;
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -3480,9 +3481,14 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_neon_contiguous_( //
     nk_e4m3_t const *data_ptr, nk_size_t count,              //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0), sumsq_f32x4 = vdupq_n_f32(0);
-    nk_size_t idx = 0;
-    for (; idx + 16 <= count; idx += 16) {
-        uint8x16_t raw_u8x16 = vld1q_u8((nk_u8_t const *)(data_ptr + idx));
+    for (nk_size_t i = 0; i < count; i += 16) {
+        uint8x16_t raw_u8x16;
+        if (count - i >= 16) raw_u8x16 = vld1q_u8(data_ptr + i);
+        else {
+            nk_b128_vec_t partial_vec;
+            nk_partial_load_b8x16_serial_(data_ptr + i, &partial_vec, count - i);
+            raw_u8x16 = partial_vec.u8x16;
+        }
         float16x8_t half_low_f16x8, half_high_f16x8;
         nk_e4m3x16_to_f16x8x2_neon_(raw_u8x16, &half_low_f16x8, &half_high_f16x8);
         float32x4_t a_f32x4 = vcvt_f32_f16(vget_low_f16(half_low_f16x8));
@@ -3497,11 +3503,6 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_neon_contiguous_( //
                                 d_f32x4, d_f32x4);
     }
     nk_f32_t sum = vaddvq_f32(sum_f32x4), sumsq = vaddvq_f32(sumsq_f32x4);
-    for (; idx < count; ++idx) {
-        nk_f32_t value_f32;
-        nk_e4m3_to_f32_(&data_ptr[idx], &value_f32);
-        sum += value_f32, sumsq += value_f32 * value_f32;
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -4145,10 +4146,14 @@ NUMKONG_INLINE void nk_reduce_moments_f16_neon_contiguous_( //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     float32x4_t sum_f32x4 = vdupq_n_f32(0);
     float32x4_t sumsq_f32x4 = vdupq_n_f32(0);
-    nk_size_t idx = 0;
-
-    for (; idx + 8 <= count; idx += 8) {
-        float16x8_t data_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)(data_ptr + idx)));
+    for (nk_size_t i = 0; i < count; i += 8) {
+        float16x8_t data_f16x8;
+        if (count - i >= 8) data_f16x8 = vreinterpretq_f16_u16(vld1q_u16((nk_u16_t const *)(data_ptr + i)));
+        else {
+            nk_b128_vec_t partial_vec;
+            nk_partial_load_b16x8_serial_(data_ptr + i, &partial_vec, count - i);
+            data_f16x8 = vreinterpretq_f16_u16(partial_vec.u16x8);
+        }
         float32x4_t low_f32x4 = vcvt_f32_f16(vget_low_f16(data_f16x8));
         float32x4_t high_f32x4 = vcvt_high_f32_f16(data_f16x8);
         sum_f32x4 = vaddq_f32(sum_f32x4, low_f32x4);
@@ -4159,11 +4164,6 @@ NUMKONG_INLINE void nk_reduce_moments_f16_neon_contiguous_( //
 
     nk_f32_t sum = vaddvq_f32(sum_f32x4);
     nk_f32_t sumsq = vaddvq_f32(sumsq_f32x4);
-    for (; idx < count; ++idx) {
-        nk_f32_t value_f32;
-        nk_f16_to_f32_(data_ptr + idx, &value_f32);
-        sum += value_f32, sumsq += value_f32 * value_f32;
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 

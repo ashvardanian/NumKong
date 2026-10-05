@@ -213,11 +213,12 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
     std::mt19937 generator(settings.seed.value);
     std::uniform_real_distribution<float> gain_distribution(0.5f, 1.5f);
     nk_f32_t const epsilon = 1e-6f;
-    std::size_t const rows = 33, columns = 100;
+    std::size_t const rows = 33;
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;)
         for (std::size_t const groups : {1, 3}) {
+            std::size_t const columns = groups == 1 ? 99 : 16385;
             std::size_t const row_values = groups * columns + 8, row_bytes = row_values * sizeof(scalar_t);
             auto x = scalars_t::zeros(rows * row_values).value, y = scalars_t::zeros(rows * row_values).value;
             auto gamma = gains_t::zeros(columns).value;
@@ -268,11 +269,13 @@ error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu
     error_stats_t stats(nk_each_swiglu_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     nk_f32_t const gate_scale = 0.25f, output_scale = 2.0f;
-    std::size_t const rows = 37, columns = 129, fused_values = 2 * columns + 3, output_values = columns + 5;
+    std::size_t const rows = 37;
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;)
         for (bool const gated : {true, false}) {
+            std::size_t const columns = gated ? 129 : 130;
+            std::size_t const fused_values = 2 * columns + 3, output_values = columns + 5;
             auto fused = scalars_t::zeros(rows * fused_values).value, y = scalars_t::zeros(rows * output_values).value;
             fill_random(settings, generator, fused);
             auto const *gate = fused.raw_values_data();

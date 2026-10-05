@@ -38,6 +38,8 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/neon.h"
+#include "numkong/dot/neon.h"      // `nk_dot_bf16_through_f32_neon_`
+#include "numkong/reduce/neon.h"   // `nk_reduce_moments_f32_neon_contiguous_`
 #include "numkong/cast/serial.h"   // `nk_f32_to_u8_serial_`, `nk_f32_to_i8_serial_`
 #include "numkong/scalar/serial.h" // `nk_i16_saturating_add_` and its siblings
 
@@ -82,6 +84,78 @@ NUMKONG_INLINE void nk_scale_f32_neon_(nk_f32_t const *a, nk_size_t n, nk_f32_t 
 
     // The tail:
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
+}
+
+/** Adds @p n F64 values of @p a and @p b elementwise. */
+NUMKONG_INLINE void nk_add_f64_neon_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 2 <= n; i += 2) {
+        float64x2_t a_f64x2 = vld1q_f64(a + i);
+        float64x2_t b_f64x2 = vld1q_f64(b + i);
+        float64x2_t sum_f64x2 = vaddq_f64(a_f64x2, b_f64x2);
+        vst1q_f64(result + i, sum_f64x2);
+    }
+
+    // The tail:
+    for (; i < n; ++i) result[i] = a[i] + b[i];
+}
+
+/** Computes `alpha * a + beta` over @p n F64 values. */
+NUMKONG_INLINE void nk_scale_f64_neon_(nk_f64_t const *a, nk_size_t n, nk_f64_t alpha_val, nk_f64_t beta_val,
+                                       nk_f64_t *result) {
+    float64x2_t alpha_f64x2 = vdupq_n_f64(alpha_val);
+    float64x2_t beta_f64x2 = vdupq_n_f64(beta_val);
+
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 2 <= n; i += 2) {
+        float64x2_t a_f64x2 = vld1q_f64(a + i);
+        float64x2_t result_f64x2 = vfmaq_f64(beta_f64x2, a_f64x2, alpha_f64x2);
+        vst1q_f64(result + i, result_f64x2);
+    }
+
+    // The tail:
+    for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
+}
+
+/** Vectorized `2^x` (NEON), with a seventh-degree polynomial on [-0.5, 0.5]. */
+NUMKONG_INLINE float32x4_t nk_exp2_f32x4_neon_(float32x4_t x_f32x4) {
+    x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
+    float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);
+    float32x4_t const reduced_f32x4 = vsubq_f32(x_f32x4, whole_f32x4);
+    float32x4_t poly_f32x4 = vdupq_n_f32(1.52527338e-5f);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.54035304e-4f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.33335581e-3f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(9.61812910e-3f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(5.55041087e-2f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(2.40226507e-1f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(6.93147181e-1f), poly_f32x4, reduced_f32x4);
+    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.0f), poly_f32x4, reduced_f32x4);
+    int32x4_t const whole_i32x4 = vcvtq_s32_f32(whole_f32x4); // integral and clamped, so exact
+    float32x4_t const power_f32x4 = vreinterpretq_f32_s32(vshlq_n_s32(vaddq_s32(whole_i32x4, vdupq_n_s32(127)), 23));
+    return vmulq_f32(poly_f32x4, power_f32x4);
+}
+
+/** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
+ *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
+ *  lane-variable shift. */
+NUMKONG_INLINE int32x4_t nk_exp2_u8_i32x4_neon_(int32x4_t t_q15_i32x4) {
+    int32x4_t const whole_i32x4 = vshrq_n_s32(t_q15_i32x4, 15); // floor, in [-10, 0]
+    int32x4_t const fraction_i32x4 = vandq_s32(t_q15_i32x4, vdupq_n_s32(0x7FFF));
+    int32x4_t poly_i32x4 = vdupq_n_s32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(3678));
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(11410));
+    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(16382));
+    int32x4_t const scaled_i32x4 = vsubq_s32(vshlq_n_s32(poly_i32x4, 8), poly_i32x4); // (poly<<8)−poly = poly · 255
+    int32x4_t const shift_i32x4 = vsubq_s32(vdupq_n_s32(14), whole_i32x4);            // in [14, 24]
+    int32x4_t const bias_i32x4 = vshlq_s32(vdupq_n_s32(1), vsubq_s32(vdupq_n_s32(13), whole_i32x4)); // 1 << (13−whole)
+    return vshlq_s32(vaddq_s32(scaled_i32x4, bias_i32x4), vnegq_s32(shift_i32x4)); // round-half-up, then ≫ shift
+}
+
+NUMKONG_INLINE float32x4_t nk_silu_f32x4_neon_(float32x4_t x_f32x4) {
+    float32x4_t e_f32x4 = nk_exp2_f32x4_neon_(vmulq_n_f32(x_f32x4, -NUMKONG_F32_LOG2E_));
+    return vdivq_f32(x_f32x4, vaddq_f32(vdupq_n_f32(1), e_f32x4));
 }
 
 #if NUMKONG_TARGET_NEON
@@ -641,42 +715,7 @@ NUMKONG_API nk_status_t nk_each_fma_u64_neon(                //
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_NEON
 
-/** Adds @p n F64 values of @p a and @p b elementwise. */
-NUMKONG_INLINE void nk_add_f64_neon_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 2 <= n; i += 2) {
-        float64x2_t a_f64x2 = vld1q_f64(a + i);
-        float64x2_t b_f64x2 = vld1q_f64(b + i);
-        float64x2_t sum_f64x2 = vaddq_f64(a_f64x2, b_f64x2);
-        vst1q_f64(result + i, sum_f64x2);
-    }
-
-    // The tail:
-    for (; i < n; ++i) result[i] = a[i] + b[i];
-}
-
-/** Computes `alpha * a + beta` over @p n F64 values. */
-NUMKONG_INLINE void nk_scale_f64_neon_(nk_f64_t const *a, nk_size_t n, nk_f64_t alpha_val, nk_f64_t beta_val,
-                                       nk_f64_t *result) {
-    float64x2_t alpha_f64x2 = vdupq_n_f64(alpha_val);
-    float64x2_t beta_f64x2 = vdupq_n_f64(beta_val);
-
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 2 <= n; i += 2) {
-        float64x2_t a_f64x2 = vld1q_f64(a + i);
-        float64x2_t result_f64x2 = vfmaq_f64(beta_f64x2, a_f64x2, alpha_f64x2);
-        vst1q_f64(result + i, result_f64x2);
-    }
-
-    // The tail:
-    for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
-}
-
-#if NUMKONG_TARGET_NEON
 NUMKONG_API nk_status_t nk_each_sum_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                              void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1428,41 +1467,275 @@ NUMKONG_API nk_status_t nk_each_blend_i8_neon(nk_i8_t const *a, nk_i8_t const *b
     }
     return nk_success_k;
 }
+
+NUMKONG_API nk_status_t nk_each_swiglu_f32_neon(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y, nk_size_t rows,
+                                                nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
+                                                nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *g = (nk_f32_t const *)((nk_u8_t const *)gate + r * gate_stride);
+        nk_f32_t const *u = up ? (nk_f32_t const *)((nk_u8_t const *)up + r * up_stride) : NUMKONG_NULL;
+        nk_f32_t *dst = (nk_f32_t *)((nk_u8_t *)y + r * y_stride);
+        for (nk_size_t c = 0; c < columns; c += 4) {
+            nk_size_t count = columns - c;
+            nk_b128_vec_t gate_vec, up_vec, result_vec;
+            if (count >= 4) gate_vec.f32x4 = vld1q_f32(g + c);
+            else nk_partial_load_b32x4_serial_(g + c, &gate_vec, count);
+            float32x4_t result_f32x4 = nk_silu_f32x4_neon_(vmulq_n_f32(gate_vec.f32x4, gate_scale));
+            if (u) {
+                if (count >= 4) up_vec.f32x4 = vld1q_f32(u + c);
+                else nk_partial_load_b32x4_serial_(u + c, &up_vec, count);
+                result_f32x4 = vmulq_f32(result_f32x4, up_vec.f32x4);
+            }
+            result_vec.f32x4 = vmulq_n_f32(result_f32x4, output_scale);
+            if (count >= 4) vst1q_f32(dst + c, result_vec.f32x4);
+            else nk_partial_store_b32x4_serial_(&result_vec, dst + c, count);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_swiglu_f16_neon(nk_f16_t const *gate, nk_f16_t const *up, nk_f16_t *y, nk_size_t rows,
+                                                nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
+                                                nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f16_t const *g = (nk_f16_t const *)((nk_u8_t const *)gate + r * gate_stride);
+        nk_f16_t const *u = up ? (nk_f16_t const *)((nk_u8_t const *)up + r * up_stride) : NUMKONG_NULL;
+        nk_f16_t *dst = (nk_f16_t *)((nk_u8_t *)y + r * y_stride);
+        for (nk_size_t c = 0; c < columns; c += 4) {
+            nk_size_t count = columns - c;
+            nk_b64_vec_t gate_vec, up_vec, result_vec;
+            if (count >= 4) gate_vec.u16x4 = vld1_u16((nk_u16_t const *)(g + c));
+            else nk_partial_load_b16x4_serial_(g + c, &gate_vec, count);
+            float32x4_t result_f32x4 = nk_silu_f32x4_neon_(
+                vmulq_n_f32(vcvt_f32_f16(vreinterpret_f16_u16(gate_vec.u16x4)), gate_scale));
+            if (u) {
+                if (count >= 4) up_vec.u16x4 = vld1_u16((nk_u16_t const *)(u + c));
+                else nk_partial_load_b16x4_serial_(u + c, &up_vec, count);
+                result_f32x4 = vmulq_f32(result_f32x4, vcvt_f32_f16(vreinterpret_f16_u16(up_vec.u16x4)));
+            }
+            result_vec.u16x4 = vreinterpret_u16_f16(vcvt_f16_f32(vmulq_n_f32(result_f32x4, output_scale)));
+            if (count >= 4) vst1_u16((nk_u16_t *)(dst + c), result_vec.u16x4);
+            else nk_partial_store_b16x4_serial_(dst + c, &result_vec, count);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_swiglu_bf16_neon(nk_bf16_t const *gate, nk_bf16_t const *up, nk_bf16_t *y,
+                                                 nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                 nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                 nk_f32_t output_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_bf16_t const *g = (nk_bf16_t const *)((nk_u8_t const *)gate + r * gate_stride);
+        nk_bf16_t const *u = up ? (nk_bf16_t const *)((nk_u8_t const *)up + r * up_stride) : NUMKONG_NULL;
+        nk_bf16_t *dst = (nk_bf16_t *)((nk_u8_t *)y + r * y_stride);
+        for (nk_size_t c = 0; c < columns; c += 4) {
+            nk_size_t count = columns - c;
+            nk_b64_vec_t gate_vec, up_vec, result_vec;
+            if (count >= 4) gate_vec.u16x4 = vld1_u16((nk_u16_t const *)(g + c));
+            else nk_partial_load_b16x4_serial_(g + c, &gate_vec, count);
+            float32x4_t result_f32x4 = nk_silu_f32x4_neon_(
+                vmulq_n_f32(nk_bf16x4_to_f32x4_neon_(gate_vec.u16x4), gate_scale));
+            if (u) {
+                if (count >= 4) up_vec.u16x4 = vld1_u16((nk_u16_t const *)(u + c));
+                else nk_partial_load_b16x4_serial_(u + c, &up_vec, count);
+                result_f32x4 = vmulq_f32(result_f32x4, nk_bf16x4_to_f32x4_neon_(up_vec.u16x4));
+            }
+            result_vec.u16x4 = nk_f32x4_to_bf16x4_neon_(vmulq_n_f32(result_f32x4, output_scale));
+            if (count >= 4) vst1_u16((nk_u16_t *)(dst + c), result_vec.u16x4);
+            else nk_partial_store_b16x4_serial_(dst + c, &result_vec, count);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_swiglu_e4m3_neon(nk_e4m3_t const *gate, nk_e4m3_t const *up, nk_e4m3_t *y,
+                                                 nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
+                                                 nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
+                                                 nk_f32_t output_scale, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_e4m3_t const *g = (nk_e4m3_t const *)((nk_u8_t const *)gate + r * gate_stride);
+        nk_e4m3_t const *u = up ? (nk_e4m3_t const *)((nk_u8_t const *)up + r * up_stride) : NUMKONG_NULL;
+        nk_e4m3_t *dst = (nk_e4m3_t *)((nk_u8_t *)y + r * y_stride);
+        for (nk_size_t c = 0; c < columns; c += 4) {
+            nk_size_t count = columns - c;
+            nk_b32_vec_t gate_vec, up_vec, result_vec;
+            if (count >= 4) nk_copy_bytes_(&gate_vec, g + c, sizeof(gate_vec));
+            else gate_vec = nk_partial_load_b8x4_serial_(g + c, count);
+            float32x4_t result_f32x4 = nk_silu_f32x4_neon_(vmulq_n_f32(nk_e4m3x4_to_f32x4_neon_(gate_vec), gate_scale));
+            if (u) {
+                if (count >= 4) nk_copy_bytes_(&up_vec, u + c, sizeof(up_vec));
+                else up_vec = nk_partial_load_b8x4_serial_(u + c, count);
+                result_f32x4 = vmulq_f32(result_f32x4, nk_e4m3x4_to_f32x4_neon_(up_vec));
+            }
+            result_vec = nk_f32x4_to_e4m3x4_neon_(vmulq_n_f32(result_f32x4, output_scale));
+            if (count >= 4) nk_copy_bytes_(dst + c, &result_vec, sizeof(result_vec));
+            else nk_partial_store_b8x4_serial_(&result_vec, dst + c, count);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_f32_neon(nk_f32_t const *x, nk_f32_t const *gamma, nk_f32_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                 nk_size_t y_stride, nk_f32_t epsilon, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *src = (nk_f32_t const *)((nk_u8_t const *)x + r * x_stride);
+        nk_f32_t *dst = (nk_f32_t *)((nk_u8_t *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f32_t const *input = src + group * columns;
+            nk_f32_t *output = dst + group * columns;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f32_neon_contiguous_(input, columns, &sum, &sumsq);
+            nk_f32_t inv_rms = nk_f32_rsqrt_((nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon);
+            for (nk_size_t c = 0; c < columns; c += 4) {
+                nk_size_t count = columns - c;
+                nk_b128_vec_t input_vec, result_vec;
+                if (count >= 4) input_vec.f32x4 = vld1q_f32(input + c);
+                else nk_partial_load_b32x4_serial_(input + c, &input_vec, count);
+                float32x4_t result_f32x4 = vmulq_n_f32(input_vec.f32x4, inv_rms);
+                if (gamma) {
+                    nk_b128_vec_t gamma_vec;
+                    if (count >= 4) gamma_vec.f32x4 = vld1q_f32(gamma + c);
+                    else nk_partial_load_b32x4_serial_(gamma + c, &gamma_vec, count);
+                    result_f32x4 = vmulq_f32(result_f32x4, gamma_vec.f32x4);
+                }
+                result_vec.f32x4 = result_f32x4;
+                if (count >= 4) vst1q_f32(output + c, result_vec.f32x4);
+                else nk_partial_store_b32x4_serial_(&result_vec, output + c, count);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_f16_neon(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                 nk_size_t y_stride, nk_f32_t epsilon, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f16_t const *input = (nk_f16_t const *)((nk_u8_t const *)x + r * x_stride) + group * columns;
+            nk_f16_t *output = (nk_f16_t *)((nk_u8_t *)y + r * y_stride) + group * columns;
+            nk_f64_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width.
+            for (nk_size_t c = 0; c < columns; c += 64) {
+                nk_size_t count = columns - c < 64 ? columns - c : 64;
+                nk_f32_t partial_sum, partial_sumsq;
+                nk_reduce_moments_f16_neon_contiguous_(input + c, count, &partial_sum, &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            nk_f32_t mean_square = (nk_f32_t)sumsq / (nk_f64_t)columns;
+            nk_f32_t inv_rms = nk_f32_rsqrt_(mean_square + epsilon);
+            for (nk_size_t c = 0; c < columns; c += 4) {
+                nk_size_t count = columns - c;
+                nk_b64_vec_t input_vec, result_vec;
+                if (count >= 4) input_vec.u16x4 = vld1_u16((nk_u16_t const *)(input + c));
+                else nk_partial_load_b16x4_serial_(input + c, &input_vec, count);
+                float32x4_t result_f32x4 = vmulq_n_f32(vcvt_f32_f16(vreinterpret_f16_u16(input_vec.u16x4)), inv_rms);
+                if (gamma) {
+                    nk_b128_vec_t gamma_vec;
+                    if (count >= 4) gamma_vec.f32x4 = vld1q_f32(gamma + c);
+                    else nk_partial_load_b32x4_serial_(gamma + c, &gamma_vec, count);
+                    result_f32x4 = vmulq_f32(result_f32x4, gamma_vec.f32x4);
+                }
+                result_vec.u16x4 = vreinterpret_u16_f16(vcvt_f16_f32(result_f32x4));
+                if (count >= 4) vst1_u16((nk_u16_t *)(output + c), result_vec.u16x4);
+                else nk_partial_store_b16x4_serial_(output + c, &result_vec, count);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_neon(nk_bf16_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                  nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_bf16_t const *input = (nk_bf16_t const *)((nk_u8_t const *)x + r * x_stride) + group * columns;
+            nk_bf16_t *output = (nk_bf16_t *)((nk_u8_t *)y + r * y_stride) + group * columns;
+            nk_f64_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width.
+            for (nk_size_t c = 0; c < columns; c += 64) {
+                nk_size_t count = columns - c < 64 ? columns - c : 64;
+                nk_f32_t partial_sumsq;
+                nk_dot_bf16_through_f32_neon_(input + c, input + c, count, &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            nk_f32_t mean_square = (nk_f32_t)sumsq / (nk_f64_t)columns;
+            nk_f32_t inv_rms = nk_f32_rsqrt_(mean_square + epsilon);
+            for (nk_size_t c = 0; c < columns; c += 4) {
+                nk_size_t count = columns - c;
+                nk_b64_vec_t input_vec, result_vec;
+                if (count >= 4) input_vec.u16x4 = vld1_u16((nk_u16_t const *)(input + c));
+                else nk_partial_load_b16x4_serial_(input + c, &input_vec, count);
+                float32x4_t result_f32x4 = vmulq_n_f32(nk_bf16x4_to_f32x4_neon_(input_vec.u16x4), inv_rms);
+                if (gamma) {
+                    nk_b128_vec_t gamma_vec;
+                    if (count >= 4) gamma_vec.f32x4 = vld1q_f32(gamma + c);
+                    else nk_partial_load_b32x4_serial_(gamma + c, &gamma_vec, count);
+                    result_f32x4 = vmulq_f32(result_f32x4, gamma_vec.f32x4);
+                }
+                result_vec.u16x4 = nk_f32x4_to_bf16x4_neon_(result_f32x4);
+                if (count >= 4) vst1_u16((nk_u16_t *)(output + c), result_vec.u16x4);
+                else nk_partial_store_b16x4_serial_(output + c, &result_vec, count);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_neon(nk_e4m3_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                  nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                  nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_e4m3_t const *input = (nk_e4m3_t const *)((nk_u8_t const *)x + r * x_stride) + group * columns;
+            nk_e4m3_t *output = (nk_e4m3_t *)((nk_u8_t *)y + r * y_stride) + group * columns;
+            nk_f64_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width.
+            for (nk_size_t c = 0; c < columns; c += 64) {
+                nk_size_t count = columns - c < 64 ? columns - c : 64;
+                nk_f32_t partial_sum, partial_sumsq;
+                nk_reduce_moments_e4m3_neon_contiguous_(input + c, count, &partial_sum, &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            nk_f32_t mean_square = (nk_f32_t)sumsq / (nk_f64_t)columns;
+            nk_f32_t inv_rms = nk_f32_rsqrt_(mean_square + epsilon);
+            for (nk_size_t c = 0; c < columns; c += 4) {
+                nk_size_t count = columns - c;
+                nk_b32_vec_t input_vec, result_vec;
+                if (count >= 4) nk_copy_bytes_(&input_vec, input + c, sizeof(input_vec));
+                else input_vec = nk_partial_load_b8x4_serial_(input + c, count);
+                float32x4_t result_f32x4 = vmulq_n_f32(nk_e4m3x4_to_f32x4_neon_(input_vec), inv_rms);
+                if (gamma) {
+                    nk_b128_vec_t gamma_vec;
+                    if (count >= 4) gamma_vec.f32x4 = vld1q_f32(gamma + c);
+                    else nk_partial_load_b32x4_serial_(gamma + c, &gamma_vec, count);
+                    result_f32x4 = vmulq_f32(result_f32x4, gamma_vec.f32x4);
+                }
+                result_vec = nk_f32x4_to_e4m3x4_neon_(result_f32x4);
+                if (count >= 4) nk_copy_bytes_(output + c, &result_vec, sizeof(result_vec));
+                else nk_partial_store_b8x4_serial_(&result_vec, output + c, count);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
 #endif // NUMKONG_TARGET_NEON
-
-/** Vectorized `2^x` (NEON), with a seventh-degree polynomial on [-0.5, 0.5]. */
-NUMKONG_INLINE float32x4_t nk_exp2_f32x4_neon_(float32x4_t x_f32x4) {
-    x_f32x4 = vmaxq_f32(vminq_f32(x_f32x4, vdupq_n_f32(127.0f)), vdupq_n_f32(-125.0f));
-    float32x4_t const whole_f32x4 = vrndnq_f32(x_f32x4);
-    float32x4_t const reduced_f32x4 = vsubq_f32(x_f32x4, whole_f32x4);
-    float32x4_t poly_f32x4 = vdupq_n_f32(1.52527338e-5f);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.54035304e-4f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.33335581e-3f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(9.61812910e-3f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(5.55041087e-2f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(2.40226507e-1f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(6.93147181e-1f), poly_f32x4, reduced_f32x4);
-    poly_f32x4 = vfmaq_f32(vdupq_n_f32(1.0f), poly_f32x4, reduced_f32x4);
-    int32x4_t const whole_i32x4 = vcvtq_s32_f32(whole_f32x4); // integral and clamped, so exact
-    float32x4_t const power_f32x4 = vreinterpretq_f32_s32(vshlq_n_s32(vaddq_s32(whole_i32x4, vdupq_n_s32(127)), 23));
-    return vmulq_f32(poly_f32x4, power_f32x4);
-}
-
-/** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
- *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
- *  lane-variable shift. */
-NUMKONG_INLINE int32x4_t nk_exp2_u8_i32x4_neon_(int32x4_t t_q15_i32x4) {
-    int32x4_t const whole_i32x4 = vshrq_n_s32(t_q15_i32x4, 15); // floor, in [-10, 0]
-    int32x4_t const fraction_i32x4 = vandq_s32(t_q15_i32x4, vdupq_n_s32(0x7FFF));
-    int32x4_t poly_i32x4 = vdupq_n_s32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
-    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(3678));
-    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(11410));
-    poly_i32x4 = vaddq_s32(vshrq_n_s32(vmulq_s32(fraction_i32x4, poly_i32x4), 15), vdupq_n_s32(16382));
-    int32x4_t const scaled_i32x4 = vsubq_s32(vshlq_n_s32(poly_i32x4, 8), poly_i32x4); // (poly<<8)−poly = poly · 255
-    int32x4_t const shift_i32x4 = vsubq_s32(vdupq_n_s32(14), whole_i32x4);            // in [14, 24]
-    int32x4_t const bias_i32x4 = vshlq_s32(vdupq_n_s32(1), vsubq_s32(vdupq_n_s32(13), whole_i32x4)); // 1 << (13−whole)
-    return vshlq_s32(vaddq_s32(scaled_i32x4, bias_i32x4), vnegq_s32(shift_i32x4)); // round-half-up, then ≫ shift
-}
 
 #if defined(__clang__)
 #pragma clang attribute pop

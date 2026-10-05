@@ -352,6 +352,10 @@ status_t swiglu(in_type_ const *gate, in_type_ const *up, in_type_ *y, std::size
             return static_cast<status_t>(
                 nk_each_swiglu_f32_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, columns, gate_stride,
                                         up_stride, y_stride, gate_scale.raw_, output_scale.raw_, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return static_cast<status_t>(
+                nk_each_swiglu_f16_best(&gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, columns, gate_stride,
+                                        up_stride, y_stride, gate_scale.raw_, output_scale.raw_, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_each_swiglu_bf16_best(
                 &gate->raw_, up ? &up->raw_ : nullptr, &y->raw_, rows, columns, gate_stride, up_stride, y_stride,
@@ -403,6 +407,10 @@ status_t rmsnorm(in_type_ const *x, f32_t const *gamma, in_type_ *y, std::size_t
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, f32_t>)
             return static_cast<status_t>(nk_each_rmsnorm_f32_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, columns,
+                                                                  x_stride, y_stride, epsilon.raw_, capabilities,
+                                                                  stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return static_cast<status_t>(nk_each_rmsnorm_f16_best(&x->raw_, gamma_raw, &y->raw_, rows, groups, columns,
                                                                   x_stride, y_stride, epsilon.raw_, capabilities,
                                                                   stream));
         else if constexpr (std::is_same_v<in_type_, bf16_t>)

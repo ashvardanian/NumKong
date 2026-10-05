@@ -98,6 +98,8 @@ Serial fallback implements saturation via branch-free min/max: `result = min(max
 Addition and scaling treat complex vectors as 2N-length real vectors — no special handling needed.
 FMA requires cross-lane operations for the imaginary part: `re(a*b) = re(a)*re(b) - im(a)*im(b)`, implemented via `VFMADDSUB231PS` which alternates add/subtract across even/odd lanes.
 
+Fused SwiGLU and grouped RMSNorm support F32, F16, BF16, and E4M3 on serial and NEON backends.
+
 ## Performance
 
 The tables below follow the [benchmark methodology](../../../bench/README.md#methodology).

@@ -3168,6 +3168,9 @@ static nk_capability_kernels_t const *nk_each_swiglu_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_each_swiglu_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_swiglu_f32_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         (nk_kernel_punned_t)&nk_each_swiglu_f32_haswell,
 #endif
@@ -3188,7 +3191,9 @@ static nk_capability_kernels_t const *nk_each_swiglu_f32_capabilities(void) {
     };
 #endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
+         cpu},
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k, cuda},
 #else
@@ -3215,10 +3220,41 @@ NUMKONG_API nk_status_t nk_each_swiglu_f32_best(nk_f32_t const *gate, nk_f32_t c
                : nk_missing_kernel_k;
 }
 
+static nk_capability_kernels_t const *nk_each_swiglu_f16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_swiglu_f16_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_swiglu_f16_neon,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_each_swiglu_f16_best(nk_f16_t const *gate, nk_f16_t const *up, nk_f16_t *y, nk_size_t rows,
+                                                nk_size_t columns, nk_size_t gate_stride, nk_size_t up_stride,
+                                                nk_size_t y_stride, nk_f32_t gate_scale, nk_f32_t output_scale,
+                                                nk_capability_t capabilities, void *stream) {
+    nk_each_swiglu_punned_t const kernel = (nk_each_swiglu_punned_t)nk_kernel_pick_(capabilities,
+                                                                                    nk_each_swiglu_f16_capabilities());
+    return kernel
+               ? kernel(gate, up, y, rows, columns, gate_stride, up_stride, y_stride, gate_scale, output_scale, stream)
+               : nk_missing_kernel_k;
+}
+
 static nk_capability_kernels_t const *nk_each_swiglu_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_each_swiglu_bf16_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_swiglu_bf16_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         (nk_kernel_punned_t)&nk_each_swiglu_bf16_haswell,
 #endif
@@ -3239,7 +3275,9 @@ static nk_capability_kernels_t const *nk_each_swiglu_bf16_capabilities(void) {
     };
 #endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
+         cpu},
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k, cuda},
 #else
@@ -3270,6 +3308,9 @@ static nk_capability_kernels_t const *nk_each_swiglu_e4m3_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_each_swiglu_e4m3_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_swiglu_e4m3_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         (nk_kernel_punned_t)&nk_each_swiglu_e4m3_haswell,
 #endif
@@ -3290,7 +3331,9 @@ static nk_capability_kernels_t const *nk_each_swiglu_e4m3_capabilities(void) {
     };
 #endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
+         cpu},
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k, cuda},
 #else
@@ -3321,6 +3364,9 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_f32_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_each_rmsnorm_f32_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_rmsnorm_f32_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         (nk_kernel_punned_t)&nk_each_rmsnorm_f32_haswell,
 #endif
@@ -3341,7 +3387,9 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_f32_capabilities(void) {
     };
 #endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
+         cpu},
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k, cuda},
 #else
@@ -3367,10 +3415,40 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_f32_best(nk_f32_t const *x, nk_f32_t con
                   : nk_missing_kernel_k;
 }
 
+static nk_capability_kernels_t const *nk_each_rmsnorm_f16_capabilities(void) {
+    static nk_kernel_punned_t const cpu[] = {
+        NUMKONG_NULL,
+        (nk_kernel_punned_t)&nk_each_rmsnorm_f16_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_rmsnorm_f16_neon,
+#endif
+    };
+    static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON, cpu},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+        {0, nk_no_kernels_},
+    };
+    return lists;
+}
+
+NUMKONG_API nk_status_t nk_each_rmsnorm_f16_best(nk_f16_t const *x, nk_f32_t const *gamma, nk_f16_t *y, nk_size_t rows,
+                                                 nk_size_t groups, nk_size_t columns, nk_size_t x_stride,
+                                                 nk_size_t y_stride, nk_f32_t epsilon, nk_capability_t capabilities,
+                                                 void *stream) {
+    nk_each_rmsnorm_punned_t const kernel = (nk_each_rmsnorm_punned_t)nk_kernel_pick_(
+        capabilities, nk_each_rmsnorm_f16_capabilities());
+    return kernel ? kernel(x, gamma, y, rows, groups, columns, x_stride, y_stride, epsilon, stream)
+                  : nk_missing_kernel_k;
+}
+
 static nk_capability_kernels_t const *nk_each_rmsnorm_bf16_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         (nk_kernel_punned_t)&nk_each_rmsnorm_bf16_haswell,
 #endif
@@ -3394,8 +3472,8 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_bf16_capabilities(void) {
     };
 #endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-             nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
          cpu},
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k, cuda},
@@ -3426,6 +3504,9 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_e4m3_capabilities(void) {
     static nk_kernel_punned_t const cpu[] = {
         NUMKONG_NULL,
         (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_serial,
+#if NUMKONG_TARGET_NEON
+        (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_neon,
+#endif
 #if NUMKONG_TARGET_HASWELL
         (nk_kernel_punned_t)&nk_each_rmsnorm_e4m3_haswell,
 #endif
@@ -3449,8 +3530,8 @@ static nk_capability_kernels_t const *nk_each_rmsnorm_e4m3_capabilities(void) {
     };
 #endif
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
-        {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
-             nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
+        {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
+             nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_genoa_k * NUMKONG_TARGET_GENOA,
          cpu},
 #if NUMKONG_ARCH_CUDA_
         {nk_cap_cuda_k, cuda},
@@ -3536,6 +3617,8 @@ NUMKONG_API nk_status_t nk_each_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
         case nk_kernel_each_sum_k: lists = nk_each_sum_f16_capabilities(); break;
         case nk_kernel_each_blend_k: lists = nk_each_blend_f16_capabilities(); break;
         case nk_kernel_each_fma_k: lists = nk_each_fma_f16_capabilities(); break;
+        case nk_kernel_each_rmsnorm_k: lists = nk_each_rmsnorm_f16_capabilities(); break;
+        case nk_kernel_each_swiglu_k: lists = nk_each_swiglu_f16_capabilities(); break;
         default: break;
         }
         break;
