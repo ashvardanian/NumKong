@@ -50,7 +50,7 @@ NUMKONG_API nk_status_t nk_allocator_init_device_rocm(nk_allocator_t *allocator)
 NUMKONG_API nk_status_t nk_allocator_init_pinned_rocm(nk_allocator_t *allocator);
 #endif
 
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocator);
 #endif
@@ -104,7 +104,7 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **
 NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, void *stream);
 #endif
 
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
 /** @copydoc nk_memory_allocate_unified_best */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, void *stream);
 /** @copydoc nk_memory_free_unified_best */

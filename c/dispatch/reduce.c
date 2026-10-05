@@ -28,7 +28,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_f64_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_f64_cuda,
 #endif
     };
@@ -37,7 +37,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_f64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -74,7 +74,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f64_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_f64_cuda,
 #endif
     };
@@ -83,7 +83,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -121,7 +121,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_f32_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_f32_cuda,
 #endif
     };
@@ -130,7 +130,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_f32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -167,7 +167,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f32_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_f32_cuda,
 #endif
     };
@@ -176,7 +176,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -223,7 +223,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i8_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_i8_cuda,
 #endif
     };
@@ -233,7 +233,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i8_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -269,7 +269,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i8_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_i8_cuda,
 #endif
     };
@@ -278,7 +278,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i8_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -328,7 +328,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u8_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_u8_cuda,
 #endif
     };
@@ -339,7 +339,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u8_capabilities(void) {
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -375,7 +375,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u8_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_u8_cuda,
 #endif
     };
@@ -384,7 +384,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u8_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -428,7 +428,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i16_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_i16_cuda,
 #endif
     };
@@ -438,7 +438,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i16_capabilities(void) {
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -475,7 +475,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i16_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_i16_cuda,
 #endif
     };
@@ -484,7 +484,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i16_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -525,7 +525,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u16_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_u16_cuda,
 #endif
     };
@@ -534,7 +534,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u16_capabilities(void) {
              nk_cap_alder_k * NUMKONG_TARGET_ALDER | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -571,7 +571,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u16_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_u16_cuda,
 #endif
     };
@@ -580,7 +580,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u16_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -618,7 +618,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i32_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_i32_cuda,
 #endif
     };
@@ -627,7 +627,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -664,7 +664,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i32_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_i32_cuda,
 #endif
     };
@@ -673,7 +673,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -711,7 +711,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u32_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_u32_cuda,
 #endif
     };
@@ -720,7 +720,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -757,7 +757,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u32_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_u32_cuda,
 #endif
     };
@@ -766,7 +766,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u32_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -804,7 +804,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i64_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_i64_cuda,
 #endif
     };
@@ -813,7 +813,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_i64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -850,7 +850,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i64_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_i64_cuda,
 #endif
     };
@@ -859,7 +859,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -897,7 +897,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u64_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_u64_cuda,
 #endif
     };
@@ -906,7 +906,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -943,7 +943,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u64_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_u64_cuda,
 #endif
     };
@@ -952,7 +952,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u64_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -990,7 +990,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_f16_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_f16_cuda,
 #endif
     };
@@ -999,7 +999,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_f16_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1033,7 +1033,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f16_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_f16_cuda,
 #endif
     };
@@ -1041,7 +1041,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_f16_capabilities(void) {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1082,7 +1082,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_bf16_capabilities(void) 
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_bf16_cuda,
 #endif
     };
@@ -1091,7 +1091,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_bf16_capabilities(void) 
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_genoa_k * NUMKONG_TARGET_GENOA |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128_k * NUMKONG_TARGET_V128,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1125,7 +1125,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_bf16_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_bf16_cuda,
 #endif
     };
@@ -1133,7 +1133,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_bf16_capabilities(void) {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE |
              nk_cap_rvv_k * NUMKONG_TARGET_RVV | nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1177,7 +1177,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e4m3_capabilities(void) 
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_e4m3_cuda,
 #endif
     };
@@ -1187,7 +1187,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e4m3_capabilities(void) 
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1224,7 +1224,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e4m3_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_e4m3_cuda,
 #endif
     };
@@ -1233,7 +1233,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e4m3_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1277,7 +1277,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e5m2_capabilities(void) 
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_e5m2_cuda,
 #endif
     };
@@ -1287,7 +1287,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e5m2_capabilities(void) 
              nk_cap_genoa_k * NUMKONG_TARGET_GENOA | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1324,7 +1324,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e5m2_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_e5m2_cuda,
 #endif
     };
@@ -1333,7 +1333,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e5m2_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1383,7 +1383,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e2m3_capabilities(void) 
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_e2m3_cuda,
 #endif
     };
@@ -1394,7 +1394,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e2m3_capabilities(void) 
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1431,7 +1431,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e2m3_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_e2m3_cuda,
 #endif
     };
@@ -1440,7 +1440,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e2m3_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1484,7 +1484,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e3m2_capabilities(void) 
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_e3m2_cuda,
 #endif
     };
@@ -1494,7 +1494,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_e3m2_capabilities(void) 
              nk_cap_icelake_k * NUMKONG_TARGET_ICELAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1531,7 +1531,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e3m2_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_e3m2_cuda,
 #endif
     };
@@ -1540,7 +1540,7 @@ static nk_capability_kernels_t const *nk_reduce_minmax_e3m2_capabilities(void) {
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1563,13 +1563,13 @@ static nk_capability_kernels_t const *nk_reduce_moments_e2m1_capabilities(void) 
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_e2m1_cuda,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1597,13 +1597,13 @@ static nk_capability_kernels_t const *nk_reduce_moments_i4_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_i4_cuda,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1625,13 +1625,13 @@ static nk_capability_kernels_t const *nk_reduce_minmax_i4_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_i4_cuda,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1660,13 +1660,13 @@ static nk_capability_kernels_t const *nk_reduce_moments_u4_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_u4_cuda,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL | nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE, cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1688,13 +1688,13 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u4_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_u4_cuda,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1726,7 +1726,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u1_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_moments_u1_cuda,
 #endif
     };
@@ -1734,7 +1734,7 @@ static nk_capability_kernels_t const *nk_reduce_moments_u1_capabilities(void) {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
              nk_cap_skylake_k * NUMKONG_TARGET_SKYLAKE,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };
@@ -1756,13 +1756,13 @@ static nk_capability_kernels_t const *nk_reduce_minmax_u1_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_reduce_minmax_u1_cuda,
 #endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k, cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };

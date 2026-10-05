@@ -649,9 +649,8 @@ A name without it is a public contract, either a switch you may set or a value y
 | Capability whose kernels compile | `NUMKONG_TARGET_<NAME>`       | `NUMKONG_TARGET_HASWELL`                  |
 | Capability whose helpers compile | `NUMKONG_ARCH_<ARCH>_<NAME>_` | `NUMKONG_ARCH_X8664_HASWELL_`             |
 | Header-only build                | `NUMKONG_HEADER_ONLY`         |                                           |
-| GPU runtime the build links      | `NUMKONG_WITH_<RUNTIME>`      | `NUMKONG_WITH_METAL`                      |
 | Permission for a liberty         | `NUMKONG_ALLOW_<LIBERTY>`     | `NUMKONG_ALLOW_ISA_REDIRECT`              |
-| Architecture fact                | `NUMKONG_ARCH_<ARCH>_`        | `NUMKONG_ARCH_X8664_`                     |
+| Architecture or GPU runtime      | `NUMKONG_ARCH_<ARCH>_`        | `NUMKONG_ARCH_X8664_`                     |
 | Operating-system fact            | `NUMKONG_OS_<OS>_`            | `NUMKONG_OS_LINUX_`                       |
 | Toolchain fact                   | `NUMKONG_HAS_<FEATURE>_`      | `NUMKONG_HAS_MULTIDIMENSIONAL_SUBSCRIPT_` |
 

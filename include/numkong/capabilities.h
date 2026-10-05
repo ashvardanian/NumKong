@@ -128,7 +128,7 @@
 #define NUMKONG_CAPABILITIES_H
 
 #include "numkong/types.h" // `nk_u64_t`, `NUMKONG_OS_LINUX_`
-#include "numkong/metal.h" // `nk_metal_list_devices_`, empty unless `NUMKONG_WITH_METAL`
+#include "numkong/metal.h" // `nk_metal_list_devices_`, empty unless `NUMKONG_ARCH_METAL_`
 
 /* AMD GPUs name their architecture only as a string, like "gfx950:sramecc+:xnack-" */
 #if NUMKONG_ARCH_ROCM_
@@ -1326,14 +1326,14 @@ NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream);
 NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream);
 #endif
 
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
 /** @copydoc nk_stream_synchronize_best */
 NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream);
 #endif
 
 /** How many Metal devices the system lists, or zero. */
 NUMKONG_INLINE nk_size_t nk_metal_count_devices_(void) {
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     return nk_metal_list_devices_();
 #else
     return 0;
@@ -1344,7 +1344,7 @@ NUMKONG_INLINE nk_size_t nk_metal_count_devices_(void) {
 NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
     *capabilities = 0;
     if (ordinal >= nk_metal_count_devices_()) return nk_missing_gpu_k;
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     void *const metal_device = nk_metal_device_(ordinal);
     if (!metal_device) return nk_device_code_mismatch_k;
     SEL const supports = sel_registerName("supportsFamily:");
@@ -1365,7 +1365,7 @@ NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t ordinal, nk
 NUMKONG_INLINE nk_status_t nk_metal_stream_init_(nk_size_t ordinal, void **stream) {
     *stream = NUMKONG_NULL;
     if (ordinal >= nk_metal_count_devices_()) return nk_missing_gpu_k;
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     void *const metal_device = nk_metal_device_(ordinal);
     if (!metal_device) return nk_device_code_mismatch_k;
     *stream = nk_metal_get_(metal_device, "newCommandQueue");
@@ -1377,7 +1377,7 @@ NUMKONG_INLINE nk_status_t nk_metal_stream_init_(nk_size_t ordinal, void **strea
 
 /** Waits for @p stream 's committed work and its deferred frees, then releases it. */
 NUMKONG_INLINE nk_status_t nk_metal_stream_free_(void *stream) {
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     nk_status_t const status = nk_stream_synchronize_metal(stream);
     nk_metal_do_(stream, "release");
     return status;
@@ -1390,20 +1390,20 @@ NUMKONG_INLINE nk_status_t nk_metal_stream_free_(void *stream) {
 /** The CUDA capabilities this binary holds kernels for: the baseline and what
  *  `NUMKONG_TARGET_*` enables. */
 NUMKONG_CONSTEXPR nk_capability_t nk_cuda_capabilities_compiled_(void) {
-    return (nk_cap_cuda_k * NUMKONG_ARCH_CUDA_) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
+    return (nk_cap_cuda_k * NUMKONG_TARGET_CUDA) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
            (nk_cap_ada_k * NUMKONG_TARGET_ADA) | (nk_cap_hopper_k * NUMKONG_TARGET_HOPPER) |
            (nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL) | (nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX);
 }
 
 /** The ROCm capabilities this binary holds kernels for. */
 NUMKONG_CONSTEXPR nk_capability_t nk_rocm_capabilities_compiled_(void) {
-    return (nk_cap_rocm_k * NUMKONG_ARCH_ROCM_) | (nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4) |
+    return (nk_cap_rocm_k * NUMKONG_TARGET_ROCM) | (nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4) |
            (nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5);
 }
 
 /** The Metal capabilities this binary holds kernels for. */
 NUMKONG_CONSTEXPR nk_capability_t nk_metal_capabilities_compiled_(void) {
-    return (nk_cap_metal_k * NUMKONG_WITH_METAL) | (nk_cap_apple9_k * NUMKONG_TARGET_APPLE9) |
+    return (nk_cap_metal_k * NUMKONG_TARGET_METAL) | (nk_cap_apple9_k * NUMKONG_TARGET_APPLE9) |
            (nk_cap_apple10_k * NUMKONG_TARGET_APPLE10);
 }
 

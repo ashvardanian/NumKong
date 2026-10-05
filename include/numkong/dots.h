@@ -5208,7 +5208,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_u4_cdna5(nk_u4x2_t const *vectors, nk_
 
 /*  Metal baseline on every Apple GPU, which has no F64: every input widened exactly and multiplied
  *  with scalar FMAs, accumulating in F32, or exactly for integer codes. */
-#if NUMKONG_WITH_METAL
+#if NUMKONG_TARGET_METAL
 /** @copydoc nk_dots_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_dots_pack_size_bf16_metal(nk_size_t columns, nk_size_t depth, nk_size_t *bytes);
 /** @copydoc nk_dots_packed_shape_bf16_best */
@@ -5397,7 +5397,7 @@ NUMKONG_API nk_status_t nk_dots_packed_u4_metal(nk_u4x2_t const *a, void const *
 NUMKONG_API nk_status_t nk_dots_symmetric_u4_metal(nk_u4x2_t const *vectors, nk_size_t vectors_count, nk_size_t depth,
                                                    nk_size_t stride, nk_u32_t *result, nk_size_t result_stride,
                                                    nk_size_t row_start, nk_size_t row_count, void *stream);
-#endif // NUMKONG_WITH_METAL
+#endif // NUMKONG_TARGET_METAL
 
 /*  Apple backends of Metal family 9, M3 and newer, through @c simdgroup_matrix on the GPU cores,
  *  every float format widened to F16 or BF16 and accumulating in F32. */

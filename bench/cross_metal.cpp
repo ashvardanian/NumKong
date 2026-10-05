@@ -21,7 +21,7 @@
 
 #include "cross.hpp"
 
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
 
 namespace ashvardanian::numkong::bench {
 
@@ -88,7 +88,7 @@ struct metal_backend_t : device_backend_t {
 
 } // namespace ashvardanian::numkong::bench
 
-#endif // NUMKONG_WITH_METAL
+#endif // NUMKONG_ARCH_METAL_
 
 namespace ashvardanian::numkong::bench {
 
@@ -96,7 +96,7 @@ namespace ashvardanian::numkong::bench {
  *  speedup shows, on devices whose families include each. */
 nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
                                [[maybe_unused]] device_backend_t const &runtime) {
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     nk_capability_t const enabled = runtime.capabilities;
     metal_backend_t const backend {runtime};
     if (enabled & nk_cap_metal_k) {
@@ -172,9 +172,9 @@ nk::status_t bench_cross_metal([[maybe_unused]] environment_t const &env,
     run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_apple10", nk_dots_symmetric_e4m3_apple10, backend);
     run_dots_symmetric<nk_i8_k>(env, "dots_symmetric_i8_apple10", nk_dots_symmetric_i8_apple10, backend);
 #endif // NUMKONG_TARGET_APPLE10
-#else  // !NUMKONG_WITH_METAL
+#else  // !NUMKONG_ARCH_METAL_
     return nk::status_t::missing_gpu_k;
-#endif // NUMKONG_WITH_METAL
+#endif // NUMKONG_ARCH_METAL_
     return nk::status_t::success_k;
 }
 

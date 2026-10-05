@@ -23,9 +23,9 @@
 #ifndef NUMKONG_METAL_H
 #define NUMKONG_METAL_H
 
-#include "numkong/types.h" // `nk_size_t`, `NUMKONG_WITH_METAL`
+#include "numkong/types.h" // `nk_size_t`, `NUMKONG_ARCH_METAL_`
 
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
 #include <TargetConditionals.h> // `TARGET_OS_OSX`
 #include <os/lock.h>            // `os_unfair_lock`
 #include <objc/message.h>       // `objc_msgSend`
@@ -182,9 +182,23 @@ typedef struct {
     void *queue, *commands, *encoder;
 } nk_metal_call_t;
 
+enum { nk_metal_contexts_max_k = 8 };
+
+/** The device contexts and the lock guarding their initialization. */
+NUMKONG_API nk_metal_context_t *nk_metal_contexts_(os_unfair_lock_t *contexts_lock);
+
+#if NUMKONG_HEADER_ONLY
+NUMKONG_API nk_metal_context_t *nk_metal_contexts_(os_unfair_lock_t *contexts_lock) {
+    static nk_metal_context_t contexts[nk_metal_contexts_max_k];
+    static os_unfair_lock lock;
+    *contexts_lock = &lock;
+    return contexts;
+}
+#endif
+
 /** The context of the device @p stream belongs to, of the system default device for a null one, or
  *  null without a GPU or past the 8 devices it keeps. */
-NUMKONG_API nk_metal_context_t *nk_metal_context_(void *stream);
+NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(void *stream);
 
 /** @p items with room for one past @p count of @p size bytes each, grown twofold from 16, or null
  *  leaving @p items as they were. */
@@ -344,32 +358,30 @@ NUMKONG_INLINE nk_status_t nk_metal_dispatch_(nk_metal_call_t *call, nk_metal_si
     return nk_bad_alloc_k;
 }
 
-#if NUMKONG_TARGET_METAL
-
-NUMKONG_API nk_metal_context_t *nk_metal_context_(void *stream) {
-    static nk_metal_context_t contexts[8];
-    static nk_size_t contexts_count = 0;
-    static os_unfair_lock contexts_lock; // zeroed, as `OS_UNFAIR_LOCK_INIT` is
+NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(void *stream) {
+    os_unfair_lock_t contexts_lock;
+    nk_metal_context_t *const contexts = nk_metal_contexts_(&contexts_lock);
     void *const device = stream ? nk_metal_get_(stream, "device") : nk_metal_default_device_();
     if (!device) return NULL;
     nk_metal_context_t *context = NULL;
-    os_unfair_lock_lock(&contexts_lock);
-    for (nk_size_t index = 0; index != contexts_count && !context; ++index)
+    os_unfair_lock_lock(contexts_lock);
+    nk_size_t index = 0;
+    for (; index != nk_metal_contexts_max_k && contexts[index].device && !context; ++index)
         if (contexts[index].device == device) context = &contexts[index];
-    if (!context && contexts_count != sizeof(contexts) / sizeof(contexts[0])) {
+    if (!context && index != nk_metal_contexts_max_k) {
         void *const queue = nk_metal_get_(device, "newCommandQueue");
         if (queue) {
-            context = &contexts[contexts_count++];
+            context = &contexts[index];
             context->device = nk_metal_get_(device, "retain");
             context->queue = queue;
         }
     }
-    os_unfair_lock_unlock(&contexts_lock);
+    os_unfair_lock_unlock(contexts_lock);
     if (!stream) nk_metal_do_(device, "release");
     return context;
 }
 
-NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, void *stream) {
+NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, void **pointer, void *stream) {
     *pointer = NULL;
     if (!bytes) return nk_success_k;
     nk_metal_context_t *const context = nk_metal_context_(stream);
@@ -399,7 +411,7 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void *
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, void *stream) {
+NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_t bytes, void *stream) {
     nk_unused_(bytes);
     if (!pointer) return nk_success_k;
     nk_metal_context_t *const context = nk_metal_context_(stream);
@@ -430,23 +442,23 @@ NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t by
 NUMKONG_INLINE void *nk_allocate_unified_metal_(nk_size_t bytes, void *handle, void *stream) {
     nk_unused_(handle);
     void *pointer = NUMKONG_NULL;
-    nk_unused_(nk_memory_allocate_unified_metal(bytes, &pointer, stream));
+    nk_unused_(nk_memory_allocate_unified_metal_(bytes, &pointer, stream));
     return pointer;
 }
 
 NUMKONG_INLINE void nk_free_unified_metal_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
     nk_unused_(handle);
-    nk_unused_(nk_memory_free_unified_metal(pointer, bytes, stream));
+    nk_unused_(nk_memory_free_unified_metal_(pointer, bytes, stream));
 }
 
-NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocator) {
+NUMKONG_INLINE nk_status_t nk_allocator_init_unified_metal_(nk_allocator_t *allocator) {
     allocator->allocate = nk_allocate_unified_metal_;
     allocator->free = nk_free_unified_metal_;
     allocator->handle = NUMKONG_NULL;
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream) {
+NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(void *stream) {
     nk_metal_context_t *const context = nk_metal_context_(stream);
     if (!context) return nk_missing_gpu_k;
     void *const queue = stream ? stream : context->queue;
@@ -486,12 +498,26 @@ NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream) {
     return status;
 }
 
-#endif // NUMKONG_TARGET_METAL
+#if NUMKONG_HEADER_ONLY
+NUMKONG_API nk_status_t nk_memory_allocate_unified_metal(nk_size_t bytes, void **pointer, void *stream) {
+    return nk_memory_allocate_unified_metal_(bytes, pointer, stream);
+}
+
+NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t bytes, void *stream) {
+    return nk_memory_free_unified_metal_(pointer, bytes, stream);
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocator) {
+    return nk_allocator_init_unified_metal_(allocator);
+}
+
+NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream) { return nk_stream_synchronize_metal_(stream); }
+#endif // NUMKONG_HEADER_ONLY
 
 #pragma endregion Context
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_WITH_METAL
+#endif // NUMKONG_ARCH_METAL_
 #endif // NUMKONG_METAL_H

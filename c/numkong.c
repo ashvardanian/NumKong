@@ -190,7 +190,7 @@ NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capab
 
 /*  With Metal kernels in the library, `c/target/metal.c` counts, probes and opens streams on the
  *  devices instead. */
-#if !NUMKONG_WITH_METAL
+#if !NUMKONG_ARCH_METAL_
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
     *count = 0;
     return nk_missing_gpu_k;
@@ -229,7 +229,7 @@ NUMKONG_API nk_status_t nk_allocator_init_unified_best(nk_allocator_t *allocator
 #if NUMKONG_ARCH_ROCM_
     case nk_capability_group_rocm_k: return nk_allocator_init_unified_rocm(allocator);
 #endif
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     case nk_capability_group_metal_k: return nk_allocator_init_unified_metal(allocator);
 #endif
     default: return nk_missing_gpu_k;
@@ -245,7 +245,7 @@ NUMKONG_API nk_status_t nk_allocator_init_device_best(nk_allocator_t *allocator,
 #if NUMKONG_ARCH_ROCM_
     case nk_capability_group_rocm_k: return nk_allocator_init_device_rocm(allocator);
 #endif
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     case nk_capability_group_metal_k: return nk_allocator_init_unified_metal(allocator);
 #endif
     default: return nk_missing_gpu_k;
@@ -261,7 +261,7 @@ NUMKONG_API nk_status_t nk_allocator_init_pinned_best(nk_allocator_t *allocator,
 #if NUMKONG_ARCH_ROCM_
     case nk_capability_group_rocm_k: return nk_allocator_init_pinned_rocm(allocator);
 #endif
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     case nk_capability_group_metal_k: return nk_allocator_init_unified_metal(allocator);
 #endif
     default: return nk_missing_gpu_k;
@@ -278,7 +278,7 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **
 #if NUMKONG_ARCH_ROCM_
     case nk_capability_group_rocm_k: return nk_memory_allocate_unified_rocm(bytes, pointer, stream);
 #endif
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     case nk_capability_group_metal_k: return nk_memory_allocate_unified_metal(bytes, pointer, stream);
 #endif
     default: *pointer = NUMKONG_NULL; return nk_missing_gpu_k;
@@ -295,7 +295,7 @@ NUMKONG_API nk_status_t nk_memory_free_unified_best(void *pointer, nk_size_t byt
 #if NUMKONG_ARCH_ROCM_
     case nk_capability_group_rocm_k: return nk_memory_free_unified_rocm(pointer, bytes, stream);
 #endif
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     case nk_capability_group_metal_k: return nk_memory_free_unified_metal(pointer, bytes, stream);
 #endif
     default: return nk_missing_gpu_k;
@@ -311,7 +311,7 @@ NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities,
 #if NUMKONG_ARCH_ROCM_
     case nk_capability_group_rocm_k: return nk_stream_synchronize_rocm(stream);
 #endif
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
     case nk_capability_group_metal_k: return nk_stream_synchronize_metal(stream);
 #endif
     default: return nk_missing_gpu_k;

@@ -37,7 +37,7 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
     };
     static nk_kernel_punned_t const cuda[] = {
         NUMKONG_NULL,
-#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_cast_cuda,
 #endif
     };
@@ -47,7 +47,7 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
              nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_ARCH_CUDA_, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };

@@ -1124,7 +1124,7 @@ elseif (NUMKONG_BUILD_METAL)
     )
     numkong_gpu_capability_(APPLE9 "${NUMKONG_METAL_ARCHITECTURES}" "apple9;apple10" NUMKONG_METAL_APPLE9_)
     numkong_gpu_capability_(APPLE10 "${NUMKONG_METAL_ARCHITECTURES}" "apple10" NUMKONG_METAL_APPLE10_)
-    set(NUMKONG_METAL_FAMILY_DEFINITIONS_ NUMKONG_WITH_METAL=1 ${NUMKONG_METAL_APPLE9_} ${NUMKONG_METAL_APPLE10_})
+    set(NUMKONG_METAL_FAMILY_DEFINITIONS_ NUMKONG_ARCH_METAL_=1 ${NUMKONG_METAL_APPLE9_} ${NUMKONG_METAL_APPLE10_})
 endif ()
 
 # The entries of `codes` that `capability_codes` names, keeping CMake's "-real" and "-virtual" suffixes.
@@ -1239,7 +1239,7 @@ if (NUMKONG_BUILD_METAL)
     endforeach ()
     # Consumers see the Metal entries and the queue they take.
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
-        target_compile_definitions(${nk_library_} INTERFACE NUMKONG_WITH_METAL=1)
+        target_compile_definitions(${nk_library_} INTERFACE NUMKONG_ARCH_METAL_=1)
         target_compile_options(${nk_library_} INTERFACE ${NUMKONG_EMBED_OPTIONS_})
     endforeach ()
 endif ()

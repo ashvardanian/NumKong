@@ -351,10 +351,10 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // defined(__HIP__)
 #endif // !defined(NUMKONG_ARCH_ROCM_)
 
-/** Linking the Metal host API, set by the build alone: NUMKONG_WITH_METAL */
-#if !defined(NUMKONG_WITH_METAL)
-#define NUMKONG_WITH_METAL 0
-#endif // !defined(NUMKONG_WITH_METAL)
+/** Compiling with the Metal host API, set by the build: NUMKONG_ARCH_METAL_ */
+#if !defined(NUMKONG_ARCH_METAL_)
+#define NUMKONG_ARCH_METAL_ 0
+#endif // !defined(NUMKONG_ARCH_METAL_)
 
 /** Importing the capability probes from the host, NUMKONG_WITH_HOST_PROBES: set by the build for a
  *  WASI module whose host supplies @c nk_has_v128 and @c nk_has_relaxed. The Wasmer and Wasmtime
@@ -826,23 +826,23 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for Apple GPUs of Metal family 9, M3 and M4: NUMKONG_TARGET_APPLE9. No compiler knows
  *  which Apple GPU a build will meet, so a build targeting only M3 and newer sets it. */
-#if !defined(NUMKONG_TARGET_APPLE9) || (NUMKONG_TARGET_APPLE9 && !NUMKONG_WITH_METAL)
+#if !defined(NUMKONG_TARGET_APPLE9) || (NUMKONG_TARGET_APPLE9 && !NUMKONG_ARCH_METAL_)
 #undef NUMKONG_TARGET_APPLE9
 #define NUMKONG_TARGET_APPLE9 0
 #endif // !defined(NUMKONG_TARGET_APPLE9) || ...
 
 /*  Compiling for Apple GPUs of Metal family 10, M5: NUMKONG_TARGET_APPLE10. No compiler knows which
  *  Apple GPU a build will meet, so a build targeting only M5 and newer sets it. */
-#if !defined(NUMKONG_TARGET_APPLE10) || (NUMKONG_TARGET_APPLE10 && !NUMKONG_WITH_METAL)
+#if !defined(NUMKONG_TARGET_APPLE10) || (NUMKONG_TARGET_APPLE10 && !NUMKONG_ARCH_METAL_)
 #undef NUMKONG_TARGET_APPLE10
 #define NUMKONG_TARGET_APPLE10 0
 #endif // !defined(NUMKONG_TARGET_APPLE10) || ...
 
-/*  Defining the Metal baseline and the Metal runtime helpers: NUMKONG_TARGET_METAL. Header-only
- *  builds define them where Metal is linked, and the library in its Metal unit alone. */
-#if !defined(NUMKONG_TARGET_METAL) || (NUMKONG_TARGET_METAL && !NUMKONG_WITH_METAL)
+/*  Defining the Metal baseline: NUMKONG_TARGET_METAL. The later-generation units turn it off,
+ *  so one unit emits the baseline kernels. */
+#if !defined(NUMKONG_TARGET_METAL) || (NUMKONG_TARGET_METAL && !NUMKONG_ARCH_METAL_)
 #undef NUMKONG_TARGET_METAL
-#define NUMKONG_TARGET_METAL (NUMKONG_WITH_METAL && NUMKONG_HEADER_ONLY)
+#define NUMKONG_TARGET_METAL NUMKONG_ARCH_METAL_
 #endif // !defined(NUMKONG_TARGET_METAL) || ...
 
 /** Whether a capability's helpers compile here: its own target, or any capability built on it. Each
@@ -871,7 +871,6 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_ARCH_CUDA_ADA_ \
     (NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_TARGET_BLACKWELL || NUMKONG_TARGET_BLACKWELLRTX)
 #define NUMKONG_ARCH_ROCM_CDNA4_ (NUMKONG_TARGET_CDNA4 || NUMKONG_TARGET_CDNA5)
-#define NUMKONG_ARCH_METAL_      (NUMKONG_TARGET_METAL || NUMKONG_TARGET_APPLE9 || NUMKONG_TARGET_APPLE10)
 
 /* Include the relevant intrinsics headers */
 #if defined(_MSC_VER)

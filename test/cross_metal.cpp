@@ -11,7 +11,7 @@
 
 namespace ashvardanian::numkong::test {
 
-#if NUMKONG_WITH_METAL
+#if NUMKONG_ARCH_METAL_
 
 static error_stats_t test_metal_bound_lifetime(settings_t const &settings) {
     error_stats_t stats(comparison_family_t::exact_k);
@@ -388,8 +388,8 @@ void test_cross_metal(error_stats_section_t &check) {
     test_cross_dispatch<metal_backend_t>(check);
 }
 
-#else  // !NUMKONG_WITH_METAL
+#else  // !NUMKONG_ARCH_METAL_
 void test_cross_metal(error_stats_section_t &) {}
-#endif // NUMKONG_WITH_METAL
+#endif // NUMKONG_ARCH_METAL_
 
 } // namespace ashvardanian::numkong::test
