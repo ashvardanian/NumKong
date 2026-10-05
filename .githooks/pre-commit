@@ -2806,6 +2806,22 @@ check_register_names_carry_dtype_and_width() {
         "            rename it, or grandfather one line with a trailing \`// nk-nolint: naming\`:"
 }
 
+# Rejects new repetitions of the header's own target guard.
+check_backend_target_guard_unique() {
+    local target repeated
+    target=${staged_path##*/}
+    target=$(printf '%s' "${target%.*}" | tr '[:lower:]' '[:upper:]')
+    repeated=$(backend_target="NUMKONG_TARGET_$target" scan_staged_file_marking_added_lines '
+        $1 == "#if" && $2 == ENVIRON["backend_target"] && (NF == 2 || $3 ~ /^\/\//) {
+            ++count
+            if (FNR in added) lines = lines sprintf("line %d: %s\n", FNR, $0)
+        }
+        END { if (count > 1) printf "%s", lines }')
+    [ -z "$repeated" ] || reject_with_reason "$repeated" \
+        "$staged_path repeats its backend target guard;" \
+        "            group shared helpers before one public implementation block:"
+}
+
 # Rejects a top-level `numkong/<name>.h` include other than `numkong/types.h` in a backend header, because
 # the umbrella routes a kernel's call through the runtime dispatch table instead of its own tier.
 check_backend_includes_no_dispatch_umbrella() {
@@ -2956,6 +2972,7 @@ run_project_checks() {
     include/numkong/*/*.h | include/numkong/*/*.cuh)
         check_kernel_documented_at_declaration
         check_register_names_carry_dtype_and_width
+        check_backend_target_guard_unique
         ;;
     esac
     case "$staged_path" in

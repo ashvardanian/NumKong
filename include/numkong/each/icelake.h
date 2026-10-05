@@ -43,7 +43,48 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512vnni", "f16c", "fma", "bmi", "bmi2")
 #endif
 
+NUMKONG_INLINE __m512i _mm512_adds_epi32_icelake(__m512i a, __m512i b) {
+    __m512i sum_i32x16 = _mm512_add_epi32(a, b);
+    __m512i sign_i32x16 = _mm512_set1_epi32((int)0x80000000);
+    // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
+    __m512i overflow_i32x16 = _mm512_ternarylogic_epi64(a, b, sum_i32x16, 0x42);
+    __mmask16 overflow_m16 = _mm512_test_epi32_mask(overflow_i32x16, sign_i32x16);
+    // Positive overflow → INT32_MAX, negative overflow → INT32_MIN
+    __m512i max_i32x16 = _mm512_set1_epi32(0x7FFFFFFF);
+    __m512i min_i32x16 = _mm512_set1_epi32((int)0x80000000);
+    __m512i saturated_i32x16 = _mm512_mask_blend_epi32(_mm512_movepi32_mask(a), max_i32x16, min_i32x16);
+    return _mm512_mask_blend_epi32(overflow_m16, sum_i32x16, saturated_i32x16);
+}
+
+NUMKONG_INLINE __m512i _mm512_adds_epu32_icelake(__m512i a, __m512i b) {
+    __m512i sum_i32x16 = _mm512_add_epi32(a, b);
+    __mmask16 overflow_m16 = _mm512_cmp_epu32_mask(sum_i32x16, a, _MM_CMPINT_LT); // sum < a means overflow
+    __m512i max_val_i32x16 = _mm512_set1_epi32(4294967295u);
+    return _mm512_mask_blend_epi32(overflow_m16, sum_i32x16, max_val_i32x16);
+}
+
+NUMKONG_INLINE __m512i _mm512_adds_epi64_icelake(__m512i a, __m512i b) {
+    __m512i sum_i64x8 = _mm512_add_epi64(a, b);
+    __m512i sign_i64x8 = _mm512_set1_epi64((long long)0x8000000000000000);
+    // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
+    __m512i overflow_i64x8 = _mm512_ternarylogic_epi64(a, b, sum_i64x8, 0x42);
+    __mmask8 overflow_m8 = _mm512_test_epi64_mask(overflow_i64x8, sign_i64x8);
+    // Positive overflow → INT64_MAX, negative overflow → INT64_MIN
+    __m512i max_i64x8 = _mm512_set1_epi64(9223372036854775807ll);
+    __m512i min_i64x8 = _mm512_set1_epi64(-9223372036854775807ll - 1);
+    __m512i saturated_i64x8 = _mm512_mask_blend_epi64(_mm512_movepi64_mask(a), max_i64x8, min_i64x8);
+    return _mm512_mask_blend_epi64(overflow_m8, sum_i64x8, saturated_i64x8);
+}
+
+NUMKONG_INLINE __m512i _mm512_adds_epu64_icelake(__m512i a, __m512i b) {
+    __m512i sum_i64x8 = _mm512_add_epi64(a, b);
+    __mmask8 overflow_m8 = _mm512_cmp_epu64_mask(sum_i64x8, a, _MM_CMPINT_LT); // sum < a means overflow
+    __m512i max_val_i64x8 = _mm512_set1_epi64(18446744073709551615ull);
+    return _mm512_mask_blend_epi64(overflow_m8, sum_i64x8, max_val_i64x8);
+}
+
 #if NUMKONG_TARGET_ICELAKE
+
 NUMKONG_API nk_status_t nk_each_sum_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -143,49 +184,7 @@ nk_each_sum_u16_icelake_cycle:
     if (n) goto nk_each_sum_u16_icelake_cycle;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_ICELAKE
 
-NUMKONG_INLINE __m512i _mm512_adds_epi32_icelake(__m512i a, __m512i b) {
-    __m512i sum_i32x16 = _mm512_add_epi32(a, b);
-    __m512i sign_i32x16 = _mm512_set1_epi32((int)0x80000000);
-    // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
-    __m512i overflow_i32x16 = _mm512_ternarylogic_epi64(a, b, sum_i32x16, 0x42);
-    __mmask16 overflow_m16 = _mm512_test_epi32_mask(overflow_i32x16, sign_i32x16);
-    // Positive overflow → INT32_MAX, negative overflow → INT32_MIN
-    __m512i max_i32x16 = _mm512_set1_epi32(0x7FFFFFFF);
-    __m512i min_i32x16 = _mm512_set1_epi32((int)0x80000000);
-    __m512i saturated_i32x16 = _mm512_mask_blend_epi32(_mm512_movepi32_mask(a), max_i32x16, min_i32x16);
-    return _mm512_mask_blend_epi32(overflow_m16, sum_i32x16, saturated_i32x16);
-}
-
-NUMKONG_INLINE __m512i _mm512_adds_epu32_icelake(__m512i a, __m512i b) {
-    __m512i sum_i32x16 = _mm512_add_epi32(a, b);
-    __mmask16 overflow_m16 = _mm512_cmp_epu32_mask(sum_i32x16, a, _MM_CMPINT_LT); // sum < a means overflow
-    __m512i max_val_i32x16 = _mm512_set1_epi32(4294967295u);
-    return _mm512_mask_blend_epi32(overflow_m16, sum_i32x16, max_val_i32x16);
-}
-
-NUMKONG_INLINE __m512i _mm512_adds_epi64_icelake(__m512i a, __m512i b) {
-    __m512i sum_i64x8 = _mm512_add_epi64(a, b);
-    __m512i sign_i64x8 = _mm512_set1_epi64((long long)0x8000000000000000);
-    // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
-    __m512i overflow_i64x8 = _mm512_ternarylogic_epi64(a, b, sum_i64x8, 0x42);
-    __mmask8 overflow_m8 = _mm512_test_epi64_mask(overflow_i64x8, sign_i64x8);
-    // Positive overflow → INT64_MAX, negative overflow → INT64_MIN
-    __m512i max_i64x8 = _mm512_set1_epi64(9223372036854775807ll);
-    __m512i min_i64x8 = _mm512_set1_epi64(-9223372036854775807ll - 1);
-    __m512i saturated_i64x8 = _mm512_mask_blend_epi64(_mm512_movepi64_mask(a), max_i64x8, min_i64x8);
-    return _mm512_mask_blend_epi64(overflow_m8, sum_i64x8, saturated_i64x8);
-}
-
-NUMKONG_INLINE __m512i _mm512_adds_epu64_icelake(__m512i a, __m512i b) {
-    __m512i sum_i64x8 = _mm512_add_epi64(a, b);
-    __mmask8 overflow_m8 = _mm512_cmp_epu64_mask(sum_i64x8, a, _MM_CMPINT_LT); // sum < a means overflow
-    __m512i max_val_i64x8 = _mm512_set1_epi64(18446744073709551615ull);
-    return _mm512_mask_blend_epi64(overflow_m8, sum_i64x8, max_val_i64x8);
-}
-
-#if NUMKONG_TARGET_ICELAKE
 NUMKONG_API nk_status_t nk_each_sum_i32_icelake(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result,
                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -285,6 +284,7 @@ nk_each_sum_u64_icelake_cycle:
     if (n) goto nk_each_sum_u64_icelake_cycle;
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)

@@ -86,42 +86,6 @@ NUMKONG_INLINE __m256d nk_haversine_f64x4_haswell_(                //
     return _mm256_mul_pd(earth_radius_f64x4, central_angle_f64x4);
 }
 
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API nk_status_t nk_haversine_f64_haswell(   //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 4) {
-        __m256d first_latitudes_f64x4 = _mm256_loadu_pd(a_lats);
-        __m256d first_longitudes_f64x4 = _mm256_loadu_pd(a_lons);
-        __m256d second_latitudes_f64x4 = _mm256_loadu_pd(b_lats);
-        __m256d second_longitudes_f64x4 = _mm256_loadu_pd(b_lons);
-
-        __m256d distances_f64x4 = nk_haversine_f64x4_haswell_(first_latitudes_f64x4, first_longitudes_f64x4,
-                                                              second_latitudes_f64x4, second_longitudes_f64x4);
-        _mm256_storeu_pd(results, distances_f64x4);
-
-        a_lats += 4, a_lons += 4, b_lats += 4, b_lons += 4, results += 4, n -= 4;
-    }
-
-    // Handle remaining elements with partial loads (n can be 1-3 here)
-    if (n > 0) {
-        nk_b256_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
-        nk_partial_load_b64x4_haswell_(a_lats, &a_lat_vec, n);
-        nk_partial_load_b64x4_haswell_(a_lons, &a_lon_vec, n);
-        nk_partial_load_b64x4_haswell_(b_lats, &b_lat_vec, n);
-        nk_partial_load_b64x4_haswell_(b_lons, &b_lon_vec, n);
-        __m256d distances_f64x4 = nk_haversine_f64x4_haswell_(a_lat_vec.ymm_pd, a_lon_vec.ymm_pd, b_lat_vec.ymm_pd,
-                                                              b_lon_vec.ymm_pd);
-        result_vec.ymm_pd = distances_f64x4;
-        nk_partial_store_b64x4_haswell_(&result_vec, results, n);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_HASWELL
-
 NUMKONG_INLINE __m256 nk_haversine_f32x8_haswell_(               //
     __m256 first_latitudes_f32x8, __m256 first_longitudes_f32x8, //
     __m256 second_latitudes_f32x8, __m256 second_longitudes_f32x8) {
@@ -165,42 +129,6 @@ NUMKONG_INLINE __m256 nk_haversine_f32x8_haswell_(               //
 
     return _mm256_mul_ps(earth_radius_f32x8, central_angle_f32x8);
 }
-
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API nk_status_t nk_haversine_f32_haswell(   //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 8) {
-        __m256 first_latitudes_f32x8 = _mm256_loadu_ps(a_lats);
-        __m256 first_longitudes_f32x8 = _mm256_loadu_ps(a_lons);
-        __m256 second_latitudes_f32x8 = _mm256_loadu_ps(b_lats);
-        __m256 second_longitudes_f32x8 = _mm256_loadu_ps(b_lons);
-
-        __m256 distances_f32x8 = nk_haversine_f32x8_haswell_(first_latitudes_f32x8, first_longitudes_f32x8,
-                                                             second_latitudes_f32x8, second_longitudes_f32x8);
-        _mm256_storeu_ps(results, distances_f32x8);
-
-        a_lats += 8, a_lons += 8, b_lats += 8, b_lons += 8, results += 8, n -= 8;
-    }
-
-    // Handle remaining elements with partial loads (n can be 1-7 here)
-    if (n > 0) {
-        nk_b256_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
-        nk_partial_load_b32x8_serial_(a_lats, &a_lat_vec, n);
-        nk_partial_load_b32x8_serial_(a_lons, &a_lon_vec, n);
-        nk_partial_load_b32x8_serial_(b_lats, &b_lat_vec, n);
-        nk_partial_load_b32x8_serial_(b_lons, &b_lon_vec, n);
-        __m256 distances_f32x8 = nk_haversine_f32x8_haswell_(a_lat_vec.ymm_ps, a_lon_vec.ymm_ps, b_lat_vec.ymm_ps,
-                                                             b_lon_vec.ymm_ps);
-        result_vec.ymm_ps = distances_f32x8;
-        nk_partial_store_b32x8_serial_(&result_vec, results, n);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_HASWELL
 
 /**
  *  @brief AVX2 helper for Vincenty's geodesic distance on 4 f64 point pairs.
@@ -379,42 +307,6 @@ NUMKONG_INLINE __m256d nk_vincenty_f64x4_haswell_(                 //
 
     return distances_f64x4;
 }
-
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API nk_status_t nk_vincenty_f64_haswell(    //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 4) {
-        __m256d first_latitudes_f64x4 = _mm256_loadu_pd(a_lats);
-        __m256d first_longitudes_f64x4 = _mm256_loadu_pd(a_lons);
-        __m256d second_latitudes_f64x4 = _mm256_loadu_pd(b_lats);
-        __m256d second_longitudes_f64x4 = _mm256_loadu_pd(b_lons);
-
-        __m256d distances_f64x4 = nk_vincenty_f64x4_haswell_(first_latitudes_f64x4, first_longitudes_f64x4,
-                                                             second_latitudes_f64x4, second_longitudes_f64x4);
-        _mm256_storeu_pd(results, distances_f64x4);
-
-        a_lats += 4, a_lons += 4, b_lats += 4, b_lons += 4, results += 4, n -= 4;
-    }
-
-    // Handle remaining elements with partial loads (n can be 1-3 here)
-    if (n > 0) {
-        nk_b256_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
-        nk_partial_load_b64x4_haswell_(a_lats, &a_lat_vec, n);
-        nk_partial_load_b64x4_haswell_(a_lons, &a_lon_vec, n);
-        nk_partial_load_b64x4_haswell_(b_lats, &b_lat_vec, n);
-        nk_partial_load_b64x4_haswell_(b_lons, &b_lon_vec, n);
-        __m256d distances_f64x4 = nk_vincenty_f64x4_haswell_(a_lat_vec.ymm_pd, a_lon_vec.ymm_pd, b_lat_vec.ymm_pd,
-                                                             b_lon_vec.ymm_pd);
-        result_vec.ymm_pd = distances_f64x4;
-        nk_partial_store_b64x4_haswell_(&result_vec, results, n);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_HASWELL
 
 /**
  *  @brief AVX2 helper for Vincenty's geodesic distance on 8 f32 point pairs.
@@ -595,6 +487,109 @@ NUMKONG_INLINE __m256 nk_vincenty_f32x8_haswell_(                //
 }
 
 #if NUMKONG_TARGET_HASWELL
+
+NUMKONG_API nk_status_t nk_haversine_f64_haswell(   //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 4) {
+        __m256d first_latitudes_f64x4 = _mm256_loadu_pd(a_lats);
+        __m256d first_longitudes_f64x4 = _mm256_loadu_pd(a_lons);
+        __m256d second_latitudes_f64x4 = _mm256_loadu_pd(b_lats);
+        __m256d second_longitudes_f64x4 = _mm256_loadu_pd(b_lons);
+
+        __m256d distances_f64x4 = nk_haversine_f64x4_haswell_(first_latitudes_f64x4, first_longitudes_f64x4,
+                                                              second_latitudes_f64x4, second_longitudes_f64x4);
+        _mm256_storeu_pd(results, distances_f64x4);
+
+        a_lats += 4, a_lons += 4, b_lats += 4, b_lons += 4, results += 4, n -= 4;
+    }
+
+    // Handle remaining elements with partial loads (n can be 1-3 here)
+    if (n > 0) {
+        nk_b256_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
+        nk_partial_load_b64x4_haswell_(a_lats, &a_lat_vec, n);
+        nk_partial_load_b64x4_haswell_(a_lons, &a_lon_vec, n);
+        nk_partial_load_b64x4_haswell_(b_lats, &b_lat_vec, n);
+        nk_partial_load_b64x4_haswell_(b_lons, &b_lon_vec, n);
+        __m256d distances_f64x4 = nk_haversine_f64x4_haswell_(a_lat_vec.ymm_pd, a_lon_vec.ymm_pd, b_lat_vec.ymm_pd,
+                                                              b_lon_vec.ymm_pd);
+        result_vec.ymm_pd = distances_f64x4;
+        nk_partial_store_b64x4_haswell_(&result_vec, results, n);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_haversine_f32_haswell(   //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 8) {
+        __m256 first_latitudes_f32x8 = _mm256_loadu_ps(a_lats);
+        __m256 first_longitudes_f32x8 = _mm256_loadu_ps(a_lons);
+        __m256 second_latitudes_f32x8 = _mm256_loadu_ps(b_lats);
+        __m256 second_longitudes_f32x8 = _mm256_loadu_ps(b_lons);
+
+        __m256 distances_f32x8 = nk_haversine_f32x8_haswell_(first_latitudes_f32x8, first_longitudes_f32x8,
+                                                             second_latitudes_f32x8, second_longitudes_f32x8);
+        _mm256_storeu_ps(results, distances_f32x8);
+
+        a_lats += 8, a_lons += 8, b_lats += 8, b_lons += 8, results += 8, n -= 8;
+    }
+
+    // Handle remaining elements with partial loads (n can be 1-7 here)
+    if (n > 0) {
+        nk_b256_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
+        nk_partial_load_b32x8_serial_(a_lats, &a_lat_vec, n);
+        nk_partial_load_b32x8_serial_(a_lons, &a_lon_vec, n);
+        nk_partial_load_b32x8_serial_(b_lats, &b_lat_vec, n);
+        nk_partial_load_b32x8_serial_(b_lons, &b_lon_vec, n);
+        __m256 distances_f32x8 = nk_haversine_f32x8_haswell_(a_lat_vec.ymm_ps, a_lon_vec.ymm_ps, b_lat_vec.ymm_ps,
+                                                             b_lon_vec.ymm_ps);
+        result_vec.ymm_ps = distances_f32x8;
+        nk_partial_store_b32x8_serial_(&result_vec, results, n);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_vincenty_f64_haswell(    //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 4) {
+        __m256d first_latitudes_f64x4 = _mm256_loadu_pd(a_lats);
+        __m256d first_longitudes_f64x4 = _mm256_loadu_pd(a_lons);
+        __m256d second_latitudes_f64x4 = _mm256_loadu_pd(b_lats);
+        __m256d second_longitudes_f64x4 = _mm256_loadu_pd(b_lons);
+
+        __m256d distances_f64x4 = nk_vincenty_f64x4_haswell_(first_latitudes_f64x4, first_longitudes_f64x4,
+                                                             second_latitudes_f64x4, second_longitudes_f64x4);
+        _mm256_storeu_pd(results, distances_f64x4);
+
+        a_lats += 4, a_lons += 4, b_lats += 4, b_lons += 4, results += 4, n -= 4;
+    }
+
+    // Handle remaining elements with partial loads (n can be 1-3 here)
+    if (n > 0) {
+        nk_b256_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
+        nk_partial_load_b64x4_haswell_(a_lats, &a_lat_vec, n);
+        nk_partial_load_b64x4_haswell_(a_lons, &a_lon_vec, n);
+        nk_partial_load_b64x4_haswell_(b_lats, &b_lat_vec, n);
+        nk_partial_load_b64x4_haswell_(b_lons, &b_lon_vec, n);
+        __m256d distances_f64x4 = nk_vincenty_f64x4_haswell_(a_lat_vec.ymm_pd, a_lon_vec.ymm_pd, b_lat_vec.ymm_pd,
+                                                             b_lon_vec.ymm_pd);
+        result_vec.ymm_pd = distances_f64x4;
+        nk_partial_store_b64x4_haswell_(&result_vec, results, n);
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_vincenty_f32_haswell(    //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
@@ -628,6 +623,7 @@ NUMKONG_API nk_status_t nk_vincenty_f32_haswell(    //
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

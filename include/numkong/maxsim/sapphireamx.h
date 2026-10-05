@@ -132,7 +132,78 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f32_sapphireamx_(nk_size_t vecto
     return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
 }
 
+#pragma endregion F32 Floats
+
+#pragma region F16 Floats
+
+/** Bytes of an F16 pack of @p vector_count vectors of @p depth: header, tiles, originals, norms. */
+NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
+    nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
+    nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
+    nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
+    nk_size_t b_side_bytes = column_tile_count * depth_tile_count * 1024;
+    nk_size_t original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f16_t), 64);
+    nk_size_t originals_bytes = vector_count * original_stride;
+    nk_size_t norms_bytes = vector_count * sizeof(nk_f64_t);
+    nk_size_t screen_weights_bytes = vector_count * sizeof(nk_f32_t);
+    return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
+}
+
+#pragma endregion F16 Floats
+
+#pragma region BF16 Floats
+
+/** BF16 packed buffer header for AMX fused MaxSim (64 bytes). Stores both A-side (row-major) and
+ *  B-side (pair-interleaved) tile formats, plus per-vector inverse norms for finalizing the angular
+ *  distance of every query-document pair. */
+typedef struct {
+
+    /** Number of row-tile groups, ⌈n / 16⌉. */
+    nk_u32_t column_tile_count;
+
+    /** Number of depth tiles, ⌈depth / 32⌉, the depth granularity of BF16 TDPBF16PS. */
+    nk_u32_t depth_tile_count;
+
+    /** Actual vector count. */
+    nk_u32_t columns;
+
+    /** Actual depth (dimensions per vector). */
+    nk_u32_t depth;
+
+    /** Byte offset from buffer start to 64B-aligned A-side tiles. */
+    nk_u32_t a_side_offset;
+
+    /** Byte offset from buffer start to B-side tiles. */
+    nk_u32_t b_side_offset;
+
+    /** Byte offset from buffer start to inverse norms (f32). */
+    nk_u32_t norms_offset;
+
+    /** Padding to 64 bytes. */
+    nk_u32_t reserved[7];
+
+    /** The capability that packed the buffer, which every consumer checks. */
+    nk_capability_t capability;
+} nk_maxsim_sapphireamx_bf16_header_t;
+
+nk_static_assert_(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64,
+                  nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
+
+/** Bytes of a BF16 pack of @p vector_count vectors of @p depth: header, AMX tiles, norms. */
+NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_bf16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
+    nk_size_t const tile_bytes = 1024; // 16 × 32 × 2B = 1KB per tile
+    nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
+    nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 32);
+    nk_size_t a_side_bytes = column_tile_count * depth_tile_count * tile_bytes;
+    nk_size_t b_side_bytes = column_tile_count * depth_tile_count * tile_bytes;
+    nk_size_t norms_bytes = vector_count * sizeof(nk_f32_t);
+    return sizeof(nk_maxsim_sapphireamx_bf16_header_t) + 63 + a_side_bytes + b_side_bytes + norms_bytes;
+}
+
+#pragma endregion BF16 Floats
+
 #if NUMKONG_TARGET_SAPPHIREAMX
+
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
     *bytes = nk_maxsim_packed_bytes_f32_sapphireamx_(vector_count, depth);
     return nk_success_k;
@@ -404,26 +475,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_sapphireamx( //
                                                nk_maxsim_refine_f32_sapphireamx_);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_SAPPHIREAMX
 
-#pragma endregion F32 Floats
-
-#pragma region F16 Floats
-
-/** Bytes of an F16 pack of @p vector_count vectors of @p depth: header, tiles, originals, norms. */
-NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_f16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
-    nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
-    nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
-    nk_size_t a_side_bytes = column_tile_count * depth_tile_count * 1024;
-    nk_size_t b_side_bytes = column_tile_count * depth_tile_count * 1024;
-    nk_size_t original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f16_t), 64);
-    nk_size_t originals_bytes = vector_count * original_stride;
-    nk_size_t norms_bytes = vector_count * sizeof(nk_f64_t);
-    nk_size_t screen_weights_bytes = vector_count * sizeof(nk_f32_t);
-    return 64 + 63 + a_side_bytes + b_side_bytes + originals_bytes + norms_bytes + screen_weights_bytes;
-}
-
-#if NUMKONG_TARGET_SAPPHIREAMX
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
     *bytes = nk_maxsim_packed_bytes_f16_sapphireamx_(vector_count, depth);
     return nk_success_k;
@@ -549,60 +601,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_sapphireamx( //
                                                          depth, nk_maxsim_refine_f16_sapphireamx_);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_SAPPHIREAMX
 
-#pragma endregion F16 Floats
-
-#pragma region BF16 Floats
-
-/** BF16 packed buffer header for AMX fused MaxSim (64 bytes). Stores both A-side (row-major) and
- *  B-side (pair-interleaved) tile formats, plus per-vector inverse norms for finalizing the angular
- *  distance of every query-document pair. */
-typedef struct {
-
-    /** Number of row-tile groups, ⌈n / 16⌉. */
-    nk_u32_t column_tile_count;
-
-    /** Number of depth tiles, ⌈depth / 32⌉, the depth granularity of BF16 TDPBF16PS. */
-    nk_u32_t depth_tile_count;
-
-    /** Actual vector count. */
-    nk_u32_t columns;
-
-    /** Actual depth (dimensions per vector). */
-    nk_u32_t depth;
-
-    /** Byte offset from buffer start to 64B-aligned A-side tiles. */
-    nk_u32_t a_side_offset;
-
-    /** Byte offset from buffer start to B-side tiles. */
-    nk_u32_t b_side_offset;
-
-    /** Byte offset from buffer start to inverse norms (f32). */
-    nk_u32_t norms_offset;
-
-    /** Padding to 64 bytes. */
-    nk_u32_t reserved[7];
-
-    /** The capability that packed the buffer, which every consumer checks. */
-    nk_capability_t capability;
-} nk_maxsim_sapphireamx_bf16_header_t;
-
-nk_static_assert_(sizeof(nk_maxsim_sapphireamx_bf16_header_t) == 64,
-                  nk_maxsim_sapphireamx_bf16_header_must_be_64_bytes);
-
-/** Bytes of a BF16 pack of @p vector_count vectors of @p depth: header, AMX tiles, norms. */
-NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_bf16_sapphireamx_(nk_size_t vector_count, nk_size_t depth) {
-    nk_size_t const tile_bytes = 1024; // 16 × 32 × 2B = 1KB per tile
-    nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
-    nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 32);
-    nk_size_t a_side_bytes = column_tile_count * depth_tile_count * tile_bytes;
-    nk_size_t b_side_bytes = column_tile_count * depth_tile_count * tile_bytes;
-    nk_size_t norms_bytes = vector_count * sizeof(nk_f32_t);
-    return sizeof(nk_maxsim_sapphireamx_bf16_header_t) + 63 + a_side_bytes + b_side_bytes + norms_bytes;
-}
-
-#if NUMKONG_TARGET_SAPPHIREAMX
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_sapphireamx(nk_size_t vector_count, nk_size_t depth,
                                                              nk_size_t *bytes) {
     *bytes = nk_maxsim_packed_bytes_bf16_sapphireamx_(vector_count, depth);
@@ -842,9 +841,8 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx( //
     *result = (nk_f32_t)total_angular_distance_f64;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_SAPPHIREAMX
 
-#pragma endregion BF16 Floats
+#endif // NUMKONG_TARGET_SAPPHIREAMX
 
 #if defined(__clang__)
 #pragma clang attribute pop

@@ -388,7 +388,51 @@ NUMKONG_INLINE void nk_centered_moments_bf16_skylake_(nk_bf16_t const *a, nk_bf1
                                                  cross_covariance, centered_norm_squared_a, centered_norm_squared_b);
 }
 
+/** RMSD of BF16 point clouds without alignment, widened to F32; reports the identity transform. */
+NUMKONG_INLINE void nk_rmsd_bf16_through_f32_skylake_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
+                                                      nk_f32_t *scale, nk_f32_t *result) {
+    if (rotation)
+        rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
+        rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
+    if (scale) *scale = 1.0f;
+
+    if (n == 0) {
+        *result = 0;
+        return;
+    }
+    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
+    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
+
+    // 15-lane stride-3 layout: mask at the bf16 level so the last chunk stays in-bounds.
+    __m512 sum_squared_f32x16 = _mm512_setzero_ps();
+    nk_size_t index = 0;
+
+    for (; index + 5 <= n; index += 5) {
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
+        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
+    }
+
+    if (index < n) {
+        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
+        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
+        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
+        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
+        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
+        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
+        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
+    }
+
+    nk_f32_t sum_squared = _mm512_reduce_add_ps(sum_squared_f32x16);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
+}
+
 #if NUMKONG_TARGET_SKYLAKE
+
 NUMKONG_API nk_status_t nk_rmsd_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
                                             void *stream) {
@@ -1159,52 +1203,7 @@ NUMKONG_API nk_status_t nk_rmsd_f16_skylake(nk_f16_t const *a, nk_f16_t const *b
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_SKYLAKE
 
-/** RMSD of BF16 point clouds without alignment, widened to F32; reports the identity transform. */
-NUMKONG_INLINE void nk_rmsd_bf16_through_f32_skylake_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                      nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
-                                                      nk_f32_t *scale, nk_f32_t *result) {
-    if (rotation)
-        rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,
-        rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;
-    if (scale) *scale = 1.0f;
-
-    if (n == 0) {
-        *result = 0;
-        return;
-    }
-    if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;
-    if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;
-
-    // 15-lane stride-3 layout: mask at the bf16 level so the last chunk stays in-bounds.
-    __m512 sum_squared_f32x16 = _mm512_setzero_ps();
-    nk_size_t index = 0;
-
-    for (; index + 5 <= n; index += 5) {
-        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(a + index * 3));
-        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(0x7FFF, (__m256i const *)(b + index * 3));
-        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
-        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
-        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
-    }
-
-    if (index < n) {
-        __mmask16 tail_m16 = (__mmask16)_bzhi_u32(0x7FFF, (nk_u32_t)((n - index) * 3));
-        __m256i a_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(a + index * 3));
-        __m256i b_bf16x16 = _mm256_maskz_loadu_epi16(tail_m16, (__m256i const *)(b + index * 3));
-        __m512 a_f32x16 = nk_bf16x16_to_f32x16_skylake_(a_bf16x16);
-        __m512 b_f32x16 = nk_bf16x16_to_f32x16_skylake_(b_bf16x16);
-        __m512 delta_f32x16 = _mm512_sub_ps(a_f32x16, b_f32x16);
-        sum_squared_f32x16 = _mm512_fmadd_ps(delta_f32x16, delta_f32x16, sum_squared_f32x16);
-    }
-
-    nk_f32_t sum_squared = _mm512_reduce_add_ps(sum_squared_f32x16);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
-}
-
-#if NUMKONG_TARGET_SKYLAKE
 NUMKONG_API nk_status_t nk_rmsd_bf16_skylake(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                              nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
                                              nk_f32_t *result, void *stream) {
@@ -1382,6 +1381,7 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t co
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)

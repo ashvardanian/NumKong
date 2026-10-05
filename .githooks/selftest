@@ -2407,6 +2407,38 @@ NUMKONG_API void nk_probe_haswell(void) {
 }
 FIXTURE
 
+assert_rejects "repeated backend target guard" "repeats its backend target guard" include/numkong/probe/sme.h <<'FIXTURE'
+#if NUMKONG_TARGET_SME
+int first(void);
+#endif
+#if NUMKONG_TARGET_SME
+int second(void);
+#endif
+FIXTURE
+
+assert_accepts "distinct backend target guards" include/numkong/probe/sme.h <<'FIXTURE'
+#if NUMKONG_TARGET_SME
+int first(void);
+#endif
+#if NUMKONG_TARGET_SMEF64
+int second(void);
+#endif
+FIXTURE
+
+stage_fixture_with_header include/numkong/probe/sme.h <<'FIXTURE'
+#if NUMKONG_TARGET_SME
+int first(void);
+#endif
+#if NUMKONG_TARGET_SME
+int second(void);
+#endif
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+printf '\nint third(void);\n' >> "$fixture_directory/include/numkong/probe/sme.h"
+git -C "$fixture_directory" add -- include/numkong/probe/sme.h
+run_precommit
+expect_acceptance "untouched legacy target guards"
+
 assert_rejects "dispatch umbrella in a backend" "includes a dispatch umbrella" include/numkong/probe/haswell.h <<'FIXTURE'
 #include "numkong/dot.h"
 FIXTURE

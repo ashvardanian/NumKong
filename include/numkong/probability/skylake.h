@@ -48,7 +48,47 @@ NUMKONG_INLINE __m512 nk_log2_f32x16_skylake_(__m512 x) {
     return _mm512_add_ps(log2m_f32x16, exponent_f32x16);
 }
 
+NUMKONG_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
+    // Extract the exponent and mantissa: x = 2^exp × m, m ∈ [1, 2)
+    __m512d one_f64x8 = _mm512_set1_pd(1.0);
+    __m512d two_f64x8 = _mm512_set1_pd(2.0);
+    __m512d exponent_f64x8 = _mm512_getexp_pd(x);
+    __m512d mantissa_f64x8 = _mm512_getmant_pd(x, _MM_MANT_NORM_1_2, _MM_MANT_SIGN_src);
+
+    // Compute log2(m) using the s-series: s = (m-1)/(m+1), s ∈ [0, 1/3] for m ∈ [1, 2)
+    // ln(m) = 2 × s × (1 + s²/3 + s⁴/5 + s⁶/7 + ...) converges fast since s² ≤ 1/9
+    // log2(m) = ln(m) × log2(e)
+    __m512d s_f64x8 = _mm512_div_pd(_mm512_sub_pd(mantissa_f64x8, one_f64x8), _mm512_add_pd(mantissa_f64x8, one_f64x8));
+    __m512d s2_f64x8 = _mm512_mul_pd(s_f64x8, s_f64x8);
+
+    // Polynomial P(s²) = 1 + s²/3 + s⁴/5 + ... using Horner's method
+    // 14 terms (k=0..13) achieves ~1 ULP accuracy for f64
+    __m512d poly_f64x8 = _mm512_set1_pd(1.0 / 27.0); // 1/(2*13+1)
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 25.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 23.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 21.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 19.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 17.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 15.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 13.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 11.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 9.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 7.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 5.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 3.0));
+    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0));
+
+    // ln(m) = 2 × s × P(s²), then log2(m) = ln(m) × log2(e)
+    __m512d ln_m_f64x8 = _mm512_mul_pd(_mm512_mul_pd(two_f64x8, s_f64x8), poly_f64x8);
+    __m512d log2e_f64x8 = _mm512_set1_pd(NUMKONG_F64_LOG2E_); // 1/ln(2)
+    __m512d log2_m_f64x8 = _mm512_mul_pd(ln_m_f64x8, log2e_f64x8);
+
+    // log2(x) = exponent + log2(m)
+    return _mm512_add_pd(exponent_f64x8, log2_m_f64x8);
+}
+
 #if NUMKONG_TARGET_SKYLAKE
+
 NUMKONG_API nk_status_t nk_kld_f32_skylake(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -125,48 +165,7 @@ nk_jsd_f32_skylake_cycle:
     *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_SKYLAKE
 
-NUMKONG_INLINE __m512d nk_log2_f64x8_skylake_(__m512d x) {
-    // Extract the exponent and mantissa: x = 2^exp × m, m ∈ [1, 2)
-    __m512d one_f64x8 = _mm512_set1_pd(1.0);
-    __m512d two_f64x8 = _mm512_set1_pd(2.0);
-    __m512d exponent_f64x8 = _mm512_getexp_pd(x);
-    __m512d mantissa_f64x8 = _mm512_getmant_pd(x, _MM_MANT_NORM_1_2, _MM_MANT_SIGN_src);
-
-    // Compute log2(m) using the s-series: s = (m-1)/(m+1), s ∈ [0, 1/3] for m ∈ [1, 2)
-    // ln(m) = 2 × s × (1 + s²/3 + s⁴/5 + s⁶/7 + ...) converges fast since s² ≤ 1/9
-    // log2(m) = ln(m) × log2(e)
-    __m512d s_f64x8 = _mm512_div_pd(_mm512_sub_pd(mantissa_f64x8, one_f64x8), _mm512_add_pd(mantissa_f64x8, one_f64x8));
-    __m512d s2_f64x8 = _mm512_mul_pd(s_f64x8, s_f64x8);
-
-    // Polynomial P(s²) = 1 + s²/3 + s⁴/5 + ... using Horner's method
-    // 14 terms (k=0..13) achieves ~1 ULP accuracy for f64
-    __m512d poly_f64x8 = _mm512_set1_pd(1.0 / 27.0); // 1/(2*13+1)
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 25.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 23.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 21.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 19.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 17.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 15.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 13.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 11.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 9.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 7.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 5.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0 / 3.0));
-    poly_f64x8 = _mm512_fmadd_pd(s2_f64x8, poly_f64x8, _mm512_set1_pd(1.0));
-
-    // ln(m) = 2 × s × P(s²), then log2(m) = ln(m) × log2(e)
-    __m512d ln_m_f64x8 = _mm512_mul_pd(_mm512_mul_pd(two_f64x8, s_f64x8), poly_f64x8);
-    __m512d log2e_f64x8 = _mm512_set1_pd(NUMKONG_F64_LOG2E_); // 1/ln(2)
-    __m512d log2_m_f64x8 = _mm512_mul_pd(ln_m_f64x8, log2e_f64x8);
-
-    // log2(x) = exponent + log2(m)
-    return _mm512_add_pd(exponent_f64x8, log2_m_f64x8);
-}
-
-#if NUMKONG_TARGET_SKYLAKE
 NUMKONG_API nk_status_t nk_kld_f64_skylake(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -319,6 +318,7 @@ nk_jsd_f16_skylake_cycle:
     *result = sum > 0 ? _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum))) : 0;
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)

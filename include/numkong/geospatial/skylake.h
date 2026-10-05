@@ -83,42 +83,6 @@ NUMKONG_INLINE __m512d nk_haversine_f64x8_skylake_(                //
     return _mm512_mul_pd(earth_radius_f64x8, central_angle_f64x8);
 }
 
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_haversine_f64_skylake(   //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 8) {
-        __m512d first_latitudes_f64x8 = _mm512_loadu_pd(a_lats);
-        __m512d first_longitudes_f64x8 = _mm512_loadu_pd(a_lons);
-        __m512d second_latitudes_f64x8 = _mm512_loadu_pd(b_lats);
-        __m512d second_longitudes_f64x8 = _mm512_loadu_pd(b_lons);
-
-        __m512d distances_f64x8 = nk_haversine_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
-                                                              second_latitudes_f64x8, second_longitudes_f64x8);
-        _mm512_storeu_pd(results, distances_f64x8);
-
-        a_lats += 8, a_lons += 8, b_lats += 8, b_lons += 8, results += 8, n -= 8;
-    }
-
-    // Handle remaining elements with masked operations
-    if (n > 0) {
-        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, n);
-        __m512d first_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lats);
-        __m512d first_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lons);
-        __m512d second_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lats);
-        __m512d second_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lons);
-
-        __m512d distances_f64x8 = nk_haversine_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
-                                                              second_latitudes_f64x8, second_longitudes_f64x8);
-        _mm512_mask_storeu_pd(results, mask_m8, distances_f64x8);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
-
 /**
  *  @brief AVX-512 helper for Vincenty's geodesic distance on 8 f64 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking.
@@ -288,42 +252,6 @@ NUMKONG_INLINE __m512d nk_vincenty_f64x8_skylake_(                 //
     return distances_f64x8;
 }
 
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_vincenty_f64_skylake(    //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 8) {
-        __m512d first_latitudes_f64x8 = _mm512_loadu_pd(a_lats);
-        __m512d first_longitudes_f64x8 = _mm512_loadu_pd(a_lons);
-        __m512d second_latitudes_f64x8 = _mm512_loadu_pd(b_lats);
-        __m512d second_longitudes_f64x8 = _mm512_loadu_pd(b_lons);
-
-        __m512d distances_f64x8 = nk_vincenty_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
-                                                             second_latitudes_f64x8, second_longitudes_f64x8);
-        _mm512_storeu_pd(results, distances_f64x8);
-
-        a_lats += 8, a_lons += 8, b_lats += 8, b_lons += 8, results += 8, n -= 8;
-    }
-
-    // Handle remaining elements with masked operations
-    if (n > 0) {
-        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, n);
-        __m512d first_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lats);
-        __m512d first_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lons);
-        __m512d second_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lats);
-        __m512d second_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lons);
-
-        __m512d distances_f64x8 = nk_vincenty_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
-                                                             second_latitudes_f64x8, second_longitudes_f64x8);
-        _mm512_mask_storeu_pd(results, mask_m8, distances_f64x8);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
-
 NUMKONG_INLINE __m512 nk_haversine_f32x16_skylake_(                //
     __m512 first_latitudes_f32x16, __m512 first_longitudes_f32x16, //
     __m512 second_latitudes_f32x16, __m512 second_longitudes_f32x16) {
@@ -368,42 +296,6 @@ NUMKONG_INLINE __m512 nk_haversine_f32x16_skylake_(                //
 
     return _mm512_mul_ps(earth_radius_f32x16, central_angle_f32x16);
 }
-
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_haversine_f32_skylake(   //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 16) {
-        __m512 first_latitudes_f32x16 = _mm512_loadu_ps(a_lats);
-        __m512 first_longitudes_f32x16 = _mm512_loadu_ps(a_lons);
-        __m512 second_latitudes_f32x16 = _mm512_loadu_ps(b_lats);
-        __m512 second_longitudes_f32x16 = _mm512_loadu_ps(b_lons);
-
-        __m512 distances_f32x16 = nk_haversine_f32x16_skylake_(first_latitudes_f32x16, first_longitudes_f32x16,
-                                                               second_latitudes_f32x16, second_longitudes_f32x16);
-        _mm512_storeu_ps(results, distances_f32x16);
-
-        a_lats += 16, a_lons += 16, b_lats += 16, b_lons += 16, results += 16, n -= 16;
-    }
-
-    // Handle remaining elements with masked operations
-    if (n > 0) {
-        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
-        __m512 first_latitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, a_lats);
-        __m512 first_longitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, a_lons);
-        __m512 second_latitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, b_lats);
-        __m512 second_longitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, b_lons);
-
-        __m512 distances_f32x16 = nk_haversine_f32x16_skylake_(first_latitudes_f32x16, first_longitudes_f32x16,
-                                                               second_latitudes_f32x16, second_longitudes_f32x16);
-        _mm512_mask_storeu_ps(results, mask_m16, distances_f32x16);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
 
 /**
  *  @brief AVX-512 helper for Vincenty's geodesic distance on 16 f32 point pairs.
@@ -578,6 +470,109 @@ NUMKONG_INLINE __m512 nk_vincenty_f32x16_skylake_(                 //
 }
 
 #if NUMKONG_TARGET_SKYLAKE
+
+NUMKONG_API nk_status_t nk_haversine_f64_skylake(   //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 8) {
+        __m512d first_latitudes_f64x8 = _mm512_loadu_pd(a_lats);
+        __m512d first_longitudes_f64x8 = _mm512_loadu_pd(a_lons);
+        __m512d second_latitudes_f64x8 = _mm512_loadu_pd(b_lats);
+        __m512d second_longitudes_f64x8 = _mm512_loadu_pd(b_lons);
+
+        __m512d distances_f64x8 = nk_haversine_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
+                                                              second_latitudes_f64x8, second_longitudes_f64x8);
+        _mm512_storeu_pd(results, distances_f64x8);
+
+        a_lats += 8, a_lons += 8, b_lats += 8, b_lons += 8, results += 8, n -= 8;
+    }
+
+    // Handle remaining elements with masked operations
+    if (n > 0) {
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, n);
+        __m512d first_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lats);
+        __m512d first_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lons);
+        __m512d second_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lats);
+        __m512d second_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lons);
+
+        __m512d distances_f64x8 = nk_haversine_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
+                                                              second_latitudes_f64x8, second_longitudes_f64x8);
+        _mm512_mask_storeu_pd(results, mask_m8, distances_f64x8);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_vincenty_f64_skylake(    //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 8) {
+        __m512d first_latitudes_f64x8 = _mm512_loadu_pd(a_lats);
+        __m512d first_longitudes_f64x8 = _mm512_loadu_pd(a_lons);
+        __m512d second_latitudes_f64x8 = _mm512_loadu_pd(b_lats);
+        __m512d second_longitudes_f64x8 = _mm512_loadu_pd(b_lons);
+
+        __m512d distances_f64x8 = nk_vincenty_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
+                                                             second_latitudes_f64x8, second_longitudes_f64x8);
+        _mm512_storeu_pd(results, distances_f64x8);
+
+        a_lats += 8, a_lons += 8, b_lats += 8, b_lons += 8, results += 8, n -= 8;
+    }
+
+    // Handle remaining elements with masked operations
+    if (n > 0) {
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFF, n);
+        __m512d first_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lats);
+        __m512d first_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_lons);
+        __m512d second_latitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lats);
+        __m512d second_longitudes_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_lons);
+
+        __m512d distances_f64x8 = nk_vincenty_f64x8_skylake_(first_latitudes_f64x8, first_longitudes_f64x8,
+                                                             second_latitudes_f64x8, second_longitudes_f64x8);
+        _mm512_mask_storeu_pd(results, mask_m8, distances_f64x8);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_haversine_f32_skylake(   //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 16) {
+        __m512 first_latitudes_f32x16 = _mm512_loadu_ps(a_lats);
+        __m512 first_longitudes_f32x16 = _mm512_loadu_ps(a_lons);
+        __m512 second_latitudes_f32x16 = _mm512_loadu_ps(b_lats);
+        __m512 second_longitudes_f32x16 = _mm512_loadu_ps(b_lons);
+
+        __m512 distances_f32x16 = nk_haversine_f32x16_skylake_(first_latitudes_f32x16, first_longitudes_f32x16,
+                                                               second_latitudes_f32x16, second_longitudes_f32x16);
+        _mm512_storeu_ps(results, distances_f32x16);
+
+        a_lats += 16, a_lons += 16, b_lats += 16, b_lons += 16, results += 16, n -= 16;
+    }
+
+    // Handle remaining elements with masked operations
+    if (n > 0) {
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n);
+        __m512 first_latitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, a_lats);
+        __m512 first_longitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, a_lons);
+        __m512 second_latitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, b_lats);
+        __m512 second_longitudes_f32x16 = _mm512_maskz_loadu_ps(mask_m16, b_lons);
+
+        __m512 distances_f32x16 = nk_haversine_f32x16_skylake_(first_latitudes_f32x16, first_longitudes_f32x16,
+                                                               second_latitudes_f32x16, second_longitudes_f32x16);
+        _mm512_mask_storeu_ps(results, mask_m16, distances_f32x16);
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_vincenty_f32_skylake(    //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
@@ -611,6 +606,7 @@ NUMKONG_API nk_status_t nk_vincenty_f32_skylake(    //
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)

@@ -112,37 +112,6 @@ NUMKONG_INLINE void nk_reduce_moments_i8_icelake_strided_(               //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sumsq_i64x8);
 }
 
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_reduce_moments_i8_icelake(           //
-    nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t stride_elements = stride / sizeof(nk_i8_t);
-    int aligned = (stride % sizeof(nk_i8_t) == 0);
-    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0)
-        nk_reduce_moments_i8_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else {
-        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 64;
-        for (nk_size_t start = 0; start < count; start += chunk_limit) {
-            nk_i8_t const *chunk_ptr = data_ptr + start * stride_elements;
-            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
-            nk_i64_t sum;
-            nk_u64_t sumsq;
-            if (stride_elements == 1) nk_reduce_moments_i8_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
-            else if (stride_elements <= 16)
-                nk_reduce_moments_i8_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
-            else nk_reduce_moments_i8_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
-            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
-            else
-                *sum_ptr = nk_i64_saturating_add_(*sum_ptr, sum),
-                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
-        }
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_ICELAKE
-
 NUMKONG_INLINE void nk_reduce_moments_u8_icelake_contiguous_( //
     nk_u8_t const *data_ptr, nk_size_t count,                 //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
@@ -212,36 +181,6 @@ NUMKONG_INLINE void nk_reduce_moments_u8_icelake_strided_(               //
     *sumsq_ptr = nk_reduce_add_u64x8_skylake_(sumsq_u64x8);
 }
 
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_reduce_moments_u8_icelake(           //
-    nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t stride_elements = stride / sizeof(nk_u8_t);
-    int aligned = (stride % sizeof(nk_u8_t) == 0);
-    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0)
-        nk_reduce_moments_u8_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else {
-        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U8_MAX + 1) * 64;
-        for (nk_size_t start = 0; start < count; start += chunk_limit) {
-            nk_u8_t const *chunk_ptr = data_ptr + start * stride_elements;
-            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
-            nk_u64_t sum, sumsq;
-            if (stride_elements == 1) nk_reduce_moments_u8_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
-            else if (stride_elements <= 16)
-                nk_reduce_moments_u8_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
-            else nk_reduce_moments_u8_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
-            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
-            else
-                *sum_ptr = nk_u64_saturating_add_(*sum_ptr, sum),
-                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
-        }
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_ICELAKE
-
 NUMKONG_INLINE void nk_reduce_moments_i16_icelake_contiguous_( //
     nk_i16_t const *data_ptr, nk_size_t count,                 //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
@@ -307,37 +246,6 @@ NUMKONG_INLINE void nk_reduce_moments_i16_icelake_strided_(               //
     *sum_ptr = nk_reduce_add_i64x8_skylake_(sum_i64x8);
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sumsq_i64x8);
 }
-
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_reduce_moments_i16_icelake(           //
-    nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t stride_elements = stride / sizeof(nk_i16_t);
-    int aligned = (stride % sizeof(nk_i16_t) == 0);
-    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0)
-        nk_reduce_moments_i16_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else {
-        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_I16_MAX + 1) * 32;
-        for (nk_size_t start = 0; start < count; start += chunk_limit) {
-            nk_i16_t const *chunk_ptr = data_ptr + start * stride_elements;
-            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
-            nk_i64_t sum;
-            nk_u64_t sumsq;
-            if (stride_elements == 1) nk_reduce_moments_i16_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
-            else if (stride_elements <= 16)
-                nk_reduce_moments_i16_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
-            else nk_reduce_moments_i16_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
-            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
-            else
-                *sum_ptr = nk_i64_saturating_add_(*sum_ptr, sum),
-                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
-        }
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_ICELAKE
 
 NUMKONG_INLINE void nk_reduce_moments_e2m3_icelake_contiguous_( //
     nk_e2m3_t const *data_ptr, nk_size_t count,                 //
@@ -426,34 +334,6 @@ NUMKONG_INLINE void nk_reduce_moments_e2m3_icelake_strided_(               //
     *sum_ptr = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16) / 16.0f;
     *sumsq_ptr = (nk_f32_t)_mm512_reduce_add_epi32(sumsq_i32x16) / 256.0f;
 }
-
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_reduce_moments_e2m3_icelake(           //
-    nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
-    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t stride_elements = stride / sizeof(nk_e2m3_t);
-    int aligned = (stride % sizeof(nk_e2m3_t) == 0);
-    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0)
-        nk_reduce_moments_e2m3_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else {
-        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_I16_MAX + 1) * 64;
-        for (nk_size_t start = 0; start < count; start += chunk_limit) {
-            nk_e2m3_t const *chunk_ptr = data_ptr + start * stride_elements;
-            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
-            nk_f32_t sum, sumsq;
-            if (stride_elements == 1) nk_reduce_moments_e2m3_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
-            else if (stride_elements <= 16)
-                nk_reduce_moments_e2m3_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
-            else nk_reduce_moments_e2m3_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
-            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
-            else *sum_ptr += sum, *sumsq_ptr += sumsq;
-        }
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_ICELAKE
 
 NUMKONG_INLINE void nk_reduce_moments_e3m2_icelake_contiguous_( //
     nk_e3m2_t const *data_ptr, nk_size_t count,                 //
@@ -546,6 +426,119 @@ NUMKONG_INLINE void nk_reduce_moments_e3m2_icelake_strided_(               //
 }
 
 #if NUMKONG_TARGET_ICELAKE
+
+NUMKONG_API nk_status_t nk_reduce_moments_i8_icelake(           //
+    nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t stride_elements = stride / sizeof(nk_i8_t);
+    int aligned = (stride % sizeof(nk_i8_t) == 0);
+    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_i8_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else {
+        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 64;
+        for (nk_size_t start = 0; start < count; start += chunk_limit) {
+            nk_i8_t const *chunk_ptr = data_ptr + start * stride_elements;
+            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+            nk_i64_t sum;
+            nk_u64_t sumsq;
+            if (stride_elements == 1) nk_reduce_moments_i8_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            else if (stride_elements <= 16)
+                nk_reduce_moments_i8_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_i8_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
+            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
+            else
+                *sum_ptr = nk_i64_saturating_add_(*sum_ptr, sum),
+                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_u8_icelake(           //
+    nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t stride_elements = stride / sizeof(nk_u8_t);
+    int aligned = (stride % sizeof(nk_u8_t) == 0);
+    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_u8_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else {
+        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U8_MAX + 1) * 64;
+        for (nk_size_t start = 0; start < count; start += chunk_limit) {
+            nk_u8_t const *chunk_ptr = data_ptr + start * stride_elements;
+            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+            nk_u64_t sum, sumsq;
+            if (stride_elements == 1) nk_reduce_moments_u8_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            else if (stride_elements <= 16)
+                nk_reduce_moments_u8_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_u8_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
+            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
+            else
+                *sum_ptr = nk_u64_saturating_add_(*sum_ptr, sum),
+                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_i16_icelake(           //
+    nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t stride_elements = stride / sizeof(nk_i16_t);
+    int aligned = (stride % sizeof(nk_i16_t) == 0);
+    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_i16_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else {
+        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_I16_MAX + 1) * 32;
+        for (nk_size_t start = 0; start < count; start += chunk_limit) {
+            nk_i16_t const *chunk_ptr = data_ptr + start * stride_elements;
+            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+            nk_i64_t sum;
+            nk_u64_t sumsq;
+            if (stride_elements == 1) nk_reduce_moments_i16_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            else if (stride_elements <= 16)
+                nk_reduce_moments_i16_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_i16_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
+            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
+            else
+                *sum_ptr = nk_i64_saturating_add_(*sum_ptr, sum),
+                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_reduce_moments_e2m3_icelake(           //
+    nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
+    nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t stride_elements = stride / sizeof(nk_e2m3_t);
+    int aligned = (stride % sizeof(nk_e2m3_t) == 0);
+    if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_e2m3_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else {
+        nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_I16_MAX + 1) * 64;
+        for (nk_size_t start = 0; start < count; start += chunk_limit) {
+            nk_e2m3_t const *chunk_ptr = data_ptr + start * stride_elements;
+            nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
+            nk_f32_t sum, sumsq;
+            if (stride_elements == 1) nk_reduce_moments_e2m3_icelake_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            else if (stride_elements <= 16)
+                nk_reduce_moments_e2m3_icelake_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_e2m3_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
+            if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
+            else *sum_ptr += sum, *sumsq_ptr += sumsq;
+        }
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_reduce_moments_e3m2_icelake(           //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr, void *stream) {
@@ -571,6 +564,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e3m2_icelake(           //
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)

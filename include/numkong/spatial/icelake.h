@@ -109,94 +109,6 @@ nk_sqeuclidean_i8_icelake_cycle:
     *result = _mm512_reduce_add_epi32(_mm512_add_epi32(distance_sq_low_i32x16, distance_sq_high_i32x16));
 }
 
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_i8_icelake_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t d2;
-    nk_squared_distance_i8_icelake_(a, b, n, &d2);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    __m512i dot_product_i32x16 = _mm512_setzero_si512();
-    __m512i a_norm_sq_i32x16 = _mm512_setzero_si512();
-    __m512i b_norm_sq_i32x16 = _mm512_setzero_si512();
-    __m512i a_i16x32, b_i16x32;
-nk_angular_i8_icelake_cycle:
-    if (n < 32) {
-        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, n);
-        a_i16x32 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask_m32, a));
-        b_i16x32 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask_m32, b));
-        n = 0;
-    }
-    else {
-        a_i16x32 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((__m256i const *)a));
-        b_i16x32 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((__m256i const *)b));
-        a += 32, b += 32, n -= 32;
-    }
-
-    // We can't directly use the `_mm512_dpbusd_epi32` intrinsic everywhere,
-    // as it's asymmetric with respect to the sign of the input arguments:
-    //
-    //      Signed(ZeroExtend16(a.byte[4 × j]) × SignExtend16(b.byte[4 × j]))
-    //
-    // To compute the squares, we could just drop the sign bit of the second argument.
-    // But this would lead to big-big problems on values like `-128`!
-    // For dot-products we don't have the luxury of optimizing the sign bit away.
-    // Assuming this is an approximate kernel (with reciprocal square root approximations)
-    // in the end, we can allow clamping the value to [-127, 127] range.
-    //
-    // VNNI instruction performance (Ice Lake vs Zen4 Genoa):
-    //
-    //      Instruction                     Icelake         Genoa
-    //      VPDPBUSDS (ZMM, ZMM, ZMM)       5cy @ p0        4cy @ p01
-    //      VPDPWSSDS (ZMM, ZMM, ZMM)       5cy @ p0        4cy @ p01
-    //      VPMADDWD (ZMM, ZMM, ZMM)        5cy @ p05       3cy @ p01
-    //
-    // On Ice Lake, VNNI bottlenecks on port 0. On Genoa, dual-issue on p01 is faster.
-    //
-    // The old solution was complex replied on 1. and 2.:
-    //
-    //    a_i8_abs_vec = _mm512_abs_epi8(a_i8_vec);
-    //    b_i8_abs_vec = _mm512_abs_epi8(b_i8_vec);
-    //    a2_i32_vec = _mm512_dpbusds_epi32(a2_i32_vec, a_i8_abs_vec, a_i8_abs_vec);
-    //    b2_i32_vec = _mm512_dpbusds_epi32(b2_i32_vec, b_i8_abs_vec, b_i8_abs_vec);
-    //    ab_i32_low_vec = _mm512_dpwssds_epi32(                      //
-    //        ab_i32_low_vec,                                         //
-    //        _mm512_cvtepi8_epi16(_mm512_castsi512_si256(a_i8_vec)), //
-    //        _mm512_cvtepi8_epi16(_mm512_castsi512_si256(b_i8_vec)));
-    //    ab_i32_high_vec = _mm512_dpwssds_epi32(                           //
-    //        ab_i32_high_vec,                                              //
-    //        _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(a_i8_vec, 1)), //
-    //        _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(b_i8_vec, 1)));
-    //
-    // The new solution is simpler and relies on 3.:
-    dot_product_i32x16 = _mm512_add_epi32(dot_product_i32x16, _mm512_madd_epi16(a_i16x32, b_i16x32));
-    a_norm_sq_i32x16 = _mm512_add_epi32(a_norm_sq_i32x16, _mm512_madd_epi16(a_i16x32, a_i16x32));
-    b_norm_sq_i32x16 = _mm512_add_epi32(b_norm_sq_i32x16, _mm512_madd_epi16(b_i16x32, b_i16x32));
-    if (n) goto nk_angular_i8_icelake_cycle;
-
-    nk_i32_t dot_product_i32 = _mm512_reduce_add_epi32(dot_product_i32x16);
-    nk_i32_t a_norm_sq_i32 = _mm512_reduce_add_epi32(a_norm_sq_i32x16);
-    nk_i32_t b_norm_sq_i32 = _mm512_reduce_add_epi32(b_norm_sq_i32x16);
-    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
-                                                (nk_f32_t)b_norm_sq_i32);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_ICELAKE
-
 /** Squared Euclidean distance between two u8 vectors. */
 NUMKONG_INLINE void nk_squared_distance_u8_icelake_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
     __m512i distance_sq_low_i32x16 = _mm512_setzero_si512();
@@ -230,76 +142,6 @@ nk_sqeuclidean_u8_icelake_cycle:
 
     *result = _mm512_reduce_add_epi32(_mm512_add_epi32(distance_sq_low_i32x16, distance_sq_high_i32x16));
 }
-
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_sqeuclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_u8_icelake_(a, b, n, result);
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t d2;
-    nk_squared_distance_u8_icelake_(a, b, n, &d2);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    __m512i dot_product_low_i32x16 = _mm512_setzero_si512();
-    __m512i dot_product_high_i32x16 = _mm512_setzero_si512();
-    __m512i a_norm_sq_low_i32x16 = _mm512_setzero_si512();
-    __m512i a_norm_sq_high_i32x16 = _mm512_setzero_si512();
-    __m512i b_norm_sq_low_i32x16 = _mm512_setzero_si512();
-    __m512i b_norm_sq_high_i32x16 = _mm512_setzero_si512();
-    __m512i const zeros_i8x64 = _mm512_setzero_si512();
-    __m512i a_low_i16x32, a_high_i16x32, b_low_i16x32, b_high_i16x32;
-    __m512i a_u8x64, b_u8x64;
-
-nk_angular_u8_icelake_cycle:
-    if (n < 64) {
-        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n);
-        a_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
-        b_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
-        n = 0;
-    }
-    else {
-        a_u8x64 = _mm512_loadu_si512(a);
-        b_u8x64 = _mm512_loadu_si512(b);
-        a += 64, b += 64, n -= 64;
-    }
-
-    // Upcast `uint8` to `int16`. Unlike the signed version, we can use the unpacking
-    // instructions instead of extracts, as they are much faster and more efficient.
-    a_low_i16x32 = _mm512_unpacklo_epi8(a_u8x64, zeros_i8x64);
-    a_high_i16x32 = _mm512_unpackhi_epi8(a_u8x64, zeros_i8x64);
-    b_low_i16x32 = _mm512_unpacklo_epi8(b_u8x64, zeros_i8x64);
-    b_high_i16x32 = _mm512_unpackhi_epi8(b_u8x64, zeros_i8x64);
-
-    // Multiply and accumulate as `int16`, accumulate products as `int32`:
-    dot_product_low_i32x16 = _mm512_dpwssds_epi32(dot_product_low_i32x16, a_low_i16x32, b_low_i16x32);
-    dot_product_high_i32x16 = _mm512_dpwssds_epi32(dot_product_high_i32x16, a_high_i16x32, b_high_i16x32);
-    a_norm_sq_low_i32x16 = _mm512_dpwssds_epi32(a_norm_sq_low_i32x16, a_low_i16x32, a_low_i16x32);
-    a_norm_sq_high_i32x16 = _mm512_dpwssds_epi32(a_norm_sq_high_i32x16, a_high_i16x32, a_high_i16x32);
-    b_norm_sq_low_i32x16 = _mm512_dpwssds_epi32(b_norm_sq_low_i32x16, b_low_i16x32, b_low_i16x32);
-    b_norm_sq_high_i32x16 = _mm512_dpwssds_epi32(b_norm_sq_high_i32x16, b_high_i16x32, b_high_i16x32);
-    if (n) goto nk_angular_u8_icelake_cycle;
-
-    nk_i32_t dot_product_i32 = _mm512_reduce_add_epi32(
-        _mm512_add_epi32(dot_product_low_i32x16, dot_product_high_i32x16));
-    nk_i32_t a_norm_sq_i32 = _mm512_reduce_add_epi32(_mm512_add_epi32(a_norm_sq_low_i32x16, a_norm_sq_high_i32x16));
-    nk_i32_t b_norm_sq_i32 = _mm512_reduce_add_epi32(_mm512_add_epi32(b_norm_sq_low_i32x16, b_norm_sq_high_i32x16));
-    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
-                                                (nk_f32_t)b_norm_sq_i32);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_ICELAKE
 
 /** Squared Euclidean distance between two i4 vectors. */
 NUMKONG_INLINE void nk_squared_distance_i4_icelake_(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n,
@@ -344,8 +186,7 @@ nk_sqeuclidean_i4_icelake_cycle:
         a += 64, b += 64, n_bytes -= 64;
     }
 
-    // Extract nibbles as unsigned [0,15]. VPSHUFB ignores high 4 bits of index,
-    // so no AND needed for low nibbles when used with lookup, but we need it here.
+    // Unlike VPSHUFB, arithmetic requires masking the high bits of each nibble.
     a_low_u8x64 = _mm512_and_si512(a_i4_u8x64, nibble_mask_u8x64);
     a_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(a_i4_u8x64, 4), nibble_mask_u8x64);
     b_low_u8x64 = _mm512_and_si512(b_i4_u8x64, nibble_mask_u8x64);
@@ -370,133 +211,6 @@ nk_sqeuclidean_i4_icelake_cycle:
 
     *result = (nk_u32_t)_mm512_reduce_add_epi32(d2_i32x16);
 }
-
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_i4_icelake_(a, b, n, result);
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t d2;
-    nk_squared_distance_i4_icelake_(a, b, n, &d2);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // i4 values are packed as nibbles: two 4-bit signed values per byte.
-    nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
-
-    // Angular distance for signed 4-bit integers requires computing:
-    //   1. Dot product: ∑(aᵢ × bᵢ)
-    //   2. Squared norms: ∑(aᵢ²) and ∑(bᵢ²)
-    //
-    // For signed i4 values in [-8, 7], we use DPBUSD for everything by leveraging
-    // an algebraic identity. Define x = a ^ 8 (XOR with 8), which maps:
-    //   [0,7] → [8,15] and [8,15] → [0,7]
-    //
-    // The signed value is: a_signed = x - 8
-    //
-    // For two signed values:
-    //   a_signed × b_signed = (ax - 8)(bx - 8) = ax × bx - 8 × ax - 8 × bx + 64
-    //
-    // Therefore:
-    //   dot(a_signed, b_signed) = DPBUSD(ax, bx) - 8 × (∑(ax) + ∑(bx)) + 64 × n
-    //
-    // This avoids all i8 → i16 upcasts and uses DPBUSD directly on byte values!
-    // For norms, we use |x|² = x², computing abs then squaring with DPBUSD.
-    __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
-    __m512i const eight_i8x64 = _mm512_set1_epi8(8);
-    __m512i const zeros_i8x64 = _mm512_setzero_si512();
-
-    __m512i a_i4_u8x64, b_i4_u8x64;
-    __m512i a_low_u8x64, a_high_u8x64, b_low_u8x64, b_high_u8x64;
-    __m512i ax_low_u8x64, ax_high_u8x64, bx_low_u8x64, bx_high_u8x64;
-    __m512i a_low_i8x64, a_high_i8x64, b_low_i8x64, b_high_i8x64;
-
-    // Accumulators for dot product (using biased values) and correction sums
-    __m512i ab_i32x16 = zeros_i8x64;
-    __m512i ax_sum_i64x8 = zeros_i8x64;
-    __m512i bx_sum_i64x8 = zeros_i8x64;
-    // Accumulators for squared norms
-    __m512i a2_i32x16 = zeros_i8x64;
-    __m512i b2_i32x16 = zeros_i8x64;
-
-nk_angular_i4_icelake_cycle:
-    if (n_bytes < 64) {
-        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
-        a_i4_u8x64 = _mm512_mask_loadu_epi8(_mm512_set1_epi8((char)0x88), mask_m64, a);
-        b_i4_u8x64 = _mm512_mask_loadu_epi8(_mm512_set1_epi8((char)0x88), mask_m64, b);
-        n_bytes = 0;
-    }
-    else {
-        a_i4_u8x64 = _mm512_loadu_epi8(a);
-        b_i4_u8x64 = _mm512_loadu_epi8(b);
-        a += 64, b += 64, n_bytes -= 64;
-    }
-
-    // Extract nibbles as unsigned [0,15]
-    a_low_u8x64 = _mm512_and_si512(a_i4_u8x64, nibble_mask_u8x64);
-    a_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(a_i4_u8x64, 4), nibble_mask_u8x64);
-    b_low_u8x64 = _mm512_and_si512(b_i4_u8x64, nibble_mask_u8x64);
-    b_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(b_i4_u8x64, 4), nibble_mask_u8x64);
-
-    // Compute biased values: ax = a ^ 8 (still ∈ [0,15], just reordered)
-    ax_low_u8x64 = _mm512_xor_si512(a_low_u8x64, eight_i8x64);
-    ax_high_u8x64 = _mm512_xor_si512(a_high_u8x64, eight_i8x64);
-    bx_low_u8x64 = _mm512_xor_si512(b_low_u8x64, eight_i8x64);
-    bx_high_u8x64 = _mm512_xor_si512(b_high_u8x64, eight_i8x64);
-
-    // Dot product using DPBUSD on biased values (correction applied at end)
-    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, ax_low_u8x64, bx_low_u8x64);
-    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, ax_high_u8x64, bx_high_u8x64);
-
-    // Track sums for correction using SAD (sum of absolute differences with zero)
-    ax_sum_i64x8 = _mm512_add_epi64(ax_sum_i64x8, _mm512_sad_epu8(ax_low_u8x64, zeros_i8x64));
-    ax_sum_i64x8 = _mm512_add_epi64(ax_sum_i64x8, _mm512_sad_epu8(ax_high_u8x64, zeros_i8x64));
-    bx_sum_i64x8 = _mm512_add_epi64(bx_sum_i64x8, _mm512_sad_epu8(bx_low_u8x64, zeros_i8x64));
-    bx_sum_i64x8 = _mm512_add_epi64(bx_sum_i64x8, _mm512_sad_epu8(bx_high_u8x64, zeros_i8x64));
-
-    // For norms: convert to signed, take abs, then square with DPBUSD
-    a_low_i8x64 = _mm512_sub_epi8(ax_low_u8x64, eight_i8x64);
-    a_high_i8x64 = _mm512_sub_epi8(ax_high_u8x64, eight_i8x64);
-    b_low_i8x64 = _mm512_sub_epi8(bx_low_u8x64, eight_i8x64);
-    b_high_i8x64 = _mm512_sub_epi8(bx_high_u8x64, eight_i8x64);
-
-    __m512i a_low_abs_u8x64 = _mm512_abs_epi8(a_low_i8x64);
-    __m512i a_high_abs_u8x64 = _mm512_abs_epi8(a_high_i8x64);
-    __m512i b_low_abs_u8x64 = _mm512_abs_epi8(b_low_i8x64);
-    __m512i b_high_abs_u8x64 = _mm512_abs_epi8(b_high_i8x64);
-
-    // Squared norms: ‖x‖² = x², use DPBUSD for efficient squaring
-    a2_i32x16 = _mm512_dpbusd_epi32(a2_i32x16, a_low_abs_u8x64, a_low_abs_u8x64);
-    a2_i32x16 = _mm512_dpbusd_epi32(a2_i32x16, a_high_abs_u8x64, a_high_abs_u8x64);
-    b2_i32x16 = _mm512_dpbusd_epi32(b2_i32x16, b_low_abs_u8x64, b_low_abs_u8x64);
-    b2_i32x16 = _mm512_dpbusd_epi32(b2_i32x16, b_high_abs_u8x64, b_high_abs_u8x64);
-    if (n_bytes) goto nk_angular_i4_icelake_cycle;
-
-    // Apply algebraic correction for signed dot product:
-    // signed_dot = DPBUSD(ax, bx) - 8 × (∑(ax) + ∑(bx)) + 64 × n
-    nk_i64_t ax_sum = _mm512_reduce_add_epi64(ax_sum_i64x8);
-    nk_i64_t bx_sum = _mm512_reduce_add_epi64(bx_sum_i64x8);
-    nk_i32_t ab_raw = _mm512_reduce_add_epi32(ab_i32x16);
-    // Accumulate the bias correction in i64: `64 * n` and `8 * (∑ax + ∑bx)` overflow i32 around n ≈ 2^25.
-    nk_i64_t ab = (nk_i64_t)ab_raw - 8 * (ax_sum + bx_sum) + 64 * (nk_i64_t)n;
-
-    nk_size_t const n_bytes_total = n / NUMKONG_NIBBLES_PER_BYTE;
-    nk_i32_t norm_excess = 128 * (nk_i32_t)(nk_size_round_up_to_multiple_(n_bytes_total, 64) - n_bytes_total);
-    nk_i32_t a2 = _mm512_reduce_add_epi32(a2_i32x16) - norm_excess;
-    nk_i32_t b2 = _mm512_reduce_add_epi32(b2_i32x16) - norm_excess;
-    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_ICELAKE
 
 /** Squared Euclidean distance between two u4 vectors. */
 NUMKONG_INLINE void nk_squared_distance_u4_icelake_(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n,
@@ -549,96 +263,6 @@ nk_sqeuclidean_u4_icelake_cycle:
 
     *result = (nk_u32_t)_mm512_reduce_add_epi32(d2_i32x16);
 }
-
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
-                                                  void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_u4_icelake_(a, b, n, result);
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t d2;
-    nk_squared_distance_u4_icelake_(a, b, n, &d2);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
-    nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
-
-    // Angular distance for unsigned 4-bit integers ∈ [0, 15].
-    // Since values are unsigned and small, we can use DPBUSD directly for both
-    // dot product and norms without any sign handling.
-    //
-    // DPBUSD computes: ZeroExtend(a) * SignExtend(b), but for values ∈ [0, 15],
-    // sign extension is identity (no high bit set), so it works correctly.
-    __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
-    __m512i const zeros_i8x64 = _mm512_setzero_si512();
-
-    __m512i a_u4_u8x64, b_u4_u8x64;
-    __m512i a_low_u8x64, a_high_u8x64, b_low_u8x64, b_high_u8x64;
-
-    __m512i ab_i32x16 = zeros_i8x64;
-    __m512i a2_i64x8 = zeros_i8x64;
-    __m512i b2_i64x8 = zeros_i8x64;
-
-nk_angular_u4_icelake_cycle:
-    if (n_bytes < 64) {
-        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
-        a_u4_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
-        b_u4_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
-        n_bytes = 0;
-    }
-    else {
-        a_u4_u8x64 = _mm512_loadu_epi8(a);
-        b_u4_u8x64 = _mm512_loadu_epi8(b);
-        a += 64, b += 64, n_bytes -= 64;
-    }
-
-    // Extract nibbles as unsigned [0,15]
-    a_low_u8x64 = _mm512_and_si512(a_u4_u8x64, nibble_mask_u8x64);
-    a_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(a_u4_u8x64, 4), nibble_mask_u8x64);
-    b_low_u8x64 = _mm512_and_si512(b_u4_u8x64, nibble_mask_u8x64);
-    b_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(b_u4_u8x64, 4), nibble_mask_u8x64);
-
-    // Dot product with DPBUSD (safe for unsigned [0,15])
-    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, a_low_u8x64, b_low_u8x64);
-    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, a_high_u8x64, b_high_u8x64);
-
-    // Squared norms: compute a² per nibble using lookup table for efficiency
-    // Squares lookup: 0 → 0, 1 → 1, 2 → 4, ..., 15 → 225
-    __m512i const u4_squares_lookup_u8x64 = _mm512_set_epi8(
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
-        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0);
-
-    __m512i a2_low_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, a_low_u8x64);
-    __m512i a2_high_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, a_high_u8x64);
-    __m512i b2_low_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, b_low_u8x64);
-    __m512i b2_high_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, b_high_u8x64);
-
-    // Accumulate low and high squares separately using SAD to avoid u8 overflow
-    a2_i64x8 = _mm512_add_epi64(a2_i64x8, _mm512_sad_epu8(a2_low_u8x64, zeros_i8x64));
-    a2_i64x8 = _mm512_add_epi64(a2_i64x8, _mm512_sad_epu8(a2_high_u8x64, zeros_i8x64));
-    b2_i64x8 = _mm512_add_epi64(b2_i64x8, _mm512_sad_epu8(b2_low_u8x64, zeros_i8x64));
-    b2_i64x8 = _mm512_add_epi64(b2_i64x8, _mm512_sad_epu8(b2_high_u8x64, zeros_i8x64));
-    if (n_bytes) goto nk_angular_u4_icelake_cycle;
-
-    nk_i32_t ab = _mm512_reduce_add_epi32(ab_i32x16);
-    nk_i64_t a2 = _mm512_reduce_add_epi64(a2_i64x8);
-    nk_i64_t b2 = _mm512_reduce_add_epi64(b2_i64x8);
-    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_ICELAKE
 
 /** Squared Euclidean distance between two e4m3 vectors. */
 NUMKONG_INLINE void nk_squared_distance_e4m3_icelake_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
@@ -776,7 +400,476 @@ nk_sqeuclidean_e4m3_icelake_cycle:
     *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16));
 }
 
+/** Squared Euclidean distance between two e2m3 vectors. */
+NUMKONG_INLINE void nk_squared_distance_e2m3_icelake_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
+    // E2M3 squared Euclidean distance via VPDPBUSD integer MAC.
+    __m512i const lut_magnitude_u8x64 = _mm512_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
+                                                        32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0,
+                                                        120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
+                                                        32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
+    __m512i const magnitude_mask_u8x64 = _mm512_set1_epi8(0x1F);
+    __m512i const sign_mask_u8x64 = _mm512_set1_epi8(0x20);
+    __m512i ab_i32x16 = _mm512_setzero_si512();
+    __m512i a2_i32x16 = _mm512_setzero_si512();
+    __m512i b2_i32x16 = _mm512_setzero_si512();
+    __m512i a_e2m3_u8x64, b_e2m3_u8x64;
+
+nk_sqeuclidean_e2m3_icelake_cycle:
+    if (n < 64) {
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n);
+        a_e2m3_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
+        b_e2m3_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
+        n = 0;
+    }
+    else {
+        a_e2m3_u8x64 = _mm512_loadu_si512(a);
+        b_e2m3_u8x64 = _mm512_loadu_si512(b);
+        a += 64, b += 64, n -= 64;
+    }
+
+    __m512i a_magnitude_u8x64 = _mm512_and_si512(a_e2m3_u8x64, magnitude_mask_u8x64);
+    __m512i b_magnitude_u8x64 = _mm512_and_si512(b_e2m3_u8x64, magnitude_mask_u8x64);
+    __m512i a_unsigned_u8x64 = _mm512_permutexvar_epi8(a_magnitude_u8x64, lut_magnitude_u8x64);
+    __m512i b_unsigned_u8x64 = _mm512_permutexvar_epi8(b_magnitude_u8x64, lut_magnitude_u8x64);
+
+    __m512i sign_combined_u8x64 = _mm512_and_si512(_mm512_xor_si512(a_e2m3_u8x64, b_e2m3_u8x64), sign_mask_u8x64);
+    __mmask64 negate_m64 = _mm512_test_epi8_mask(sign_combined_u8x64, sign_combined_u8x64);
+    __m512i b_signed_i8x64 = _mm512_mask_sub_epi8(b_unsigned_u8x64, negate_m64, _mm512_setzero_si512(),
+                                                  b_unsigned_u8x64);
+
+    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, a_unsigned_u8x64, b_signed_i8x64);
+    a2_i32x16 = _mm512_dpbusd_epi32(a2_i32x16, a_unsigned_u8x64, a_unsigned_u8x64);
+    b2_i32x16 = _mm512_dpbusd_epi32(b2_i32x16, b_unsigned_u8x64, b_unsigned_u8x64);
+
+    if (n) goto nk_sqeuclidean_e2m3_icelake_cycle;
+
+    // (a-b)² = a² + b² − 2 · ab, scaled by 256 (16² from LUT)
+    __m512 a2_f32x16 = _mm512_cvtepi32_ps(a2_i32x16);
+    __m512 b2_f32x16 = _mm512_cvtepi32_ps(b2_i32x16);
+    __m512 ab_f32x16 = _mm512_cvtepi32_ps(ab_i32x16);
+    __m512 sum_sq_f32x16 = _mm512_add_ps(a2_f32x16, b2_f32x16);
+    *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16)) / 256.0f;
+}
+
+/** Squared Euclidean distance between two e3m2 vectors. */
+NUMKONG_INLINE void nk_squared_distance_e3m2_icelake_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
+    // E3M2 squared Euclidean distance via direct difference squaring.
+    __m512i const lut_magnitude_i16x32 = _mm512_set_epi16(                       //
+        448, 384, 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32, //
+        28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0);
+    __m512i const magnitude_mask_i16x32 = _mm512_set1_epi16(0x1F);
+    __m512i const sign_mask_i16x32 = _mm512_set1_epi16(0x20);
+    __m512i sum_i32x16 = _mm512_setzero_si512();
+    __m256i a_e3m2_u8x32, b_e3m2_u8x32;
+
+nk_sqeuclidean_e3m2_icelake_cycle:
+    if (n < 32) {
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
+        a_e3m2_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, a);
+        b_e3m2_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, b);
+        n = 0;
+    }
+    else {
+        a_e3m2_u8x32 = _mm256_loadu_si256((__m256i const *)a);
+        b_e3m2_u8x32 = _mm256_loadu_si256((__m256i const *)b);
+        a += 32, b += 32, n -= 32;
+    }
+
+    __m512i a_u16x32 = _mm512_cvtepu8_epi16(a_e3m2_u8x32);
+    __m512i b_u16x32 = _mm512_cvtepu8_epi16(b_e3m2_u8x32);
+    __m512i a_unsigned_i16x32 = _mm512_permutexvar_epi16(_mm512_and_si512(a_u16x32, magnitude_mask_i16x32),
+                                                         lut_magnitude_i16x32);
+    __m512i b_unsigned_i16x32 = _mm512_permutexvar_epi16(_mm512_and_si512(b_u16x32, magnitude_mask_i16x32),
+                                                         lut_magnitude_i16x32);
+
+    // Apply signs individually
+    __mmask32 a_negative_m32 = _mm512_test_epi16_mask(a_u16x32, sign_mask_i16x32);
+    __mmask32 b_negative_m32 = _mm512_test_epi16_mask(b_u16x32, sign_mask_i16x32);
+    __m512i a_signed_i16x32 = _mm512_mask_sub_epi16(a_unsigned_i16x32, a_negative_m32, _mm512_setzero_si512(),
+                                                    a_unsigned_i16x32);
+    __m512i b_signed_i16x32 = _mm512_mask_sub_epi16(b_unsigned_i16x32, b_negative_m32, _mm512_setzero_si512(),
+                                                    b_unsigned_i16x32);
+
+    // Direct difference squaring: (a-b)² via VPMADDWD
+    __m512i diff_i16x32 = _mm512_sub_epi16(a_signed_i16x32, b_signed_i16x32);
+    sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(diff_i16x32, diff_i16x32));
+
+    if (n) goto nk_sqeuclidean_e3m2_icelake_cycle;
+    *result = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16) / 256.0f;
+}
+
 #if NUMKONG_TARGET_ICELAKE
+
+NUMKONG_API nk_status_t nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_i8_icelake_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t d2;
+    nk_squared_distance_i8_icelake_(a, b, n, &d2);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    __m512i dot_product_i32x16 = _mm512_setzero_si512();
+    __m512i a_norm_sq_i32x16 = _mm512_setzero_si512();
+    __m512i b_norm_sq_i32x16 = _mm512_setzero_si512();
+    __m512i a_i16x32, b_i16x32;
+nk_angular_i8_icelake_cycle:
+    if (n < 32) {
+        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, n);
+        a_i16x32 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask_m32, a));
+        b_i16x32 = _mm512_cvtepi8_epi16(_mm256_maskz_loadu_epi8(mask_m32, b));
+        n = 0;
+    }
+    else {
+        a_i16x32 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((__m256i const *)a));
+        b_i16x32 = _mm512_cvtepi8_epi16(_mm256_loadu_si256((__m256i const *)b));
+        a += 32, b += 32, n -= 32;
+    }
+
+    // We can't directly use the `_mm512_dpbusd_epi32` intrinsic everywhere,
+    // as it's asymmetric with respect to the sign of the input arguments:
+    //
+    //      Signed(ZeroExtend16(a.byte[4 × j]) × SignExtend16(b.byte[4 × j]))
+    //
+    // To compute the squares, we could just drop the sign bit of the second argument.
+    // But this would lead to big-big problems on values like `-128`!
+    // For dot-products we don't have the luxury of optimizing the sign bit away.
+    // Assuming this is an approximate kernel (with reciprocal square root approximations)
+    // in the end, we can allow clamping the value to [-127, 127] range.
+    //
+    // VNNI instruction performance (Ice Lake vs Zen4 Genoa):
+    //
+    //      Instruction                     Icelake         Genoa
+    //      VPDPBUSDS (ZMM, ZMM, ZMM)       5cy @ p0        4cy @ p01
+    //      VPDPWSSDS (ZMM, ZMM, ZMM)       5cy @ p0        4cy @ p01
+    //      VPMADDWD (ZMM, ZMM, ZMM)        5cy @ p05       3cy @ p01
+    //
+    // On Ice Lake, VNNI bottlenecks on port 0. On Genoa, dual-issue on p01 is faster.
+    //
+    // The old solution was complex replied on 1. and 2.:
+    //
+    //    a_i8_abs_vec = _mm512_abs_epi8(a_i8_vec);
+    //    b_i8_abs_vec = _mm512_abs_epi8(b_i8_vec);
+    //    a2_i32_vec = _mm512_dpbusds_epi32(a2_i32_vec, a_i8_abs_vec, a_i8_abs_vec);
+    //    b2_i32_vec = _mm512_dpbusds_epi32(b2_i32_vec, b_i8_abs_vec, b_i8_abs_vec);
+    //    ab_i32_low_vec = _mm512_dpwssds_epi32(                      //
+    //        ab_i32_low_vec,                                         //
+    //        _mm512_cvtepi8_epi16(_mm512_castsi512_si256(a_i8_vec)), //
+    //        _mm512_cvtepi8_epi16(_mm512_castsi512_si256(b_i8_vec)));
+    //    ab_i32_high_vec = _mm512_dpwssds_epi32(                           //
+    //        ab_i32_high_vec,                                              //
+    //        _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(a_i8_vec, 1)), //
+    //        _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(b_i8_vec, 1)));
+    //
+    // The new solution is simpler and relies on 3.:
+    dot_product_i32x16 = _mm512_add_epi32(dot_product_i32x16, _mm512_madd_epi16(a_i16x32, b_i16x32));
+    a_norm_sq_i32x16 = _mm512_add_epi32(a_norm_sq_i32x16, _mm512_madd_epi16(a_i16x32, a_i16x32));
+    b_norm_sq_i32x16 = _mm512_add_epi32(b_norm_sq_i32x16, _mm512_madd_epi16(b_i16x32, b_i16x32));
+    if (n) goto nk_angular_i8_icelake_cycle;
+
+    nk_i32_t dot_product_i32 = _mm512_reduce_add_epi32(dot_product_i32x16);
+    nk_i32_t a_norm_sq_i32 = _mm512_reduce_add_epi32(a_norm_sq_i32x16);
+    nk_i32_t b_norm_sq_i32 = _mm512_reduce_add_epi32(b_norm_sq_i32x16);
+    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
+                                                (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_u8_icelake_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t d2;
+    nk_squared_distance_u8_icelake_(a, b, n, &d2);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_u8_icelake(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    __m512i dot_product_low_i32x16 = _mm512_setzero_si512();
+    __m512i dot_product_high_i32x16 = _mm512_setzero_si512();
+    __m512i a_norm_sq_low_i32x16 = _mm512_setzero_si512();
+    __m512i a_norm_sq_high_i32x16 = _mm512_setzero_si512();
+    __m512i b_norm_sq_low_i32x16 = _mm512_setzero_si512();
+    __m512i b_norm_sq_high_i32x16 = _mm512_setzero_si512();
+    __m512i const zeros_i8x64 = _mm512_setzero_si512();
+    __m512i a_low_i16x32, a_high_i16x32, b_low_i16x32, b_high_i16x32;
+    __m512i a_u8x64, b_u8x64;
+
+nk_angular_u8_icelake_cycle:
+    if (n < 64) {
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n);
+        a_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
+        b_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
+        n = 0;
+    }
+    else {
+        a_u8x64 = _mm512_loadu_si512(a);
+        b_u8x64 = _mm512_loadu_si512(b);
+        a += 64, b += 64, n -= 64;
+    }
+
+    // Upcast `uint8` to `int16`. Unlike the signed version, we can use the unpacking
+    // instructions instead of extracts, as they are much faster and more efficient.
+    a_low_i16x32 = _mm512_unpacklo_epi8(a_u8x64, zeros_i8x64);
+    a_high_i16x32 = _mm512_unpackhi_epi8(a_u8x64, zeros_i8x64);
+    b_low_i16x32 = _mm512_unpacklo_epi8(b_u8x64, zeros_i8x64);
+    b_high_i16x32 = _mm512_unpackhi_epi8(b_u8x64, zeros_i8x64);
+
+    // Multiply and accumulate as `int16`, accumulate products as `int32`:
+    dot_product_low_i32x16 = _mm512_dpwssds_epi32(dot_product_low_i32x16, a_low_i16x32, b_low_i16x32);
+    dot_product_high_i32x16 = _mm512_dpwssds_epi32(dot_product_high_i32x16, a_high_i16x32, b_high_i16x32);
+    a_norm_sq_low_i32x16 = _mm512_dpwssds_epi32(a_norm_sq_low_i32x16, a_low_i16x32, a_low_i16x32);
+    a_norm_sq_high_i32x16 = _mm512_dpwssds_epi32(a_norm_sq_high_i32x16, a_high_i16x32, a_high_i16x32);
+    b_norm_sq_low_i32x16 = _mm512_dpwssds_epi32(b_norm_sq_low_i32x16, b_low_i16x32, b_low_i16x32);
+    b_norm_sq_high_i32x16 = _mm512_dpwssds_epi32(b_norm_sq_high_i32x16, b_high_i16x32, b_high_i16x32);
+    if (n) goto nk_angular_u8_icelake_cycle;
+
+    nk_i32_t dot_product_i32 = _mm512_reduce_add_epi32(
+        _mm512_add_epi32(dot_product_low_i32x16, dot_product_high_i32x16));
+    nk_i32_t a_norm_sq_i32 = _mm512_reduce_add_epi32(_mm512_add_epi32(a_norm_sq_low_i32x16, a_norm_sq_high_i32x16));
+    nk_i32_t b_norm_sq_i32 = _mm512_reduce_add_epi32(_mm512_add_epi32(b_norm_sq_low_i32x16, b_norm_sq_high_i32x16));
+    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)dot_product_i32, (nk_f32_t)a_norm_sq_i32,
+                                                (nk_f32_t)b_norm_sq_i32);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_i4_icelake_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t d2;
+    nk_squared_distance_i4_icelake_(a, b, n, &d2);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_i4_icelake(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // i4 values are packed as nibbles: two 4-bit signed values per byte.
+    nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
+
+    // Angular distance for signed 4-bit integers requires computing:
+    //   1. Dot product: ∑(aᵢ × bᵢ)
+    //   2. Squared norms: ∑(aᵢ²) and ∑(bᵢ²)
+    //
+    // For signed i4 values in [-8, 7], we use DPBUSD for everything by leveraging
+    // an algebraic identity. Define x = a ^ 8 (XOR with 8), which maps:
+    //   [0,7] → [8,15] and [8,15] → [0,7]
+    //
+    // The signed value is: a_signed = x - 8
+    //
+    // For two signed values:
+    //   a_signed × b_signed = (ax - 8)(bx - 8) = ax × bx - 8 × ax - 8 × bx + 64
+    //
+    // Therefore:
+    //   dot(a_signed, b_signed) = DPBUSD(ax, bx) - 8 × (∑(ax) + ∑(bx)) + 64 × n
+    //
+    // This avoids all i8 → i16 upcasts and uses DPBUSD directly on byte values!
+    // For norms, we use |x|² = x², computing abs then squaring with DPBUSD.
+    __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
+    __m512i const eight_i8x64 = _mm512_set1_epi8(8);
+    __m512i const zeros_i8x64 = _mm512_setzero_si512();
+
+    __m512i a_i4_u8x64, b_i4_u8x64;
+    __m512i a_low_u8x64, a_high_u8x64, b_low_u8x64, b_high_u8x64;
+    __m512i ax_low_u8x64, ax_high_u8x64, bx_low_u8x64, bx_high_u8x64;
+    __m512i a_low_i8x64, a_high_i8x64, b_low_i8x64, b_high_i8x64;
+
+    // Accumulators for dot product (using biased values) and correction sums
+    __m512i ab_i32x16 = zeros_i8x64;
+    __m512i ax_sum_i64x8 = zeros_i8x64;
+    __m512i bx_sum_i64x8 = zeros_i8x64;
+    // Accumulators for squared norms
+    __m512i a2_i32x16 = zeros_i8x64;
+    __m512i b2_i32x16 = zeros_i8x64;
+
+nk_angular_i4_icelake_cycle:
+    if (n_bytes < 64) {
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
+        a_i4_u8x64 = _mm512_mask_loadu_epi8(_mm512_set1_epi8((char)0x88), mask_m64, a);
+        b_i4_u8x64 = _mm512_mask_loadu_epi8(_mm512_set1_epi8((char)0x88), mask_m64, b);
+        n_bytes = 0;
+    }
+    else {
+        a_i4_u8x64 = _mm512_loadu_epi8(a);
+        b_i4_u8x64 = _mm512_loadu_epi8(b);
+        a += 64, b += 64, n_bytes -= 64;
+    }
+
+    // Extract nibbles as unsigned [0,15]
+    a_low_u8x64 = _mm512_and_si512(a_i4_u8x64, nibble_mask_u8x64);
+    a_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(a_i4_u8x64, 4), nibble_mask_u8x64);
+    b_low_u8x64 = _mm512_and_si512(b_i4_u8x64, nibble_mask_u8x64);
+    b_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(b_i4_u8x64, 4), nibble_mask_u8x64);
+
+    // Compute biased values: ax = a ^ 8 (still ∈ [0,15], just reordered)
+    ax_low_u8x64 = _mm512_xor_si512(a_low_u8x64, eight_i8x64);
+    ax_high_u8x64 = _mm512_xor_si512(a_high_u8x64, eight_i8x64);
+    bx_low_u8x64 = _mm512_xor_si512(b_low_u8x64, eight_i8x64);
+    bx_high_u8x64 = _mm512_xor_si512(b_high_u8x64, eight_i8x64);
+
+    // Dot product using DPBUSD on biased values (correction applied at end)
+    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, ax_low_u8x64, bx_low_u8x64);
+    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, ax_high_u8x64, bx_high_u8x64);
+
+    // Track sums for correction using SAD (sum of absolute differences with zero)
+    ax_sum_i64x8 = _mm512_add_epi64(ax_sum_i64x8, _mm512_sad_epu8(ax_low_u8x64, zeros_i8x64));
+    ax_sum_i64x8 = _mm512_add_epi64(ax_sum_i64x8, _mm512_sad_epu8(ax_high_u8x64, zeros_i8x64));
+    bx_sum_i64x8 = _mm512_add_epi64(bx_sum_i64x8, _mm512_sad_epu8(bx_low_u8x64, zeros_i8x64));
+    bx_sum_i64x8 = _mm512_add_epi64(bx_sum_i64x8, _mm512_sad_epu8(bx_high_u8x64, zeros_i8x64));
+
+    // For norms: convert to signed, take abs, then square with DPBUSD
+    a_low_i8x64 = _mm512_sub_epi8(ax_low_u8x64, eight_i8x64);
+    a_high_i8x64 = _mm512_sub_epi8(ax_high_u8x64, eight_i8x64);
+    b_low_i8x64 = _mm512_sub_epi8(bx_low_u8x64, eight_i8x64);
+    b_high_i8x64 = _mm512_sub_epi8(bx_high_u8x64, eight_i8x64);
+
+    __m512i a_low_abs_u8x64 = _mm512_abs_epi8(a_low_i8x64);
+    __m512i a_high_abs_u8x64 = _mm512_abs_epi8(a_high_i8x64);
+    __m512i b_low_abs_u8x64 = _mm512_abs_epi8(b_low_i8x64);
+    __m512i b_high_abs_u8x64 = _mm512_abs_epi8(b_high_i8x64);
+
+    // Squared norms: ‖x‖² = x², use DPBUSD for efficient squaring
+    a2_i32x16 = _mm512_dpbusd_epi32(a2_i32x16, a_low_abs_u8x64, a_low_abs_u8x64);
+    a2_i32x16 = _mm512_dpbusd_epi32(a2_i32x16, a_high_abs_u8x64, a_high_abs_u8x64);
+    b2_i32x16 = _mm512_dpbusd_epi32(b2_i32x16, b_low_abs_u8x64, b_low_abs_u8x64);
+    b2_i32x16 = _mm512_dpbusd_epi32(b2_i32x16, b_high_abs_u8x64, b_high_abs_u8x64);
+    if (n_bytes) goto nk_angular_i4_icelake_cycle;
+
+    // Apply algebraic correction for signed dot product:
+    // signed_dot = DPBUSD(ax, bx) - 8 × (∑(ax) + ∑(bx)) + 64 × n
+    nk_i64_t ax_sum = _mm512_reduce_add_epi64(ax_sum_i64x8);
+    nk_i64_t bx_sum = _mm512_reduce_add_epi64(bx_sum_i64x8);
+    nk_i32_t ab_raw = _mm512_reduce_add_epi32(ab_i32x16);
+    // Use I64 for the bias correction, which can overflow I32 for long vectors.
+    nk_i64_t ab = (nk_i64_t)ab_raw - 8 * (ax_sum + bx_sum) + 64 * (nk_i64_t)n;
+
+    nk_size_t const n_bytes_total = n / NUMKONG_NIBBLES_PER_BYTE;
+    nk_i32_t norm_excess = 128 * (nk_i32_t)(nk_size_round_up_to_multiple_(n_bytes_total, 64) - n_bytes_total);
+    nk_i32_t a2 = _mm512_reduce_add_epi32(a2_i32x16) - norm_excess;
+    nk_i32_t b2 = _mm512_reduce_add_epi32(b2_i32x16) - norm_excess;
+    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_u4_icelake_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t d2;
+    nk_squared_distance_u4_icelake_(a, b, n, &d2);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss((nk_f32_t)d2)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_u4_icelake(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
+    nk_size_t n_bytes = n / NUMKONG_NIBBLES_PER_BYTE;
+
+    // Angular distance for unsigned 4-bit integers ∈ [0, 15].
+    // Since values are unsigned and small, we can use DPBUSD directly for both
+    // dot product and norms without any sign handling.
+    //
+    // DPBUSD computes: ZeroExtend(a) * SignExtend(b), but for values ∈ [0, 15],
+    // sign extension is identity (no high bit set), so it works correctly.
+    __m512i const nibble_mask_u8x64 = _mm512_set1_epi8(0x0F);
+    __m512i const zeros_i8x64 = _mm512_setzero_si512();
+
+    __m512i a_u4_u8x64, b_u4_u8x64;
+    __m512i a_low_u8x64, a_high_u8x64, b_low_u8x64, b_high_u8x64;
+
+    __m512i ab_i32x16 = zeros_i8x64;
+    __m512i a2_i64x8 = zeros_i8x64;
+    __m512i b2_i64x8 = zeros_i8x64;
+
+nk_angular_u4_icelake_cycle:
+    if (n_bytes < 64) {
+        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n_bytes);
+        a_u4_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
+        b_u4_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
+        n_bytes = 0;
+    }
+    else {
+        a_u4_u8x64 = _mm512_loadu_epi8(a);
+        b_u4_u8x64 = _mm512_loadu_epi8(b);
+        a += 64, b += 64, n_bytes -= 64;
+    }
+
+    // Extract nibbles as unsigned [0,15]
+    a_low_u8x64 = _mm512_and_si512(a_u4_u8x64, nibble_mask_u8x64);
+    a_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(a_u4_u8x64, 4), nibble_mask_u8x64);
+    b_low_u8x64 = _mm512_and_si512(b_u4_u8x64, nibble_mask_u8x64);
+    b_high_u8x64 = _mm512_and_si512(_mm512_srli_epi16(b_u4_u8x64, 4), nibble_mask_u8x64);
+
+    // Dot product with DPBUSD (safe for unsigned [0,15])
+    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, a_low_u8x64, b_low_u8x64);
+    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, a_high_u8x64, b_high_u8x64);
+
+    // Squared norms: compute a² per nibble using lookup table for efficiency
+    // Squares lookup: 0 → 0, 1 → 1, 2 → 4, ..., 15 → 225
+    __m512i const u4_squares_lookup_u8x64 = _mm512_set_epi8(
+        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
+        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
+        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0, //
+        (char)225, (char)196, (char)169, (char)144, 121, 100, 81, 64, 49, 36, 25, 16, 9, 4, 1, 0);
+
+    __m512i a2_low_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, a_low_u8x64);
+    __m512i a2_high_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, a_high_u8x64);
+    __m512i b2_low_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, b_low_u8x64);
+    __m512i b2_high_u8x64 = _mm512_shuffle_epi8(u4_squares_lookup_u8x64, b_high_u8x64);
+
+    // Accumulate low and high squares separately using SAD to avoid u8 overflow
+    a2_i64x8 = _mm512_add_epi64(a2_i64x8, _mm512_sad_epu8(a2_low_u8x64, zeros_i8x64));
+    a2_i64x8 = _mm512_add_epi64(a2_i64x8, _mm512_sad_epu8(a2_high_u8x64, zeros_i8x64));
+    b2_i64x8 = _mm512_add_epi64(b2_i64x8, _mm512_sad_epu8(b2_low_u8x64, zeros_i8x64));
+    b2_i64x8 = _mm512_add_epi64(b2_i64x8, _mm512_sad_epu8(b2_high_u8x64, zeros_i8x64));
+    if (n_bytes) goto nk_angular_u4_icelake_cycle;
+
+    nk_i32_t ab = _mm512_reduce_add_epi32(ab_i32x16);
+    nk_i64_t a2 = _mm512_reduce_add_epi64(a2_i64x8);
+    nk_i64_t b2 = _mm512_reduce_add_epi64(b2_i64x8);
+    *result = nk_angular_normalize_f32_haswell_((nk_f32_t)ab, (nk_f32_t)a2, (nk_f32_t)b2);
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_icelake(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                     nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -929,61 +1022,6 @@ nk_angular_e4m3_icelake_cycle:
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_ICELAKE
-
-/** Squared Euclidean distance between two e2m3 vectors. */
-NUMKONG_INLINE void nk_squared_distance_e2m3_icelake_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
-    // E2M3 squared Euclidean distance via VPDPBUSD integer MAC.
-    __m512i const lut_magnitude_u8x64 = _mm512_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
-                                                        32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0,
-                                                        120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36,
-                                                        32, 30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
-    __m512i const magnitude_mask_u8x64 = _mm512_set1_epi8(0x1F);
-    __m512i const sign_mask_u8x64 = _mm512_set1_epi8(0x20);
-    __m512i ab_i32x16 = _mm512_setzero_si512();
-    __m512i a2_i32x16 = _mm512_setzero_si512();
-    __m512i b2_i32x16 = _mm512_setzero_si512();
-    __m512i a_e2m3_u8x64, b_e2m3_u8x64;
-
-nk_sqeuclidean_e2m3_icelake_cycle:
-    if (n < 64) {
-        __mmask64 mask_m64 = (__mmask64)_bzhi_u64(0xFFFFFFFFFFFFFFFF, n);
-        a_e2m3_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, a);
-        b_e2m3_u8x64 = _mm512_maskz_loadu_epi8(mask_m64, b);
-        n = 0;
-    }
-    else {
-        a_e2m3_u8x64 = _mm512_loadu_si512(a);
-        b_e2m3_u8x64 = _mm512_loadu_si512(b);
-        a += 64, b += 64, n -= 64;
-    }
-
-    __m512i a_magnitude_u8x64 = _mm512_and_si512(a_e2m3_u8x64, magnitude_mask_u8x64);
-    __m512i b_magnitude_u8x64 = _mm512_and_si512(b_e2m3_u8x64, magnitude_mask_u8x64);
-    __m512i a_unsigned_u8x64 = _mm512_permutexvar_epi8(a_magnitude_u8x64, lut_magnitude_u8x64);
-    __m512i b_unsigned_u8x64 = _mm512_permutexvar_epi8(b_magnitude_u8x64, lut_magnitude_u8x64);
-
-    __m512i sign_combined_u8x64 = _mm512_and_si512(_mm512_xor_si512(a_e2m3_u8x64, b_e2m3_u8x64), sign_mask_u8x64);
-    __mmask64 negate_m64 = _mm512_test_epi8_mask(sign_combined_u8x64, sign_combined_u8x64);
-    __m512i b_signed_i8x64 = _mm512_mask_sub_epi8(b_unsigned_u8x64, negate_m64, _mm512_setzero_si512(),
-                                                  b_unsigned_u8x64);
-
-    ab_i32x16 = _mm512_dpbusd_epi32(ab_i32x16, a_unsigned_u8x64, b_signed_i8x64);
-    a2_i32x16 = _mm512_dpbusd_epi32(a2_i32x16, a_unsigned_u8x64, a_unsigned_u8x64);
-    b2_i32x16 = _mm512_dpbusd_epi32(b2_i32x16, b_unsigned_u8x64, b_unsigned_u8x64);
-
-    if (n) goto nk_sqeuclidean_e2m3_icelake_cycle;
-
-    // (a-b)² = a² + b² − 2 · ab, scaled by 256 (16² from LUT)
-    __m512 a2_f32x16 = _mm512_cvtepi32_ps(a2_i32x16);
-    __m512 b2_f32x16 = _mm512_cvtepi32_ps(b2_i32x16);
-    __m512 ab_f32x16 = _mm512_cvtepi32_ps(ab_i32x16);
-    __m512 sum_sq_f32x16 = _mm512_add_ps(a2_f32x16, b2_f32x16);
-    *result = nk_reduce_add_f32x16_skylake_(_mm512_fnmadd_ps(_mm512_set1_ps(2.0f), ab_f32x16, sum_sq_f32x16)) / 256.0f;
-}
-
-#if NUMKONG_TARGET_ICELAKE
 NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_icelake(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
                                                     nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1050,57 +1088,6 @@ nk_angular_e2m3_icelake_cycle:
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_ICELAKE
-
-/** Squared Euclidean distance between two e3m2 vectors. */
-NUMKONG_INLINE void nk_squared_distance_e3m2_icelake_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
-    // E3M2 squared Euclidean distance via direct difference squaring.
-    __m512i const lut_magnitude_i16x32 = _mm512_set_epi16(                       //
-        448, 384, 320, 256, 224, 192, 160, 128, 112, 96, 80, 64, 56, 48, 40, 32, //
-        28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0);
-    __m512i const magnitude_mask_i16x32 = _mm512_set1_epi16(0x1F);
-    __m512i const sign_mask_i16x32 = _mm512_set1_epi16(0x20);
-    __m512i sum_i32x16 = _mm512_setzero_si512();
-    __m256i a_e3m2_u8x32, b_e3m2_u8x32;
-
-nk_sqeuclidean_e3m2_icelake_cycle:
-    if (n < 32) {
-        __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-        a_e3m2_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, a);
-        b_e3m2_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, b);
-        n = 0;
-    }
-    else {
-        a_e3m2_u8x32 = _mm256_loadu_si256((__m256i const *)a);
-        b_e3m2_u8x32 = _mm256_loadu_si256((__m256i const *)b);
-        a += 32, b += 32, n -= 32;
-    }
-
-    __m512i a_u16x32 = _mm512_cvtepu8_epi16(a_e3m2_u8x32);
-    __m512i b_u16x32 = _mm512_cvtepu8_epi16(b_e3m2_u8x32);
-    __m512i a_unsigned_i16x32 = _mm512_permutexvar_epi16(_mm512_and_si512(a_u16x32, magnitude_mask_i16x32),
-                                                         lut_magnitude_i16x32);
-    __m512i b_unsigned_i16x32 = _mm512_permutexvar_epi16(_mm512_and_si512(b_u16x32, magnitude_mask_i16x32),
-                                                         lut_magnitude_i16x32);
-
-    // Apply signs individually
-    __mmask32 a_negative_m32 = _mm512_test_epi16_mask(a_u16x32, sign_mask_i16x32);
-    __mmask32 b_negative_m32 = _mm512_test_epi16_mask(b_u16x32, sign_mask_i16x32);
-    __m512i a_signed_i16x32 = _mm512_mask_sub_epi16(a_unsigned_i16x32, a_negative_m32, _mm512_setzero_si512(),
-                                                    a_unsigned_i16x32);
-    __m512i b_signed_i16x32 = _mm512_mask_sub_epi16(b_unsigned_i16x32, b_negative_m32, _mm512_setzero_si512(),
-                                                    b_unsigned_i16x32);
-
-    // Direct difference squaring: (a-b)² via VPMADDWD
-    __m512i diff_i16x32 = _mm512_sub_epi16(a_signed_i16x32, b_signed_i16x32);
-    sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(diff_i16x32, diff_i16x32));
-
-    if (n) goto nk_sqeuclidean_e3m2_icelake_cycle;
-    *result = (nk_f32_t)_mm512_reduce_add_epi32(sum_i32x16) / 256.0f;
-}
-
-#if NUMKONG_TARGET_ICELAKE
 NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_icelake(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
                                                     nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1169,6 +1156,7 @@ nk_angular_e3m2_icelake_cycle:
     *result = nk_angular_normalize_f32_haswell_(ab_f32, a_norm_sq_f32, b_norm_sq_f32);
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)

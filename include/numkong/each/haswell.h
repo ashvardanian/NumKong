@@ -59,15 +59,6 @@ NUMKONG_INLINE void nk_add_f32_haswell_(nk_f32_t const *a, nk_f32_t const *b, nk
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API nk_status_t nk_each_sum_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_add_f32_haswell_(a, b, n, result);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_HASWELL
-
 /** Computes `alpha * a + beta` over @p n F32 values. */
 NUMKONG_INLINE void nk_affine_f32_haswell_(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
                                            nk_f32_t *result) {
@@ -88,7 +79,376 @@ NUMKONG_INLINE void nk_affine_f32_haswell_(nk_f32_t const *a, nk_size_t n, nk_f3
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
 }
 
+/** Adds @p n F64 values of @p a and @p b elementwise. */
+NUMKONG_INLINE void nk_add_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 4 <= n; i += 4) {
+        __m256d a_f64x4 = _mm256_loadu_pd(a + i);
+        __m256d b_f64x4 = _mm256_loadu_pd(b + i);
+        __m256d result_f64x4 = _mm256_add_pd(a_f64x4, b_f64x4);
+        _mm256_storeu_pd(result + i, result_f64x4);
+    }
+
+    // The tail:
+    for (; i < n; ++i) result[i] = a[i] + b[i];
+}
+
+/** Computes `alpha * a + beta` over @p n F64 values. */
+NUMKONG_INLINE void nk_affine_f64_haswell_(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
+                                           nk_f64_t *result) {
+    nk_f64_t alpha_val = *alpha;
+    nk_f64_t beta_val = *beta;
+    __m256d alpha_f64x4 = _mm256_set1_pd(alpha_val);
+    __m256d beta_f64x4 = _mm256_set1_pd(beta_val);
+
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 4 <= n; i += 4) {
+        __m256d a_f64x4 = _mm256_loadu_pd(a + i);
+        __m256d result_f64x4 = _mm256_fmadd_pd(a_f64x4, alpha_f64x4, beta_f64x4);
+        _mm256_storeu_pd(result + i, result_f64x4);
+    }
+
+    // The tail:
+    for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
+}
+
+/** Adds @p n F16 values of @p a and @p b elementwise, in F32. */
+NUMKONG_INLINE void nk_add_f16_haswell_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m128i a_f16x8 = _mm_loadu_si128((__m128i const *)(a + i));
+        __m128i b_f16x8 = _mm_loadu_si128((__m128i const *)(b + i));
+        __m256 a_f32x8 = _mm256_cvtph_ps(a_f16x8);
+        __m256 b_f32x8 = _mm256_cvtph_ps(b_f16x8);
+        __m256 result_f32x8 = _mm256_add_ps(a_f32x8, b_f32x8);
+        __m128i result_f16x8 = _mm256_cvtps_ph(result_f32x8, _MM_FROUND_TO_NEAREST_INT);
+        _mm_storeu_si128((__m128i *)(result + i), result_f16x8);
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai, bi;
+        ai = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)(a + i))));
+        bi = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)(b + i))));
+        nk_f32_t sum = ai + bi;
+        *(nk_u16_t *)(result +
+                      i) = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(sum), _MM_FROUND_TO_NEAREST_INT));
+    }
+}
+
+/** Computes `alpha * a + beta` over @p n F16 values, in F32. */
+NUMKONG_INLINE void nk_affine_f16_haswell_(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                           nk_f16_t *result) {
+    nk_f32_t alpha_val = *alpha;
+    nk_f32_t beta_val = *beta;
+    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
+    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
+
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m128i a_f16x8 = _mm_loadu_si128((__m128i const *)(a + i));
+        __m256 a_f32x8 = _mm256_cvtph_ps(a_f16x8);
+        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
+        __m128i result_f16x8 = _mm256_cvtps_ph(result_f32x8, _MM_FROUND_TO_NEAREST_INT);
+        _mm_storeu_si128((__m128i *)(result + i), result_f16x8);
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai;
+        ai = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)(a + i))));
+        nk_f32_t sum = alpha_val * ai + beta_val;
+        *(nk_u16_t *)(result +
+                      i) = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(sum), _MM_FROUND_TO_NEAREST_INT));
+    }
+}
+
+/** Adds @p n BF16 values of @p a and @p b elementwise, in F32. */
+NUMKONG_INLINE void nk_add_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result) {
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m128i a_bf16x8 = _mm_loadu_si128((__m128i const *)(a + i));
+        __m128i b_bf16x8 = _mm_loadu_si128((__m128i const *)(b + i));
+        __m256 a_f32x8 = nk_bf16x8_to_f32x8_haswell_(a_bf16x8);
+        __m256 b_f32x8 = nk_bf16x8_to_f32x8_haswell_(b_bf16x8);
+        __m256 result_f32x8 = _mm256_add_ps(a_f32x8, b_f32x8);
+        __m128i result_bf16x8 = nk_f32x8_to_bf16x8_haswell_(result_f32x8);
+        _mm_storeu_si128((__m128i *)(result + i), result_bf16x8);
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai, bi;
+        nk_bf16_to_f32_(a + i, &ai);
+        nk_bf16_to_f32_(b + i, &bi);
+        nk_f32_t sum = ai + bi;
+        nk_f32_to_bf16_(&sum, result + i);
+    }
+}
+
+/** Computes `alpha * a + beta` over @p n BF16 values, in F32. */
+NUMKONG_INLINE void nk_affine_bf16_haswell_(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
+                                            nk_f32_t const *beta, nk_bf16_t *result) {
+    nk_f32_t alpha_val = *alpha;
+    nk_f32_t beta_val = *beta;
+    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
+    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
+
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m128i a_bf16x8 = _mm_loadu_si128((__m128i const *)(a + i));
+        __m256 a_f32x8 = nk_bf16x8_to_f32x8_haswell_(a_bf16x8);
+        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
+        __m128i result_bf16x8 = nk_f32x8_to_bf16x8_haswell_(result_f32x8);
+        _mm_storeu_si128((__m128i *)(result + i), result_bf16x8);
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai;
+        nk_bf16_to_f32_(a + i, &ai);
+        nk_f32_t sum = alpha_val * ai + beta_val;
+        nk_f32_to_bf16_(&sum, result + i);
+    }
+}
+
+/** Adds @p n I8 values of @p a and @p b elementwise, saturating. */
+NUMKONG_INLINE void nk_add_i8_haswell_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 32 <= n; i += 32) {
+        __m256i a_i8x32 = _mm256_loadu_si256((__m256i *)(a + i));
+        __m256i b_i8x32 = _mm256_loadu_si256((__m256i *)(b + i));
+        __m256i result_i8x32 = _mm256_adds_epi8(a_i8x32, b_i8x32);
+        _mm256_storeu_si256((__m256i *)(result + i), result_i8x32);
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai = a[i], bi = b[i];
+        nk_f32_t sum = ai + bi;
+        nk_f32_to_i8_serial_(&sum, result + i);
+    }
+}
+
+/** Computes `alpha * a + beta` over @p n I8 values, in F32, saturating. */
+NUMKONG_INLINE void nk_affine_i8_haswell_(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                          nk_i8_t *result) {
+    nk_f32_t alpha_val = *alpha;
+    nk_f32_t beta_val = *beta;
+    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
+    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
+    int sum_i32s[8], a_i32s[8];
+
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
+        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
+        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
+            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
+        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
+        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
+        // The normal part.
+        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
+        // Instead of serial `nk_f32_to_i8_serial_` calls, clip and convert with SIMD, zeroing NaNs.
+        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
+        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
+        // Export into a serial buffer.
+        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
+        result[i + 0] = (nk_i8_t)sum_i32s[0];
+        result[i + 1] = (nk_i8_t)sum_i32s[1];
+        result[i + 2] = (nk_i8_t)sum_i32s[2];
+        result[i + 3] = (nk_i8_t)sum_i32s[3];
+        result[i + 4] = (nk_i8_t)sum_i32s[4];
+        result[i + 5] = (nk_i8_t)sum_i32s[5];
+        result[i + 6] = (nk_i8_t)sum_i32s[6];
+        result[i + 7] = (nk_i8_t)sum_i32s[7];
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai = a[i];
+        nk_f32_t sum = alpha_val * ai + beta_val;
+        nk_f32_to_i8_serial_(&sum, result + i);
+    }
+}
+
+/** Adds @p n U8 values of @p a and @p b elementwise, saturating. */
+NUMKONG_INLINE void nk_add_u8_haswell_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 32 <= n; i += 32) {
+        __m256i a_u8x32 = _mm256_loadu_si256((__m256i *)(a + i));
+        __m256i b_u8x32 = _mm256_loadu_si256((__m256i *)(b + i));
+        __m256i result_u8x32 = _mm256_adds_epu8(a_u8x32, b_u8x32);
+        _mm256_storeu_si256((__m256i *)(result + i), result_u8x32);
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai = a[i], bi = b[i];
+        nk_f32_t sum = ai + bi;
+        nk_f32_to_u8_serial_(&sum, result + i);
+    }
+}
+
+/** Computes `alpha * a + beta` over @p n U8 values, in F32, saturating. */
+NUMKONG_INLINE void nk_affine_u8_haswell_(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
+                                          nk_u8_t *result) {
+    nk_f32_t alpha_val = *alpha;
+    nk_f32_t beta_val = *beta;
+    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
+    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
+    int sum_i32s[8], a_i32s[8];
+
+    // The main loop:
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
+        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
+        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
+            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
+        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
+        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
+        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
+        // The normal part.
+        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
+        // Instead of serial calls to expensive `nk_f32_to_u8_serial_`, clip and convert with SIMD.
+        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
+        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
+        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
+        // Export into a serial buffer.
+        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
+        result[i + 0] = (nk_u8_t)sum_i32s[0];
+        result[i + 1] = (nk_u8_t)sum_i32s[1];
+        result[i + 2] = (nk_u8_t)sum_i32s[2];
+        result[i + 3] = (nk_u8_t)sum_i32s[3];
+        result[i + 4] = (nk_u8_t)sum_i32s[4];
+        result[i + 5] = (nk_u8_t)sum_i32s[5];
+        result[i + 6] = (nk_u8_t)sum_i32s[6];
+        result[i + 7] = (nk_u8_t)sum_i32s[7];
+    }
+
+    // The tail:
+    for (; i < n; ++i) {
+        nk_f32_t ai = a[i];
+        nk_f32_t sum = alpha_val * ai + beta_val;
+        nk_f32_to_u8_serial_(&sum, result + i);
+    }
+}
+
+NUMKONG_INLINE __m256i _mm256_adds_epi32_haswell(__m256i a, __m256i b) {
+    __m256i sum_i32x8 = _mm256_add_epi32(a, b);
+    __m256i a_xor_b_i32x8 = _mm256_xor_si256(a, b);
+    __m256i sum_xor_a_i32x8 = _mm256_xor_si256(sum_i32x8, a);
+    // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
+    __m256i overflow_i32x8 = _mm256_srai_epi32(_mm256_andnot_si256(a_xor_b_i32x8, sum_xor_a_i32x8), 31);
+    // Positive overflow → INT32_MAX, negative overflow → INT32_MIN
+    __m256i max_i32x8 = _mm256_set1_epi32(0x7FFFFFFF);
+    __m256i min_i32x8 = _mm256_set1_epi32((int)0x80000000);
+    __m256i saturated_i32x8 = _mm256_blendv_epi8(max_i32x8, min_i32x8, _mm256_srai_epi32(a, 31));
+    return _mm256_blendv_epi8(sum_i32x8, saturated_i32x8, overflow_i32x8);
+}
+
+NUMKONG_INLINE __m256i _mm256_adds_epu32_haswell(__m256i a, __m256i b) {
+    __m256i sum_u32x8 = _mm256_add_epi32(a, b);
+    __m256i max_u32x8 = _mm256_set1_epi32((int)0xFFFFFFFF);
+    // Overflow iff sum < a (unsigned wrapping). max_epu32(sum, a) != sum means overflow.
+    __m256i no_overflow_u32x8 = _mm256_cmpeq_epi32(_mm256_max_epu32(sum_u32x8, a), sum_u32x8);
+    return _mm256_blendv_epi8(max_u32x8, sum_u32x8, no_overflow_u32x8);
+}
+
+NUMKONG_INLINE __m256d _mm256_cvtepu32_pd_haswell(__m128i a) {
+    // TODO: Converting unsigned 32-bit integers to double-precision floats isn't trivial in AVX2.
+    // Let's convert the lower 31 bits to a double-precision float.
+    // And then conditionally add 2³¹ to the result if the MSB is set.
+    //
+    //  __m256d result = _mm256_cvtepi32_pd(_mm_and_si128(a, _mm_set1_epi32(0x7FFFFFFF)));
+    //  int should_increment = (_mm_movemask_epi8(a) & 0x8888);
+    //  should_increment = should_increment / 0x8888;
+    //  __m256d incremented = _mm256_add_pd(result, _mm256_set1_pd(2147483648.0));
+    //  result = _mm256_blend_pd(result, incremented, should_increment);
+    nk_u32_t from[4];
+    nk_f64_t to[4];
+    _mm_storeu_si128((__m128i *)from, a);
+    to[0] = (nk_f64_t)from[0];
+    to[1] = (nk_f64_t)from[1];
+    to[2] = (nk_f64_t)from[2];
+    to[3] = (nk_f64_t)from[3];
+    return _mm256_loadu_pd(to);
+}
+
+/** Rounds @p a, already clamped to [0, 2³²), to the nearest u32, ties to even. */
+NUMKONG_INLINE __m128i _mm256_cvtpd_epu32_haswell(__m256d a) {
+    // Adding 2⁵² leaves the rounded integer in the low mantissa bits of each lane
+    __m256i shifted_i64x4 = _mm256_castpd_si256(_mm256_add_pd(a, _mm256_set1_pd(4503599627370496.0)));
+    __m256i low_halves_i32x8 = _mm256_permutevar8x32_epi32(shifted_i64x4, _mm256_setr_epi32(0, 2, 4, 6, 0, 2, 4, 6));
+    return _mm256_castsi256_si128(low_halves_i32x8);
+}
+
+/** Vectorized `2^x` (Haswell AVX2); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+NUMKONG_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
+    x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
+    __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
+    __m256 r_f32x8 = _mm256_sub_ps(x_f32x8, n_f32x8);
+    __m256 p_f32x8 = _mm256_set1_ps(1.52527338e-5f);
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.54035304e-4f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.33335581e-3f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(9.61812910e-3f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(5.55041087e-2f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(2.40226507e-1f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(6.93147181e-1f));
+    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.0f));
+    __m256i n_i32x8 = _mm256_cvtps_epi32(n_f32x8);
+    n_i32x8 = _mm256_slli_epi32(_mm256_add_epi32(n_i32x8, _mm256_set1_epi32(127)), 23);
+    return _mm256_mul_ps(p_f32x8, _mm256_castsi256_ps(n_i32x8));
+}
+
+/** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
+ *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
+ *  lane-variable shift. */
+NUMKONG_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
+    __m256i const whole_i32x8 = _mm256_srai_epi32(t_q15_i32x8, 15); // floor, in [-10, 0]
+    __m256i const fraction_i32x8 = _mm256_and_si256(t_q15_i32x8, _mm256_set1_epi32(0x7FFF));
+    __m256i poly_i32x8 = _mm256_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(3678));
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(11410));
+    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
+                                  _mm256_set1_epi32(16382));
+    __m256i const scaled_i32x8 = _mm256_sub_epi32(_mm256_slli_epi32(poly_i32x8, 8), poly_i32x8); // 255 = (x<<8)-x
+    __m256i const shift_i32x8 = _mm256_sub_epi32(_mm256_set1_epi32(14), whole_i32x8);
+    __m256i const bias_i32x8 = _mm256_sllv_epi32(_mm256_set1_epi32(1),
+                                                 _mm256_sub_epi32(_mm256_set1_epi32(13), whole_i32x8));
+    return _mm256_srav_epi32(_mm256_add_epi32(scaled_i32x8, bias_i32x8), shift_i32x8);
+}
+
+/** Vectorized SiLU, x / (1 + 2^(−x × log₂e)), on Haswell AVX2. */
+NUMKONG_INLINE __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
+    __m256 e_f32x8 = nk_exp2_f32x8_haswell_(_mm256_mul_ps(x_f32x8, _mm256_set1_ps(-NUMKONG_F32_LOG2E_)));
+    return _mm256_div_ps(x_f32x8, _mm256_add_ps(_mm256_set1_ps(1.0f), e_f32x8));
+}
+
 #if NUMKONG_TARGET_HASWELL
+
+NUMKONG_API nk_status_t nk_each_sum_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_add_f32_haswell_(a, b, n, result);
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_each_scale_f32_haswell(nk_f32_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                   nk_f32_t const *beta, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -137,53 +497,14 @@ NUMKONG_API nk_status_t nk_each_blend_f32_haswell(     //
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val * b[i];
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Adds @p n F64 values of @p a and @p b elementwise. */
-NUMKONG_INLINE void nk_add_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 4 <= n; i += 4) {
-        __m256d a_f64x4 = _mm256_loadu_pd(a + i);
-        __m256d b_f64x4 = _mm256_loadu_pd(b + i);
-        __m256d result_f64x4 = _mm256_add_pd(a_f64x4, b_f64x4);
-        _mm256_storeu_pd(result + i, result_f64x4);
-    }
-
-    // The tail:
-    for (; i < n; ++i) result[i] = a[i] + b[i];
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_sum_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_f64_haswell_(a, b, n, result);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Computes `alpha * a + beta` over @p n F64 values. */
-NUMKONG_INLINE void nk_affine_f64_haswell_(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha, nk_f64_t const *beta,
-                                           nk_f64_t *result) {
-    nk_f64_t alpha_val = *alpha;
-    nk_f64_t beta_val = *beta;
-    __m256d alpha_f64x4 = _mm256_set1_pd(alpha_val);
-    __m256d beta_f64x4 = _mm256_set1_pd(beta_val);
-
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 4 <= n; i += 4) {
-        __m256d a_f64x4 = _mm256_loadu_pd(a + i);
-        __m256d result_f64x4 = _mm256_fmadd_pd(a_f64x4, alpha_f64x4, beta_f64x4);
-        _mm256_storeu_pd(result + i, result_f64x4);
-    }
-
-    // The tail:
-    for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val;
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_scale_f64_haswell(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
                                                   nk_f64_t const *beta, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -232,71 +553,14 @@ NUMKONG_API nk_status_t nk_each_blend_f64_haswell(     //
     for (; i < n; ++i) result[i] = alpha_val * a[i] + beta_val * b[i];
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Adds @p n F16 values of @p a and @p b elementwise, in F32. */
-NUMKONG_INLINE void nk_add_f16_haswell_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result) {
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m128i a_f16x8 = _mm_loadu_si128((__m128i const *)(a + i));
-        __m128i b_f16x8 = _mm_loadu_si128((__m128i const *)(b + i));
-        __m256 a_f32x8 = _mm256_cvtph_ps(a_f16x8);
-        __m256 b_f32x8 = _mm256_cvtph_ps(b_f16x8);
-        __m256 result_f32x8 = _mm256_add_ps(a_f32x8, b_f32x8);
-        __m128i result_f16x8 = _mm256_cvtps_ph(result_f32x8, _MM_FROUND_TO_NEAREST_INT);
-        _mm_storeu_si128((__m128i *)(result + i), result_f16x8);
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai, bi;
-        ai = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)(a + i))));
-        bi = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)(b + i))));
-        nk_f32_t sum = ai + bi;
-        *(nk_u16_t *)(result +
-                      i) = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(sum), _MM_FROUND_TO_NEAREST_INT));
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_sum_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f16_t *result,
                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_f16_haswell_(a, b, n, result);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Computes `alpha * a + beta` over @p n F16 values, in F32. */
-NUMKONG_INLINE void nk_affine_f16_haswell_(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                           nk_f16_t *result) {
-    nk_f32_t alpha_val = *alpha;
-    nk_f32_t beta_val = *beta;
-    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
-    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m128i a_f16x8 = _mm_loadu_si128((__m128i const *)(a + i));
-        __m256 a_f32x8 = _mm256_cvtph_ps(a_f16x8);
-        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        __m128i result_f16x8 = _mm256_cvtps_ph(result_f32x8, _MM_FROUND_TO_NEAREST_INT);
-        _mm_storeu_si128((__m128i *)(result + i), result_f16x8);
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai;
-        ai = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)(a + i))));
-        nk_f32_t sum = alpha_val * ai + beta_val;
-        *(nk_u16_t *)(result +
-                      i) = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(sum), _MM_FROUND_TO_NEAREST_INT));
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_scale_f16_haswell(nk_f16_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                   nk_f32_t const *beta, nk_f16_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -355,69 +619,14 @@ NUMKONG_API nk_status_t nk_each_blend_f16_haswell(     //
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Adds @p n BF16 values of @p a and @p b elementwise, in F32. */
-NUMKONG_INLINE void nk_add_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result) {
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m128i a_bf16x8 = _mm_loadu_si128((__m128i const *)(a + i));
-        __m128i b_bf16x8 = _mm_loadu_si128((__m128i const *)(b + i));
-        __m256 a_f32x8 = nk_bf16x8_to_f32x8_haswell_(a_bf16x8);
-        __m256 b_f32x8 = nk_bf16x8_to_f32x8_haswell_(b_bf16x8);
-        __m256 result_f32x8 = _mm256_add_ps(a_f32x8, b_f32x8);
-        __m128i result_bf16x8 = nk_f32x8_to_bf16x8_haswell_(result_f32x8);
-        _mm_storeu_si128((__m128i *)(result + i), result_bf16x8);
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai, bi;
-        nk_bf16_to_f32_(a + i, &ai);
-        nk_bf16_to_f32_(b + i, &bi);
-        nk_f32_t sum = ai + bi;
-        nk_f32_to_bf16_(&sum, result + i);
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_sum_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
                                                  void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_bf16_haswell_(a, b, n, result);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Computes `alpha * a + beta` over @p n BF16 values, in F32. */
-NUMKONG_INLINE void nk_affine_bf16_haswell_(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
-                                            nk_f32_t const *beta, nk_bf16_t *result) {
-    nk_f32_t alpha_val = *alpha;
-    nk_f32_t beta_val = *beta;
-    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
-    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m128i a_bf16x8 = _mm_loadu_si128((__m128i const *)(a + i));
-        __m256 a_f32x8 = nk_bf16x8_to_f32x8_haswell_(a_bf16x8);
-        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        __m128i result_bf16x8 = nk_f32x8_to_bf16x8_haswell_(result_f32x8);
-        _mm_storeu_si128((__m128i *)(result + i), result_bf16x8);
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai;
-        nk_bf16_to_f32_(a + i, &ai);
-        nk_f32_t sum = alpha_val * ai + beta_val;
-        nk_f32_to_bf16_(&sum, result + i);
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_scale_bf16_haswell(nk_bf16_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                    nk_f32_t const *beta, nk_bf16_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -602,83 +811,14 @@ NUMKONG_API nk_status_t nk_each_fma_bf16_haswell(               //
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Adds @p n I8 values of @p a and @p b elementwise, saturating. */
-NUMKONG_INLINE void nk_add_i8_haswell_(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result) {
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 32 <= n; i += 32) {
-        __m256i a_i8x32 = _mm256_loadu_si256((__m256i *)(a + i));
-        __m256i b_i8x32 = _mm256_loadu_si256((__m256i *)(b + i));
-        __m256i result_i8x32 = _mm256_adds_epi8(a_i8x32, b_i8x32);
-        _mm256_storeu_si256((__m256i *)(result + i), result_i8x32);
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai = a[i], bi = b[i];
-        nk_f32_t sum = ai + bi;
-        nk_f32_to_i8_serial_(&sum, result + i);
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_sum_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_i8_haswell_(a, b, n, result);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Computes `alpha * a + beta` over @p n I8 values, in F32, saturating. */
-NUMKONG_INLINE void nk_affine_i8_haswell_(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                          nk_i8_t *result) {
-    nk_f32_t alpha_val = *alpha;
-    nk_f32_t beta_val = *beta;
-    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
-    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8];
-
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
-        // The normal part.
-        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        // Instead of serial `nk_f32_to_i8_serial_` calls, clip and convert with SIMD, zeroing NaNs.
-        __m256 ordered_f32x8 = _mm256_cmp_ps(result_f32x8, result_f32x8, _CMP_ORD_Q);
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_set1_ps(-128.0f));
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(127.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(result_f32x8, ordered_f32x8));
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_i8_t)sum_i32s[0];
-        result[i + 1] = (nk_i8_t)sum_i32s[1];
-        result[i + 2] = (nk_i8_t)sum_i32s[2];
-        result[i + 3] = (nk_i8_t)sum_i32s[3];
-        result[i + 4] = (nk_i8_t)sum_i32s[4];
-        result[i + 5] = (nk_i8_t)sum_i32s[5];
-        result[i + 6] = (nk_i8_t)sum_i32s[6];
-        result[i + 7] = (nk_i8_t)sum_i32s[7];
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai = a[i];
-        nk_f32_t sum = alpha_val * ai + beta_val;
-        nk_f32_to_i8_serial_(&sum, result + i);
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_scale_i8_haswell(nk_i8_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                  nk_f32_t const *beta, nk_i8_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -755,82 +895,14 @@ NUMKONG_API nk_status_t nk_each_blend_i8_haswell(    //
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Adds @p n U8 values of @p a and @p b elementwise, saturating. */
-NUMKONG_INLINE void nk_add_u8_haswell_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result) {
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 32 <= n; i += 32) {
-        __m256i a_u8x32 = _mm256_loadu_si256((__m256i *)(a + i));
-        __m256i b_u8x32 = _mm256_loadu_si256((__m256i *)(b + i));
-        __m256i result_u8x32 = _mm256_adds_epu8(a_u8x32, b_u8x32);
-        _mm256_storeu_si256((__m256i *)(result + i), result_u8x32);
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai = a[i], bi = b[i];
-        nk_f32_t sum = ai + bi;
-        nk_f32_to_u8_serial_(&sum, result + i);
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_sum_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_add_u8_haswell_(a, b, n, result);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Computes `alpha * a + beta` over @p n U8 values, in F32, saturating. */
-NUMKONG_INLINE void nk_affine_u8_haswell_(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha, nk_f32_t const *beta,
-                                          nk_u8_t *result) {
-    nk_f32_t alpha_val = *alpha;
-    nk_f32_t beta_val = *beta;
-    __m256 alpha_f32x8 = _mm256_set1_ps(alpha_val);
-    __m256 beta_f32x8 = _mm256_set1_ps(beta_val);
-    int sum_i32s[8], a_i32s[8];
-
-    // The main loop:
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        //? Handling loads and stores with SIMD is tricky. Not because of upcasting, but the
-        //? downcasting at the end of the loop. In AVX2 it's a drag! Keep it for another day.
-        a_i32s[0] = a[i + 0], a_i32s[1] = a[i + 1], a_i32s[2] = a[i + 2], a_i32s[3] = a[i + 3], //
-            a_i32s[4] = a[i + 4], a_i32s[5] = a[i + 5], a_i32s[6] = a[i + 6], a_i32s[7] = a[i + 7];
-        //! This can be done at least 50% faster if we convert 8-bit integers to floats instead
-        //! of relying on `_mm256_cvtepi32_ps`: 4cy (1/cy) @ p01.
-        __m256 a_f32x8 = _mm256_cvtepi32_ps(_mm256_loadu_si256((__m256i *)a_i32s));
-        // The normal part.
-        __m256 result_f32x8 = _mm256_fmadd_ps(a_f32x8, alpha_f32x8, beta_f32x8);
-        // Instead of serial calls to expensive `nk_f32_to_u8_serial_`, clip and convert with SIMD.
-        result_f32x8 = _mm256_max_ps(result_f32x8, _mm256_setzero_ps());
-        result_f32x8 = _mm256_min_ps(result_f32x8, _mm256_set1_ps(255.0f));
-        __m256i result_i32x8 = _mm256_cvtps_epi32(result_f32x8);
-        // Export into a serial buffer.
-        _mm256_storeu_si256((__m256i *)sum_i32s, result_i32x8);
-        result[i + 0] = (nk_u8_t)sum_i32s[0];
-        result[i + 1] = (nk_u8_t)sum_i32s[1];
-        result[i + 2] = (nk_u8_t)sum_i32s[2];
-        result[i + 3] = (nk_u8_t)sum_i32s[3];
-        result[i + 4] = (nk_u8_t)sum_i32s[4];
-        result[i + 5] = (nk_u8_t)sum_i32s[5];
-        result[i + 6] = (nk_u8_t)sum_i32s[6];
-        result[i + 7] = (nk_u8_t)sum_i32s[7];
-    }
-
-    // The tail:
-    for (; i < n; ++i) {
-        nk_f32_t ai = a[i];
-        nk_f32_t sum = alpha_val * ai + beta_val;
-        nk_f32_to_u8_serial_(&sum, result + i);
-    }
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_scale_u8_haswell(nk_u8_t const *a, nk_size_t n, nk_f32_t const *alpha,
                                                  nk_f32_t const *beta, nk_u8_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1203,22 +1275,7 @@ NUMKONG_API nk_status_t nk_each_fma_u16_haswell(                          //
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-NUMKONG_INLINE __m256i _mm256_adds_epi32_haswell(__m256i a, __m256i b) {
-    __m256i sum_i32x8 = _mm256_add_epi32(a, b);
-    __m256i a_xor_b_i32x8 = _mm256_xor_si256(a, b);
-    __m256i sum_xor_a_i32x8 = _mm256_xor_si256(sum_i32x8, a);
-    // ~(a^b) & (sum^a): overflow iff same-sign inputs produce different-sign result
-    __m256i overflow_i32x8 = _mm256_srai_epi32(_mm256_andnot_si256(a_xor_b_i32x8, sum_xor_a_i32x8), 31);
-    // Positive overflow → INT32_MAX, negative overflow → INT32_MIN
-    __m256i max_i32x8 = _mm256_set1_epi32(0x7FFFFFFF);
-    __m256i min_i32x8 = _mm256_set1_epi32((int)0x80000000);
-    __m256i saturated_i32x8 = _mm256_blendv_epi8(max_i32x8, min_i32x8, _mm256_srai_epi32(a, 31));
-    return _mm256_blendv_epi8(sum_i32x8, saturated_i32x8, overflow_i32x8);
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_sum_i32_haswell(nk_i32_t const *a, nk_i32_t const *b, nk_size_t n, nk_i32_t *result,
                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1308,45 +1365,7 @@ NUMKONG_API nk_status_t nk_each_fma_i32_haswell(                          //
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-NUMKONG_INLINE __m256i _mm256_adds_epu32_haswell(__m256i a, __m256i b) {
-    __m256i sum_u32x8 = _mm256_add_epi32(a, b);
-    __m256i max_u32x8 = _mm256_set1_epi32((int)0xFFFFFFFF);
-    // Overflow iff sum < a (unsigned wrapping). max_epu32(sum, a) != sum means overflow.
-    __m256i no_overflow_u32x8 = _mm256_cmpeq_epi32(_mm256_max_epu32(sum_u32x8, a), sum_u32x8);
-    return _mm256_blendv_epi8(max_u32x8, sum_u32x8, no_overflow_u32x8);
-}
-
-NUMKONG_INLINE __m256d _mm256_cvtepu32_pd_haswell(__m128i a) {
-    // TODO: Converting unsigned 32-bit integers to double-precision floats isn't trivial in AVX2.
-    // Let's convert the lower 31 bits to a double-precision float.
-    // And then conditionally add 2³¹ to the result if the MSB is set.
-    //
-    //  __m256d result = _mm256_cvtepi32_pd(_mm_and_si128(a, _mm_set1_epi32(0x7FFFFFFF)));
-    //  int should_increment = (_mm_movemask_epi8(a) & 0x8888);
-    //  should_increment = should_increment / 0x8888; // Transform something like 0b1000100010001000 to 0b1111
-    //  __m256d incremented = _mm256_add_pd(result, _mm256_set1_pd(2147483648.0));
-    //  result = _mm256_blend_pd(result, incremented, should_increment);
-    nk_u32_t from[4];
-    nk_f64_t to[4];
-    _mm_storeu_si128((__m128i *)from, a);
-    to[0] = (nk_f64_t)from[0];
-    to[1] = (nk_f64_t)from[1];
-    to[2] = (nk_f64_t)from[2];
-    to[3] = (nk_f64_t)from[3];
-    return _mm256_loadu_pd(to);
-}
-
-/** Rounds @p a, already clamped to [0, 2³²), to the nearest u32, ties to even. */
-NUMKONG_INLINE __m128i _mm256_cvtpd_epu32_haswell(__m256d a) {
-    // Adding 2⁵² leaves the rounded integer in the low mantissa bits of each lane
-    __m256i shifted_i64x4 = _mm256_castpd_si256(_mm256_add_pd(a, _mm256_set1_pd(4503599627370496.0)));
-    __m256i low_halves_i32x8 = _mm256_permutevar8x32_epi32(shifted_i64x4, _mm256_setr_epi32(0, 2, 4, 6, 0, 2, 4, 6));
-    return _mm256_castsi256_si128(low_halves_i32x8);
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_sum_u32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_size_t n, nk_u32_t *result,
                                                 void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1865,53 +1884,7 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_haswell(nk_f64c_t const *a, nk_f64c_t c
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Vectorized `2^x` (Haswell AVX2); matches @c nk_f32_exp2_serial_ to polynomial precision. */
-NUMKONG_INLINE __m256 nk_exp2_f32x8_haswell_(__m256 x_f32x8) {
-    x_f32x8 = _mm256_max_ps(_mm256_min_ps(x_f32x8, _mm256_set1_ps(127.0f)), _mm256_set1_ps(-125.0f));
-    __m256 n_f32x8 = _mm256_round_ps(x_f32x8, _MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC);
-    __m256 r_f32x8 = _mm256_sub_ps(x_f32x8, n_f32x8);
-    __m256 p_f32x8 = _mm256_set1_ps(1.52527338e-5f);
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.54035304e-4f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.33335581e-3f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(9.61812910e-3f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(5.55041087e-2f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(2.40226507e-1f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(6.93147181e-1f));
-    p_f32x8 = _mm256_fmadd_ps(p_f32x8, r_f32x8, _mm256_set1_ps(1.0f));
-    __m256i n_i32x8 = _mm256_cvtps_epi32(n_f32x8);
-    n_i32x8 = _mm256_slli_epi32(_mm256_add_epi32(n_i32x8, _mm256_set1_epi32(127)), 23);
-    return _mm256_mul_ps(p_f32x8, _mm256_castsi256_ps(n_i32x8));
-}
-
-/** I-BERT-style integer 2ᵗ without floats: takes a Q15 exponent in [−10 × 2¹⁵, 0] and returns
- *  round(2ᵗ × 255) as a U8 weight in each I32 lane, through a degree-3 Q14 polynomial and a
- *  lane-variable shift. */
-NUMKONG_INLINE __m256i nk_exp2_u8_i32x8_haswell_(__m256i t_q15_i32x8) {
-    __m256i const whole_i32x8 = _mm256_srai_epi32(t_q15_i32x8, 15); // floor, in [-10, 0]
-    __m256i const fraction_i32x8 = _mm256_and_si256(t_q15_i32x8, _mm256_set1_epi32(0x7FFF));
-    __m256i poly_i32x8 = _mm256_set1_epi32(1296); // Chebyshev-fit 2^r coefficients in Q14, degree 3
-    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
-                                  _mm256_set1_epi32(3678));
-    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
-                                  _mm256_set1_epi32(11410));
-    poly_i32x8 = _mm256_add_epi32(_mm256_srai_epi32(_mm256_mullo_epi32(fraction_i32x8, poly_i32x8), 15),
-                                  _mm256_set1_epi32(16382));
-    __m256i const scaled_i32x8 = _mm256_sub_epi32(_mm256_slli_epi32(poly_i32x8, 8), poly_i32x8); // 255 = (x<<8)-x
-    __m256i const shift_i32x8 = _mm256_sub_epi32(_mm256_set1_epi32(14), whole_i32x8);
-    __m256i const bias_i32x8 = _mm256_sllv_epi32(_mm256_set1_epi32(1),
-                                                 _mm256_sub_epi32(_mm256_set1_epi32(13), whole_i32x8));
-    return _mm256_srav_epi32(_mm256_add_epi32(scaled_i32x8, bias_i32x8), shift_i32x8);
-}
-
-/** Vectorized SiLU, x / (1 + 2^(−x × log₂e)), on Haswell AVX2. */
-NUMKONG_INLINE __m256 nk_silu_f32x8_haswell_(__m256 x_f32x8) {
-    __m256 e_f32x8 = nk_exp2_f32x8_haswell_(_mm256_mul_ps(x_f32x8, _mm256_set1_ps(-NUMKONG_F32_LOG2E_)));
-    return _mm256_div_ps(x_f32x8, _mm256_add_ps(_mm256_set1_ps(1.0f), e_f32x8));
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_each_swiglu_f32_haswell(nk_f32_t const *gate, nk_f32_t const *up, nk_f32_t *y,
                                                    nk_size_t rows, nk_size_t columns, nk_size_t gate_stride,
                                                    nk_size_t up_stride, nk_size_t y_stride, nk_f32_t gate_scale,
@@ -2118,6 +2091,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

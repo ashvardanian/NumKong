@@ -39,16 +39,6 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API void nk_f32_to_f16_haswell(nk_f32_t const *from, nk_f16_t *to) {
-    *(nk_u16_t *)to = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(*from), _MM_FROUND_TO_NEAREST_INT));
-}
-
-NUMKONG_API void nk_f16_to_f32_haswell(nk_f16_t const *from, nk_f32_t *to) {
-    *to = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)from)));
-}
-#endif // NUMKONG_TARGET_HASWELL
-
 #pragma region Type Punned Loads and Stores
 
 /** Type-agnostic 256-bit full load (Haswell AVX2). */
@@ -135,9 +125,11 @@ NUMKONG_INLINE __m256 nk_u8x8_to_f32x8_haswell_(__m128i u8x8) { return _mm256_cv
 NUMKONG_INLINE __m256 nk_i16x8_to_f32x8_haswell_(__m128i i16x8) {
     return _mm256_cvtepi32_ps(_mm256_cvtepi16_epi32(i16x8));
 }
+
 NUMKONG_INLINE __m256 nk_u16x8_to_f32x8_haswell_(__m128i u16x8) {
     return _mm256_cvtepi32_ps(_mm256_cvtepu16_epi32(u16x8));
 }
+
 NUMKONG_INLINE __m256 nk_i32x8_to_f32x8_haswell_(__m256i i32x8) { return _mm256_cvtepi32_ps(i32x8); }
 NUMKONG_INLINE __m256 nk_u32x8_to_f32x8_haswell_(__m256i u32x8) {
     __m256i low_i32x8 = _mm256_and_si256(u32x8, _mm256_set1_epi32(0xFFFF));
@@ -154,6 +146,7 @@ NUMKONG_INLINE __m256i nk_f32x8_to_i32x8_haswell_(__m256 f32x8) {
     // Out-of-range lanes convert to INT32_MIN; flipping every bit makes the positive ones INT32_MAX
     return _mm256_xor_si256(rounded_i32x8, _mm256_castps_si256(overflow_f32x8));
 }
+
 NUMKONG_INLINE __m256i nk_f32x8_to_u32x8_haswell_(__m256 f32x8) {
     __m256 clamped_f32x8 = _mm256_max_ps(f32x8, _mm256_setzero_ps());
     __m256 threshold_f32x8 = _mm256_set1_ps(2147483648.0f);
@@ -166,17 +159,20 @@ NUMKONG_INLINE __m256i nk_f32x8_to_u32x8_haswell_(__m256 f32x8) {
                                              _mm256_and_si256(mask_i32x8, _mm256_set1_epi32((int)0x80000000)));
     return _mm256_or_si256(rounded_u32x8, overflow_i32x8);
 }
+
 NUMKONG_INLINE __m128i nk_f32x8_to_i16x8_haswell_(__m256 f32x8) {
     __m256 ordered_f32x8 = _mm256_cmp_ps(f32x8, f32x8, _CMP_ORD_Q);
     __m256 clamped_f32x8 = _mm256_min_ps(_mm256_max_ps(f32x8, _mm256_set1_ps(-32768.0f)), _mm256_set1_ps(32767.0f));
     __m256i rounded_i32x8 = _mm256_cvtps_epi32(_mm256_and_ps(clamped_f32x8, ordered_f32x8));
     return _mm_packs_epi32(_mm256_castsi256_si128(rounded_i32x8), _mm256_extracti128_si256(rounded_i32x8, 1));
 }
+
 NUMKONG_INLINE __m128i nk_f32x8_to_u16x8_haswell_(__m256 f32x8) {
     __m256 clamped_f32x8 = _mm256_min_ps(_mm256_max_ps(f32x8, _mm256_setzero_ps()), _mm256_set1_ps(65535.0f));
     __m256i rounded_i32x8 = _mm256_cvtps_epi32(clamped_f32x8);
     return _mm_packus_epi32(_mm256_castsi256_si128(rounded_i32x8), _mm256_extracti128_si256(rounded_i32x8, 1));
 }
+
 NUMKONG_INLINE __m128i nk_f32x8_to_i8x8_haswell_(__m256 f32x8) {
     __m256 ordered_f32x8 = _mm256_cmp_ps(f32x8, f32x8, _CMP_ORD_Q);
     __m256 clamped_f32x8 = _mm256_min_ps(_mm256_max_ps(f32x8, _mm256_set1_ps(-128.0f)), _mm256_set1_ps(127.0f));
@@ -185,6 +181,7 @@ NUMKONG_INLINE __m128i nk_f32x8_to_i8x8_haswell_(__m256 f32x8) {
                                            _mm256_extracti128_si256(rounded_i32x8, 1));
     return _mm_packs_epi16(packed_i16x8, _mm_setzero_si128());
 }
+
 NUMKONG_INLINE __m128i nk_f32x8_to_u8x8_haswell_(__m256 f32x8) {
     __m256 clamped_f32x8 = _mm256_min_ps(_mm256_max_ps(f32x8, _mm256_setzero_ps()), _mm256_set1_ps(255.0f));
     __m256i rounded_i32x8 = _mm256_cvtps_epi32(clamped_f32x8);
@@ -1048,7 +1045,18 @@ NUMKONG_INLINE void nk_cast_block_scaled_haswell_(void const *from, nk_u8_t cons
     }
 }
 
+#pragma endregion Public API
+
 #if NUMKONG_TARGET_HASWELL
+
+NUMKONG_API void nk_f32_to_f16_haswell(nk_f32_t const *from, nk_f16_t *to) {
+    *(nk_u16_t *)to = (nk_u16_t)_mm_cvtsi128_si32(_mm_cvtps_ph(_mm_set_ss(*from), _MM_FROUND_TO_NEAREST_INT));
+}
+
+NUMKONG_API void nk_f16_to_f32_haswell(nk_f16_t const *from, nk_f32_t *to) {
+    *to = _mm_cvtss_f32(_mm_cvtph_ps(_mm_cvtsi32_si128(*(nk_u16_t const *)from)));
+}
+
 NUMKONG_API nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
                                         nk_size_t count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1059,9 +1067,8 @@ NUMKONG_API nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_dtype,
                                   target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-#pragma endregion Public API
+#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)
 #pragma clang attribute pop

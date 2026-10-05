@@ -226,57 +226,6 @@ NUMKONG_INLINE __m512 nk_atan2_f32x16_skylake_(__m512 const ys_inputs, __m512 co
     return results_f32x16;
 }
 
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t i = 0;
-    for (; i + 16 <= n; i += 16) {
-        __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
-        __m512 results_f32x16 = nk_sin_f32x16_skylake_(angles_f32x16);
-        _mm512_storeu_ps(outs + i, results_f32x16);
-    }
-    if (i < n) {
-        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
-        __m512 results_f32x16 = nk_sin_f32x16_skylake_(angles_f32x16);
-        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
-    }
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t i = 0;
-    for (; i + 16 <= n; i += 16) {
-        __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
-        __m512 results_f32x16 = nk_cos_f32x16_skylake_(angles_f32x16);
-        _mm512_storeu_ps(outs + i, results_f32x16);
-    }
-    if (i < n) {
-        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
-        __m512 results_f32x16 = nk_cos_f32x16_skylake_(angles_f32x16);
-        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
-    }
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t i = 0;
-    for (; i + 16 <= n; i += 16) {
-        __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
-        __m512 results_f32x16 = nk_atan_f32x16_skylake_(angles_f32x16);
-        _mm512_storeu_ps(outs + i, results_f32x16);
-    }
-    if (i < n) {
-        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
-        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
-        __m512 results_f32x16 = nk_atan_f32x16_skylake_(angles_f32x16);
-        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
-
 NUMKONG_INLINE __m512d nk_sin_f64x8_skylake_(__m512d const angles_radians) {
     // Constants for argument reduction
     __m512d const pi_high_f64x8 = _mm512_set1_pd(3.141592653589793116);         // High-digits part of π
@@ -535,57 +484,6 @@ NUMKONG_INLINE __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d 
     return results_f64x8;
 }
 
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
-        __m512d results_f64x8 = nk_sin_f64x8_skylake_(angles_f64x8);
-        _mm512_storeu_pd(outs + i, results_f64x8);
-    }
-    if (i < n) {
-        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
-        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
-        __m512d results_f64x8 = nk_sin_f64x8_skylake_(angles_f64x8);
-        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
-    }
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
-        __m512d results_f64x8 = nk_cos_f64x8_skylake_(angles_f64x8);
-        _mm512_storeu_pd(outs + i, results_f64x8);
-    }
-    if (i < n) {
-        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
-        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
-        __m512d results_f64x8 = nk_cos_f64x8_skylake_(angles_f64x8);
-        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
-    }
-    return nk_success_k;
-}
-NUMKONG_API nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
-        __m512d results_f64x8 = nk_atan_f64x8_skylake_(angles_f64x8);
-        _mm512_storeu_pd(outs + i, results_f64x8);
-    }
-    if (i < n) {
-        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
-        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
-        __m512d results_f64x8 = nk_atan_f64x8_skylake_(angles_f64x8);
-        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
-
 /** Sine of 16 F16 angles within one F16 ULP, the vector form of @c nk_f32_sin_for_f16_. */
 NUMKONG_INLINE __m256i nk_sin_f16x16_skylake_(__m256i angles_f16x16) {
     __m512 const angles_f32x16 = _mm512_cvtph_ps(angles_f16x16);
@@ -665,6 +563,109 @@ NUMKONG_INLINE __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
 }
 
 #if NUMKONG_TARGET_SKYLAKE
+
+NUMKONG_API nk_status_t nk_trig_sin_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
+        __m512 results_f32x16 = nk_sin_f32x16_skylake_(angles_f32x16);
+        _mm512_storeu_ps(outs + i, results_f32x16);
+    }
+    if (i < n) {
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
+        __m512 results_f32x16 = nk_sin_f32x16_skylake_(angles_f32x16);
+        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_trig_cos_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
+        __m512 results_f32x16 = nk_cos_f32x16_skylake_(angles_f32x16);
+        _mm512_storeu_ps(outs + i, results_f32x16);
+    }
+    if (i < n) {
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
+        __m512 results_f32x16 = nk_cos_f32x16_skylake_(angles_f32x16);
+        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_trig_atan_f32_skylake(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t i = 0;
+    for (; i + 16 <= n; i += 16) {
+        __m512 angles_f32x16 = _mm512_loadu_ps(ins + i);
+        __m512 results_f32x16 = nk_atan_f32x16_skylake_(angles_f32x16);
+        _mm512_storeu_ps(outs + i, results_f32x16);
+    }
+    if (i < n) {
+        __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, n - i);
+        __m512 angles_f32x16 = _mm512_maskz_loadu_ps(mask_m16, ins + i);
+        __m512 results_f32x16 = nk_atan_f32x16_skylake_(angles_f32x16);
+        _mm512_mask_storeu_ps(outs + i, mask_m16, results_f32x16);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_trig_sin_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
+        __m512d results_f64x8 = nk_sin_f64x8_skylake_(angles_f64x8);
+        _mm512_storeu_pd(outs + i, results_f64x8);
+    }
+    if (i < n) {
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
+        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
+        __m512d results_f64x8 = nk_sin_f64x8_skylake_(angles_f64x8);
+        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_trig_cos_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
+        __m512d results_f64x8 = nk_cos_f64x8_skylake_(angles_f64x8);
+        _mm512_storeu_pd(outs + i, results_f64x8);
+    }
+    if (i < n) {
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
+        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
+        __m512d results_f64x8 = nk_cos_f64x8_skylake_(angles_f64x8);
+        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_trig_atan_f64_skylake(nk_f64_t const *ins, nk_size_t n, nk_f64_t *outs, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m512d angles_f64x8 = _mm512_loadu_pd(ins + i);
+        __m512d results_f64x8 = nk_atan_f64x8_skylake_(angles_f64x8);
+        _mm512_storeu_pd(outs + i, results_f64x8);
+    }
+    if (i < n) {
+        __mmask8 mask_m8 = (__mmask8)_bzhi_u32(0xFFFF, n - i);
+        __m512d angles_f64x8 = _mm512_maskz_loadu_pd(mask_m8, ins + i);
+        __m512d results_f64x8 = nk_atan_f64x8_skylake_(angles_f64x8);
+        _mm512_mask_storeu_pd(outs + i, mask_m8, results_f64x8);
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_trig_sin_f16_skylake(nk_f16_t const *ins, nk_size_t n, nk_f16_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
@@ -715,6 +716,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_skylake(nk_f16_t const *ins, nk_size_t 
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)

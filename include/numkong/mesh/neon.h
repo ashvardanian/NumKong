@@ -228,7 +228,94 @@ NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f32_neon_(nk_f32_t const *a, nk_f32_t
     return sum_squared + sum_squared_compensation;
 }
 
+NUMKONG_INLINE void nk_deinterleave_f16x8_to_f32x4x2_neon_(nk_f16_t const *ptr,                             //
+                                                           float32x4_t *x_low_out, float32x4_t *x_high_out, //
+                                                           float32x4_t *y_low_out, float32x4_t *y_high_out, //
+                                                           float32x4_t *z_low_out, float32x4_t *z_high_out) {
+    // Deinterleave 24 f16 values (8 xyz triplets) into separate x, y, z vectors.
+    // Uses NEON vld3q_u16 for efficient stride-3 deinterleaving, then converts to f32.
+    // Avoids vld3q_f16 which is unavailable on MSVC for ARM.
+    //
+    // Input: 24 contiguous f16 values [x0,y0,z0, ..., x7,y7,z7]
+    // Output: x_low[4]+x_high[4], y_low[4]+y_high[4], z_low[4]+z_high[4] vectors in f32
+    uint16x8x3_t xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)ptr);
+    float16x8_t x_f16x8 = vreinterpretq_f16_u16(xyz_u16x8x3.val[0]);
+    float16x8_t y_f16x8 = vreinterpretq_f16_u16(xyz_u16x8x3.val[1]);
+    float16x8_t z_f16x8 = vreinterpretq_f16_u16(xyz_u16x8x3.val[2]);
+    *x_low_out = vcvt_f32_f16(vget_low_f16(x_f16x8));
+    *x_high_out = vcvt_high_f32_f16(x_f16x8);
+    *y_low_out = vcvt_f32_f16(vget_low_f16(y_f16x8));
+    *y_high_out = vcvt_high_f32_f16(y_f16x8);
+    *z_low_out = vcvt_f32_f16(vget_low_f16(z_f16x8));
+    *z_high_out = vcvt_high_f32_f16(z_f16x8);
+}
+
+NUMKONG_INLINE void nk_partial_deinterleave_f16_to_f32x4x2_neon_(nk_f16_t const *ptr, nk_size_t n_points, //
+                                                                 float32x4_t *x_low_out,
+                                                                 float32x4_t *x_high_out, //
+                                                                 float32x4_t *y_low_out,
+                                                                 float32x4_t *y_high_out, //
+                                                                 float32x4_t *z_low_out, float32x4_t *z_high_out) {
+    nk_u16_t buf[24] = {0};
+    nk_u16_t const *src = (nk_u16_t const *)ptr;
+    for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
+    nk_deinterleave_f16x8_to_f32x4x2_neon_((nk_f16_t const *)buf, x_low_out, x_high_out, y_low_out, y_high_out,
+                                           z_low_out, z_high_out);
+}
+
+/** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of f16 clouds,
+ *  in one pass shifted by the pivots in f32. */
+NUMKONG_INLINE void nk_centered_moments_f16_neon_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                  nk_f32_t *centroid_a, nk_f32_t *centroid_b,
+                                                  nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
+                                                  nk_f32_t *centered_norm_squared_b) {
+    nk_f32_t pivot_a[3], pivot_b[3];
+    for (int j = 0; j != 3; ++j) nk_f16_to_f32_(a + j, pivot_a + j), nk_f16_to_f32_(b + j, pivot_b + j);
+    float32x4_t pivot_a_f32x4[3], pivot_b_f32x4[3], sum_a_f32x4[3], sum_b_f32x4[3], covariance_f32x4[9];
+    float32x4_t norm_squared_a_f32x4 = vdupq_n_f32(0), norm_squared_b_f32x4 = vdupq_n_f32(0);
+    for (int j = 0; j != 3; ++j)
+        pivot_a_f32x4[j] = vdupq_n_f32(pivot_a[j]), pivot_b_f32x4[j] = vdupq_n_f32(pivot_b[j]),
+        sum_a_f32x4[j] = vdupq_n_f32(0), sum_b_f32x4[j] = vdupq_n_f32(0);
+    for (int j = 0; j != 9; ++j) covariance_f32x4[j] = vdupq_n_f32(0);
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        float32x4_t a_f32x4[6], b_f32x4[6];
+        nk_deinterleave_f16x8_to_f32x4x2_neon_(a + i * 3, &a_f32x4[0], &a_f32x4[3], &a_f32x4[1], &a_f32x4[4],
+                                               &a_f32x4[2], &a_f32x4[5]);
+        nk_deinterleave_f16x8_to_f32x4x2_neon_(b + i * 3, &b_f32x4[0], &b_f32x4[3], &b_f32x4[1], &b_f32x4[4],
+                                               &b_f32x4[2], &b_f32x4[5]);
+        for (int half = 0; half != 6; half += 3) {
+            for (int j = 0; j != 3; ++j) {
+                a_f32x4[half + j] = vsubq_f32(a_f32x4[half + j], pivot_a_f32x4[j]);
+                b_f32x4[half + j] = vsubq_f32(b_f32x4[half + j], pivot_b_f32x4[j]);
+                sum_a_f32x4[j] = vaddq_f32(sum_a_f32x4[j], a_f32x4[half + j]);
+                sum_b_f32x4[j] = vaddq_f32(sum_b_f32x4[j], b_f32x4[half + j]);
+                norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_f32x4[half + j], a_f32x4[half + j]);
+                norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_f32x4[half + j], b_f32x4[half + j]);
+            }
+            for (int j = 0; j != 9; ++j)
+                covariance_f32x4[j] = vfmaq_f32(covariance_f32x4[j], a_f32x4[half + j / 3], b_f32x4[half + j % 3]);
+        }
+    }
+    nk_f32_t sum_a[3], sum_b[3], covariance[9], norm_squared_a = vaddvq_f32(norm_squared_a_f32x4),
+                                                norm_squared_b = vaddvq_f32(norm_squared_b_f32x4);
+    for (int j = 0; j != 3; ++j) sum_a[j] = vaddvq_f32(sum_a_f32x4[j]), sum_b[j] = vaddvq_f32(sum_b_f32x4[j]);
+    for (int j = 0; j != 9; ++j) covariance[j] = vaddvq_f32(covariance_f32x4[j]);
+    for (; i < n; ++i) {
+        nk_f32_t a_point[3], b_point[3];
+        for (int j = 0; j != 3; ++j) {
+            nk_f16_to_f32_(a + i * 3 + j, a_point + j), nk_f16_to_f32_(b + i * 3 + j, b_point + j);
+            a_point[j] -= pivot_a[j], b_point[j] -= pivot_b[j];
+        }
+        nk_centered_moments_update_f32_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a, &norm_squared_b);
+    }
+    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
+                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
+                                      centered_norm_squared_b);
+}
+
 #if NUMKONG_TARGET_NEON
+
 NUMKONG_API nk_status_t nk_rmsd_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
                                          void *stream) {
@@ -1026,44 +1113,7 @@ NUMKONG_API nk_status_t nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b
     *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(sum_squared * inv_n)), 0);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_NEON
 
-NUMKONG_INLINE void nk_deinterleave_f16x8_to_f32x4x2_neon_(nk_f16_t const *ptr,                             //
-                                                           float32x4_t *x_low_out, float32x4_t *x_high_out, //
-                                                           float32x4_t *y_low_out, float32x4_t *y_high_out, //
-                                                           float32x4_t *z_low_out, float32x4_t *z_high_out) {
-    // Deinterleave 24 f16 values (8 xyz triplets) into separate x, y, z vectors.
-    // Uses NEON vld3q_u16 for efficient stride-3 deinterleaving, then converts to f32.
-    // Avoids vld3q_f16 which is unavailable on MSVC for ARM.
-    //
-    // Input: 24 contiguous f16 values [x0,y0,z0, ..., x7,y7,z7]
-    // Output: x_low[4]+x_high[4], y_low[4]+y_high[4], z_low[4]+z_high[4] vectors in f32
-    uint16x8x3_t xyz_u16x8x3 = vld3q_u16((nk_u16_t const *)ptr);
-    float16x8_t x_f16x8 = vreinterpretq_f16_u16(xyz_u16x8x3.val[0]);
-    float16x8_t y_f16x8 = vreinterpretq_f16_u16(xyz_u16x8x3.val[1]);
-    float16x8_t z_f16x8 = vreinterpretq_f16_u16(xyz_u16x8x3.val[2]);
-    *x_low_out = vcvt_f32_f16(vget_low_f16(x_f16x8));
-    *x_high_out = vcvt_high_f32_f16(x_f16x8);
-    *y_low_out = vcvt_f32_f16(vget_low_f16(y_f16x8));
-    *y_high_out = vcvt_high_f32_f16(y_f16x8);
-    *z_low_out = vcvt_f32_f16(vget_low_f16(z_f16x8));
-    *z_high_out = vcvt_high_f32_f16(z_f16x8);
-}
-
-NUMKONG_INLINE void nk_partial_deinterleave_f16_to_f32x4x2_neon_(nk_f16_t const *ptr, nk_size_t n_points, //
-                                                                 float32x4_t *x_low_out,
-                                                                 float32x4_t *x_high_out, //
-                                                                 float32x4_t *y_low_out,
-                                                                 float32x4_t *y_high_out, //
-                                                                 float32x4_t *z_low_out, float32x4_t *z_high_out) {
-    nk_u16_t buf[24] = {0};
-    nk_u16_t const *src = (nk_u16_t const *)ptr;
-    for (nk_size_t k = 0; k < n_points * 3; ++k) buf[k] = src[k];
-    nk_deinterleave_f16x8_to_f32x4x2_neon_((nk_f16_t const *)buf, x_low_out, x_high_out, y_low_out, y_high_out,
-                                           z_low_out, z_high_out);
-}
-
-#if NUMKONG_TARGET_NEON
 NUMKONG_API nk_status_t nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                          nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
                                          void *stream) {
@@ -1133,60 +1183,7 @@ NUMKONG_API nk_status_t nk_rmsd_f16_neon(nk_f16_t const *a, nk_f16_t const *b, n
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_NEON
 
-/** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of f16 clouds,
- *  in one pass shifted by the pivots in f32. */
-NUMKONG_INLINE void nk_centered_moments_f16_neon_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                  nk_f32_t *centroid_a, nk_f32_t *centroid_b,
-                                                  nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
-                                                  nk_f32_t *centered_norm_squared_b) {
-    nk_f32_t pivot_a[3], pivot_b[3];
-    for (int j = 0; j != 3; ++j) nk_f16_to_f32_(a + j, pivot_a + j), nk_f16_to_f32_(b + j, pivot_b + j);
-    float32x4_t pivot_a_f32x4[3], pivot_b_f32x4[3], sum_a_f32x4[3], sum_b_f32x4[3], covariance_f32x4[9];
-    float32x4_t norm_squared_a_f32x4 = vdupq_n_f32(0), norm_squared_b_f32x4 = vdupq_n_f32(0);
-    for (int j = 0; j != 3; ++j)
-        pivot_a_f32x4[j] = vdupq_n_f32(pivot_a[j]), pivot_b_f32x4[j] = vdupq_n_f32(pivot_b[j]),
-        sum_a_f32x4[j] = vdupq_n_f32(0), sum_b_f32x4[j] = vdupq_n_f32(0);
-    for (int j = 0; j != 9; ++j) covariance_f32x4[j] = vdupq_n_f32(0);
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        float32x4_t a_f32x4[6], b_f32x4[6];
-        nk_deinterleave_f16x8_to_f32x4x2_neon_(a + i * 3, &a_f32x4[0], &a_f32x4[3], &a_f32x4[1], &a_f32x4[4],
-                                               &a_f32x4[2], &a_f32x4[5]);
-        nk_deinterleave_f16x8_to_f32x4x2_neon_(b + i * 3, &b_f32x4[0], &b_f32x4[3], &b_f32x4[1], &b_f32x4[4],
-                                               &b_f32x4[2], &b_f32x4[5]);
-        for (int half = 0; half != 6; half += 3) {
-            for (int j = 0; j != 3; ++j) {
-                a_f32x4[half + j] = vsubq_f32(a_f32x4[half + j], pivot_a_f32x4[j]);
-                b_f32x4[half + j] = vsubq_f32(b_f32x4[half + j], pivot_b_f32x4[j]);
-                sum_a_f32x4[j] = vaddq_f32(sum_a_f32x4[j], a_f32x4[half + j]);
-                sum_b_f32x4[j] = vaddq_f32(sum_b_f32x4[j], b_f32x4[half + j]);
-                norm_squared_a_f32x4 = vfmaq_f32(norm_squared_a_f32x4, a_f32x4[half + j], a_f32x4[half + j]);
-                norm_squared_b_f32x4 = vfmaq_f32(norm_squared_b_f32x4, b_f32x4[half + j], b_f32x4[half + j]);
-            }
-            for (int j = 0; j != 9; ++j)
-                covariance_f32x4[j] = vfmaq_f32(covariance_f32x4[j], a_f32x4[half + j / 3], b_f32x4[half + j % 3]);
-        }
-    }
-    nk_f32_t sum_a[3], sum_b[3], covariance[9], norm_squared_a = vaddvq_f32(norm_squared_a_f32x4),
-                                                norm_squared_b = vaddvq_f32(norm_squared_b_f32x4);
-    for (int j = 0; j != 3; ++j) sum_a[j] = vaddvq_f32(sum_a_f32x4[j]), sum_b[j] = vaddvq_f32(sum_b_f32x4[j]);
-    for (int j = 0; j != 9; ++j) covariance[j] = vaddvq_f32(covariance_f32x4[j]);
-    for (; i < n; ++i) {
-        nk_f32_t a_point[3], b_point[3];
-        for (int j = 0; j != 3; ++j) {
-            nk_f16_to_f32_(a + i * 3 + j, a_point + j), nk_f16_to_f32_(b + i * 3 + j, b_point + j);
-            a_point[j] -= pivot_a[j], b_point[j] -= pivot_b[j];
-        }
-        nk_centered_moments_update_f32_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a, &norm_squared_b);
-    }
-    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
-                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
-                                      centered_norm_squared_b);
-}
-
-#if NUMKONG_TARGET_NEON
 NUMKONG_API nk_status_t nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                            nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
                                            void *stream) {
@@ -1348,6 +1345,7 @@ NUMKONG_API nk_status_t nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_NEON
 
 #if defined(__clang__)

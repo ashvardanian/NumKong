@@ -147,24 +147,6 @@ NUMKONG_INLINE void nk_squared_distance_i8_rvv_(nk_i8_t const *a_scalars, nk_i8_
     *result = (nk_u32_t)__riscv_vmv_x_s_i32m1_i32(sum_i32m1);
 }
 
-#if NUMKONG_TARGET_RVV
-NUMKONG_API nk_status_t nk_sqeuclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_u32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_i8_rvv_(a_scalars, b_scalars, count_scalars, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
-                                            nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t d2;
-    nk_squared_distance_i8_rvv_(a_scalars, b_scalars, count_scalars, &d2);
-    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1((nk_f32_t)d2, 1), 1));
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_RVV
-
 NUMKONG_INLINE void nk_squared_distance_u8_rvv_(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
                                                 nk_size_t count_scalars, nk_u32_t *result) {
     vuint32m1_t sum_u32m1 = __riscv_vmv_v_x_u32m1(0, 1);
@@ -184,24 +166,6 @@ NUMKONG_INLINE void nk_squared_distance_u8_rvv_(nk_u8_t const *a_scalars, nk_u8_
     }
     *result = __riscv_vmv_x_s_u32m1_u32(sum_u32m1);
 }
-
-#if NUMKONG_TARGET_RVV
-NUMKONG_API nk_status_t nk_sqeuclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
-                                              nk_size_t count_scalars, nk_u32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_u8_rvv_(a_scalars, b_scalars, count_scalars, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
-                                            nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_u32_t d2;
-    nk_squared_distance_u8_rvv_(a_scalars, b_scalars, count_scalars, &d2);
-    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1((nk_f32_t)d2, 1), 1));
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion I8 and U8 Integers
 #pragma region F32 and F64 Floats
@@ -225,23 +189,6 @@ NUMKONG_INLINE void nk_squared_distance_f32_rvv_(nk_f32_t const *a_scalars, nk_f
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfredusum_vs_f64m2_f64m1(sum_f64m2, zero_f64m1, max_vector_length));
 }
 
-#if NUMKONG_TARGET_RVV
-NUMKONG_API nk_status_t nk_sqeuclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                               nk_size_t count_scalars, nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f32_rvv_(a_scalars, b_scalars, count_scalars, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
-                                             nk_size_t count_scalars, nk_f64_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f32_rvv_(a_scalars, b_scalars, count_scalars, result);
-    *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(*result, 1), 1));
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_RVV
-
 NUMKONG_INLINE void nk_squared_distance_f64_rvv_(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
                                                  nk_size_t count_scalars, nk_f64_t *result) {
     nk_size_t vector_length_max = __riscv_vsetvlmax_e64m1();
@@ -258,7 +205,257 @@ NUMKONG_INLINE void nk_squared_distance_f64_rvv_(nk_f64_t const *a_scalars, nk_f
     *result = nk_dot_stable_sum_f64m1_rvv_(sum_f64m1, compensation_f64m1);
 }
 
+#pragma endregion F32 and F64 Floats
+#pragma region F16 and BF16 Floats
+
+NUMKONG_INLINE void nk_squared_distance_f16_rvv_(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
+                                                 nk_size_t count_scalars, nk_f32_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
+    for (nk_size_t vector_length; count_scalars > 0;
+         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e16m1(count_scalars);
+
+        // Load f16 as u16 bits and convert to f32 via helper
+        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a_scalars, vector_length);
+        vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b_scalars, vector_length);
+        vfloat32m2_t a_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
+        vfloat32m2_t b_f32m2 = nk_f16m1_to_f32m2_rvv_(b_u16m1, vector_length);
+
+        // Compute difference in f32, accumulate diff² into vector lanes
+        vfloat32m2_t diff_f32m2 = __riscv_vfsub_vv_f32m2(a_f32m2, b_f32m2, vector_length);
+        sum_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sum_f32m2, diff_f32m2, diff_f32m2, vector_length);
+    }
+    // Single horizontal reduction at the end
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
+}
+
+NUMKONG_INLINE void nk_squared_distance_bf16_rvv_(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
+    for (nk_size_t vector_length; count_scalars > 0;
+         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e16m1(count_scalars);
+
+        // Load bf16 as u16 and convert to f32 via helper
+        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a_scalars, vector_length);
+        vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b_scalars, vector_length);
+        vfloat32m2_t a_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
+        vfloat32m2_t b_f32m2 = nk_bf16m1_to_f32m2_rvv_(b_u16m1, vector_length);
+
+        // Compute difference in f32, accumulate diff² into vector lanes
+        vfloat32m2_t diff_f32m2 = __riscv_vfsub_vv_f32m2(a_f32m2, b_f32m2, vector_length);
+        sum_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sum_f32m2, diff_f32m2, diff_f32m2, vector_length);
+    }
+    // Single horizontal reduction at the end
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
+}
+
+NUMKONG_INLINE void nk_squared_distance_e4m3_rvv_(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
+    for (nk_size_t vector_length; count_scalars > 0;
+         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(count_scalars);
+
+        // Load e4m3 as u8 and convert to f32 via helper
+        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
+        vuint8m1_t b_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
+        vfloat32m4_t a_f32m4 = nk_e4m3m1_to_f32m4_rvv_(a_u8m1, vector_length);
+        vfloat32m4_t b_f32m4 = nk_e4m3m1_to_f32m4_rvv_(b_u8m1, vector_length);
+
+        // Compute difference in f32, accumulate diff² into vector lanes
+        vfloat32m4_t diff_f32m4 = __riscv_vfsub_vv_f32m4(a_f32m4, b_f32m4, vector_length);
+        sum_f32m4 = __riscv_vfmacc_vv_f32m4_tu(sum_f32m4, diff_f32m4, diff_f32m4, vector_length);
+    }
+    // Single horizontal reduction at the end
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
+}
+
+NUMKONG_INLINE void nk_squared_distance_e5m2_rvv_(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
+                                                  nk_size_t count_scalars, nk_f32_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
+    for (nk_size_t vector_length; count_scalars > 0;
+         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(count_scalars);
+
+        // Load e5m2 as u8 and convert to f32 via helper
+        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
+        vuint8m1_t b_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
+        vfloat32m4_t a_f32m4 = nk_e5m2m1_to_f32m4_rvv_(a_u8m1, vector_length);
+        vfloat32m4_t b_f32m4 = nk_e5m2m1_to_f32m4_rvv_(b_u8m1, vector_length);
+
+        // Compute difference in f32, accumulate diff² into vector lanes
+        vfloat32m4_t diff_f32m4 = __riscv_vfsub_vv_f32m4(a_f32m4, b_f32m4, vector_length);
+        sum_f32m4 = __riscv_vfmacc_vv_f32m4_tu(sum_f32m4, diff_f32m4, diff_f32m4, vector_length);
+    }
+    // Single horizontal reduction at the end
+    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
+    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
+}
+
+#pragma endregion F16 and BF16 Floats
+#pragma region I8 and U8 Integers
+
+NUMKONG_INLINE void nk_squared_distance_i4_rvv_(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_u32_t *result) {
+    static nk_u8_t const nk_i4_sqd_lut_[256] = {
+        0,  1,  4,   9,   16,  25,  36,  49,  64,  49,  36,  25,  16,  9,   4,  1,  //
+        1,  0,  1,   4,   9,   16,  25,  36,  81,  64,  49,  36,  25,  16,  9,  4,  //
+        4,  1,  0,   1,   4,   9,   16,  25,  100, 81,  64,  49,  36,  25,  16, 9,  //
+        9,  4,  1,   0,   1,   4,   9,   16,  121, 100, 81,  64,  49,  36,  25, 16, //
+        16, 9,  4,   1,   0,   1,   4,   9,   144, 121, 100, 81,  64,  49,  36, 25, //
+        25, 16, 9,   4,   1,   0,   1,   4,   169, 144, 121, 100, 81,  64,  49, 36, //
+        36, 25, 16,  9,   4,   1,   0,   1,   196, 169, 144, 121, 100, 81,  64, 49, //
+        49, 36, 25,  16,  9,   4,   1,   0,   225, 196, 169, 144, 121, 100, 81, 64, //
+        64, 81, 100, 121, 144, 169, 196, 225, 0,   1,   4,   9,   16,  25,  36, 49, //
+        49, 64, 81,  100, 121, 144, 169, 196, 1,   0,   1,   4,   9,   16,  25, 36, //
+        36, 49, 64,  81,  100, 121, 144, 169, 4,   1,   0,   1,   4,   9,   16, 25, //
+        25, 36, 49,  64,  81,  100, 121, 144, 9,   4,   1,   0,   1,   4,   9,  16, //
+        16, 25, 36,  49,  64,  81,  100, 121, 16,  9,   4,   1,   0,   1,   4,  9,  //
+        9,  16, 25,  36,  49,  64,  81,  100, 25,  16,  9,   4,   1,   0,   1,  4,  //
+        4,  9,  16,  25,  36,  49,  64,  81,  36,  25,  16,  9,   4,   1,   0,  1,  //
+        1,  4,  9,   16,  25,  36,  49,  64,  49,  36,  25,  16,  9,   4,   1,  0,  //
+    };
+    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
+    for (nk_size_t vector_length; n_bytes > 0;
+         n_bytes -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(n_bytes);
+        vuint8m1_t a_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
+        vuint8m1_t b_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
+        // Build LUT indices: high nibble pair = (a_high << 4) | b_hi
+        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
+                                                         __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
+                                                         vector_length);
+        // Low nibble pair = (a_low << 4) | b_lo
+        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(
+            __riscv_vsll_vx_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0x0F, vector_length), 4, vector_length),
+            __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length), vector_length);
+        // Gather squared differences from LUT (0-225, fits u8)
+        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, high_index_u8m1, vector_length);
+        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, low_index_u8m1, vector_length);
+        // Combine and per-lane accumulate: u8+u8 → u16, then u32+=u16
+        vuint16m2_t combined_u16m2 = __riscv_vwaddu_vv_u16m2(sq_high_u8m1, sq_low_u8m1, vector_length);
+        sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, combined_u16m2, vector_length);
+    }
+    // Single horizontal reduction after loop
+    vuint32m1_t zero_u32m1 = __riscv_vmv_v_x_u32m1(0, max_vector_length);
+    *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
+}
+
+NUMKONG_INLINE void nk_squared_distance_u4_rvv_(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
+                                                nk_size_t count_scalars, nk_u32_t *result) {
+    static nk_u8_t const nk_u4_sqd_lut_[256] = {
+        0,   1,   4,   9,   16,  25,  36, 49, 64, 81, 100, 121, 144, 169, 196, 225, //
+        1,   0,   1,   4,   9,   16,  25, 36, 49, 64, 81,  100, 121, 144, 169, 196, //
+        4,   1,   0,   1,   4,   9,   16, 25, 36, 49, 64,  81,  100, 121, 144, 169, //
+        9,   4,   1,   0,   1,   4,   9,  16, 25, 36, 49,  64,  81,  100, 121, 144, //
+        16,  9,   4,   1,   0,   1,   4,  9,  16, 25, 36,  49,  64,  81,  100, 121, //
+        25,  16,  9,   4,   1,   0,   1,  4,  9,  16, 25,  36,  49,  64,  81,  100, //
+        36,  25,  16,  9,   4,   1,   0,  1,  4,  9,  16,  25,  36,  49,  64,  81,  //
+        49,  36,  25,  16,  9,   4,   1,  0,  1,  4,  9,   16,  25,  36,  49,  64,  //
+        64,  49,  36,  25,  16,  9,   4,  1,  0,  1,  4,   9,   16,  25,  36,  49,  //
+        81,  64,  49,  36,  25,  16,  9,  4,  1,  0,  1,   4,   9,   16,  25,  36,  //
+        100, 81,  64,  49,  36,  25,  16, 9,  4,  1,  0,   1,   4,   9,   16,  25,  //
+        121, 100, 81,  64,  49,  36,  25, 16, 9,  4,  1,   0,   1,   4,   9,   16,  //
+        144, 121, 100, 81,  64,  49,  36, 25, 16, 9,  4,   1,   0,   1,   4,   9,   //
+        169, 144, 121, 100, 81,  64,  49, 36, 25, 16, 9,   4,   1,   0,   1,   4,   //
+        196, 169, 144, 121, 100, 81,  64, 49, 36, 25, 16,  9,   4,   1,   0,   1,   //
+        225, 196, 169, 144, 121, 100, 81, 64, 49, 36, 25,  16,  9,   4,   1,   0,   //
+    };
+    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
+    for (nk_size_t vector_length; n_bytes > 0;
+         n_bytes -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(n_bytes);
+        vuint8m1_t a_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
+        vuint8m1_t b_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
+        // Build LUT indices: high nibble pair = (a_high & 0xF0) | (b_high >> 4)
+        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
+                                                         __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
+                                                         vector_length);
+        // Low nibble pair = (a_low << 4) | b_lo
+        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(
+            __riscv_vsll_vx_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0x0F, vector_length), 4, vector_length),
+            __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length), vector_length);
+        // Gather squared differences from LUT (0-225, fits u8)
+        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, high_index_u8m1, vector_length);
+        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, low_index_u8m1, vector_length);
+        // Combine and per-lane accumulate: u8+u8 → u16, then u32+=u16
+        vuint16m2_t combined_u16m2 = __riscv_vwaddu_vv_u16m2(sq_high_u8m1, sq_low_u8m1, vector_length);
+        sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, combined_u16m2, vector_length);
+    }
+    // Single horizontal reduction after loop
+    vuint32m1_t zero_u32m1 = __riscv_vmv_v_x_u32m1(0, max_vector_length);
+    *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
+}
+
+#pragma endregion I8 and U8 Integers
+
 #if NUMKONG_TARGET_RVV
+
+#pragma region I8 and U8 Integers
+
+NUMKONG_API nk_status_t nk_sqeuclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_i8_rvv_(a_scalars, b_scalars, count_scalars, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
+                                            nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t d2;
+    nk_squared_distance_i8_rvv_(a_scalars, b_scalars, count_scalars, &d2);
+    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1((nk_f32_t)d2, 1), 1));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars,
+                                              nk_size_t count_scalars, nk_u32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_u8_rvv_(a_scalars, b_scalars, count_scalars, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t const *b_scalars, nk_size_t count_scalars,
+                                            nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_u32_t d2;
+    nk_squared_distance_u8_rvv_(a_scalars, b_scalars, count_scalars, &d2);
+    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1((nk_f32_t)d2, 1), 1));
+    return nk_success_k;
+}
+
+#pragma endregion I8 and U8 Integers
+
+#pragma region F32 and F64 Floats
+
+NUMKONG_API nk_status_t nk_sqeuclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                               nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f32_rvv_(a_scalars, b_scalars, count_scalars, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
+                                             nk_size_t count_scalars, nk_f64_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f32_rvv_(a_scalars, b_scalars, count_scalars, result);
+    *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(*result, 1), 1));
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t const *b_scalars,
                                                nk_size_t count_scalars, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -273,12 +470,11 @@ NUMKONG_API nk_status_t nk_euclidean_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t
     *result = __riscv_vfmv_f_s_f64m1_f64(__riscv_vfsqrt_v_f64m1(__riscv_vfmv_s_f_f64m1(*result, 1), 1));
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion F32 and F64 Floats
+
 #pragma region I8 and U8 Integers
 
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_angular_i8_rvv(nk_i8_t const *a_scalars, nk_i8_t const *b_scalars, nk_size_t count_scalars,
                                           nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -360,12 +556,11 @@ NUMKONG_API nk_status_t nk_angular_u8_rvv(nk_u8_t const *a_scalars, nk_u8_t cons
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion I8 and U8 Integers
+
 #pragma region F32 and F64 Floats
 
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_angular_f32_rvv(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars,
                                            nk_size_t count_scalars, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -441,35 +636,11 @@ NUMKONG_API nk_status_t nk_angular_f64_rvv(nk_f64_t const *a_scalars, nk_f64_t c
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion F32 and F64 Floats
+
 #pragma region F16 and BF16 Floats
 
-NUMKONG_INLINE void nk_squared_distance_f16_rvv_(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
-                                                 nk_size_t count_scalars, nk_f32_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
-    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
-    for (nk_size_t vector_length; count_scalars > 0;
-         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e16m1(count_scalars);
-
-        // Load f16 as u16 bits and convert to f32 via helper
-        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a_scalars, vector_length);
-        vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b_scalars, vector_length);
-        vfloat32m2_t a_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
-        vfloat32m2_t b_f32m2 = nk_f16m1_to_f32m2_rvv_(b_u16m1, vector_length);
-
-        // Compute difference in f32, accumulate diff² into vector lanes
-        vfloat32m2_t diff_f32m2 = __riscv_vfsub_vv_f32m2(a_f32m2, b_f32m2, vector_length);
-        sum_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sum_f32m2, diff_f32m2, diff_f32m2, vector_length);
-    }
-    // Single horizontal reduction at the end
-    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
-    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
-}
-
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_sqeuclidean_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t const *b_scalars,
                                                nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -528,32 +699,6 @@ NUMKONG_API nk_status_t nk_angular_f16_rvv(nk_f16_t const *a_scalars, nk_f16_t c
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_RVV
-
-NUMKONG_INLINE void nk_squared_distance_bf16_rvv_(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
-    vfloat32m2_t sum_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
-    for (nk_size_t vector_length; count_scalars > 0;
-         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e16m1(count_scalars);
-
-        // Load bf16 as u16 and convert to f32 via helper
-        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a_scalars, vector_length);
-        vuint16m1_t b_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)b_scalars, vector_length);
-        vfloat32m2_t a_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
-        vfloat32m2_t b_f32m2 = nk_bf16m1_to_f32m2_rvv_(b_u16m1, vector_length);
-
-        // Compute difference in f32, accumulate diff² into vector lanes
-        vfloat32m2_t diff_f32m2 = __riscv_vfsub_vv_f32m2(a_f32m2, b_f32m2, vector_length);
-        sum_f32m2 = __riscv_vfmacc_vv_f32m2_tu(sum_f32m2, diff_f32m2, diff_f32m2, vector_length);
-    }
-    // Single horizontal reduction at the end
-    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
-    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(sum_f32m2, zero_f32m1, max_vector_length));
-}
-
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_sqeuclidean_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_t const *b_scalars,
                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -612,32 +757,6 @@ NUMKONG_API nk_status_t nk_angular_bf16_rvv(nk_bf16_t const *a_scalars, nk_bf16_
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_RVV
-
-NUMKONG_INLINE void nk_squared_distance_e4m3_rvv_(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
-    for (nk_size_t vector_length; count_scalars > 0;
-         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(count_scalars);
-
-        // Load e4m3 as u8 and convert to f32 via helper
-        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
-        vuint8m1_t b_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
-        vfloat32m4_t a_f32m4 = nk_e4m3m1_to_f32m4_rvv_(a_u8m1, vector_length);
-        vfloat32m4_t b_f32m4 = nk_e4m3m1_to_f32m4_rvv_(b_u8m1, vector_length);
-
-        // Compute difference in f32, accumulate diff² into vector lanes
-        vfloat32m4_t diff_f32m4 = __riscv_vfsub_vv_f32m4(a_f32m4, b_f32m4, vector_length);
-        sum_f32m4 = __riscv_vfmacc_vv_f32m4_tu(sum_f32m4, diff_f32m4, diff_f32m4, vector_length);
-    }
-    // Single horizontal reduction at the end
-    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
-    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
-}
-
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_t const *b_scalars,
                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -696,32 +815,6 @@ NUMKONG_API nk_status_t nk_angular_e4m3_rvv(nk_e4m3_t const *a_scalars, nk_e4m3_
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_RVV
-
-NUMKONG_INLINE void nk_squared_distance_e5m2_rvv_(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
-                                                  nk_size_t count_scalars, nk_f32_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, max_vector_length);
-    for (nk_size_t vector_length; count_scalars > 0;
-         count_scalars -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(count_scalars);
-
-        // Load e5m2 as u8 and convert to f32 via helper
-        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
-        vuint8m1_t b_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
-        vfloat32m4_t a_f32m4 = nk_e5m2m1_to_f32m4_rvv_(a_u8m1, vector_length);
-        vfloat32m4_t b_f32m4 = nk_e5m2m1_to_f32m4_rvv_(b_u8m1, vector_length);
-
-        // Compute difference in f32, accumulate diff² into vector lanes
-        vfloat32m4_t diff_f32m4 = __riscv_vfsub_vv_f32m4(a_f32m4, b_f32m4, vector_length);
-        sum_f32m4 = __riscv_vfmacc_vv_f32m4_tu(sum_f32m4, diff_f32m4, diff_f32m4, vector_length);
-    }
-    // Single horizontal reduction at the end
-    vfloat32m1_t zero_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
-    *result = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, zero_f32m1, max_vector_length));
-}
-
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_t const *b_scalars,
                                                 nk_size_t count_scalars, nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -779,60 +872,11 @@ NUMKONG_API nk_status_t nk_angular_e5m2_rvv(nk_e5m2_t const *a_scalars, nk_e5m2_
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion F16 and BF16 Floats
+
 #pragma region I8 and U8 Integers
 
-NUMKONG_INLINE void nk_squared_distance_i4_rvv_(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_u32_t *result) {
-    static nk_u8_t const nk_i4_sqd_lut_[256] = {
-        0,  1,  4,   9,   16,  25,  36,  49,  64,  49,  36,  25,  16,  9,   4,  1,  //
-        1,  0,  1,   4,   9,   16,  25,  36,  81,  64,  49,  36,  25,  16,  9,  4,  //
-        4,  1,  0,   1,   4,   9,   16,  25,  100, 81,  64,  49,  36,  25,  16, 9,  //
-        9,  4,  1,   0,   1,   4,   9,   16,  121, 100, 81,  64,  49,  36,  25, 16, //
-        16, 9,  4,   1,   0,   1,   4,   9,   144, 121, 100, 81,  64,  49,  36, 25, //
-        25, 16, 9,   4,   1,   0,   1,   4,   169, 144, 121, 100, 81,  64,  49, 36, //
-        36, 25, 16,  9,   4,   1,   0,   1,   196, 169, 144, 121, 100, 81,  64, 49, //
-        49, 36, 25,  16,  9,   4,   1,   0,   225, 196, 169, 144, 121, 100, 81, 64, //
-        64, 81, 100, 121, 144, 169, 196, 225, 0,   1,   4,   9,   16,  25,  36, 49, //
-        49, 64, 81,  100, 121, 144, 169, 196, 1,   0,   1,   4,   9,   16,  25, 36, //
-        36, 49, 64,  81,  100, 121, 144, 169, 4,   1,   0,   1,   4,   9,   16, 25, //
-        25, 36, 49,  64,  81,  100, 121, 144, 9,   4,   1,   0,   1,   4,   9,  16, //
-        16, 25, 36,  49,  64,  81,  100, 121, 16,  9,   4,   1,   0,   1,   4,  9,  //
-        9,  16, 25,  36,  49,  64,  81,  100, 25,  16,  9,   4,   1,   0,   1,  4,  //
-        4,  9,  16,  25,  36,  49,  64,  81,  36,  25,  16,  9,   4,   1,   0,  1,  //
-        1,  4,  9,   16,  25,  36,  49,  64,  49,  36,  25,  16,  9,   4,   1,  0,  //
-    };
-    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
-    for (nk_size_t vector_length; n_bytes > 0;
-         n_bytes -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(n_bytes);
-        vuint8m1_t a_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
-        vuint8m1_t b_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
-        // Build LUT indices: high nibble pair = (a_high << 4) | b_hi
-        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
-                                                         __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
-                                                         vector_length);
-        // Low nibble pair = (a_low << 4) | b_lo
-        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(
-            __riscv_vsll_vx_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0x0F, vector_length), 4, vector_length),
-            __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length), vector_length);
-        // Gather squared differences from LUT (0-225, fits u8)
-        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, high_index_u8m1, vector_length);
-        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_i4_sqd_lut_, low_index_u8m1, vector_length);
-        // Combine and per-lane accumulate: u8+u8→u16, then u32+=u16
-        vuint16m2_t combined_u16m2 = __riscv_vwaddu_vv_u16m2(sq_high_u8m1, sq_low_u8m1, vector_length);
-        sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, combined_u16m2, vector_length);
-    }
-    // Single horizontal reduction after loop
-    vuint32m1_t zero_u32m1 = __riscv_vmv_v_x_u32m1(0, max_vector_length);
-    *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
-}
-
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_sqeuclidean_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t const *b_scalars,
                                               nk_size_t count_scalars, nk_u32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -934,57 +978,6 @@ NUMKONG_API nk_status_t nk_angular_i4_rvv(nk_i4x2_t const *a_scalars, nk_i4x2_t 
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_RVV
-
-NUMKONG_INLINE void nk_squared_distance_u4_rvv_(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
-                                                nk_size_t count_scalars, nk_u32_t *result) {
-    static nk_u8_t const nk_u4_sqd_lut_[256] = {
-        0,   1,   4,   9,   16,  25,  36, 49, 64, 81, 100, 121, 144, 169, 196, 225, //
-        1,   0,   1,   4,   9,   16,  25, 36, 49, 64, 81,  100, 121, 144, 169, 196, //
-        4,   1,   0,   1,   4,   9,   16, 25, 36, 49, 64,  81,  100, 121, 144, 169, //
-        9,   4,   1,   0,   1,   4,   9,  16, 25, 36, 49,  64,  81,  100, 121, 144, //
-        16,  9,   4,   1,   0,   1,   4,  9,  16, 25, 36,  49,  64,  81,  100, 121, //
-        25,  16,  9,   4,   1,   0,   1,  4,  9,  16, 25,  36,  49,  64,  81,  100, //
-        36,  25,  16,  9,   4,   1,   0,  1,  4,  9,  16,  25,  36,  49,  64,  81,  //
-        49,  36,  25,  16,  9,   4,   1,  0,  1,  4,  9,   16,  25,  36,  49,  64,  //
-        64,  49,  36,  25,  16,  9,   4,  1,  0,  1,  4,   9,   16,  25,  36,  49,  //
-        81,  64,  49,  36,  25,  16,  9,  4,  1,  0,  1,   4,   9,   16,  25,  36,  //
-        100, 81,  64,  49,  36,  25,  16, 9,  4,  1,  0,   1,   4,   9,   16,  25,  //
-        121, 100, 81,  64,  49,  36,  25, 16, 9,  4,  1,   0,   1,   4,   9,   16,  //
-        144, 121, 100, 81,  64,  49,  36, 25, 16, 9,  4,   1,   0,   1,   4,   9,   //
-        169, 144, 121, 100, 81,  64,  49, 36, 25, 16, 9,   4,   1,   0,   1,   4,   //
-        196, 169, 144, 121, 100, 81,  64, 49, 36, 25, 16,  9,   4,   1,   0,   1,   //
-        225, 196, 169, 144, 121, 100, 81, 64, 49, 36, 25,  16,  9,   4,   1,   0,   //
-    };
-    nk_size_t n_bytes = count_scalars / NUMKONG_NIBBLES_PER_BYTE;
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vuint32m4_t sum_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
-    for (nk_size_t vector_length; n_bytes > 0;
-         n_bytes -= vector_length, a_scalars += vector_length, b_scalars += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(n_bytes);
-        vuint8m1_t a_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)a_scalars, vector_length);
-        vuint8m1_t b_packed_u8m1 = __riscv_vle8_v_u8m1((nk_u8_t const *)b_scalars, vector_length);
-        // Build LUT indices: high nibble pair = (a_high & 0xF0) | (b_high >> 4)
-        vuint8m1_t high_index_u8m1 = __riscv_vor_vv_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0xF0, vector_length),
-                                                         __riscv_vsrl_vx_u8m1(b_packed_u8m1, 4, vector_length),
-                                                         vector_length);
-        // Low nibble pair = (a_low << 4) | b_lo
-        vuint8m1_t low_index_u8m1 = __riscv_vor_vv_u8m1(
-            __riscv_vsll_vx_u8m1(__riscv_vand_vx_u8m1(a_packed_u8m1, 0x0F, vector_length), 4, vector_length),
-            __riscv_vand_vx_u8m1(b_packed_u8m1, 0x0F, vector_length), vector_length);
-        // Gather squared differences from LUT (0-225, fits u8)
-        vuint8m1_t sq_high_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, high_index_u8m1, vector_length);
-        vuint8m1_t sq_low_u8m1 = __riscv_vluxei8_v_u8m1(nk_u4_sqd_lut_, low_index_u8m1, vector_length);
-        // Combine and per-lane accumulate: u8+u8→u16, then u32+=u16
-        vuint16m2_t combined_u16m2 = __riscv_vwaddu_vv_u16m2(sq_high_u8m1, sq_low_u8m1, vector_length);
-        sum_u32m4 = __riscv_vwaddu_wv_u32m4_tu(sum_u32m4, sum_u32m4, combined_u16m2, vector_length);
-    }
-    // Single horizontal reduction after loop
-    vuint32m1_t zero_u32m1 = __riscv_vmv_v_x_u32m1(0, max_vector_length);
-    *result = __riscv_vmv_x_s_u32m1_u32(__riscv_vredsum_vs_u32m4_u32m1(sum_u32m4, zero_u32m1, max_vector_length));
-}
-
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_sqeuclidean_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t const *b_scalars,
                                               nk_size_t count_scalars, nk_u32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1084,9 +1077,10 @@ NUMKONG_API nk_status_t nk_angular_u4_rvv(nk_u4x2_t const *a_scalars, nk_u4x2_t 
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion I8 and U8 Integers
+
+#endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)
 } // extern "C"

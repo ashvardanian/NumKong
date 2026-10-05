@@ -45,95 +45,6 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "avx512vnni", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-#pragma region F32 Floats
-
-#if NUMKONG_TARGET_ICELAKE
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 64);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_icelake_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_f32_icelake( //
-    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    nk_size_t const element_bytes = sizeof(nk_f32_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 64, element_bytes,
-                                                               nk_cap_icelake_k);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f, nk_f32_to_f32_,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-    return nk_success_k;
-}
-
-#pragma endregion F32 Floats
-
-#pragma region F16 Floats
-
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 64);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_icelake_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_f16_icelake( //
-    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    nk_size_t const element_bytes = sizeof(nk_f16_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 64, element_bytes,
-                                                               nk_cap_icelake_k);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
-                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_ICELAKE
-
-#pragma endregion F16 Floats
-
 #pragma region Coarse Dots
 
 /** Reduces 4 ZMM i32x16 accumulators to a single __m128i with 4 horizontal sums. */
@@ -369,9 +280,97 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f16_icelake_(void const *query, void co
 
 #pragma endregion Coarse Dots
 
+#if NUMKONG_TARGET_ICELAKE
+
+#pragma region F32 Floats
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_icelake(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
+    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 64);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                           void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_maxsim_packed_by_(packed, nk_cap_icelake_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f32_icelake( //
+    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    nk_size_t const element_bytes = sizeof(nk_f32_t);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 64, element_bytes,
+                                                               nk_cap_icelake_k);
+
+    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
+    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
+    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
+    char *originals = (char *)packed + header->offset_original_data;
+    nk_size_t const original_stride = header->original_stride;
+
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
+        char const *source_row = (char const *)vectors + vector_index * stride;
+        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f, nk_f32_to_f32_,
+                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
+        char *destination_original = originals + vector_index * original_stride;
+        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
+        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
+            destination_original[byte_index] = 0;
+    }
+    return nk_success_k;
+}
+
+#pragma endregion F32 Floats
+
+#pragma region F16 Floats
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_icelake(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
+    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 64);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_icelake(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                           void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_maxsim_packed_by_(packed, nk_cap_icelake_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f16_icelake( //
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    nk_size_t const element_bytes = sizeof(nk_f16_t);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 64, element_bytes,
+                                                               nk_cap_icelake_k);
+
+    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
+    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
+    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
+    char *originals = (char *)packed + header->offset_original_data;
+    nk_size_t const original_stride = header->original_stride;
+
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
+        char const *source_row = (char const *)vectors + vector_index * stride;
+        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
+                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
+                                   &metadata[vector_index]);
+        char *destination_original = originals + vector_index * original_stride;
+        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
+        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
+            destination_original[byte_index] = 0;
+    }
+    return nk_success_k;
+}
+
+#pragma endregion F16 Floats
+
 #pragma region Compute Functions
 
-#if NUMKONG_TARGET_ICELAKE
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_icelake( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result, void *stream) {
@@ -397,9 +396,10 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_icelake( //
                                                   nk_maxsim_coarse_dots_icelake_, nk_maxsim_refine_f16_icelake_);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_ICELAKE
 
 #pragma endregion Compute Functions
+
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop

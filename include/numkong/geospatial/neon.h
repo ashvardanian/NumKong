@@ -82,42 +82,6 @@ NUMKONG_INLINE float64x2_t nk_haversine_f64x2_neon_(                       //
     return vmulq_f64(earth_radius_f64x2, central_angle_f64x2);
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_haversine_f64_neon(      //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 2) {
-        float64x2_t first_latitudes_f64x2 = vld1q_f64(a_lats);
-        float64x2_t first_longitudes_f64x2 = vld1q_f64(a_lons);
-        float64x2_t second_latitudes_f64x2 = vld1q_f64(b_lats);
-        float64x2_t second_longitudes_f64x2 = vld1q_f64(b_lons);
-
-        float64x2_t distances_f64x2 = nk_haversine_f64x2_neon_(first_latitudes_f64x2, first_longitudes_f64x2,
-                                                               second_latitudes_f64x2, second_longitudes_f64x2);
-        vst1q_f64(results, distances_f64x2);
-
-        a_lats += 2, a_lons += 2, b_lats += 2, b_lons += 2, results += 2, n -= 2;
-    }
-
-    // Handle tail with partial loads (n can only be 0 or 1 here)
-    if (n > 0) {
-        nk_b128_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
-        nk_partial_load_b64x2_serial_(a_lats, &a_lat_vec, n);
-        nk_partial_load_b64x2_serial_(a_lons, &a_lon_vec, n);
-        nk_partial_load_b64x2_serial_(b_lats, &b_lat_vec, n);
-        nk_partial_load_b64x2_serial_(b_lons, &b_lon_vec, n);
-        float64x2_t distances_f64x2 = nk_haversine_f64x2_neon_(a_lat_vec.f64x2, a_lon_vec.f64x2, b_lat_vec.f64x2,
-                                                               b_lon_vec.f64x2);
-        result_vec.f64x2 = distances_f64x2;
-        nk_partial_store_b64x2_serial_(&result_vec, results, n);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_NEON
-
 NUMKONG_INLINE float32x4_t nk_haversine_f32x4_neon_(                       //
     float32x4_t first_latitudes_f32x4, float32x4_t first_longitudes_f32x4, //
     float32x4_t second_latitudes_f32x4, float32x4_t second_longitudes_f32x4) {
@@ -161,42 +125,6 @@ NUMKONG_INLINE float32x4_t nk_haversine_f32x4_neon_(                       //
 
     return vmulq_f32(earth_radius_f32x4, central_angle_f32x4);
 }
-
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_haversine_f32_neon(      //
-    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
-    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
-    nk_size_t n, nk_f32_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 4) {
-        float32x4_t first_latitudes_f32x4 = vld1q_f32(a_lats);
-        float32x4_t first_longitudes_f32x4 = vld1q_f32(a_lons);
-        float32x4_t second_latitudes_f32x4 = vld1q_f32(b_lats);
-        float32x4_t second_longitudes_f32x4 = vld1q_f32(b_lons);
-
-        float32x4_t distances_f32x4 = nk_haversine_f32x4_neon_(first_latitudes_f32x4, first_longitudes_f32x4,
-                                                               second_latitudes_f32x4, second_longitudes_f32x4);
-        vst1q_f32(results, distances_f32x4);
-
-        a_lats += 4, a_lons += 4, b_lats += 4, b_lons += 4, results += 4, n -= 4;
-    }
-
-    // Handle tail with partial loads (n can be 0-3 here)
-    if (n > 0) {
-        nk_b128_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
-        nk_partial_load_b32x4_serial_(a_lats, &a_lat_vec, n);
-        nk_partial_load_b32x4_serial_(a_lons, &a_lon_vec, n);
-        nk_partial_load_b32x4_serial_(b_lats, &b_lat_vec, n);
-        nk_partial_load_b32x4_serial_(b_lons, &b_lon_vec, n);
-        float32x4_t distances_f32x4 = nk_haversine_f32x4_neon_(a_lat_vec.f32x4, a_lon_vec.f32x4, b_lat_vec.f32x4,
-                                                               b_lon_vec.f32x4);
-        result_vec.f32x4 = distances_f32x4;
-        nk_partial_store_b32x4_serial_(&result_vec, results, n);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_NEON
 
 /**
  *  @brief NEON helper for Vincenty's geodesic distance on 2 f64 point pairs.
@@ -372,42 +300,6 @@ NUMKONG_INLINE float64x2_t nk_vincenty_f64x2_neon_(                        //
     return distances_f64x2;
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_vincenty_f64_neon(       //
-    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
-    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
-    nk_size_t n, nk_f64_t *results, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    while (n >= 2) {
-        float64x2_t first_latitudes_f64x2 = vld1q_f64(a_lats);
-        float64x2_t first_longitudes_f64x2 = vld1q_f64(a_lons);
-        float64x2_t second_latitudes_f64x2 = vld1q_f64(b_lats);
-        float64x2_t second_longitudes_f64x2 = vld1q_f64(b_lons);
-
-        float64x2_t distances_f64x2 = nk_vincenty_f64x2_neon_(first_latitudes_f64x2, first_longitudes_f64x2,
-                                                              second_latitudes_f64x2, second_longitudes_f64x2);
-        vst1q_f64(results, distances_f64x2);
-
-        a_lats += 2, a_lons += 2, b_lats += 2, b_lons += 2, results += 2, n -= 2;
-    }
-
-    // Handle remaining elements with partial loads (n can only be 0 or 1 here)
-    if (n > 0) {
-        nk_b128_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
-        nk_partial_load_b64x2_serial_(a_lats, &a_lat_vec, n);
-        nk_partial_load_b64x2_serial_(a_lons, &a_lon_vec, n);
-        nk_partial_load_b64x2_serial_(b_lats, &b_lat_vec, n);
-        nk_partial_load_b64x2_serial_(b_lons, &b_lon_vec, n);
-        float64x2_t distances_f64x2 = nk_vincenty_f64x2_neon_(a_lat_vec.f64x2, a_lon_vec.f64x2, b_lat_vec.f64x2,
-                                                              b_lon_vec.f64x2);
-        result_vec.f64x2 = distances_f64x2;
-        nk_partial_store_b64x2_serial_(&result_vec, results, n);
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_NEON
-
 /**
  *  @brief NEON helper for Vincenty's geodesic distance on 4 f32 point pairs.
  *  @note This is a true SIMD implementation using masked convergence tracking via blending.
@@ -576,6 +468,109 @@ NUMKONG_INLINE float32x4_t nk_vincenty_f32x4_neon_(                        //
 }
 
 #if NUMKONG_TARGET_NEON
+
+NUMKONG_API nk_status_t nk_haversine_f64_neon(      //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 2) {
+        float64x2_t first_latitudes_f64x2 = vld1q_f64(a_lats);
+        float64x2_t first_longitudes_f64x2 = vld1q_f64(a_lons);
+        float64x2_t second_latitudes_f64x2 = vld1q_f64(b_lats);
+        float64x2_t second_longitudes_f64x2 = vld1q_f64(b_lons);
+
+        float64x2_t distances_f64x2 = nk_haversine_f64x2_neon_(first_latitudes_f64x2, first_longitudes_f64x2,
+                                                               second_latitudes_f64x2, second_longitudes_f64x2);
+        vst1q_f64(results, distances_f64x2);
+
+        a_lats += 2, a_lons += 2, b_lats += 2, b_lons += 2, results += 2, n -= 2;
+    }
+
+    // Handle tail with partial loads (n can only be 0 or 1 here)
+    if (n > 0) {
+        nk_b128_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
+        nk_partial_load_b64x2_serial_(a_lats, &a_lat_vec, n);
+        nk_partial_load_b64x2_serial_(a_lons, &a_lon_vec, n);
+        nk_partial_load_b64x2_serial_(b_lats, &b_lat_vec, n);
+        nk_partial_load_b64x2_serial_(b_lons, &b_lon_vec, n);
+        float64x2_t distances_f64x2 = nk_haversine_f64x2_neon_(a_lat_vec.f64x2, a_lon_vec.f64x2, b_lat_vec.f64x2,
+                                                               b_lon_vec.f64x2);
+        result_vec.f64x2 = distances_f64x2;
+        nk_partial_store_b64x2_serial_(&result_vec, results, n);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_haversine_f32_neon(      //
+    nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
+    nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
+    nk_size_t n, nk_f32_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 4) {
+        float32x4_t first_latitudes_f32x4 = vld1q_f32(a_lats);
+        float32x4_t first_longitudes_f32x4 = vld1q_f32(a_lons);
+        float32x4_t second_latitudes_f32x4 = vld1q_f32(b_lats);
+        float32x4_t second_longitudes_f32x4 = vld1q_f32(b_lons);
+
+        float32x4_t distances_f32x4 = nk_haversine_f32x4_neon_(first_latitudes_f32x4, first_longitudes_f32x4,
+                                                               second_latitudes_f32x4, second_longitudes_f32x4);
+        vst1q_f32(results, distances_f32x4);
+
+        a_lats += 4, a_lons += 4, b_lats += 4, b_lons += 4, results += 4, n -= 4;
+    }
+
+    // Handle tail with partial loads (n can be 0-3 here)
+    if (n > 0) {
+        nk_b128_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
+        nk_partial_load_b32x4_serial_(a_lats, &a_lat_vec, n);
+        nk_partial_load_b32x4_serial_(a_lons, &a_lon_vec, n);
+        nk_partial_load_b32x4_serial_(b_lats, &b_lat_vec, n);
+        nk_partial_load_b32x4_serial_(b_lons, &b_lon_vec, n);
+        float32x4_t distances_f32x4 = nk_haversine_f32x4_neon_(a_lat_vec.f32x4, a_lon_vec.f32x4, b_lat_vec.f32x4,
+                                                               b_lon_vec.f32x4);
+        result_vec.f32x4 = distances_f32x4;
+        nk_partial_store_b32x4_serial_(&result_vec, results, n);
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_vincenty_f64_neon(       //
+    nk_f64_t const *a_lats, nk_f64_t const *a_lons, //
+    nk_f64_t const *b_lats, nk_f64_t const *b_lons, //
+    nk_size_t n, nk_f64_t *results, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    while (n >= 2) {
+        float64x2_t first_latitudes_f64x2 = vld1q_f64(a_lats);
+        float64x2_t first_longitudes_f64x2 = vld1q_f64(a_lons);
+        float64x2_t second_latitudes_f64x2 = vld1q_f64(b_lats);
+        float64x2_t second_longitudes_f64x2 = vld1q_f64(b_lons);
+
+        float64x2_t distances_f64x2 = nk_vincenty_f64x2_neon_(first_latitudes_f64x2, first_longitudes_f64x2,
+                                                              second_latitudes_f64x2, second_longitudes_f64x2);
+        vst1q_f64(results, distances_f64x2);
+
+        a_lats += 2, a_lons += 2, b_lats += 2, b_lons += 2, results += 2, n -= 2;
+    }
+
+    // Handle remaining elements with partial loads (n can only be 0 or 1 here)
+    if (n > 0) {
+        nk_b128_vec_t a_lat_vec, a_lon_vec, b_lat_vec, b_lon_vec, result_vec;
+        nk_partial_load_b64x2_serial_(a_lats, &a_lat_vec, n);
+        nk_partial_load_b64x2_serial_(a_lons, &a_lon_vec, n);
+        nk_partial_load_b64x2_serial_(b_lats, &b_lat_vec, n);
+        nk_partial_load_b64x2_serial_(b_lons, &b_lon_vec, n);
+        float64x2_t distances_f64x2 = nk_vincenty_f64x2_neon_(a_lat_vec.f64x2, a_lon_vec.f64x2, b_lat_vec.f64x2,
+                                                              b_lon_vec.f64x2);
+        result_vec.f64x2 = distances_f64x2;
+        nk_partial_store_b64x2_serial_(&result_vec, results, n);
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_vincenty_f32_neon(       //
     nk_f32_t const *a_lats, nk_f32_t const *a_lons, //
     nk_f32_t const *b_lats, nk_f32_t const *b_lons, //
@@ -609,6 +604,7 @@ NUMKONG_API nk_status_t nk_vincenty_f32_neon(       //
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_NEON
 
 #if defined(__clang__)

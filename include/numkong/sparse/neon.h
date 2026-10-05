@@ -62,7 +62,16 @@ NUMKONG_INLINE uint16x8_t nk_intersect_u16x8_neon_(uint16x8_t a, uint16x8_t b) {
     return matches_u16x8;
 }
 
+NUMKONG_INLINE uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
+    uint64x2_t b_rot1_u64x2 = vextq_u64(b, b, 1);
+    uint64x2_t matches_rot0_u64x2 = vceqq_u64(a, b);
+    uint64x2_t matches_rot1_u64x2 = vceqq_u64(a, b_rot1_u64x2);
+    uint64x2_t matches_u64x2 = vorrq_u64(matches_rot0_u64x2, matches_rot1_u64x2);
+    return matches_u64x2;
+}
+
 #if NUMKONG_TARGET_NEON
+
 NUMKONG_API nk_status_t nk_sparse_intersect_u16_neon( //
     nk_u16_t const *a, nk_u16_t const *b,             //
     nk_size_t a_length, nk_size_t b_length,           //
@@ -204,17 +213,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_neon( //
     *count = tail_count + (nk_size_t)vaddvq_u32(c_counts_u32x4);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_NEON
 
-NUMKONG_INLINE uint64x2_t nk_intersect_u64x2_neon_(uint64x2_t a, uint64x2_t b) {
-    uint64x2_t b_rot1_u64x2 = vextq_u64(b, b, 1);
-    uint64x2_t matches_rot0_u64x2 = vceqq_u64(a, b);
-    uint64x2_t matches_rot1_u64x2 = vceqq_u64(a, b_rot1_u64x2);
-    uint64x2_t matches_u64x2 = vorrq_u64(matches_rot0_u64x2, matches_rot1_u64x2);
-    return matches_u64x2;
-}
-
-#if NUMKONG_TARGET_NEON
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_neon( //
     nk_u64_t const *a, nk_u64_t const *b,             //
     nk_size_t a_length, nk_size_t b_length,           //
@@ -284,6 +283,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u64_neon( //
     *count = tail_count + (nk_size_t)vaddvq_u64(c_counts_u64x2);
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_NEON
 
 #if defined(__clang__)

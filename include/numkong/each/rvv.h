@@ -100,7 +100,139 @@ NUMKONG_INLINE void nk_each_add_u8_rvv_(nk_u8_t const *a, nk_u8_t const *b, nk_s
     }
 }
 
+/** Elementwise @p alpha times @p a plus @p beta over @p n F64 values. */
+NUMKONG_INLINE void nk_each_affine_f64_rvv_(nk_f64_t const *a, nk_size_t n, nk_f64_t alpha_val, nk_f64_t beta_val,
+                                            nk_f64_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
+    vfloat64m4_t beta_f64m4 = __riscv_vfmv_v_f_f64m4(beta_val, max_vector_length);
+    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
+        vector_length = __riscv_vsetvl_e64m4(n);
+        vfloat64m4_t a_f64m4 = __riscv_vle64_v_f64m4(a, vector_length);
+        a_f64m4 = __riscv_vfmadd_vf_f64m4(a_f64m4, alpha_val, beta_f64m4, vector_length);
+        __riscv_vse64_v_f64m4(result, a_f64m4, vector_length);
+    }
+}
+
+/** Elementwise @p alpha times @p a plus @p beta over @p n F32 values. */
+NUMKONG_INLINE void nk_each_affine_f32_rvv_(nk_f32_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
+                                            nk_f32_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
+    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
+        vector_length = __riscv_vsetvl_e32m4(n);
+        vfloat32m4_t a_f32m4 = __riscv_vle32_v_f32m4(a, vector_length);
+        a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
+        __riscv_vse32_v_f32m4(result, a_f32m4, vector_length);
+    }
+}
+
+/** Elementwise @p alpha times @p a plus @p beta over @p n F16 values, computed in F32. */
+NUMKONG_INLINE void nk_each_affine_f16_rvv_(nk_f16_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
+                                            nk_f16_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
+    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
+        vector_length = __riscv_vsetvl_e16m1(n);
+        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
+        vfloat32m2_t a_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
+        a_f32m2 = __riscv_vfmadd_vf_f32m2(a_f32m2, alpha_val, beta_f32m2, vector_length);
+        vuint16m1_t result_u16m1 = nk_f32m2_to_f16m1_rvv_(a_f32m2, vector_length);
+        __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
+    }
+}
+
+/** Elementwise @p alpha times @p a plus @p beta over @p n BF16 values, computed in F32. */
+NUMKONG_INLINE void nk_each_affine_bf16_rvv_(nk_bf16_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
+                                             nk_bf16_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
+    vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
+    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
+        vector_length = __riscv_vsetvl_e16m1(n);
+        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
+        vfloat32m2_t a_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
+        a_f32m2 = __riscv_vfmadd_vf_f32m2(a_f32m2, alpha_val, beta_f32m2, vector_length);
+        vuint16m1_t result_u16m1 = nk_f32m2_to_bf16m1_rvv_(a_f32m2, vector_length);
+        __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
+    }
+}
+
+/** Maps @p n I8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
+NUMKONG_INLINE void nk_each_affine_i8_rvv_(nk_i8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
+                                           nk_i8_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
+    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(n);
+        vint8m1_t a_i8m1 = __riscv_vle8_v_i8m1(a, vector_length);
+        vint16m2_t a_i16m2 = __riscv_vwadd_vx_i16m2(a_i8m1, 0, vector_length);
+        vint32m4_t a_i32m4 = __riscv_vwadd_vx_i32m4(a_i16m2, 0, vector_length);
+        vfloat32m4_t a_f32m4 = __riscv_vfcvt_f_x_v_f32m4(a_i32m4, vector_length);
+        a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
+        // RVV converts NaN to the largest integer, where serial gives zero
+        a_f32m4 = __riscv_vfmerge_vfm_f32m4(a_f32m4, 0.0f, __riscv_vmfne_vv_f32m4_b8(a_f32m4, a_f32m4, vector_length),
+                                            vector_length);
+        vint32m4_t result_i32m4 = __riscv_vfcvt_x_f_v_i32m4(a_f32m4, vector_length);
+        result_i32m4 = __riscv_vmax_vx_i32m4(result_i32m4, -128, vector_length);
+        result_i32m4 = __riscv_vmin_vx_i32m4(result_i32m4, 127, vector_length);
+        vint16m2_t result_i16m2 = __riscv_vncvt_x_x_w_i16m2(result_i32m4, vector_length);
+        vint8m1_t result_i8m1 = __riscv_vncvt_x_x_w_i8m1(result_i16m2, vector_length);
+        __riscv_vse8_v_i8m1(result, result_i8m1, vector_length);
+    }
+}
+
+/** Maps @p n U8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
+NUMKONG_INLINE void nk_each_affine_u8_rvv_(nk_u8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
+                                           nk_u8_t *result) {
+    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
+    vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
+    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
+        vector_length = __riscv_vsetvl_e8m1(n);
+        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1(a, vector_length);
+        vuint16m2_t a_u16m2 = __riscv_vwaddu_vx_u16m2(a_u8m1, 0, vector_length);
+        vuint32m4_t a_u32m4 = __riscv_vwaddu_vx_u32m4(a_u16m2, 0, vector_length);
+        vfloat32m4_t a_f32m4 = __riscv_vfcvt_f_xu_v_f32m4(a_u32m4, vector_length);
+        a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
+        // vfmax returns the non-NaN operand, so NaNs clamp to zero along with negatives
+        a_f32m4 = __riscv_vfmax_vf_f32m4(a_f32m4, 0.0f, vector_length);
+        vuint32m4_t result_u32m4 = __riscv_vfcvt_xu_f_v_u32m4(a_f32m4, vector_length);
+        result_u32m4 = __riscv_vminu_vx_u32m4(result_u32m4, 255, vector_length);
+        vuint16m2_t result_u16m2 = __riscv_vncvt_x_x_w_u16m2(result_u32m4, vector_length);
+        vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
+        __riscv_vse8_v_u8m1(result, result_u8m1, vector_length);
+    }
+}
+
+/** Vectorized `2^x` at e32m4 (RVV); matches @c nk_f32_exp2_serial_ to polynomial precision. */
+NUMKONG_INLINE vfloat32m4_t nk_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
+    // Clamp to [-125, 127] like `nk_f32_exp2_serial_`: the lower bound keeps the smallest
+    // result a normal float, so downstream multiplies never hit denormal assists.
+    x_f32m4 = __riscv_vfmin_vf_f32m4(x_f32m4, 127.0f, vector_length);
+    x_f32m4 = __riscv_vfmax_vf_f32m4(x_f32m4, -125.0f, vector_length);
+    vint32m4_t whole_i32m4 = __riscv_vfcvt_x_f_v_i32m4(x_f32m4, vector_length);
+    vfloat32m4_t reduced_f32m4 = __riscv_vfsub_vv_f32m4(x_f32m4, __riscv_vfcvt_f_x_v_f32m4(whole_i32m4, vector_length),
+                                                        vector_length);
+    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(1.52527338e-5f, vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(1.54035304e-4f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(1.33335581e-3f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(9.61812910e-3f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(5.55041087e-2f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(2.40226507e-1f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
+                                         __riscv_vfmv_v_f_f32m4(6.93147181e-1f, vector_length), vector_length);
+    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4, __riscv_vfmv_v_f_f32m4(1.0f, vector_length),
+                                         vector_length);
+    vint32m4_t power_i32m4 = __riscv_vsll_vx_i32m4(__riscv_vadd_vx_i32m4(whole_i32m4, 127, vector_length), 23,
+                                                   vector_length);
+    return __riscv_vfmul_vv_f32m4(poly_f32m4, __riscv_vreinterpret_v_i32m4_f32m4(power_i32m4), vector_length);
+}
+
 #if NUMKONG_TARGET_RVV
+
 NUMKONG_API nk_status_t nk_each_sum_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -255,111 +387,6 @@ NUMKONG_API nk_status_t nk_each_sum_e5m2_rvv(nk_e5m2_t const *a, nk_e5m2_t const
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_RVV
-
-/** Elementwise @p alpha times @p a plus @p beta over @p n F64 values. */
-NUMKONG_INLINE void nk_each_affine_f64_rvv_(nk_f64_t const *a, nk_size_t n, nk_f64_t alpha_val, nk_f64_t beta_val,
-                                            nk_f64_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
-    vfloat64m4_t beta_f64m4 = __riscv_vfmv_v_f_f64m4(beta_val, max_vector_length);
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
-        vector_length = __riscv_vsetvl_e64m4(n);
-        vfloat64m4_t a_f64m4 = __riscv_vle64_v_f64m4(a, vector_length);
-        a_f64m4 = __riscv_vfmadd_vf_f64m4(a_f64m4, alpha_val, beta_f64m4, vector_length);
-        __riscv_vse64_v_f64m4(result, a_f64m4, vector_length);
-    }
-}
-
-/** Elementwise @p alpha times @p a plus @p beta over @p n F32 values. */
-NUMKONG_INLINE void nk_each_affine_f32_rvv_(nk_f32_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
-                                            nk_f32_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
-        vector_length = __riscv_vsetvl_e32m4(n);
-        vfloat32m4_t a_f32m4 = __riscv_vle32_v_f32m4(a, vector_length);
-        a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
-        __riscv_vse32_v_f32m4(result, a_f32m4, vector_length);
-    }
-}
-
-/** Elementwise @p alpha times @p a plus @p beta over @p n F16 values, computed in F32. */
-NUMKONG_INLINE void nk_each_affine_f16_rvv_(nk_f16_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
-                                            nk_f16_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
-    vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
-        vector_length = __riscv_vsetvl_e16m1(n);
-        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
-        vfloat32m2_t a_f32m2 = nk_f16m1_to_f32m2_rvv_(a_u16m1, vector_length);
-        a_f32m2 = __riscv_vfmadd_vf_f32m2(a_f32m2, alpha_val, beta_f32m2, vector_length);
-        vuint16m1_t result_u16m1 = nk_f32m2_to_f16m1_rvv_(a_f32m2, vector_length);
-        __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
-    }
-}
-
-/** Elementwise @p alpha times @p a plus @p beta over @p n BF16 values, computed in F32. */
-NUMKONG_INLINE void nk_each_affine_bf16_rvv_(nk_bf16_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
-                                             nk_bf16_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
-    vfloat32m2_t beta_f32m2 = __riscv_vfmv_v_f_f32m2(beta_val, max_vector_length);
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
-        vector_length = __riscv_vsetvl_e16m1(n);
-        vuint16m1_t a_u16m1 = __riscv_vle16_v_u16m1((nk_u16_t const *)a, vector_length);
-        vfloat32m2_t a_f32m2 = nk_bf16m1_to_f32m2_rvv_(a_u16m1, vector_length);
-        a_f32m2 = __riscv_vfmadd_vf_f32m2(a_f32m2, alpha_val, beta_f32m2, vector_length);
-        vuint16m1_t result_u16m1 = nk_f32m2_to_bf16m1_rvv_(a_f32m2, vector_length);
-        __riscv_vse16_v_u16m1((nk_u16_t *)result, result_u16m1, vector_length);
-    }
-}
-
-/** Maps @p n I8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
-NUMKONG_INLINE void nk_each_affine_i8_rvv_(nk_i8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
-                                           nk_i8_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(n);
-        vint8m1_t a_i8m1 = __riscv_vle8_v_i8m1(a, vector_length);
-        vint16m2_t a_i16m2 = __riscv_vwadd_vx_i16m2(a_i8m1, 0, vector_length);
-        vint32m4_t a_i32m4 = __riscv_vwadd_vx_i32m4(a_i16m2, 0, vector_length);
-        vfloat32m4_t a_f32m4 = __riscv_vfcvt_f_x_v_f32m4(a_i32m4, vector_length);
-        a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
-        // RVV converts NaN to the largest integer, where serial gives zero
-        a_f32m4 = __riscv_vfmerge_vfm_f32m4(a_f32m4, 0.0f, __riscv_vmfne_vv_f32m4_b8(a_f32m4, a_f32m4, vector_length),
-                                            vector_length);
-        vint32m4_t result_i32m4 = __riscv_vfcvt_x_f_v_i32m4(a_f32m4, vector_length);
-        result_i32m4 = __riscv_vmax_vx_i32m4(result_i32m4, -128, vector_length);
-        result_i32m4 = __riscv_vmin_vx_i32m4(result_i32m4, 127, vector_length);
-        vint16m2_t result_i16m2 = __riscv_vncvt_x_x_w_i16m2(result_i32m4, vector_length);
-        vint8m1_t result_i8m1 = __riscv_vncvt_x_x_w_i8m1(result_i16m2, vector_length);
-        __riscv_vse8_v_i8m1(result, result_i8m1, vector_length);
-    }
-}
-
-/** Maps @p n U8 values of @p a to @p alpha_val × a + @p beta_val in F32, rounded and saturated. */
-NUMKONG_INLINE void nk_each_affine_u8_rvv_(nk_u8_t const *a, nk_size_t n, nk_f32_t alpha_val, nk_f32_t beta_val,
-                                           nk_u8_t *result) {
-    nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
-    vfloat32m4_t beta_f32m4 = __riscv_vfmv_v_f_f32m4(beta_val, max_vector_length);
-    for (nk_size_t vector_length; n > 0; n -= vector_length, a += vector_length, result += vector_length) {
-        vector_length = __riscv_vsetvl_e8m1(n);
-        vuint8m1_t a_u8m1 = __riscv_vle8_v_u8m1(a, vector_length);
-        vuint16m2_t a_u16m2 = __riscv_vwaddu_vx_u16m2(a_u8m1, 0, vector_length);
-        vuint32m4_t a_u32m4 = __riscv_vwaddu_vx_u32m4(a_u16m2, 0, vector_length);
-        vfloat32m4_t a_f32m4 = __riscv_vfcvt_f_xu_v_f32m4(a_u32m4, vector_length);
-        a_f32m4 = __riscv_vfmadd_vf_f32m4(a_f32m4, alpha_val, beta_f32m4, vector_length);
-        // vfmax returns the non-NaN operand, so NaNs clamp to zero along with negatives
-        a_f32m4 = __riscv_vfmax_vf_f32m4(a_f32m4, 0.0f, vector_length);
-        vuint32m4_t result_u32m4 = __riscv_vfcvt_xu_f_v_u32m4(a_f32m4, vector_length);
-        result_u32m4 = __riscv_vminu_vx_u32m4(result_u32m4, 255, vector_length);
-        vuint16m2_t result_u16m2 = __riscv_vncvt_x_x_w_u16m2(result_u32m4, vector_length);
-        vuint8m1_t result_u8m1 = __riscv_vncvt_x_x_w_u8m1(result_u16m2, vector_length);
-        __riscv_vse8_v_u8m1(result, result_u8m1, vector_length);
-    }
-}
-
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_each_scale_f64_rvv(nk_f64_t const *a, nk_size_t n, nk_f64_t const *alpha,
                                               nk_f64_t const *beta, nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1340,36 +1367,8 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_rvv(nk_f64c_t const *a, nk_f64c_t const
     }
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
-/** Vectorized `2^x` at e32m4 (RVV); matches @c nk_f32_exp2_serial_ to polynomial precision. */
-NUMKONG_INLINE vfloat32m4_t nk_exp2_f32m4_rvv_(vfloat32m4_t x_f32m4, nk_size_t vector_length) {
-    // Clamp to [-125, 127] like `nk_f32_exp2_serial_`: the lower bound keeps the smallest
-    // result a normal float, so downstream multiplies never hit denormal assists.
-    x_f32m4 = __riscv_vfmin_vf_f32m4(x_f32m4, 127.0f, vector_length);
-    x_f32m4 = __riscv_vfmax_vf_f32m4(x_f32m4, -125.0f, vector_length);
-    vint32m4_t whole_i32m4 = __riscv_vfcvt_x_f_v_i32m4(x_f32m4, vector_length);
-    vfloat32m4_t reduced_f32m4 = __riscv_vfsub_vv_f32m4(x_f32m4, __riscv_vfcvt_f_x_v_f32m4(whole_i32m4, vector_length),
-                                                        vector_length);
-    vfloat32m4_t poly_f32m4 = __riscv_vfmv_v_f_f32m4(1.52527338e-5f, vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(1.54035304e-4f, vector_length), vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(1.33335581e-3f, vector_length), vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(9.61812910e-3f, vector_length), vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(5.55041087e-2f, vector_length), vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(2.40226507e-1f, vector_length), vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4,
-                                         __riscv_vfmv_v_f_f32m4(6.93147181e-1f, vector_length), vector_length);
-    poly_f32m4 = __riscv_vfmadd_vv_f32m4(poly_f32m4, reduced_f32m4, __riscv_vfmv_v_f_f32m4(1.0f, vector_length),
-                                         vector_length);
-    vint32m4_t power_i32m4 = __riscv_vsll_vx_i32m4(__riscv_vadd_vx_i32m4(whole_i32m4, 127, vector_length), 23,
-                                                   vector_length);
-    return __riscv_vfmul_vv_f32m4(poly_f32m4, __riscv_vreinterpret_v_i32m4_f32m4(power_i32m4), vector_length);
-}
+#endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)
 } // extern "C"

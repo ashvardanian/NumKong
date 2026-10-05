@@ -288,23 +288,6 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
     *result = total_angular_distance;
 }
 
-#if NUMKONG_TARGET_SME
-NUMKONG_API nk_status_t nk_maxsim_packed_f16_sme( //
-    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (((nk_maxsim_sme_packed_header_t const *)query_packed)->capability != nk_cap_sme_k ||
-        ((nk_maxsim_sme_packed_header_t const *)document_packed)->capability != nk_cap_sme_k)
-        return nk_pack_mismatch_k;
-    nk_unused_(depth);
-
-    nk_sme_start_streaming_();
-    nk_maxsim_packed_f16_streaming_(query_packed, document_packed, query_count, document_count, result);
-    nk_sme_stop_streaming_();
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SME
-
 /**
  *  @brief MaxSim bf16 kernel with Q and D pre-packed, extracting through vertical column reads.
  *
@@ -484,109 +467,6 @@ __arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
     *result = total_angular_distance;
 }
 
-#if NUMKONG_TARGET_SME
-NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sme( //
-    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
-    nk_size_t depth, nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (((nk_maxsim_sme_packed_header_t const *)query_packed)->capability != nk_cap_sme_k ||
-        ((nk_maxsim_sme_packed_header_t const *)document_packed)->capability != nk_cap_sme_k)
-        return nk_pack_mismatch_k;
-    nk_unused_(depth);
-
-    nk_sme_start_streaming_();
-    nk_maxsim_packed_bf16_streaming_(query_packed, document_packed, query_count, document_count, result);
-    nk_sme_stop_streaming_();
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) { //
-    *bytes = nk_dots_pack_size_b16_sme_(columns, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                        void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
-    if (header->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
-    *vectors = header->columns;
-    *depth = header->depth;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) { //
-    *bytes = nk_dots_pack_size_b16_sme_(columns, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                       void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
-    if (header->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
-    *vectors = header->columns;
-    *depth = header->depth;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme( //
-    nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
-    void *stream) { //
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
-
-    // Delegate tile interleaving and squared norms computation to dots pack.
-    // Both headers are 64 bytes with identical layout for the first 6 fields.
-    nk_dots_pack_bf16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
-
-    // Set maxsim-specific header fields (overlaps dots reserved area)
-    nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
-    header->originals_offset = 0;      // not used for bf16
-    header->original_stride = 0;       // not used for bf16
-    header->screen_weights_offset = 0; // not used for bf16
-    header->capability = nk_cap_sme_k;
-    for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
-
-    // Convert squared norms → inverse norms in-place
-    nk_f32_t *norms = (nk_f32_t *)((char *)packed + header->norms_offset);
-    for (nk_size_t i = 0; i < columns; i++) {
-        nk_f32_t norm_sq = norms[i];
-        norms[i] = (norm_sq > 0.0f) ? (nk_f32_t)nk_f64_rsqrt_refined_neon_((nk_f64_t)norm_sq) : 0.0f;
-    }
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme( //
-    nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
-    void *stream) { //
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
-
-    // Delegate tile interleaving and squared norms computation to dots pack.
-    // Both headers are 64 bytes with identical layout for the first 6 fields.
-    nk_dots_pack_f16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
-
-    // Set maxsim-specific header fields (overlaps dots reserved area)
-    nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
-    header->originals_offset = 0;      // not used for f16
-    header->original_stride = 0;       // not used for f16
-    header->screen_weights_offset = 0; // not used for f16
-    header->capability = nk_cap_sme_k;
-    for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
-
-    // Convert squared norms → inverse norms in-place
-    nk_f32_t *norms = (nk_f32_t *)((char *)packed + header->norms_offset);
-    for (nk_size_t i = 0; i < columns; i++) {
-        nk_f32_t norm_sq = norms[i];
-        norms[i] = (norm_sq > 0.0f) ? (nk_f32_t)nk_f64_rsqrt_refined_neon_((nk_f64_t)norm_sq) : 0.0f;
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SME
-
 /** Bytes of an F32 pack: I8 tiles, f64 inverse norms, screening weights, aligned originals. */
 NUMKONG_INLINE nk_size_t nk_maxsim_pack_bytes_f32_sme_(nk_size_t columns, nk_size_t depth) {
     nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
@@ -603,114 +483,6 @@ NUMKONG_INLINE nk_size_t nk_maxsim_pack_bytes_f32_sme_(nk_size_t columns, nk_siz
     size += columns * original_stride;                              // f32 originals
     return size;
 }
-
-#if NUMKONG_TARGET_SME
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) { //
-    *bytes = nk_maxsim_pack_bytes_f32_sme_(columns, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                       void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
-    if (header->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
-    *vectors = header->columns;
-    *depth = header->depth;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
-    nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
-    void *stream) { //
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const blob_bytes = nk_maxsim_pack_bytes_f32_sme_(columns, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
-
-    nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
-    nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512
-    nk_size_t const vector_elements = nk_sme_cntb_(); // 64 for SVL=512
-
-    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
-    nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, expansion);
-    nk_size_t const total_vectors = column_tile_count * depth_step_count;
-    nk_size_t const original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f32_t), 64);
-
-    // Set up header
-    nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
-    header->column_tile_count = (nk_u32_t)column_tile_count;
-    header->depth_tile_count = (nk_u32_t)depth_step_count;
-    header->columns = (nk_u32_t)columns;
-    header->depth = (nk_u32_t)depth;
-    header->svl_bytes = (nk_u32_t)(tile_dimension * sizeof(nk_f32_t));
-
-    nk_size_t const tiles_size = total_vectors * vector_elements;
-    nk_size_t const norms_offset = sizeof(nk_maxsim_sme_packed_header_t) + tiles_size;
-    nk_size_t const screen_weights_offset = norms_offset + columns * sizeof(nk_f64_t);
-    nk_size_t const originals_offset = screen_weights_offset + columns * sizeof(nk_f32_t);
-
-    header->norms_offset = (nk_u32_t)norms_offset;
-    header->originals_offset = (nk_u32_t)originals_offset;
-    header->original_stride = (nk_u32_t)original_stride;
-    header->screen_weights_offset = (nk_u32_t)screen_weights_offset;
-    header->capability = nk_cap_sme_k;
-    for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
-
-    nk_i8_t *tiles = (nk_i8_t *)((char *)packed + sizeof(nk_maxsim_sme_packed_header_t));
-    nk_f64_t *inverse_norms = (nk_f64_t *)((char *)packed + norms_offset);
-    nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + screen_weights_offset);
-    char *originals = (char *)packed + originals_offset;
-
-    // Zero-initialize tile data (partial vectors stay zero-padded)
-    for (nk_size_t i = 0; i < tiles_size; i++) tiles[i] = 0;
-
-    // For each vector: quantize metadata, quantize+interleave into tiles, copy originals
-    for (nk_size_t vector_index = 0; vector_index < columns; vector_index++) {
-        nk_f32_t const *source = (nk_f32_t const *)((char const *)vectors + vector_index * stride);
-
-        // Pass 1: Compute absmax and norm_sq simultaneously
-        nk_f32_t absmax = 0.0f;
-        nk_f64_t norm_sq = 0.0;
-        for (nk_size_t dim = 0; dim < depth; dim++) {
-            nk_f32_t val = source[dim];
-            nk_f32_t abs_val = nk_f32_abs_(val);
-            if (abs_val > absmax) absmax = abs_val;
-            norm_sq += (nk_f64_t)val * val;
-        }
-        inverse_norms[vector_index] = norm_sq > 0.0 ? nk_f64_rsqrt_refined_neon_(norm_sq) : 0.0;
-
-        nk_f32_t scale = absmax / 127.0f;
-        if (scale == 0.0f) scale = 1.0f;
-        screen_weights[vector_index] = scale * (nk_f32_t)inverse_norms[vector_index];
-
-        // Pass 2: Quantize and scatter into tile-interleaved positions
-        nk_size_t const column_tile = vector_index / tile_dimension;
-        nk_size_t const column_in_tile = vector_index % tile_dimension;
-
-        for (nk_size_t dim = 0; dim < depth; dim++) {
-            nk_size_t const depth_step = dim / expansion;
-            nk_size_t const sub_element = dim % expansion;
-            nk_size_t const vec_index = column_tile * depth_step_count + depth_step;
-            nk_size_t const offset = vec_index * vector_elements + expansion * column_in_tile + sub_element;
-
-            nk_f32_t scaled = source[dim] / scale;
-            nk_i32_t quantized;
-            if (scaled >= 0.0f) quantized = (nk_i32_t)(scaled + 0.5f);
-            else quantized = (nk_i32_t)(scaled - 0.5f);
-            if (quantized > 127) quantized = 127;
-            if (quantized < -127) quantized = -127;
-
-            tiles[offset] = (nk_i8_t)quantized;
-        }
-
-        // Pass 3: Copy originals (64B-aligned stride, zero-pad tail)
-        char *dest_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(dest_original, source, depth * sizeof(nk_f32_t));
-        for (nk_size_t byte = depth * sizeof(nk_f32_t); byte < original_stride; byte++) dest_original[byte] = 0;
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SME
 
 /** Streaming-compatible f32 dot product with f64 accumulation, following the svcntd() stride and
  *  svcvt_f64_f32_x widening of @c nk_dots_reduce_sumsq_f32_ssve_. */
@@ -996,6 +768,229 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
 }
 
 #if NUMKONG_TARGET_SME
+
+NUMKONG_API nk_status_t nk_maxsim_packed_f16_sme( //
+    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
+    nk_size_t depth, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_maxsim_sme_packed_header_t const *)query_packed)->capability != nk_cap_sme_k ||
+        ((nk_maxsim_sme_packed_header_t const *)document_packed)->capability != nk_cap_sme_k)
+        return nk_pack_mismatch_k;
+    nk_unused_(depth);
+
+    nk_sme_start_streaming_();
+    nk_maxsim_packed_f16_streaming_(query_packed, document_packed, query_count, document_count, result);
+    nk_sme_stop_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sme( //
+    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
+    nk_size_t depth, nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (((nk_maxsim_sme_packed_header_t const *)query_packed)->capability != nk_cap_sme_k ||
+        ((nk_maxsim_sme_packed_header_t const *)document_packed)->capability != nk_cap_sme_k)
+        return nk_pack_mismatch_k;
+    nk_unused_(depth);
+
+    nk_sme_start_streaming_();
+    nk_maxsim_packed_bf16_streaming_(query_packed, document_packed, query_count, document_count, result);
+    nk_sme_stop_streaming_();
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) { //
+    *bytes = nk_dots_pack_size_b16_sme_(columns, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                        void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
+    if (header->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
+    *vectors = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) { //
+    *bytes = nk_dots_pack_size_b16_sme_(columns, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                       void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
+    if (header->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
+    *vectors = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme( //
+    nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
+    void *stream) { //
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
+
+    // Delegate tile interleaving and squared norms computation to dots pack.
+    // Both headers are 64 bytes with identical layout for the first 6 fields.
+    nk_dots_pack_bf16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
+
+    // Set maxsim-specific header fields (overlaps dots reserved area)
+    nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
+    header->originals_offset = 0;      // not used for bf16
+    header->original_stride = 0;       // not used for bf16
+    header->screen_weights_offset = 0; // not used for bf16
+    header->capability = nk_cap_sme_k;
+    for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
+
+    // Convert squared norms → inverse norms in-place
+    nk_f32_t *norms = (nk_f32_t *)((char *)packed + header->norms_offset);
+    for (nk_size_t i = 0; i < columns; i++) {
+        nk_f32_t norm_sq = norms[i];
+        norms[i] = (norm_sq > 0.0f) ? (nk_f32_t)nk_f64_rsqrt_refined_neon_((nk_f64_t)norm_sq) : 0.0f;
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme( //
+    nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
+    void *stream) { //
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
+
+    // Delegate tile interleaving and squared norms computation to dots pack.
+    // Both headers are 64 bytes with identical layout for the first 6 fields.
+    nk_dots_pack_f16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
+
+    // Set maxsim-specific header fields (overlaps dots reserved area)
+    nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
+    header->originals_offset = 0;      // not used for f16
+    header->original_stride = 0;       // not used for f16
+    header->screen_weights_offset = 0; // not used for f16
+    header->capability = nk_cap_sme_k;
+    for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
+
+    // Convert squared norms → inverse norms in-place
+    nk_f32_t *norms = (nk_f32_t *)((char *)packed + header->norms_offset);
+    for (nk_size_t i = 0; i < columns; i++) {
+        nk_f32_t norm_sq = norms[i];
+        norms[i] = (norm_sq > 0.0f) ? (nk_f32_t)nk_f64_rsqrt_refined_neon_((nk_f64_t)norm_sq) : 0.0f;
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) { //
+    *bytes = nk_maxsim_pack_bytes_f32_sme_(columns, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sme(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                       void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_maxsim_sme_packed_header_t const *header = (nk_maxsim_sme_packed_header_t const *)packed;
+    if (header->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
+    *vectors = header->columns;
+    *depth = header->depth;
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
+    nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
+    void *stream) { //
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_size_t const blob_bytes = nk_maxsim_pack_bytes_f32_sme_(columns, depth);
+    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
+
+    nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
+    nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512
+    nk_size_t const vector_elements = nk_sme_cntb_(); // 64 for SVL=512
+
+    nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
+    nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, expansion);
+    nk_size_t const total_vectors = column_tile_count * depth_step_count;
+    nk_size_t const original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f32_t), 64);
+
+    // Set up header
+    nk_maxsim_sme_packed_header_t *header = (nk_maxsim_sme_packed_header_t *)packed;
+    header->column_tile_count = (nk_u32_t)column_tile_count;
+    header->depth_tile_count = (nk_u32_t)depth_step_count;
+    header->columns = (nk_u32_t)columns;
+    header->depth = (nk_u32_t)depth;
+    header->svl_bytes = (nk_u32_t)(tile_dimension * sizeof(nk_f32_t));
+
+    nk_size_t const tiles_size = total_vectors * vector_elements;
+    nk_size_t const norms_offset = sizeof(nk_maxsim_sme_packed_header_t) + tiles_size;
+    nk_size_t const screen_weights_offset = norms_offset + columns * sizeof(nk_f64_t);
+    nk_size_t const originals_offset = screen_weights_offset + columns * sizeof(nk_f32_t);
+
+    header->norms_offset = (nk_u32_t)norms_offset;
+    header->originals_offset = (nk_u32_t)originals_offset;
+    header->original_stride = (nk_u32_t)original_stride;
+    header->screen_weights_offset = (nk_u32_t)screen_weights_offset;
+    header->capability = nk_cap_sme_k;
+    for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
+
+    nk_i8_t *tiles = (nk_i8_t *)((char *)packed + sizeof(nk_maxsim_sme_packed_header_t));
+    nk_f64_t *inverse_norms = (nk_f64_t *)((char *)packed + norms_offset);
+    nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + screen_weights_offset);
+    char *originals = (char *)packed + originals_offset;
+
+    // Zero-initialize tile data (partial vectors stay zero-padded)
+    for (nk_size_t i = 0; i < tiles_size; i++) tiles[i] = 0;
+
+    // For each vector: quantize metadata, quantize+interleave into tiles, copy originals
+    for (nk_size_t vector_index = 0; vector_index < columns; vector_index++) {
+        nk_f32_t const *source = (nk_f32_t const *)((char const *)vectors + vector_index * stride);
+
+        // Pass 1: Compute absmax and norm_sq simultaneously
+        nk_f32_t absmax = 0.0f;
+        nk_f64_t norm_sq = 0.0;
+        for (nk_size_t dim = 0; dim < depth; dim++) {
+            nk_f32_t val = source[dim];
+            nk_f32_t abs_val = nk_f32_abs_(val);
+            if (abs_val > absmax) absmax = abs_val;
+            norm_sq += (nk_f64_t)val * val;
+        }
+        inverse_norms[vector_index] = norm_sq > 0.0 ? nk_f64_rsqrt_refined_neon_(norm_sq) : 0.0;
+
+        nk_f32_t scale = absmax / 127.0f;
+        if (scale == 0.0f) scale = 1.0f;
+        screen_weights[vector_index] = scale * (nk_f32_t)inverse_norms[vector_index];
+
+        // Pass 2: Quantize and scatter into tile-interleaved positions
+        nk_size_t const column_tile = vector_index / tile_dimension;
+        nk_size_t const column_in_tile = vector_index % tile_dimension;
+
+        for (nk_size_t dim = 0; dim < depth; dim++) {
+            nk_size_t const depth_step = dim / expansion;
+            nk_size_t const sub_element = dim % expansion;
+            nk_size_t const vec_index = column_tile * depth_step_count + depth_step;
+            nk_size_t const offset = vec_index * vector_elements + expansion * column_in_tile + sub_element;
+
+            nk_f32_t scaled = source[dim] / scale;
+            nk_i32_t quantized;
+            if (scaled >= 0.0f) quantized = (nk_i32_t)(scaled + 0.5f);
+            else quantized = (nk_i32_t)(scaled - 0.5f);
+            if (quantized > 127) quantized = 127;
+            if (quantized < -127) quantized = -127;
+
+            tiles[offset] = (nk_i8_t)quantized;
+        }
+
+        // Pass 3: Copy originals (64B-aligned stride, zero-pad tail)
+        char *dest_original = originals + vector_index * original_stride;
+        nk_copy_bytes_(dest_original, source, depth * sizeof(nk_f32_t));
+        for (nk_size_t byte = depth * sizeof(nk_f32_t); byte < original_stride; byte++) dest_original[byte] = 0;
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_maxsim_packed_f32_sme( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result, void *stream) {
@@ -1010,6 +1005,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_sme( //
     nk_sme_stop_streaming_();
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_SME
 
 #if defined(__clang__)

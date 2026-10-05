@@ -242,56 +242,6 @@ nk_sqeuclidean_f16_haswell_cycle:
     *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
 }
 
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API nk_status_t nk_sqeuclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                   void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f16_haswell_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f16_haswell_(a, b, n, result);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    __m256 a_f32x8, b_f32x8;
-    __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
-           b_norm_sq_f32x8 = _mm256_setzero_ps();
-
-nk_angular_f16_haswell_cycle:
-    if (n < 8) {
-        nk_b256_vec_t a_vec, b_vec;
-        nk_partial_load_f16x8_to_f32x8_haswell_(a, &a_vec, n);
-        nk_partial_load_f16x8_to_f32x8_haswell_(b, &b_vec, n);
-        a_f32x8 = a_vec.ymm_ps;
-        b_f32x8 = b_vec.ymm_ps;
-        n = 0;
-    }
-    else {
-        a_f32x8 = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)a));
-        b_f32x8 = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)b));
-        n -= 8, a += 8, b += 8;
-    }
-    dot_product_f32x8 = _mm256_fmadd_ps(a_f32x8, b_f32x8, dot_product_f32x8);
-    a_norm_sq_f32x8 = _mm256_fmadd_ps(a_f32x8, a_f32x8, a_norm_sq_f32x8);
-    b_norm_sq_f32x8 = _mm256_fmadd_ps(b_f32x8, b_f32x8, b_norm_sq_f32x8);
-    if (n) goto nk_angular_f16_haswell_cycle;
-
-    nk_f32_t dot_product_f32 = nk_reduce_add_f32x8_haswell_(dot_product_f32x8);
-    nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
-    nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
-    *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_HASWELL
-
 /** Squared Euclidean distance between two bf16 vectors, accumulated in f32. */
 NUMKONG_INLINE void nk_squared_distance_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
                                                       nk_f32_t *result) {
@@ -326,65 +276,8 @@ nk_sqeuclidean_bf16_haswell_cycle:
     *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
 }
 
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API nk_status_t nk_sqeuclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                    nk_f32_t *result, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_bf16_haswell_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                  void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_bf16_haswell_(a, b, n, result);
-    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    __m256i a_bf16_i16x16, b_bf16_i16x16;
-    __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
-           b_norm_sq_f32x8 = _mm256_setzero_ps();
-    __m256i mask_high_u32x8 = _mm256_set1_epi32((int)0xFFFF0000);
-
-nk_angular_bf16_haswell_cycle:
-    if (n < 16) {
-        nk_b256_vec_t a_vec, b_vec;
-        nk_partial_load_b16x16_serial_(a, &a_vec, n);
-        nk_partial_load_b16x16_serial_(b, &b_vec, n);
-        a_bf16_i16x16 = a_vec.ymm;
-        b_bf16_i16x16 = b_vec.ymm;
-        n = 0;
-    }
-    else {
-        a_bf16_i16x16 = _mm256_loadu_si256((__m256i const *)a);
-        b_bf16_i16x16 = _mm256_loadu_si256((__m256i const *)b);
-        n -= 16, a += 16, b += 16;
-    }
-    __m256 a_even_f32x8 = _mm256_castsi256_ps(_mm256_slli_epi32(a_bf16_i16x16, 16));
-    __m256 b_even_f32x8 = _mm256_castsi256_ps(_mm256_slli_epi32(b_bf16_i16x16, 16));
-    dot_product_f32x8 = _mm256_fmadd_ps(a_even_f32x8, b_even_f32x8, dot_product_f32x8);
-    a_norm_sq_f32x8 = _mm256_fmadd_ps(a_even_f32x8, a_even_f32x8, a_norm_sq_f32x8);
-    b_norm_sq_f32x8 = _mm256_fmadd_ps(b_even_f32x8, b_even_f32x8, b_norm_sq_f32x8);
-    __m256 a_odd_f32x8 = _mm256_castsi256_ps(_mm256_and_si256(a_bf16_i16x16, mask_high_u32x8));
-    __m256 b_odd_f32x8 = _mm256_castsi256_ps(_mm256_and_si256(b_bf16_i16x16, mask_high_u32x8));
-    dot_product_f32x8 = _mm256_fmadd_ps(a_odd_f32x8, b_odd_f32x8, dot_product_f32x8);
-    a_norm_sq_f32x8 = _mm256_fmadd_ps(a_odd_f32x8, a_odd_f32x8, a_norm_sq_f32x8);
-    b_norm_sq_f32x8 = _mm256_fmadd_ps(b_odd_f32x8, b_odd_f32x8, b_norm_sq_f32x8);
-    if (n) goto nk_angular_bf16_haswell_cycle;
-
-    nk_f32_t dot_product_f32 = nk_reduce_add_f32x8_haswell_(dot_product_f32x8);
-    nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
-    nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
-    *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
-    return nk_success_k;
-}
-
 #pragma endregion F16 and BF16 Floats
-#endif // NUMKONG_TARGET_HASWELL
+
 #pragma region I8 and U8 Integers
 
 /** Squared Euclidean distance between two i8 vectors, accumulated in i32. */
@@ -450,7 +343,326 @@ NUMKONG_INLINE void nk_squared_distance_i8_haswell_(nk_i8_t const *a, nk_i8_t co
     *result = (nk_u32_t)distance_sq_i32;
 }
 
+/** Squared Euclidean distance between two u8 vectors, accumulated in i32. */
+NUMKONG_INLINE void nk_squared_distance_u8_haswell_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
+    __m256i distance_sq_low_i32x8 = _mm256_setzero_si256();
+    __m256i distance_sq_high_i32x8 = _mm256_setzero_si256();
+    __m256i const zeros_i8x32 = _mm256_setzero_si256();
+
+    nk_size_t i = 0;
+    for (; i + 32 <= n; i += 32) {
+        __m256i a_u8x32 = _mm256_loadu_si256((__m256i const *)(a + i));
+        __m256i b_u8x32 = _mm256_loadu_si256((__m256i const *)(b + i));
+
+        // Subtracting unsigned vectors in AVX2 is done by saturating subtraction:
+        __m256i diff_u8x32 = _mm256_or_si256(_mm256_subs_epu8(a_u8x32, b_u8x32), _mm256_subs_epu8(b_u8x32, a_u8x32));
+
+        // Upcast `uint8` to `int16`. Unlike the signed version, we can use the unpacking
+        // instructions instead of extracts, as they are much faster and more efficient.
+        __m256i diff_low_i16x16 = _mm256_unpacklo_epi8(diff_u8x32, zeros_i8x32);
+        __m256i diff_high_i16x16 = _mm256_unpackhi_epi8(diff_u8x32, zeros_i8x32);
+
+        // Multiply and accumulate at `int16` level, accumulate at `int32` level:
+        distance_sq_low_i32x8 = _mm256_add_epi32(distance_sq_low_i32x8,
+                                                 _mm256_madd_epi16(diff_low_i16x16, diff_low_i16x16));
+        distance_sq_high_i32x8 = _mm256_add_epi32(distance_sq_high_i32x8,
+                                                  _mm256_madd_epi16(diff_high_i16x16, diff_high_i16x16));
+    }
+
+    // Accumulate the 32-bit integers from `distance_sq_high_i32x8` and `distance_sq_low_i32x8`
+    nk_i32_t distance_sq_i32 = nk_reduce_add_i32x8_haswell_(
+        _mm256_add_epi32(distance_sq_low_i32x8, distance_sq_high_i32x8));
+
+    // Take care of the tail:
+    for (; i < n; ++i) {
+        nk_i32_t diff_i32 = (nk_i32_t)(a[i]) - b[i];
+        distance_sq_i32 += diff_i32 * diff_i32;
+    }
+
+    *result = (nk_u32_t)distance_sq_i32;
+}
+
+#pragma endregion I8 and U8 Integers
+
+#pragma region F32 and F64 Floats
+
+/** Squared Euclidean distance between two f64 vectors, summed in Dot2. */
+NUMKONG_INLINE void nk_squared_distance_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
+                                                     nk_f64_t *result) {
+    __m256d sum_f64x4 = _mm256_setzero_pd(), compensation_f64x4 = _mm256_setzero_pd();
+    __m256d a_f64x4, b_f64x4;
+
+nk_sqeuclidean_f64_haswell_cycle:
+    if (n < 4) {
+        nk_b256_vec_t a_tail, b_tail;
+        nk_partial_load_b64x4_serial_(a, &a_tail, n);
+        nk_partial_load_b64x4_serial_(b, &b_tail, n);
+        a_f64x4 = a_tail.ymm_pd;
+        b_f64x4 = b_tail.ymm_pd;
+        n = 0;
+    }
+    else {
+        a_f64x4 = _mm256_loadu_pd(a);
+        b_f64x4 = _mm256_loadu_pd(b);
+        a += 4, b += 4, n -= 4;
+    }
+    __m256d diff_f64x4 = _mm256_sub_pd(a_f64x4, b_f64x4);
+    nk_dot2_f64x4_haswell_(&sum_f64x4, &compensation_f64x4, diff_f64x4, diff_f64x4);
+    if (n) goto nk_sqeuclidean_f64_haswell_cycle;
+
+    *result = nk_dot_stable_sum_f64x4_haswell_(sum_f64x4, compensation_f64x4);
+}
+
+#pragma endregion F32 and F64 Floats
+
+#pragma region FP8 Floats
+
+/** Squared Euclidean distance between two e2m3 vectors, accumulated in f32. */
+NUMKONG_INLINE void nk_squared_distance_e2m3_haswell_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
+    __m256 distance_sq_f32x8 = _mm256_setzero_ps();
+
+nk_sqeuclidean_e2m3_haswell_cycle:
+    if (n < 8) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b8x16_serial_(a, &a_vec, n);
+        nk_partial_load_b8x16_serial_(b, &b_vec, n);
+        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(a_vec.xmm);
+        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(b_vec.xmm);
+        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
+        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
+    }
+    else {
+        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
+        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
+        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
+        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
+        n -= 8, a += 8, b += 8;
+        goto nk_sqeuclidean_e2m3_haswell_cycle;
+    }
+
+    *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
+}
+
+/** Squared Euclidean distance between two e3m2 vectors, accumulated in f32. */
+NUMKONG_INLINE void nk_squared_distance_e3m2_haswell_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
+    __m256 distance_sq_f32x8 = _mm256_setzero_ps();
+
+nk_sqeuclidean_e3m2_haswell_cycle:
+    if (n < 8) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b8x16_serial_(a, &a_vec, n);
+        nk_partial_load_b8x16_serial_(b, &b_vec, n);
+        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(a_vec.xmm);
+        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(b_vec.xmm);
+        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
+        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
+    }
+    else {
+        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
+        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
+        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
+        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
+        n -= 8, a += 8, b += 8;
+        goto nk_sqeuclidean_e3m2_haswell_cycle;
+    }
+
+    *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
+}
+
+/** Squared Euclidean distance between two e4m3 vectors, accumulated in f32. */
+NUMKONG_INLINE void nk_squared_distance_e4m3_haswell_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
+    // Two F32 accumulators break the dependency chain across the converted E4M3 halves.
+    __m256 first_acc_f32x8 = _mm256_setzero_ps();
+    __m256 second_acc_f32x8 = _mm256_setzero_ps();
+    __m128i a_u8x16, b_u8x16;
+
+nk_sqeuclidean_e4m3_haswell_cycle:
+    if (n < 16) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b8x16_serial_(a, &a_vec, n);
+        nk_partial_load_b8x16_serial_(b, &b_vec, n);
+        a_u8x16 = a_vec.xmm;
+        b_u8x16 = b_vec.xmm;
+        n = 0;
+    }
+    else {
+        a_u8x16 = _mm_loadu_si128((__m128i const *)a);
+        b_u8x16 = _mm_loadu_si128((__m128i const *)b);
+        a += 16, b += 16, n -= 16;
+    }
+    __m256 a_low_f32x8 = nk_e4m3x8_to_f32x8_haswell_(a_u8x16);
+    __m256 a_high_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(a_u8x16, a_u8x16));
+    __m256 b_low_f32x8 = nk_e4m3x8_to_f32x8_haswell_(b_u8x16);
+    __m256 b_high_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(b_u8x16, b_u8x16));
+    __m256 diff_low_f32x8 = _mm256_sub_ps(a_low_f32x8, b_low_f32x8);
+    __m256 diff_high_f32x8 = _mm256_sub_ps(a_high_f32x8, b_high_f32x8);
+    first_acc_f32x8 = _mm256_fmadd_ps(diff_low_f32x8, diff_low_f32x8, first_acc_f32x8);
+    second_acc_f32x8 = _mm256_fmadd_ps(diff_high_f32x8, diff_high_f32x8, second_acc_f32x8);
+    if (n) goto nk_sqeuclidean_e4m3_haswell_cycle;
+
+    *result = nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_acc_f32x8, second_acc_f32x8));
+}
+
+/** Squared Euclidean distance between two e5m2 vectors, accumulated in f32. */
+NUMKONG_INLINE void nk_squared_distance_e5m2_haswell_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
+                                                      nk_f32_t *result) {
+    // E5M2 shares F16's exponent bias (15): `byte << 8` equals the matching F16 encoding.
+    // `vpunpck*bw` against zero is the free widen+shift: zero byte in low half of each
+    // 16-bit lane, E5M2 byte in high half. Per-128-bit-lane scrambled; commutative sum
+    // reduction is invariant under that.
+    __m256 first_acc_f32x8 = _mm256_setzero_ps();
+    __m256 second_acc_f32x8 = _mm256_setzero_ps();
+    __m128i const zero_u8x16 = _mm_setzero_si128();
+    __m128i a_u8x16, b_u8x16;
+
+nk_sqeuclidean_e5m2_haswell_cycle:
+    if (n < 16) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b8x16_serial_(a, &a_vec, n);
+        nk_partial_load_b8x16_serial_(b, &b_vec, n);
+        a_u8x16 = a_vec.xmm;
+        b_u8x16 = b_vec.xmm;
+        n = 0;
+    }
+    else {
+        a_u8x16 = _mm_loadu_si128((__m128i const *)a);
+        b_u8x16 = _mm_loadu_si128((__m128i const *)b);
+        a += 16, b += 16, n -= 16;
+    }
+    __m128i a_even_f16x8 = _mm_unpacklo_epi8(zero_u8x16, a_u8x16);
+    __m128i a_odd_f16x8 = _mm_unpackhi_epi8(zero_u8x16, a_u8x16);
+    __m128i b_even_f16x8 = _mm_unpacklo_epi8(zero_u8x16, b_u8x16);
+    __m128i b_odd_f16x8 = _mm_unpackhi_epi8(zero_u8x16, b_u8x16);
+    __m256 a_first_f32x8 = _mm256_cvtph_ps(a_even_f16x8);
+    __m256 a_second_f32x8 = _mm256_cvtph_ps(a_odd_f16x8);
+    __m256 b_first_f32x8 = _mm256_cvtph_ps(b_even_f16x8);
+    __m256 b_second_f32x8 = _mm256_cvtph_ps(b_odd_f16x8);
+    __m256 diff_first_f32x8 = _mm256_sub_ps(a_first_f32x8, b_first_f32x8);
+    __m256 diff_second_f32x8 = _mm256_sub_ps(a_second_f32x8, b_second_f32x8);
+    first_acc_f32x8 = _mm256_fmadd_ps(diff_first_f32x8, diff_first_f32x8, first_acc_f32x8);
+    second_acc_f32x8 = _mm256_fmadd_ps(diff_second_f32x8, diff_second_f32x8, second_acc_f32x8);
+    if (n) goto nk_sqeuclidean_e5m2_haswell_cycle;
+
+    *result = nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_acc_f32x8, second_acc_f32x8));
+}
+
+#pragma endregion FP8 Floats
+
 #if NUMKONG_TARGET_HASWELL
+
+#pragma region F16 and BF16 Floats
+
+NUMKONG_API nk_status_t nk_sqeuclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                   void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f16_haswell_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f16_haswell_(a, b, n, result);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    __m256 a_f32x8, b_f32x8;
+    __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
+           b_norm_sq_f32x8 = _mm256_setzero_ps();
+
+nk_angular_f16_haswell_cycle:
+    if (n < 8) {
+        nk_b256_vec_t a_vec, b_vec;
+        nk_partial_load_f16x8_to_f32x8_haswell_(a, &a_vec, n);
+        nk_partial_load_f16x8_to_f32x8_haswell_(b, &b_vec, n);
+        a_f32x8 = a_vec.ymm_ps;
+        b_f32x8 = b_vec.ymm_ps;
+        n = 0;
+    }
+    else {
+        a_f32x8 = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)a));
+        b_f32x8 = _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)b));
+        n -= 8, a += 8, b += 8;
+    }
+    dot_product_f32x8 = _mm256_fmadd_ps(a_f32x8, b_f32x8, dot_product_f32x8);
+    a_norm_sq_f32x8 = _mm256_fmadd_ps(a_f32x8, a_f32x8, a_norm_sq_f32x8);
+    b_norm_sq_f32x8 = _mm256_fmadd_ps(b_f32x8, b_f32x8, b_norm_sq_f32x8);
+    if (n) goto nk_angular_f16_haswell_cycle;
+
+    nk_f32_t dot_product_f32 = nk_reduce_add_f32x8_haswell_(dot_product_f32x8);
+    nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
+    nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
+    *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                    nk_f32_t *result, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_bf16_haswell_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                  void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_bf16_haswell_(a, b, n, result);
+    *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(*result)));
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_bf16_haswell(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    __m256i a_bf16_i16x16, b_bf16_i16x16;
+    __m256 dot_product_f32x8 = _mm256_setzero_ps(), a_norm_sq_f32x8 = _mm256_setzero_ps(),
+           b_norm_sq_f32x8 = _mm256_setzero_ps();
+    __m256i mask_high_u32x8 = _mm256_set1_epi32((int)0xFFFF0000);
+
+nk_angular_bf16_haswell_cycle:
+    if (n < 16) {
+        nk_b256_vec_t a_vec, b_vec;
+        nk_partial_load_b16x16_serial_(a, &a_vec, n);
+        nk_partial_load_b16x16_serial_(b, &b_vec, n);
+        a_bf16_i16x16 = a_vec.ymm;
+        b_bf16_i16x16 = b_vec.ymm;
+        n = 0;
+    }
+    else {
+        a_bf16_i16x16 = _mm256_loadu_si256((__m256i const *)a);
+        b_bf16_i16x16 = _mm256_loadu_si256((__m256i const *)b);
+        n -= 16, a += 16, b += 16;
+    }
+    __m256 a_even_f32x8 = _mm256_castsi256_ps(_mm256_slli_epi32(a_bf16_i16x16, 16));
+    __m256 b_even_f32x8 = _mm256_castsi256_ps(_mm256_slli_epi32(b_bf16_i16x16, 16));
+    dot_product_f32x8 = _mm256_fmadd_ps(a_even_f32x8, b_even_f32x8, dot_product_f32x8);
+    a_norm_sq_f32x8 = _mm256_fmadd_ps(a_even_f32x8, a_even_f32x8, a_norm_sq_f32x8);
+    b_norm_sq_f32x8 = _mm256_fmadd_ps(b_even_f32x8, b_even_f32x8, b_norm_sq_f32x8);
+    __m256 a_odd_f32x8 = _mm256_castsi256_ps(_mm256_and_si256(a_bf16_i16x16, mask_high_u32x8));
+    __m256 b_odd_f32x8 = _mm256_castsi256_ps(_mm256_and_si256(b_bf16_i16x16, mask_high_u32x8));
+    dot_product_f32x8 = _mm256_fmadd_ps(a_odd_f32x8, b_odd_f32x8, dot_product_f32x8);
+    a_norm_sq_f32x8 = _mm256_fmadd_ps(a_odd_f32x8, a_odd_f32x8, a_norm_sq_f32x8);
+    b_norm_sq_f32x8 = _mm256_fmadd_ps(b_odd_f32x8, b_odd_f32x8, b_norm_sq_f32x8);
+    if (n) goto nk_angular_bf16_haswell_cycle;
+
+    nk_f32_t dot_product_f32 = nk_reduce_add_f32x8_haswell_(dot_product_f32x8);
+    nk_f32_t a_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(a_norm_sq_f32x8);
+    nk_f32_t b_norm_sq_f32 = nk_reduce_add_f32x8_haswell_(b_norm_sq_f32x8);
+    *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
+    return nk_success_k;
+}
+
+#pragma endregion F16 and BF16 Floats
+
+#pragma region I8 and U8 Integers
+
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_haswell(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
                                                   void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -519,48 +731,7 @@ NUMKONG_API nk_status_t nk_angular_i8_haswell(nk_i8_t const *a, nk_i8_t const *b
                                                 (nk_f32_t)b_norm_sq_i32);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Squared Euclidean distance between two u8 vectors, accumulated in i32. */
-NUMKONG_INLINE void nk_squared_distance_u8_haswell_(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result) {
-    __m256i distance_sq_low_i32x8 = _mm256_setzero_si256();
-    __m256i distance_sq_high_i32x8 = _mm256_setzero_si256();
-    __m256i const zeros_i8x32 = _mm256_setzero_si256();
-
-    nk_size_t i = 0;
-    for (; i + 32 <= n; i += 32) {
-        __m256i a_u8x32 = _mm256_loadu_si256((__m256i const *)(a + i));
-        __m256i b_u8x32 = _mm256_loadu_si256((__m256i const *)(b + i));
-
-        // Subtracting unsigned vectors in AVX2 is done by saturating subtraction:
-        __m256i diff_u8x32 = _mm256_or_si256(_mm256_subs_epu8(a_u8x32, b_u8x32), _mm256_subs_epu8(b_u8x32, a_u8x32));
-
-        // Upcast `uint8` to `int16`. Unlike the signed version, we can use the unpacking
-        // instructions instead of extracts, as they are much faster and more efficient.
-        __m256i diff_low_i16x16 = _mm256_unpacklo_epi8(diff_u8x32, zeros_i8x32);
-        __m256i diff_high_i16x16 = _mm256_unpackhi_epi8(diff_u8x32, zeros_i8x32);
-
-        // Multiply and accumulate at `int16` level, accumulate at `int32` level:
-        distance_sq_low_i32x8 = _mm256_add_epi32(distance_sq_low_i32x8,
-                                                 _mm256_madd_epi16(diff_low_i16x16, diff_low_i16x16));
-        distance_sq_high_i32x8 = _mm256_add_epi32(distance_sq_high_i32x8,
-                                                  _mm256_madd_epi16(diff_high_i16x16, diff_high_i16x16));
-    }
-
-    // Accumulate the 32-bit integers from `distance_sq_high_i32x8` and `distance_sq_low_i32x8`
-    nk_i32_t distance_sq_i32 = nk_reduce_add_i32x8_haswell_(
-        _mm256_add_epi32(distance_sq_low_i32x8, distance_sq_high_i32x8));
-
-    // Take care of the tail:
-    for (; i < n; ++i) {
-        nk_i32_t diff_i32 = (nk_i32_t)(a[i]) - b[i];
-        distance_sq_i32 += diff_i32 * diff_i32;
-    }
-
-    *result = (nk_u32_t)distance_sq_i32;
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_sqeuclidean_u8_haswell(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
                                                   void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -643,6 +814,7 @@ NUMKONG_API nk_status_t nk_angular_u8_haswell(nk_u8_t const *a, nk_u8_t const *b
 }
 
 #pragma endregion I8 and U8 Integers
+
 #pragma region F32 and F64 Floats
 
 NUMKONG_API nk_status_t nk_sqeuclidean_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
@@ -725,36 +897,7 @@ NUMKONG_API nk_status_t nk_angular_f32_haswell(nk_f32_t const *a, nk_f32_t const
     *result = nk_angular_normalize_f64_haswell_(dot_f64, a_norm_sq_f64, b_norm_sq_f64);
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/** Squared Euclidean distance between two f64 vectors, summed in Dot2. */
-NUMKONG_INLINE void nk_squared_distance_f64_haswell_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n,
-                                                     nk_f64_t *result) {
-    __m256d sum_f64x4 = _mm256_setzero_pd(), compensation_f64x4 = _mm256_setzero_pd();
-    __m256d a_f64x4, b_f64x4;
-
-nk_sqeuclidean_f64_haswell_cycle:
-    if (n < 4) {
-        nk_b256_vec_t a_tail, b_tail;
-        nk_partial_load_b64x4_serial_(a, &a_tail, n);
-        nk_partial_load_b64x4_serial_(b, &b_tail, n);
-        a_f64x4 = a_tail.ymm_pd;
-        b_f64x4 = b_tail.ymm_pd;
-        n = 0;
-    }
-    else {
-        a_f64x4 = _mm256_loadu_pd(a);
-        b_f64x4 = _mm256_loadu_pd(b);
-        a += 4, b += 4, n -= 4;
-    }
-    __m256d diff_f64x4 = _mm256_sub_pd(a_f64x4, b_f64x4);
-    nk_dot2_f64x4_haswell_(&sum_f64x4, &compensation_f64x4, diff_f64x4, diff_f64x4);
-    if (n) goto nk_sqeuclidean_f64_haswell_cycle;
-
-    *result = nk_dot_stable_sum_f64x4_haswell_(sum_f64x4, compensation_f64x4);
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_haswell(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                    void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -805,37 +948,9 @@ nk_angular_f64_haswell_cycle:
 }
 
 #pragma endregion F32 and F64 Floats
-#endif // NUMKONG_TARGET_HASWELL
+
 #pragma region FP8 Floats
 
-/** Squared Euclidean distance between two e2m3 vectors, accumulated in f32. */
-NUMKONG_INLINE void nk_squared_distance_e2m3_haswell_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
-    __m256 distance_sq_f32x8 = _mm256_setzero_ps();
-
-nk_sqeuclidean_e2m3_haswell_cycle:
-    if (n < 8) {
-        nk_b128_vec_t a_vec, b_vec;
-        nk_partial_load_b8x16_serial_(a, &a_vec, n);
-        nk_partial_load_b8x16_serial_(b, &b_vec, n);
-        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(a_vec.xmm);
-        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(b_vec.xmm);
-        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
-        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
-    }
-    else {
-        __m256 a_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
-        __m256 b_f32x8 = nk_e2m3x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
-        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
-        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
-        n -= 8, a += 8, b += 8;
-        goto nk_sqeuclidean_e2m3_haswell_cycle;
-    }
-
-    *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_haswell(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
                                                     nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -886,36 +1001,6 @@ nk_angular_e2m3_haswell_cycle:
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_HASWELL
-
-/** Squared Euclidean distance between two e3m2 vectors, accumulated in f32. */
-NUMKONG_INLINE void nk_squared_distance_e3m2_haswell_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
-    __m256 distance_sq_f32x8 = _mm256_setzero_ps();
-
-nk_sqeuclidean_e3m2_haswell_cycle:
-    if (n < 8) {
-        nk_b128_vec_t a_vec, b_vec;
-        nk_partial_load_b8x16_serial_(a, &a_vec, n);
-        nk_partial_load_b8x16_serial_(b, &b_vec, n);
-        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(a_vec.xmm);
-        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(b_vec.xmm);
-        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
-        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
-    }
-    else {
-        __m256 a_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)a));
-        __m256 b_f32x8 = nk_e3m2x8_to_f32x8_haswell_(_mm_loadl_epi64((__m128i const *)b));
-        __m256 diff_f32x8 = _mm256_sub_ps(a_f32x8, b_f32x8);
-        distance_sq_f32x8 = _mm256_fmadd_ps(diff_f32x8, diff_f32x8, distance_sq_f32x8);
-        n -= 8, a += 8, b += 8;
-        goto nk_sqeuclidean_e3m2_haswell_cycle;
-    }
-
-    *result = nk_reduce_add_f32x8_haswell_(distance_sq_f32x8);
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_haswell(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
                                                     nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -966,45 +1051,6 @@ nk_angular_e3m2_haswell_cycle:
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_HASWELL
-
-/** Squared Euclidean distance between two e4m3 vectors, accumulated in f32. */
-NUMKONG_INLINE void nk_squared_distance_e4m3_haswell_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
-    // E4M3 has no free widen shift, so we call the Giesen-based 8-lane cast helper
-    // twice per 16-lane iter and run with two F32 accumulators to break the FMA chain.
-    __m256 first_acc_f32x8 = _mm256_setzero_ps();
-    __m256 second_acc_f32x8 = _mm256_setzero_ps();
-    __m128i a_u8x16, b_u8x16;
-
-nk_sqeuclidean_e4m3_haswell_cycle:
-    if (n < 16) {
-        nk_b128_vec_t a_vec, b_vec;
-        nk_partial_load_b8x16_serial_(a, &a_vec, n);
-        nk_partial_load_b8x16_serial_(b, &b_vec, n);
-        a_u8x16 = a_vec.xmm;
-        b_u8x16 = b_vec.xmm;
-        n = 0;
-    }
-    else {
-        a_u8x16 = _mm_loadu_si128((__m128i const *)a);
-        b_u8x16 = _mm_loadu_si128((__m128i const *)b);
-        a += 16, b += 16, n -= 16;
-    }
-    __m256 a_low_f32x8 = nk_e4m3x8_to_f32x8_haswell_(a_u8x16);
-    __m256 a_high_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(a_u8x16, a_u8x16));
-    __m256 b_low_f32x8 = nk_e4m3x8_to_f32x8_haswell_(b_u8x16);
-    __m256 b_high_f32x8 = nk_e4m3x8_to_f32x8_haswell_(_mm_unpackhi_epi64(b_u8x16, b_u8x16));
-    __m256 diff_low_f32x8 = _mm256_sub_ps(a_low_f32x8, b_low_f32x8);
-    __m256 diff_high_f32x8 = _mm256_sub_ps(a_high_f32x8, b_high_f32x8);
-    first_acc_f32x8 = _mm256_fmadd_ps(diff_low_f32x8, diff_low_f32x8, first_acc_f32x8);
-    second_acc_f32x8 = _mm256_fmadd_ps(diff_high_f32x8, diff_high_f32x8, second_acc_f32x8);
-    if (n) goto nk_sqeuclidean_e4m3_haswell_cycle;
-
-    *result = nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_acc_f32x8, second_acc_f32x8));
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_haswell(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                     nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1061,52 +1107,6 @@ nk_angular_e4m3_haswell_cycle:
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_HASWELL
-
-/** Squared Euclidean distance between two e5m2 vectors, accumulated in f32. */
-NUMKONG_INLINE void nk_squared_distance_e5m2_haswell_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
-                                                      nk_f32_t *result) {
-    // E5M2 shares F16's exponent bias (15): `byte << 8` equals the matching F16 encoding.
-    // `vpunpck*bw` against zero is the free widen+shift: zero byte in low half of each
-    // 16-bit lane, E5M2 byte in high half. Per-128-bit-lane scrambled; commutative sum
-    // reduction is invariant under that.
-    __m256 first_acc_f32x8 = _mm256_setzero_ps();
-    __m256 second_acc_f32x8 = _mm256_setzero_ps();
-    __m128i const zero_u8x16 = _mm_setzero_si128();
-    __m128i a_u8x16, b_u8x16;
-
-nk_sqeuclidean_e5m2_haswell_cycle:
-    if (n < 16) {
-        nk_b128_vec_t a_vec, b_vec;
-        nk_partial_load_b8x16_serial_(a, &a_vec, n);
-        nk_partial_load_b8x16_serial_(b, &b_vec, n);
-        a_u8x16 = a_vec.xmm;
-        b_u8x16 = b_vec.xmm;
-        n = 0;
-    }
-    else {
-        a_u8x16 = _mm_loadu_si128((__m128i const *)a);
-        b_u8x16 = _mm_loadu_si128((__m128i const *)b);
-        a += 16, b += 16, n -= 16;
-    }
-    __m128i a_even_f16x8 = _mm_unpacklo_epi8(zero_u8x16, a_u8x16);
-    __m128i a_odd_f16x8 = _mm_unpackhi_epi8(zero_u8x16, a_u8x16);
-    __m128i b_even_f16x8 = _mm_unpacklo_epi8(zero_u8x16, b_u8x16);
-    __m128i b_odd_f16x8 = _mm_unpackhi_epi8(zero_u8x16, b_u8x16);
-    __m256 a_first_f32x8 = _mm256_cvtph_ps(a_even_f16x8);
-    __m256 a_second_f32x8 = _mm256_cvtph_ps(a_odd_f16x8);
-    __m256 b_first_f32x8 = _mm256_cvtph_ps(b_even_f16x8);
-    __m256 b_second_f32x8 = _mm256_cvtph_ps(b_odd_f16x8);
-    __m256 diff_first_f32x8 = _mm256_sub_ps(a_first_f32x8, b_first_f32x8);
-    __m256 diff_second_f32x8 = _mm256_sub_ps(a_second_f32x8, b_second_f32x8);
-    first_acc_f32x8 = _mm256_fmadd_ps(diff_first_f32x8, diff_first_f32x8, first_acc_f32x8);
-    second_acc_f32x8 = _mm256_fmadd_ps(diff_second_f32x8, diff_second_f32x8, second_acc_f32x8);
-    if (n) goto nk_sqeuclidean_e5m2_haswell_cycle;
-
-    *result = nk_reduce_add_f32x8_haswell_(_mm256_add_ps(first_acc_f32x8, second_acc_f32x8));
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_haswell(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
                                                     nk_f32_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1167,6 +1167,9 @@ nk_angular_e5m2_haswell_cycle:
     *result = nk_angular_normalize_f32_haswell_(dot_product_f32, a_norm_sq_f32, b_norm_sq_f32);
     return nk_success_k;
 }
+
+#pragma endregion FP8 Floats
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)
@@ -1179,7 +1182,6 @@ nk_angular_e5m2_haswell_cycle:
 } // extern "C"
 #endif
 
-#pragma endregion FP8 Floats
 #endif // NUMKONG_ARCH_X8664_HASWELL_
 #endif // NUMKONG_ARCH_X8664_
 #endif // NUMKONG_SPATIAL_HASWELL_H

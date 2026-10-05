@@ -132,22 +132,6 @@ nk_jsd_f32_neon_cycle:
     *result = sum > 0 ? vget_lane_f64(vsqrt_f64(vdup_n_f64(sum)), 0) : 0;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_NEON
-
-#if defined(__clang__)
-#pragma clang attribute pop
-#elif defined(__GNUC__)
-#pragma GCC pop_options
-#endif
-#endif // NUMKONG_ARCH_ARM64_NEON_
-
-#if NUMKONG_TARGET_NEON
-#if defined(__clang__)
-#pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd"))), apply_to = function)
-#elif defined(__GNUC__)
-#pragma GCC push_options
-#pragma GCC target("arch=armv8.2-a+simd")
-#endif
 
 NUMKONG_API nk_status_t nk_kld_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
                                         void *stream) {
@@ -253,12 +237,14 @@ nk_jsd_f16_neon_cycle:
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEON
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NUMKONG_TARGET_NEON
+#endif // NUMKONG_ARCH_ARM64_NEON_
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -241,7 +241,153 @@ NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f32_haswell_(nk_f32_t const *a, nk_f3
     return sum_squared + sum_squared_compensation;
 }
 
+/*  Deinterleave 8 f16 xyz triplets (24 f16 values) and convert to 3 x __m256 f32.
+ *  Uses scalar extraction for clean stride-3 access, then F16C conversion.
+ *
+ *  Input: 24 contiguous f16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
+ *  Output: x[8], y[8], z[8] vectors in f32 */
+NUMKONG_INLINE void nk_deinterleave_f16x8_to_f32x8_haswell_(nk_f16_t const *ptr, __m256 *x_out, __m256 *y_out,
+                                                            __m256 *z_out) {
+    // Extract x, y, z components with stride-3 access
+    nk_b256_vec_t x_vec, y_vec, z_vec;
+    x_vec.f16s[0] = ptr[0], x_vec.f16s[1] = ptr[3], x_vec.f16s[2] = ptr[6], x_vec.f16s[3] = ptr[9];
+    x_vec.f16s[4] = ptr[12], x_vec.f16s[5] = ptr[15], x_vec.f16s[6] = ptr[18], x_vec.f16s[7] = ptr[21];
+    y_vec.f16s[0] = ptr[1], y_vec.f16s[1] = ptr[4], y_vec.f16s[2] = ptr[7], y_vec.f16s[3] = ptr[10];
+    y_vec.f16s[4] = ptr[13], y_vec.f16s[5] = ptr[16], y_vec.f16s[6] = ptr[19], y_vec.f16s[7] = ptr[22];
+    z_vec.f16s[0] = ptr[2], z_vec.f16s[1] = ptr[5], z_vec.f16s[2] = ptr[8], z_vec.f16s[3] = ptr[11];
+    z_vec.f16s[4] = ptr[14], z_vec.f16s[5] = ptr[17], z_vec.f16s[6] = ptr[20], z_vec.f16s[7] = ptr[23];
+    // Convert f16 to f32 using F16C
+    *x_out = _mm256_cvtph_ps(x_vec.xmms[0]);
+    *y_out = _mm256_cvtph_ps(y_vec.xmms[0]);
+    *z_out = _mm256_cvtph_ps(z_vec.xmms[0]);
+}
+
+/*  Deinterleave 8 bf16 xyz triplets (24 bf16 values) and convert to 3 x __m256 f32.
+ *  Uses scalar extraction for clean stride-3 access, then bit-shift conversion.
+ *
+ *  Input: 24 contiguous bf16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
+ *  Output: x[8], y[8], z[8] vectors in f32 */
+NUMKONG_INLINE void nk_deinterleave_bf16x8_to_f32x8_haswell_(nk_bf16_t const *ptr, __m256 *x_out, __m256 *y_out,
+                                                             __m256 *z_out) {
+    // Extract x, y, z components with stride-3 access
+    nk_b256_vec_t x_vec, y_vec, z_vec;
+    x_vec.bf16s[0] = ptr[0], x_vec.bf16s[1] = ptr[3], x_vec.bf16s[2] = ptr[6], x_vec.bf16s[3] = ptr[9];
+    x_vec.bf16s[4] = ptr[12], x_vec.bf16s[5] = ptr[15], x_vec.bf16s[6] = ptr[18], x_vec.bf16s[7] = ptr[21];
+    y_vec.bf16s[0] = ptr[1], y_vec.bf16s[1] = ptr[4], y_vec.bf16s[2] = ptr[7], y_vec.bf16s[3] = ptr[10];
+    y_vec.bf16s[4] = ptr[13], y_vec.bf16s[5] = ptr[16], y_vec.bf16s[6] = ptr[19], y_vec.bf16s[7] = ptr[22];
+    z_vec.bf16s[0] = ptr[2], z_vec.bf16s[1] = ptr[5], z_vec.bf16s[2] = ptr[8], z_vec.bf16s[3] = ptr[11];
+    z_vec.bf16s[4] = ptr[14], z_vec.bf16s[5] = ptr[17], z_vec.bf16s[6] = ptr[20], z_vec.bf16s[7] = ptr[23];
+    // Convert bf16 to f32 by left-shifting 16 bits
+    *x_out = nk_bf16x8_to_f32x8_haswell_(x_vec.xmms[0]);
+    *y_out = nk_bf16x8_to_f32x8_haswell_(y_vec.xmms[0]);
+    *z_out = nk_bf16x8_to_f32x8_haswell_(z_vec.xmms[0]);
+}
+
+/** Folds 8 widened, pivot-shifted points into sums for @ref nk_centered_moments_finalize_f32_. */
+NUMKONG_INLINE void nk_centered_moments_update_f32x8_haswell_(__m256 const *a_f32x8, __m256 const *b_f32x8,
+                                                              __m256 *sum_a_f32x8, __m256 *sum_b_f32x8,
+                                                              __m256 *covariance_f32x8, __m256 *norm_squared_a_f32x8,
+                                                              __m256 *norm_squared_b_f32x8) {
+    for (int j = 0; j != 3; ++j) {
+        sum_a_f32x8[j] = _mm256_add_ps(sum_a_f32x8[j], a_f32x8[j]);
+        sum_b_f32x8[j] = _mm256_add_ps(sum_b_f32x8[j], b_f32x8[j]);
+        *norm_squared_a_f32x8 = _mm256_fmadd_ps(a_f32x8[j], a_f32x8[j], *norm_squared_a_f32x8);
+        *norm_squared_b_f32x8 = _mm256_fmadd_ps(b_f32x8[j], b_f32x8[j], *norm_squared_b_f32x8);
+    }
+    for (int j = 0; j != 9; ++j)
+        covariance_f32x8[j] = _mm256_fmadd_ps(a_f32x8[j / 3], b_f32x8[j % 3], covariance_f32x8[j]);
+}
+
+/** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of f16 clouds,
+ *  in one pass shifted by the pivots in f32. */
+NUMKONG_INLINE void nk_centered_moments_f16_haswell_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
+                                                     nk_f32_t *centroid_a, nk_f32_t *centroid_b,
+                                                     nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
+                                                     nk_f32_t *centered_norm_squared_b) {
+    nk_f32_t pivot_a[3], pivot_b[3];
+    for (int j = 0; j != 3; ++j) nk_f16_to_f32_(a + j, pivot_a + j), nk_f16_to_f32_(b + j, pivot_b + j);
+    __m256 pivot_a_f32x8[3], pivot_b_f32x8[3], sum_a_f32x8[3], sum_b_f32x8[3], covariance_f32x8[9];
+    __m256 norm_squared_a_f32x8 = _mm256_setzero_ps(), norm_squared_b_f32x8 = _mm256_setzero_ps();
+    for (int j = 0; j != 3; ++j)
+        pivot_a_f32x8[j] = _mm256_set1_ps(pivot_a[j]), pivot_b_f32x8[j] = _mm256_set1_ps(pivot_b[j]),
+        sum_a_f32x8[j] = _mm256_setzero_ps(), sum_b_f32x8[j] = _mm256_setzero_ps();
+    for (int j = 0; j != 9; ++j) covariance_f32x8[j] = _mm256_setzero_ps();
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 a_f32x8[3], b_f32x8[3];
+        nk_deinterleave_f16x8_to_f32x8_haswell_(a + i * 3, &a_f32x8[0], &a_f32x8[1], &a_f32x8[2]);
+        nk_deinterleave_f16x8_to_f32x8_haswell_(b + i * 3, &b_f32x8[0], &b_f32x8[1], &b_f32x8[2]);
+        for (int j = 0; j != 3; ++j)
+            a_f32x8[j] = _mm256_sub_ps(a_f32x8[j], pivot_a_f32x8[j]),
+            b_f32x8[j] = _mm256_sub_ps(b_f32x8[j], pivot_b_f32x8[j]);
+        nk_centered_moments_update_f32x8_haswell_(a_f32x8, b_f32x8, sum_a_f32x8, sum_b_f32x8, covariance_f32x8,
+                                                  &norm_squared_a_f32x8, &norm_squared_b_f32x8);
+    }
+    nk_f32_t sum_a[3], sum_b[3], covariance[9], norm_squared_a = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8),
+                                                norm_squared_b = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
+    for (int j = 0; j != 3; ++j)
+        sum_a[j] = nk_reduce_add_f32x8_haswell_(sum_a_f32x8[j]),
+        sum_b[j] = nk_reduce_add_f32x8_haswell_(sum_b_f32x8[j]);
+    for (int j = 0; j != 9; ++j) covariance[j] = nk_reduce_add_f32x8_haswell_(covariance_f32x8[j]);
+    for (; i < n; ++i) {
+        nk_f32_t a_point[3], b_point[3];
+        for (int j = 0; j != 3; ++j) {
+            nk_f16_to_f32_(a + i * 3 + j, a_point + j), nk_f16_to_f32_(b + i * 3 + j, b_point + j);
+            a_point[j] -= pivot_a[j], b_point[j] -= pivot_b[j];
+        }
+        nk_centered_moments_update_f32_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a, &norm_squared_b);
+    }
+    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
+                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
+                                      centered_norm_squared_b);
+}
+
+/** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of bf16 clouds,
+ *  in one pass shifted by the pivots in f32. */
+NUMKONG_INLINE void nk_centered_moments_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
+                                                      nk_f32_t *centroid_a, nk_f32_t *centroid_b,
+                                                      nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
+                                                      nk_f32_t *centered_norm_squared_b) {
+    nk_f32_t pivot_a[3], pivot_b[3];
+    for (int j = 0; j != 3; ++j) nk_bf16_to_f32_(a + j, pivot_a + j), nk_bf16_to_f32_(b + j, pivot_b + j);
+    __m256 pivot_a_f32x8[3], pivot_b_f32x8[3], sum_a_f32x8[3], sum_b_f32x8[3], covariance_f32x8[9];
+    __m256 norm_squared_a_f32x8 = _mm256_setzero_ps(), norm_squared_b_f32x8 = _mm256_setzero_ps();
+    for (int j = 0; j != 3; ++j)
+        pivot_a_f32x8[j] = _mm256_set1_ps(pivot_a[j]), pivot_b_f32x8[j] = _mm256_set1_ps(pivot_b[j]),
+        sum_a_f32x8[j] = _mm256_setzero_ps(), sum_b_f32x8[j] = _mm256_setzero_ps();
+    for (int j = 0; j != 9; ++j) covariance_f32x8[j] = _mm256_setzero_ps();
+    nk_size_t i = 0;
+    for (; i + 8 <= n; i += 8) {
+        __m256 a_f32x8[3], b_f32x8[3];
+        nk_deinterleave_bf16x8_to_f32x8_haswell_(a + i * 3, &a_f32x8[0], &a_f32x8[1], &a_f32x8[2]);
+        nk_deinterleave_bf16x8_to_f32x8_haswell_(b + i * 3, &b_f32x8[0], &b_f32x8[1], &b_f32x8[2]);
+        for (int j = 0; j != 3; ++j)
+            a_f32x8[j] = _mm256_sub_ps(a_f32x8[j], pivot_a_f32x8[j]),
+            b_f32x8[j] = _mm256_sub_ps(b_f32x8[j], pivot_b_f32x8[j]);
+        nk_centered_moments_update_f32x8_haswell_(a_f32x8, b_f32x8, sum_a_f32x8, sum_b_f32x8, covariance_f32x8,
+                                                  &norm_squared_a_f32x8, &norm_squared_b_f32x8);
+    }
+    nk_f32_t sum_a[3], sum_b[3], covariance[9], norm_squared_a = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8),
+                                                norm_squared_b = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
+    for (int j = 0; j != 3; ++j)
+        sum_a[j] = nk_reduce_add_f32x8_haswell_(sum_a_f32x8[j]),
+        sum_b[j] = nk_reduce_add_f32x8_haswell_(sum_b_f32x8[j]);
+    for (int j = 0; j != 9; ++j) covariance[j] = nk_reduce_add_f32x8_haswell_(covariance_f32x8[j]);
+    for (; i < n; ++i) {
+        nk_f32_t a_point[3], b_point[3];
+        for (int j = 0; j != 3; ++j) {
+            nk_bf16_to_f32_(a + i * 3 + j, a_point + j), nk_bf16_to_f32_(b + i * 3 + j, b_point + j);
+            a_point[j] -= pivot_a[j], b_point[j] -= pivot_b[j];
+        }
+        nk_centered_moments_update_f32_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a, &norm_squared_b);
+    }
+    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
+                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
+                                      centered_norm_squared_b);
+}
+
 #if NUMKONG_TARGET_HASWELL
+
 NUMKONG_API nk_status_t nk_rmsd_f32_haswell(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f64_t *result,
                                             void *stream) {
@@ -892,154 +1038,7 @@ NUMKONG_API nk_status_t nk_umeyama_f64_haswell(nk_f64_t const *a, nk_f64_t const
     *result = _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum_sq * inv_n)));
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_HASWELL
 
-/*  Deinterleave 8 f16 xyz triplets (24 f16 values) and convert to 3 x __m256 f32.
- *  Uses scalar extraction for clean stride-3 access, then F16C conversion.
- *
- *  Input: 24 contiguous f16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
- *  Output: x[8], y[8], z[8] vectors in f32 */
-NUMKONG_INLINE void nk_deinterleave_f16x8_to_f32x8_haswell_(nk_f16_t const *ptr, __m256 *x_out, __m256 *y_out,
-                                                            __m256 *z_out) {
-    // Extract x, y, z components with stride-3 access
-    nk_b256_vec_t x_vec, y_vec, z_vec;
-    x_vec.f16s[0] = ptr[0], x_vec.f16s[1] = ptr[3], x_vec.f16s[2] = ptr[6], x_vec.f16s[3] = ptr[9];
-    x_vec.f16s[4] = ptr[12], x_vec.f16s[5] = ptr[15], x_vec.f16s[6] = ptr[18], x_vec.f16s[7] = ptr[21];
-    y_vec.f16s[0] = ptr[1], y_vec.f16s[1] = ptr[4], y_vec.f16s[2] = ptr[7], y_vec.f16s[3] = ptr[10];
-    y_vec.f16s[4] = ptr[13], y_vec.f16s[5] = ptr[16], y_vec.f16s[6] = ptr[19], y_vec.f16s[7] = ptr[22];
-    z_vec.f16s[0] = ptr[2], z_vec.f16s[1] = ptr[5], z_vec.f16s[2] = ptr[8], z_vec.f16s[3] = ptr[11];
-    z_vec.f16s[4] = ptr[14], z_vec.f16s[5] = ptr[17], z_vec.f16s[6] = ptr[20], z_vec.f16s[7] = ptr[23];
-    // Convert f16 to f32 using F16C
-    *x_out = _mm256_cvtph_ps(x_vec.xmms[0]);
-    *y_out = _mm256_cvtph_ps(y_vec.xmms[0]);
-    *z_out = _mm256_cvtph_ps(z_vec.xmms[0]);
-}
-
-/*  Deinterleave 8 bf16 xyz triplets (24 bf16 values) and convert to 3 x __m256 f32.
- *  Uses scalar extraction for clean stride-3 access, then bit-shift conversion.
- *
- *  Input: 24 contiguous bf16 [x0,y0,z0, x1,y1,z1, ..., x7,y7,z7]
- *  Output: x[8], y[8], z[8] vectors in f32 */
-NUMKONG_INLINE void nk_deinterleave_bf16x8_to_f32x8_haswell_(nk_bf16_t const *ptr, __m256 *x_out, __m256 *y_out,
-                                                             __m256 *z_out) {
-    // Extract x, y, z components with stride-3 access
-    nk_b256_vec_t x_vec, y_vec, z_vec;
-    x_vec.bf16s[0] = ptr[0], x_vec.bf16s[1] = ptr[3], x_vec.bf16s[2] = ptr[6], x_vec.bf16s[3] = ptr[9];
-    x_vec.bf16s[4] = ptr[12], x_vec.bf16s[5] = ptr[15], x_vec.bf16s[6] = ptr[18], x_vec.bf16s[7] = ptr[21];
-    y_vec.bf16s[0] = ptr[1], y_vec.bf16s[1] = ptr[4], y_vec.bf16s[2] = ptr[7], y_vec.bf16s[3] = ptr[10];
-    y_vec.bf16s[4] = ptr[13], y_vec.bf16s[5] = ptr[16], y_vec.bf16s[6] = ptr[19], y_vec.bf16s[7] = ptr[22];
-    z_vec.bf16s[0] = ptr[2], z_vec.bf16s[1] = ptr[5], z_vec.bf16s[2] = ptr[8], z_vec.bf16s[3] = ptr[11];
-    z_vec.bf16s[4] = ptr[14], z_vec.bf16s[5] = ptr[17], z_vec.bf16s[6] = ptr[20], z_vec.bf16s[7] = ptr[23];
-    // Convert bf16 to f32 by left-shifting 16 bits
-    *x_out = nk_bf16x8_to_f32x8_haswell_(x_vec.xmms[0]);
-    *y_out = nk_bf16x8_to_f32x8_haswell_(y_vec.xmms[0]);
-    *z_out = nk_bf16x8_to_f32x8_haswell_(z_vec.xmms[0]);
-}
-
-/** Folds 8 widened, pivot-shifted points into sums for @ref nk_centered_moments_finalize_f32_. */
-NUMKONG_INLINE void nk_centered_moments_update_f32x8_haswell_(__m256 const *a_f32x8, __m256 const *b_f32x8,
-                                                              __m256 *sum_a_f32x8, __m256 *sum_b_f32x8,
-                                                              __m256 *covariance_f32x8, __m256 *norm_squared_a_f32x8,
-                                                              __m256 *norm_squared_b_f32x8) {
-    for (int j = 0; j != 3; ++j) {
-        sum_a_f32x8[j] = _mm256_add_ps(sum_a_f32x8[j], a_f32x8[j]);
-        sum_b_f32x8[j] = _mm256_add_ps(sum_b_f32x8[j], b_f32x8[j]);
-        *norm_squared_a_f32x8 = _mm256_fmadd_ps(a_f32x8[j], a_f32x8[j], *norm_squared_a_f32x8);
-        *norm_squared_b_f32x8 = _mm256_fmadd_ps(b_f32x8[j], b_f32x8[j], *norm_squared_b_f32x8);
-    }
-    for (int j = 0; j != 9; ++j)
-        covariance_f32x8[j] = _mm256_fmadd_ps(a_f32x8[j / 3], b_f32x8[j % 3], covariance_f32x8[j]);
-}
-
-/** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of f16 clouds,
- *  in one pass shifted by the pivots in f32. */
-NUMKONG_INLINE void nk_centered_moments_f16_haswell_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n,
-                                                     nk_f32_t *centroid_a, nk_f32_t *centroid_b,
-                                                     nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
-                                                     nk_f32_t *centered_norm_squared_b) {
-    nk_f32_t pivot_a[3], pivot_b[3];
-    for (int j = 0; j != 3; ++j) nk_f16_to_f32_(a + j, pivot_a + j), nk_f16_to_f32_(b + j, pivot_b + j);
-    __m256 pivot_a_f32x8[3], pivot_b_f32x8[3], sum_a_f32x8[3], sum_b_f32x8[3], covariance_f32x8[9];
-    __m256 norm_squared_a_f32x8 = _mm256_setzero_ps(), norm_squared_b_f32x8 = _mm256_setzero_ps();
-    for (int j = 0; j != 3; ++j)
-        pivot_a_f32x8[j] = _mm256_set1_ps(pivot_a[j]), pivot_b_f32x8[j] = _mm256_set1_ps(pivot_b[j]),
-        sum_a_f32x8[j] = _mm256_setzero_ps(), sum_b_f32x8[j] = _mm256_setzero_ps();
-    for (int j = 0; j != 9; ++j) covariance_f32x8[j] = _mm256_setzero_ps();
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m256 a_f32x8[3], b_f32x8[3];
-        nk_deinterleave_f16x8_to_f32x8_haswell_(a + i * 3, &a_f32x8[0], &a_f32x8[1], &a_f32x8[2]);
-        nk_deinterleave_f16x8_to_f32x8_haswell_(b + i * 3, &b_f32x8[0], &b_f32x8[1], &b_f32x8[2]);
-        for (int j = 0; j != 3; ++j)
-            a_f32x8[j] = _mm256_sub_ps(a_f32x8[j], pivot_a_f32x8[j]),
-            b_f32x8[j] = _mm256_sub_ps(b_f32x8[j], pivot_b_f32x8[j]);
-        nk_centered_moments_update_f32x8_haswell_(a_f32x8, b_f32x8, sum_a_f32x8, sum_b_f32x8, covariance_f32x8,
-                                                  &norm_squared_a_f32x8, &norm_squared_b_f32x8);
-    }
-    nk_f32_t sum_a[3], sum_b[3], covariance[9], norm_squared_a = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8),
-                                                norm_squared_b = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
-    for (int j = 0; j != 3; ++j)
-        sum_a[j] = nk_reduce_add_f32x8_haswell_(sum_a_f32x8[j]),
-        sum_b[j] = nk_reduce_add_f32x8_haswell_(sum_b_f32x8[j]);
-    for (int j = 0; j != 9; ++j) covariance[j] = nk_reduce_add_f32x8_haswell_(covariance_f32x8[j]);
-    for (; i < n; ++i) {
-        nk_f32_t a_point[3], b_point[3];
-        for (int j = 0; j != 3; ++j) {
-            nk_f16_to_f32_(a + i * 3 + j, a_point + j), nk_f16_to_f32_(b + i * 3 + j, b_point + j);
-            a_point[j] -= pivot_a[j], b_point[j] -= pivot_b[j];
-        }
-        nk_centered_moments_update_f32_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a, &norm_squared_b);
-    }
-    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
-                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
-                                      centered_norm_squared_b);
-}
-
-/** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of bf16 clouds,
- *  in one pass shifted by the pivots in f32. */
-NUMKONG_INLINE void nk_centered_moments_bf16_haswell_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
-                                                      nk_f32_t *centroid_a, nk_f32_t *centroid_b,
-                                                      nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
-                                                      nk_f32_t *centered_norm_squared_b) {
-    nk_f32_t pivot_a[3], pivot_b[3];
-    for (int j = 0; j != 3; ++j) nk_bf16_to_f32_(a + j, pivot_a + j), nk_bf16_to_f32_(b + j, pivot_b + j);
-    __m256 pivot_a_f32x8[3], pivot_b_f32x8[3], sum_a_f32x8[3], sum_b_f32x8[3], covariance_f32x8[9];
-    __m256 norm_squared_a_f32x8 = _mm256_setzero_ps(), norm_squared_b_f32x8 = _mm256_setzero_ps();
-    for (int j = 0; j != 3; ++j)
-        pivot_a_f32x8[j] = _mm256_set1_ps(pivot_a[j]), pivot_b_f32x8[j] = _mm256_set1_ps(pivot_b[j]),
-        sum_a_f32x8[j] = _mm256_setzero_ps(), sum_b_f32x8[j] = _mm256_setzero_ps();
-    for (int j = 0; j != 9; ++j) covariance_f32x8[j] = _mm256_setzero_ps();
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m256 a_f32x8[3], b_f32x8[3];
-        nk_deinterleave_bf16x8_to_f32x8_haswell_(a + i * 3, &a_f32x8[0], &a_f32x8[1], &a_f32x8[2]);
-        nk_deinterleave_bf16x8_to_f32x8_haswell_(b + i * 3, &b_f32x8[0], &b_f32x8[1], &b_f32x8[2]);
-        for (int j = 0; j != 3; ++j)
-            a_f32x8[j] = _mm256_sub_ps(a_f32x8[j], pivot_a_f32x8[j]),
-            b_f32x8[j] = _mm256_sub_ps(b_f32x8[j], pivot_b_f32x8[j]);
-        nk_centered_moments_update_f32x8_haswell_(a_f32x8, b_f32x8, sum_a_f32x8, sum_b_f32x8, covariance_f32x8,
-                                                  &norm_squared_a_f32x8, &norm_squared_b_f32x8);
-    }
-    nk_f32_t sum_a[3], sum_b[3], covariance[9], norm_squared_a = nk_reduce_add_f32x8_haswell_(norm_squared_a_f32x8),
-                                                norm_squared_b = nk_reduce_add_f32x8_haswell_(norm_squared_b_f32x8);
-    for (int j = 0; j != 3; ++j)
-        sum_a[j] = nk_reduce_add_f32x8_haswell_(sum_a_f32x8[j]),
-        sum_b[j] = nk_reduce_add_f32x8_haswell_(sum_b_f32x8[j]);
-    for (int j = 0; j != 9; ++j) covariance[j] = nk_reduce_add_f32x8_haswell_(covariance_f32x8[j]);
-    for (; i < n; ++i) {
-        nk_f32_t a_point[3], b_point[3];
-        for (int j = 0; j != 3; ++j) {
-            nk_bf16_to_f32_(a + i * 3 + j, a_point + j), nk_bf16_to_f32_(b + i * 3 + j, b_point + j);
-            a_point[j] -= pivot_a[j], b_point[j] -= pivot_b[j];
-        }
-        nk_centered_moments_update_f32_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a, &norm_squared_b);
-    }
-    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
-                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
-                                      centered_norm_squared_b);
-}
-
-#if NUMKONG_TARGET_HASWELL
 NUMKONG_API nk_status_t nk_rmsd_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
                                             nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale, nk_f32_t *result,
                                             void *stream) {
@@ -1451,6 +1450,7 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_haswell(nk_bf16_t const *a, nk_bf16_t co
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_sq / (nk_f32_t)n)));
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

@@ -35,127 +35,6 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-#if NUMKONG_TARGET_HASWELL
-NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 32);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                            void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_haswell_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 32);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_haswell_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 32);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
-                                                           void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_haswell_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_bf16_haswell( //
-    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    nk_size_t const element_bytes = sizeof(nk_bf16_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 32, element_bytes,
-                                                               nk_cap_haswell_k);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f,
-                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_f32_haswell( //
-    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    nk_size_t const element_bytes = sizeof(nk_f32_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 32, element_bytes,
-                                                               nk_cap_haswell_k);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f, nk_f32_to_f32_,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_maxsim_pack_f16_haswell( //
-    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-
-    nk_size_t const element_bytes = sizeof(nk_f16_t);
-    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 32, element_bytes,
-                                                               nk_cap_haswell_k);
-
-    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
-    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
-    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
-    char *originals = (char *)packed + header->offset_original_data;
-    nk_size_t const original_stride = header->original_stride;
-
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f,
-                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_HASWELL
-
 /** Reduces 4 YMM i32x8 accumulators to a single __m128i with 4 horizontal sums. */
 NUMKONG_INLINE __m128i nk_maxsim_reduce_i32x8x4_haswell_(     //
     __m256i accumulator_a_i32x8, __m256i accumulator_b_i32x8, //
@@ -434,6 +313,126 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f16_haswell_(void const *query, void co
 }
 
 #if NUMKONG_TARGET_HASWELL
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
+    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 32);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                            void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_maxsim_packed_by_(packed, nk_cap_haswell_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
+    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 32);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                           void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_maxsim_packed_by_(packed, nk_cap_haswell_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_haswell(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
+    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 32);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_haswell(void const *packed, nk_size_t *vectors, nk_size_t *depth,
+                                                           void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_maxsim_packed_by_(packed, nk_cap_haswell_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_(packed, vectors, depth);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_bf16_haswell( //
+    nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    nk_size_t const element_bytes = sizeof(nk_bf16_t);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 32, element_bytes,
+                                                               nk_cap_haswell_k);
+
+    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
+    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
+    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
+    char *originals = (char *)packed + header->offset_original_data;
+    nk_size_t const original_stride = header->original_stride;
+
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
+        char const *source_row = (char const *)vectors + vector_index * stride;
+        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f,
+                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
+                                   &metadata[vector_index]);
+        char *destination_original = originals + vector_index * original_stride;
+        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
+        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
+            destination_original[byte_index] = 0;
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f32_haswell( //
+    nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    nk_size_t const element_bytes = sizeof(nk_f32_t);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 32, element_bytes,
+                                                               nk_cap_haswell_k);
+
+    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
+    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
+    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
+    char *originals = (char *)packed + header->offset_original_data;
+    nk_size_t const original_stride = header->original_stride;
+
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
+        char const *source_row = (char const *)vectors + vector_index * stride;
+        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f, nk_f32_to_f32_,
+                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
+        char *destination_original = originals + vector_index * original_stride;
+        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
+        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
+            destination_original[byte_index] = 0;
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_maxsim_pack_f16_haswell( //
+    nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+
+    nk_size_t const element_bytes = sizeof(nk_f16_t);
+    nk_size_t depth_i8_padded = nk_maxsim_packed_header_setup_(packed, vector_count, depth, 32, element_bytes,
+                                                               nk_cap_haswell_k);
+
+    nk_maxsim_packed_header_t const *header = (nk_maxsim_packed_header_t const *)packed;
+    nk_i8_t *quantized_i8 = (nk_i8_t *)((char *)packed + header->offset_i8_data);
+    nk_maxsim_vector_metadata_t *metadata = (nk_maxsim_vector_metadata_t *)((char *)packed + header->offset_metadata);
+    char *originals = (char *)packed + header->offset_original_data;
+    nk_size_t const original_stride = header->original_stride;
+
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
+        char const *source_row = (char const *)vectors + vector_index * stride;
+        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f,
+                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
+                                   &metadata[vector_index]);
+        char *destination_original = originals + vector_index * original_stride;
+        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
+        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
+            destination_original[byte_index] = 0;
+    }
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_maxsim_packed_bf16_haswell( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result, void *stream) {
@@ -472,6 +471,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_haswell( //
                                                   nk_maxsim_coarse_dots_haswell_, nk_maxsim_refine_f16_haswell_);
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

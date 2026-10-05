@@ -74,20 +74,6 @@ extern "C" {
 #pragma GCC target("arch=armv8-a+simd")
 #endif
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest) {
-    float16x4_t f16_f16x4 = vreinterpret_f16_u16(vld1_dup_u16((nk_u16_t const *)src));
-    float32x4_t f32_f32x4 = vcvt_f32_f16(f16_f16x4);
-    *dest = vgetq_lane_f32(f32_f32x4, 0);
-}
-
-NUMKONG_API void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest) {
-    float32x4_t f32_f32x4 = vdupq_n_f32(*src);
-    float16x4_t f16_f16x4 = vcvt_f16_f32(f32_f32x4);
-    vst1_lane_u16((nk_u16_t *)dest, vreinterpret_u16_f16(f16_f16x4), 0);
-}
-#endif // NUMKONG_TARGET_NEON
-
 #pragma region Type Punned Loads and Stores
 
 /** Type-agnostic 128-bit full load (NEON). */
@@ -992,6 +978,7 @@ NUMKONG_INLINE void nk_store_f32x4_as_f32_neon_(nk_f32_t *dst, float32x4_t value
 NUMKONG_INLINE float32x4_t nk_load_f16x4_as_f32_neon_(nk_f16_t const *src) {
     return vcvt_f32_f16(vreinterpret_f16_u16(vld1_u16((nk_u16_t const *)src)));
 }
+
 NUMKONG_INLINE void nk_store_f32x4_as_f16_neon_(nk_f16_t *dst, float32x4_t values_f32x4) {
     vst1_u16((nk_u16_t *)dst, vreinterpret_u16_f16(vcvt_f16_f32(values_f32x4)));
 }
@@ -999,6 +986,7 @@ NUMKONG_INLINE void nk_store_f32x4_as_f16_neon_(nk_f16_t *dst, float32x4_t value
 NUMKONG_INLINE float32x4_t nk_load_bf16x4_as_f32_neon_(nk_bf16_t const *src) {
     return nk_bf16x4_to_f32x4_neon_(vld1_u16((nk_u16_t const *)src));
 }
+
 NUMKONG_INLINE void nk_store_f32x4_as_bf16_neon_(nk_bf16_t *dst, float32x4_t values_f32x4) {
     vst1_u16((nk_u16_t *)dst, nk_f32x4_to_bf16x4_neon_(values_f32x4));
 }
@@ -1008,6 +996,7 @@ NUMKONG_INLINE float32x4_t nk_load_e4m3x4_as_f32_neon_(nk_e4m3_t const *src) {
     nk_copy_bytes_(&packed_vec, src, 4);
     return nk_e4m3x4_to_f32x4_neon_(packed_vec);
 }
+
 NUMKONG_INLINE void nk_store_f32x4_as_e4m3_neon_(nk_e4m3_t *dst, float32x4_t values_f32x4) {
     nk_b32_vec_t packed_vec = nk_f32x4_to_e4m3x4_neon_(values_f32x4);
     nk_copy_bytes_(dst, &packed_vec, 4);
@@ -1357,6 +1346,19 @@ NUMKONG_INLINE void nk_cast_block_scaled_neon_(void const *from, nk_u8_t const *
 }
 
 #if NUMKONG_TARGET_NEON
+
+NUMKONG_API void nk_f16_to_f32_neon(nk_f16_t const *src, nk_f32_t *dest) {
+    float16x4_t f16_f16x4 = vreinterpret_f16_u16(vld1_dup_u16((nk_u16_t const *)src));
+    float32x4_t f32_f32x4 = vcvt_f32_f16(f16_f16x4);
+    *dest = vgetq_lane_f32(f32_f32x4, 0);
+}
+
+NUMKONG_API void nk_f32_to_f16_neon(nk_f32_t const *src, nk_f16_t *dest) {
+    float32x4_t f32_f32x4 = vdupq_n_f32(*src);
+    float16x4_t f16_f16x4 = vcvt_f16_f32(f32_f32x4);
+    vst1_lane_u16((nk_u16_t *)dest, vreinterpret_u16_f16(f16_f16x4), 0);
+}
+
 NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
                                      nk_size_t count, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1367,6 +1369,7 @@ NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_dtype, vo
                                target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_NEON
 
 #pragma endregion Public API

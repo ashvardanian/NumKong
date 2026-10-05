@@ -128,9 +128,10 @@ NUMKONG_INLINE void nk_kahan_add_f64m4_rvv_(vfloat64m4_t term, vfloat64m4_t *sum
     *sum = __riscv_vmv_v_v_f64m4_tu(*sum, tentative_f64m4, vector_length);
 }
 
+#if NUMKONG_TARGET_RVV
+
 #pragma region Kullback Leibler Divergence
 
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_kld_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                        void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -249,13 +250,11 @@ NUMKONG_API nk_status_t nk_kld_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, 
               NUMKONG_F32_LN2_;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion Kullback Leibler Divergence
 
 #pragma region Jensen Shannon Divergence
 
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_jsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                        void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -414,9 +413,10 @@ NUMKONG_API nk_status_t nk_jsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b, 
     *result = sum > 0 ? __riscv_vfmv_f_s_f32m1_f32(__riscv_vfsqrt_v_f32m1(__riscv_vfmv_s_f_f32m1(sum, 1), 1)) : 0;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion Jensen Shannon Divergence
+
+#endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)
 } // extern "C"

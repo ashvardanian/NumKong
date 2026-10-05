@@ -82,7 +82,12 @@ NUMKONG_INLINE vuint8m4_t nk_popcount_u8m4_rvv_(vuint8m4_t v_u8m4, nk_size_t vec
     return __riscv_vand_vx_u8m4(v_u8m4, 0x0F, vector_length);
 }
 
+#pragma endregion Binary Sets
+
 #if NUMKONG_TARGET_RVV
+
+#pragma region Binary Sets
+
 NUMKONG_API nk_status_t nk_hamming_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -150,13 +155,11 @@ NUMKONG_API nk_status_t nk_jaccard_u1_rvv(nk_u1x8_t const *a, nk_u1x8_t const *b
     *result = (union_count_u32 != 0) ? 1.0f - (nk_f32_t)intersection_count_u32 / (nk_f32_t)union_count_u32 : 0.0f;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion Binary Sets
 
 #pragma region Integer Sets
 
-#if NUMKONG_TARGET_RVV
 NUMKONG_API nk_status_t nk_hamming_u8_rvv(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u32_t *result,
                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -228,9 +231,10 @@ NUMKONG_API nk_status_t nk_jaccard_u16_rvv(nk_u16_t const *a, nk_u16_t const *b,
     *result = (n != 0) ? 1.0f - (nk_f32_t)match_count_u32 / (nk_f32_t)n : 0.0f;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_RVV
 
 #pragma endregion Integer Sets
+
+#endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)
 } // extern "C"

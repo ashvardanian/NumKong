@@ -195,46 +195,6 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_skylake_(nk_size_t key_value_hea
     return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
 }
 
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_attention_pack_size_bf16_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                            nk_size_t *bytes) {
-    if (depth > nk_attention_max_depth_skylake_k_) {
-        *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
-        return nk_success_k;
-    }
-    *bytes = nk_attention_pack_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_skylake(void const *key_value_packed, nk_size_t *heads,
-                                                               nk_size_t *depth, nk_size_t *segments, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_attention_packed_by_(key_value_packed, nk_cap_skylake_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                            nk_size_t *bytes) {
-    if (depth > nk_attention_max_depth_skylake_k_) {
-        *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
-        return nk_success_k;
-    }
-    *bytes = nk_attention_pack_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_skylake(void const *key_value_packed, nk_size_t *heads,
-                                                               nk_size_t *depth, nk_size_t *segments, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_attention_packed_by_(key_value_packed, nk_cap_skylake_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
-
 NUMKONG_INLINE void nk_attention_pack_skylake_(                                                    //
     void const *keys, void const *values, nk_size_t element_bytes,                                 //
     nk_attention_narrow_skylake_t_ narrow,                                                         //
@@ -273,42 +233,6 @@ NUMKONG_INLINE void nk_attention_pack_skylake_(                                 
         }
     }
 }
-
-#if NUMKONG_TARGET_SKYLAKE
-NUMKONG_API nk_status_t nk_attention_pack_bf16_skylake(                                              //
-    nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (depth > nk_attention_max_depth_skylake_k_) {
-        nk_attention_pack_serial_(keys, values, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_,
-                                  key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                  key_stride, value_stride, key_value_packed, task_begin, task_end, nk_cap_skylake_k);
-        return nk_success_k;
-    }
-    nk_attention_pack_skylake_(keys, values, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_skylake_,
-                               key_value_head_count, depth, segment_offsets, segment_lengths, segment_count, key_stride,
-                               value_stride, key_value_packed, task_begin, task_end);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_pack_e4m3_skylake(                                              //
-    nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (depth > nk_attention_max_depth_skylake_k_) {
-        nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_,
-                                  key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                  key_stride, value_stride, key_value_packed, task_begin, task_end, nk_cap_skylake_k);
-        return nk_success_k;
-    }
-    nk_attention_pack_skylake_(keys, values, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_skylake_,
-                               key_value_head_count, depth, segment_offsets, segment_lengths, segment_count, key_stride,
-                               value_stride, key_value_packed, task_begin, task_end);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_SKYLAKE
 
 /** Shared attention core over 16-bit planes: per query row, panel-flash with an exact online
  *  correction; scores keep four KV rows in flight, widening in-loop. */
@@ -436,6 +360,73 @@ NUMKONG_INLINE void nk_attention_packed_skylake_(                               
 }
 
 #if NUMKONG_TARGET_SKYLAKE
+
+NUMKONG_API nk_status_t nk_attention_pack_size_bf16_skylake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                            nk_size_t *bytes) {
+    if (depth > nk_attention_max_depth_skylake_k_)
+        *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+    else *bytes = nk_attention_pack_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_skylake(void const *key_value_packed, nk_size_t *heads,
+                                                               nk_size_t *depth, nk_size_t *segments, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_skylake_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_skylake(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                            nk_size_t *bytes) {
+    if (depth > nk_attention_max_depth_skylake_k_)
+        *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
+    else *bytes = nk_attention_pack_size_skylake_(key_value_head_count, depth, segment_lengths, segment_count);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_skylake(void const *key_value_packed, nk_size_t *heads,
+                                                               nk_size_t *depth, nk_size_t *segments, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (!nk_attention_packed_by_(key_value_packed, nk_cap_skylake_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_bf16_skylake(                                              //
+    nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (depth > nk_attention_max_depth_skylake_k_)
+        nk_attention_pack_serial_(keys, values, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_,
+                                  key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                                  key_stride, value_stride, key_value_packed, task_begin, task_end, nk_cap_skylake_k);
+    else
+        nk_attention_pack_skylake_(keys, values, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_skylake_,
+                                   key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                                   key_stride, value_stride, key_value_packed, task_begin, task_end);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_e4m3_skylake(                                              //
+    nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    if (depth > nk_attention_max_depth_skylake_k_)
+        nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_,
+                                  key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                                  key_stride, value_stride, key_value_packed, task_begin, task_end, nk_cap_skylake_k);
+    else
+        nk_attention_pack_skylake_(keys, values, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_skylake_,
+                                   key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                                   key_stride, value_stride, key_value_packed, task_begin, task_end);
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_skylake(                             //
     nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                       //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
@@ -660,6 +651,7 @@ NUMKONG_API nk_status_t nk_attention_rope_e4m3_skylake(nk_e4m3_t const *x, nk_f3
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if defined(__clang__)

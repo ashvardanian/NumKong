@@ -144,7 +144,42 @@ NUMKONG_INLINE nk_u16_t nk_intersect_u32x16_icelake_(__m512i a, __m512i b) {
     return ~(nk_u16_t)(nm0_m16 & nk_u16_rol_(nm1_m16, 4) & nk_u16_rol_(nm2_m16, 8) & nk_u16_ror_(nm3_m16, 4));
 }
 
+/** Analogous to @c _mm512_2intersect_epi64, but compatible with Ice Lake CPUs, and returns only one
+ *  mask indicating which elements in @p a have a match in @p b. */
+NUMKONG_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
+    __m512i a1_u64x8 = _mm512_alignr_epi64(a, a, 2);
+    __m512i b1_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_ADCB);
+    __mmask8 nm00_m8 = _mm512_cmpneq_epi64_mask(a, b);
+
+    __m512i a2_u64x8 = _mm512_alignr_epi64(a, a, 4);
+    __m512i a3_u64x8 = _mm512_alignr_epi64(a, a, 6);
+    __mmask8 nm01_m8 = _mm512_cmpneq_epi64_mask(a1_u64x8, b);
+    __mmask8 nm02_m8 = _mm512_cmpneq_epi64_mask(a2_u64x8, b);
+
+    __m512i b2_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_BADC);
+    __mmask8 nm03_m8 = _mm512_cmpneq_epi64_mask(a3_u64x8, b);
+    __mmask8 nm10_m8 = _mm512_mask_cmpneq_epi64_mask(nm00_m8, a, b1_u64x8);
+    __mmask8 nm11_m8 = _mm512_mask_cmpneq_epi64_mask(nm01_m8, a1_u64x8, b1_u64x8);
+
+    __m512i b3_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_CBAD);
+    __mmask8 nm12_m8 = _mm512_mask_cmpneq_epi64_mask(nm02_m8, a2_u64x8, b1_u64x8);
+    __mmask8 nm13_m8 = _mm512_mask_cmpneq_epi64_mask(nm03_m8, a3_u64x8, b1_u64x8);
+    __mmask8 nm20_m8 = _mm512_mask_cmpneq_epi64_mask(nm10_m8, a, b2_u64x8);
+
+    __mmask8 nm21_m8 = _mm512_mask_cmpneq_epi64_mask(nm11_m8, a1_u64x8, b2_u64x8);
+    __mmask8 nm22_m8 = _mm512_mask_cmpneq_epi64_mask(nm12_m8, a2_u64x8, b2_u64x8);
+    __mmask8 nm23_m8 = _mm512_mask_cmpneq_epi64_mask(nm13_m8, a3_u64x8, b2_u64x8);
+
+    __mmask8 nm0_m8 = _mm512_mask_cmpneq_epi64_mask(nm20_m8, a, b3_u64x8);
+    __mmask8 nm1_m8 = _mm512_mask_cmpneq_epi64_mask(nm21_m8, a1_u64x8, b3_u64x8);
+    __mmask8 nm2_m8 = _mm512_mask_cmpneq_epi64_mask(nm22_m8, a2_u64x8, b3_u64x8);
+    __mmask8 nm3_m8 = _mm512_mask_cmpneq_epi64_mask(nm23_m8, a3_u64x8, b3_u64x8);
+
+    return ~(nk_u8_t)(nm0_m8 & nk_u8_rol_(nm1_m8, 2) & nk_u8_rol_(nm2_m8, 4) & nk_u8_ror_(nm3_m8, 2));
+}
+
 #if NUMKONG_TARGET_ICELAKE
+
 NUMKONG_API nk_status_t nk_sparse_intersect_u16_icelake( //
     nk_u16_t const *a, nk_u16_t const *b,                //
     nk_size_t a_length, nk_size_t b_length,              //
@@ -274,43 +309,7 @@ NUMKONG_API nk_status_t nk_sparse_intersect_u32_icelake( //
     *count = c + tail_count;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_ICELAKE
 
-/** Analogous to @c _mm512_2intersect_epi64, but compatible with Ice Lake CPUs, and returns only one
- *  mask indicating which elements in @p a have a match in @p b. */
-NUMKONG_INLINE nk_u8_t nk_intersect_u64x8_icelake_(__m512i a, __m512i b) {
-    __m512i a1_u64x8 = _mm512_alignr_epi64(a, a, 2);
-    __m512i b1_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_ADCB);
-    __mmask8 nm00_m8 = _mm512_cmpneq_epi64_mask(a, b);
-
-    __m512i a2_u64x8 = _mm512_alignr_epi64(a, a, 4);
-    __m512i a3_u64x8 = _mm512_alignr_epi64(a, a, 6);
-    __mmask8 nm01_m8 = _mm512_cmpneq_epi64_mask(a1_u64x8, b);
-    __mmask8 nm02_m8 = _mm512_cmpneq_epi64_mask(a2_u64x8, b);
-
-    __m512i b2_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_BADC);
-    __mmask8 nm03_m8 = _mm512_cmpneq_epi64_mask(a3_u64x8, b);
-    __mmask8 nm10_m8 = _mm512_mask_cmpneq_epi64_mask(nm00_m8, a, b1_u64x8);
-    __mmask8 nm11_m8 = _mm512_mask_cmpneq_epi64_mask(nm01_m8, a1_u64x8, b1_u64x8);
-
-    __m512i b3_u64x8 = _mm512_permutex_epi64(b, _MM_PERM_CBAD);
-    __mmask8 nm12_m8 = _mm512_mask_cmpneq_epi64_mask(nm02_m8, a2_u64x8, b1_u64x8);
-    __mmask8 nm13_m8 = _mm512_mask_cmpneq_epi64_mask(nm03_m8, a3_u64x8, b1_u64x8);
-    __mmask8 nm20_m8 = _mm512_mask_cmpneq_epi64_mask(nm10_m8, a, b2_u64x8);
-
-    __mmask8 nm21_m8 = _mm512_mask_cmpneq_epi64_mask(nm11_m8, a1_u64x8, b2_u64x8);
-    __mmask8 nm22_m8 = _mm512_mask_cmpneq_epi64_mask(nm12_m8, a2_u64x8, b2_u64x8);
-    __mmask8 nm23_m8 = _mm512_mask_cmpneq_epi64_mask(nm13_m8, a3_u64x8, b2_u64x8);
-
-    __mmask8 nm0_m8 = _mm512_mask_cmpneq_epi64_mask(nm20_m8, a, b3_u64x8);
-    __mmask8 nm1_m8 = _mm512_mask_cmpneq_epi64_mask(nm21_m8, a1_u64x8, b3_u64x8);
-    __mmask8 nm2_m8 = _mm512_mask_cmpneq_epi64_mask(nm22_m8, a2_u64x8, b3_u64x8);
-    __mmask8 nm3_m8 = _mm512_mask_cmpneq_epi64_mask(nm23_m8, a3_u64x8, b3_u64x8);
-
-    return ~(nk_u8_t)(nm0_m8 & nk_u8_rol_(nm1_m8, 2) & nk_u8_rol_(nm2_m8, 4) & nk_u8_ror_(nm3_m8, 2));
-}
-
-#if NUMKONG_TARGET_ICELAKE
 NUMKONG_API nk_status_t nk_sparse_intersect_u64_icelake( //
     nk_u64_t const *a, nk_u64_t const *b,                //
     nk_size_t a_length, nk_size_t b_length,              //
@@ -463,6 +462,7 @@ NUMKONG_API nk_status_t nk_sparse_dot_u32f32_icelake(     //
     *product = _mm512_reduce_add_pd(product_low_f64x8) + _mm512_reduce_add_pd(product_high_f64x8) + tail_product;
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)

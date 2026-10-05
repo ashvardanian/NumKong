@@ -136,52 +136,6 @@ NUMKONG_INLINE void nk_squared_distance_f32_neon_(nk_f32_t const *a, nk_f32_t co
     *result = sum;
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f32_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f32_neon_(a, b, n, result);
-    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
-                                            void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    // Accumulate in f64 for numerical stability (2 f32s per iteration, avoids slow vget_low/high)
-    float64x2_t ab_f64x2 = vdupq_n_f64(0);
-    float64x2_t a2_f64x2 = vdupq_n_f64(0);
-    float64x2_t b2_f64x2 = vdupq_n_f64(0);
-    nk_size_t i = 0;
-    for (; i + 2 <= n; i += 2) {
-        float32x2_t a_f32x2 = vld1_f32(a + i);
-        float32x2_t b_f32x2 = vld1_f32(b + i);
-        float64x2_t a_f64x2 = vcvt_f64_f32(a_f32x2);
-        float64x2_t b_f64x2 = vcvt_f64_f32(b_f32x2);
-        ab_f64x2 = vfmaq_f64(ab_f64x2, a_f64x2, b_f64x2);
-        a2_f64x2 = vfmaq_f64(a2_f64x2, a_f64x2, a_f64x2);
-        b2_f64x2 = vfmaq_f64(b2_f64x2, b_f64x2, b_f64x2);
-    }
-    nk_f64_t ab_f64 = vaddvq_f64(ab_f64x2);
-    nk_f64_t a2_f64 = vaddvq_f64(a2_f64x2);
-    nk_f64_t b2_f64 = vaddvq_f64(b2_f64x2);
-    for (; i < n; ++i) {
-        nk_f64_t ai = (nk_f64_t)a[i], bi = (nk_f64_t)b[i];
-        ab_f64 += ai * bi, a2_f64 += ai * ai, b2_f64 += bi * bi;
-    }
-    *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_NEON
-
 /** Sums the squared differences of @p n F64 pairs in Dot2. */
 NUMKONG_INLINE void nk_squared_distance_f64_neon_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     float64x2_t sum_f64x2 = vdupq_n_f64(0), compensation_f64x2 = vdupq_n_f64(0);
@@ -208,60 +162,8 @@ nk_sqeuclidean_f64_neon_cycle:
     *result = nk_dot_stable_sum_f64x2_neon_(sum_f64x2, compensation_f64x2);
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f64_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f64_neon_(a, b, n, result);
-    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
-                                            void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    float64x2_t ab_sum_f64x2 = vdupq_n_f64(0), ab_compensation_f64x2 = vdupq_n_f64(0);
-    float64x2_t a2_sum_f64x2 = vdupq_n_f64(0), a2_compensation_f64x2 = vdupq_n_f64(0);
-    float64x2_t b2_sum_f64x2 = vdupq_n_f64(0), b2_compensation_f64x2 = vdupq_n_f64(0);
-    float64x2_t a_f64x2, b_f64x2;
-
-nk_angular_f64_neon_cycle:
-    if (n < 2) {
-        nk_b128_vec_t a_tail, b_tail;
-        nk_partial_load_b64x2_serial_(a, &a_tail, n);
-        nk_partial_load_b64x2_serial_(b, &b_tail, n);
-        a_f64x2 = a_tail.f64x2;
-        b_f64x2 = b_tail.f64x2;
-        n = 0;
-    }
-    else {
-        a_f64x2 = vld1q_f64(a);
-        b_f64x2 = vld1q_f64(b);
-        a += 2, b += 2, n -= 2;
-    }
-    nk_dot2_f64x2_neon_(&ab_sum_f64x2, &ab_compensation_f64x2, a_f64x2, b_f64x2);
-    nk_dot2_f64x2_neon_(&a2_sum_f64x2, &a2_compensation_f64x2, a_f64x2, a_f64x2);
-    nk_dot2_f64x2_neon_(&b2_sum_f64x2, &b2_compensation_f64x2, b_f64x2, b_f64x2);
-    if (n) goto nk_angular_f64_neon_cycle;
-
-    *result = nk_angular_normalize_f64_neon_( //
-        nk_dot_stable_sum_f64x2_neon_(ab_sum_f64x2, ab_compensation_f64x2),
-        nk_dot_stable_sum_f64x2_neon_(a2_sum_f64x2, a2_compensation_f64x2),
-        nk_dot_stable_sum_f64x2_neon_(b2_sum_f64x2, b2_compensation_f64x2));
-    return nk_success_k;
-}
-
 #pragma endregion F32 and F64 Floats
 #pragma region F16 and BF16 Floats
-
-#endif // NUMKONG_TARGET_NEON
 
 /** Sums the squared differences of @p n BF16 pairs, widened to F32. */
 NUMKONG_INLINE void nk_squared_distance_bf16_neon_(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
@@ -293,63 +195,6 @@ nk_sqeuclidean_bf16_neon_cycle:
     if (n) goto nk_sqeuclidean_bf16_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
 }
-
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_bf16_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_bf16_neon_(a, b, n, result);
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    uint16x8_t a_u16x8, b_u16x8;
-    float32x4_t ab_f32x4 = vdupq_n_f32(0);
-    float32x4_t a2_f32x4 = vdupq_n_f32(0);
-    float32x4_t b2_f32x4 = vdupq_n_f32(0);
-nk_angular_bf16_neon_cycle:
-    if (n < 8) {
-        nk_b128_vec_t a_vec, b_vec;
-        nk_partial_load_b16x8_serial_(a, &a_vec, n);
-        nk_partial_load_b16x8_serial_(b, &b_vec, n);
-        a_u16x8 = a_vec.u16x8;
-        b_u16x8 = b_vec.u16x8;
-        n = 0;
-    }
-    else {
-        a_u16x8 = vld1q_u16((nk_u16_t const *)a);
-        b_u16x8 = vld1q_u16((nk_u16_t const *)b);
-        a += 8, b += 8, n -= 8;
-    }
-    float32x4_t a_low_f32x4 = vreinterpretq_f32_u32(vshll_n_u16(vget_low_u16(a_u16x8), 16));
-    float32x4_t a_high_f32x4 = vreinterpretq_f32_u32(vshll_high_n_u16(a_u16x8, 16));
-    float32x4_t b_low_f32x4 = vreinterpretq_f32_u32(vshll_n_u16(vget_low_u16(b_u16x8), 16));
-    float32x4_t b_high_f32x4 = vreinterpretq_f32_u32(vshll_high_n_u16(b_u16x8, 16));
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
-    if (n) goto nk_angular_bf16_neon_cycle;
-    nk_f32_t ab = vaddvq_f32(ab_f32x4);
-    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
-    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
-    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_NEON
 
 /** Sums the squared differences of @p n F16 pairs, widened to F32. */
 NUMKONG_INLINE void nk_squared_distance_f16_neon_(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result) {
@@ -383,65 +228,6 @@ nk_sqeuclidean_f16_neon_cycle:
     *result = vaddvq_f32(sum_f32x4);
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                                void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f16_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_f16_neon_(a, b, n, result);
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
-                                            void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    uint16x8_t a_u16x8, b_u16x8;
-    float32x4_t ab_f32x4 = vdupq_n_f32(0);
-    float32x4_t a2_f32x4 = vdupq_n_f32(0);
-    float32x4_t b2_f32x4 = vdupq_n_f32(0);
-nk_angular_f16_neon_cycle:
-    if (n < 8) {
-        nk_b128_vec_t a_vec, b_vec;
-        nk_partial_load_b16x8_serial_(a, &a_vec, n);
-        nk_partial_load_b16x8_serial_(b, &b_vec, n);
-        a_u16x8 = a_vec.u16x8;
-        b_u16x8 = b_vec.u16x8;
-        n = 0;
-    }
-    else {
-        a_u16x8 = vld1q_u16((nk_u16_t const *)a);
-        b_u16x8 = vld1q_u16((nk_u16_t const *)b);
-        a += 8, b += 8, n -= 8;
-    }
-    float16x8_t a_f16x8 = vreinterpretq_f16_u16(a_u16x8);
-    float16x8_t b_f16x8 = vreinterpretq_f16_u16(b_u16x8);
-    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
-    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
-    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
-    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
-    if (n) goto nk_angular_f16_neon_cycle;
-    nk_f32_t ab = vaddvq_f32(ab_f32x4);
-    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
-    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
-    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_NEON
-
 /** Sums the squared differences of @p n E2M3 pairs, widened to F32. */
 NUMKONG_INLINE void nk_squared_distance_e2m3_neon_(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n,
                                                    nk_f32_t *result) {
@@ -472,63 +258,6 @@ nk_sqeuclidean_e2m3_neon_cycle:
     if (n) goto nk_sqeuclidean_e2m3_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
 }
-
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e2m3_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e2m3_neon_(a, b, n, result);
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    float16x8_t a_f16x8, b_f16x8;
-    float32x4_t ab_f32x4 = vdupq_n_f32(0);
-    float32x4_t a2_f32x4 = vdupq_n_f32(0);
-    float32x4_t b2_f32x4 = vdupq_n_f32(0);
-nk_angular_e2m3_neon_cycle:
-    if (n < 8) {
-        nk_b64_vec_t a_vec, b_vec;
-        nk_partial_load_b8x8_serial_(a, &a_vec, n);
-        nk_partial_load_b8x8_serial_(b, &b_vec, n);
-        a_f16x8 = nk_e2m3x8_to_f16x8_neon_(a_vec.u8x8);
-        b_f16x8 = nk_e2m3x8_to_f16x8_neon_(b_vec.u8x8);
-        n = 0;
-    }
-    else {
-        a_f16x8 = nk_e2m3x8_to_f16x8_neon_(vld1_u8(a));
-        b_f16x8 = nk_e2m3x8_to_f16x8_neon_(vld1_u8(b));
-        a += 8, b += 8, n -= 8;
-    }
-    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
-    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
-    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
-    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
-    if (n) goto nk_angular_e2m3_neon_cycle;
-    nk_f32_t ab = vaddvq_f32(ab_f32x4);
-    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
-    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
-    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_NEON
 
 /** Sums the squared differences of @p n E3M2 pairs, widened to F32. */
 NUMKONG_INLINE void nk_squared_distance_e3m2_neon_(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n,
@@ -561,63 +290,6 @@ nk_sqeuclidean_e3m2_neon_cycle:
     *result = vaddvq_f32(sum_f32x4);
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e3m2_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e3m2_neon_(a, b, n, result);
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    float16x8_t a_f16x8, b_f16x8;
-    float32x4_t ab_f32x4 = vdupq_n_f32(0);
-    float32x4_t a2_f32x4 = vdupq_n_f32(0);
-    float32x4_t b2_f32x4 = vdupq_n_f32(0);
-nk_angular_e3m2_neon_cycle:
-    if (n < 8) {
-        nk_b64_vec_t a_vec, b_vec;
-        nk_partial_load_b8x8_serial_(a, &a_vec, n);
-        nk_partial_load_b8x8_serial_(b, &b_vec, n);
-        a_f16x8 = nk_e3m2x8_to_f16x8_neon_(a_vec.u8x8);
-        b_f16x8 = nk_e3m2x8_to_f16x8_neon_(b_vec.u8x8);
-        n = 0;
-    }
-    else {
-        a_f16x8 = nk_e3m2x8_to_f16x8_neon_(vld1_u8(a));
-        b_f16x8 = nk_e3m2x8_to_f16x8_neon_(vld1_u8(b));
-        a += 8, b += 8, n -= 8;
-    }
-    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
-    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
-    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
-    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
-    if (n) goto nk_angular_e3m2_neon_cycle;
-    nk_f32_t ab = vaddvq_f32(ab_f32x4);
-    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
-    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
-    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_NEON
-
 /** Sums the squared differences of @p n E4M3 pairs, widened to F32. */
 NUMKONG_INLINE void nk_squared_distance_e4m3_neon_(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n,
                                                    nk_f32_t *result) {
@@ -649,63 +321,6 @@ nk_sqeuclidean_e4m3_neon_cycle:
     *result = vaddvq_f32(sum_f32x4);
 }
 
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e4m3_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e4m3_neon_(a, b, n, result);
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    float16x8_t a_f16x8, b_f16x8;
-    float32x4_t ab_f32x4 = vdupq_n_f32(0);
-    float32x4_t a2_f32x4 = vdupq_n_f32(0);
-    float32x4_t b2_f32x4 = vdupq_n_f32(0);
-nk_angular_e4m3_neon_cycle:
-    if (n < 8) {
-        nk_b64_vec_t a_vec, b_vec;
-        nk_partial_load_b8x8_serial_(a, &a_vec, n);
-        nk_partial_load_b8x8_serial_(b, &b_vec, n);
-        a_f16x8 = nk_e4m3x8_to_f16x8_neon_(a_vec.u8x8);
-        b_f16x8 = nk_e4m3x8_to_f16x8_neon_(b_vec.u8x8);
-        n = 0;
-    }
-    else {
-        a_f16x8 = nk_e4m3x8_to_f16x8_neon_(vld1_u8(a));
-        b_f16x8 = nk_e4m3x8_to_f16x8_neon_(vld1_u8(b));
-        a += 8, b += 8, n -= 8;
-    }
-    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
-    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
-    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
-    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
-    if (n) goto nk_angular_e4m3_neon_cycle;
-    nk_f32_t ab = vaddvq_f32(ab_f32x4);
-    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
-    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
-    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
-    return nk_success_k;
-}
-
-#endif // NUMKONG_TARGET_NEON
-
 /** Sums the squared differences of @p n E5M2 pairs, widened to F32. */
 NUMKONG_INLINE void nk_squared_distance_e5m2_neon_(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n,
                                                    nk_f32_t *result) {
@@ -736,62 +351,6 @@ nk_sqeuclidean_e5m2_neon_cycle:
     if (n) goto nk_sqeuclidean_e5m2_neon_cycle;
     *result = vaddvq_f32(sum_f32x4);
 }
-
-#if NUMKONG_TARGET_NEON
-NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                                 void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e5m2_neon_(a, b, n, result);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_euclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                               void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_squared_distance_e5m2_neon_(a, b, n, result);
-    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_angular_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    float16x8_t a_f16x8, b_f16x8;
-    float32x4_t ab_f32x4 = vdupq_n_f32(0);
-    float32x4_t a2_f32x4 = vdupq_n_f32(0);
-    float32x4_t b2_f32x4 = vdupq_n_f32(0);
-nk_angular_e5m2_neon_cycle:
-    if (n < 8) {
-        nk_b64_vec_t a_vec, b_vec;
-        nk_partial_load_b8x8_serial_(a, &a_vec, n);
-        nk_partial_load_b8x8_serial_(b, &b_vec, n);
-        a_f16x8 = nk_e5m2x8_to_f16x8_neon_(a_vec.u8x8);
-        b_f16x8 = nk_e5m2x8_to_f16x8_neon_(b_vec.u8x8);
-        n = 0;
-    }
-    else {
-        a_f16x8 = nk_e5m2x8_to_f16x8_neon_(vld1_u8(a));
-        b_f16x8 = nk_e5m2x8_to_f16x8_neon_(vld1_u8(b));
-        a += 8, b += 8, n -= 8;
-    }
-    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
-    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
-    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
-    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
-    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
-    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
-    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
-    if (n) goto nk_angular_e5m2_neon_cycle;
-    nk_f32_t ab = vaddvq_f32(ab_f32x4);
-    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
-    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
-    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_NEON
 
 /** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f64, where q is
  *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
@@ -968,6 +527,437 @@ NUMKONG_INLINE void nk_euclidean_through_u32_from_dot_neon_(nk_b128_vec_t const 
     result_vec->f32x4 = vsqrtq_f32(dist_sq_f32x4);
 }
 
+#pragma endregion F16 and BF16 Floats
+
+#if NUMKONG_TARGET_NEON
+
+#pragma region F32 and F64 Floats
+
+NUMKONG_API nk_status_t nk_sqeuclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f32_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f32_neon_(a, b, n, result);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
+                                            void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    // Accumulate in f64 for numerical stability (2 f32s per iteration, avoids slow vget_low/high)
+    float64x2_t ab_f64x2 = vdupq_n_f64(0);
+    float64x2_t a2_f64x2 = vdupq_n_f64(0);
+    float64x2_t b2_f64x2 = vdupq_n_f64(0);
+    nk_size_t i = 0;
+    for (; i + 2 <= n; i += 2) {
+        float32x2_t a_f32x2 = vld1_f32(a + i);
+        float32x2_t b_f32x2 = vld1_f32(b + i);
+        float64x2_t a_f64x2 = vcvt_f64_f32(a_f32x2);
+        float64x2_t b_f64x2 = vcvt_f64_f32(b_f32x2);
+        ab_f64x2 = vfmaq_f64(ab_f64x2, a_f64x2, b_f64x2);
+        a2_f64x2 = vfmaq_f64(a2_f64x2, a_f64x2, a_f64x2);
+        b2_f64x2 = vfmaq_f64(b2_f64x2, b_f64x2, b_f64x2);
+    }
+    nk_f64_t ab_f64 = vaddvq_f64(ab_f64x2);
+    nk_f64_t a2_f64 = vaddvq_f64(a2_f64x2);
+    nk_f64_t b2_f64 = vaddvq_f64(b2_f64x2);
+    for (; i < n; ++i) {
+        nk_f64_t ai = (nk_f64_t)a[i], bi = (nk_f64_t)b[i];
+        ab_f64 += ai * bi, a2_f64 += ai * ai, b2_f64 += bi * bi;
+    }
+    *result = nk_angular_normalize_f64_neon_(ab_f64, a2_f64, b2_f64);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f64_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f64_neon_(a, b, n, result);
+    *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f64_neon(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
+                                            void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    float64x2_t ab_sum_f64x2 = vdupq_n_f64(0), ab_compensation_f64x2 = vdupq_n_f64(0);
+    float64x2_t a2_sum_f64x2 = vdupq_n_f64(0), a2_compensation_f64x2 = vdupq_n_f64(0);
+    float64x2_t b2_sum_f64x2 = vdupq_n_f64(0), b2_compensation_f64x2 = vdupq_n_f64(0);
+    float64x2_t a_f64x2, b_f64x2;
+
+nk_angular_f64_neon_cycle:
+    if (n < 2) {
+        nk_b128_vec_t a_tail, b_tail;
+        nk_partial_load_b64x2_serial_(a, &a_tail, n);
+        nk_partial_load_b64x2_serial_(b, &b_tail, n);
+        a_f64x2 = a_tail.f64x2;
+        b_f64x2 = b_tail.f64x2;
+        n = 0;
+    }
+    else {
+        a_f64x2 = vld1q_f64(a);
+        b_f64x2 = vld1q_f64(b);
+        a += 2, b += 2, n -= 2;
+    }
+    nk_dot2_f64x2_neon_(&ab_sum_f64x2, &ab_compensation_f64x2, a_f64x2, b_f64x2);
+    nk_dot2_f64x2_neon_(&a2_sum_f64x2, &a2_compensation_f64x2, a_f64x2, a_f64x2);
+    nk_dot2_f64x2_neon_(&b2_sum_f64x2, &b2_compensation_f64x2, b_f64x2, b_f64x2);
+    if (n) goto nk_angular_f64_neon_cycle;
+
+    *result = nk_angular_normalize_f64_neon_( //
+        nk_dot_stable_sum_f64x2_neon_(ab_sum_f64x2, ab_compensation_f64x2),
+        nk_dot_stable_sum_f64x2_neon_(a2_sum_f64x2, a2_compensation_f64x2),
+        nk_dot_stable_sum_f64x2_neon_(b2_sum_f64x2, b2_compensation_f64x2));
+    return nk_success_k;
+}
+
+#pragma endregion F32 and F64 Floats
+#pragma region F16 and BF16 Floats
+
+NUMKONG_API nk_status_t nk_sqeuclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_bf16_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_bf16_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_bf16_neon(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    uint16x8_t a_u16x8, b_u16x8;
+    float32x4_t ab_f32x4 = vdupq_n_f32(0);
+    float32x4_t a2_f32x4 = vdupq_n_f32(0);
+    float32x4_t b2_f32x4 = vdupq_n_f32(0);
+nk_angular_bf16_neon_cycle:
+    if (n < 8) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b16x8_serial_(a, &a_vec, n);
+        nk_partial_load_b16x8_serial_(b, &b_vec, n);
+        a_u16x8 = a_vec.u16x8;
+        b_u16x8 = b_vec.u16x8;
+        n = 0;
+    }
+    else {
+        a_u16x8 = vld1q_u16((nk_u16_t const *)a);
+        b_u16x8 = vld1q_u16((nk_u16_t const *)b);
+        a += 8, b += 8, n -= 8;
+    }
+    float32x4_t a_low_f32x4 = vreinterpretq_f32_u32(vshll_n_u16(vget_low_u16(a_u16x8), 16));
+    float32x4_t a_high_f32x4 = vreinterpretq_f32_u32(vshll_high_n_u16(a_u16x8, 16));
+    float32x4_t b_low_f32x4 = vreinterpretq_f32_u32(vshll_n_u16(vget_low_u16(b_u16x8), 16));
+    float32x4_t b_high_f32x4 = vreinterpretq_f32_u32(vshll_high_n_u16(b_u16x8, 16));
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
+    if (n) goto nk_angular_bf16_neon_cycle;
+    nk_f32_t ab = vaddvq_f32(ab_f32x4);
+    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
+    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
+    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                                void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f16_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_f16_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_f16_neon(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
+                                            void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    uint16x8_t a_u16x8, b_u16x8;
+    float32x4_t ab_f32x4 = vdupq_n_f32(0);
+    float32x4_t a2_f32x4 = vdupq_n_f32(0);
+    float32x4_t b2_f32x4 = vdupq_n_f32(0);
+nk_angular_f16_neon_cycle:
+    if (n < 8) {
+        nk_b128_vec_t a_vec, b_vec;
+        nk_partial_load_b16x8_serial_(a, &a_vec, n);
+        nk_partial_load_b16x8_serial_(b, &b_vec, n);
+        a_u16x8 = a_vec.u16x8;
+        b_u16x8 = b_vec.u16x8;
+        n = 0;
+    }
+    else {
+        a_u16x8 = vld1q_u16((nk_u16_t const *)a);
+        b_u16x8 = vld1q_u16((nk_u16_t const *)b);
+        a += 8, b += 8, n -= 8;
+    }
+    float16x8_t a_f16x8 = vreinterpretq_f16_u16(a_u16x8);
+    float16x8_t b_f16x8 = vreinterpretq_f16_u16(b_u16x8);
+    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
+    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
+    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
+    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
+    if (n) goto nk_angular_f16_neon_cycle;
+    nk_f32_t ab = vaddvq_f32(ab_f32x4);
+    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
+    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
+    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e2m3_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e2m3_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e2m3_neon(nk_e2m3_t const *a, nk_e2m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    float16x8_t a_f16x8, b_f16x8;
+    float32x4_t ab_f32x4 = vdupq_n_f32(0);
+    float32x4_t a2_f32x4 = vdupq_n_f32(0);
+    float32x4_t b2_f32x4 = vdupq_n_f32(0);
+nk_angular_e2m3_neon_cycle:
+    if (n < 8) {
+        nk_b64_vec_t a_vec, b_vec;
+        nk_partial_load_b8x8_serial_(a, &a_vec, n);
+        nk_partial_load_b8x8_serial_(b, &b_vec, n);
+        a_f16x8 = nk_e2m3x8_to_f16x8_neon_(a_vec.u8x8);
+        b_f16x8 = nk_e2m3x8_to_f16x8_neon_(b_vec.u8x8);
+        n = 0;
+    }
+    else {
+        a_f16x8 = nk_e2m3x8_to_f16x8_neon_(vld1_u8(a));
+        b_f16x8 = nk_e2m3x8_to_f16x8_neon_(vld1_u8(b));
+        a += 8, b += 8, n -= 8;
+    }
+    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
+    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
+    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
+    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
+    if (n) goto nk_angular_e2m3_neon_cycle;
+    nk_f32_t ab = vaddvq_f32(ab_f32x4);
+    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
+    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
+    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e3m2_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e3m2_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e3m2_neon(nk_e3m2_t const *a, nk_e3m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    float16x8_t a_f16x8, b_f16x8;
+    float32x4_t ab_f32x4 = vdupq_n_f32(0);
+    float32x4_t a2_f32x4 = vdupq_n_f32(0);
+    float32x4_t b2_f32x4 = vdupq_n_f32(0);
+nk_angular_e3m2_neon_cycle:
+    if (n < 8) {
+        nk_b64_vec_t a_vec, b_vec;
+        nk_partial_load_b8x8_serial_(a, &a_vec, n);
+        nk_partial_load_b8x8_serial_(b, &b_vec, n);
+        a_f16x8 = nk_e3m2x8_to_f16x8_neon_(a_vec.u8x8);
+        b_f16x8 = nk_e3m2x8_to_f16x8_neon_(b_vec.u8x8);
+        n = 0;
+    }
+    else {
+        a_f16x8 = nk_e3m2x8_to_f16x8_neon_(vld1_u8(a));
+        b_f16x8 = nk_e3m2x8_to_f16x8_neon_(vld1_u8(b));
+        a += 8, b += 8, n -= 8;
+    }
+    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
+    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
+    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
+    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
+    if (n) goto nk_angular_e3m2_neon_cycle;
+    nk_f32_t ab = vaddvq_f32(ab_f32x4);
+    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
+    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
+    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e4m3_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e4m3_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e4m3_neon(nk_e4m3_t const *a, nk_e4m3_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    float16x8_t a_f16x8, b_f16x8;
+    float32x4_t ab_f32x4 = vdupq_n_f32(0);
+    float32x4_t a2_f32x4 = vdupq_n_f32(0);
+    float32x4_t b2_f32x4 = vdupq_n_f32(0);
+nk_angular_e4m3_neon_cycle:
+    if (n < 8) {
+        nk_b64_vec_t a_vec, b_vec;
+        nk_partial_load_b8x8_serial_(a, &a_vec, n);
+        nk_partial_load_b8x8_serial_(b, &b_vec, n);
+        a_f16x8 = nk_e4m3x8_to_f16x8_neon_(a_vec.u8x8);
+        b_f16x8 = nk_e4m3x8_to_f16x8_neon_(b_vec.u8x8);
+        n = 0;
+    }
+    else {
+        a_f16x8 = nk_e4m3x8_to_f16x8_neon_(vld1_u8(a));
+        b_f16x8 = nk_e4m3x8_to_f16x8_neon_(vld1_u8(b));
+        a += 8, b += 8, n -= 8;
+    }
+    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
+    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
+    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
+    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
+    if (n) goto nk_angular_e4m3_neon_cycle;
+    nk_f32_t ab = vaddvq_f32(ab_f32x4);
+    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
+    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
+    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_sqeuclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                                 void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e5m2_neon_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_euclidean_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                               void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_squared_distance_e5m2_neon_(a, b, n, result);
+    *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(*result)), 0);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_angular_e5m2_neon(nk_e5m2_t const *a, nk_e5m2_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    float16x8_t a_f16x8, b_f16x8;
+    float32x4_t ab_f32x4 = vdupq_n_f32(0);
+    float32x4_t a2_f32x4 = vdupq_n_f32(0);
+    float32x4_t b2_f32x4 = vdupq_n_f32(0);
+nk_angular_e5m2_neon_cycle:
+    if (n < 8) {
+        nk_b64_vec_t a_vec, b_vec;
+        nk_partial_load_b8x8_serial_(a, &a_vec, n);
+        nk_partial_load_b8x8_serial_(b, &b_vec, n);
+        a_f16x8 = nk_e5m2x8_to_f16x8_neon_(a_vec.u8x8);
+        b_f16x8 = nk_e5m2x8_to_f16x8_neon_(b_vec.u8x8);
+        n = 0;
+    }
+    else {
+        a_f16x8 = nk_e5m2x8_to_f16x8_neon_(vld1_u8(a));
+        b_f16x8 = nk_e5m2x8_to_f16x8_neon_(vld1_u8(b));
+        a += 8, b += 8, n -= 8;
+    }
+    float32x4_t a_low_f32x4 = vcvt_f32_f16(vget_low_f16(a_f16x8));
+    float32x4_t a_high_f32x4 = vcvt_high_f32_f16(a_f16x8);
+    float32x4_t b_low_f32x4 = vcvt_f32_f16(vget_low_f16(b_f16x8));
+    float32x4_t b_high_f32x4 = vcvt_high_f32_f16(b_f16x8);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_low_f32x4, b_low_f32x4);
+    ab_f32x4 = vfmaq_f32(ab_f32x4, a_high_f32x4, b_high_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_low_f32x4, a_low_f32x4);
+    a2_f32x4 = vfmaq_f32(a2_f32x4, a_high_f32x4, a_high_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_low_f32x4, b_low_f32x4);
+    b2_f32x4 = vfmaq_f32(b2_f32x4, b_high_f32x4, b_high_f32x4);
+    if (n) goto nk_angular_e5m2_neon_cycle;
+    nk_f32_t ab = vaddvq_f32(ab_f32x4);
+    nk_f32_t a2 = vaddvq_f32(a2_f32x4);
+    nk_f32_t b2 = vaddvq_f32(b2_f32x4);
+    *result = nk_angular_normalize_f32_neon_(ab, a2, b2);
+    return nk_success_k;
+}
+
+#pragma endregion F16 and BF16 Floats
+
+#endif // NUMKONG_TARGET_NEON
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -978,7 +968,6 @@ NUMKONG_INLINE void nk_euclidean_through_u32_from_dot_neon_(nk_b128_vec_t const 
 } // extern "C"
 #endif
 
-#pragma endregion F16 and BF16 Floats
 #endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPATIAL_NEON_H
