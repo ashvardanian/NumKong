@@ -1820,7 +1820,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                 nk_size_t tile_rows = (tile_row_start + 4 <= macro_size) ? 4 : (macro_size - tile_row_start);          \
                 nk_size_t tile_columns = (tile_col_start + 4 <= macro_size) ? 4 : (macro_size - tile_col_start);       \
                 int is_diag = (tile_row_start == tile_col_start);                                                      \
-                NUMKONG_ALIGN64_ state_type accumulators[4][7];                                                        \
+                nk_align_(64) state_type accumulators[4][7];                                                           \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     nk_size_t init_start = is_diag ? row : 0;                                                          \
                     nk_size_t init_end = is_diag ? (row + 4) : tile_columns;                                           \
@@ -2064,7 +2064,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                 int compute_row_sums_flag = (tile_col_start == 0);                                                     \
                 int compute_col_sums_flag = (tile_row_start == 0);                                                     \
                 /* Initialize 4×4 dot accumulators */                                                                  \
-                NUMKONG_ALIGN64_ state_type accumulators[4][4];                                                        \
+                nk_align_(64) state_type accumulators[4][4];                                                           \
                 for (nk_size_t row = 0; row < tile_rows; row++)                                                        \
                     for (nk_size_t col = 0; col < tile_columns; col++) init_accumulator_fn(&accumulators[row][col]);   \
                 /* Initialize sum accumulators (only when needed) */                                                   \
@@ -2386,7 +2386,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                                                                                                        \
                 /* Register-resident accumulators, padded to [4][7] so that the reduce call, */                        \
                 /* which always reads 4 entries from column_start on, stays in bounds */                               \
-                NUMKONG_ALIGN64_ state_type accumulators[4][7];                                                        \
+                nk_align_(64) state_type accumulators[4][7];                                                           \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     nk_size_t init_start = is_diagonal_tile ? row : 0;                                                 \
                     nk_size_t init_end = is_diagonal_tile ? (row + 4) : tile_columns;                                  \
@@ -2575,7 +2575,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                                                                                                        \
                 /* Initialize 4×4 register-resident accumulators, the full                                            \
                  * rectangle for off-diagonal tiles */                                                                 \
-                NUMKONG_ALIGN64_ state_type accumulators[4][4];                                                        \
+                nk_align_(64) state_type accumulators[4][4];                                                           \
                 for (nk_size_t row = 0; row < tile_rows; row++) {                                                      \
                     for (nk_size_t column = 0; column < tile_columns; column++) {                                      \
                         init_accumulator_fn(&accumulators[row][column]);                                               \

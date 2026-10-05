@@ -7,141 +7,42 @@
  *  Runs the dots scenarios of `cross.hpp` through a @c metal_backend_t for the Metal baseline and
  *  every Apple GPU family the device runs, against the serial `nk::` references on the host.
  */
-#include "numkong/metal.h"
-#include "numkong/memory.h" // `nk_memory_allocate_unified_metal`
-
-#include "harness.hpp" // `error_stats_section_t`, `call_best`
-#include "cross.hpp"   // `test_dots_packed`
+#include "cross_device.hpp"
 
 namespace ashvardanian::numkong::test {
 
-/** Unified memory of the system default device, which the host and its kernels both dereference,
- *  so any @c nk::vector factory can use it. */
-template <typename value_type_>
-struct metal_shared_allocator {
-    using value_type = value_type_;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
-    using propagate_on_container_move_assignment = std::true_type;
-    using is_always_equal = std::true_type;
+#if NUMKONG_WITH_METAL
 
-    template <typename other_type_>
-    struct rebind {
-        using other = metal_shared_allocator<other_type_>;
-    };
-
-    constexpr metal_shared_allocator() noexcept = default;
-    template <typename other_type_>
-    constexpr metal_shared_allocator(metal_shared_allocator<other_type_> const &) noexcept {}
-
-    [[nodiscard]] value_type *allocate(std::size_t count) noexcept {
-        void *pointer = nullptr;
-        nk_status_t const status = nk_memory_allocate_unified_metal(count * sizeof(value_type), &pointer, nullptr);
-        return status == nk_success_k ? static_cast<value_type *>(pointer) : nullptr;
-    }
-    void deallocate(value_type *pointer, std::size_t count) noexcept {
-        [[maybe_unused]] nk_status_t const status = nk_memory_free_unified_metal(pointer, count * sizeof(value_type),
-                                                                                 nullptr);
-    }
-    template <typename other_type_>
-    constexpr bool operator==(metal_shared_allocator<other_type_> const &) const noexcept {
-        return true;
-    }
-};
-
-/** Runs the Metal kernels on the null stream, the library's queue on the system default device,
- *  over its unified memory, keeping the first failed status. */
-struct metal_backend_t {
-
-    /** The allocator every kernel operand comes from, readable by the host once the stream is
-     *  synchronized. */
-    template <typename value_type_>
-    using allocator = metal_shared_allocator<value_type_>;
-
-    /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
-    static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
-
-    /** Copies @p bytes once every queued call has finished with them. */
-    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        nk_status_t const status = nk_stream_synchronize_metal(nullptr);
-        if (status != nk_success_k) return status;
-        std::memcpy(destination, source, bytes);
-        return nk_success_k;
-    }
-
-    /** Zeroes @p bytes once every queued call has finished with them. */
-    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
-        nk_status_t const status = nk_stream_synchronize_metal(nullptr);
-        if (status != nk_success_k) return status;
-        std::memset(destination, 0, bytes);
-        return nk_success_k;
-    }
-
-    /** Encodes @p kernel with @p arguments on the null stream. */
-    template <typename kernel_type_, typename... arguments_types_>
-    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        return kernel(arguments..., nullptr);
-    }
-
-    /** Calls @p kernel on operands it must refuse, reporting whether it returned
-     *  @c nk_misaligned_k unencoded. */
-    template <typename kernel_type_, typename... arguments_types_>
-    bool refuses_misaligned(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        return kernel(arguments..., nullptr) == nk_misaligned_k;
-    }
-
-    /** Waits for submitted work. */
-    nk_status_t synchronize() noexcept { return nk_stream_synchronize_metal(nullptr); }
-};
-
-/** The capabilities of the first Metal device, where every backend encodes. */
-inline nk_capability_t metal_capabilities() noexcept {
-    auto const device = nk::device_t::make(nk::device_kind_t::metal_k, 0);
-    return device ? device.value.capabilities_enabled().value : 0;
-}
-
-/** The dispatch point @p best_ in the shape of its capability kernels, over GPU 0's capabilities,
- *  where the backend encodes: callable like them, and convertible to their function pointers. */
-template <auto best_>
-inline constexpr auto gpu_best =
-    [](auto... arguments) noexcept { return call_best<best_>(metal_capabilities(), arguments...); };
-
-static error_stats_t test_metal_deferred_free(settings_t const &) {
+static error_stats_t test_metal_bound_lifetime(settings_t const &settings) {
     error_stats_t stats(comparison_family_t::exact_k);
-    void *pointer = nullptr;
-    stats.expect(nk_memory_allocate_unified_metal(16, &pointer, nullptr));
-    if (!pointer) return stats;
-    nk_metal_context_t *const context = nk_metal_context_(nullptr);
-    os_unfair_lock_lock(&context->lock);
-    nk_metal_pending_t *const grown = (nk_metal_pending_t *)nk_metal_reserve_(
-        context->pending, context->pending_count, &context->pending_capacity, sizeof(nk_metal_pending_t));
-    if (grown) {
-        context->pending = grown;
-        nk_metal_pending_t *pending = &grown[context->pending_count++];
-        memset(pending, 0, sizeof(*pending));
-        pending->queue = nk_metal_get_(context->queue, "retain");
-        pending->waiters = 1; // A synchronizer has detached commands and is waiting outside the lock.
+    auto origin = make_backend<metal_backend_t>(settings);
+    auto consumer = make_backend<metal_backend_t>(settings);
+    using bytes_t = nk::vector<char, metal_backend_t::allocator<char>>;
+    using inputs_t = nk::vector<i8_t, metal_backend_t::allocator<i8_t>>;
+    using outputs_t = nk::vector<i32_t, metal_backend_t::allocator<i32_t>>;
+    auto packed =
+        bytes_t::zeros(pack_size_bytes(stats, nk_dots_pack_size_i8_metal, 1, 16), allocator_of<char>(consumer)).value;
+    {
+        auto input = inputs_t::zeros(16, allocator_of<i8_t>(origin)).value;
+        std::fill_n(input.data(), 16, i8_t(1));
+        stats.expect(
+            consumer.call(nk_dots_pack_i8_metal, input.raw_values_data(), 1, 16, 16, packed.raw_values_data(), 0, 1));
     }
-    os_unfair_lock_unlock(&context->lock);
-    stats.expect(grown != nullptr, "pending entry allocation failed");
-    stats.expect(nk_memory_free_unified_metal(pointer, 16, nullptr));
-    if (!grown) return stats;
-    stats.expect(nk_stream_synchronize_metal(nullptr));
-    os_unfair_lock_lock(&context->lock);
-    nk_metal_pending_t *pending = nk_metal_pending_(context, context->queue);
-    bool const retained = pending && pending->waiters == 1 && pending->frees_count == 1;
-    if (pending) --pending->waiters;
-    os_unfair_lock_unlock(&context->lock);
-    stats.expect(retained, "another synchronizer released a buffer while a waiter was active");
-    stats.expect(nk_stream_synchronize_metal(nullptr));
+    auto query = inputs_t::zeros(16, allocator_of<i8_t>(consumer)).value;
+    auto result = outputs_t::zeros(1, allocator_of<i32_t>(consumer)).value;
+    std::fill_n(query.data(), 16, i8_t(1));
+    stats.expect(consumer.call(nk_dots_packed_i8_metal, query.raw_values_data(), packed.raw_values_data(),
+                               result.raw_values_data(), 1, 1, 16, 16, sizeof(nk_i32_t)));
+    stats.expect(consumer.synchronize());
+    stats.expect(result[0] == i32_t(16), "queued work lost an allocation released on another stream");
     return stats;
 }
 
 /** Every Metal baseline entry point, on any Apple GPU of family 7 or newer. */
 static void test_cross_metal_baseline(error_stats_section_t &check) {
-    metal_backend_t const backend {};
+    metal_backend_t const backend = make_backend<metal_backend_t>(check.settings);
     check.section("Cross Metal", nk_cap_metal_k);
-    check("deferred_free_metal", test_metal_deferred_free);
+    check("bound_lifetime_metal", test_metal_bound_lifetime);
     check("dots_packed_i8_metal", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_metal,
           nk_dots_pack_i8_metal, nk_dots_packed_i8_metal);
     check("dots_pack_i8_metal",
@@ -275,7 +176,7 @@ static void test_cross_metal_baseline(error_stats_section_t &check) {
 /** Every Apple9 entry point, on devices whose families include it. */
 static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_APPLE9
-    metal_backend_t const backend {};
+    metal_backend_t const backend = make_backend<metal_backend_t>(check.settings);
     check.section("Cross Apple9", nk_cap_apple9_k);
     check("dots_packed_f16_apple9", test_dots_packed<f16_t, metal_backend_t>, backend, nk_dots_pack_size_f16_apple9,
           nk_dots_pack_f16_apple9, nk_dots_packed_f16_apple9);
@@ -361,13 +262,13 @@ static void test_cross_apple9([[maybe_unused]] error_stats_section_t &check) {
           backend);
     check("dots_symmetric_e2m1_apple9", test_dots_symmetric<e2m1x2_t, metal_backend_t>, backend,
           nk_dots_symmetric_e2m1_apple9);
-#endif
+#endif // NUMKONG_TARGET_APPLE9
 }
 
 /** Every Apple10 entry point, on devices whose families include it. */
 static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check) {
 #if NUMKONG_TARGET_APPLE10
-    metal_backend_t const backend {};
+    metal_backend_t const backend = make_backend<metal_backend_t>(check.settings);
     check.section("Cross Apple10", nk_cap_apple10_k);
     check("dots_packed_i8_apple10", test_dots_packed<i8_t, metal_backend_t>, backend, nk_dots_pack_size_i8_apple10,
           nk_dots_pack_i8_apple10, nk_dots_packed_i8_apple10);
@@ -477,28 +378,18 @@ static void test_cross_apple10([[maybe_unused]] error_stats_section_t &check) {
           backend);
     check("dots_symmetric_e2m1_apple10", test_dots_symmetric<e2m1x2_t, metal_backend_t>, backend,
           nk_dots_symmetric_e2m1_apple10);
-#endif
+#endif // NUMKONG_TARGET_APPLE10
 }
 
 void test_cross_metal(error_stats_section_t &check) {
     test_cross_metal_baseline(check);
     test_cross_apple9(check);
     test_cross_apple10(check);
+    test_cross_dispatch<metal_backend_t>(check);
 }
 
-/** The dispatching entry points, over the capabilities of the device the backend encodes on. */
-void test_cross_dispatch(error_stats_section_t &check) {
-    check.section("Cross Dispatch", nk_cap_metal_k);
-#if NUMKONG_HEADER_ONLY
-    check("dots_packed_i8_dispatch", [](settings_t const &settings) {
-        return test_missing_library<nk_dots_packed_i8_best>(settings, nullptr, nullptr, nullptr, 0, 0, 0, 0, 0,
-                                                            nullptr);
-    });
-#else
-    metal_backend_t const backend {};
-    check("dots_packed_i8_dispatch", test_dots_packed<i8_t, metal_backend_t>, backend,
-          gpu_best<nk_dots_pack_size_i8_best>, gpu_best<nk_dots_pack_i8_best>, gpu_best<nk_dots_packed_i8_best>);
-#endif
-}
+#else  // !NUMKONG_WITH_METAL
+void test_cross_metal(error_stats_section_t &) {}
+#endif // NUMKONG_WITH_METAL
 
 } // namespace ashvardanian::numkong::test

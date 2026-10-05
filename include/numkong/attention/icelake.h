@@ -481,10 +481,10 @@ NUMKONG_INLINE void nk_attention_packed_i8_icelake_(                            
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
     // 16-query blocks share each K load; each query keeps its own biased Q, running state and F32 output row.
-    NUMKONG_ALIGN64_ nk_u8_t queries_biased[16 * nk_attention_max_depth_icelake_k_];
-    NUMKONG_ALIGN64_ nk_f32_t output_rows[16 * nk_attention_max_depth_icelake_k_];
-    NUMKONG_ALIGN64_ nk_i32_t scores[16 * nk_attention_panel_icelake_k_];
-    NUMKONG_ALIGN64_ nk_u8_t weights[nk_attention_panel_icelake_k_];
+    nk_align_(64) nk_u8_t queries_biased[16 * nk_attention_max_depth_icelake_k_];
+    nk_align_(64) nk_f32_t output_rows[16 * nk_attention_max_depth_icelake_k_];
+    nk_align_(64) nk_i32_t scores[16 * nk_attention_panel_icelake_k_];
+    nk_align_(64) nk_u8_t weights[nk_attention_panel_icelake_k_];
     nk_i32_t running_max[16];
     nk_f32_t running_sum[16];
     nk_size_t key_begins[16], key_ends[16];

@@ -408,9 +408,9 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_sapphireamx(           //
 
 /** Per-call scratch: score/weight panels, output accumulators, packed Q tiles. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_f32_t scores_panel[32 * nk_attention_panel_sapphireamx_k_];   // 64 KB
-    NUMKONG_ALIGN64_ nk_bf16_t weights_panel[32 * nk_attention_panel_sapphireamx_k_]; // 32 KB
-    NUMKONG_ALIGN64_ nk_f32_t o_acc[nk_attention_chunk_sapphireamx_k_][32 * nk_attention_max_depth_sapphireamx_k_];
+    nk_align_(64) nk_f32_t scores_panel[32 * nk_attention_panel_sapphireamx_k_];
+    nk_align_(64) nk_bf16_t weights_panel[32 * nk_attention_panel_sapphireamx_k_];
+    nk_align_(64) nk_f32_t o_acc[nk_attention_chunk_sapphireamx_k_][32 * nk_attention_max_depth_sapphireamx_k_];
     nk_dots_bf16_a16x32_sapphireamx_t q_tiles[nk_attention_chunk_sapphireamx_k_][2][8]; // 64 KB
 } nk_attention_scratch_sapphireamx_t;
 
@@ -594,7 +594,7 @@ NUMKONG_INLINE void nk_attention_weighted_sum_panel_sapphireamx_(  //
     nk_size_t depth_blocks, nk_size_t output_stride_floats,        // channels / 32, o_acc row stride
     nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {          // [2][16], [32][o_stride]
 
-    NUMKONG_ALIGN64_ nk_f32_t o_panel_tile[16][16];
+    nk_align_(64) nk_f32_t o_panel_tile[16][16];
     int const weights_stride = (int)(panel_width * sizeof(nk_bf16_t));
     for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_blocks; depth_tile_idx++) {
         nk_bf16_t const *v_tile0 = values_head_tiles +
@@ -658,10 +658,10 @@ NUMKONG_INLINE void nk_attention_task_sapphireamx_(                             
     nk_size_t const output_stride_floats = depth_padded;
     nk_size_t const o_stride_out = output_stride / sizeof(nk_f32_t);
 
-    NUMKONG_ALIGN64_ nk_f32_t panel_max[2][16];
-    NUMKONG_ALIGN64_ nk_f32_t corrections[2][16];
-    NUMKONG_ALIGN64_ nk_f32_t new_max_arr[2][16];
-    NUMKONG_ALIGN64_ nk_f32_t panel_sums[2][16];
+    nk_align_(64) nk_f32_t panel_max[2][16];
+    nk_align_(64) nk_f32_t corrections[2][16];
+    nk_align_(64) nk_f32_t new_max_arr[2][16];
+    nk_align_(64) nk_f32_t panel_sums[2][16];
     nk_size_t row_key_begin[nk_attention_chunk_sapphireamx_k_][32], row_key_end[nk_attention_chunk_sapphireamx_k_][32];
     nk_size_t block_key_begin[nk_attention_chunk_sapphireamx_k_], block_key_end[nk_attention_chunk_sapphireamx_k_];
     nk_size_t column_begin[32], column_end[32];
@@ -752,7 +752,7 @@ NUMKONG_INLINE void nk_attention_task_sapphireamx_(                             
                 nk_size_t const position_start = row_block_start + row_block_idx * 32 + row_tile_idx * 16;
                 if (position_start >= row_count) break;
                 nk_size_t const valid_positions = (row_count - position_start >= 16) ? 16 : row_count - position_start;
-                NUMKONG_ALIGN64_ nk_f32_t row_sums[16];
+                nk_align_(64) nk_f32_t row_sums[16];
                 _mm512_store_ps(row_sums, row_sum_f32x16[row_block_idx][row_tile_idx]);
                 for (nk_size_t row = 0; row < valid_positions; row++) {
                     __m512 const inv_sum_f32x16 = _mm512_set1_ps(row_sums[row] > 0 ? 1.0f / row_sums[row] : 0);
@@ -1062,9 +1062,9 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_sapphireamx(             //
 
 /** Per-call I8 scratch: I32 score panel, U8 weight panel, output accumulators, packed Q tiles. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_i32_t scores_panel[32 * nk_attention_panel_sapphireamx_k_]; // 64 KB
-    NUMKONG_ALIGN64_ nk_u8_t weights_panel[32 * nk_attention_panel_sapphireamx_k_]; // 16 KB
-    NUMKONG_ALIGN64_ nk_f32_t o_acc[nk_attention_chunk_sapphireamx_k_][32 * nk_attention_max_depth_sapphireamx_k_];
+    nk_align_(64) nk_i32_t scores_panel[32 * nk_attention_panel_sapphireamx_k_];
+    nk_align_(64) nk_u8_t weights_panel[32 * nk_attention_panel_sapphireamx_k_];
+    nk_align_(64) nk_f32_t o_acc[nk_attention_chunk_sapphireamx_k_][32 * nk_attention_max_depth_sapphireamx_k_];
     nk_dots_i8_a16x64_sapphireamx_t q_tiles[nk_attention_chunk_sapphireamx_k_][2][4]; // 32 KB
 } nk_attention_scratch_i8_sapphireamx_t_;
 
@@ -1202,7 +1202,7 @@ NUMKONG_INLINE void nk_attention_weighted_sum_panel_i8_sapphireamx_( //
     nk_size_t depth_blocks, nk_size_t output_stride_floats,          // channels / 32, o_acc row stride
     nk_f32_t const (*corrections)[16], nk_f32_t *o_acc) {            // [2][16], [32][o_stride]
 
-    NUMKONG_ALIGN64_ nk_i32_t o_panel_tile[16][16];
+    nk_align_(64) nk_i32_t o_panel_tile[16][16];
     int const weights_stride = (int)panel_width;
     for (nk_size_t depth_tile_idx = 0; depth_tile_idx < depth_blocks; depth_tile_idx++) {
         nk_i8_t const *v_tile0 = values_head_tiles +
@@ -1267,10 +1267,10 @@ NUMKONG_INLINE void nk_attention_task_i8_sapphireamx_(                          
     nk_size_t const output_stride_floats = depth_padded;
     nk_size_t const o_stride_out = output_stride / sizeof(nk_f32_t);
 
-    NUMKONG_ALIGN64_ nk_i32_t panel_max[2][16];
-    NUMKONG_ALIGN64_ nk_f32_t corrections[2][16];
-    NUMKONG_ALIGN64_ nk_i32_t new_max_arr[2][16];
-    NUMKONG_ALIGN64_ nk_f32_t panel_sums[2][16];
+    nk_align_(64) nk_i32_t panel_max[2][16];
+    nk_align_(64) nk_f32_t corrections[2][16];
+    nk_align_(64) nk_i32_t new_max_arr[2][16];
+    nk_align_(64) nk_f32_t panel_sums[2][16];
     nk_size_t row_key_begin[nk_attention_chunk_sapphireamx_k_][32], row_key_end[nk_attention_chunk_sapphireamx_k_][32];
     nk_size_t block_key_begin[nk_attention_chunk_sapphireamx_k_], block_key_end[nk_attention_chunk_sapphireamx_k_];
     nk_size_t column_begin[32], column_end[32];
@@ -1367,7 +1367,7 @@ NUMKONG_INLINE void nk_attention_task_i8_sapphireamx_(                          
                                                   : (row_count - position_start >= 16) ? 16
                                                                                        : row_count - position_start;
                 if (!valid_positions) continue; // flat bound replaces the mid-nest `break`
-                NUMKONG_ALIGN64_ nk_f32_t row_sums[16];
+                nk_align_(64) nk_f32_t row_sums[16];
                 _mm512_store_ps(row_sums, row_sum_f32x16[row_block_idx][row_tile_idx]);
                 for (nk_size_t row = 0; row < valid_positions; row++) {
                     __m512 const inv_sum_f32x16 = _mm512_set1_ps(row_sums[row] > 0 ? 1.0f / row_sums[row] : 0);

@@ -137,36 +137,36 @@ typedef struct {
 /*  BF16 A tile: 16 rows × 32 depth-elements, row-major layout.
  *  Loaded from source matrix, used as left operand in AMX multiply. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_bf16_t data[16][32]; // 16 rows × 32 columns = 1KB
+    nk_align_(64) nk_bf16_t data[16][32];
 } nk_dots_bf16_a16x32_sapphireamx_t;
 
 /*  BF16 B tile: 32 depth × 16 columns, pair-interleaved for TDPBF16PS.
  *  Access pattern: data[depth/2][column][depth%2] for logical B[depth, column].
  *  Pre-packed from column-major or transposed source. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_bf16_t data[16][16][2]; // 16 depth-groups × 16 columns × 2 = 1KB
+    nk_align_(64) nk_bf16_t data[16][16][2];
 } nk_dots_bf16_b32x16_sapphireamx_t;
 
 /*  BF16 output state: 16 × 16 F32 accumulator tile.
  *  Holds partial sums during depth-dimension accumulation. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_f32_t data[16][16]; // 16 × 16 = 1KB
+    nk_align_(64) nk_f32_t data[16][16];
 } nk_dots_bf16_state_sapphireamx_t;
 
 /*  INT8 A tile: 16 rows × 64 depth-elements, row-major layout. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_i8_t data[16][64]; // 16 rows × 64 columns = 1KB
+    nk_align_(64) nk_i8_t data[16][64];
 } nk_dots_i8_a16x64_sapphireamx_t;
 
 /*  INT8 B tile: 64 depth × 16 columns, quad-interleaved for TDPBSSD.
  *  Access pattern: data[depth/4][column][depth%4] for logical B[depth, column]. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_i8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
+    nk_align_(64) nk_i8_t data[16][16][4];
 } nk_dots_i8_b64x16_sapphireamx_t;
 
 /*  INT8 output state: 16 × 16 I32 accumulator tile. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_i32_t data[16][16]; // 16 × 16 = 1KB
+    nk_align_(64) nk_i32_t data[16][16];
 } nk_dots_i8_state_sapphireamx_t;
 
 /*  BF16 2 × 2 output state: 32 × 32 F32 output (4 accumulator tiles).
@@ -183,17 +183,17 @@ typedef struct {
 /*  UINT8 A tile: 16 rows × 64 depth-elements, row-major layout.
  *  Same layout as I8, different interpretation of signed vs unsigned. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_u8_t data[16][64]; // 16 rows × 64 columns = 1KB
+    nk_align_(64) nk_u8_t data[16][64];
 } nk_dots_u8_a16x64_sapphireamx_t;
 
 /*  UINT8 B tile: 64 depth × 16 columns, quad-interleaved for TDPBUUD. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_u8_t data[16][16][4]; // 16 depth-groups × 16 columns × 4 = 1KB
+    nk_align_(64) nk_u8_t data[16][16][4];
 } nk_dots_u8_b64x16_sapphireamx_t;
 
 /*  UINT8 output state: 16 × 16 U32 accumulator tile. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_u32_t data[16][16]; // 16 × 16 = 1KB
+    nk_align_(64) nk_u32_t data[16][16];
 } nk_dots_u8_state_sapphireamx_t;
 
 /*  UINT8 2 × 2 output state: 32 × 32 U32 output (4 accumulator tiles). */
@@ -208,7 +208,7 @@ NUMKONG_INLINE nk_u64_t nk_morton_encode_sapphireamx_(nk_u32_t tile_row, nk_u32_
 
 /* Configure AMX tile registers */
 NUMKONG_INLINE void nk_amx_tile_configure_sapphireamx_(void) {
-    NUMKONG_ALIGN64_ nk_u8_t tile_config[64] = {0};
+    nk_align_(64) nk_u8_t tile_config[64] = {0};
     tile_config[0] = 1; // palette 1 (standard tile configuration)
 
     nk_u16_t *bytes_per_row = (nk_u16_t *)&tile_config[16];
@@ -3405,7 +3405,7 @@ NUMKONG_INLINE void nk_dots_e2m3_load_a_sapphireamx_( //
     //  e=1 (step 2): {16,18,20,22,24,26,28,30},
     //  e=2 (step 4): {32,36,40,44,48,52,56,60},
     //  e=3 (step 8): {64,72,80,88,96,104,112,120}
-    NUMKONG_ALIGN64_ static nk_u8_t const lut_bytes[64] = {
+    nk_align_(64) static nk_u8_t const lut_bytes[64] = {
         0,  2,  4,  6,  8,  10,  12,  14,  //
         16, 18, 20, 22, 24, 26,  28,  30,  //
         32, 36, 40, 44, 48, 52,  56,  60,  //
@@ -3879,7 +3879,7 @@ NUMKONG_INLINE nk_status_t nk_gram_e2m3_sapphireamx_(                   //
                     &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
             }
 
-            NUMKONG_ALIGN64_ nk_f32_t scaled[16][16];
+            nk_align_(64) nk_f32_t scaled[16][16];
             nk_dots_e2m3_store_sapphireamx_(&state, &scaled[0][0], 16, valid_rows, valid_columns);
             nk_dots_symmetric_store_sapphireamx_(                              //
                 scaled, result + row_tile * result_stride_elements + col_tile, //
@@ -4362,7 +4362,7 @@ NUMKONG_INLINE nk_status_t nk_gram_e2m1_sapphireamx_(                     //
                     &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
             }
 
-            NUMKONG_ALIGN64_ nk_f32_t scaled[16][16];
+            nk_align_(64) nk_f32_t scaled[16][16];
             nk_dots_e2m1_store_sapphireamx_(&state, &scaled[0][0], 16, valid_rows, valid_columns);
             nk_dots_symmetric_store_sapphireamx_(                              //
                 scaled, result + row_tile * result_stride_elements + col_tile, //

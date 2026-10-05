@@ -899,7 +899,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_f16_sme_stre
     svbool_t const predicate_all_b16x = svptrue_b16();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_f32_t a_buffer[16][16];
+    nk_align_(64) nk_f32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -1129,7 +1129,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_bf16_sme_str
     svbool_t const predicate_all_b16x = svptrue_b16();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_f32_t a_buffer[16][16];
+    nk_align_(64) nk_f32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -1604,7 +1604,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_i8_sme_strea
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_i32_t a_buffer[16][16];
+    nk_align_(64) nk_i32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -2224,7 +2224,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_e4m3_sme_str
     svbool_t const predicate_all_b16x = svptrue_b16();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_f32_t a_buffer[16][16];
+    nk_align_(64) nk_f32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -2693,7 +2693,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_e5m2_sme_str
     svbool_t const predicate_all_b16x = svptrue_b16();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_f32_t a_buffer[16][16];
+    nk_align_(64) nk_f32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -2948,7 +2948,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sme( //
  */
 NUMKONG_INLINE svint8_t nk_e2m3x_to_i8x_ssve_(svbool_t predicate_b8x, svuint8_t raw_bytes_u8x) NUMKONG_STREAMING_ {
     // 32-entry magnitude LUT, replicated for SVE TBL (handles SVL > 256 bits)
-    static NUMKONG_ALIGN64_ nk_u8_t const lut_data[64] = {
+    static nk_align_(64) nk_u8_t const lut_data[64] = {
         0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,  28,  30,  //
         32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, //
         0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,  28,  30,  //
@@ -3259,7 +3259,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_e2m3_sme_str
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_i32_t a_buffer[16][16];
+    nk_align_(64) nk_i32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -3502,7 +3502,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e2m3_sme( //
 /** Widens up to `svcntb()` E2M1 dimensions into doubled signed i8 lanes, zeroing lanes past
  *  @p dimensions. Even dimensions live in high nibbles. */
 NUMKONG_INLINE svint8_t nk_e2m1x_to_i8x_ssve_(nk_e2m1x2_t const *pairs, nk_size_t dimensions) NUMKONG_STREAMING_ {
-    static NUMKONG_ALIGN64_ nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+    static nk_align_(64) nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     nk_size_t const vector_dimensions = svcntb();
     if (dimensions > vector_dimensions) dimensions = vector_dimensions;
     svbool_t const predicate_all_b8x = svptrue_b8();
@@ -3805,7 +3805,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_e2m1_sme_str
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_i32_t a_buffer[16][16];
+    nk_align_(64) nk_i32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -4057,7 +4057,7 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e2m1_sme( //
  *  @return F16 values as @c svfloat16_t, from the lower half of the bytes via unpack.
  */
 NUMKONG_INLINE svfloat16_t nk_e3m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
-    static NUMKONG_ALIGN64_ nk_u8_t const magnitude_high_lut[64] = {
+    static nk_align_(64) nk_u8_t const magnitude_high_lut[64] = {
         0x00, 0x2C, 0x30, 0x32, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
         0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
         0x00, 0x2C, 0x30, 0x32, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
@@ -4356,7 +4356,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_e3m2_sme_str
     svbool_t const predicate_all_b16x = svptrue_b16();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_f32_t a_buffer[16][16];
+    nk_align_(64) nk_f32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -4815,7 +4815,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_u8_sme_strea
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_u32_t a_buffer[16][16];
+    nk_align_(64) nk_u32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -5660,7 +5660,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_u4_sme_strea
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_u32_t a_buffer[16][16];
+    nk_align_(64) nk_u32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -5975,7 +5975,7 @@ __arm_new("za") NUMKONG_MAYBE_UNUSED_ static void nk_dots_symmetric_i4_sme_strea
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    NUMKONG_ALIGN64_ nk_u32_t a_buffer[16][16];
+    nk_align_(64) nk_u32_t a_buffer[16][16];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);

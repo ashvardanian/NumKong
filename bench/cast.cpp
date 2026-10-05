@@ -75,7 +75,7 @@ void bench_cast(environment_t const &env) {
         run_cast<nk_u8_k, nk_f32_k>(env, "cast_u8_to_f32_haswell", nk_cast_haswell);
         run_cast<nk_f32_k, nk_u8_k>(env, "cast_f32_to_u8_haswell", nk_cast_haswell);
     }
-#endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
     if (section(env, "Type Casts Skylake", nk_cap_skylake_k)) {
@@ -112,7 +112,7 @@ void bench_cast(environment_t const &env) {
         run_cast<nk_u32_k, nk_f64_k>(env, "cast_u32_to_f64_skylake", nk_cast_skylake);
         run_cast<nk_f64_k, nk_u32_k>(env, "cast_f64_to_u32_skylake", nk_cast_skylake);
     }
-#endif
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
     if (section(env, "Type Casts Ice Lake", nk_cap_icelake_k)) {
@@ -133,7 +133,7 @@ void bench_cast(environment_t const &env) {
         run_cast<nk_i8_k, nk_f32_k>(env, "cast_i8_to_f32_icelake", nk_cast_icelake);
         run_cast<nk_f32_k, nk_i8_k>(env, "cast_f32_to_i8_icelake", nk_cast_icelake);
     }
-#endif
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_SAPPHIRE
     if (section(env, "Type Casts Sapphire", nk_cap_sapphire_k)) {
@@ -154,7 +154,7 @@ void bench_cast(environment_t const &env) {
         run_cast<nk_i8_k, nk_f32_k>(env, "cast_i8_to_f32_sapphire", nk_cast_sapphire);
         run_cast<nk_f32_k, nk_i8_k>(env, "cast_f32_to_i8_sapphire", nk_cast_sapphire);
     }
-#endif
+#endif // NUMKONG_TARGET_SAPPHIRE
 
 #if NUMKONG_TARGET_NEON
     if (section(env, "Type Casts NEON", nk_cap_neon_k)) {
@@ -193,7 +193,7 @@ void bench_cast(environment_t const &env) {
         run_cast<nk_u64_k, nk_f64_k>(env, "cast_u64_to_f64_neon", nk_cast_neon);
         run_cast<nk_f64_k, nk_u64_k>(env, "cast_f64_to_u64_neon", nk_cast_neon);
     }
-#endif
+#endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_POWERVSX
     if (section(env, "Type Casts Power VSX", nk_cap_powervsx_k)) {
@@ -210,7 +210,7 @@ void bench_cast(environment_t const &env) {
         run_cast<nk_u16_k, nk_f32_k>(env, "cast_u16_to_f32_powervsx", nk_cast_powervsx);
         run_cast<nk_f32_k, nk_u16_k>(env, "cast_f32_to_u16_powervsx", nk_cast_powervsx);
     }
-#endif
+#endif // NUMKONG_TARGET_POWERVSX
 
 #if NUMKONG_TARGET_V128RELAXED
     if (section(env, "Type Casts V128 Relaxed", nk_cap_v128relaxed_k)) {
@@ -231,7 +231,7 @@ void bench_cast(environment_t const &env) {
         run_cast<nk_u8_k, nk_f32_k>(env, "cast_u8_to_f32_v128relaxed", nk_cast_v128relaxed);
         run_cast<nk_f32_k, nk_u8_k>(env, "cast_f32_to_u8_v128relaxed", nk_cast_v128relaxed);
     }
-#endif
+#endif // NUMKONG_TARGET_V128RELAXED
 
     // Serial — float ↔ half/brain/MX
     section(env, "Type Casts Serial", nk_cap_serial_k);

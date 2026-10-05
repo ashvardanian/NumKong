@@ -11,6 +11,7 @@
  *
  *  @verbatim
  *  Variable                     Default    Meaning
+ *  NUMKONG_DEVICES              auto       Comma-separated backend:ordinal, like cuda:0,rocm:1
  *  NUMKONG_FILTER               none       Regex over kernel names, or a substring if not a regex
  *  NUMKONG_SEED                 42         32-bit seed for random inputs, or random
  *  NUMKONG_TIME_LIMIT           1s         Randomized trials per kernel, like 200ms or 1s
@@ -51,6 +52,7 @@
 #include <chrono>       // `std::chrono::steady_clock`, `std::chrono::milliseconds`
 #include <complex>      // `std::complex`
 #include <limits>       // `std::numeric_limits`
+#include <memory>       // `std::shared_ptr`, `std::make_shared`
 #include <new>          // `std::bad_alloc`
 #include <optional>     // `std::optional`
 #include <random>       // `std::random_device`
@@ -72,13 +74,13 @@
 /** Optional BLAS/MKL integration for precision comparison */
 #ifndef NUMKONG_COMPARE_TO_BLAS
 #define NUMKONG_COMPARE_TO_BLAS 0
-#endif
+#endif // NUMKONG_COMPARE_TO_BLAS
 #ifndef NUMKONG_COMPARE_TO_MKL
 #define NUMKONG_COMPARE_TO_MKL 0
-#endif
+#endif // NUMKONG_COMPARE_TO_MKL
 #ifndef NUMKONG_COMPARE_TO_ACCELERATE
 #define NUMKONG_COMPARE_TO_ACCELERATE 0
-#endif
+#endif // NUMKONG_COMPARE_TO_ACCELERATE
 
 /* Include reference library headers - MKL, Accelerate, or generic CBLAS */
 #if NUMKONG_COMPARE_TO_MKL
@@ -87,7 +89,7 @@
 #include <Accelerate/Accelerate.h> // Apple Accelerate framework
 #elif NUMKONG_COMPARE_TO_BLAS
 #include <cblas.h> // Generic CBLAS (OpenBLAS, etc.)
-#endif
+#endif             // NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE || NUMKONG_COMPARE_TO_BLAS
 
 /* In tests we want to make sure our custom floating-point routines are used instead of
  * compiler-provided native types. */
@@ -96,6 +98,7 @@
 #undef NUMKONG_NATIVE_BF16
 #define NUMKONG_NATIVE_BF16 0
 
+#include "numkong/memory.h"
 #include "numkong/capabilities.h" // `nk_cpu_capabilities_detected`
 #include "numkong/types.hpp"
 #include "numkong/tensor.hpp"
@@ -107,7 +110,8 @@
 #include "numkong/trigonometry.hpp"
 #include "numkong/spatials.hpp"
 #include "numkong/random.hpp" // `nk::fill_uniform`
-#include "numkong/vector.hpp" // `nk::aligned_allocator`
+#include "numkong/vector.hpp" // `nk::vector`
+#include "numkong/memory.hpp" // `nk::allocator`, `nk::stream_t`
 
 namespace nk = ashvardanian::numkong;
 
@@ -369,8 +373,51 @@ inline constexpr comparison_family_spec_t comparison_family_spec(comparison_fami
     return {comparison_failure_mode_t::ulp_threshold_k, {"max_abs", "max_rel", "mean_ulp", "max_ulp", "exact"}};
 }
 
+/** A requested GPU, before checking whether its runtime and ordinal are available. */
+struct device_selection_t {
+    nk::device_kind_t backend;
+    std::size_t ordinal;
+};
+
+inline std::string_view device_name(nk::device_kind_t kind) noexcept {
+    switch (kind) {
+    case nk::device_kind_t::cpu_k: return "cpu";
+    case nk::device_kind_t::cuda_k: return "cuda";
+    case nk::device_kind_t::rocm_k: return "rocm";
+    case nk::device_kind_t::metal_k: return "metal";
+    }
+    return "unrecognized";
+}
+
+inline std::optional<std::vector<device_selection_t>> parse_devices(std::string_view text) {
+    std::vector<device_selection_t> devices;
+    do {
+        std::size_t const comma = text.find(',');
+        std::string_view const entry = text.substr(0, comma);
+        std::size_t const colon = entry.find(':');
+        if (colon == std::string_view::npos) return std::nullopt;
+        std::string_view const vendor = entry.substr(0, colon);
+        nk::device_kind_t backend;
+        if (vendor == "cuda") backend = nk::device_kind_t::cuda_k;
+        else if (vendor == "rocm") backend = nk::device_kind_t::rocm_k;
+        else if (vendor == "metal") backend = nk::device_kind_t::metal_k;
+        else return std::nullopt;
+        std::string_view const number = entry.substr(colon + 1);
+        std::size_t ordinal = 0;
+        auto const [end, error] = std::from_chars(number.data(), number.data() + number.size(), ordinal);
+        if (error != std::errc {} || end != number.data() + number.size()) return std::nullopt;
+        devices.push_back({backend, ordinal});
+        if (comma == std::string_view::npos) return devices;
+        text.remove_prefix(comma + 1);
+    } while (!text.empty());
+    return std::nullopt;
+}
+
 /** Every test setting, with its default as the initializer, filled once by @c read_settings. */
 struct settings_t {
+
+    std::optional<std::vector<device_selection_t>> devices;
+    nk::device_t device = nk::device_t::cpu();
 
     /** Tests to run, by ECMAScript regex or else substring. */
     std::string_view filter;
@@ -473,6 +520,9 @@ inline settings_t read_settings(char const *program) noexcept {
         };
         return env_parsed(name, fallback, parse, expected);
     };
+    if (env_text("NUMKONG_DEVICES"))
+        settings.devices = env_parsed("NUMKONG_DEVICES", std::vector<device_selection_t> {}, parse_devices,
+                                      "comma-separated devices such as cuda:0,rocm:1");
     settings.filter = env_text("NUMKONG_FILTER").value_or("");
     if (!settings.filter.empty()) {
 #if defined(__cpp_exceptions) && __cpp_exceptions
@@ -524,6 +574,11 @@ inline settings_t read_settings(char const *program) noexcept {
 
 /** Prints each setting as "- Name: value", in the grammar it parses from, then a rerun template. */
 inline void print(settings_t const &settings) {
+    if (settings.devices) {
+        for (device_selection_t const &device : *settings.devices)
+            fmt::println("- Device: {}:{}", device_name(device.backend), device.ordinal);
+    }
+    else fmt::println("- Devices: auto");
     fmt::println("- Seed: {}", settings.seed.value);
     fmt::println("- Filter: {}", settings.filter.empty() ? std::string_view("none") : settings.filter);
     fmt::println("- Time limit: {}", spell_duration(settings.time_limit_per_kernel));
@@ -627,7 +682,7 @@ inline constexpr auto cpu_best =
 /** Runs each test under the settings, prints its row, and counts the kernels checked and failed:
  *  one per binary, built in @c main and passed to every test family. */
 struct error_stats_section_t {
-    settings_t const &settings;
+    settings_t settings;
     nk_capability_t available;
     char const *title = nullptr;
     nk_capability_t required = nk_cap_serial_k;
@@ -1045,7 +1100,7 @@ error_stats_t test_missing_library(settings_t const &, arguments_types_... argum
                  "a header-only dispatch point ran a kernel");
     return stats;
 }
-#endif
+#endif // NUMKONG_HEADER_ONLY
 
 inline bool should_fail(settings_t const &settings, error_stats_t const &stats) noexcept {
     if (stats.failed_expectations) return true;
@@ -1158,6 +1213,136 @@ struct host_backend_t {
     nk_status_t synchronize() noexcept { return nk_success_k; }
 };
 
+#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+inline bool cuda_check_(cudaError_t error, char const *expression, char const *file, int line) {
+    if (error == cudaSuccess) return true;
+    fmt::println(stderr, "CUDA error {} at {}:{}: {}", expression, file, line, cudaGetErrorString(error));
+    return false;
+}
+
+#define nk_cuda_assert_(expression)                                                    \
+    do {                                                                               \
+        if (!cuda_check_((expression), #expression, __FILE__, __LINE__)) return false; \
+    } while (0)
+
+struct cuda_device_scope_t {
+    int caller = 0;
+    cudaError_t status;
+
+    explicit cuda_device_scope_t(nk_size_t ordinal) noexcept : status(cudaGetDevice(&caller)) {
+        if (status == cudaSuccess) status = cudaSetDevice(static_cast<int>(ordinal));
+    }
+    cuda_device_scope_t(cuda_device_scope_t const &) = delete;
+    cuda_device_scope_t &operator=(cuda_device_scope_t const &) = delete;
+    ~cuda_device_scope_t() noexcept {
+        if (status == cudaSuccess) cudaSetDevice(caller);
+    }
+};
+#endif // NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+
+/** Runs one vendor's kernels on an owned stream over unified memory. */
+template <auto synchronize_>
+struct device_backend {
+
+    /** The allocator every kernel operand comes from, readable by the host once the stream is
+     *  synchronized. */
+    template <typename value_type_>
+    using allocator = nk::allocator<value_type_>;
+
+    struct owner_t {
+        nk::stream_t queue;
+        nk::allocator<char> memory;
+        nk_capability_t capabilities = 0;
+        nk_status_t status;
+
+        explicit owner_t(nk::device_t device) noexcept {
+            auto const enabled = device.capabilities_enabled();
+            capabilities = enabled.value;
+            status = static_cast<nk_status_t>(enabled.status);
+            if (status != nk_success_k) return;
+            auto created = nk::stream_t::make(device);
+            status = static_cast<nk_status_t>(created.status);
+            if (status != nk_success_k) return;
+            queue = std::move(created.value);
+            auto allocated = nk::allocator<char>::make(capabilities, queue.get());
+            memory = allocated.value;
+            status = static_cast<nk_status_t>(allocated.status);
+        }
+    };
+
+    std::shared_ptr<owner_t> owner;
+    void *const stream;
+
+    explicit device_backend(nk::device_t device)
+        : owner(std::make_shared<owner_t>(device)), stream(owner->queue.get()) {}
+
+    nk_capability_t capabilities() const noexcept { return owner->capabilities; }
+
+    /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes the A contract requires. */
+    static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept {
+        return nk_size_round_up_to_multiple_(row_bytes, 16);
+    }
+
+    /** Copies @p bytes once every queued call has finished with them. */
+    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
+        if (owner->status != nk_success_k) return owner->status;
+        nk_status_t const status = synchronize_(stream);
+        if (status != nk_success_k) return status;
+        std::memcpy(destination, source, bytes);
+        return nk_success_k;
+    }
+
+    /** Zeroes @p bytes once every queued call has finished with them. */
+    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
+        if (owner->status != nk_success_k) return owner->status;
+        nk_status_t const status = synchronize_(stream);
+        if (status != nk_success_k) return status;
+        std::memset(destination, 0, bytes);
+        return nk_success_k;
+    }
+
+    /** Launches @p kernel with @p arguments on the stream. */
+    template <typename kernel_type_, typename... arguments_types_>
+    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        if (owner->status != nk_success_k) return owner->status;
+        return kernel(arguments..., stream);
+    }
+
+    /** Calls @p kernel on operands it must refuse, reporting whether it returned
+     *  @c nk_misaligned_k unlaunched. */
+    template <typename kernel_type_, typename... arguments_types_>
+    bool refuses_misaligned(kernel_type_ kernel, arguments_types_... arguments) noexcept {
+        return kernel(arguments..., stream) == nk_misaligned_k;
+    }
+
+    /** Waits for submitted work. */
+    nk_status_t synchronize() noexcept {
+        if (owner->status != nk_success_k) return owner->status;
+        return synchronize_(stream);
+    }
+};
+
+template <typename value_type_, auto synchronize_>
+auto allocator_of(device_backend<synchronize_> const &backend) noexcept {
+    return nk::allocator<value_type_>(backend.owner->memory);
+}
+
+#if NUMKONG_ARCH_ROCM_
+using rocm_backend_t = device_backend<nk_stream_synchronize_rocm>;
+#endif // NUMKONG_ARCH_ROCM_
+#if NUMKONG_ARCH_CUDA_
+using cuda_backend_t = device_backend<nk_stream_synchronize_cuda>;
+#endif // NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_METAL_
+using metal_backend_t = device_backend<nk_stream_synchronize_metal>;
+#endif // NUMKONG_ARCH_METAL_
+
+template <typename backend_type_>
+backend_type_ make_backend(settings_t const &settings) {
+    if constexpr (std::is_same_v<backend_type_, host_backend_t>) return {};
+    else return backend_type_(settings.device);
+}
+
 /** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory
  *  belongs to a context it holds and it overloads this. */
 template <typename value_type_, typename backend_type_>
@@ -1183,6 +1368,11 @@ void test_sparse(error_stats_section_t &check);
 void test_vector_types(error_stats_section_t &check);
 void test_tensor_ops(error_stats_section_t &check);
 void test_maxsim(error_stats_section_t &check);
+void test_each_cuda(error_stats_section_t &check);
+void test_each_rocm(error_stats_section_t &check);
+void test_cast_cuda(error_stats_section_t &check);
+void test_reduce_cuda(error_stats_section_t &check);
+void test_tensor_cuda(error_stats_section_t &check);
 
 /** Forward declarations for cross/batch tests, ISA-family files. */
 void test_cross_serial(error_stats_section_t &check);
@@ -1193,6 +1383,9 @@ void test_cross_riscv64(error_stats_section_t &check);
 void test_cross_ppc64(error_stats_section_t &check);
 void test_cross_loongarch64(error_stats_section_t &check);
 void test_cross_wasm(error_stats_section_t &check);
+void test_cross_cuda(error_stats_section_t &check);
+void test_cross_rocm(error_stats_section_t &check);
+void test_cross_metal(error_stats_section_t &check);
 
 } // namespace ashvardanian::numkong::test
 

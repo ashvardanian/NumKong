@@ -46,7 +46,7 @@ error_stats_t test_scale(settings_t const &settings, typename scalar_type_::scal
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
@@ -86,7 +86,7 @@ error_stats_t test_blend(settings_t const &settings, typename scalar_type_::blen
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
@@ -128,7 +128,7 @@ error_stats_t test_fma(settings_t const &settings, typename scalar_type_::fma_ke
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = settings.dense_dimensions;
@@ -168,7 +168,7 @@ error_stats_t test_sum(settings_t const &settings, typename scalar_type_::sum_ke
     using scalar_t = scalar_type_;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk::is_integral_dtype<scalar_t>() ? comparison_family_t::exact_k
                                                           : comparison_family_t::approximate_k);
     std::mt19937 generator(settings.seed.value);
@@ -208,7 +208,7 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using gains_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_rmsnorm_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::uniform_real_distribution<float> gain_distribution(0.5f, 1.5f);
@@ -222,7 +222,7 @@ error_stats_t test_rmsnorm(settings_t const &settings, rmsnorm_kernel_type_ rmsn
             auto x = scalars_t::zeros(rows * row_values).value, y = scalars_t::zeros(rows * row_values).value;
             auto gamma = gains_t::zeros(columns).value;
             fill_random(settings, generator, x);
-            for (std::size_t col = 0; col < columns; col++) gamma.raw_values_data()[col] = gain_distribution(generator);
+            for (std::size_t col = 0; col < columns; col++) gamma[col] = gain_distribution(generator);
             nk_f32_t const *gains = groups == 1 ? gamma.raw_values_data() : nullptr;
 
             if (nk_status_t const status = backend.call(rmsnorm_fn, x.raw_values_data(), gains, y.raw_values_data(),
@@ -264,7 +264,7 @@ error_stats_t test_swiglu(settings_t const &settings, swiglu_kernel_type_ swiglu
     using scalar_t = scalar_type_;
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_each_swiglu_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     nk_f32_t const gate_scale = 0.25f, output_scale = 2.0f;

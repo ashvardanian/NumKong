@@ -427,6 +427,25 @@ NUMKONG_API nk_status_t nk_memory_free_unified_metal(void *pointer, nk_size_t by
     return status;
 }
 
+NUMKONG_INLINE void *nk_allocate_unified_metal_(nk_size_t bytes, void *handle, void *stream) {
+    nk_unused_(handle);
+    void *pointer = NUMKONG_NULL;
+    nk_unused_(nk_memory_allocate_unified_metal(bytes, &pointer, stream));
+    return pointer;
+}
+
+NUMKONG_INLINE void nk_free_unified_metal_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+    nk_unused_(handle);
+    nk_unused_(nk_memory_free_unified_metal(pointer, bytes, stream));
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_metal(nk_allocator_t *allocator) {
+    allocator->allocate = nk_allocate_unified_metal_;
+    allocator->free = nk_free_unified_metal_;
+    allocator->handle = NUMKONG_NULL;
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_stream_synchronize_metal(void *stream) {
     nk_metal_context_t *const context = nk_metal_context_(stream);
     if (!context) return nk_missing_gpu_k;

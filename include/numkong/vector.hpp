@@ -36,7 +36,6 @@
 #define NUMKONG_VECTOR_HPP
 
 #include <concepts>    // `std::integral`
-#include <cstdlib>     // `std::aligned_alloc`, `std::free`
 #include <cstring>     // `std::memset`
 #include <iterator>    // `std::random_access_iterator_tag`
 #include <memory>      // `std::allocator_traits`
@@ -44,66 +43,10 @@
 #include <type_traits> // `std::conditional_t`
 #include <utility>     // `std::exchange`, `std::swap`
 
+#include "numkong/memory.hpp" // `aligned_allocator`, `allocator`
 #include "types.hpp"
 
 namespace ashvardanian::numkong {
-
-#pragma region Aligned Allocator
-
-/**
- *  @brief Cache-aligned allocator with non-throwing allocation.
- *  @tparam value_type_ Value type to allocate.
- *  @tparam alignment_ Alignment in bytes (default: 64 for cache line).
- *
- *  This allocator uses @c std::aligned_alloc and returns @c nullptr on failure instead of throwing.
- *  It is stateless and always compares equal.
- */
-template <typename value_type_, std::size_t alignment_ = 64>
-struct aligned_allocator {
-    using value_type = value_type_;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
-    using propagate_on_container_move_assignment = std::true_type;
-    using is_always_equal = std::true_type;
-
-    template <typename other_type_>
-    struct rebind {
-        using other = aligned_allocator<other_type_, alignment_>;
-    };
-
-    static constexpr std::size_t alignment = alignment_;
-
-    constexpr aligned_allocator() noexcept = default;
-
-    template <typename other_type_>
-    constexpr aligned_allocator(aligned_allocator<other_type_, alignment_> const &) noexcept {}
-
-    [[nodiscard]] value_type *allocate(std::size_t n) noexcept {
-        if (n == 0) return nullptr;
-        // `aligned_alloc` requires the size to be a multiple of the alignment
-        std::size_t aligned_bytes = round_up_to_multiple<alignment_>(n * sizeof(value_type));
-#if defined(_MSC_VER)
-        return static_cast<value_type *>(::_aligned_malloc(aligned_bytes, alignment_));
-#else
-        return static_cast<value_type *>(std::aligned_alloc(alignment_, aligned_bytes));
-#endif
-    }
-
-    void deallocate(value_type *p, std::size_t) noexcept {
-#if defined(_MSC_VER)
-        if (p) ::_aligned_free(p);
-#else
-        if (p) std::free(p);
-#endif
-    }
-
-    template <typename other_type_>
-    constexpr bool operator==(aligned_allocator<other_type_, alignment_> const &) const noexcept {
-        return true;
-    }
-};
-
-#pragma endregion Aligned Allocator
 
 #pragma region Slicing Infrastructure
 

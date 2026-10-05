@@ -6,9 +6,11 @@
  *
  *  Compiled with every capability some listed architecture runs: the ROCm baseline, CDNA4 and CDNA5.
  */
-#include "cross_simt.cuh" // `rocm_backend_t`, `test_cross_dispatch`
+#include "cross_device.hpp"
 
 namespace ashvardanian::numkong::test {
+
+#if NUMKONG_ARCH_ROCM_
 
 void test_cross_rocm(error_stats_section_t &check) {
     check.section("Cross ROCm", nk_cap_rocm_k);
@@ -610,5 +612,9 @@ void test_cross_rocm(error_stats_section_t &check) {
 
     test_cross_dispatch<rocm_backend_t>(check);
 }
+
+#else  // !NUMKONG_ARCH_ROCM_
+void test_cross_rocm(error_stats_section_t &) {}
+#endif // NUMKONG_ARCH_ROCM_
 
 } // namespace ashvardanian::numkong::test

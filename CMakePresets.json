@@ -150,7 +150,7 @@
     {
       "name": "metal",
       "inherits": ["base", "darwin"],
-      "displayName": "Metal - the cross-kernel tests on the Apple GPU, header-only and through the library",
+      "displayName": "Metal - CPU and Apple GPU kernels through the static and shared libraries",
       "cacheVariables": { "NUMKONG_BUILD_SHARED": "ON", "NUMKONG_BUILD_METAL": "ON" }
     }
   ],
@@ -178,7 +178,7 @@
     {
       "name": "metal",
       "configurePreset": "metal",
-      "targets": ["numkong_metal_header_test", "numkong_metal_shared_test"]
+      "targets": ["numkong_cpu_test", "numkong_cpu_shared_test"]
     }
   ],
   "testPresets": [
@@ -221,19 +221,19 @@
       "name": "cuda",
       "inherits": "base",
       "configurePreset": "cuda",
-      "filter": { "include": { "name": "^numkong_cuda_(header|shared)_test$" } }
+      "filter": { "include": { "name": "^numkong_cpu(_shared)?_test$" } }
     },
     {
       "name": "rocm",
       "inherits": "base",
       "configurePreset": "rocm",
-      "filter": { "include": { "name": "^numkong_rocm_(header|shared)_test$" } }
+      "filter": { "include": { "name": "^numkong_cpu(_shared)?_test$" } }
     },
     {
       "name": "metal",
       "inherits": "base",
       "configurePreset": "metal",
-      "filter": { "include": { "name": "^numkong_metal_(header|shared)_test$" } }
+      "filter": { "include": { "name": "^numkong_cpu(_shared)?_test$" } }
     }
   ],
   "workflowPresets": [

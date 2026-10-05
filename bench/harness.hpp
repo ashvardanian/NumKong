@@ -11,6 +11,7 @@
  *
  *  @verbatim
  *  Variable                      Default  Meaning
+ *  NUMWARS_DEVICES               auto     Comma-separated backend:ordinal, like cuda:0,rocm:1
  *  NUMWARS_FILTER                none     Regex over benchmark names, or a substring if not a regex
  *  NUMWARS_SEED                  42       32-bit seed for random inputs, or random
  *  NUMWARS_WARMUP                1s       Untimed run per benchmark, like 200ms or 1s
@@ -80,10 +81,11 @@
 
 /** OpenBLAS thread control, weak symbol to avoid link errors if not present. */
 extern "C" void openblas_set_num_threads(int) __attribute__((weak));
-#endif
+#endif             // NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE || NUMKONG_COMPARE_TO_BLAS
 
 #include "numkong/capabilities.h" // `nk_capabilities_name`, `NUMKONG_VERSION_MAJOR`
 #include "numkong/types.hpp"
+#include "numkong/memory.hpp"
 #include "numkong/tensor.hpp"
 #include "numkong/random.hpp"
 
@@ -387,8 +389,50 @@ inline bool succeeded(loop_t &loop, nk_status_t status) noexcept {
     return false;
 }
 
+/** A requested GPU, before checking whether its runtime and ordinal are available. */
+struct device_selection_t {
+    nk::device_kind_t backend;
+    std::size_t ordinal;
+};
+
+inline std::string_view device_name(nk::device_kind_t kind) noexcept {
+    switch (kind) {
+    case nk::device_kind_t::cpu_k: return "cpu";
+    case nk::device_kind_t::cuda_k: return "cuda";
+    case nk::device_kind_t::rocm_k: return "rocm";
+    case nk::device_kind_t::metal_k: return "metal";
+    }
+    return "unrecognized";
+}
+
+inline std::optional<std::vector<device_selection_t>> parse_devices(std::string_view text) {
+    std::vector<device_selection_t> devices;
+    do {
+        std::size_t const comma = text.find(',');
+        std::string_view const entry = text.substr(0, comma);
+        std::size_t const colon = entry.find(':');
+        if (colon == std::string_view::npos) return std::nullopt;
+        std::string_view const vendor = entry.substr(0, colon);
+        nk::device_kind_t backend;
+        if (vendor == "cuda") backend = nk::device_kind_t::cuda_k;
+        else if (vendor == "rocm") backend = nk::device_kind_t::rocm_k;
+        else if (vendor == "metal") backend = nk::device_kind_t::metal_k;
+        else return std::nullopt;
+        std::string_view const number = entry.substr(colon + 1);
+        std::size_t ordinal = 0;
+        auto const [end, error] = std::from_chars(number.data(), number.data() + number.size(), ordinal);
+        if (error != std::errc {} || end != number.data() + number.size()) return std::nullopt;
+        devices.push_back({backend, ordinal});
+        if (comma == std::string_view::npos) return devices;
+        text.remove_prefix(comma + 1);
+    } while (!text.empty());
+    return std::nullopt;
+}
+
 /** Every benchmark setting, its default as the initializer, filled once by @c read_settings. */
 struct settings_t {
+
+    std::optional<std::vector<device_selection_t>> devices;
 
     /** Benchmarks to run, by ECMAScript regex or else substring. */
     std::string_view filter;
@@ -457,6 +501,9 @@ inline settings_t read_settings() noexcept {
         };
         return env_parsed(name, fallback, parse, expected);
     };
+    if (env_text("NUMWARS_DEVICES"))
+        settings.devices = env_parsed("NUMWARS_DEVICES", std::vector<device_selection_t> {}, parse_devices,
+                                      "comma-separated devices such as cuda:0,rocm:1");
     settings.filter = env_text("NUMWARS_FILTER").value_or("");
     if (!settings.filter.empty()) {
 #if defined(__cpp_exceptions) && __cpp_exceptions
@@ -492,6 +539,11 @@ inline settings_t read_settings() noexcept {
 
 /** Prints each setting as "- Name: value", in the grammar it parses from. */
 inline void print(settings_t const &settings) {
+    if (settings.devices) {
+        for (device_selection_t const &device : *settings.devices)
+            fmt::println("- Device: {}:{}", device_name(device.backend), device.ordinal);
+    }
+    else fmt::println("- Devices: auto");
     fmt::println("- Seed: {}", settings.seed.value);
     fmt::println("- Filter: {}", settings.filter.empty() ? std::string_view("none") : settings.filter);
     fmt::println("- Warm-up: {}", spell_duration(settings.warmup));
@@ -539,6 +591,30 @@ inline void print(machine_t const &machine) {
 struct environment_t {
     settings_t settings;
     machine_t machine;
+};
+
+struct device_backend_t {
+    nk::device_t device;
+    nk_capability_t capabilities;
+    nk::allocator<char> memory;
+
+    template <typename value_type_>
+    using allocator = nk::allocator<value_type_>;
+};
+
+template <auto get_device_, auto set_device_>
+struct device_scope {
+    int caller = 0;
+    decltype(get_device_(&caller)) status;
+
+    explicit device_scope(int ordinal) noexcept : status(get_device_(&caller)) {
+        if (status == 0) status = set_device_(ordinal);
+    }
+    device_scope(device_scope const &) = delete;
+    device_scope &operator=(device_scope const &) = delete;
+    ~device_scope() noexcept {
+        if (status == 0) set_device_(caller);
+    }
 };
 
 /** Prints @p title, and returns whether this machine runs @p capabilities; otherwise prints why
@@ -893,8 +969,9 @@ void bench_cross_riscv64(environment_t const &env);
 void bench_cross_ppc64(environment_t const &env);
 void bench_cross_wasm(environment_t const &env);
 void bench_cross_loongarch64(environment_t const &env);
-void bench_cross_cuda(environment_t const &env);
-void bench_cross_metal(environment_t const &env);
+nk::status_t bench_cross_cuda(environment_t const &env, device_backend_t const &runtime);
+nk::status_t bench_cross_rocm(environment_t const &env, device_backend_t const &runtime);
+nk::status_t bench_cross_metal(environment_t const &env, device_backend_t const &runtime);
 
 } // namespace ashvardanian::numkong::bench
 

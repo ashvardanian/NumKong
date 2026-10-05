@@ -27,9 +27,19 @@ extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t byt
     return nk_memory_allocate_unified_rocm_(bytes, pointer, stream);
 }
 extern "C" NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t bytes, void *stream) {
-    nk_unused_(bytes), nk_unused_(stream);
-    return nk_memory_free_unified_rocm_(pointer);
+    nk_unused_(bytes);
+    return nk_memory_free_unified_rocm_(pointer, stream);
 }
 extern "C" NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream) {
     return nk_stream_synchronize_rocm_(stream);
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_rocm(nk_allocator_t *allocator) {
+    return nk_allocator_init_unified_rocm_(allocator);
+}
+NUMKONG_API nk_status_t nk_allocator_init_device_rocm(nk_allocator_t *allocator) {
+    return nk_allocator_init_device_rocm_(allocator);
+}
+NUMKONG_API nk_status_t nk_allocator_init_pinned_rocm(nk_allocator_t *allocator) {
+    return nk_allocator_init_pinned_rocm_(allocator);
 }

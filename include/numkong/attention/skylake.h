@@ -337,9 +337,9 @@ NUMKONG_INLINE void nk_attention_packed_skylake_(                               
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NUMKONG_ALIGN64_ nk_f32_t query_row[nk_attention_max_depth_skylake_k_];
-    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_skylake_k_];
-    NUMKONG_ALIGN64_ nk_f32_t scores[nk_attention_panel_skylake_k_];
+    nk_align_(64) nk_f32_t query_row[nk_attention_max_depth_skylake_k_];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_skylake_k_];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_skylake_k_];
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const depth_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
 

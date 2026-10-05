@@ -307,7 +307,7 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
             best_cosines[query_in_tile] = NUMKONG_F32_MIN;
         }
 
-        NUMKONG_ALIGN64_ nk_i32_t group_dots[16][64];
+        nk_align_(64) nk_i32_t group_dots[16][64];
         nk_u32_t candidates[64];
         nk_size_t document_tile_index = 0;
 
@@ -738,7 +738,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx( //
 
         __m512 running_maximum_f32x16 = _mm512_set1_ps(NUMKONG_F32_MIN);
 
-        NUMKONG_ALIGN64_ nk_f32_t tile_results_f32[4][16][16];
+        nk_align_(64) nk_f32_t tile_results_f32[4][16][16];
         nk_size_t document_tile_index = 0;
 
         // Fast path: 4 document tiles at a time using TMM4-7

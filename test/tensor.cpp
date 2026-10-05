@@ -713,6 +713,26 @@ error_stats_t test_custom_allocator(settings_t const &) {
     stats.expect(v.size() == 256, "custom allocator size mismatch");
     v[128] = nk::f32_t(99.0f);
     stats.expect(v[128] == nk::f32_t(99.0f), "custom allocator value mismatch");
+    stats.expect(reinterpret_cast<std::size_t>(v.data()) % 128 == 0, "custom allocator alignment mismatch");
+    stats.expect(custom_alloc_t().allocate((std::numeric_limits<std::size_t>::max)()) == nullptr,
+                 "allocation size overflow accepted");
+
+    alignas(64) char storage[256];
+    nk_allocator_t policy;
+    stats.expect(nk_allocator_init_arena(&policy, storage, sizeof(storage), 64) == nk_success_k,
+                 "arena initialization failed");
+    nk::allocator<float> arena(policy, storage);
+    nk::allocator<char> rebound(arena);
+    stats.expect(rebound == arena, "rebind lost allocation context");
+    stats.expect(rebound.allocate(sizeof(storage)) == nullptr, "arena accepted oversized allocation");
+    auto *first = rebound.allocate(64);
+    stats.expect(first == storage + 64, "failed allocation consumed arena space");
+    auto const saved = policy;
+    stats.expect(nk_allocator_init_heap(&policy, 3) == nk_unexpected_dimensions_k &&
+                     policy.allocate == saved.allocate && policy.free == saved.free && policy.handle == saved.handle,
+                 "invalid initializer changed allocation policy");
+    rebound.deallocate(first, 64);
+
     return stats;
 }
 

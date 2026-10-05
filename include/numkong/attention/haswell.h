@@ -263,9 +263,9 @@ NUMKONG_INLINE void nk_attention_packed_haswell_(                               
     nk_size_t const panel_width = nk_attention_panel_haswell_k_;
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NUMKONG_ALIGN64_ nk_f32_t query_row[nk_attention_max_depth_haswell_k_];
-    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_haswell_k_];
-    NUMKONG_ALIGN64_ nk_f32_t scores[nk_attention_panel_haswell_k_];
+    nk_align_(64) nk_f32_t query_row[nk_attention_max_depth_haswell_k_];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_haswell_k_];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_haswell_k_];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -712,7 +712,7 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_haswell(                           
         // K is drain-free `[tile of 8 positions][depth pair][8 lanes × 2 channels]`. Each 8-position tile
         // stages token-major into a zeroed buffer (AVX2 has no masked byte load), then a register 8×8 word
         // transpose emits one 16-byte column per depth pair — no scatter.
-        NUMKONG_ALIGN64_ nk_i8_t stage[8 * nk_attention_max_depth_haswell_k_];
+        nk_align_(64) nk_i8_t stage[8 * nk_attention_max_depth_haswell_k_];
         for (nk_size_t tile_idx = 0; tile_idx * 8 < position_count_padded; tile_idx++) {
             for (nk_size_t lane_idx = 0; lane_idx < 8; lane_idx++) {
                 nk_size_t const position_idx = tile_idx * 8 + lane_idx;
@@ -793,10 +793,10 @@ NUMKONG_INLINE void nk_attention_packed_i8_haswell_(                            
     nk_size_t const panel_width = nk_attention_panel_haswell_k_;
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NUMKONG_ALIGN64_ nk_i16_t queries_i16[8 * nk_attention_max_depth_haswell_k_];
-    NUMKONG_ALIGN64_ nk_f32_t output_rows[8 * nk_attention_max_depth_haswell_k_];
-    NUMKONG_ALIGN64_ nk_i32_t scores[8 * nk_attention_panel_haswell_k_];
-    NUMKONG_ALIGN64_ nk_u8_t weights[nk_attention_panel_haswell_k_];
+    nk_align_(64) nk_i16_t queries_i16[8 * nk_attention_max_depth_haswell_k_];
+    nk_align_(64) nk_f32_t output_rows[8 * nk_attention_max_depth_haswell_k_];
+    nk_align_(64) nk_i32_t scores[8 * nk_attention_panel_haswell_k_];
+    nk_align_(64) nk_u8_t weights[nk_attention_panel_haswell_k_];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;

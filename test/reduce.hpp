@@ -32,15 +32,15 @@ error_stats_t test_reduce_moments(settings_t const &settings, typename input_typ
     using inputs_t = nk::vector<input_type_, typename backend_type_::template allocator<input_type_>>;
     using sums_t = nk::vector<sum_t, typename backend_type_::template allocator<sum_t>>;
     using sumsqs_t = nk::vector<sumsq_t, typename backend_type_::template allocator<sumsq_t>>;
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_reduce_moments_error_bound(input_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::uniform_int_distribution<std::size_t> stride_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
-    auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_))).value;
-    auto sum = sums_t::zeros(1).value;
-    auto sumsq = sumsqs_t::zeros(1).value;
+    auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_)), allocator_of<input_type_>(backend)).value;
+    auto sum = sums_t::zeros(1, allocator_of<sum_t>(backend)).value;
+    auto sumsq = sumsqs_t::zeros(1, allocator_of<sumsq_t>(backend)).value;
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
          steady_clock_t::now() < deadline;) {
         std::size_t stride = stride_distribution(generator);
@@ -60,8 +60,8 @@ error_stats_t test_reduce_moments(settings_t const &settings, typename input_typ
         sumsq_reference_t sumsq_reference;
         stats.expect(nk::reduce_moments<input_type_, sum_reference_t, sumsq_reference_t>(
             buffer.values_data(), n, stride, &sum_reference, &sumsq_reference, no_tiers_k));
-        stats.accumulate(sum_t::from_raw(sum.raw_values_data()[0]), sum_reference);
-        stats.accumulate(sumsq_t::from_raw(sumsq.raw_values_data()[0]), sumsq_reference);
+        stats.accumulate(sum[0], sum_reference);
+        stats.accumulate(sumsq[0], sumsq_reference);
     }
     return stats;
 }
@@ -73,15 +73,15 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
     using extrema_t = nk::vector<output_t, typename backend_type_::template allocator<output_t>>;
     using indices_t = nk::vector<u64_t, typename backend_type_::template allocator<u64_t>>;
     static_assert(sizeof(nk_size_t) <= sizeof(nk_u64_t), "indices are stored in U64 slots");
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
     std::uniform_int_distribution<std::size_t> stride_distribution(1, max_stride_k);
     std::size_t const dims_per_value = nk::dimensions_per_value<input_type_>();
     std::size_t const n = nk::divide_round_up(settings.dense_dimensions, dims_per_value) * dims_per_value;
-    auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_))).value;
-    auto extrema = extrema_t::zeros(2).value;
-    auto indices = indices_t::zeros(2).value;
+    auto buffer = inputs_t::zeros(n * (max_stride_k + sizeof(input_type_)), allocator_of<input_type_>(backend)).value;
+    auto extrema = extrema_t::zeros(2, allocator_of<output_t>(backend)).value;
+    auto indices = indices_t::zeros(2, allocator_of<u64_t>(backend)).value;
     auto *index_values = reinterpret_cast<nk_size_t *>(indices.raw_values_data());
     auto compare = [&](std::size_t stride) {
         if (nk_status_t const status = backend.call(kernel, buffer.raw_values_data(), n, stride,
@@ -104,8 +104,8 @@ error_stats_t test_reduce_minmax(settings_t const &settings, typename input_type
         stats.accumulate(index_values[0], static_cast<nk_size_t>(reference_min_index));
         stats.accumulate(index_values[1], static_cast<nk_size_t>(reference_max_index));
         if (reference_min_index == NUMKONG_SIZE_MAX) return nk_success_k; // No index, so the values are only sentinels
-        stats.accumulate(output_t::from_raw(extrema.raw_values_data()[0]), reference_min);
-        stats.accumulate(output_t::from_raw(extrema.raw_values_data()[1]), reference_max);
+        stats.accumulate(extrema[0], reference_min);
+        stats.accumulate(extrema[1], reference_max);
         return nk_success_k;
     };
     // Uniform inputs never win a strict comparison, yet only an all-NaN one lacks an index

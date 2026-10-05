@@ -386,9 +386,9 @@ NUMKONG_INLINE void nk_attention_weighted_sum_panel_e4m3_diamondamx_(
 
 /** E4M3 native per-call scratch: FP32 scores, E4M3 weights, output accumulators, raw Q tiles. */
 typedef struct {
-    NUMKONG_ALIGN64_ nk_f32_t scores_panel[32 * nk_attention_panel_diamondamx_k_];
-    NUMKONG_ALIGN64_ nk_e4m3_t weights_panel[32 * nk_attention_panel_diamondamx_k_];
-    NUMKONG_ALIGN64_ nk_f32_t o_acc[4][32 * nk_attention_max_depth_diamondamx_k_];
+    nk_align_(64) nk_f32_t scores_panel[32 * nk_attention_panel_diamondamx_k_];
+    nk_align_(64) nk_e4m3_t weights_panel[32 * nk_attention_panel_diamondamx_k_];
+    nk_align_(64) nk_f32_t o_acc[4][32 * nk_attention_max_depth_diamondamx_k_];
     nk_dots_i8_a16x64_sapphireamx_t queries_tiles[4][2][4];
 } nk_attention_scratch_e4m3_diamondamx_t_;
 
@@ -410,7 +410,7 @@ NUMKONG_INLINE void nk_attention_task_e4m3_diamondamx_(
     nk_size_t const output_stride_floats = depth_padded;
     nk_size_t const output_stride_out = output_stride / sizeof(nk_f32_t);
 
-    NUMKONG_ALIGN64_ nk_f32_t panel_max[2][16], corrections[2][16], new_max_arr[2][16], panel_sums[2][16];
+    nk_align_(64) nk_f32_t panel_max[2][16], corrections[2][16], new_max_arr[2][16], panel_sums[2][16];
     __m512 row_max2_f32x16[4][2], row_sum_f32x16[4][2];
     nk_size_t key_begins[4][32], key_ends[4][32], block_key_begin[4], block_key_end[4];
     nk_size_t column_begins[32], column_ends[32];
@@ -519,7 +519,7 @@ NUMKONG_INLINE void nk_attention_task_e4m3_diamondamx_(
                 nk_size_t const row_start = row_block_start + row_block_idx * 32 + row_tile_idx * 16;
                 if (row_start >= row_count) break;
                 nk_size_t const valid_rows = (row_count - row_start >= 16) ? 16 : row_count - row_start;
-                NUMKONG_ALIGN64_ nk_f32_t row_sums[16];
+                nk_align_(64) nk_f32_t row_sums[16];
                 _mm512_store_ps(row_sums, row_sum_f32x16[row_block_idx][row_tile_idx]);
                 for (nk_size_t row_idx = 0; row_idx < valid_rows; row_idx++) {
                     __m512 const inv_sum_f32x16 = _mm512_set1_ps(row_sums[row_idx] > 0 ? 1.0f / row_sums[row_idx]

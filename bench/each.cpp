@@ -81,7 +81,7 @@ void bench_each(environment_t const &env) {
     run_each<f32_k, blend_k, f32_k>(env, "each_blend_f32_with_blas", blend_f32_with_blas);
     run_each<f64_k, sum_k, f64_k>(env, "sum_f64_with_blas", sum_f64_with_blas);
     run_each<f64_k, blend_k, f64_k>(env, "each_blend_f64_with_blas", blend_f64_with_blas);
-#endif
+#endif // NUMKONG_COMPARE_TO_BLAS || NUMKONG_COMPARE_TO_MKL || NUMKONG_COMPARE_TO_ACCELERATE
 
 #if NUMKONG_TARGET_NEON
     if (section(env, "Elementwise Operations NEON", nk_cap_neon_k)) {
@@ -145,13 +145,13 @@ void bench_each(environment_t const &env) {
         run_each<f64c_k, blend_k, f64c_k>(env, "each_blend_f64c_neon", nk_each_blend_f64c_neon);
         run_each<f64c_k, fma_k, f64c_k>(env, "each_fma_f64c_neon", nk_each_fma_f64c_neon);
     }
-#endif
+#endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_NEONHALF
     if (section(env, "Elementwise Operations NEON HALF", nk_cap_neonhalf_k)) {
         run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_neonhalf", nk_each_sum_f16_neonhalf);
     }
-#endif
+#endif // NUMKONG_TARGET_NEONHALF
 
 #if NUMKONG_TARGET_NEONBFDOT
     if (section(env, "Elementwise Operations NEON BF16", nk_cap_neonbfdot_k)) {
@@ -160,7 +160,7 @@ void bench_each(environment_t const &env) {
         run_each<bf16_k, blend_k, f32_k>(env, "each_blend_bf16_neonbfdot", nk_each_blend_bf16_neonbfdot);
         run_each<bf16_k, fma_k, f32_k>(env, "each_fma_bf16_neonbfdot", nk_each_fma_bf16_neonbfdot);
     }
-#endif
+#endif // NUMKONG_TARGET_NEONBFDOT
 
 #if NUMKONG_TARGET_HASWELL
     if (section(env, "Elementwise Operations Haswell", nk_cap_haswell_k)) {
@@ -231,7 +231,7 @@ void bench_each(environment_t const &env) {
         run_each<f64c_k, blend_k, f64c_k>(env, "each_blend_f64c_haswell", nk_each_blend_f64c_haswell);
         run_each<f64c_k, fma_k, f64c_k>(env, "each_fma_f64c_haswell", nk_each_fma_f64c_haswell);
     }
-#endif
+#endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
     if (section(env, "Elementwise Operations Skylake", nk_cap_skylake_k)) {
@@ -300,7 +300,7 @@ void bench_each(environment_t const &env) {
         run_each<f64c_k, blend_k, f64c_k>(env, "each_blend_f64c_skylake", nk_each_blend_f64c_skylake);
         run_each<f64c_k, fma_k, f64c_k>(env, "each_fma_f64c_skylake", nk_each_fma_f64c_skylake);
     }
-#endif
+#endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE
     if (section(env, "Elementwise Operations Ice Lake", nk_cap_icelake_k)) {
@@ -313,14 +313,14 @@ void bench_each(environment_t const &env) {
         run_each<i64_k, sum_k, f64_k>(env, "each_sum_i64_icelake", nk_each_sum_i64_icelake);
         run_each<u64_k, sum_k, f64_k>(env, "each_sum_u64_icelake", nk_each_sum_u64_icelake);
     }
-#endif
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_GENOA
     if (section(env, "Elementwise Operations Genoa", nk_cap_genoa_k)) {
         run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_genoa", nk_each_rmsnorm_bf16_genoa);
         run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_genoa", nk_each_rmsnorm_e4m3_genoa);
     }
-#endif
+#endif // NUMKONG_TARGET_GENOA
 
 #if NUMKONG_TARGET_SAPPHIRE
     if (section(env, "Elementwise Operations Sapphire", nk_cap_sapphire_k)) {
@@ -328,7 +328,7 @@ void bench_each(environment_t const &env) {
         run_each<f16_k, sum_k, f32_k>(env, "each_sum_f16_sapphire", nk_each_sum_f16_sapphire);
         run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_sapphire", nk_each_sum_e4m3_sapphire);
     }
-#endif
+#endif // NUMKONG_TARGET_SAPPHIRE
 
 #if NUMKONG_TARGET_RVV
     if (section(env, "Elementwise Operations RVV", nk_cap_rvv_k)) {
@@ -351,7 +351,7 @@ void bench_each(environment_t const &env) {
         run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_rvv", nk_each_fma_u8_rvv);
         run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_rvv", nk_each_blend_u8_rvv);
     }
-#endif
+#endif // NUMKONG_TARGET_RVV
 
 #if NUMKONG_TARGET_V128RELAXED
     if (section(env, "Elementwise Operations V128 Relaxed", nk_cap_v128relaxed_k)) {
@@ -372,7 +372,7 @@ void bench_each(environment_t const &env) {
         run_each<u8_k, blend_k, f32_k>(env, "each_blend_u8_v128relaxed", nk_each_blend_u8_v128relaxed);
         run_each<u8_k, fma_k, f32_k>(env, "each_fma_u8_v128relaxed", nk_each_fma_u8_v128relaxed);
     }
-#endif
+#endif // NUMKONG_TARGET_V128RELAXED
 
 #if NUMKONG_TARGET_V128
     if (section(env, "Elementwise Operations V128", nk_cap_v128_k)) {
@@ -381,7 +381,7 @@ void bench_each(environment_t const &env) {
         run_each<i8_k, sum_k, f32_k>(env, "each_sum_i8_v128", nk_each_sum_i8_v128);
         run_each<u8_k, sum_k, f32_k>(env, "each_sum_u8_v128", nk_each_sum_u8_v128);
     }
-#endif
+#endif // NUMKONG_TARGET_V128
 
     // Serial fallbacks — f64
     section(env, "Elementwise Operations Serial", nk_cap_serial_k);

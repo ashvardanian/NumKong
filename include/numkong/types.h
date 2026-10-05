@@ -917,13 +917,26 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_TENSOR_MAX_RANK (64)
 #endif
 
-/** Aligns a variable to a 64-byte boundary using compiler extensions, since `alignas(64)` is only
- *  available in C11 or C++. Used internally and recommended for external users. */
-#if defined(_MSC_VER)
-#define NUMKONG_ALIGN64_ __declspec(align(64))
-#elif defined(__GNUC__) || defined(__clang__)
-#define NUMKONG_ALIGN64_ __attribute__((aligned(64)))
+/** Default allocation alignment, conservatively sized for cache interference. */
+#if !defined(NUMKONG_DEFAULT_ALIGNMENT)
+#if defined(__s390x__)
+#define NUMKONG_DEFAULT_ALIGNMENT 256
+#elif NUMKONG_ARCH_WASM_
+#define NUMKONG_DEFAULT_ALIGNMENT 64
+#else
+#define NUMKONG_DEFAULT_ALIGNMENT 128
 #endif
+#endif
+#if NUMKONG_DEFAULT_ALIGNMENT < 64 || (NUMKONG_DEFAULT_ALIGNMENT & (NUMKONG_DEFAULT_ALIGNMENT - 1))
+#error "NUMKONG_DEFAULT_ALIGNMENT must be a power of two and at least 64 bytes"
+#endif
+
+/** Aligns a declaration to @p bytes, including in C99 builds. */
+#if defined(_MSC_VER)
+#define nk_align_(bytes) __declspec(align(bytes))
+#elif defined(__GNUC__) || defined(__clang__)
+#define nk_align_(bytes) __attribute__((aligned(bytes)))
+#endif // defined(_MSC_VER) || defined(__GNUC__) || defined(__clang__)
 
 /** ARM streaming attributes, requiring an SME-capable compiler: GCC 14+, Clang 16+.
  *  @c NUMKONG_STREAMING_ marks functions that require streaming SVE mode, such as FCVTLT.
@@ -1354,6 +1367,20 @@ typedef enum NUMKONG_NODISCARD_ {
     /** A dispatch point or finder called from a header-only build, which links no library. */
     nk_missing_library_k = -22,
 } nk_status_t;
+
+/** Default alignment in bytes for host allocations. */
+enum { nk_default_alignment_k = NUMKONG_DEFAULT_ALIGNMENT };
+
+/** Allocation callbacks retain the caller's context and use its device stream. */
+typedef void *(*nk_allocate_t)(nk_size_t bytes, void *handle, void *stream);
+typedef void (*nk_free_t)(void *pointer, nk_size_t bytes, void *handle, void *stream);
+
+/** Allocation policy; the caller owns the handle and any stream passed to its callbacks. */
+typedef struct nk_allocator_t {
+    nk_allocate_t allocate;
+    nk_free_t free;
+    void *handle;
+} nk_allocator_t;
 
 /** Static English description of @p status, behind @c nk_status_name. */
 NUMKONG_CONSTEXPR char const *nk_status_name_(nk_status_t status) {

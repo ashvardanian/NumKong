@@ -389,12 +389,12 @@ __arm_new("za") static void nk_attention_packed_b16_sme_streaming_(             
     // route larger shapes to serial. Queries live in lanes throughout, so the output
     // accumulator is channel-major: `o_acc[channel][query lane]`.
 
-    NUMKONG_ALIGN64_ nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_f32_t scores_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_u16_t weights_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_f32_t o_acc[nk_attention_max_depth_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_u32_t key_begins[2 * nk_attention_max_tile_sme_k_]; // visible key range per query lane
-    NUMKONG_ALIGN64_ nk_u32_t key_ends[2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_u16_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 2) * 2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_f32_t scores_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_u16_t weights_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_f32_t o_acc[nk_attention_max_depth_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_u32_t key_begins[2 * nk_attention_max_tile_sme_k_]; // visible key range per query lane
+    nk_align_(64) nk_u32_t key_ends[2 * nk_attention_max_tile_sme_k_];
 
     svbool_t const predicate_all_b32x = svptrue_b32();
     svbool_t const predicate_all_b16x = svptrue_b16();
@@ -1091,12 +1091,12 @@ __arm_new("za") static void nk_attention_packed_i8_sme_streaming_(              
     nk_i32_t const delta_floor = // the score delta below which every weight quantizes to zero (2^t · 255 + 0.5 < 1)
         scale_fixed > 0 ? -(nk_i32_t)((10u << 15) / (nk_u32_t)scale_fixed) - 1 : 0;
 
-    NUMKONG_ALIGN64_ nk_u8_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 4) * 4 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_i32_t scores_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_u8_t weights_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_f32_t o_acc[nk_attention_max_depth_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
-    NUMKONG_ALIGN64_ nk_u32_t key_begins[2 * nk_attention_max_tile_sme_k_]; // visible key range per query lane
-    NUMKONG_ALIGN64_ nk_u32_t key_ends[2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_u8_t queries_packed[2][(nk_attention_max_depth_sme_k_ / 4) * 4 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_i32_t scores_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_u8_t weights_panel[nk_attention_panel_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_f32_t o_acc[nk_attention_max_depth_sme_k_ * 2 * nk_attention_max_tile_sme_k_];
+    nk_align_(64) nk_u32_t key_begins[2 * nk_attention_max_tile_sme_k_]; // visible key range per query lane
+    nk_align_(64) nk_u32_t key_ends[2 * nk_attention_max_tile_sme_k_];
 
     svbool_t const predicate_all_b32x = svptrue_b32();
     svbool_t const predicate_all_b8x = svptrue_b8();

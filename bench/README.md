@@ -55,12 +55,15 @@ NUMWARS_TIME_LIMIT=30s build_release/numkong_bench             # longer runs for
 ```
 
 The binary takes no arguments; the environment configures it.
+The linked runner uses device zero of each available compiled GPU backend by default.
+An explicit device list selects all listed devices and rejects unavailable backends or ordinals.
 Each benchmark prints one line: its name, calls per second, and its counters.
 
 ### Environment Variables
 
 | Variable                       | Default | Description                                                                         |
 | :----------------------------- | ------: | :---------------------------------------------------------------------------------- |
+| `NUMWARS_DEVICES`              |        auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1` |
 | `NUMWARS_FILTER`               |   unset | ECMAScript regex searched in benchmark names; an invalid one matches as a substring |
 | `NUMWARS_SEED`                 |    `42` | RNG seed for reproducible inputs, or `random` to draw one                           |
 | `NUMWARS_WARMUP`               |    `1s` | Untimed run per benchmark, `<int>ms` or `<int>s`                                    |
@@ -199,7 +202,7 @@ Relaxed SIMD provides measurable gains for fused multiply-add patterns — compa
 The performance tables in the family READMEs under `include/numkong/` come from re-running `numkong_cpu_test` for accuracy and `numkong_bench` for throughput, at the input shapes and in the units each table names.
 
 - Each kernel runs for at least 20 seconds per configuration, unless its table says otherwise.
-- Benchmark threads are pinned to specific cores, and on machines with heterogeneous core types, like Apple's P and E cores, only the fastest cores are used — see [Pinning to Performance Cores](#pinning-to-performance-cores).
+- Pin benchmark threads to suitable cores where the operating system supports it; macOS foreground scheduling does not guarantee a particular core type — see [Pinning to Performance Cores](#pinning-to-performance-cores).
 - Workloads that significantly degrade CPU frequencies, like Intel AMX and Apple SME, run in separate passes, so they do not skew the throughput of other kernels — see [Frequency Scaling on AMX and SME](#frequency-scaling-on-amx-and-sme).
 - Accuracy is the mean ULP, units in last place, unless a table notes otherwise: the average number of representable floating-point values between the result and the exact answer.
 - Rows marked `🧩` time external BLAS or MKL baselines rather than NumKong kernels.
@@ -232,13 +235,8 @@ For dedicated benchmarking machines, add `isolcpus=4-7` to the kernel command li
 ### macOS
 
 No direct core-pinning API exists on macOS.
-Use QoS to avoid efficiency cores:
-
-```sh
-taskpolicy -b ./build_release/numkong_bench
-```
-
-On Apple Silicon there is no public API for P/E core pinning.
+Run with foreground scheduling; `taskpolicy -b` puts the process in background mode and should not be used for these measurements.
+`taskpolicy -B -p <pid>` removes background mode from an existing process, but does not pin it to a performance core.
 Run with minimal background load for reproducible results.
 
 ### Windows

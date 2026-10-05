@@ -335,9 +335,9 @@ NUMKONG_INLINE void nk_attention_packed_float_rvv_(                             
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NUMKONG_ALIGN64_ nk_f32_t query_row[nk_attention_max_depth_rvv_k_];
-    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_rvv_k_];
-    NUMKONG_ALIGN64_ nk_f32_t scores[nk_attention_panel_rvv_k_];
+    nk_align_(64) nk_f32_t query_row[nk_attention_max_depth_rvv_k_];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_rvv_k_];
+    nk_align_(64) nk_f32_t scores[nk_attention_panel_rvv_k_];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
@@ -578,8 +578,8 @@ NUMKONG_INLINE void nk_attention_packed_i8_rvv_(                            //
 
     nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
 
-    NUMKONG_ALIGN64_ nk_f32_t output_row[nk_attention_max_depth_rvv_k_];
-    NUMKONG_ALIGN64_ nk_i32_t scores[nk_attention_panel_rvv_k_];
+    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_rvv_k_];
+    nk_align_(64) nk_i32_t scores[nk_attention_panel_rvv_k_];
 
     for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;

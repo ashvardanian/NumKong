@@ -438,7 +438,7 @@ __arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
 
     svbool_t const predicate_all_b64x = svptrue_b64();
 
-    NUMKONG_ALIGN64_ nk_f64_t a_buffer[8][8];
+    nk_align_(64) nk_f64_t a_buffer[8][8];
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dimension);
@@ -1015,7 +1015,7 @@ __arm_new("za") static void nk_dots_symmetric_f64_smef64_streaming_( //
     svbool_t const predicate_all_b64x = svptrue_b64();
     svfloat64_t const zeros_f64x = svdup_f64(0.0);
     nk_size_t const ring_steps = 2 * tile_dimension; // two batches, one staged ahead
-    NUMKONG_ALIGN64_ nk_f64_t sums[8][8], row_steps[2 * 8 * 8], column_steps[2 * 8 * 8];
+    nk_align_(64) nk_f64_t sums[8][8], row_steps[2 * 8 * 8], column_steps[2 * 8 * 8];
 
     for (nk_size_t row_tile_start = row_start; row_tile_start < row_end && row_tile_start < vectors_count;
          row_tile_start += tile_dimension) {
@@ -1222,7 +1222,7 @@ __arm_new("za") static void nk_dots_packed_f64_smef64_streaming_( //
     nk_f64_t const *tiles = (nk_f64_t const *)((char const *)b_packed + nk_dots_f64_smef64_tiles_offset_(columns));
     svbool_t const predicate_all_b64x = svptrue_b64();
     svfloat64_t const zeros_f64x = svdup_f64(0.0);
-    NUMKONG_ALIGN64_ nk_f64_t sums[8][8];
+    nk_align_(64) nk_f64_t sums[8][8];
 
     for (nk_size_t row_start = 0; row_start < rows; row_start += tile_dimension) {
         nk_size_t const rows_remaining = (row_start + tile_dimension <= rows) ? tile_dimension : (rows - row_start);

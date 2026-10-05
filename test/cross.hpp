@@ -462,7 +462,7 @@ struct operand_scales {
             reference.scales = reinterpret_cast<decltype(reference.scales)>(
                 reinterpret_cast<char const *>(blocks.data()) + row * scale_stride);
             if constexpr (format.tensor_scale_dtype == nk_f32_k)
-                reference.tensor_scale = &tensor_scale.raw_values_data()[0];
+                reference.tensor_scale = tensor_scale.raw_values_data();
             return &reference;
         }
     }
@@ -704,12 +704,13 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
     return stats;
 }
 
-/** @c test_dots_packed on a default-constructed @p backend_type_. */
+/** @c test_dots_packed on the backend selected by @p settings. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename dots_kernel_type_>
 error_stats_t test_dots_packed(settings_t const &settings, pack_size_kernel_type_ packed_size_fn,
                                pack_kernel_type_ pack_fn, dots_kernel_type_ dots_fn) {
-    return test_dots_packed<scalar_type_, backend_type_>(settings, backend_type_ {}, packed_size_fn, pack_fn, dots_fn);
+    return test_dots_packed<scalar_type_, backend_type_>(settings, make_backend<backend_type_>(settings),
+                                                         packed_size_fn, pack_fn, dots_fn);
 }
 
 /** The packed B layout over the widths and depths of @c dots_packed_cases: packing two column
@@ -774,7 +775,7 @@ error_stats_t test_dots_pack_layout(settings_t const &settings, backend_type_ ba
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto packed_shape_fn_, auto pack_fn_>
 error_stats_t test_dots_pack_layout(settings_t const &settings) {
     return test_dots_pack_layout<scalar_type_, backend_type_, packed_size_fn_, packed_shape_fn_, pack_fn_>(
-        settings, backend_type_ {});
+        settings, make_backend<backend_type_>(settings));
 }
 
 /** One Gram-matrix case over @c count vectors, computing rows [row_start, row_start + row_count)
@@ -890,7 +891,8 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename symmetric_kernel_type_>
 error_stats_t test_dots_symmetric(settings_t const &settings, symmetric_kernel_type_ symmetric_fn,
                                   nk_f64_t term_error_bound) {
-    return test_dots_symmetric<scalar_type_, backend_type_>(settings, backend_type_ {}, symmetric_fn, term_error_bound);
+    return test_dots_symmetric<scalar_type_, backend_type_>(settings, make_backend<backend_type_>(settings),
+                                                            symmetric_fn, term_error_bound);
 }
 
 /** @c test_dots_symmetric held to the `nk_dot_error_bound` of @p scalar_type_. */
@@ -995,7 +997,7 @@ error_stats_t test_dots_launch_contract(settings_t const &settings, backend_type
 template <typename scalar_type_, typename backend_type_, auto packed_size_fn_, auto dots_fn_, auto symmetric_fn_>
 error_stats_t test_dots_launch_contract(settings_t const &settings) {
     return test_dots_launch_contract<scalar_type_, backend_type_, packed_size_fn_, dots_fn_, symmetric_fn_>(
-        settings, backend_type_ {});
+        settings, make_backend<backend_type_>(settings));
 }
 
 #pragma endregion Dots
@@ -1206,7 +1208,7 @@ error_stats_t test_angulars_packed(settings_t const &settings, pack_size_kernel_
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_angular_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
@@ -1292,7 +1294,7 @@ error_stats_t test_euclideans_packed(settings_t const &settings, pack_size_kerne
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_euclidean_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
@@ -1379,7 +1381,7 @@ error_stats_t test_angulars_symmetric(settings_t const &settings, symmetric_kern
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_angular_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
@@ -1450,7 +1452,7 @@ error_stats_t test_euclideans_symmetric(settings_t const &settings, symmetric_ke
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_euclidean_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
@@ -1529,7 +1531,7 @@ error_stats_t test_attention_bidirectional_packed(settings_t const &settings, pa
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(attention_family(weights_));
     std::mt19937 generator(settings.seed.value);
 
@@ -1615,7 +1617,7 @@ error_stats_t test_attention_causal_packed(settings_t const &settings, pack_size
     using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(attention_family(weights_));
     std::mt19937 generator(settings.seed.value);
 
@@ -1685,7 +1687,7 @@ error_stats_t test_attention_rope(settings_t const &settings, rope_kernel_type_ 
     using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
     using angles_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
 
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_attention_rope_error_bound(scalar_t::dtype()));
     std::mt19937 generator(settings.seed.value);
     std::uniform_real_distribution<float> angle_distribution(-3.0f, 3.0f);
@@ -1700,7 +1702,7 @@ error_stats_t test_attention_rope(settings_t const &settings, rope_kernel_type_ 
             fill_random(settings, generator, x);
             for (std::size_t i = 0; i < rows * half_depth; i++) {
                 float const angle = angle_distribution(generator);
-                cosines.raw_values_data()[i] = std::cos(angle), sines.raw_values_data()[i] = std::sin(angle);
+                cosines[i] = std::cos(angle), sines[i] = std::sin(angle);
             }
             if (in_place) {
                 if (nk_status_t const status = backend.copy(y.raw_values_data(), x.raw_values_data(), rows * row_bytes);

@@ -21,19 +21,30 @@
 extern "C" {
 #endif
 
-/** The runtime's current device ordinal. */
-NUMKONG_INLINE nk_status_t nk_device_current_cuda_(int *device) {
-    return cudaGetDevice(device) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+/** Makes the stream's device current, retaining the caller's device for restoration. */
+NUMKONG_INLINE nk_status_t nk_device_enter_cuda_(void *stream, int *caller) {
+    int device = 0;
+    if (cudaGetDevice(caller) != cudaSuccess) return nk_missing_gpu_k;
+    if (!stream) return nk_success_k;
+    if (cudaStreamGetDevice((cudaStream_t)stream, &device) != cudaSuccess) return nk_device_memory_mismatch_k;
+    if (device == *caller) return nk_success_k;
+    return cudaSetDevice(device) == cudaSuccess ? nk_success_k : nk_missing_gpu_k;
 }
+
+NUMKONG_INLINE void nk_device_leave_cuda_(int caller) { nk_unused_(cudaSetDevice(caller)); }
 
 /** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
  *  address. The runtime's own error stays readable through @c cudaGetLastError. */
 NUMKONG_INLINE nk_status_t nk_launch_cuda_(void const *kernel, nk_size_t blocks, unsigned threads, void **arguments,
                                            nk_size_t shared_bytes, void *stream) {
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
     dim3 grid, block;
     grid.x = (unsigned)blocks, grid.y = 1, grid.z = 1;
     block.x = threads, block.y = 1, block.z = 1;
     cudaError_t const status = cudaLaunchKernel(kernel, grid, block, arguments, shared_bytes, (cudaStream_t)stream);
+    nk_device_leave_cuda_(caller);
     return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
@@ -47,35 +58,48 @@ NUMKONG_INLINE nk_status_t nk_launch_cuda_(void const *kernel, nk_size_t blocks,
 NUMKONG_INLINE nk_status_t nk_launch_resident_cuda_(void const *kernel, unsigned threads, nk_size_t shared_bytes,
                                                     nk_size_t shared_ceiling, nk_size_t blocks_wanted, void *arguments,
                                                     void *stream) {
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
     int device = 0, multiprocessors = 0, per_multiprocessor = 0;
-    nk_status_t const status = nk_device_current_cuda_(&device);
-    if (status != nk_success_k) return status;
-    if ((shared_ceiling && cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
+    if (cudaGetDevice(&device) != cudaSuccess ||
+        (shared_ceiling && cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize,
                                                 (int)shared_ceiling) != cudaSuccess) ||
         cudaDeviceGetAttribute(&multiprocessors, cudaDevAttrMultiProcessorCount, device) != cudaSuccess ||
         cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per_multiprocessor, kernel, (int)threads, shared_bytes) !=
-            cudaSuccess)
+            cudaSuccess) {
+        nk_device_leave_cuda_(caller);
         return nk_device_code_mismatch_k;
+    }
     nk_size_t const blocks = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
-    if (blocks == 0) return nk_device_code_mismatch_k;
+    if (blocks == 0) {
+        nk_device_leave_cuda_(caller);
+        return nk_device_code_mismatch_k;
+    }
     void *launch_arguments[1];
     launch_arguments[0] = arguments;
-    return nk_launch_cuda_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads, launch_arguments,
-                           shared_bytes, stream);
+    nk_status_t const launched = nk_launch_cuda_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads,
+                                                 launch_arguments, shared_bytes, stream);
+    nk_device_leave_cuda_(caller);
+    return launched;
 }
 
-/** Reads @p attribute of the current device into @p value. */
-NUMKONG_INLINE nk_status_t nk_device_attribute_cuda_(enum cudaDeviceAttr attribute, int *value) {
+/** Reads @p attribute of the stream's device into @p value. */
+NUMKONG_INLINE nk_status_t nk_device_attribute_cuda_(enum cudaDeviceAttr attribute, int *value, void *stream) {
     int device = 0;
-    nk_status_t const status = nk_device_current_cuda_(&device);
-    if (status != nk_success_k) return status;
+    cudaError_t const status = stream ? cudaStreamGetDevice((cudaStream_t)stream, &device) : cudaGetDevice(&device);
+    if (status != cudaSuccess) return nk_device_code_mismatch_k;
     return cudaDeviceGetAttribute(value, attribute, device) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
 /** Copies @p bytes from the device back to @p host once everything queued on @p stream is done. */
 NUMKONG_INLINE nk_status_t nk_read_cuda_(void *host, void const *device, nk_size_t bytes, void *stream) {
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
     cudaError_t status = cudaMemcpyAsync(host, device, bytes, cudaMemcpyDeviceToHost, (cudaStream_t)stream);
     if (status == cudaSuccess) status = cudaStreamSynchronize((cudaStream_t)stream);
+    nk_device_leave_cuda_(caller);
     return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
@@ -84,27 +108,35 @@ NUMKONG_INLINE nk_status_t nk_read_cuda_(void *host, void const *device, nk_size
 NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_cuda_(nk_size_t bytes, void **pointer, void *stream) {
     *pointer = NUMKONG_NULL;
     if (!bytes) return nk_success_k;
-    int current = 0;
-    if (nk_device_current_cuda_(&current) != nk_success_k) return nk_missing_gpu_k;
-    int device = current;
-    // Managed memory belongs to the current device's context, so switch to the stream's device
-    if (stream && cudaStreamGetDevice((cudaStream_t)stream, &device) != cudaSuccess) return nk_device_code_mismatch_k;
-    if (device != current && cudaSetDevice(device) != cudaSuccess) return nk_device_code_mismatch_k;
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
     cudaError_t const allocated = cudaMallocManaged(pointer, bytes, cudaMemAttachGlobal);
-    if (device != current) nk_unused_(cudaSetDevice(current));
+    nk_device_leave_cuda_(caller);
     if (allocated == cudaSuccess) return nk_success_k;
     *pointer = NUMKONG_NULL;
     return nk_bad_alloc_k;
 }
 
 /** Frees a block of @ref nk_memory_allocate_unified_cuda_ once the device is done with it. */
-NUMKONG_INLINE nk_status_t nk_memory_free_unified_cuda_(void *pointer) {
-    return cudaFree(pointer) == cudaSuccess ? nk_success_k : nk_device_memory_mismatch_k;
+NUMKONG_INLINE nk_status_t nk_memory_free_unified_cuda_(void *pointer, void *stream) {
+    if (!pointer) return nk_success_k;
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    cudaError_t const status = cudaFree(pointer);
+    nk_device_leave_cuda_(caller);
+    return status == cudaSuccess ? nk_success_k : nk_device_memory_mismatch_k;
 }
 
 /** Waits for everything queued on @p stream. */
 NUMKONG_INLINE nk_status_t nk_stream_synchronize_cuda_(void *stream) {
-    return cudaStreamSynchronize((cudaStream_t)stream) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    cudaError_t const status = cudaStreamSynchronize((cudaStream_t)stream);
+    nk_device_leave_cuda_(caller);
+    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
 /** How many CUDA devices the runtime sees, or zero. */
@@ -148,11 +180,89 @@ NUMKONG_INLINE nk_status_t nk_cuda_stream_init_(nk_size_t ordinal, void **stream
 /** Destroys @p stream once the work queued on it completes; a null stream is the default one. */
 NUMKONG_INLINE nk_status_t nk_cuda_stream_free_(void *stream) {
     if (!stream) return nk_success_k;
-    return cudaStreamDestroy((cudaStream_t)stream) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
+    cudaError_t const status = cudaStreamDestroy((cudaStream_t)stream);
+    nk_device_leave_cuda_(caller);
+    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+}
+
+NUMKONG_INLINE void *nk_allocate_unified_cuda_(nk_size_t bytes, void *handle, void *stream) {
+    nk_unused_(handle);
+    void *pointer = NUMKONG_NULL;
+    nk_unused_(nk_memory_allocate_unified_cuda_(bytes, &pointer, stream));
+    return pointer;
+}
+
+NUMKONG_INLINE void *nk_allocate_device_cuda_(nk_size_t bytes, void *handle, void *stream) {
+    nk_unused_(handle);
+    void *pointer = NUMKONG_NULL;
+    if (!bytes) return NUMKONG_NULL;
+    int caller = 0;
+    if (nk_device_enter_cuda_(stream, &caller) != nk_success_k) return NUMKONG_NULL;
+    if (cudaMalloc(&pointer, bytes) != cudaSuccess) pointer = NUMKONG_NULL;
+    nk_device_leave_cuda_(caller);
+    return pointer;
+}
+
+NUMKONG_INLINE void *nk_allocate_pinned_cuda_(nk_size_t bytes, void *handle, void *stream) {
+    nk_unused_(handle);
+    void *pointer = NUMKONG_NULL;
+    if (!bytes) return NUMKONG_NULL;
+    int caller = 0;
+    if (nk_device_enter_cuda_(stream, &caller) != nk_success_k) return NUMKONG_NULL;
+    if (cudaHostAlloc(&pointer, bytes, cudaHostAllocDefault) != cudaSuccess) pointer = NUMKONG_NULL;
+    nk_device_leave_cuda_(caller);
+    return pointer;
+}
+
+NUMKONG_INLINE void nk_free_device_cuda_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+    nk_unused_(bytes), nk_unused_(handle);
+    nk_unused_(nk_memory_free_unified_cuda_(pointer, stream));
+}
+
+NUMKONG_INLINE void nk_free_pinned_cuda_(void *pointer, nk_size_t bytes, void *handle, void *stream) {
+    nk_unused_(bytes), nk_unused_(handle);
+    int caller = 0;
+    if (!pointer || nk_device_enter_cuda_(stream, &caller) != nk_success_k) return;
+    nk_unused_(cudaFreeHost(pointer));
+    nk_device_leave_cuda_(caller);
+}
+
+NUMKONG_INLINE nk_status_t nk_allocator_init_unified_cuda_(nk_allocator_t *allocator) {
+    allocator->allocate = nk_allocate_unified_cuda_;
+    allocator->free = nk_free_device_cuda_;
+    allocator->handle = NUMKONG_NULL;
+    return nk_success_k;
+}
+
+NUMKONG_INLINE nk_status_t nk_allocator_init_device_cuda_(nk_allocator_t *allocator) {
+    allocator->allocate = nk_allocate_device_cuda_;
+    allocator->free = nk_free_device_cuda_;
+    allocator->handle = NUMKONG_NULL;
+    return nk_success_k;
+}
+
+NUMKONG_INLINE nk_status_t nk_allocator_init_pinned_cuda_(nk_allocator_t *allocator) {
+    allocator->allocate = nk_allocate_pinned_cuda_;
+    allocator->free = nk_free_pinned_cuda_;
+    allocator->handle = NUMKONG_NULL;
+    return nk_success_k;
 }
 
 /*  The library defines these once, in `c/target/cuda.cu`; header-only builds define them here. */
 #if NUMKONG_HEADER_ONLY && NUMKONG_TARGET_CUDA
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_cuda(nk_allocator_t *allocator) {
+    return nk_allocator_init_unified_cuda_(allocator);
+}
+NUMKONG_API nk_status_t nk_allocator_init_device_cuda(nk_allocator_t *allocator) {
+    return nk_allocator_init_device_cuda_(allocator);
+}
+NUMKONG_API nk_status_t nk_allocator_init_pinned_cuda(nk_allocator_t *allocator) {
+    return nk_allocator_init_pinned_cuda_(allocator);
+}
 
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
     *count = nk_cuda_count_devices_();
@@ -169,8 +279,8 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **
     return nk_memory_allocate_unified_cuda_(bytes, pointer, stream);
 }
 NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, void *stream) {
-    nk_unused_(bytes), nk_unused_(stream);
-    return nk_memory_free_unified_cuda_(pointer);
+    nk_unused_(bytes);
+    return nk_memory_free_unified_cuda_(pointer, stream);
 }
 NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream) { return nk_stream_synchronize_cuda_(stream); }
 

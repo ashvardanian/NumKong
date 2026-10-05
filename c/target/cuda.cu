@@ -29,9 +29,19 @@ extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t byt
     return nk_memory_allocate_unified_cuda_(bytes, pointer, stream);
 }
 extern "C" NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, void *stream) {
-    nk_unused_(bytes), nk_unused_(stream);
-    return nk_memory_free_unified_cuda_(pointer);
+    nk_unused_(bytes);
+    return nk_memory_free_unified_cuda_(pointer, stream);
 }
 extern "C" NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream) {
     return nk_stream_synchronize_cuda_(stream);
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_cuda(nk_allocator_t *allocator) {
+    return nk_allocator_init_unified_cuda_(allocator);
+}
+NUMKONG_API nk_status_t nk_allocator_init_device_cuda(nk_allocator_t *allocator) {
+    return nk_allocator_init_device_cuda_(allocator);
+}
+NUMKONG_API nk_status_t nk_allocator_init_pinned_cuda(nk_allocator_t *allocator) {
+    return nk_allocator_init_pinned_cuda_(allocator);
 }

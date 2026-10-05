@@ -54,11 +54,12 @@ struct cast_operand {
     bytes_t scales;
     bytes_t tensor_scale;
 
-    explicit cast_operand(std::size_t dimensions)
-        : elements(make_elements_(dimensions)),
-          scales(bytes_t::zeros(nk_block_scaled_scales_size(dimensions, nk_block_scaled_format_of_dtype(dtype)) + 1)
+    cast_operand(std::size_t dimensions, backend_type_ const &backend)
+        : elements(make_elements_(dimensions, backend)),
+          scales(bytes_t::zeros(nk_block_scaled_scales_size(dimensions, nk_block_scaled_format_of_dtype(dtype)) + 1,
+                                allocator_of<u8_t>(backend))
                      .value),
-          tensor_scale(bytes_t::zeros(sizeof(nk_f32_t)).value) {}
+          tensor_scale(bytes_t::zeros(sizeof(nk_f32_t), allocator_of<u8_t>(backend)).value) {}
 
     nk_f32_t &tensor_scale_value() { return *reinterpret_cast<nk_f32_t *>(tensor_scale.raw_values_data()); }
 
@@ -82,11 +83,12 @@ struct cast_operand {
         else return elements.raw_values_data();
     }
 
-    static elements_t make_elements_(std::size_t dimensions) {
+    static elements_t make_elements_(std::size_t dimensions, backend_type_ const &backend) {
         if constexpr (scaled)
-            return bytes_t::zeros(nk_block_scaled_elements_size(dimensions, nk_block_scaled_format_of_dtype(dtype)))
+            return bytes_t::zeros(nk_block_scaled_elements_size(dimensions, nk_block_scaled_format_of_dtype(dtype)),
+                                  allocator_of<u8_t>(backend))
                 .value;
-        else return elements_t::zeros(dimensions).value;
+        else return elements_t::zeros(dimensions, allocator_of<value_type_>(backend)).value;
     }
 };
 
@@ -99,7 +101,7 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
     using source_t = cast_operand<from_type_, backend_type_>;
     using target_t = cast_operand<to_type_, backend_type_>;
     using floats_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
 
@@ -108,9 +110,9 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
                                               nk::dimensions_per_value<to_type_>());
     std::size_t const dimensions = (settings.dense_dimensions / aligned_dims) * aligned_dims;
 
-    source_t source(dimensions);
-    target_t target(dimensions), reference(dimensions);
-    auto source_floats = floats_t::zeros(dimensions).value;
+    source_t source(dimensions, backend);
+    target_t target(dimensions, backend), reference(dimensions, backend);
+    auto source_floats = floats_t::zeros(dimensions, allocator_of<f32_t>(backend)).value;
     typename source_t::reference_t source_reference = source.reference();
     typename target_t::reference_t target_reference = target.reference(), reference_reference = reference.reference();
     void *source_operand = source.operand(source_reference);
@@ -119,7 +121,7 @@ error_stats_t test_cast(settings_t const &settings, cast_t kernel) {
 
     auto compare_bytes = [&](auto &target_bytes, auto &reference_bytes) {
         for (std::size_t i = 0; i < target_bytes.size_bytes(); ++i)
-            stats.accumulate(target_bytes.raw_values_data()[i], reference_bytes.raw_values_data()[i]);
+            stats.accumulate(target_bytes[i], reference_bytes[i]);
     };
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
@@ -174,11 +176,12 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
                                  nk_e3m2_k,  nk_e2m1_k, nk_ue8m0_k, nk_ue4m3_k, nk_f64c_k, nk_f32c_k, nk_f16c_k,
                                  nk_bf16c_k, nk_i64_k,  nk_i32_k,   nk_i16_k,   nk_i8_k,   nk_i4_k,   nk_u64_k,
                                  nk_u32_k,   nk_u16_k,  nk_u8_k,    nk_u4_k,    nk_u1_k};
-    backend_type_ backend;
+    backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
     std::size_t const count = nk::divide_round_up(settings.dense_dimensions, 8) * 8, capacity = count * 16;
-    auto source = bytes_t::zeros(capacity).value, target = bytes_t::zeros(capacity).value;
+    auto source = bytes_t::zeros(capacity, allocator_of<u8_t>(backend)).value,
+         target = bytes_t::zeros(capacity, allocator_of<u8_t>(backend)).value;
     auto reference = make_vector<u8_t>(capacity);
 
     for (time_point_t const deadline = steady_clock_t::now() + settings.time_limit_per_kernel;
@@ -204,8 +207,7 @@ error_stats_t test_cast_pairs(settings_t const &settings, cast_t kernel) {
                     return stats;
                 }
                 std::size_t const to_bytes = count * nk_dtype_bits(to_type) / NUMKONG_BITS_PER_BYTE;
-                for (std::size_t i = 0; i < to_bytes; ++i)
-                    stats.accumulate(target.raw_values_data()[i], reference.raw_values_data()[i]);
+                for (std::size_t i = 0; i < to_bytes; ++i) stats.accumulate(target[i], reference[i]);
             }
         }
     return stats;

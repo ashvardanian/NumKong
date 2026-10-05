@@ -5,8 +5,6 @@
  *  @brief The NumKong library's capability queries, its unified memory and stream dispatch, and the
  *      finder over every family's finder.
  */
-#include <stdlib.h> // `malloc`, `free`
-
 #include "numkong/numkong.h"
 
 #include "dispatch.h" // `nk_capability_group_of_`, `nk_capabilities_runnable_`
@@ -217,31 +215,57 @@ NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capa
     return status;
 }
 
-NUMKONG_API nk_status_t nk_memory_allocate_unified_serial(nk_size_t bytes, void **pointer, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    *pointer = NUMKONG_NULL;
-    if (!bytes) return nk_success_k;
-    unsigned char *const allocation = bytes <= NUMKONG_SIZE_MAX - 64 ? (unsigned char *)malloc(bytes + 64)
-                                                                     : (unsigned char *)NUMKONG_NULL;
-    if (!allocation) return nk_bad_alloc_k;
-    // `malloc` aligns to less than 64 bytes, so the byte before each block keeps its distance back
-    nk_size_t const shift = 64 - ((nk_size_t)allocation & 63);
-    allocation[shift - 1] = (unsigned char)shift;
-    *pointer = allocation + shift;
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_memory_free_unified_serial(void *pointer, nk_size_t bytes, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_unused_(bytes);
-    unsigned char *const block = (unsigned char *)pointer;
-    if (block) free(block - block[-1]);
-    return nk_success_k;
-}
-
 NUMKONG_API nk_status_t nk_stream_synchronize_serial(void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_unified_best(nk_allocator_t *allocator, nk_capability_t capabilities) {
+    switch (nk_capability_group_of_(capabilities)) {
+    case nk_capability_group_cpu_k: return nk_allocator_init_unified_serial(allocator);
+#if NUMKONG_ARCH_CUDA_
+    case nk_capability_group_cuda_k: return nk_allocator_init_unified_cuda(allocator);
+#endif
+#if NUMKONG_ARCH_ROCM_
+    case nk_capability_group_rocm_k: return nk_allocator_init_unified_rocm(allocator);
+#endif
+#if NUMKONG_WITH_METAL
+    case nk_capability_group_metal_k: return nk_allocator_init_unified_metal(allocator);
+#endif
+    default: return nk_missing_gpu_k;
+    }
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_device_best(nk_allocator_t *allocator, nk_capability_t capabilities) {
+    switch (nk_capability_group_of_(capabilities)) {
+    case nk_capability_group_cpu_k: return nk_missing_kernel_k;
+#if NUMKONG_ARCH_CUDA_
+    case nk_capability_group_cuda_k: return nk_allocator_init_device_cuda(allocator);
+#endif
+#if NUMKONG_ARCH_ROCM_
+    case nk_capability_group_rocm_k: return nk_allocator_init_device_rocm(allocator);
+#endif
+#if NUMKONG_WITH_METAL
+    case nk_capability_group_metal_k: return nk_allocator_init_unified_metal(allocator);
+#endif
+    default: return nk_missing_gpu_k;
+    }
+}
+
+NUMKONG_API nk_status_t nk_allocator_init_pinned_best(nk_allocator_t *allocator, nk_capability_t capabilities) {
+    switch (nk_capability_group_of_(capabilities)) {
+    case nk_capability_group_cpu_k: return nk_missing_kernel_k;
+#if NUMKONG_ARCH_CUDA_
+    case nk_capability_group_cuda_k: return nk_allocator_init_pinned_cuda(allocator);
+#endif
+#if NUMKONG_ARCH_ROCM_
+    case nk_capability_group_rocm_k: return nk_allocator_init_pinned_rocm(allocator);
+#endif
+#if NUMKONG_WITH_METAL
+    case nk_capability_group_metal_k: return nk_allocator_init_unified_metal(allocator);
+#endif
+    default: return nk_missing_gpu_k;
+    }
 }
 
 NUMKONG_API nk_status_t nk_memory_allocate_unified_best(nk_size_t bytes, void **pointer, nk_capability_t capabilities,

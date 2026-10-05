@@ -105,28 +105,28 @@ static error_stats_t test_best_dot_f32(settings_t const &settings) {
         {nk_cap_serial_k, nk_dot_f32_serial},
 #if NUMKONG_TARGET_NEON
         {nk_cap_neon_k, nk_dot_f32_neon},
-#endif
+#endif // NUMKONG_TARGET_NEON
 #if NUMKONG_TARGET_SVE
         {nk_cap_sve_k, nk_dot_f32_sve},
-#endif
+#endif // NUMKONG_TARGET_SVE
 #if NUMKONG_TARGET_HASWELL
         {nk_cap_haswell_k, nk_dot_f32_haswell},
-#endif
+#endif // NUMKONG_TARGET_HASWELL
 #if NUMKONG_TARGET_SKYLAKE
         {nk_cap_skylake_k, nk_dot_f32_skylake},
-#endif
+#endif // NUMKONG_TARGET_SKYLAKE
 #if NUMKONG_TARGET_RVV
         {nk_cap_rvv_k, nk_dot_f32_rvv},
-#endif
+#endif // NUMKONG_TARGET_RVV
 #if NUMKONG_TARGET_V128RELAXED
         {nk_cap_v128relaxed_k, nk_dot_f32_v128relaxed},
-#endif
+#endif // NUMKONG_TARGET_V128RELAXED
 #if NUMKONG_TARGET_POWERVSX
         {nk_cap_powervsx_k, nk_dot_f32_powervsx},
-#endif
+#endif // NUMKONG_TARGET_POWERVSX
 #if NUMKONG_TARGET_LOONGSONASX
         {nk_cap_loongsonasx_k, nk_dot_f32_loongsonasx},
-#endif
+#endif // NUMKONG_TARGET_LOONGSONASX
     };
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
@@ -160,44 +160,44 @@ static error_stats_t test_best_dots_packed_bf16(settings_t const &settings) {
         {nk_cap_serial_k, nk_dots_pack_size_bf16_serial, nk_dots_pack_bf16_serial, nk_dots_packed_bf16_serial},
 #if NUMKONG_TARGET_NEON
         {nk_cap_neon_k, nk_dots_pack_size_bf16_neon, nk_dots_pack_bf16_neon, nk_dots_packed_bf16_neon},
-#endif
+#endif // NUMKONG_TARGET_NEON
 #if NUMKONG_TARGET_NEONBFDOT
         {nk_cap_neonbfdot_k, nk_dots_pack_size_bf16_neonbfdot, nk_dots_pack_bf16_neonbfdot,
          nk_dots_packed_bf16_neonbfdot},
-#endif
+#endif // NUMKONG_TARGET_NEONBFDOT
 #if NUMKONG_TARGET_SME
         {nk_cap_sme_k, nk_dots_pack_size_bf16_sme, nk_dots_pack_bf16_sme, nk_dots_packed_bf16_sme},
-#endif
+#endif // NUMKONG_TARGET_SME
 #if NUMKONG_TARGET_HASWELL
         {nk_cap_haswell_k, nk_dots_pack_size_bf16_haswell, nk_dots_pack_bf16_haswell, nk_dots_packed_bf16_haswell},
-#endif
+#endif // NUMKONG_TARGET_HASWELL
 #if NUMKONG_TARGET_SKYLAKE
         {nk_cap_skylake_k, nk_dots_pack_size_bf16_skylake, nk_dots_pack_bf16_skylake, nk_dots_packed_bf16_skylake},
-#endif
+#endif // NUMKONG_TARGET_SKYLAKE
 #if NUMKONG_TARGET_GENOA
         {nk_cap_genoa_k, nk_dots_pack_size_bf16_genoa, nk_dots_pack_bf16_genoa, nk_dots_packed_bf16_genoa},
-#endif
+#endif // NUMKONG_TARGET_GENOA
 #if NUMKONG_TARGET_SAPPHIREAMX
         {nk_cap_sapphireamx_k, nk_dots_pack_size_bf16_sapphireamx, nk_dots_pack_bf16_sapphireamx,
          nk_dots_packed_bf16_sapphireamx},
-#endif
+#endif // NUMKONG_TARGET_SAPPHIREAMX
 #if NUMKONG_TARGET_RVV
         {nk_cap_rvv_k, nk_dots_pack_size_bf16_rvv, nk_dots_pack_bf16_rvv, nk_dots_packed_bf16_rvv},
-#endif
+#endif // NUMKONG_TARGET_RVV
 #if NUMKONG_TARGET_V128
         {nk_cap_v128_k, nk_dots_pack_size_bf16_v128, nk_dots_pack_bf16_v128, nk_dots_packed_bf16_v128},
-#endif
+#endif // NUMKONG_TARGET_V128
 #if NUMKONG_TARGET_V128RELAXED
         {nk_cap_v128relaxed_k, nk_dots_pack_size_bf16_v128relaxed, nk_dots_pack_bf16_v128relaxed,
          nk_dots_packed_bf16_v128relaxed},
-#endif
+#endif // NUMKONG_TARGET_V128RELAXED
 #if NUMKONG_TARGET_POWERVSX
         {nk_cap_powervsx_k, nk_dots_pack_size_bf16_powervsx, nk_dots_pack_bf16_powervsx, nk_dots_packed_bf16_powervsx},
-#endif
+#endif // NUMKONG_TARGET_POWERVSX
 #if NUMKONG_TARGET_LOONGSONASX
         {nk_cap_loongsonasx_k, nk_dots_pack_size_bf16_loongsonasx, nk_dots_pack_bf16_loongsonasx,
          nk_dots_packed_bf16_loongsonasx},
-#endif
+#endif // NUMKONG_TARGET_LOONGSONASX
     };
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
@@ -241,19 +241,19 @@ static error_stats_t test_best_reduce_moments_f32(settings_t const &settings) {
         {nk_cap_serial_k, nk_reduce_moments_f32_serial},
 #if NUMKONG_TARGET_NEON
         {nk_cap_neon_k, nk_reduce_moments_f32_neon},
-#endif
+#endif // NUMKONG_TARGET_NEON
 #if NUMKONG_TARGET_HASWELL
         {nk_cap_haswell_k, nk_reduce_moments_f32_haswell},
-#endif
+#endif // NUMKONG_TARGET_HASWELL
 #if NUMKONG_TARGET_SKYLAKE
         {nk_cap_skylake_k, nk_reduce_moments_f32_skylake},
-#endif
+#endif // NUMKONG_TARGET_SKYLAKE
 #if NUMKONG_TARGET_RVV
         {nk_cap_rvv_k, nk_reduce_moments_f32_rvv},
-#endif
+#endif // NUMKONG_TARGET_RVV
 #if NUMKONG_TARGET_V128RELAXED
         {nk_cap_v128relaxed_k, nk_reduce_moments_f32_v128relaxed},
-#endif
+#endif // NUMKONG_TARGET_V128RELAXED
     };
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
@@ -279,28 +279,28 @@ static error_stats_t test_best_cast(settings_t const &settings) {
         {nk_cap_serial_k, nk_cast_serial},
 #if NUMKONG_TARGET_NEON
         {nk_cap_neon_k, nk_cast_neon},
-#endif
+#endif // NUMKONG_TARGET_NEON
 #if NUMKONG_TARGET_HASWELL
         {nk_cap_haswell_k, nk_cast_haswell},
-#endif
+#endif // NUMKONG_TARGET_HASWELL
 #if NUMKONG_TARGET_SKYLAKE
         {nk_cap_skylake_k, nk_cast_skylake},
-#endif
+#endif // NUMKONG_TARGET_SKYLAKE
 #if NUMKONG_TARGET_ICELAKE
         {nk_cap_icelake_k, nk_cast_icelake},
-#endif
+#endif // NUMKONG_TARGET_ICELAKE
 #if NUMKONG_TARGET_SAPPHIRE
         {nk_cap_sapphire_k, nk_cast_sapphire},
-#endif
+#endif // NUMKONG_TARGET_SAPPHIRE
 #if NUMKONG_TARGET_RVV
         {nk_cap_rvv_k, nk_cast_rvv},
-#endif
+#endif // NUMKONG_TARGET_RVV
 #if NUMKONG_TARGET_V128RELAXED
         {nk_cap_v128relaxed_k, nk_cast_v128relaxed},
-#endif
+#endif // NUMKONG_TARGET_V128RELAXED
 #if NUMKONG_TARGET_POWERVSX
         {nk_cap_powervsx_k, nk_cast_powervsx},
-#endif
+#endif // NUMKONG_TARGET_POWERVSX
     };
     error_stats_t stats(comparison_family_t::exact_k);
     std::mt19937 generator(settings.seed.value);
@@ -328,22 +328,22 @@ static error_stats_t test_best_f32_sqrt(settings_t const &) {
         {nk_cap_serial_k, nk_f32_sqrt_serial},
 #if NUMKONG_TARGET_NEON
         {nk_cap_neon_k, nk_f32_sqrt_neon},
-#endif
+#endif // NUMKONG_TARGET_NEON
 #if NUMKONG_TARGET_HASWELL
         {nk_cap_haswell_k, nk_f32_sqrt_haswell},
-#endif
+#endif // NUMKONG_TARGET_HASWELL
 #if NUMKONG_TARGET_RVV
         {nk_cap_rvv_k, nk_f32_sqrt_rvv},
-#endif
+#endif // NUMKONG_TARGET_RVV
 #if NUMKONG_TARGET_V128
         {nk_cap_v128_k, nk_f32_sqrt_v128},
-#endif
+#endif // NUMKONG_TARGET_V128
 #if NUMKONG_TARGET_POWERVSX
         {nk_cap_powervsx_k, nk_f32_sqrt_powervsx},
-#endif
+#endif // NUMKONG_TARGET_POWERVSX
 #if NUMKONG_TARGET_LOONGSONASX
         {nk_cap_loongsonasx_k, nk_f32_sqrt_loongsonasx},
-#endif
+#endif // NUMKONG_TARGET_LOONGSONASX
     };
     error_stats_t stats(comparison_family_t::exact_k);
     nk_f32_t const inputs[] = {0.0f, 1e-30f, 0.5f, 2.0f, 3.0f, 1e30f};
@@ -489,6 +489,23 @@ static error_stats_t test_device_capabilities(settings_t const &) {
     return stats;
 }
 
+static error_stats_t test_gpu_capabilities(settings_t const &, nk::device_t device) {
+    error_stats_t stats(comparison_family_t::exact_k);
+    auto const detected = device.capabilities_detected();
+    auto const enabled = device.capabilities_enabled();
+    nk_capability_t const compiled = device.capabilities_compiled();
+    nk_capability_t const baseline = device.kind() == nk::device_kind_t::cuda_k   ? nk_cap_cuda_k
+                                     : device.kind() == nk::device_kind_t::rocm_k ? nk_cap_rocm_k
+                                                                                  : nk_cap_metal_k;
+    stats.expect(detected && (detected.value & baseline), "the device baseline is missing");
+    stats.expect(!(compiled & nk_cap_cpus_k), "a GPU compiled a CPU capability");
+    stats.expect(enabled && enabled.value == (detected.value & compiled),
+                 "the device enabled more than it detected and compiled");
+    stats.expect(!(detected.value & nk_cap_apple10_k) || (detected.value & nk_cap_apple9_k),
+                 "Apple10 is reported without Apple9");
+    return stats;
+}
+
 static void test_dispatch_points(error_stats_section_t &check) {
     check.section("Dispatch Points", nk_cap_serial_k);
 #if NUMKONG_HEADER_ONLY
@@ -505,12 +522,12 @@ static void test_dispatch_points(error_stats_section_t &check) {
     check("best_cast", [](settings_t const &settings) {
         return test_missing_library<nk_cast_best>(settings, nullptr, nk_f32_k, nullptr, nk_f16_k, 0, nullptr);
     });
-#else
+#else  // !NUMKONG_HEADER_ONLY
     check("best_dot_f32", test_best_dot_f32);
     check("best_dots_packed_bf16", test_best_dots_packed_bf16);
     check("best_reduce_moments_f32", test_best_reduce_moments_f32);
     check("best_cast", test_best_cast);
-#endif
+#endif // NUMKONG_HEADER_ONLY
     check("best_f32_sqrt", test_best_f32_sqrt);
     check("find_kernel", test_find_kernel);
     check("device_capabilities", test_device_capabilities);
@@ -518,8 +535,68 @@ static void test_dispatch_points(error_stats_section_t &check) {
 
 #pragma endregion Dispatch Points
 
+static std::vector<nk::device_t> select_devices(std::optional<std::vector<device_selection_t>> const &requested) {
+    std::vector<nk::device_t> devices;
+    if constexpr (NUMKONG_HEADER_ONLY) {
+        if (requested) {
+            fmt::println(stderr, "This header-only executable accepts only CPU workloads");
+            std::exit(1);
+        }
+        return devices;
+    }
+    if (requested) {
+        for (device_selection_t const &selection : *requested) {
+            auto const device = nk::device_t::make(selection.backend, selection.ordinal);
+            if (!device) {
+                fmt::println(stderr, "{}:{}: {}", device_name(selection.backend), selection.ordinal,
+                             nk::status_name(device.status));
+                std::exit(1);
+            }
+            devices.push_back(device.value);
+        }
+    }
+    else {
+        for (nk::device_kind_t kind :
+             {nk::device_kind_t::cuda_k, nk::device_kind_t::rocm_k, nk::device_kind_t::metal_k})
+            if (auto device = nk::device_t::make(kind, 0)) devices.push_back(device.value);
+    }
+    return devices;
+}
+
+static nk::status_t test_device(error_stats_section_t &check, nk::device_t device) {
+    if constexpr (NUMKONG_HEADER_ONLY) return nk::status_t::missing_library_k;
+    else {
+        auto const capabilities = device.capabilities_enabled();
+        if (!capabilities) return capabilities.status;
+        char names[NUMKONG_CAPABILITIES_NAME_CAPACITY];
+        nk_capabilities_name(capabilities.value, names, sizeof(names));
+        fmt::println("- {}:{}: {}", device_name(device.kind()), device.ordinal(), names);
+        check.settings.device = device;
+        check.available = capabilities.value;
+        check.section("GPU capabilities", nk_cap_cuda_k | nk_cap_rocm_k | nk_cap_metal_k);
+        check("gpu_capabilities", test_gpu_capabilities, device);
+        switch (device.kind()) {
+        case nk::device_kind_t::cuda_k:
+            test_tensor_cuda(check);
+            test_cast_cuda(check);
+            test_each_cuda(check);
+            test_reduce_cuda(check);
+            test_cross_cuda(check);
+            break;
+        case nk::device_kind_t::rocm_k:
+            test_each_rocm(check);
+            test_cross_rocm(check);
+            break;
+        case nk::device_kind_t::metal_k: test_cross_metal(check); break;
+        default: return nk::status_t::missing_gpu_k;
+        }
+        return nk::status_t::success_k;
+    }
+}
+
 int main(int, char **argv) {
     environment_t const env {read_settings(argv[0]), probe_machine()};
+    auto const devices = select_devices(env.settings.devices);
 
 #if NUMKONG_HAS_SIGNAL_
     std::signal(SIGILL, crash_handler);
@@ -569,6 +646,12 @@ int main(int, char **argv) {
     test_cross_ppc64(check);
     test_cross_loongarch64(check);
     test_cross_wasm(check);
+
+    for (nk::device_t device : devices)
+        if (auto const status = test_device(check, device); nk::failed(status)) {
+            fmt::println(stderr, "{}:{}: {}", device_name(device.kind()), device.ordinal(), nk::status_name(status));
+            return 1;
+        }
 
     if (check.failure_count > 0) {
         fmt::println("\n{} kernel(s) failed accuracy checks.", check.failure_count);

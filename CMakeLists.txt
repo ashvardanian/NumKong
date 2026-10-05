@@ -16,7 +16,7 @@
 #   -D NUMKONG_SWIFT_TRIPLES=<list>          (default: the target's, like aarch64-unknown-linux-gnu, off Apple platforms)
 #   -D NUMKONG_BUILD_CUDA=<ON|OFF>           (default: OFF, adds CUDA to the libraries, tests and benchmarks built)
 #   -D NUMKONG_CUDA_ARCHITECTURES=<list>     (default: 75-real;80-real;89-real;90a-real;100f-real;120f-real;80-virtual)
-#   -D NUMKONG_BUILD_ROCM=<ON|OFF>           (default: OFF, adds HIP to the libraries and tests built)
+#   -D NUMKONG_BUILD_ROCM=<ON|OFF>           (default: OFF, adds HIP to the libraries, tests and benchmarks built)
 #   -D NUMKONG_ROCM_ARCHITECTURES=<list>     (default: gfx942;gfx950;gfx1250;gfx1251)
 #   -D NUMKONG_BUILD_METAL=<ON|OFF>          (default: OFF, adds Metal to the libraries, tests and benchmarks built)
 #   -D NUMKONG_METAL_ARCHITECTURES=<list>    (default: apple7;apple9;apple10)
@@ -139,7 +139,9 @@ option(NUMKONG_BUILD_PYTHON "Compile the CPython extension over the static libra
 option(NUMKONG_BUILD_NODE "Compile the Node addon over the static library; cmake-js switches it on" OFF)
 option(NUMKONG_BUILD_SWIFT "Package the static library for SwiftPM, as an XCFramework or an artifact bundle" OFF)
 option(NUMKONG_BUILD_CUDA "Add CUDA to the libraries and to whichever of the test and bench builds is on" OFF)
-option(NUMKONG_BUILD_ROCM "Add ROCm, compiled through HIP, to the libraries and to the test build" OFF)
+option(NUMKONG_BUILD_ROCM
+       "Add ROCm, compiled through HIP, to the libraries and to whichever of the test and bench builds is on" OFF
+)
 option(NUMKONG_BUILD_METAL "Add Metal to the libraries and to whichever of the test and bench builds is on" OFF)
 option(NUMKONG_WITH_HOST_PROBES "Import the capability probes from the WASI host" OFF)
 
@@ -371,17 +373,34 @@ endif ()
 
 # Define the header-only library. The include path & sources wear `BUILD_INTERFACE` genexes, so the
 # target stays exportable: the installed package resolves headers under the install prefix instead.
+include(GNUInstallDirs)
 file(GLOB NUMKONG_SOURCES include/numkong/*.h include/numkong/*.hpp)
 add_library(numkong_header INTERFACE)
 add_library(numkong::header ALIAS numkong_header)
 set_target_properties(numkong_header PROPERTIES EXPORT_NAME header)
 target_sources(numkong_header INTERFACE "$<BUILD_INTERFACE:${NUMKONG_SOURCES}>")
 target_include_directories(
-    numkong_header INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+    numkong_header INTERFACE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_compile_features(numkong_header INTERFACE c_std_99)
 # Consumers of the header target compile every kernel themselves, and link no dispatch points.
 target_compile_definitions(numkong_header INTERFACE NUMKONG_HEADER_ONLY=1)
+if (APPLE)
+    set(NUMKONG_EMBED_COMPILER_
+        "$<AND:$<PLATFORM_ID:Darwin>,$<OR:$<COMPILE_LANG_AND_ID:C,Clang,AppleClang>,$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>>>"
+    )
+    if (IS_ABSOLUTE "${CMAKE_INSTALL_INCLUDEDIR}")
+        set(NUMKONG_EMBED_INSTALL_DIR_ "${CMAKE_INSTALL_INCLUDEDIR}")
+    else ()
+        set(NUMKONG_EMBED_INSTALL_DIR_ "$<INSTALL_PREFIX>/${CMAKE_INSTALL_INCLUDEDIR}")
+    endif ()
+    set(NUMKONG_EMBED_OPTIONS_
+        "$<${NUMKONG_EMBED_COMPILER_}:$<BUILD_INTERFACE:--embed-dir=${PROJECT_SOURCE_DIR}/include>>"
+        "$<${NUMKONG_EMBED_COMPILER_}:$<INSTALL_INTERFACE:--embed-dir=${NUMKONG_EMBED_INSTALL_DIR_}>>"
+    )
+    target_compile_options(numkong_header INTERFACE ${NUMKONG_EMBED_OPTIONS_})
+endif ()
 
 # MSVC's traditional preprocessor can't short-circuit `defined(__has_builtin) && __has_builtin(...)`.
 # The conforming preprocessor (/Zc:preprocessor, available since MSVC 2019 16.6) handles this.
@@ -402,7 +421,7 @@ if (CMAKE_C_COMPILER_ID MATCHES "Clang")
 
     # Install module map
     if (NUMKONG_INSTALL)
-        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/module.modulemap DESTINATION include)
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/include/module.modulemap DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
     endif ()
 
     message(STATUS "Clang C modules enabled: cache at ${CMAKE_BINARY_DIR}/module-cache")
@@ -593,8 +612,7 @@ if (NUMKONG_BUILD_BENCH)
         bench/reduce.cpp
         # ISA-family cross/batch files for parallel compilation
         bench/cross_serial.cpp bench/cross_x8664.cpp bench/cross_arm64.cpp bench/cross_blas.cpp bench/cross_riscv64.cpp
-        bench/cross_ppc64.cpp bench/cross_wasm.cpp bench/cross_loongarch64.cpp bench/cross_cuda.cu
-        bench/cross_metal.cpp bench/maxsim.cpp
+        bench/cross_ppc64.cpp bench/cross_wasm.cpp bench/cross_loongarch64.cpp bench/cross_metal.cpp bench/maxsim.cpp
     )
     target_link_libraries(numkong_bench numkong_static fmt::fmt)
 
@@ -787,7 +805,8 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Emscripten" AND NUMKONG_BUILD_SHARED)
         # The library, unlike the headers, may use C11: `c/numkong.c` caches detection in <stdatomic.h> atomics.
         set_target_properties(${nk_library_} PROPERTIES C_STANDARD 11)
         target_include_directories(
-            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
         # The library's units reach their private `dispatch.h` by name.
         target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
@@ -842,7 +861,8 @@ else ()
         set_target_properties(${nk_library_} PROPERTIES C_STANDARD 11)
         target_compile_options(${nk_library_} PRIVATE $<$<C_COMPILER_ID:MSVC>:/experimental:c11atomics>)
         target_include_directories(
-            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:include>
+            ${nk_library_} PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+                                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         )
         # The library's units reach their private `dispatch.h` by name.
         target_include_directories(${nk_library_} PRIVATE "${PROJECT_SOURCE_DIR}/c")
@@ -919,8 +939,14 @@ if (NUMKONG_BUILD_NODE)
     find_package(OpenMP COMPONENTS C)
     # `CMAKE_JS_SRC` is the Windows delay-load hook and empty everywhere else.
     add_library(numkong_node SHARED javascript/numkong.c c/parallel.c ${CMAKE_JS_SRC})
-    set_target_properties(numkong_node PROPERTIES PREFIX "" SUFFIX ".node" OUTPUT_NAME "numkong" C_STANDARD 11
-                                                C_EXTENSIONS OFF)
+    set_target_properties(
+        numkong_node
+        PROPERTIES PREFIX ""
+                   SUFFIX ".node"
+                   OUTPUT_NAME "numkong"
+                   C_STANDARD 11
+                   C_EXTENSIONS OFF
+    )
     target_include_directories(numkong_node PRIVATE ${CMAKE_JS_INC} c)
     target_compile_definitions(numkong_node PRIVATE NAPI_VERSION=8)
     target_compile_options(numkong_node PRIVATE $<$<C_COMPILER_ID:MSVC>:/Zc:preprocessor>)
@@ -1137,8 +1163,9 @@ function (numkong_add_gpu_unit_ source codes)
     # Every CPU kit off, as NVCC's front end cannot parse GCC's `arm_neon.h` and its kin, and every GPU capability the
     # listed architectures run on, as the dispatch units see them; the unit turns off the ones its headers include.
     target_compile_definitions(
-        numkong_${unit}_ PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_} ${NUMKONG_CUDA_FAMILY_DEFINITIONS_}
-                                 ${NUMKONG_ROCM_FAMILY_DEFINITIONS_}
+        numkong_${unit}_
+        PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_} "$<$<COMPILE_LANGUAGE:CUDA>:${NUMKONG_CUDA_FAMILY_DEFINITIONS_}>"
+                "$<$<COMPILE_LANGUAGE:HIP>:${NUMKONG_ROCM_FAMILY_DEFINITIONS_}>"
     )
     # NVCC compiles a unit's codes one after another unless told to spread them over threads.
     target_compile_options(
@@ -1204,7 +1231,7 @@ if (NUMKONG_BUILD_METAL)
     target_compile_definitions(
         numkong_metal_ PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_} ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
     )
-    target_compile_options(numkong_metal_ PRIVATE -fvisibility=hidden)
+    target_compile_options(numkong_metal_ PRIVATE -fvisibility=hidden "--embed-dir=${PROJECT_SOURCE_DIR}/include")
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_sources(${nk_library_} PRIVATE $<TARGET_OBJECTS:numkong_metal_>)
         target_compile_definitions(${nk_library_} PRIVATE ${NUMKONG_METAL_FAMILY_DEFINITIONS_})
@@ -1213,6 +1240,7 @@ if (NUMKONG_BUILD_METAL)
     # Consumers see the Metal entries and the queue they take.
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} INTERFACE NUMKONG_WITH_METAL=1)
+        target_compile_options(${nk_library_} INTERFACE ${NUMKONG_EMBED_OPTIONS_})
     endforeach ()
 endif ()
 
@@ -1230,36 +1258,21 @@ function (numkong_cuda_test_target_ target architectures)
         target_compile_definitions(${target} PRIVATE FMT_UNICODE=0)
     elseif (NUMKONG_ARCH_X8664_)
         target_compile_options(
-            ${target} PRIVATE -Xcompiler=-march=x86-64 -Xcompiler=-fno-tree-vectorize
-                              -Xcompiler=-fno-tree-slp-vectorize
+            ${target}
+            PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-march=x86-64>
+                    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-vectorize>
+                    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-slp-vectorize>
         )
     elseif (NUMKONG_ARCH_ARM64_)
         target_compile_options(
-            ${target} PRIVATE -Xcompiler=-march=armv8-a -Xcompiler=-fno-tree-vectorize
-                              -Xcompiler=-fno-tree-slp-vectorize
+            ${target}
+            PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-march=armv8-a>
+                    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-vectorize>
+                    $<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=-fno-tree-slp-vectorize>
         )
     endif ()
     target_link_libraries(${target} PRIVATE fmt::fmt)
 endfunction ()
-
-# CUDA test built from test/main_cuda.cu and test/cross_cuda.cu, the latter with every capability some listed architecture
-# runs; see test/main_cuda.cu for what it covers. The header-only twin compiles every kernel into the test, while the
-# shared twin reaches the library's kernels and its runtime dispatch.
-if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_CUDA)
-    set_source_files_properties(test/cross_cuda.cu PROPERTIES COMPILE_DEFINITIONS "${NUMKONG_CUDA_FAMILY_DEFINITIONS_}")
-    add_executable(numkong_cuda_header_test test/main_cuda.cu test/cross_cuda.cu)
-    numkong_cuda_test_target_(numkong_cuda_header_test "${NUMKONG_CUDA_ARCHITECTURES}")
-    # Header-only, so its dispatch scenario checks the stubs.
-    target_compile_definitions(numkong_cuda_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_header_only_definitions_})
-    add_test(NAME numkong_cuda_header_test COMMAND numkong_cuda_header_test)
-
-    if (NUMKONG_BUILD_SHARED)
-        add_executable(numkong_cuda_shared_test test/main_cuda.cu test/cross_cuda.cu)
-        numkong_cuda_test_target_(numkong_cuda_shared_test "${NUMKONG_CUDA_ARCHITECTURES}")
-        target_link_libraries(numkong_cuda_shared_test PRIVATE numkong_shared)
-        add_test(NAME numkong_cuda_shared_test COMMAND numkong_cuda_shared_test)
-    endif ()
-endif ()
 
 # Compiles a ROCm test target for `architectures` the way every ROCm test expects: C++20 over the public headers.
 function (numkong_rocm_test_target_ target architectures)
@@ -1271,84 +1284,107 @@ function (numkong_rocm_test_target_ target architectures)
     target_link_libraries(${target} PRIVATE fmt::fmt)
 endfunction ()
 
-# ROCm test built from test/main_rocm.hip and test/cross_rocm.hip, the latter with every capability some listed
-# architecture runs, sharing the device backend of test/cross_simt.cuh with the CUDA test.
-if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_ROCM)
-    set_source_files_properties(
-        test/cross_rocm.hip PROPERTIES COMPILE_DEFINITIONS "${NUMKONG_ROCM_FAMILY_DEFINITIONS_}"
-    )
-    add_executable(numkong_rocm_header_test test/main_rocm.hip test/cross_rocm.hip)
-    numkong_rocm_test_target_(numkong_rocm_header_test "${NUMKONG_ROCM_ARCHITECTURES}")
-    # Header-only, so its dispatch scenario checks the stubs.
-    target_compile_definitions(numkong_rocm_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_header_only_definitions_})
-    add_test(NAME numkong_rocm_header_test COMMAND numkong_rocm_header_test)
-
-    if (NUMKONG_BUILD_SHARED)
-        add_executable(numkong_rocm_shared_test test/main_rocm.hip test/cross_rocm.hip)
-        numkong_rocm_test_target_(numkong_rocm_shared_test "${NUMKONG_ROCM_ARCHITECTURES}")
-        target_link_libraries(numkong_rocm_shared_test PRIVATE numkong_shared)
-        add_test(NAME numkong_rocm_shared_test COMMAND numkong_rocm_shared_test)
+if (NUMKONG_BUILD_TEST)
+    foreach (NUMKONG_VENDOR_ cuda rocm metal)
+        if (NUMKONG_VENDOR_ STREQUAL "cuda")
+            set(NUMKONG_SOURCES_ test/cross_cuda.cu test/each_cuda.cu test/cast_cuda.cu test/reduce_cuda.cu
+                                 test/tensor_cuda.cu
+            )
+        elseif (NUMKONG_VENDOR_ STREQUAL "rocm")
+            set(NUMKONG_SOURCES_ test/cross_rocm.hip test/each_rocm.hip)
+        else ()
+            set(NUMKONG_SOURCES_ test/cross_metal.cpp)
+        endif ()
+        set(NUMKONG_LEAF_ numkong_test_${NUMKONG_VENDOR_})
+        add_library(${NUMKONG_LEAF_} OBJECT ${NUMKONG_SOURCES_})
+        target_include_directories(${NUMKONG_LEAF_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+        target_link_libraries(${NUMKONG_LEAF_} PRIVATE fmt::fmt)
+        target_compile_definitions(${NUMKONG_LEAF_} PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_})
+        string(TOUPPER "${NUMKONG_VENDOR_}" NUMKONG_VENDOR_UPPER_)
+        if (NUMKONG_BUILD_${NUMKONG_VENDOR_UPPER_})
+            target_compile_definitions(${NUMKONG_LEAF_} PRIVATE ${NUMKONG_${NUMKONG_VENDOR_UPPER_}_FAMILY_DEFINITIONS_})
+        else ()
+            set_source_files_properties(${NUMKONG_SOURCES_} PROPERTIES LANGUAGE CXX)
+        endif ()
+        foreach (NUMKONG_TEST_ numkong_cpu_test numkong_cpu_shared_test)
+            if (TARGET ${NUMKONG_TEST_})
+                target_sources(${NUMKONG_TEST_} PRIVATE $<TARGET_OBJECTS:${NUMKONG_LEAF_}>)
+            endif ()
+        endforeach ()
+    endforeach ()
+    if (NUMKONG_BUILD_CUDA)
+        numkong_cuda_test_target_(numkong_test_cuda "${NUMKONG_CUDA_ARCHITECTURES}")
+        target_link_libraries(numkong_test_cuda PRIVATE CUDA::cudart)
+    endif ()
+    if (NUMKONG_BUILD_ROCM)
+        numkong_rocm_test_target_(numkong_test_rocm "${NUMKONG_ROCM_ARCHITECTURES}")
+        target_link_libraries(numkong_test_rocm PRIVATE hip::host)
+    endif ()
+    if (NUMKONG_BUILD_METAL)
+        target_compile_options(numkong_test_metal PRIVATE ${NUMKONG_EMBED_OPTIONS_})
     endif ()
 endif ()
 
-# Metal cross-kernel test built from test/main_metal.cpp and test/cross_metal.cpp. The kernels travel as embedded `.metal` source and compile on the
-# device at first use, so the target needs only a C++ compiler and the Metal and Foundation frameworks. The shared twin
-# reaches the same entries through the library's runtime dispatch, as `numkong_cpu_shared_test` does for the CPU.
-if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_METAL)
-    add_executable(numkong_metal_header_test test/main_metal.cpp test/cross_metal.cpp)
-    target_include_directories(numkong_metal_header_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
-    set_target_properties(
-        numkong_metal_header_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO
-    )
-    target_compile_definitions(
-        numkong_metal_header_test PRIVATE NUMKONG_HEADER_ONLY=1 ${nk_header_only_definitions_}
-                                          ${NUMKONG_METAL_FAMILY_DEFINITIONS_}
-    )
-    target_link_libraries(numkong_metal_header_test PRIVATE fmt::fmt "-framework Metal" "-framework Foundation")
-    add_test(NAME numkong_metal_header_test COMMAND numkong_metal_header_test)
-endif ()
-if (NUMKONG_BUILD_TEST AND NUMKONG_BUILD_METAL AND NUMKONG_BUILD_SHARED)
-    add_executable(numkong_metal_shared_test test/main_metal.cpp test/cross_metal.cpp)
-    target_include_directories(numkong_metal_shared_test PRIVATE "${PROJECT_SOURCE_DIR}/include")
-    set_target_properties(
-        numkong_metal_shared_test PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED YES CXX_EXTENSIONS NO
-    )
-    target_compile_definitions(numkong_metal_shared_test PRIVATE ${NUMKONG_METAL_FAMILY_DEFINITIONS_})
-    target_link_libraries(numkong_metal_shared_test PRIVATE numkong_shared fmt::fmt)
-    add_test(NAME numkong_metal_shared_test COMMAND numkong_metal_shared_test)
+if (NUMKONG_BUILD_BENCH)
+    add_library(numkong_bench_cuda OBJECT bench/cross_cuda.cu)
+    add_library(numkong_bench_rocm OBJECT bench/cross_rocm.hip)
+    foreach (NUMKONG_LEAF_ numkong_bench_cuda numkong_bench_rocm)
+        target_include_directories(${NUMKONG_LEAF_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
+        target_link_libraries(${NUMKONG_LEAF_} PRIVATE fmt::fmt)
+        target_compile_definitions(${NUMKONG_LEAF_} PRIVATE ${NUMKONG_SERIAL_DEFINITIONS_})
+    endforeach ()
+    target_sources(numkong_bench PRIVATE $<TARGET_OBJECTS:numkong_bench_cuda> $<TARGET_OBJECTS:numkong_bench_rocm>)
 endif ()
 
 # CUDA rows in the same `numkong_bench`, from bench/cross_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
 if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_CUDA)
     find_package(CUDAToolkit REQUIRED)
     set_target_properties(
-        numkong_bench PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
-                                 CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}"
+        numkong_bench_cuda PROPERTIES CUDA_STANDARD 20 CUDA_STANDARD_REQUIRED YES CUDA_EXTENSIONS NO
+                                      CUDA_ARCHITECTURES "${NUMKONG_CUDA_ARCHITECTURES}"
     )
-    target_compile_options(numkong_bench PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
+    target_compile_options(numkong_bench_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
     target_compile_definitions(
-        numkong_bench
+        numkong_bench_cuda
         PRIVATE ${NUMKONG_CUDA_FAMILY_DEFINITIONS_} NUMKONG_COMPARE_TO_CUBLAS=$<BOOL:${NUMKONG_COMPARE_TO_CUBLAS}>
                 NUMKONG_COMPARE_TO_CUDNN=$<BOOL:${NUMKONG_COMPARE_TO_CUDNN}>
                 NUMKONG_COMPARE_TO_CUVS=$<BOOL:${NUMKONG_COMPARE_TO_CUVS}>
     )
     target_link_libraries(numkong_bench CUDA::cudart)
+    target_link_libraries(numkong_bench_cuda PRIVATE CUDA::cudart)
     if (NUMKONG_COMPARE_TO_CUBLAS)
         target_link_libraries(numkong_bench CUDA::cublas CUDA::cublasLt)
+        target_link_libraries(numkong_bench_cuda PRIVATE CUDA::cublas CUDA::cublasLt)
     endif ()
     if (NUMKONG_COMPARE_TO_CUDNN)
         include(cmake/nk_cudnn.cmake)
         target_link_libraries(numkong_bench nk_cudnn)
+        target_link_libraries(numkong_bench_cuda PRIVATE nk_cudnn)
     endif ()
     if (NUMKONG_COMPARE_TO_CUVS)
         include(cmake/nk_cuvs.cmake)
         target_link_libraries(numkong_bench nk_cuvs)
+        target_link_libraries(numkong_bench_cuda PRIVATE nk_cuvs)
     endif ()
 endif ()
 
 # Without CUDA its rows compile away as C++, as every `cross_*` family does off its platform.
 if (NUMKONG_BUILD_BENCH AND NOT NUMKONG_BUILD_CUDA)
     set_source_files_properties(bench/cross_cuda.cu PROPERTIES LANGUAGE CXX)
+endif ()
+
+if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_ROCM)
+    target_link_libraries(numkong_bench hip::host)
+    target_link_libraries(numkong_bench_rocm PRIVATE hip::host)
+    set_source_files_properties(
+        bench/cross_rocm.hip PROPERTIES COMPILE_DEFINITIONS "${NUMKONG_ROCM_FAMILY_DEFINITIONS_}"
+    )
+    set_target_properties(
+        numkong_bench_rocm PROPERTIES HIP_ARCHITECTURES "${NUMKONG_ROCM_ARCHITECTURES}" HIP_STANDARD 20
+                                      HIP_STANDARD_REQUIRED YES HIP_EXTENSIONS NO
+    )
+elseif (NUMKONG_BUILD_BENCH)
+    set_source_files_properties(bench/cross_rocm.hip PROPERTIES LANGUAGE CXX)
 endif ()
 
 # Metal rows in the same `numkong_bench`, from bench/cross_metal.cpp, over the queue's shared memory.
@@ -1360,7 +1396,6 @@ endif ()
 # Install & export — gated, so a parent project's `make install` ships NumKong only on request, and
 # `find_package(numkong)` works after installation, mirroring ForkUnion's packaging.
 if (NUMKONG_INSTALL)
-    include(GNUInstallDirs)
     include(CMakePackageConfigHelpers)
 
     install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})

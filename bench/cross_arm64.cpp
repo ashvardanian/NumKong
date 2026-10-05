@@ -92,7 +92,7 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<f16_k>(env, "euclideans_symmetric_f16_neon", nk_euclideans_symmetric_f16_neon);
     }
 
-#endif
+#endif // NUMKONG_TARGET_NEON
 
 #if NUMKONG_TARGET_NEONFHM
     if (section(env, "Cross NEON FHM", nk_cap_neonfhm_k)) {
@@ -137,7 +137,7 @@ void bench_cross_arm64(environment_t const &env) {
         run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_neonfhm", nk_attention_pack_size_e4m3_neonfhm,
                                      nk_attention_pack_e4m3_neonfhm, nk_attention_causal_packed_e4m3_neonfhm);
     }
-#endif
+#endif // NUMKONG_TARGET_NEONFHM
 
 #if NUMKONG_TARGET_NEONBFDOT
     if (section(env, "Cross NEON BF16", nk_cap_neonbfdot_k)) {
@@ -160,7 +160,7 @@ void bench_cross_arm64(environment_t const &env) {
                                      nk_attention_pack_size_bf16_neonbfdot, nk_attention_pack_bf16_neonbfdot,
                                      nk_attention_causal_packed_bf16_neonbfdot);
     }
-#endif
+#endif // NUMKONG_TARGET_NEONBFDOT
 
 #if NUMKONG_TARGET_NEONSDOT
     if (section(env, "Cross NEON I8", nk_cap_neonsdot_k)) {
@@ -243,7 +243,7 @@ void bench_cross_arm64(environment_t const &env) {
         run_attention_causal<i8_k>(env, "attention_causal_packed_i8_neonsdot", nk_attention_pack_size_i8_neonsdot,
                                    nk_attention_pack_i8_neonsdot, nk_attention_causal_packed_i8_neonsdot);
     }
-#endif
+#endif // NUMKONG_TARGET_NEONSDOT
 
 #if NUMKONG_TARGET_NEONFP8
     if (section(env, "Cross NEON FP8", nk_cap_neonfp8_k)) {
@@ -298,7 +298,7 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<e2m1_k>(env, "euclideans_symmetric_e2m1_neonfp8",
                                          nk_euclideans_symmetric_e2m1_neonfp8);
     }
-#endif
+#endif // NUMKONG_TARGET_NEONFP8
 
 #if NUMKONG_TARGET_SME
     if (section(env, "Cross SME", nk_cap_sme_k)) {
@@ -422,7 +422,7 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<u8_k>(env, "euclideans_symmetric_u8_sme", nk_euclideans_symmetric_u8_sme);
         run_euclideans_symmetric<u4_k>(env, "euclideans_symmetric_u4_sme", nk_euclideans_symmetric_u4_sme);
     }
-#endif
+#endif // NUMKONG_TARGET_SME
 
 #if NUMKONG_TARGET_SMEBI32
     if (section(env, "Cross SME BI32", nk_cap_smebi32_k)) {
@@ -438,7 +438,7 @@ void bench_cross_arm64(environment_t const &env) {
                                   nk_dots_pack_u1_smebi32, nk_jaccards_packed_u1_smebi32);
         run_jaccards_symmetric<u1_k>(env, "jaccards_symmetric_u1_smebi32", nk_jaccards_symmetric_u1_smebi32);
     }
-#endif
+#endif // NUMKONG_TARGET_SMEBI32
 
 #if NUMKONG_TARGET_SMEF64
     if (section(env, "Cross SME F64", nk_cap_smef64_k)) {
@@ -466,7 +466,7 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<f64_k>(env, "euclideans_symmetric_f64_smef64", nk_euclideans_symmetric_f64_smef64);
         run_euclideans_symmetric<f32_k>(env, "euclideans_symmetric_f32_smef64", nk_euclideans_symmetric_f32_smef64);
     }
-#endif
+#endif // NUMKONG_TARGET_SMEF64
 }
 
 } // namespace ashvardanian::numkong::bench

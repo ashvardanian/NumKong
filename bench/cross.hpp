@@ -11,7 +11,7 @@
  *  window of launches, and Metal under a wall clock around each window's synchronization.
  *
  *  Input sets rotate, as many as the backend asks for, so a small problem does not time a
- *  cache-resident replay. Matrix rows report `scalar-ops` and, against a double-double reference
+ *  cache-resident replay. Matrix rows report `scalar-ops` and, against compensated F64 calculations
  *  over up to 4096 sampled entries of the first set, @c ulp in the output's own precision for
  *  floats or @c exact as the share of exact integer results. Attention rows report @c tokens as
  *  queries and `scalar-ops` as the 4 · depth operations per visible query-key pair and head, so a
@@ -107,8 +107,9 @@ struct host_backend_t {
 /** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory
  *  belongs to a context it holds and it overloads this. */
 template <typename value_type_, typename backend_type_>
-typename backend_type_::template allocator<value_type_> allocator_of(backend_type_ const &) noexcept {
-    return {};
+typename backend_type_::template allocator<value_type_> allocator_of(backend_type_ const &backend) noexcept {
+    if constexpr (std::is_base_of_v<device_backend_t, backend_type_>) return nk::allocator<value_type_>(backend.memory);
+    else return {};
 }
 
 /** A backend copy of @p count values at @p source, returning the allocation or copy status. */
@@ -132,8 +133,8 @@ bool time_rotating(loop_t &loop, backend_type_ &backend, std::size_t sets_count,
     nk_status_t const ready_status = backend.synchronize();
     if (!succeeded(loop, launch_status) || !succeeded(loop, ready_status)) return false;
     nk_status_t const time_status = backend.time(loop, sets_count, launch);
-    nk_status_t const drain_status = backend.synchronize();
-    return succeeded(loop, time_status) && succeeded(loop, drain_status);
+    if (time_status != nk_success_k) { [[maybe_unused]] nk_status_t const drained = backend.synchronize(); }
+    return succeeded(loop, time_status);
 }
 
 /** The `<columns>` suffix of a one-row benchmark name, `<rows x columns>` for more rows. */
@@ -149,7 +150,7 @@ random_upload(backend_type_ &backend, std::size_t count, seed_t seed) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     auto host = make_vector<input_t>(count);
     std::mt19937 generator(seed.value);
-    nk::fill_uniform(generator, host.values_data(), count);
+    nk::fill_uniform(generator, host.values_data(), host.size_values());
     return upload(backend, host.values_data(), count);
 }
 
@@ -181,9 +182,8 @@ inline std::uint64_t ulp_distance_f64(double first, double second) noexcept {
                                      : std::uint64_t(second_bits) - std::uint64_t(first_bits);
 }
 
-/** Σ first[i] × second[i] in double-double: exact products through FMA, error-free sums, one final
- *  rounding. */
-inline double dot_double_double(double const *first, double const *second, std::size_t count) noexcept {
+/** Dot product with FMA residuals and compensated summation for accuracy checks. */
+inline double dot_compensated_f64(double const *first, double const *second, std::size_t count) noexcept {
     double high = 0, low = 0;
     for (std::size_t index = 0; index != count; ++index) {
         double const product = first[index] * second[index];
@@ -195,23 +195,24 @@ inline double dot_double_double(double const *first, double const *second, std::
     return high + low;
 }
 
-/** What a matrix row computes between two rows, and so which reference it's judged against. */
-enum class reference_metric_t { dot_k, angular_k, euclidean_k };
+using expected_metric_t = double (*)(double const *, double const *, std::size_t) noexcept;
 
 /** Which C entries a kernel writes, and so which ones its accuracy is measured on. */
 enum class written_entries_t { full_k, upper_triangle_k, strict_upper_triangle_k };
 
-/** The reference between two decoded rows in double-double, with the serial backends' zero-norm
- *  rule and clamps. */
-inline double reference_distance(reference_metric_t metric, double const *first, double const *second,
-                                 std::size_t count) noexcept {
-    double const dot = dot_double_double(first, second, count);
-    if (metric == reference_metric_t::dot_k) return dot;
-    double const first_norm = dot_double_double(first, first, count);
-    double const second_norm = dot_double_double(second, second, count);
-    if (metric == reference_metric_t::euclidean_k) return std::sqrt(std::max(0.0, first_norm + second_norm - 2 * dot));
+inline double angular_compensated_f64(double const *first, double const *second, std::size_t count) noexcept {
+    double const dot = dot_compensated_f64(first, second, count);
+    double const first_norm = dot_compensated_f64(first, first, count);
+    double const second_norm = dot_compensated_f64(second, second, count);
     if (!(first_norm > 0 && second_norm > 0)) return dot == 0 ? 0 : 1;
     return std::max(0.0, 1 - dot / std::sqrt(first_norm) / std::sqrt(second_norm));
+}
+
+inline double euclidean_compensated_f64(double const *first, double const *second, std::size_t count) noexcept {
+    double const dot = dot_compensated_f64(first, second, count);
+    double const first_norm = dot_compensated_f64(first, first, count);
+    double const second_norm = dot_compensated_f64(second, second, count);
+    return std::sqrt(std::max(0.0, first_norm + second_norm - 2 * dot));
 }
 
 /** Random A of @p rows and B of @p columns rows of @p depth dimensions under @p seed: A at @p
@@ -245,8 +246,8 @@ template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_
 nk::expected<double> sampled_accuracy(
     backend_type_ &backend, nk::vector<output_type_, typename backend_type_::template allocator<output_type_>> const &c,
     nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> first,
-    nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> second, std::size_t depth, reference_metric_t metric,
-    written_entries_t written, seed_t seed) {
+    nk::tensor_view<typename nk::type_for<input_dtype_>::type, 2> second, std::size_t depth,
+    expected_metric_t compute_expected, written_entries_t written, seed_t seed) {
     using output_raw_t = typename output_type_::raw_t;
     std::size_t const entries = first.extent(0) * second.extent(0), samples = std::min(entries, std::size_t(4096));
     std::vector<output_raw_t> result(entries);
@@ -268,7 +269,7 @@ nk::expected<double> sampled_accuracy(
             nk_cast_serial(second.byte_data() + column * second.stride_bytes(0), input_dtype_, second_decoded.data(),
                            nk_f64_k, depth, nullptr) != nk_success_k)
             continue;
-        double const expected = reference_distance(metric, first_decoded.data(), second_decoded.data(), depth);
+        double const expected = compute_expected(first_decoded.data(), second_decoded.data(), depth);
         if constexpr (std::is_integral_v<output_raw_t>) score_sum += double(double(result[entry]) == expected);
         else if constexpr (sizeof(output_raw_t) == 8) score_sum += double(ulp_distance_f64(result[entry], expected));
         else score_sum += double(ulp_distance_f32(result[entry], float(expected)));
@@ -351,11 +352,10 @@ struct unit_block_scales {
     }
 };
 
-/** Times a packed-B kernel, C = A × Bᵀ or a distance over the same tile, against its @p metric
- *  reference. */
+/** Times a packed-B kernel and checks its output through @p compute_expected. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
-void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backend, reference_metric_t metric,
+void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backend, expected_metric_t compute_expected,
                     pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn, kernel_type_ kernel,
                     std::size_t rows, std::size_t columns, std::size_t depth) {
     constexpr nk_dtype_t element_dtype_ = nk_block_scaled_format_of_dtype(input_dtype_).element_dtype;
@@ -400,7 +400,7 @@ void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backen
     });
     if (!timed) return;
     auto const [score, score_status] = sampled_accuracy<element_dtype_, output_type_>(
-        backend, sets[0].c, a.view(), b.view(), depth, metric, written_entries_t::full_k, env.settings.seed);
+        backend, sets[0].c, a.view(), b.view(), depth, compute_expected, written_entries_t::full_k, env.settings.seed);
     if (!nk::succeeded(score_status)) return loop.skip(nk::status_name(score_status));
     report_matrix<output_type_>(loop, 2.0 * rows * columns * depth, score);
 }
@@ -408,8 +408,9 @@ void measure_packed(loop_t &loop, environment_t const &env, backend_type_ backen
 /** Times a symmetric kernel over A × Aᵀ, judged on the upper triangle: with the diagonal for dots,
  *  without it for distances. `scalar-ops` counts the triangle's rows · (rows + 1) · depth. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
-void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ backend, reference_metric_t metric,
-                       kernel_type_ kernel, std::size_t rows, std::size_t depth) {
+void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ backend,
+                       expected_metric_t compute_expected, written_entries_t written, kernel_type_ kernel,
+                       std::size_t rows, std::size_t depth) {
     constexpr nk_dtype_t element_dtype_ = nk_block_scaled_format_of_dtype(input_dtype_).element_dtype;
     using input_t = typename nk::type_for<element_dtype_>::type;
     using set_t = matrix_set<backend_type_, output_type_>;
@@ -434,10 +435,8 @@ void measure_symmetric(loop_t &loop, environment_t const &env, backend_type_ bac
             depth, a_stride, set.c.raw_values_data(), rows * sizeof(output_type_), std::size_t(0), rows);
     });
     if (!timed) return;
-    written_entries_t const written = metric == reference_metric_t::dot_k ? written_entries_t::upper_triangle_k
-                                                                          : written_entries_t::strict_upper_triangle_k;
     auto const [score, score_status] = sampled_accuracy<element_dtype_, output_type_>(
-        backend, sets[0].c, a.view(), a.view(), depth, metric, written, env.settings.seed);
+        backend, sets[0].c, a.view(), a.view(), depth, compute_expected, written, env.settings.seed);
     if (!nk::succeeded(score_status)) return loop.skip(nk::status_name(score_status));
     report_matrix<output_type_>(loop, 1.0 * rows * (rows + 1) * depth, score);
 }
@@ -450,7 +449,7 @@ inline std::string matrix_row_name(std::string const &name, std::size_t rows, st
 /** Runs a packed-B row over the configured matrix shape on @p backend. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename kernel_type_>
-void run_packed(environment_t const &env, std::string const &name, reference_metric_t metric,
+void run_packed(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
                 pack_size_kernel_type_ packed_size_fn, pack_kernel_type_ pack_fn, kernel_type_ kernel,
                 backend_type_ backend) {
     std::size_t const rows = env.settings.matrix_height, columns = env.settings.matrix_width,
@@ -458,18 +457,18 @@ void run_packed(environment_t const &env, std::string const &name, reference_met
     run_benchmark(env, matrix_row_name(name, rows, columns, depth),
                   measure_packed<input_dtype_, output_type_, backend_type_, pack_size_kernel_type_, pack_kernel_type_,
                                  kernel_type_>,
-                  backend, metric, packed_size_fn, pack_fn, kernel, rows, columns, depth);
+                  backend, compute_expected, packed_size_fn, pack_fn, kernel, rows, columns, depth);
 }
 
 /** Runs a symmetric row over @c NUMWARS_DIMS_HEIGHT vectors of @c NUMWARS_DIMS_DEPTH dimensions on
  *  @p backend. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename backend_type_, typename kernel_type_>
-void run_symmetric(environment_t const &env, std::string const &name, reference_metric_t metric, kernel_type_ kernel,
-                   backend_type_ backend) {
+void run_symmetric(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
+                   written_entries_t written, kernel_type_ kernel, backend_type_ backend) {
     std::size_t const rows = env.settings.matrix_height, depth = env.settings.matrix_depth;
     std::string const row_name = name + "<" + std::to_string(rows) + "x" + std::to_string(depth) + ">";
     run_benchmark(env, row_name, measure_symmetric<input_dtype_, output_type_, backend_type_, kernel_type_>, backend,
-                  metric, kernel, rows, depth);
+                  compute_expected, written, kernel, rows, depth);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
@@ -477,7 +476,7 @@ template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, type
 void run_dots_packed(environment_t const &env, std::string const &name, pack_size_kernel_type_ packed_size_fn,
                      pack_kernel_type_ pack_fn, kernel_type_ kernel, backend_type_ backend = {}) {
     run_packed<input_dtype_, typename nk::type_for<input_dtype_>::type::dot_result_t, backend_type_>(
-        env, name, reference_metric_t::dot_k, packed_size_fn, pack_fn, kernel, backend);
+        env, name, dot_compensated_f64, packed_size_fn, pack_fn, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
@@ -485,7 +484,7 @@ template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, type
 void run_angulars_packed(environment_t const &env, std::string const &name, pack_size_kernel_type_ packed_size_fn,
                          pack_kernel_type_ pack_fn, kernel_type_ kernel, backend_type_ backend = {}) {
     run_packed<input_dtype_, typename nk::type_for<input_dtype_>::type::angular_result_t, backend_type_>(
-        env, name, reference_metric_t::angular_k, packed_size_fn, pack_fn, kernel, backend);
+        env, name, angular_compensated_f64, packed_size_fn, pack_fn, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
@@ -493,28 +492,28 @@ template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, type
 void run_euclideans_packed(environment_t const &env, std::string const &name, pack_size_kernel_type_ packed_size_fn,
                            pack_kernel_type_ pack_fn, kernel_type_ kernel, backend_type_ backend = {}) {
     run_packed<input_dtype_, typename nk::type_for<input_dtype_>::type::euclidean_result_t, backend_type_>(
-        env, name, reference_metric_t::euclidean_k, packed_size_fn, pack_fn, kernel, backend);
+        env, name, euclidean_compensated_f64, packed_size_fn, pack_fn, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_>
 void run_dots_symmetric(environment_t const &env, std::string const &name, kernel_type_ kernel,
                         backend_type_ backend = {}) {
     run_symmetric<input_dtype_, typename nk::type_for<input_dtype_>::type::dot_result_t, backend_type_>(
-        env, name, reference_metric_t::dot_k, kernel, backend);
+        env, name, dot_compensated_f64, written_entries_t::upper_triangle_k, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_>
 void run_angulars_symmetric(environment_t const &env, std::string const &name, kernel_type_ kernel,
                             backend_type_ backend = {}) {
     run_symmetric<input_dtype_, typename nk::type_for<input_dtype_>::type::angular_result_t, backend_type_>(
-        env, name, reference_metric_t::angular_k, kernel, backend);
+        env, name, angular_compensated_f64, written_entries_t::strict_upper_triangle_k, kernel, backend);
 }
 
 template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_>
 void run_euclideans_symmetric(environment_t const &env, std::string const &name, kernel_type_ kernel,
                               backend_type_ backend = {}) {
     run_symmetric<input_dtype_, typename nk::type_for<input_dtype_>::type::euclidean_result_t, backend_type_>(
-        env, name, reference_metric_t::euclidean_k, kernel, backend);
+        env, name, euclidean_compensated_f64, written_entries_t::strict_upper_triangle_k, kernel, backend);
 }
 
 #pragma endregion Matrices
@@ -722,10 +721,12 @@ void measure_attention_rope(loop_t &loop, environment_t const &env, backend_type
     using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
     std::size_t const count = rows * dimensions, angles = rows * dimensions / 2;
     std::size_t const stride = dimensions * sizeof(typename input_t::raw_t);
-    std::vector<nk::f32_t> const halves(angles, nk::f32_t(0.5f));
-    auto const [cosines, cosines_status] = upload(backend, halves.data(), angles),
-                         sines = upload(backend, halves.data(), angles);
+    // An exact quarter-turn preserves values across repeated in-place rounds.
+    std::vector<nk::f32_t> const cosines_host(angles, nk::f32_t(0)), sines_host(angles, nk::f32_t(1));
+    auto const [cosines, cosines_status] = upload(backend, cosines_host.data(), angles);
     if (!nk::succeeded(cosines_status)) return loop.skip(nk::status_name(cosines_status));
+    auto const [sines, sines_status] = upload(backend, sines_host.data(), angles);
+    if (!nk::succeeded(sines_status)) return loop.skip(nk::status_name(sines_status));
     if (cosines.empty() || sines.empty()) return loop.skip("angle allocation failed");
     std::vector<values_t> sets(backend.input_sets(dtype_bytes(input_dtype_, count)));
     for (values_t &set : sets) {
@@ -927,8 +928,8 @@ void measure_block_scaled_rows(loop_t &loop, environment_t const &env, backend_t
     std::size_t const elements_bytes = nk_block_scaled_elements_size(count, format);
     std::size_t const scales_bytes = nk_block_scaled_scales_size(count, format);
     nk_f32_t const unit_scale = 1.0f;
-    auto const [tensor_scale_bytes, tensor_scale_bytes_status] = upload(
-        backend, reinterpret_cast<char const *>(&unit_scale), sizeof(unit_scale));
+    auto [tensor_scale_bytes, tensor_scale_bytes_status] = upload(backend, reinterpret_cast<char const *>(&unit_scale),
+                                                                  sizeof(unit_scale));
     if (!nk::succeeded(tensor_scale_bytes_status)) return loop.skip(nk::status_name(tensor_scale_bytes_status));
     if (tensor_scale_bytes.empty()) return loop.skip("tensor scale allocation failed");
     auto *tensor_scale = reinterpret_cast<nk_f32_t *>(tensor_scale_bytes.raw_values_data());

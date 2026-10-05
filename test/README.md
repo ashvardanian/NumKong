@@ -24,12 +24,13 @@ cmake -B build_release -D CMAKE_BUILD_TYPE=Release -D NUMKONG_BUILD_TEST=1 -D NU
 Compiler requirements vary by ISA target — see [CONTRIBUTING.md](../CONTRIBUTING.md#compiler-requirements) for the full table.
 
 The GPU suites build with their backend, and the `cuda`, `rocm`, and `metal` presets run them through `cmake --workflow --preset <name>`.
-By hand, the CUDA suite of `test/main_cuda.cu`, whose docstring covers what it tests and on which GPUs, needs `nvcc` on `PATH`:
+The CUDA suite includes tensor transfers and exhaustive FP6/FP8 conversion checks against CUDA intrinsics.
+Building it needs `nvcc` on `PATH`:
 
 ```sh
 cmake -B build_cuda -D NUMKONG_BUILD_TEST=ON -D NUMKONG_BUILD_CUDA=ON
 cmake --build build_cuda
-ctest --test-dir build_cuda -R cuda --output-on-failure
+ctest --test-dir build_cuda -R '^numkong_cpu(_shared)?_test$' --output-on-failure
 ```
 
 ### Running
@@ -42,11 +43,14 @@ NUMKONG_TIME_LIMIT=5s build_release/numkong_cpu_test          # 5 seconds per ke
 ```
 
 The binary takes no arguments; the environment configures it.
+The linked runner uses device zero of each available compiled GPU backend by default.
+An explicit device list selects all listed devices and rejects unavailable backends or ordinals.
 
 ### Environment Variables
 
 | Variable                      |     Default | Description                                                               |
 | :---------------------------- | ----------: | :------------------------------------------------------------------------ |
+| `NUMKONG_DEVICES`             |        auto | Comma-separated vendor-local devices, for example `cuda:0,rocm:1` |
 | `NUMKONG_FILTER`              |       unset | ECMAScript regex searched in kernel names; an invalid one is a substring  |
 | `NUMKONG_SEED`                |        `42` | RNG seed, or `random` to draw one; the `- Seed:` line prints it           |
 | `NUMKONG_TIME_LIMIT`          |        `1s` | Time limit per kernel, `<int>ms` or `<int>s`; zero or a bare number exits |

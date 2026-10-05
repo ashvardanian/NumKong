@@ -405,7 +405,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
     // so the effective depth for the matching→intersection conversion is the rounded-up bit count.
     svuint32_t const depth_u32x = svdup_u32((nk_u32_t)(depth_words * 32));
 
-    NUMKONG_ALIGN64_ nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
+    nk_align_(64) nk_u32_t a_buffer[16][16]; // Stack buffer for A column save
 
     nk_size_t const row_end = row_start + row_count;
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vectors_count, tile_dim);
@@ -419,7 +419,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
         svbool_t const row_predicate_b32x = svwhilelt_b32_u64(0u, rows_clamped);
 
         // Compute A tile popcounts
-        NUMKONG_ALIGN64_ nk_u32_t a_tile_pops[16];
+        nk_align_(64) nk_u32_t a_tile_pops[16];
         for (nk_size_t r = 0; r < rows_clamped; r++) {
             nk_u1x8_t const *a_row = (nk_u1x8_t const *)((char const *)vectors + (row_tile_start + r) * stride);
             a_tile_pops[r] = nk_dots_reduce_sum_u1_streaming_(a_row, depth_bytes);
@@ -507,7 +507,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
 
             // Extract: dot = (pop_a + pop_b - depth + matching) / 2
             // Compute B tile popcounts
-            NUMKONG_ALIGN64_ nk_u32_t b_pops[3][16];
+            nk_align_(64) nk_u32_t b_pops[3][16];
             for (nk_size_t t = 0; t < 3; t++) {
                 for (nk_size_t col = 0; col < tile_dim; col++) {
                     nk_size_t const col_abs = (column_tile_index + t) * tile_dim + col;
@@ -613,7 +613,7 @@ __arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
             }
 
             // Compute B tile popcounts for remainder
-            NUMKONG_ALIGN64_ nk_u32_t b_pops_r[16];
+            nk_align_(64) nk_u32_t b_pops_r[16];
             for (nk_size_t col = 0; col < tile_dim; col++) {
                 nk_size_t const col_abs = col_tile_start + col;
                 if (col_abs < vectors_count) {

@@ -8,6 +8,7 @@
 #define NUMKONG_TARGET_SERIAL 1
 #include "numkong/numkong.h"
 
+#include "numkong/memory/serial.h"
 #include "numkong/scalar/serial.h"
 #include "numkong/cast/serial.h"
 #include "numkong/reduce/serial.h"

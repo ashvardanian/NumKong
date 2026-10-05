@@ -1338,6 +1338,9 @@ NUMKONG_INLINE int nk_cross_map_blackwell_(CUtensorMap *map, void const *base, n
  *  passing the one argument struct at @p arguments by value. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, nk_size_t pairs_wanted, void *arguments,
                                                             void *stream) {
+    int caller = 0;
+    nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
+    if (entered != nk_success_k) return entered;
     cudaLaunchAttribute attribute;
     attribute.id = cudaLaunchAttributeClusterDimension;
     attribute.val.clusterDim.x = 2, attribute.val.clusterDim.y = 1, attribute.val.clusterDim.z = 1;
@@ -1351,14 +1354,17 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, 
     int clusters = 0;
     if (cudaFuncSetAttribute(kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, nk_cross_shared_bytes_blackwell_k) !=
             cudaSuccess ||
-        cudaOccupancyMaxActiveClusters(&clusters, kernel, &configuration) != cudaSuccess || clusters == 0)
+        cudaOccupancyMaxActiveClusters(&clusters, kernel, &configuration) != cudaSuccess || clusters == 0) {
+        nk_device_leave_cuda_(caller);
         return nk_device_code_mismatch_k;
+    }
     nk_size_t const pairs = (nk_size_t)clusters < pairs_wanted ? (nk_size_t)clusters : pairs_wanted;
     configuration.gridDim.x = (unsigned)(2 * pairs);
     void *launch_arguments[1];
     launch_arguments[0] = arguments;
-    return cudaLaunchKernelExC(&configuration, kernel, launch_arguments) == cudaSuccess ? nk_success_k
-                                                                                        : nk_device_code_mismatch_k;
+    cudaError_t const status = cudaLaunchKernelExC(&configuration, kernel, launch_arguments);
+    nk_device_leave_cuda_(caller);
+    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
 /** Validates the contract, describes A's @p a_rows rows and B's @p column_count rows, and launches
@@ -1409,7 +1415,7 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
     // Resident tiles step through the depth together, so a near-square block of them shares each
     // slab of A and B through L2: as many row tiles sweep the columns together as the block's side.
     int multiprocessors = 0;
-    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMultiProcessorCount, &multiprocessors);
+    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMultiProcessorCount, &multiprocessors, stream);
     if (status != nk_success_k) return status;
     nk_size_t const resident_tiles = (nk_size_t)multiprocessors >> paired;
     nk_size_t group_rows = 1;

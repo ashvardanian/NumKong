@@ -97,15 +97,17 @@ extern "C" {
 #pragma region Tile Types
 
 typedef struct {
-    NUMKONG_ALIGN64_ nk_f16_t data[16][32]; // 16 rows × 32 columns = 1KB
+    nk_align_(64) nk_f16_t data[16][32];
 } nk_dots_f16_a16x32_graniteamx_t;
 
 typedef struct {
-    NUMKONG_ALIGN64_ nk_f16_t data[16][16][2]; // 16 depth-groups × 16 columns × 2 = 1KB (pair-interleaved)
+
+    /** Pairs interleaved by depth group. */
+    nk_align_(64) nk_f16_t data[16][16][2];
 } nk_dots_f16_b32x16_graniteamx_t;
 
 typedef struct {
-    NUMKONG_ALIGN64_ nk_f32_t data[16][16]; // 16 × 16 = 1KB accumulator
+    nk_align_(64) nk_f32_t data[16][16];
 } nk_dots_f16_state_graniteamx_t;
 
 typedef struct {

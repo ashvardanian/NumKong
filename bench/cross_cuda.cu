@@ -5,7 +5,7 @@
  *  @brief Batch operation benchmarks, CUDA kernels against cuBLASLt, cuBLAS, cuDNN and cuVS.
  *
  *  Runs the drivers of `cross.hpp` through a @c cuda_backend_t over device-resident operands,
- *  launching on @c cudaStreamPerThread, with every window of launches bracketed by CUDA events
+ *  launching on an owned stream on the selected device, with every window bracketed by CUDA events
  *  whose elapsed time replaces the wall time, so launch latency and host synchronization stay
  *  outside the measurement. Input sets rotate until their footprint is at least twice the L2.
  *
@@ -20,12 +20,12 @@
 #include <cstdint> // `std::int32_t`, `std::int64_t`
 #include <cstring> // `std::memcpy`
 
-#include <algorithm>   // `std::max`, `std::min`
+#include <algorithm>   // `std::min`, `std::max`
 #include <array>       // `std::array`
 #include <bit>         // `std::bit_ceil`
-#include <memory>      // `std::shared_ptr`
+#include <memory>      // `std::shared_ptr`, `std::make_shared`
 #include <string>      // `std::string`
-#include <type_traits> // `std::remove_pointer_t`, `std::true_type`
+#include <type_traits> // `std::is_same_v`, `std::remove_pointer_t`
 #include <utility>     // `std::pair`
 #include <vector>      // `std::vector`
 
@@ -38,70 +38,27 @@
 #if NUMKONG_COMPARE_TO_CUBLAS
 #include <cublasLt.h>
 #include <cublas_v2.h>
-#endif
+#endif // NUMKONG_COMPARE_TO_CUBLAS
 #include <cuda_runtime.h>
 #if NUMKONG_COMPARE_TO_CUDNN
 #include <cudnn.h>
-#endif
+#endif // NUMKONG_COMPARE_TO_CUDNN
 #if NUMKONG_COMPARE_TO_CUVS
 #include <cuvs/core/c_api.h>
 #include <cuvs/distance/pairwise_distance.h>
-#endif
+#endif // NUMKONG_COMPARE_TO_CUVS
 
 #pragma region CUDA Backend
 
 namespace ashvardanian::numkong::bench {
 
-/** Device memory: only kernels dereference it, so build with @c uninitialized and fill through
- *  @c cudaMemcpy. Returns @c nullptr on failure, which the allocating factories report. */
-template <typename value_type_>
-struct cuda_device_allocator {
-    using value_type = value_type_;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
-    using propagate_on_container_move_assignment = std::true_type;
-    using is_always_equal = std::true_type;
-
-    template <typename other_type_>
-    struct rebind {
-        using other = cuda_device_allocator<other_type_>;
-    };
-
-    constexpr cuda_device_allocator() noexcept = default;
-
-    template <typename other_type_>
-    constexpr cuda_device_allocator(cuda_device_allocator<other_type_> const &) noexcept {}
-
-    [[nodiscard]] value_type *allocate(std::size_t count) noexcept {
-        void *pointer = nullptr;
-        if (count == 0 || cudaMalloc(&pointer, count * sizeof(value_type)) != cudaSuccess) return nullptr;
-        return static_cast<value_type *>(pointer);
-    }
-
-    void deallocate(value_type *pointer, std::size_t) noexcept {
-        if (!pointer) return;
-        [[maybe_unused]] cudaError_t const status = cudaFree(pointer);
-    }
-
-    template <typename other_type_>
-    constexpr bool operator==(cuda_device_allocator<other_type_> const &) const noexcept {
-        return true;
-    }
-};
-
 /** An @c nk::vector in device memory. */
 template <typename value_type_>
-using device_vector = nk::vector<value_type_, cuda_device_allocator<value_type_>>;
+using cuda_device_vector = nk::vector<value_type_, nk::allocator<value_type_>>;
 
 /** Runs kernels over device memory, timing launch windows with CUDA events. */
-struct cuda_backend_t {
-
-    /** Device memory, so timed buffers never page-migrate. */
-    template <typename value_type_>
-    using allocator = cuda_device_allocator<value_type_>;
-
-    /** Where every call launches. */
-    void *stream = cudaStreamPerThread;
+struct cuda_backend_t : device_backend_t {
+    std::size_t l2_bytes = 0;
 
     /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes `cp.async` requires of A
      *  rows. */
@@ -110,9 +67,6 @@ struct cuda_backend_t {
     /** Rotation sets of @p per_set each: enough to cover twice the L2, at most
      *  @c input_sets_count. */
     std::size_t input_sets(bytes_t per_set) const noexcept {
-        int l2_bytes = 0, device = 0;
-        cudaGetDevice(&device);
-        cudaDeviceGetAttribute(&l2_bytes, cudaDevAttrL2CacheSize, device);
         std::size_t const set_bytes = std::max(per_set.value, std::size_t(1));
         std::size_t const wanted = std::max(nk::divide_round_up(2 * std::size_t(l2_bytes), set_bytes), std::size_t(1));
         return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
@@ -137,7 +91,7 @@ struct cuda_backend_t {
 
     template <typename kernel_type_, typename... arguments_types_>
     nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        auto const status = kernel(arguments..., stream);
+        auto const status = kernel(arguments..., memory.stream);
         if constexpr (std::is_same_v<decltype(status), cudaError_t const>)
             return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
         else return status;
@@ -154,7 +108,7 @@ struct cuda_backend_t {
         nk_status_t status = nk_success_k;
         std::size_t calls = 0, window = 1;
         for ([[maybe_unused]] std::size_t call : loop) {
-            if (cudaEventRecord(start, (cudaStream_t)stream) != cudaSuccess) {
+            if (cudaEventRecord(start, (cudaStream_t)memory.stream) != cudaSuccess) {
                 status = nk_device_code_mismatch_k;
                 break;
             }
@@ -163,7 +117,7 @@ struct cuda_backend_t {
                 if (status != nk_success_k) break;
             }
             if (status != nk_success_k) break;
-            if (cudaEventRecord(stop, (cudaStream_t)stream) != cudaSuccess ||
+            if (cudaEventRecord(stop, (cudaStream_t)memory.stream) != cudaSuccess ||
                 cudaEventSynchronize(stop) != cudaSuccess) {
                 status = nk_device_code_mismatch_k;
                 break;
@@ -184,7 +138,8 @@ struct cuda_backend_t {
     }
 
     nk_status_t synchronize() noexcept {
-        return cudaStreamSynchronize((cudaStream_t)stream) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
+        return cudaStreamSynchronize((cudaStream_t)memory.stream) == cudaSuccess ? nk_success_k
+                                                                                 : nk_device_code_mismatch_k;
     }
 };
 
@@ -204,8 +159,8 @@ void const *operand_codes(operand_type_ operand) noexcept {
 /** Runs a baseline @p kernel over dense B rows through @c run_packed, with a copy of B as
  *  its pack. */
 template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
-void run_unpacked(environment_t const &env, std::string const &name, reference_metric_t metric, kernel_type_ kernel,
-                  cuda_backend_t const &backend) {
+void run_unpacked(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
+                  kernel_type_ kernel, cuda_backend_t const &backend) {
     using input_t = typename nk::type_for<input_dtype_>::type;
     auto const packed_size = [](std::size_t columns, std::size_t depth, nk_size_t *bytes) {
         *bytes = columns * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
@@ -216,7 +171,8 @@ void run_unpacked(environment_t const &env, std::string const &name, reference_m
         return cudaMemcpyAsync(packed, operand_codes(b), columns * row_bytes, cudaMemcpyDeviceToDevice,
                                (cudaStream_t)stream);
     };
-    run_packed<input_dtype_, output_type_, cuda_backend_t>(env, name, metric, packed_size, copy, kernel, backend);
+    run_packed<input_dtype_, output_type_, cuda_backend_t>(env, name, compute_expected, packed_size, copy, kernel,
+                                                           backend);
 }
 
 #pragma endregion CUDA Backend
@@ -920,8 +876,8 @@ struct cublaslt_plan_t {
     cublasLtMatrixLayout_t second_layout = nullptr;
     cublasLtMatrixLayout_t output_layout = nullptr;
     cublasLtMatmulHeuristicResult_t heuristic {};
-    device_vector<char> workspace;
-    device_vector<char> scales;
+    cuda_device_vector<char> workspace;
+    cuda_device_vector<char> scales;
     cudaDataType_t output_type = CUDA_R_32F;
 
     ~cublaslt_plan_t() {
@@ -935,7 +891,7 @@ struct cublaslt_plan_t {
     /** Builds the plan for A of @p a_leading elements per row, or returns why cuBLASLt offers no
      *  algorithm. */
     cublasStatus_t build(nk_dtype_t dtype, std::size_t rows, std::size_t columns, std::size_t depth,
-                         std::size_t a_leading) {
+                         std::size_t a_leading, cuda_backend_t const &backend) {
         cudaDataType_t const input_type = cublaslt_input_type(dtype);
         output_type = cublaslt_output_type(dtype);
         cublasComputeType_t const compute = output_type == CUDA_R_64F   ? CUBLAS_COMPUTE_64F
@@ -952,8 +908,10 @@ struct cublaslt_plan_t {
 
         // Unit scales - UE8M0 code 127 is 2⁰, UE4M3 code 0x38 is 1.0 - so the product is the unscaled one.
         if (std::size_t const block = cublaslt_scale_block(dtype)) {
-            scales = device_vector<char>::uninitialized(nk::divide_round_up(std::max(rows, columns), std::size_t(128)) *
-                                                        128 * nk::divide_round_up(depth, block * 4) * 4)
+            scales = cuda_device_vector<char>::uninitialized(
+                         nk::divide_round_up(std::max(rows, columns), std::size_t(128)) * 128 *
+                             nk::divide_round_up(depth, block * 4) * 4,
+                         allocator_of<char>(backend))
                          .value;
             if (scales.empty()) return CUBLAS_STATUS_ALLOC_FAILED;
             cudaMemset(scales.raw_values_data(), block == 32 ? 127 : 0x38, scales.size_bytes());
@@ -978,7 +936,9 @@ struct cublaslt_plan_t {
                                                 output_layout, preference, 1, &heuristic, &found);
         cublasLtMatmulPreferenceDestroy(preference);
         if (status || !found) return status ? status : CUBLAS_STATUS_NOT_SUPPORTED;
-        workspace = device_vector<char>::uninitialized(std::max<std::size_t>(heuristic.workspaceSize, 1)).value;
+        workspace = cuda_device_vector<char>::uninitialized(std::max<std::size_t>(heuristic.workspaceSize, 1),
+                                                            allocator_of<char>(backend))
+                        .value;
         return workspace.empty() ? CUBLAS_STATUS_ALLOC_FAILED : CUBLAS_STATUS_SUCCESS;
     }
 
@@ -1007,10 +967,10 @@ void run_dots_with_cublaslt(environment_t const &env, std::string const &name, c
     auto const plan = std::make_shared<cublaslt_plan_t>();
     if (cublasStatus_t const status = plan->build(
             input_dtype_, env.settings.matrix_height, env.settings.matrix_width, env.settings.matrix_depth,
-            backend.row_stride(a_row_bytes) / sizeof(input_t) * dimensions_per_value))
+            backend.row_stride(a_row_bytes) / sizeof(input_t) * dimensions_per_value, backend))
         return print_skipped(env, name, cublasLtGetStatusName(status));
     run_unpacked<input_dtype_, output_type_>(
-        env, name, reference_metric_t::dot_k,
+        env, name, dot_compensated_f64,
         [plan](auto a, void const *b, void *c, std::size_t, std::size_t, std::size_t, std::size_t, std::size_t,
                void *stream) { return plan->launch(operand_codes(a), b, c, (cudaStream_t)stream); },
         backend);
@@ -1026,7 +986,7 @@ void run_dots_f64_with_cublas(environment_t const &env, std::string const &name,
     cublasSetEmulationStrategy(raw_handle, CUBLAS_EMULATION_STRATEGY_EAGER);
     cublasSetMathMode(raw_handle, CUBLAS_FP64_EMULATED_FIXEDPOINT_MATH);
     run_unpacked<nk_f64_k, nk::f64_t>(
-        env, name, reference_metric_t::dot_k,
+        env, name, dot_compensated_f64,
         [handle](void const *a, void const *b, void *c, std::size_t rows, std::size_t columns, std::size_t depth,
                  std::size_t a_stride, std::size_t, void *stream) {
             double const alpha = 1, beta = 0;
@@ -1122,8 +1082,8 @@ struct cudnn_attention_plan_t {
     cudnnBackendDescriptor_t plan = nullptr;
     std::vector<std::int64_t> uids;
     std::vector<void *> addresses;
-    device_vector<std::uint32_t> parameters;
-    device_vector<char> workspace;
+    cuda_device_vector<std::uint32_t> parameters;
+    cuda_device_vector<char> workspace;
     float scale = 0;
     float negative_infinity = -INFINITY;
     std::int32_t window = 0;
@@ -1187,7 +1147,9 @@ struct cudnn_attention_plan_t {
 
     /** Builds the graph and the first plan cuDNN's heuristics offer that finalizes, or returns why
      *  none did. */
-    cudnnStatus_t build(nk_dtype_t dtype, attention_visibility_t visibility, attention_shape_t shape) {
+    cudnnStatus_t build(nk_dtype_t dtype, attention_visibility_t visibility, attention_shape_t shape,
+                        cuda_backend_t const &backend) {
+        void *stream = backend.memory.stream;
         std::int64_t const heads = shape.head_count, key_value_heads = shape.key_value_head_count, depth = shape.depth,
                            queries = shape.queries, keys = shape.keys;
         cudnnDataType_t const io_type = cudnn_data_type(dtype);
@@ -1209,14 +1171,15 @@ struct cudnn_attention_plan_t {
         float const unit = 1, probability_scale = 256, probability_descale = 1.0f / 256;
         float const scales[6] = {unit, unit, unit, probability_descale, probability_scale, unit};
         std::memcpy(&word(cudnn_uid_t::descale_queries_k), scales, sizeof(scales));
-        parameters = device_vector<std::uint32_t>::uninitialized(words.size()).value;
+        parameters =
+            cuda_device_vector<std::uint32_t>::uninitialized(words.size(), allocator_of<std::uint32_t>(backend)).value;
         if (parameters.empty()) return CUDNN_STATUS_ALLOC_FAILED;
         cudaMemcpy(parameters.raw_values_data(), words.data(), sizeof(words), cudaMemcpyHostToDevice);
         auto const device = [&](cudnn_uid_t uid) -> void * {
             return parameters.raw_values_data() + (std::size_t(uid) - first_word);
         };
         if ((status = cudnnCreate(&handle))) return status;
-        cudnnSetStream(handle, cudaStreamPerThread);
+        if ((status = cudnnSetStream(handle, (cudaStream_t)stream))) return status;
 
         auto const offsets = [&](cudnn_uid_t uid) {
             return tensor(uid, CUDNN_DATA_INT32, {2, 1, 1, 1}, {1, 1, 1, 1}, cudnn_binding_t::device_k, device(uid));
@@ -1324,7 +1287,9 @@ struct cudnn_attention_plan_t {
         if (!status)
             status = cudnnBackendGetAttribute(plan, CUDNN_ATTR_EXECUTION_PLAN_WORKSPACE_SIZE, CUDNN_TYPE_INT64, 1,
                                               nullptr, &workspace_bytes);
-        workspace = device_vector<char>::uninitialized(std::size_t(std::max<std::int64_t>(workspace_bytes, 1))).value;
+        workspace = cuda_device_vector<char>::uninitialized(std::size_t(std::max<std::int64_t>(workspace_bytes, 1)),
+                                                            allocator_of<char>(backend))
+                        .value;
         if (!status && workspace.empty()) status = CUDNN_STATUS_ALLOC_FAILED;
         return status;
     }
@@ -1358,7 +1323,7 @@ template <nk_dtype_t input_dtype_, attention_visibility_t visibility_>
 void run_attention_row_with_cudnn(environment_t const &env, std::string const &name, attention_shape_t shape,
                                   cuda_backend_t const &backend) {
     auto const plan = std::make_shared<cudnn_attention_plan_t>();
-    if (cudnnStatus_t const status = plan->build(input_dtype_, visibility_, shape))
+    if (cudnnStatus_t const status = plan->build(input_dtype_, visibility_, shape, backend))
         return print_skipped(env, attention_row_name(name, visibility_, shape), cudnnGetErrorString(status));
     auto const packed_size = [](std::size_t key_value_heads, std::size_t depth, nk_u32_t const *lengths, std::size_t,
                                 nk_size_t *bytes) {
@@ -1414,10 +1379,10 @@ void bench_cross_cudnn([[maybe_unused]] environment_t const &env, [[maybe_unused
 #if NUMKONG_COMPARE_TO_CUVS
 
 /** A dense row-major floating-point device matrix of @p shape as a DLPack tensor. */
-DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_t bits) noexcept {
+DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_t bits, int ordinal) noexcept {
     DLManagedTensor tensor {};
     tensor.dl_tensor.data = const_cast<void *>(data);
-    tensor.dl_tensor.device = {kDLCUDA, 0};
+    tensor.dl_tensor.device = {kDLCUDA, ordinal};
     tensor.dl_tensor.ndim = 2;
     tensor.dl_tensor.dtype = {kDLFloat, bits, 1};
     tensor.dl_tensor.shape = shape;
@@ -1427,25 +1392,26 @@ DLManagedTensor dlpack_matrix(void const *data, std::int64_t *shape, std::uint8_
 /** Runs @c cuvsPairwiseDistance as a cosine or L2-expanded row beside NumKong's angular or
  *  euclidean one. */
 template <nk_dtype_t input_dtype_>
-void run_spatials_with_cuvs(environment_t const &env, std::string const &name, reference_metric_t metric,
-                            cuda_backend_t const &backend) {
+void run_spatials_with_cuvs(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
+                            cuvsDistanceType distance, cuda_backend_t const &backend) {
     std::shared_ptr<cuvsResources_t> const resources(new cuvsResources_t {}, [](cuvsResources_t *resources) {
         cuvsResourcesDestroy(*resources);
         delete resources;
     });
     if (cuvsResourcesCreate(resources.get()) != CUVS_SUCCESS) return print_skipped(env, name, cuvsGetLastErrorText());
-    cuvsDistanceType const distance = metric == reference_metric_t::angular_k ? CosineExpanded : L2SqrtExpanded;
     std::uint8_t const bits = std::uint8_t(nk_dtype_bits(input_dtype_));
     run_unpacked<input_dtype_, nk::f32_t>(
-        env, name, metric,
-        [resources, distance, bits](void const *a, void const *b, void *c, std::size_t rows, std::size_t columns,
-                                    std::size_t depth, std::size_t a_stride, std::size_t, void *stream) {
+        env, name, compute_expected,
+        [resources, distance, bits, ordinal = static_cast<int>(backend.device.ordinal())](
+            void const *a, void const *b, void *c, std::size_t rows, std::size_t columns, std::size_t depth,
+            std::size_t a_stride, std::size_t, void *stream) {
             if (a_stride * 8 != depth * bits) return cudaErrorInvalidPitchValue;
             std::int64_t a_shape[2] = {std::int64_t(rows), std::int64_t(depth)};
             std::int64_t b_shape[2] = {std::int64_t(columns), std::int64_t(depth)};
             std::int64_t c_shape[2] = {std::int64_t(rows), std::int64_t(columns)};
-            DLManagedTensor a_tensor = dlpack_matrix(a, a_shape, bits), b_tensor = dlpack_matrix(b, b_shape, bits),
-                            c_tensor = dlpack_matrix(c, c_shape, 32);
+            DLManagedTensor a_tensor = dlpack_matrix(a, a_shape, bits, ordinal),
+                            b_tensor = dlpack_matrix(b, b_shape, bits, ordinal),
+                            c_tensor = dlpack_matrix(c, c_shape, 32, ordinal);
             cuvsStreamSet(*resources, (cudaStream_t)stream);
             return cuvsPairwiseDistance(*resources, &a_tensor, &b_tensor, &c_tensor, distance, 2.0f) == CUVS_SUCCESS
                        ? cudaSuccess
@@ -1459,10 +1425,14 @@ void run_spatials_with_cuvs(environment_t const &env, std::string const &name, r
 /** Every cuVS row: cosine and L2 distances over F32 and F16. */
 void bench_cross_cuvs([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUVS
-    run_spatials_with_cuvs<nk_f32_k>(env, "angulars_packed_f32_with_cuvs", reference_metric_t::angular_k, backend);
-    run_spatials_with_cuvs<nk_f32_k>(env, "euclideans_packed_f32_with_cuvs", reference_metric_t::euclidean_k, backend);
-    run_spatials_with_cuvs<nk_f16_k>(env, "angulars_packed_f16_with_cuvs", reference_metric_t::angular_k, backend);
-    run_spatials_with_cuvs<nk_f16_k>(env, "euclideans_packed_f16_with_cuvs", reference_metric_t::euclidean_k, backend);
+    run_spatials_with_cuvs<nk_f32_k>(env, "angulars_packed_f32_with_cuvs", angular_compensated_f64, CosineExpanded,
+                                     backend);
+    run_spatials_with_cuvs<nk_f32_k>(env, "euclideans_packed_f32_with_cuvs", euclidean_compensated_f64, L2SqrtExpanded,
+                                     backend);
+    run_spatials_with_cuvs<nk_f16_k>(env, "angulars_packed_f16_with_cuvs", angular_compensated_f64, CosineExpanded,
+                                     backend);
+    run_spatials_with_cuvs<nk_f16_k>(env, "euclideans_packed_f16_with_cuvs", euclidean_compensated_f64, L2SqrtExpanded,
+                                     backend);
 #endif // NUMKONG_COMPARE_TO_CUVS
 }
 #pragma endregion cuVS
@@ -1474,21 +1444,19 @@ void bench_cross_cuvs([[maybe_unused]] environment_t const &env, [[maybe_unused]
 namespace ashvardanian::numkong::bench {
 
 /** Every CUDA row: the kernel families this device runs, then the baselines compiled in. */
-void bench_cross_cuda([[maybe_unused]] environment_t const &env) {
+nk::status_t bench_cross_cuda([[maybe_unused]] environment_t const &env,
+                              [[maybe_unused]] device_backend_t const &runtime) {
 #if NUMKONG_ARCH_CUDA_
-    cudaDeviceProp properties {};
-    int device = 0;
-    if (cudaGetDevice(&device) != cudaSuccess || cudaGetDeviceProperties(&properties, device) != cudaSuccess) {
-        fmt::println("- CUDA: no device");
-        return;
-    }
-    fmt::println("- CUDA: {} sm_{}{}", properties.name, properties.major, properties.minor);
+    device_scope<cudaGetDevice, cudaSetDevice> const selected(static_cast<int>(runtime.device.ordinal()));
+    if (selected.status != cudaSuccess) return nk::status_t::device_code_mismatch_k;
+    int l2_bytes = 0;
+    if (cudaDeviceGetAttribute(&l2_bytes, cudaDevAttrL2CacheSize, static_cast<int>(runtime.device.ordinal())) !=
+        cudaSuccess)
+        return nk::status_t::device_code_mismatch_k;
+    nk_capability_t const capabilities = runtime.capabilities;
     fmt::println("- CUDA baselines: cuBLAS {}, cuDNN {}, cuVS {}", NUMKONG_COMPARE_TO_CUBLAS ? "on" : "off",
                  NUMKONG_COMPARE_TO_CUDNN ? "on" : "off", NUMKONG_COMPARE_TO_CUVS ? "on" : "off");
-
-    cuda_backend_t const backend {};
-    nk_capability_t capabilities = 0;
-    if (nk_cuda_capabilities_enabled(0, &capabilities) != nk_success_k) capabilities = 0;
+    cuda_backend_t const backend {runtime, std::size_t(std::max(l2_bytes, 0))};
     bench_cross_cuda(env, backend, capabilities);
     bench_each_cuda(env, backend, capabilities);
     bench_cast_cuda(env, backend, capabilities);
@@ -1500,6 +1468,9 @@ void bench_cross_cuda([[maybe_unused]] environment_t const &env) {
     bench_cross_cublas(env, backend);
     bench_cross_cudnn(env, backend);
     bench_cross_cuvs(env, backend);
+    return nk::status_t::success_k;
+#else  // !NUMKONG_ARCH_CUDA_
+    return nk::status_t::missing_gpu_k;
 #endif // NUMKONG_ARCH_CUDA_
 }
 

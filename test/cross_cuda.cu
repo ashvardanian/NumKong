@@ -7,23 +7,27 @@
  *  Compiled with every capability some listed architecture runs: the CUDA baseline, Ampere, Hopper,
  *  Blackwell and Blackwell RTX.
  */
-#include "cross_simt.cuh" // `cuda_backend_t`, `test_cross_dispatch`
+#include "cross_device.hpp"
 
 namespace ashvardanian::numkong::test {
+
+#if NUMKONG_ARCH_CUDA_
 
 /** Packed angular distance against serial where the B column holds the E4M3 NaN code 0x7F, whose
  *  norm must stay NaN rather than decode to 480. */
 template <auto packed_size_fn_, auto pack_fn_, auto angulars_fn_>
-static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &) {
+static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &settings) {
     using bytes_t = nk::vector<char, cuda_backend_t::allocator<char>>;
-    cuda_backend_t backend;
+    cuda_backend_t backend = make_backend<cuda_backend_t>(settings);
     error_stats_t stats(comparison_family_t::exact_k);
     std::size_t const depth = 64;
-    auto a = bytes_t::zeros(depth).value, b = bytes_t::zeros(depth).value, distance = bytes_t::zeros(4).value;
-    auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn_, 1, depth)).value;
+    auto a = bytes_t::zeros(depth, allocator_of<char>(backend)).value,
+         b = bytes_t::zeros(depth, allocator_of<char>(backend)).value,
+         distance = bytes_t::zeros(4, allocator_of<char>(backend)).value;
+    auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn_, 1, depth), allocator_of<char>(backend)).value;
     auto serial_packed = make_vector<char>(pack_size_bytes(stats, nk_dots_pack_size_e4m3_serial, 1, depth));
     std::memset(a.raw_values_data(), 0x38, depth), std::memset(b.raw_values_data(), 0x38, depth); // 1.0
-    b.raw_values_data()[depth / 2] = 0x7F;
+    b[depth / 2] = 0x7F;
     auto const *a_codes = reinterpret_cast<nk_e4m3_t const *>(a.raw_values_data());
     auto const *b_codes = reinterpret_cast<nk_e4m3_t const *>(b.raw_values_data());
     auto *gpu = reinterpret_cast<nk_f32_t *>(distance.raw_values_data());
@@ -1064,5 +1068,9 @@ void test_cross_cuda(error_stats_section_t &check) {
 
     test_cross_dispatch<cuda_backend_t>(check);
 }
+
+#else  // !NUMKONG_ARCH_CUDA_
+void test_cross_cuda(error_stats_section_t &) {}
+#endif // NUMKONG_ARCH_CUDA_
 
 } // namespace ashvardanian::numkong::test
