@@ -2033,9 +2033,16 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_haswell(nk_bf16_t const *x, nk_f32_
         for (nk_size_t group = 0; group != groups; ++group) {
             nk_bf16_t const *group_input = x_row + group * columns;
             nk_bf16_t *group_output = y_row + group * columns;
-            nk_f32_t sum, sumsq;
-            nk_reduce_moments_bf16_haswell_chunked_(group_input, columns, sizeof(nk_bf16_t), &sum, &sumsq);
-            nk_f32_t mean_square = (nk_f32_t)((nk_f64_t)sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f64_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width
+            for (nk_size_t start = 0; start < columns; start += 64) {
+                nk_size_t const count = columns - start < 64 ? columns - start : 64;
+                nk_f32_t partial_sum, partial_sumsq;
+                nk_reduce_moments_bf16_haswell_chunked_(group_input + start, count, sizeof(nk_bf16_t), &partial_sum,
+                                                        &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             __m256 gain_f32x8 = _mm256_set1_ps(gain);
             nk_size_t c = 0;
@@ -2086,6 +2093,102 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_haswell(nk_e4m3_t const *x, nk_f32_
                 nk_e4m3_to_f32_(group_input + c, &value);
                 nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
                 nk_f32_to_e4m3_(&result, group_output + c);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmscast_bf16_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                     nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                     nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f32_t const *group_input = x_row + group * columns;
+            nk_bf16_t *group_output = y_row + group * columns;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f32_haswell_chunked_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= columns; c += 8) {
+                __m256 normalized_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(group_input + c), gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm_storeu_si128((__m128i *)(group_output + c), nk_f32x8_to_bf16x8_haswell_(normalized_f32x8));
+            }
+            for (; c != columns; ++c) {
+                nk_f32_t result = group_input[c] * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_bf16_(&result, group_output + c);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmscast_e4m3_haswell(nk_f32_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                     nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                     nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f32_t const *group_input = x_row + group * columns;
+            nk_e4m3_t *group_output = y_row + group * columns;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f32_haswell_chunked_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= columns; c += 8) {
+                __m256 normalized_f32x8 = _mm256_mul_ps(_mm256_loadu_ps(group_input + c), gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm_storel_epi64((__m128i *)(group_output + c), nk_f32x8_to_e4m3x8_haswell_(normalized_f32x8));
+            }
+            for (; c != columns; ++c) {
+                nk_f32_t result = group_input[c] * gain * (gamma ? gamma[c] : 1.0f);
+                nk_f32_to_e4m3_(&result, group_output + c);
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmscast_f32_haswell(nk_f64_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f64_t const *x_row = (nk_f64_t const *)((unsigned char const *)x + r * x_stride);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f64_t const *group_input = x_row + group * columns;
+            nk_f32_t *group_output = y_row + group * columns;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f64_haswell_contiguous_(group_input, columns, &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m256 gain_f32x8 = _mm256_set1_ps(gain);
+            nk_size_t c = 0;
+            for (; c + 8 <= columns; c += 8) {
+                __m256 input_f32x8 = _mm256_set_m128(_mm256_cvtpd_ps(_mm256_loadu_pd(group_input + c + 4)),
+                                                     _mm256_cvtpd_ps(_mm256_loadu_pd(group_input + c)));
+                __m256 normalized_f32x8 = _mm256_mul_ps(input_f32x8, gain_f32x8);
+                if (gamma) normalized_f32x8 = _mm256_mul_ps(normalized_f32x8, _mm256_loadu_ps(gamma + c));
+                _mm256_storeu_ps(group_output + c, normalized_f32x8);
+            }
+            for (; c != columns; ++c) {
+                nk_f32_t value;
+                nk_f64_to_f32_serial_(group_input + c, &value);
+                group_output[c] = value * gain * (gamma ? gamma[c] : 1.0f);
             }
         }
     }

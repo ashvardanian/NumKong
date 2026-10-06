@@ -1390,6 +1390,36 @@ def rmsnorm(
     """
     ...
 
+def rmscast(
+    x: _BufferType,
+    /,
+    gamma: _BufferType | None = None,
+    *,
+    dtype: _IntegralTypeName | _FloatTypeName | _MiniFloatType,
+    out: _BufferType | None = None,
+    groups: int = 1,
+    epsilon: float = 1e-6,
+    **dispatch: Unpack[_Dispatch],
+) -> Tensor | None:
+    """Grouped RMSNorm of dot products back into the `dtype` they multiplied, rounding like the cast.
+
+    Each row, spanning all axes but the last, holds `groups` independent sub-vectors of length
+    `x.shape[-1] // groups`, normalized separately.
+
+    Args:
+        x: Dot products with a contiguous last axis: float32 for bfloat16, float16, e4m3, e5m2, e2m3
+            and e3m2 outputs, float64 for float32, int32 for int8 and uint32 for uint8.
+        gamma: Per-column float32 gain of length `columns`, defaulting to unit scale.
+        dtype: Output dtype, which names the dtype `x` must have.
+        out: Output buffer of the shape of `x` and of `dtype`.
+        groups: Independent sub-vectors per row.
+        epsilon: Variance epsilon, added to the mean square of the raw input.
+
+    Integer outputs round to nearest even and saturate, with `gamma` carrying the quantization
+    scale; uint8 suits only non-negative activations.
+    """
+    ...
+
 def swiglu(
     gate: _BufferType,
     /,

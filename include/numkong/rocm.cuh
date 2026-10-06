@@ -15,7 +15,7 @@
 
 #include "numkong/capabilities.h" // `nk_cap_rocm_k`
 
-#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#if NUMKONG_ARCH_ROCM_
 
 #include <string.h> // `strncmp`
 
@@ -288,5 +288,5 @@ NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream) { return nk_str
 } // extern "C"
 #endif
 
-#endif // NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#endif // NUMKONG_ARCH_ROCM_
 #endif // NUMKONG_ROCM_CUH

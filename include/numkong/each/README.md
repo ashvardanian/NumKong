@@ -99,6 +99,9 @@ Addition and scaling treat complex vectors as 2N-length real vectors — no spec
 FMA requires cross-lane operations for the imaginary part: `re(a*b) = re(a)*re(b) - im(a)*im(b)`, implemented via `VFMADDSUB231PS` which alternates add/subtract across even/odd lanes.
 
 Fused SwiGLU and grouped RMSNorm support F32, F16, BF16, and E4M3 on serial and NEON backends.
+The downcasting `nk_each_rmscast_<type>` reverses a dot product of `<type>`: it reads the F32 of BF16, F16, E4M3, E5M2, E2M3 and E3M2 dots, the F64 of F32 dots, or the I32 and U32 of I8 and U8 dots, and normalizes it into `<type>`.
+Integer outputs round to nearest even and saturate, with γ carrying the quantization scale.
+Every type has serial, CUDA and ROCm kernels, Haswell, Skylake and NEON follow their RMSNorm types, Ampere narrows BF16 and Ada narrows E4M3 and E5M2.
 
 ## Performance
 

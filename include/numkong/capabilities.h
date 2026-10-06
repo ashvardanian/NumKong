@@ -406,6 +406,9 @@ typedef enum {
     /** Grouped RMSNorm: y = x · rsqrt(mean(x²) + epsilon) · γ. */
     nk_kernel_each_rmsnorm_k = 'H',
 
+    /** Grouped RMSNorm of F32 dot products into the narrower type they came from. */
+    nk_kernel_each_rmscast_k = 'u',
+
     /** Element-wise sine. */
     nk_kernel_trig_sin_k = 'S',
 
@@ -523,6 +526,7 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_each_fma_k: return "each_fma";
     case nk_kernel_each_swiglu_k: return "each_swiglu";
     case nk_kernel_each_rmsnorm_k: return "each_rmsnorm";
+    case nk_kernel_each_rmscast_k: return "each_rmscast";
     case nk_kernel_trig_sin_k: return "trig_sin";
     case nk_kernel_trig_cos_k: return "trig_cos";
     case nk_kernel_trig_atan_k: return "trig_atan";
@@ -583,6 +587,7 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "each_fma")) return nk_kernel_each_fma_k;
     if (nk_same_literal_(name, length, "each_swiglu")) return nk_kernel_each_swiglu_k;
     if (nk_same_literal_(name, length, "each_rmsnorm")) return nk_kernel_each_rmsnorm_k;
+    if (nk_same_literal_(name, length, "each_rmscast")) return nk_kernel_each_rmscast_k;
     if (nk_same_literal_(name, length, "trig_sin")) return nk_kernel_trig_sin_k;
     if (nk_same_literal_(name, length, "trig_cos")) return nk_kernel_trig_cos_k;
     if (nk_same_literal_(name, length, "trig_atan")) return nk_kernel_trig_atan_k;

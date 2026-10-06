@@ -1311,6 +1311,7 @@ static PyMethodDef nk_methods[] = {
     {"moments", (PyCFunction)api_moments, METH_FASTCALL | METH_KEYWORDS, doc_reduce_moments},
     {"minmax", (PyCFunction)api_minmax, METH_FASTCALL | METH_KEYWORDS, doc_reduce_minmax},
     {"rmsnorm", (PyCFunction)api_rmsnorm, METH_FASTCALL | METH_KEYWORDS, doc_rmsnorm},
+    {"rmscast", (PyCFunction)api_rmscast, METH_FASTCALL | METH_KEYWORDS, doc_rmscast},
     {"sum", (PyCFunction)api_sum, METH_FASTCALL | METH_KEYWORDS, doc_reduce_sum},
     {"norm", (PyCFunction)api_norm, METH_FASTCALL | METH_KEYWORDS, doc_reduce_norm},
     {"min", (PyCFunction)api_min, METH_FASTCALL | METH_KEYWORDS, doc_reduce_min},

@@ -15,7 +15,7 @@
 
 #include "numkong/capabilities.h" // `nk_cap_cuda_k`
 
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#if NUMKONG_ARCH_CUDA_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -290,5 +290,5 @@ NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream) { return nk_str
 } // extern "C"
 #endif
 
-#endif // NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_CUDA_CUH

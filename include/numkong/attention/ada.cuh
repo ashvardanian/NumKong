@@ -5,7 +5,7 @@
  *  @brief E4M3 attention weights for NVIDIA Ada, compute capability 8.9, and every GPU since.
  *
  *  @sa include/numkong/attention.h
- *  @sa include/numkong/dots/ada.cuh
+ *  @sa include/numkong/cast/ada.cuh
  *
  *  The lowest NVIDIA capability with `cvt.*e4m3x2`, whose weight quantization the Hopper, Blackwell
  *  and BlackwellRTX capabilities share. Ada runs no attention kernels of its own.
@@ -15,7 +15,7 @@
 
 #if NUMKONG_ARCH_CUDA_ADA_
 
-#include "numkong/dots/ada.cuh" // `nk_f32x2_to_e4m3x2_ada_`, `nk_e4m3x2_to_f16x2_ada_`
+#include "numkong/cast/ada.cuh" // `nk_f32x2_to_e4m3x2_ada_`, `nk_e4m3x2_to_f16x2_ada_`
 
 #if defined(__cplusplus)
 extern "C" {

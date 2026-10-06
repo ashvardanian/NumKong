@@ -43,9 +43,16 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t 
         for (nk_size_t group = 0; group != groups; ++group) {
             nk_bf16_t const *group_input = x_row + group * columns;
             nk_bf16_t *group_output = y_row + group * columns;
-            nk_f32_t sum, sumsq;
-            nk_reduce_moments_bf16_genoa_chunked_(group_input, columns, sizeof(nk_bf16_t), &sum, &sumsq);
-            nk_f32_t mean_square = (nk_f32_t)((nk_f64_t)sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f64_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width
+            for (nk_size_t start = 0; start < columns; start += 64) {
+                nk_size_t const count = columns - start < 64 ? columns - start : 64;
+                nk_f32_t partial_sum, partial_sumsq;
+                nk_reduce_moments_bf16_genoa_chunked_(group_input + start, count, sizeof(nk_bf16_t), &partial_sum,
+                                                      &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             for (nk_size_t c = 0; c != columns; ++c) {
                 nk_f32_t value;

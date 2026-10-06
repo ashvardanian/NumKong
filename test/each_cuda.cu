@@ -14,6 +14,7 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
 void test_each_cuda(error_stats_section_t &check) {
+#if NUMKONG_TARGET_CUDA
     check.section("Elementwise Operations CUDA", nk_cap_cuda_k);
     check("each_swiglu_f32_cuda", test_swiglu<f32_t, cuda_backend_t>, nk_each_swiglu_f32_cuda);
     check("each_swiglu_bf16_cuda", test_swiglu<bf16_t, cuda_backend_t>, nk_each_swiglu_bf16_cuda);
@@ -93,6 +94,37 @@ void test_each_cuda(error_stats_section_t &check) {
     check("each_rmsnorm_f32_cuda", test_rmsnorm<f32_t, cuda_backend_t>, nk_each_rmsnorm_f32_cuda);
     check("each_rmsnorm_bf16_cuda", test_rmsnorm<bf16_t, cuda_backend_t>, nk_each_rmsnorm_bf16_cuda);
     check("each_rmsnorm_e4m3_cuda", test_rmsnorm<e4m3_t, cuda_backend_t>, nk_each_rmsnorm_e4m3_cuda);
+    check("each_rmscast_bf16_cuda", test_rmsnorm<bf16_t, cuda_backend_t, f32_t>, nk_each_rmscast_bf16_cuda);
+    check("each_rmscast_f16_cuda", test_rmsnorm<f16_t, cuda_backend_t, f32_t>, nk_each_rmscast_f16_cuda);
+    check("each_rmscast_e4m3_cuda", test_rmsnorm<e4m3_t, cuda_backend_t, f32_t>, nk_each_rmscast_e4m3_cuda);
+    check("each_rmscast_e5m2_cuda", test_rmsnorm<e5m2_t, cuda_backend_t, f32_t>, nk_each_rmscast_e5m2_cuda);
+    check("each_rmscast_e2m3_cuda", test_rmsnorm<e2m3_t, cuda_backend_t, f32_t>, nk_each_rmscast_e2m3_cuda);
+    check("each_rmscast_e3m2_cuda", test_rmsnorm<e3m2_t, cuda_backend_t, f32_t>, nk_each_rmscast_e3m2_cuda);
+    check("each_rmscast_f32_cuda", test_rmsnorm<f32_t, cuda_backend_t, f64_t>, nk_each_rmscast_f32_cuda);
+    check("each_rmscast_i8_cuda", test_rmsnorm<i8_t, cuda_backend_t, i32_t>, nk_each_rmscast_i8_cuda);
+    check("each_rmscast_u8_cuda", test_rmsnorm<u8_t, cuda_backend_t, u32_t>, nk_each_rmscast_u8_cuda);
+#endif // NUMKONG_TARGET_CUDA
+#if NUMKONG_TARGET_AMPERE
+    check.section("Elementwise Operations Ampere", nk_cap_ampere_k);
+    check("each_sum_bf16_ampere", test_sum<bf16_t, cuda_backend_t>, nk_each_sum_bf16_ampere);
+    check("each_scale_bf16_ampere", test_scale<bf16_t, cuda_backend_t>, nk_each_scale_bf16_ampere);
+    check("each_blend_bf16_ampere", test_blend<bf16_t, cuda_backend_t>, nk_each_blend_bf16_ampere);
+    check("each_fma_bf16_ampere", test_fma<bf16_t, cuda_backend_t>, nk_each_fma_bf16_ampere);
+    check("each_swiglu_bf16_ampere", test_swiglu<bf16_t, cuda_backend_t>, nk_each_swiglu_bf16_ampere);
+    check("each_rmsnorm_bf16_ampere", test_rmsnorm<bf16_t, cuda_backend_t>, nk_each_rmsnorm_bf16_ampere);
+    check("each_rmscast_bf16_ampere", test_rmsnorm<bf16_t, cuda_backend_t, f32_t>, nk_each_rmscast_bf16_ampere);
+#endif // NUMKONG_TARGET_AMPERE
+#if NUMKONG_TARGET_ADA
+    check.section("Elementwise Operations Ada", nk_cap_ada_k);
+    check("each_sum_e4m3_ada", test_sum<e4m3_t, cuda_backend_t>, nk_each_sum_e4m3_ada);
+    check("each_scale_e4m3_ada", test_scale<e4m3_t, cuda_backend_t>, nk_each_scale_e4m3_ada);
+    check("each_blend_e4m3_ada", test_blend<e4m3_t, cuda_backend_t>, nk_each_blend_e4m3_ada);
+    check("each_fma_e4m3_ada", test_fma<e4m3_t, cuda_backend_t>, nk_each_fma_e4m3_ada);
+    check("each_swiglu_e4m3_ada", test_swiglu<e4m3_t, cuda_backend_t>, nk_each_swiglu_e4m3_ada);
+    check("each_rmsnorm_e4m3_ada", test_rmsnorm<e4m3_t, cuda_backend_t>, nk_each_rmsnorm_e4m3_ada);
+    check("each_rmscast_e4m3_ada", test_rmsnorm<e4m3_t, cuda_backend_t, f32_t>, nk_each_rmscast_e4m3_ada);
+    check("each_rmscast_e5m2_ada", test_rmsnorm<e5m2_t, cuda_backend_t, f32_t>, nk_each_rmscast_e5m2_ada);
+#endif // NUMKONG_TARGET_ADA
 }
 
 #else  // !NUMKONG_ARCH_CUDA_

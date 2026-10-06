@@ -33,6 +33,9 @@ PyObject *api_multiply(PyObject *self, PyObject *const *args, Py_ssize_t nargs, 
 /** Grouped RMSNorm: y = x * rsqrt(mean(x^2) + epsilon) * gamma. */
 PyObject *api_rmsnorm(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
+/** Grouped RMSNorm of dot products into the dtype they multiplied. */
+PyObject *api_rmscast(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+
 /** Fused SwiGLU: y = silu(gate) * up, up=None gives plain SiLU. */
 PyObject *api_swiglu(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
@@ -42,6 +45,7 @@ extern char const doc_scale[];
 extern char const doc_add[];
 extern char const doc_multiply[];
 extern char const doc_rmsnorm[];
+extern char const doc_rmscast[];
 extern char const doc_swiglu[];
 
 #ifdef __cplusplus

@@ -1178,7 +1178,7 @@ void fill_random_bits(generator_type_ &generator, nk::vector<scalar_type_, alloc
         bytes[index] = static_cast<std::uint8_t>(byte(generator));
 }
 
-#pragma region Host Backend
+#pragma region Backends
 
 /** Runs CPU kernels in place: operands in host memory, direct calls, results readable at once,
  *  keeping the first failed status. */
@@ -1213,7 +1213,7 @@ struct host_backend_t {
     nk_status_t synchronize() noexcept { return nk_success_k; }
 };
 
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#if NUMKONG_ARCH_CUDA_
 inline bool cuda_check_(cudaError_t error, char const *expression, char const *file, int line) {
     if (error == cudaSuccess) return true;
     fmt::println(stderr, "CUDA error {} at {}:{}: {}", expression, file, line, cudaGetErrorString(error));
@@ -1238,7 +1238,7 @@ struct cuda_device_scope_t {
         if (status == cudaSuccess) cudaSetDevice(caller);
     }
 };
-#endif // NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#endif // NUMKONG_ARCH_CUDA_
 
 /** Runs one vendor's kernels on an owned stream over unified memory. */
 template <auto synchronize_>
@@ -1350,7 +1350,7 @@ typename backend_type_::template allocator<value_type_> allocator_of(backend_typ
     return {};
 }
 
-#pragma endregion Host Backend
+#pragma endregion Backends
 
 /** Forward declarations for test modules. */
 void test_casts(error_stats_section_t &check);

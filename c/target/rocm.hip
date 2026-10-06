@@ -4,6 +4,10 @@
  *  @date September 28, 2026
  *  @brief Every family's @c rocm kernels and the HIP runtime calls, defined once for the library.
  */
+#undef NUMKONG_TARGET_CDNA4
+#define NUMKONG_TARGET_CDNA4 0
+#undef NUMKONG_TARGET_CDNA5
+#define NUMKONG_TARGET_CDNA5 0
 #include "numkong/numkong.h"
 
 #include "numkong/dots/rocm.cuh"

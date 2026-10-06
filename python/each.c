@@ -634,6 +634,170 @@ cleanup:
     return return_obj;
 }
 
+char const doc_rmscast[] =                                                                                 //
+    "Grouped RMSNorm of dot products back into the dtype they multiplied:\n"                               //
+    "y = x * rsqrt(mean(x^2) + epsilon) * gamma, rounded like the cast into `dtype`.\n\n"                  //
+    "Each row, spanning all axes but the last, holds `groups` independent `columns`-vectors, normalized\n" //
+    "separately, where `columns = x.shape[-1] // groups`.\n\n"                                             //
+    "Args:\n"                                                                                              //
+    "    x (Tensor): Dot products with a contiguous last axis: float32 for bfloat16, float16, e4m3,\n"     //
+    "        e5m2, e2m3 and e3m2 outputs, float64 for float32, int32 for int8, uint32 for uint8.\n"        //
+    "    gamma (Tensor, optional): Per-column float32 gain of length `columns`; None for unit scale.\n"    //
+    "    dtype: Output dtype name: bfloat16, float16, e4m3, e5m2, e2m3, e3m2, float32, int8 or uint8.\n"   //
+    "    out (Tensor, optional): Output buffer of the shape of x and of `dtype`.\n"                        //
+    "    groups (int, optional): Independent sub-vectors per row, 1 by default.\n"                         //
+    "    epsilon (float, optional): Variance epsilon on the raw input, 1e-6 by default.\n\n"               //
+    "Notes:\n"                                                                                             //
+    "    Integer outputs round to nearest even and saturate, with gamma carrying the quantization\n"       //
+    "    scale; uint8 suits only non-negative activations.\n\n"                                            //
+    "Returns:\n"                                                                                           //
+    "    Tensor: The result if `out` is not provided.\n"                                                   //
+    "    None: If `out` is provided.\n\n"                                                                  //
+    "Signature:\n"                                                                                         //
+    "    >>> def rmscast(x, gamma=None, /, *, dtype, out, groups, epsilon) -> Optional[Tensor]: ...";
+
+PyObject *api_rmscast(PyObject *self, PyObject *const *args, Py_ssize_t const positional_args_count,
+                      PyObject *args_names_tuple) {
+    nk_unused_(self);
+    PyObject *return_obj = NULL;
+    PyObject *x_obj = NULL, *gamma_obj = NULL, *dtype_obj = NULL, *out_obj = NULL;
+    PyObject *groups_obj = NULL, *epsilon_value = NULL;
+    nk_capability_t capabilities = nk_cap_cpus_k;
+    void *stream = NULL;
+
+    Py_buffer x_buffer, gamma_buffer, out_buffer;
+    nk_buffer_backing_t x_backing, gamma_backing, out_backing;
+    memset(&x_buffer, 0, sizeof(Py_buffer));
+    memset(&gamma_buffer, 0, sizeof(Py_buffer));
+    memset(&out_buffer, 0, sizeof(Py_buffer));
+    int have_gamma = 0;
+
+    Py_ssize_t const args_names_count = args_names_tuple ? PyTuple_Size(args_names_tuple) : 0;
+    Py_ssize_t const args_count = positional_args_count + args_names_count;
+    if (args_count < 2 || args_count > 8) {
+        PyErr_Format(PyExc_TypeError, "Function expects 2-8 arguments, got %zd", args_count);
+        return NULL;
+    }
+    if (positional_args_count > 2) {
+        PyErr_Format(PyExc_TypeError, "Only first 2 arguments can be positional, received %zd", positional_args_count);
+        return NULL;
+    }
+    x_obj = args[0];
+    if (positional_args_count == 2) gamma_obj = args[1];
+    for (Py_ssize_t k = 0, p = positional_args_count; k < args_names_count; ++p, ++k) {
+        PyObject *const key = PyTuple_GetItem(args_names_tuple, k);
+        PyObject *const value = args[p];
+        if (PyUnicode_CompareWithASCIIString(key, "gamma") == 0 && !gamma_obj) gamma_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "dtype") == 0 && !dtype_obj) dtype_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "out") == 0 && !out_obj) out_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "groups") == 0 && !groups_obj) groups_obj = value;
+        else if (PyUnicode_CompareWithASCIIString(key, "epsilon") == 0 && !epsilon_value) epsilon_value = value;
+        else if (!parse_dispatch_keyword(key, value, &capabilities, &stream)) return NULL;
+    }
+    if (!dtype_obj) {
+        PyErr_SetString(PyExc_TypeError, "rmscast requires the output `dtype`");
+        return NULL;
+    }
+    nk_dtype_t const dtype = py_object_to_nk_dtype(dtype_obj);
+    if (dtype == nk_dtype_unknown_k) return NULL;
+
+    nk_size_t groups = 1;
+    nk_f32_t epsilon = 1e-6f;
+    if (groups_obj) {
+        long g = PyLong_AsLong(groups_obj);
+        if (g <= 0) {
+            if (!PyErr_Occurred()) PyErr_SetString(PyExc_ValueError, "groups must be positive");
+            return NULL;
+        }
+        groups = (nk_size_t)g;
+    }
+    if (epsilon_value) {
+        double e = PyFloat_AsDouble(epsilon_value);
+        if (PyErr_Occurred()) return NULL;
+        epsilon = (nk_f32_t)e;
+    }
+    if (gamma_obj == Py_None) gamma_obj = NULL;
+
+    if (!nk_get_buffer(x_obj, &x_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &x_backing)) return NULL;
+    if (x_buffer.ndim < 1 || x_buffer.ndim > NUMKONG_TENSOR_MAX_RANK) {
+        PyErr_Format(PyExc_ValueError, "Tensor rank %d unsupported", x_buffer.ndim);
+        goto cleanup;
+    }
+    nk_dtype_t const input_dtype = resolve_nk_dtype_in_py_buffer(&x_buffer);
+    if (input_dtype != nk_dot_output_dtype(dtype)) {
+        PyErr_Format(PyExc_TypeError, "rmscast into '%s' reads '%s'; got '%s'", nk_dtype_python_name(dtype),
+                     nk_dtype_python_name(nk_dot_output_dtype(dtype)), nk_dtype_python_name(input_dtype));
+        goto cleanup;
+    }
+    int const rank = x_buffer.ndim;
+    size_t const elem = nk_dtype_bytes_per_value(input_dtype);
+    nk_size_t const width = (nk_size_t)x_buffer.shape[rank - 1];
+    if ((size_t)x_buffer.strides[rank - 1] != elem) {
+        PyErr_SetString(PyExc_ValueError, "rmscast requires the last axis to be contiguous");
+        goto cleanup;
+    }
+    if (width % groups != 0) {
+        PyErr_Format(PyExc_ValueError, "last axis (%zu) not divisible by groups (%zu)", (size_t)width, (size_t)groups);
+        goto cleanup;
+    }
+    nk_size_t const columns = width / groups;
+    nk_size_t rows = 1;
+    for (int d = 0; d < rank - 1; ++d) rows *= (nk_size_t)x_buffer.shape[d];
+    for (int d = 0; d + 2 < rank; ++d) {
+        if (x_buffer.strides[d] != x_buffer.shape[d + 1] * x_buffer.strides[d + 1]) {
+            PyErr_SetString(PyExc_ValueError, "rmscast requires C-contiguous leading axes for rank > 2");
+            goto cleanup;
+        }
+    }
+    nk_size_t const x_stride = rank >= 2 ? (nk_size_t)x_buffer.strides[rank - 2] : 0;
+
+    nk_f32_t const *gamma_ptr = NULL;
+    if (gamma_obj) {
+        if (!nk_get_buffer(gamma_obj, &gamma_buffer, PyBUF_STRIDES | PyBUF_FORMAT, &gamma_backing)) goto cleanup;
+        have_gamma = 1;
+        if (resolve_nk_dtype_in_py_buffer(&gamma_buffer) != nk_f32_k) {
+            PyErr_SetString(PyExc_TypeError, "gamma must be float32");
+            goto cleanup;
+        }
+        nk_size_t glen = gamma_buffer.ndim >= 1 ? (nk_size_t)gamma_buffer.shape[gamma_buffer.ndim - 1] : 0;
+        if (glen != columns || (size_t)gamma_buffer.strides[gamma_buffer.ndim - 1] != sizeof(nk_f32_t)) {
+            PyErr_Format(PyExc_ValueError, "gamma must be contiguous float32 of length columns=%zu", (size_t)columns);
+            goto cleanup;
+        }
+        gamma_ptr = (nk_f32_t const *)gamma_buffer.buf;
+    }
+
+    nk_each_rmsnorm_punned_t kernel = NULL;
+    nk_capability_t capability = nk_cap_serial_k;
+    nk_find_kernel_punned(nk_kernel_each_rmscast_k, dtype, capabilities, (nk_kernel_punned_t *)&kernel, &capability);
+    if (!kernel || !capability) {
+        PyErr_Format(PyExc_LookupError, "No rmscast kernel for dtype '%s'", nk_dtype_python_name(dtype));
+        goto cleanup;
+    }
+
+    char *result_data = NULL;
+    Py_ssize_t result_strides[NUMKONG_TENSOR_MAX_RANK];
+    int contiguous_tail = 0;
+    Py_buffer const *inputs[] = {&x_buffer};
+    if (!elementwise_prepare_out(out_obj, &out_buffer, &out_backing, inputs, 1, dtype, //
+                                 &result_data, result_strides, &contiguous_tail, &return_obj))
+        goto cleanup;
+    nk_size_t const y_stride = rank >= 2 ? (nk_size_t)result_strides[rank - 2] : 0;
+
+    {
+        PyThreadState *gil = PyEval_SaveThread();
+        nk_status_t const status = kernel(x_buffer.buf, gamma_ptr, result_data, rows, groups, columns, x_stride,
+                                          y_stride, epsilon, stream);
+        PyEval_RestoreThread(gil);
+        if (!check_status(status)) Py_CLEAR(return_obj);
+    }
+cleanup:
+    PyBuffer_Release(&x_buffer);
+    if (have_gamma) PyBuffer_Release(&gamma_buffer);
+    PyBuffer_Release(&out_buffer);
+    return return_obj;
+}
+
 char const doc_swiglu[] =                                                                        //
     "Fused SwiGLU: y = silu(gate_scale * gate) * up * output_scale.\n\n"                         //
     "With up=None this reduces to plain SiLU: y = silu(gate_scale * gate) * output_scale.\n\n"   //

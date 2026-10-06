@@ -15,7 +15,7 @@
 #include "numkong/cuda.cuh"
 #include "numkong/dots/simt.cuh"
 
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#if NUMKONG_ARCH_CUDA_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -255,5 +255,5 @@ nk_define_cross_cuda_(dot, mxfp8e5m2, cuda, scaled_simt, e5m2, e5m2, f32, 16, 1,
 } // extern "C"
 #endif
 
-#endif // NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_DOTS_CUDA_CUH

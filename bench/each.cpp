@@ -112,6 +112,7 @@ void bench_each(environment_t const &env) {
         run_each<e4m3_k, fma_k, f32_k>(env, "each_fma_e4m3_neon", nk_each_fma_e4m3_neon);
         run_swiglu<e4m3_k>(env, "each_swiglu_e4m3_neon", nk_each_swiglu_e4m3_neon);
         run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_neon", nk_each_rmsnorm_e4m3_neon);
+        run_rmsnorm<f32_k, bf16_k>(env, "each_rmscast_bf16_neon", nk_each_rmscast_bf16_neon);
         // e5m2
         run_each<e5m2_k, sum_k, f32_k>(env, "each_sum_e5m2_neon", nk_each_sum_e5m2_neon);
         run_each<e5m2_k, scale_k, f32_k>(env, "each_scale_e5m2_neon", nk_each_scale_e5m2_neon);
@@ -198,6 +199,7 @@ void bench_each(environment_t const &env) {
         run_rmsnorm<f32_k>(env, "each_rmsnorm_f32_haswell", nk_each_rmsnorm_f32_haswell);
         run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_haswell", nk_each_rmsnorm_bf16_haswell);
         run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_haswell", nk_each_rmsnorm_e4m3_haswell);
+        run_rmsnorm<f32_k, bf16_k>(env, "each_rmscast_bf16_haswell", nk_each_rmscast_bf16_haswell);
         // e4m3
         run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_haswell", nk_each_sum_e4m3_haswell);
         run_each<e4m3_k, scale_k, f32_k>(env, "each_scale_e4m3_haswell", nk_each_scale_e4m3_haswell);
@@ -268,6 +270,7 @@ void bench_each(environment_t const &env) {
         run_rmsnorm<f32_k>(env, "each_rmsnorm_f32_skylake", nk_each_rmsnorm_f32_skylake);
         run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_skylake", nk_each_rmsnorm_bf16_skylake);
         run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_skylake", nk_each_rmsnorm_e4m3_skylake);
+        run_rmsnorm<f32_k, bf16_k>(env, "each_rmscast_bf16_skylake", nk_each_rmscast_bf16_skylake);
         // e4m3
         run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_skylake", nk_each_sum_e4m3_skylake);
         run_each<e4m3_k, scale_k, f32_k>(env, "each_scale_e4m3_skylake", nk_each_scale_e4m3_skylake);
@@ -419,6 +422,7 @@ void bench_each(environment_t const &env) {
     run_rmsnorm<f16_k>(env, "each_rmsnorm_f16_serial", nk_each_rmsnorm_f16_serial);
     run_rmsnorm<bf16_k>(env, "each_rmsnorm_bf16_serial", nk_each_rmsnorm_bf16_serial);
     run_rmsnorm<e4m3_k>(env, "each_rmsnorm_e4m3_serial", nk_each_rmsnorm_e4m3_serial);
+    run_rmsnorm<i32_k, i8_k>(env, "each_rmscast_i8_serial", nk_each_rmscast_i8_serial);
     // Serial fallbacks — e4m3, e5m2, e2m3, e3m2
     run_each<e4m3_k, sum_k, f32_k>(env, "each_sum_e4m3_serial", nk_each_sum_e4m3_serial);
     run_each<e4m3_k, scale_k, f32_k>(env, "each_scale_e4m3_serial", nk_each_scale_e4m3_serial);

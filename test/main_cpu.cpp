@@ -419,6 +419,7 @@ static error_stats_t test_find_kernel(settings_t const &) {
         nk_kernel_each_fma_k,
         nk_kernel_each_swiglu_k,
         nk_kernel_each_rmsnorm_k,
+        nk_kernel_each_rmscast_k,
         nk_kernel_trig_sin_k,
         nk_kernel_trig_cos_k,
         nk_kernel_trig_atan_k,

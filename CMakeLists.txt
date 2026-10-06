@@ -1186,6 +1186,7 @@ if (NUMKONG_BUILD_CUDA)
     numkong_gpu_codes_(
         "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_AMPERE_CODES_}" NUMKONG_AMPERE_UNIT_CODES_
     )
+    numkong_gpu_codes_("${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_ADA_CODES_}" NUMKONG_ADA_UNIT_CODES_)
     numkong_gpu_codes_(
         "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_HOPPER_CODES_}" NUMKONG_HOPPER_UNIT_CODES_
     )
@@ -1198,6 +1199,7 @@ if (NUMKONG_BUILD_CUDA)
     )
     numkong_add_gpu_unit_(c/target/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/target/ada.cu "${NUMKONG_ADA_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" CUDA::cudart)
@@ -1326,8 +1328,10 @@ if (NUMKONG_BUILD_TEST)
 endif ()
 
 if (NUMKONG_BUILD_BENCH)
-    add_library(numkong_bench_cuda OBJECT bench/cross_cuda.cu)
-    add_library(numkong_bench_rocm OBJECT bench/cross_rocm.hip)
+    add_library(
+        numkong_bench_cuda OBJECT bench/cross_cuda.cu bench/each_cuda.cu bench/cast_cuda.cu bench/reduce_cuda.cu
+    )
+    add_library(numkong_bench_rocm OBJECT bench/cross_rocm.hip bench/each_rocm.hip)
     foreach (NUMKONG_LEAF_ numkong_bench_cuda numkong_bench_rocm)
         target_include_directories(${NUMKONG_LEAF_} PRIVATE "${PROJECT_SOURCE_DIR}/include")
         target_link_libraries(${NUMKONG_LEAF_} PRIVATE fmt::fmt)
@@ -1336,7 +1340,7 @@ if (NUMKONG_BUILD_BENCH)
     target_sources(numkong_bench PRIVATE $<TARGET_OBJECTS:numkong_bench_cuda> $<TARGET_OBJECTS:numkong_bench_rocm>)
 endif ()
 
-# CUDA rows in the same `numkong_bench`, from bench/cross_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
+# CUDA rows in the same `numkong_bench`, from bench/*_cuda.cu, with optional cuBLAS, cuDNN and cuVS baselines.
 if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_CUDA)
     find_package(CUDAToolkit REQUIRED)
     set_target_properties(
@@ -1370,21 +1374,23 @@ endif ()
 
 # Without CUDA its rows compile away as C++, as every `cross_*` family does off its platform.
 if (NUMKONG_BUILD_BENCH AND NOT NUMKONG_BUILD_CUDA)
-    set_source_files_properties(bench/cross_cuda.cu PROPERTIES LANGUAGE CXX)
+    set_source_files_properties(
+        bench/cross_cuda.cu bench/each_cuda.cu bench/cast_cuda.cu bench/reduce_cuda.cu PROPERTIES LANGUAGE CXX
+    )
 endif ()
 
 if (NUMKONG_BUILD_BENCH AND NUMKONG_BUILD_ROCM)
     target_link_libraries(numkong_bench hip::host)
     target_link_libraries(numkong_bench_rocm PRIVATE hip::host)
     set_source_files_properties(
-        bench/cross_rocm.hip PROPERTIES COMPILE_DEFINITIONS "${NUMKONG_ROCM_FAMILY_DEFINITIONS_}"
+        bench/cross_rocm.hip bench/each_rocm.hip PROPERTIES COMPILE_DEFINITIONS "${NUMKONG_ROCM_FAMILY_DEFINITIONS_}"
     )
     set_target_properties(
         numkong_bench_rocm PROPERTIES HIP_ARCHITECTURES "${NUMKONG_ROCM_ARCHITECTURES}" HIP_STANDARD 20
                                       HIP_STANDARD_REQUIRED YES HIP_EXTENSIONS NO
     )
 elseif (NUMKONG_BUILD_BENCH)
-    set_source_files_properties(bench/cross_rocm.hip PROPERTIES LANGUAGE CXX)
+    set_source_files_properties(bench/cross_rocm.hip bench/each_rocm.hip PROPERTIES LANGUAGE CXX)
 endif ()
 
 # Metal rows in the same `numkong_bench`, from bench/cross_metal.cpp, over the queue's shared memory.

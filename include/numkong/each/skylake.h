@@ -1998,9 +1998,16 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_skylake(nk_bf16_t const *x, nk_f32_
         for (nk_size_t group = 0; group != groups; ++group) {
             nk_bf16_t const *group_input = x_row + group * columns;
             nk_bf16_t *group_output = y_row + group * columns;
-            nk_f32_t sum, sumsq;
-            nk_reduce_moments_bf16_skylake_chunked_(group_input, columns, sizeof(nk_bf16_t), &sum, &sumsq);
-            nk_f32_t mean_square = (nk_f32_t)((nk_f64_t)sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f64_t sumsq = 0;
+            // Short F32 reductions bound error independently of row width
+            for (nk_size_t start = 0; start < columns; start += 64) {
+                nk_size_t const count = columns - start < 64 ? columns - start : 64;
+                nk_f32_t partial_sum, partial_sumsq;
+                nk_reduce_moments_bf16_skylake_chunked_(group_input + start, count, sizeof(nk_bf16_t), &partial_sum,
+                                                        &partial_sumsq);
+                sumsq += partial_sumsq;
+            }
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
             nk_size_t c = 0;
@@ -2061,6 +2068,116 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_skylake(nk_e4m3_t const *x, nk_f32_
                     normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
                 _mm_mask_storeu_epi8((void *)(group_output + c), mask_m16,
                                      nk_f32x16_to_e4m3x16_skylake_(normalized_f32x16));
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmscast_bf16_skylake(nk_f32_t const *x, nk_f32_t const *gamma, nk_bf16_t *y,
+                                                     nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                     nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride);
+        nk_bf16_t *y_row = (nk_bf16_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f32_t const *group_input = x_row + group * columns;
+            nk_bf16_t *group_output = y_row + group * columns;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f32_skylake_chunked_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
+            nk_size_t c = 0;
+            for (; c + 16 <= columns; c += 16) {
+                __m512 normalized_f32x16 = _mm512_mul_ps(_mm512_loadu_ps(group_input + c), gain_f32x16);
+                if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_loadu_ps(gamma + c));
+                _mm256_storeu_si256((__m256i *)(group_output + c), nk_f32x16_to_bf16x16_skylake_(normalized_f32x16));
+            }
+            if (c < columns) {
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(columns - c));
+                __m512 normalized_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, group_input + c), gain_f32x16);
+                if (gamma)
+                    normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
+                _mm256_mask_storeu_epi16((void *)(group_output + c), mask_m16,
+                                         nk_f32x16_to_bf16x16_skylake_(normalized_f32x16));
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmscast_e4m3_skylake(nk_f32_t const *x, nk_f32_t const *gamma, nk_e4m3_t *y,
+                                                     nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                     nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                     void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f32_t const *x_row = (nk_f32_t const *)((unsigned char const *)x + r * x_stride);
+        nk_e4m3_t *y_row = (nk_e4m3_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f32_t const *group_input = x_row + group * columns;
+            nk_e4m3_t *group_output = y_row + group * columns;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f32_skylake_chunked_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
+            nk_size_t c = 0;
+            for (; c + 16 <= columns; c += 16) {
+                __m512 normalized_f32x16 = _mm512_mul_ps(_mm512_loadu_ps(group_input + c), gain_f32x16);
+                if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_loadu_ps(gamma + c));
+                _mm_storeu_si128((__m128i *)(group_output + c), nk_f32x16_to_e4m3x16_skylake_(normalized_f32x16));
+            }
+            if (c < columns) {
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(columns - c));
+                __m512 normalized_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(mask_m16, group_input + c), gain_f32x16);
+                if (gamma)
+                    normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
+                _mm_mask_storeu_epi8((void *)(group_output + c), mask_m16,
+                                     nk_f32x16_to_e4m3x16_skylake_(normalized_f32x16));
+            }
+        }
+    }
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_rmscast_f32_skylake(nk_f64_t const *x, nk_f32_t const *gamma, nk_f32_t *y,
+                                                    nk_size_t rows, nk_size_t groups, nk_size_t columns,
+                                                    nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon,
+                                                    void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    for (nk_size_t r = 0; r != rows; ++r) {
+        nk_f64_t const *x_row = (nk_f64_t const *)((unsigned char const *)x + r * x_stride);
+        nk_f32_t *y_row = (nk_f32_t *)((unsigned char *)y + r * y_stride);
+        for (nk_size_t group = 0; group != groups; ++group) {
+            nk_f64_t const *group_input = x_row + group * columns;
+            nk_f32_t *group_output = y_row + group * columns;
+            nk_f64_t sum, sumsq;
+            nk_reduce_moments_f64_skylake_contiguous_(group_input, columns, &sum, &sumsq);
+            nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
+            nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
+            __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
+            nk_size_t c = 0;
+            for (; c + 16 <= columns; c += 16) {
+                __m512 input_f32x16 = _mm512_insertf32x8(
+                    _mm512_castps256_ps512(_mm512_cvtpd_ps(_mm512_loadu_pd(group_input + c))),
+                    _mm512_cvtpd_ps(_mm512_loadu_pd(group_input + c + 8)), 1);
+                __m512 normalized_f32x16 = _mm512_mul_ps(input_f32x16, gain_f32x16);
+                if (gamma) normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_loadu_ps(gamma + c));
+                _mm512_storeu_ps(group_output + c, normalized_f32x16);
+            }
+            if (c < columns) {
+                __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFFu, (unsigned)(columns - c));
+                __m512 input_f32x16 = _mm512_insertf32x8(
+                    _mm512_castps256_ps512(_mm512_cvtpd_ps(_mm512_maskz_loadu_pd((__mmask8)mask_m16, group_input + c))),
+                    _mm512_cvtpd_ps(_mm512_maskz_loadu_pd((__mmask8)(mask_m16 >> 8), group_input + c + 8)), 1);
+                __m512 normalized_f32x16 = _mm512_mul_ps(input_f32x16, gain_f32x16);
+                if (gamma)
+                    normalized_f32x16 = _mm512_mul_ps(normalized_f32x16, _mm512_maskz_loadu_ps(mask_m16, gamma + c));
+                _mm512_mask_storeu_ps(group_output + c, mask_m16, normalized_f32x16);
             }
         }
     }

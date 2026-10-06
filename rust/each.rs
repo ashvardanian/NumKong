@@ -828,6 +828,123 @@ extern "C" {
         capabilities: nk_capability_t,
         stream: *mut c_void,
     ) -> nk_status_t;
+    fn nk_each_rmscast_bf16_best(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut u16,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_f16_best(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut u16,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_e4m3_best(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut u8,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_e5m2_best(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut u8,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_e2m3_best(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut u8,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_e3m2_best(
+        x: *const f32,
+        gamma: *const f32,
+        y: *mut u8,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_f32_best(
+        x: *const f64,
+        gamma: *const f32,
+        y: *mut f32,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_i8_best(
+        x: *const i32,
+        gamma: *const f32,
+        y: *mut i8,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_each_rmscast_u8_best(
+        x: *const u32,
+        gamma: *const f32,
+        y: *mut u8,
+        rows: nk_size_t,
+        groups: nk_size_t,
+        columns: nk_size_t,
+        x_stride: nk_size_t,
+        y_stride: nk_size_t,
+        epsilon: f32,
+        capabilities: nk_capability_t,
+        stream: *mut c_void,
+    ) -> nk_status_t;
 }
 
 // Complex fallback helpers
@@ -4593,16 +4710,17 @@ struct RmsNormPlan {
 /// `None` means there is nothing to normalize. Note the ordering this preserves: the empty-input
 /// return comes _before_ the gamma-length check, so a zero-row tensor never validates gamma — the
 /// three per-type impls each relied on that, and folding them together keeps it deliberate.
-fn validate_rmsnorm<Scalar, XIn, YOut, const RX: usize, const RY: usize>(
+fn validate_rmsnorm<Input, Output, XIn, YOut, const RX: usize, const RY: usize>(
     x: &XIn,
     gamma: Option<&[f32]>,
     y: &YOut,
     groups: usize,
 ) -> Result<Option<RmsNormPlan>, Error>
 where
-    Scalar: StorageElement,
-    XIn: TensorRef<Scalar, RX> + ?Sized,
-    YOut: TensorRef<Scalar, RY> + ?Sized,
+    Input: StorageElement,
+    Output: StorageElement,
+    XIn: TensorRef<Input, RX> + ?Sized,
+    YOut: TensorRef<Output, RY> + ?Sized,
 {
     if x.ndim() != 2 {
         return Err(Error::DimensionMismatch {
@@ -4785,6 +4903,242 @@ impl EachRmsNorm for e4m3 {
             .check()?;
         }
         Ok(())
+    }
+}
+
+/// Grouped RMSNorm of the values a dot product of `Self` writes back into `Self`, rounding like the
+/// cast into `Self`, so a GEMM output becomes the next GEMM's input in one pass. Integer outputs
+/// round to nearest even and saturate, with `gamma` carrying the quantization scale, and `u8` suits
+/// only non-negative activations.
+pub trait EachRmsCast: Sized + StorageElement {
+    /// What dot products of `Self` write: `f32` for the narrow floats, `f64` for `f32`, and `i32`
+    /// or `u32` for `i8` or `u8`.
+    type Input: StorageElement;
+
+    /// Grouped RMSNorm of a 2D __[rows,groups×columns]__ tensor of `Self::Input` into `y`, a tensor
+    /// of `Self` of the same shape, with ε added to the mean square of the raw input. Returns `Err`
+    /// on a shape mismatch.
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized;
+}
+
+/// The C signature of every `nk_each_rmscast_*_best`, over the raw pointer types `X` and `Y`.
+type RmsCastKernel<X, Y> = unsafe extern "C" fn(
+    *const X,
+    *const f32,
+    *mut Y,
+    nk_size_t,
+    nk_size_t,
+    nk_size_t,
+    nk_size_t,
+    nk_size_t,
+    f32,
+    nk_capability_t,
+    *mut c_void,
+) -> nk_status_t;
+
+/// Validates the operands and runs `kernel` from `Input` into `Output` on the CPU.
+fn rmscast_with<Input, Output, X, Y, XIn, YOut, const RX: usize, const RY: usize>(
+    kernel: RmsCastKernel<X, Y>,
+    x: &XIn,
+    gamma: Option<&[f32]>,
+    y: &mut YOut,
+    groups: usize,
+    epsilon: f32,
+) -> Result<(), Error>
+where
+    Input: StorageElement,
+    Output: StorageElement,
+    XIn: TensorRef<Input, RX> + ?Sized,
+    YOut: TensorMut<Output, RY> + ?Sized,
+{
+    let Some(RmsNormPlan {
+        rows,
+        columns,
+        x_stride,
+        y_stride,
+        gamma_ptr,
+    }) = validate_rmsnorm(x, gamma, y, groups)?
+    else {
+        return Ok(());
+    };
+    unsafe {
+        kernel(
+            x.as_ptr() as *const X,
+            gamma_ptr,
+            y.as_mut_ptr() as *mut Y,
+            rows,
+            groups,
+            columns,
+            x_stride,
+            y_stride,
+            epsilon,
+            Capabilities::CPUS.bits(),
+            null_mut(),
+        )
+        .check()?;
+    }
+    Ok(())
+}
+
+impl EachRmsCast for bf16 {
+    type Input = f32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_bf16_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for f16 {
+    type Input = f32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_f16_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for e4m3 {
+    type Input = f32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_e4m3_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for e5m2 {
+    type Input = f32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_e5m2_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for e2m3 {
+    type Input = f32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_e2m3_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for e3m2 {
+    type Input = f32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_e3m2_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for f32 {
+    type Input = f64;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_f32_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for i8 {
+    type Input = i32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_i8_best, x, gamma, y, groups, epsilon)
+    }
+}
+
+impl EachRmsCast for u8 {
+    type Input = u32;
+    fn rmscast_into<XIn, YOut, const RX: usize, const RY: usize>(
+        x: &XIn,
+        gamma: Option<&[f32]>,
+        y: &mut YOut,
+        groups: usize,
+        epsilon: f32,
+    ) -> Result<(), Error>
+    where
+        XIn: TensorRef<Self::Input, RX> + ?Sized,
+        YOut: TensorMut<Self, RY> + ?Sized,
+    {
+        rmscast_with(nk_each_rmscast_u8_best, x, gamma, y, groups, epsilon)
     }
 }
 
@@ -5313,5 +5667,16 @@ mod tests {
         check_rmsnorm::<f32>(&values, 3, 2);
         check_rmsnorm::<bf16>(&values, 3, 1);
         check_rmsnorm::<e4m3>(&values, 3, 2);
+    }
+
+    #[test]
+    fn rmscast_i8_rounds_and_saturates() {
+        // Values of ±8 make the inverse RMS exactly 1/8, so outputs are ±γ rounded to nearest even
+        let x: Vec<i32> = (0..8).map(|i| if i % 2 == 0 { 8 } else { -8 }).collect();
+        let gamma = [0.5f32, 1.5, 2.5, -2.5, 126.5, 127.5, 300.0, -300.0];
+        let x_t = Tensor::<i32>::from_slice(&x, &[1, 8]).unwrap();
+        let mut y_t = Tensor::<i8>::full(&[1, 8], 0).unwrap();
+        i8::rmscast_into(&x_t, Some(&gamma), &mut y_t, 1, 1e-6).unwrap();
+        assert_eq!(y_t.as_slice(), &[0, -2, 2, 2, 126, -128, 127, 127]);
     }
 }

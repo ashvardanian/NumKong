@@ -36,73 +36,11 @@
 #include "numkong/cast.h" // `nk_cast_serial`
 
 #include "harness.hpp"
+#include "harness_cpu.hpp" // `host_backend_t`, the drivers' default backend
 
 namespace ashvardanian::numkong::bench {
 
 #pragma region Backend Policy
-
-/** Attention visibility: every key, the keys up to the query's own position, or the last 1024 of
- *  those. */
-enum class attention_visibility_t { bidirectional_k, causal_k, causal_window_1024_k };
-
-/** One timed attention segment: @c label appends to the row name when set, the rest are per-token
- *  counts, queries at the end of a cache of @c keys with heads grouped over K and V. */
-struct attention_shape_t {
-    char const *label;
-    std::size_t head_count;
-    std::size_t key_value_head_count;
-    std::size_t depth;
-    std::size_t queries;
-    std::size_t keys;
-};
-
-/** Runs CPU kernels in place over host memory, timed by the loop's wall clock. */
-struct host_backend_t {
-
-    /** The allocator every kernel operand comes from. */
-    template <typename value_type_>
-    using allocator = nk::aligned_allocator<value_type_>;
-
-    /** Row stride for @p row_bytes: exactly one row, keeping the tightest stride covered. */
-    static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return row_bytes; }
-
-    /** Rotation sets of @p per_set each, as many as @c input_sets_count allows. */
-    std::size_t input_sets(bytes_t per_set) const noexcept { return input_sets_count(per_set); }
-
-    /** Rows a token-row benchmark batches: one, as a row of the configured length already fills the
-     *  caches. */
-    static std::size_t token_rows(environment_t const &) noexcept { return 1; }
-
-    /** One shape from the matrix config: keys from its height, head depth from its width, queries
-     *  from its depth. */
-    static std::vector<attention_shape_t> attention_shapes(environment_t const &env) {
-        return {{"", 8, 8, env.settings.matrix_width, env.settings.matrix_depth, env.settings.matrix_height}};
-    }
-
-    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        std::memcpy(destination, source, bytes);
-        return nk_success_k;
-    }
-
-    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
-        std::memset(destination, 0, bytes);
-        return nk_success_k;
-    }
-
-    template <typename kernel_type_, typename... arguments_types_>
-    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        return kernel(arguments..., nullptr);
-    }
-
-    nk_status_t synchronize() noexcept { return nk_success_k; }
-
-    template <typename launch_type_>
-    nk_status_t time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
-        for (std::size_t call : loop)
-            if (nk_status_t const status = launch(call & (sets_count - 1)); status != nk_success_k) return status;
-        return nk_success_k;
-    }
-};
 
 /** The allocator @p backend hands out @p value_type_ from: stateless, unless the backend's memory
  *  belongs to a context it holds and it overloads this. */
@@ -520,6 +458,10 @@ void run_euclideans_symmetric(environment_t const &env, std::string const &name,
 
 #pragma region Attention
 
+/** Attention visibility: every key, the keys up to the query's own position, or the last 1024 of
+ *  those. */
+enum class attention_visibility_t { bidirectional_k, causal_k, causal_window_1024_k };
+
 /** Visible keys including the query itself, @c NUMKONG_SIZE_MAX when unbounded. */
 inline nk_size_t attention_window(attention_visibility_t visibility) noexcept {
     return visibility == attention_visibility_t::causal_window_1024_k ? 1024 : NUMKONG_SIZE_MAX;
@@ -846,40 +788,49 @@ void run_swiglu(environment_t const &env, std::string const &name, kernel_type_ 
                   measure_swiglu<input_dtype_, backend_type_, kernel_type_ *>, backend, kernel, rows, columns);
 }
 
-/** Times RMSNorm over @p rows rows of @p columns values, one group with a unit γ each; @c bytes
- *  counts the input. */
-template <nk_dtype_t input_dtype_, typename backend_type_, typename kernel_type_>
+/** Times RMSNorm over @p rows rows of @p columns values into @p output_dtype_, one group with a
+ *  unit γ each; @c bytes counts the input. */
+template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_, typename backend_type_, typename kernel_type_>
 void measure_rmsnorm(loop_t &loop, environment_t const &env, backend_type_ backend, kernel_type_ kernel,
                      std::size_t rows, std::size_t columns) {
     using input_t = typename nk::type_for<input_dtype_>::type;
-    using values_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
-    std::size_t const count = rows * columns, stride = columns * sizeof(typename input_t::raw_t);
+    using output_t = typename nk::type_for<output_dtype_>::type;
+    using inputs_t = nk::vector<input_t, typename backend_type_::template allocator<input_t>>;
+    using outputs_t = nk::vector<output_t, typename backend_type_::template allocator<output_t>>;
+    std::size_t const count = rows * columns, input_stride = columns * sizeof(typename input_t::raw_t);
+    std::size_t const output_stride = columns * sizeof(typename output_t::raw_t);
     std::vector<nk::f32_t> const ones(columns, nk::f32_t(1.0f));
     auto const [gamma, gamma_status] = upload(backend, ones.data(), columns);
     if (!nk::succeeded(gamma_status)) return loop.skip(nk::status_name(gamma_status));
     if (gamma.empty()) return loop.skip("gamma allocation failed");
-    std::vector<std::array<values_t, 2>> sets(backend.input_sets(dtype_bytes(input_dtype_, 2 * count)));
-    for (std::array<values_t, 2> &set : sets) {
+    bytes_t const per_set {dtype_bytes(input_dtype_, count).value + dtype_bytes(output_dtype_, count).value};
+    std::size_t const sets_count = backend.input_sets(per_set);
+    std::vector<inputs_t> inputs(sets_count);
+    std::vector<outputs_t> outputs(sets_count);
+    for (std::size_t set = 0; set != sets_count; ++set) {
         {
             auto [uploaded, upload_status] = random_upload<input_dtype_>(backend, count, env.settings.seed);
             if (!nk::succeeded(upload_status)) return loop.skip(nk::status_name(upload_status));
-            set[0] = std::move(uploaded);
+            inputs[set] = std::move(uploaded);
         }
-        set[1] = values_t::uninitialized(count, allocator_of<input_t>(backend)).value;
-        if (set[0].empty() || set[1].empty()) return loop.skip("set allocation failed");
+        outputs[set] = outputs_t::uninitialized(count, allocator_of<output_t>(backend)).value;
+        if (inputs[set].empty() || outputs[set].empty()) return loop.skip("set allocation failed");
     }
-    bool const timed = time_rotating(loop, backend, sets.size(), [&](std::size_t index) {
-        return backend.call(kernel, sets[index][0].raw_values_data(), gamma.raw_values_data(),
-                            sets[index][1].raw_values_data(), rows, std::size_t(1), columns, stride, stride, 1e-6f);
+    bool const timed = time_rotating(loop, backend, sets_count, [&](std::size_t index) {
+        return backend.call(kernel, inputs[index].raw_values_data(), gamma.raw_values_data(),
+                            outputs[index].raw_values_data(), rows, std::size_t(1), columns, input_stride,
+                            output_stride, 1e-6f);
     });
     if (timed) loop.byte_rate(double(dtype_bytes(input_dtype_, count).value));
 }
 
-template <nk_dtype_t input_dtype_, typename backend_type_ = host_backend_t, typename kernel_type_ = void>
+template <nk_dtype_t input_dtype_, nk_dtype_t output_dtype_ = input_dtype_, typename backend_type_ = host_backend_t,
+          typename kernel_type_ = void>
 void run_rmsnorm(environment_t const &env, std::string const &name, kernel_type_ *kernel, backend_type_ backend = {}) {
     std::size_t const rows = backend.token_rows(env), columns = env.settings.batch_per_core;
     run_benchmark(env, token_rows_name(name, rows, columns),
-                  measure_rmsnorm<input_dtype_, backend_type_, kernel_type_ *>, backend, kernel, rows, columns);
+                  measure_rmsnorm<input_dtype_, output_dtype_, backend_type_, kernel_type_ *>, backend, kernel, rows,
+                  columns);
 }
 
 /** Times a bulk cast of @p count random @p from_dtype_ values into @p to_dtype_. @c bytes counts

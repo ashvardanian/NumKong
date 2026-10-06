@@ -60,6 +60,15 @@ void test_each(error_stats_section_t &check) {
     check("each_swiglu_bf16_serial", test_swiglu<bf16_t>, nk_each_swiglu_bf16_serial);
     check("each_rmsnorm_f16_serial", test_rmsnorm<f16_t>, nk_each_rmsnorm_f16_serial);
     check("each_rmsnorm_bf16_serial", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_serial);
+    check("each_rmscast_bf16_serial", test_rmsnorm<bf16_t, host_backend_t, f32_t>, nk_each_rmscast_bf16_serial);
+    check("each_rmscast_f16_serial", test_rmsnorm<f16_t, host_backend_t, f32_t>, nk_each_rmscast_f16_serial);
+    check("each_rmscast_e4m3_serial", test_rmsnorm<e4m3_t, host_backend_t, f32_t>, nk_each_rmscast_e4m3_serial);
+    check("each_rmscast_e5m2_serial", test_rmsnorm<e5m2_t, host_backend_t, f32_t>, nk_each_rmscast_e5m2_serial);
+    check("each_rmscast_e2m3_serial", test_rmsnorm<e2m3_t, host_backend_t, f32_t>, nk_each_rmscast_e2m3_serial);
+    check("each_rmscast_e3m2_serial", test_rmsnorm<e3m2_t, host_backend_t, f32_t>, nk_each_rmscast_e3m2_serial);
+    check("each_rmscast_f32_serial", test_rmsnorm<f32_t, host_backend_t, f64_t>, nk_each_rmscast_f32_serial);
+    check("each_rmscast_i8_serial", test_rmsnorm<i8_t, host_backend_t, i32_t>, nk_each_rmscast_i8_serial);
+    check("each_rmscast_u8_serial", test_rmsnorm<u8_t, host_backend_t, u32_t>, nk_each_rmscast_u8_serial);
     check("each_sum_f16_serial", test_sum<f16_t>, nk_each_sum_f16_serial);
     check("each_scale_f16_serial", test_scale<f16_t>, nk_each_scale_f16_serial);
 
@@ -121,6 +130,10 @@ void test_each(error_stats_section_t &check) {
     check("each_fma_e4m3_neon", test_fma<e4m3_t>, nk_each_fma_e4m3_neon);
     check("each_swiglu_e4m3_neon", test_swiglu<e4m3_t>, nk_each_swiglu_e4m3_neon);
     check("each_rmsnorm_e4m3_neon", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_neon);
+    check("each_rmscast_bf16_neon", test_rmsnorm<bf16_t, host_backend_t, f32_t>, nk_each_rmscast_bf16_neon);
+    check("each_rmscast_f16_neon", test_rmsnorm<f16_t, host_backend_t, f32_t>, nk_each_rmscast_f16_neon);
+    check("each_rmscast_e4m3_neon", test_rmsnorm<e4m3_t, host_backend_t, f32_t>, nk_each_rmscast_e4m3_neon);
+    check("each_rmscast_f32_neon", test_rmsnorm<f32_t, host_backend_t, f64_t>, nk_each_rmscast_f32_neon);
     check("each_sum_e5m2_neon", test_sum<e5m2_t>, nk_each_sum_e5m2_neon);
     check("each_scale_e5m2_neon", test_scale<e5m2_t>, nk_each_scale_e5m2_neon);
     check("each_blend_e5m2_neon", test_blend<e5m2_t>, nk_each_blend_e5m2_neon);
@@ -219,6 +232,9 @@ void test_each(error_stats_section_t &check) {
     check("each_rmsnorm_f32_haswell", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_haswell);
     check("each_rmsnorm_bf16_haswell", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_haswell);
     check("each_rmsnorm_e4m3_haswell", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_haswell);
+    check("each_rmscast_bf16_haswell", test_rmsnorm<bf16_t, host_backend_t, f32_t>, nk_each_rmscast_bf16_haswell);
+    check("each_rmscast_e4m3_haswell", test_rmsnorm<e4m3_t, host_backend_t, f32_t>, nk_each_rmscast_e4m3_haswell);
+    check("each_rmscast_f32_haswell", test_rmsnorm<f32_t, host_backend_t, f64_t>, nk_each_rmscast_f32_haswell);
 #endif // NUMKONG_TARGET_HASWELL
 
 #if NUMKONG_TARGET_SKYLAKE
@@ -257,6 +273,9 @@ void test_each(error_stats_section_t &check) {
     check("each_rmsnorm_f32_skylake", test_rmsnorm<f32_t>, nk_each_rmsnorm_f32_skylake);
     check("each_rmsnorm_bf16_skylake", test_rmsnorm<bf16_t>, nk_each_rmsnorm_bf16_skylake);
     check("each_rmsnorm_e4m3_skylake", test_rmsnorm<e4m3_t>, nk_each_rmsnorm_e4m3_skylake);
+    check("each_rmscast_bf16_skylake", test_rmsnorm<bf16_t, host_backend_t, f32_t>, nk_each_rmscast_bf16_skylake);
+    check("each_rmscast_e4m3_skylake", test_rmsnorm<e4m3_t, host_backend_t, f32_t>, nk_each_rmscast_e4m3_skylake);
+    check("each_rmscast_f32_skylake", test_rmsnorm<f32_t, host_backend_t, f64_t>, nk_each_rmscast_f32_skylake);
 #endif // NUMKONG_TARGET_SKYLAKE
 
 #if NUMKONG_TARGET_ICELAKE

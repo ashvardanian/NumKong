@@ -10,6 +10,10 @@
 #define NUMKONG_TARGET_AMPERE 0
 #undef NUMKONG_TARGET_ADA
 #define NUMKONG_TARGET_ADA 0
+#undef NUMKONG_TARGET_HOPPER
+#define NUMKONG_TARGET_HOPPER 0
+#undef NUMKONG_TARGET_BLACKWELL
+#define NUMKONG_TARGET_BLACKWELL 0
 #include "numkong/numkong.h"
 
 #include "numkong/dots/blackwellrtx.cuh"

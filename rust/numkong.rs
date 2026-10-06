@@ -168,7 +168,8 @@ pub use probability::{JensenShannon, KullbackLeibler, ProbabilitySimilarity};
 
 // Re-export elementwise and trig traits
 pub use each::{
-    AllCloseOps, BlendOps, EachBlend, EachFma, EachRmsNorm, EachScale, EachSum, EachSwiGlu, FmaOps, ScaleOps, SumOps,
+    AllCloseOps, BlendOps, EachBlend, EachFma, EachRmsCast, EachRmsNorm, EachScale, EachSum, EachSwiGlu, FmaOps,
+    ScaleOps, SumOps,
 };
 
 pub use reduce::{BitwiseReductionsOps, MinMaxOps, MomentsOps, ReduceMinMax, ReduceMoments, Reductions};
@@ -239,10 +240,10 @@ pub use maxsim::{MaxSim, MaxSimPackedMatrix};
 pub mod prelude {
     pub use crate::{
         AllCloseOps, AngularsPackedOps, AttentionRope, BitwiseReductionsOps, BlendOps, CastOps, DenseToScaledOps,
-        DotsPackedMatrix, DotsPackedOps, EachRmsNorm, EachSwiGlu, EuclideansPackedOps, FmaOps, HammingsPackedOps,
-        JaccardsPackedOps, Matrix, MinMaxOps, MomentsOps, Reductions, ScaleOps, ScaledTensor, SumOps, Tensor,
-        TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigSinOps, Vector, VectorSpan,
-        VectorView,
+        DotsPackedMatrix, DotsPackedOps, EachRmsCast, EachRmsNorm, EachSwiGlu, EuclideansPackedOps, FmaOps,
+        HammingsPackedOps, JaccardsPackedOps, Matrix, MinMaxOps, MomentsOps, Reductions, ScaleOps, ScaledTensor,
+        SumOps, Tensor, TensorMut, TensorRef, TensorSpan, TensorView, TrigAtanOps, TrigCosOps, TrigSinOps, Vector,
+        VectorSpan, VectorView,
     };
 
     #[cfg(feature = "parallel")]

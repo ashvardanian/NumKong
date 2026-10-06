@@ -377,24 +377,28 @@ nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
  *  byte strides @c x_stride and @c y_stride, holds @c groups independent vectors of
  *  @c columns elements, each normalized separately. One group with a learned γ covers the pre,
  *  post, final and head norms, while groups = heads, columns = depth and a NULL γ give the in-place
- *  unit QK-norm over the strided sections of a fused @b [tokens,3×hidden] QKV buffer. Pass 1 reuses
- *  the strided moments reducer, and pass 2 rescales with the same widening converters. */
-#define nk_define_each_rmsnorm_(input_type, accumulator_type, load_and_convert, convert_and_store)                     \
-    NUMKONG_API nk_status_t nk_each_rmsnorm_##input_type##_serial(                                                     \
-        nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##input_type##_t *y, nk_size_t rows, nk_size_t groups, \
-        nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon, void *stream) {                   \
+ *  unit QK-norm over the strided sections of a fused @b [tokens,3×hidden] QKV buffer. Pass 1 sums
+ *  squares through the strided @p moments reducer, and pass 2 rescales with the same widening
+ *  converters by an inverse RMS rounded from F64, as F32 Newton steps miss even powers of four by
+ *  an ULP and turn exact rounding ties into misses. The @c rmscast verb reads what a dot product of
+ *  the output type writes, F32, F64 or a 32-bit integer, and rounds its outputs like the cast into
+ *  the output type. */
+#define nk_define_each_rmsnorm_(verb, input_type, output_type, accumulator_type, moments, load_and_convert,            \
+                                convert_and_store)                                                                     \
+    NUMKONG_API nk_status_t nk_each_##verb##_##output_type##_serial(                                                   \
+        nk_##input_type##_t const *x, nk_f32_t const *gamma, nk_##output_type##_t *y, nk_size_t rows,                  \
+        nk_size_t groups, nk_size_t columns, nk_size_t x_stride, nk_size_t y_stride, nk_f32_t epsilon, void *stream) { \
         nk_assert_(stream == NUMKONG_NULL);                                                                            \
         for (nk_size_t r = 0; r != rows; ++r) {                                                                        \
             nk_##input_type##_t const *x_row = (nk_##input_type##_t const *)((unsigned char const *)x + r * x_stride); \
-            nk_##input_type##_t *y_row = (nk_##input_type##_t *)((unsigned char *)y + r * y_stride);                   \
+            nk_##output_type##_t *y_row = (nk_##output_type##_t *)((unsigned char *)y + r * y_stride);                 \
             for (nk_size_t group = 0; group != groups; ++group) {                                                      \
                 nk_##input_type##_t const *group_input = x_row + group * columns;                                      \
-                nk_##input_type##_t *group_output = y_row + group * columns;                                           \
+                nk_##output_type##_t *group_output = y_row + group * columns;                                          \
                 accumulator_type sum, sumsq;                                                                           \
-                nk_reduce_moments_##input_type##_strided_(group_input, columns, sizeof(nk_##input_type##_t), &sum,     \
-                                                          &sumsq);                                                     \
+                moments(group_input, columns, sizeof(nk_##input_type##_t), &sum, &sumsq);                              \
                 nk_f64_t mean_square = (nk_f64_t)sumsq / (nk_f64_t)columns;                                            \
-                nk_f32_t inv_rms = nk_f32_rsqrt_((nk_f32_t)mean_square + epsilon);                                     \
+                nk_f32_t inv_rms = (nk_f32_t)nk_f64_rsqrt_((nk_f32_t)mean_square + epsilon);                           \
                 for (nk_size_t c = 0; c != columns; ++c) {                                                             \
                     nk_f32_t value;                                                                                    \
                     load_and_convert(group_input + c, &value);                                                         \
@@ -407,10 +411,56 @@ nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
         return nk_success_k;                                                                                           \
     }
 
-nk_define_each_rmsnorm_(e4m3, nk_f32_t, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
-nk_define_each_rmsnorm_(f16, nk_f32_t, nk_f16_to_f32_, nk_f32_to_f16_)
-nk_define_each_rmsnorm_(bf16, nk_f32_t, nk_bf16_to_f32_, nk_f32_to_bf16_)
-nk_define_each_rmsnorm_(f32, nk_f64_t, nk_assign_from_to_, nk_assign_from_to_)
+/** Sums the I32 values @p stride apart, and their squares, in F64, where the 64-bit integer
+ *  moments saturate on the squares of dot products. */
+NUMKONG_INLINE void nk_each_moments_i32_serial_(nk_i32_t const *data, nk_size_t count, nk_size_t stride, nk_f64_t *sum,
+                                                nk_f64_t *sumsq) {
+    unsigned char const *bytes = (unsigned char const *)data;
+    nk_f64_t total = 0, total_squares = 0;
+    for (nk_size_t index = 0; index != count; ++index) {
+        nk_f64_t const value = *(nk_i32_t const *)(bytes + index * stride);
+        total += value, total_squares += value * value;
+    }
+    *sum = total, *sumsq = total_squares;
+}
+
+/** Sums the U32 values @p stride apart, and their squares, in F64, like
+ *  @c nk_each_moments_i32_serial_. */
+NUMKONG_INLINE void nk_each_moments_u32_serial_(nk_u32_t const *data, nk_size_t count, nk_size_t stride, nk_f64_t *sum,
+                                                nk_f64_t *sumsq) {
+    unsigned char const *bytes = (unsigned char const *)data;
+    nk_f64_t total = 0, total_squares = 0;
+    for (nk_size_t index = 0; index != count; ++index) {
+        nk_f64_t const value = *(nk_u32_t const *)(bytes + index * stride);
+        total += value, total_squares += value * value;
+    }
+    *sum = total, *sumsq = total_squares;
+}
+
+nk_define_each_rmsnorm_(rmsnorm, e4m3, e4m3, nk_f32_t, nk_reduce_moments_e4m3_strided_, nk_e4m3_to_f32_,
+                        nk_f32_to_e4m3_)
+nk_define_each_rmsnorm_(rmsnorm, f16, f16, nk_f32_t, nk_reduce_moments_f16_strided_, nk_f16_to_f32_, nk_f32_to_f16_)
+nk_define_each_rmsnorm_(rmsnorm, bf16, bf16, nk_f32_t, nk_reduce_moments_bf16_strided_, nk_bf16_to_f32_,
+                        nk_f32_to_bf16_)
+nk_define_each_rmsnorm_(rmsnorm, f32, f32, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
+                        nk_assign_from_to_)
+nk_define_each_rmsnorm_(rmscast, f32, bf16, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
+                        nk_f32_to_bf16_)
+nk_define_each_rmsnorm_(rmscast, f32, f16, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_, nk_f32_to_f16_)
+nk_define_each_rmsnorm_(rmscast, f32, e4m3, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
+                        nk_f32_to_e4m3_)
+nk_define_each_rmsnorm_(rmscast, f32, e5m2, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
+                        nk_f32_to_e5m2_)
+nk_define_each_rmsnorm_(rmscast, f32, e2m3, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
+                        nk_f32_to_e2m3_)
+nk_define_each_rmsnorm_(rmscast, f32, e3m2, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
+                        nk_f32_to_e3m2_)
+nk_define_each_rmsnorm_(rmscast, f64, f32, nk_f64_t, nk_reduce_moments_f64_strided_, nk_f64_to_f32_serial_,
+                        nk_assign_from_to_)
+nk_define_each_rmsnorm_(rmscast, i32, i8, nk_f64_t, nk_each_moments_i32_serial_, nk_assign_from_to_,
+                        nk_f32_to_i8_serial_)
+nk_define_each_rmsnorm_(rmscast, u32, u8, nk_f64_t, nk_each_moments_u32_serial_, nk_assign_from_to_,
+                        nk_f32_to_u8_serial_)
 #undef nk_define_each_rmsnorm_
 
 #if defined(__clang__)

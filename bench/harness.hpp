@@ -593,6 +593,17 @@ struct environment_t {
     machine_t machine;
 };
 
+/** One timed attention segment: @c label appends to the row name when set, the rest are per-token
+ *  counts, queries at the end of a cache of @c keys with heads grouped over K and V. */
+struct attention_shape_t {
+    char const *label;
+    std::size_t head_count;
+    std::size_t key_value_head_count;
+    std::size_t depth;
+    std::size_t queries;
+    std::size_t keys;
+};
+
 struct device_backend_t {
     nk::device_t device;
     nk_capability_t capabilities;

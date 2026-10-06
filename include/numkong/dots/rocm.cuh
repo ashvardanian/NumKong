@@ -15,7 +15,7 @@
 #include "numkong/rocm.cuh"
 #include "numkong/dots/simt.cuh"
 
-#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#if NUMKONG_ARCH_ROCM_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -239,5 +239,5 @@ nk_define_cross_rocm_(dot, u4, rocm, b32_simt, u4x2, u4x2, u32, 32, 2, nk_u4_k, 
 } // extern "C"
 #endif
 
-#endif // NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#endif // NUMKONG_ARCH_ROCM_
 #endif // NUMKONG_DOTS_ROCM_CUH

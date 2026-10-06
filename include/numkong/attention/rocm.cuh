@@ -15,7 +15,7 @@
 #include "numkong/rocm.cuh"
 #include "numkong/attention/simt.cuh"
 
-#if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#if NUMKONG_ARCH_ROCM_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -200,5 +200,5 @@ nk_define_attention_baseline_rocm_(i8, rocm, i8, 1)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_ARCH_ROCM_ && defined(__HIP__)
+#endif // NUMKONG_ARCH_ROCM_
 #endif // NUMKONG_ATTENTION_ROCM_CUH

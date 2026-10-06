@@ -574,9 +574,19 @@ static void test_cast_cuda_conformance(error_stats_section_t &check) {
 
 void test_cast_cuda(error_stats_section_t &check) {
     test_cast_cuda_conformance(check);
+#if NUMKONG_TARGET_CUDA
     check.section("Conversions CUDA", nk_cap_cuda_k);
     check("cast_cuda", test_cast_pairs<cuda_backend_t>, nk_cast_cuda);
     check_block_scaled_casts<cuda_backend_t>(check, "cuda", nk_cast_cuda);
+#endif // NUMKONG_TARGET_CUDA
+#if NUMKONG_TARGET_AMPERE
+    check.section("Conversions Ampere", nk_cap_ampere_k);
+    check("cast_ampere", test_cast_pairs<cuda_backend_t>, nk_cast_ampere);
+#endif // NUMKONG_TARGET_AMPERE
+#if NUMKONG_TARGET_ADA
+    check.section("Conversions Ada", nk_cap_ada_k);
+    check("cast_ada", test_cast_pairs<cuda_backend_t>, nk_cast_ada);
+#endif // NUMKONG_TARGET_ADA
 }
 
 #else // !NUMKONG_ARCH_CUDA_

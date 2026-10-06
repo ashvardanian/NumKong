@@ -40,6 +40,12 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
 #if NUMKONG_TARGET_CUDA
         (nk_kernel_punned_t)&nk_cast_cuda,
 #endif
+#if NUMKONG_TARGET_AMPERE
+        (nk_kernel_punned_t)&nk_cast_ampere,
+#endif
+#if NUMKONG_TARGET_ADA
+        (nk_kernel_punned_t)&nk_cast_ada,
+#endif
     };
     static nk_capability_kernels_t const lists[nk_capability_groups_k] = {
         {nk_cap_serial_k | nk_cap_neon_k * NUMKONG_TARGET_NEON | nk_cap_haswell_k * NUMKONG_TARGET_HASWELL |
@@ -47,7 +53,9 @@ static nk_capability_kernels_t const *nk_cast_capabilities(void) {
              nk_cap_sapphire_k * NUMKONG_TARGET_SAPPHIRE | nk_cap_rvv_k * NUMKONG_TARGET_RVV |
              nk_cap_v128relaxed_k * NUMKONG_TARGET_V128RELAXED | nk_cap_powervsx_k * NUMKONG_TARGET_POWERVSX,
          cpu},
-        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA, cuda},
+        {nk_cap_cuda_k * NUMKONG_TARGET_CUDA | nk_cap_ampere_k * NUMKONG_TARGET_AMPERE |
+             nk_cap_ada_k * NUMKONG_TARGET_ADA,
+         cuda},
         {0, nk_no_kernels_},
         {0, nk_no_kernels_},
     };

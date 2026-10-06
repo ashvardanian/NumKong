@@ -488,6 +488,18 @@ NUMKONG_API nk_status_t nk_cast_cuda(void const *from, nk_dtype_t from_dtype, vo
                                      nk_size_t count, void *stream);
 #endif // NUMKONG_TARGET_CUDA
 
+#if NUMKONG_TARGET_AMPERE
+/** @copydoc nk_cast_best */
+NUMKONG_API nk_status_t nk_cast_ampere(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                       nk_size_t count, void *stream);
+#endif // NUMKONG_TARGET_AMPERE
+
+#if NUMKONG_TARGET_ADA
+/** @copydoc nk_cast_best */
+NUMKONG_API nk_status_t nk_cast_ada(void const *from, nk_dtype_t from_dtype, void *to, nk_dtype_t to_dtype,
+                                    nk_size_t count, void *stream);
+#endif // NUMKONG_TARGET_ADA
+
 /**
  *  @brief Finds the cast kernel of @p kind for @p dtype, from the best of @p capabilities.
  *  @param[out] kernel The kernel, or null when no capability in @p capabilities has it.
@@ -514,6 +526,8 @@ NUMKONG_API nk_status_t nk_cast_find_kernel(nk_kernel_kind_t kind, nk_dtype_t dt
 #include "numkong/cast/powervsx.h"
 #include "numkong/cast/loongsonasx.h"
 #include "numkong/cast/cuda.cuh"
+#include "numkong/cast/ampere.cuh"
+#include "numkong/cast/ada.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

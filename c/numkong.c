@@ -39,7 +39,8 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_each_blend_k:
     case nk_kernel_each_fma_k:
     case nk_kernel_each_swiglu_k:
-    case nk_kernel_each_rmsnorm_k: return nk_each_find_kernel(kind, dtype, capabilities, kernel, capability);
+    case nk_kernel_each_rmsnorm_k:
+    case nk_kernel_each_rmscast_k: return nk_each_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_trig_sin_k:
     case nk_kernel_trig_cos_k:
     case nk_kernel_trig_atan_k: return nk_trigonometry_find_kernel(kind, dtype, capabilities, kernel, capability);

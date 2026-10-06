@@ -15,7 +15,7 @@
 #include "numkong/cuda.cuh"
 #include "numkong/attention/simt.cuh"
 
-#if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#if NUMKONG_ARCH_CUDA_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -240,5 +240,5 @@ nk_define_attention_rope_cuda_(e4m3, cuda, nk_e4m3_to_f32_simt_, nk_f32_to_e4m3_
 } // extern "C"
 #endif
 
-#endif // NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_CUDA_CUH

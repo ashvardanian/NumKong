@@ -22,7 +22,6 @@
 
 #include <algorithm>   // `std::min`, `std::max`
 #include <array>       // `std::array`
-#include <bit>         // `std::bit_ceil`
 #include <memory>      // `std::shared_ptr`, `std::make_shared`
 #include <string>      // `std::string`
 #include <type_traits> // `std::is_same_v`, `std::remove_pointer_t`
@@ -32,6 +31,7 @@
 #include "numkong/numkong.h"
 
 #include "cross.hpp"
+#include "harness_cuda.hpp"
 
 #if NUMKONG_ARCH_CUDA_
 
@@ -48,139 +48,14 @@
 #include <cuvs/distance/pairwise_distance.h>
 #endif // NUMKONG_COMPARE_TO_CUVS
 
-#pragma region CUDA Backend
-
 namespace ashvardanian::numkong::bench {
-
-/** An @c nk::vector in device memory. */
-template <typename value_type_>
-using cuda_device_vector = nk::vector<value_type_, nk::allocator<value_type_>>;
-
-/** Runs kernels over device memory, timing launch windows with CUDA events. */
-struct cuda_backend_t : device_backend_t {
-    std::size_t l2_bytes = 0;
-
-    /** Row stride for rows of @p row_bytes: rounded up to the 16 bytes `cp.async` requires of A
-     *  rows. */
-    static constexpr std::size_t row_stride(std::size_t row_bytes) noexcept { return (row_bytes + 15) / 16 * 16; }
-
-    /** Rotation sets of @p per_set each: enough to cover twice the L2, at most
-     *  @c input_sets_count. */
-    std::size_t input_sets(bytes_t per_set) const noexcept {
-        std::size_t const set_bytes = std::max(per_set.value, std::size_t(1));
-        std::size_t const wanted = std::max(nk::divide_round_up(2 * std::size_t(l2_bytes), set_bytes), std::size_t(1));
-        return std::min(std::bit_ceil(wanted), input_sets_count(per_set));
-    }
-
-    /** Rows a token-row benchmark batches: a 4096-token prefill. */
-    static std::size_t token_rows(environment_t const &) noexcept { return 4096; }
-
-    /** Prefill and decode segments at the end of a 4096-key cache, Llama-style heads. */
-    static std::vector<attention_shape_t> attention_shapes(environment_t const &) {
-        return {{"prefill", 32, 8, 128, 4096, 4096}, {"decode", 32, 8, 128, 1, 4096}};
-    }
-
-    nk_status_t copy(void *destination, void const *source, std::size_t bytes) noexcept {
-        return cudaMemcpy(destination, source, bytes, cudaMemcpyDefault) == cudaSuccess ? nk_success_k
-                                                                                        : nk_device_code_mismatch_k;
-    }
-
-    nk_status_t zero(void *destination, std::size_t bytes) noexcept {
-        return cudaMemset(destination, 0, bytes) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-    }
-
-    template <typename kernel_type_, typename... arguments_types_>
-    nk_status_t call(kernel_type_ kernel, arguments_types_... arguments) noexcept {
-        auto const status = kernel(arguments..., memory.stream);
-        if constexpr (std::is_same_v<decltype(status), cudaError_t const>)
-            return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-        else return status;
-    }
-
-    template <typename launch_type_>
-    nk_status_t time(loop_t &loop, std::size_t sets_count, launch_type_ &launch) {
-        cudaEvent_t start = nullptr, stop = nullptr;
-        if (cudaEventCreate(&start) != cudaSuccess) return nk_device_code_mismatch_k;
-        if (cudaEventCreate(&stop) != cudaSuccess) {
-            cudaEventDestroy(start);
-            return nk_device_code_mismatch_k;
-        }
-        nk_status_t status = nk_success_k;
-        std::size_t calls = 0, window = 1;
-        for ([[maybe_unused]] std::size_t call : loop) {
-            if (cudaEventRecord(start, (cudaStream_t)memory.stream) != cudaSuccess) {
-                status = nk_device_code_mismatch_k;
-                break;
-            }
-            for (std::size_t index = 0; index != window; ++index) {
-                status = launch((calls + index) & (sets_count - 1));
-                if (status != nk_success_k) break;
-            }
-            if (status != nk_success_k) break;
-            if (cudaEventRecord(stop, (cudaStream_t)memory.stream) != cudaSuccess ||
-                cudaEventSynchronize(stop) != cudaSuccess) {
-                status = nk_device_code_mismatch_k;
-                break;
-            }
-            float milliseconds = 0;
-            if (cudaEventElapsedTime(&milliseconds, start, stop) != cudaSuccess) {
-                status = nk_device_code_mismatch_k;
-                break;
-            }
-            std::chrono::duration<float, std::milli> const elapsed {milliseconds};
-            loop.add_window(elapsed, window);
-            calls += window;
-            if (elapsed < std::chrono::milliseconds(1)) window *= 2;
-        }
-        cudaError_t const start_status = cudaEventDestroy(start), stop_status = cudaEventDestroy(stop);
-        if (status != nk_success_k) return status;
-        return start_status == cudaSuccess && stop_status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
-    }
-
-    nk_status_t synchronize() noexcept {
-        return cudaStreamSynchronize((cudaStream_t)memory.stream) == cudaSuccess ? nk_success_k
-                                                                                 : nk_device_code_mismatch_k;
-    }
-};
-
-/** Prints why a baseline row is missing, when @p name passes the filter. */
-void print_skipped(environment_t const &env, std::string const &name, char const *reason) {
-    if (env.settings.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
-}
-
-/** The codes behind a kernel operand: the pointer itself, or a block-scaled reference's elements,
- *  whose unit scales the baselines never read. */
-template <typename operand_type_>
-void const *operand_codes(operand_type_ operand) noexcept {
-    if constexpr (requires { operand->elements; }) return operand->elements;
-    else return operand;
-}
-
-/** Runs a baseline @p kernel over dense B rows through @c run_packed, with a copy of B as
- *  its pack. */
-template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
-void run_unpacked(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
-                  kernel_type_ kernel, cuda_backend_t const &backend) {
-    using input_t = typename nk::type_for<input_dtype_>::type;
-    auto const packed_size = [](std::size_t columns, std::size_t depth, nk_size_t *bytes) {
-        *bytes = columns * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
-        return nk_success_k;
-    };
-    auto const copy = [](auto b, std::size_t columns, std::size_t, std::size_t row_bytes, void *packed, std::size_t,
-                         std::size_t, void *stream) {
-        return cudaMemcpyAsync(packed, operand_codes(b), columns * row_bytes, cudaMemcpyDeviceToDevice,
-                               (cudaStream_t)stream);
-    };
-    run_packed<input_dtype_, output_type_, cuda_backend_t>(env, name, compute_expected, packed_size, copy, kernel,
-                                                           backend);
-}
-
-#pragma endregion CUDA Backend
 
 #pragma region Rows
 
 /** The CUDA baseline rows the tensor-core capabilities have no faster path for, on every device. */
-void bench_cross_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
+void bench_cross_cuda([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend,
+                      [[maybe_unused]] nk_capability_t enabled) {
+#if NUMKONG_TARGET_CUDA
     if (!(enabled & nk_cap_cuda_k)) return;
     run_dots_packed<nk_f64_k>(env, "dots_packed_f64_cuda", nk_dots_pack_size_f64_cuda, nk_dots_pack_f64_cuda,
                               nk_dots_packed_f64_cuda, backend);
@@ -200,90 +75,10 @@ void bench_cross_cuda(environment_t const &env, cuda_backend_t const &backend, n
                                     nk_dots_pack_f32_cuda, nk_euclideans_packed_f32_cuda, backend);
     run_euclideans_symmetric<nk_f64_k>(env, "euclideans_symmetric_f64_cuda", nk_euclideans_symmetric_f64_cuda, backend);
     run_euclideans_symmetric<nk_f32_k>(env, "euclideans_symmetric_f32_cuda", nk_euclideans_symmetric_f32_cuda, backend);
-}
-
-/** The element-wise and RoPE CUDA baseline rows over the backend's token rows. */
-void bench_each_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
-    if (!(enabled & nk_cap_cuda_k)) return;
-    constexpr nk_kernel_kind_t sum_k = nk_kernel_each_sum_k, scale_k = nk_kernel_each_scale_k;
-    constexpr nk_kernel_kind_t blend_k = nk_kernel_each_blend_k, fma_k = nk_kernel_each_fma_k;
-    run_each<nk_f64_k, sum_k, nk_f64_k>(env, "each_sum_f64_cuda", nk_each_sum_f64_cuda, backend);
-    run_each<nk_f64_k, scale_k, nk_f64_k>(env, "each_scale_f64_cuda", nk_each_scale_f64_cuda, backend);
-    run_each<nk_f64_k, blend_k, nk_f64_k>(env, "each_blend_f64_cuda", nk_each_blend_f64_cuda, backend);
-    run_each<nk_f64_k, fma_k, nk_f64_k>(env, "each_fma_f64_cuda", nk_each_fma_f64_cuda, backend);
-    run_each<nk_f32_k, sum_k, nk_f32_k>(env, "each_sum_f32_cuda", nk_each_sum_f32_cuda, backend);
-    run_each<nk_f32_k, scale_k, nk_f32_k>(env, "each_scale_f32_cuda", nk_each_scale_f32_cuda, backend);
-    run_each<nk_f32_k, blend_k, nk_f32_k>(env, "each_blend_f32_cuda", nk_each_blend_f32_cuda, backend);
-    run_each<nk_f32_k, fma_k, nk_f32_k>(env, "each_fma_f32_cuda", nk_each_fma_f32_cuda, backend);
-    run_each<nk_bf16_k, sum_k, nk_f32_k>(env, "each_sum_bf16_cuda", nk_each_sum_bf16_cuda, backend);
-    run_each<nk_bf16_k, scale_k, nk_f32_k>(env, "each_scale_bf16_cuda", nk_each_scale_bf16_cuda, backend);
-    run_each<nk_bf16_k, blend_k, nk_f32_k>(env, "each_blend_bf16_cuda", nk_each_blend_bf16_cuda, backend);
-    run_each<nk_bf16_k, fma_k, nk_f32_k>(env, "each_fma_bf16_cuda", nk_each_fma_bf16_cuda, backend);
-    run_each<nk_e4m3_k, sum_k, nk_f32_k>(env, "each_sum_e4m3_cuda", nk_each_sum_e4m3_cuda, backend);
-    run_each<nk_e4m3_k, scale_k, nk_f32_k>(env, "each_scale_e4m3_cuda", nk_each_scale_e4m3_cuda, backend);
-    run_each<nk_e4m3_k, blend_k, nk_f32_k>(env, "each_blend_e4m3_cuda", nk_each_blend_e4m3_cuda, backend);
-    run_each<nk_e4m3_k, fma_k, nk_f32_k>(env, "each_fma_e4m3_cuda", nk_each_fma_e4m3_cuda, backend);
-    run_each<nk_i8_k, sum_k, nk_f32_k>(env, "each_sum_i8_cuda", nk_each_sum_i8_cuda, backend);
-    run_each<nk_i8_k, scale_k, nk_f32_k>(env, "each_scale_i8_cuda", nk_each_scale_i8_cuda, backend);
-    run_each<nk_i8_k, blend_k, nk_f32_k>(env, "each_blend_i8_cuda", nk_each_blend_i8_cuda, backend);
-    run_each<nk_i8_k, fma_k, nk_f32_k>(env, "each_fma_i8_cuda", nk_each_fma_i8_cuda, backend);
-    run_each<nk_u8_k, sum_k, nk_f32_k>(env, "each_sum_u8_cuda", nk_each_sum_u8_cuda, backend);
-    run_each<nk_u8_k, scale_k, nk_f32_k>(env, "each_scale_u8_cuda", nk_each_scale_u8_cuda, backend);
-    run_each<nk_u8_k, blend_k, nk_f32_k>(env, "each_blend_u8_cuda", nk_each_blend_u8_cuda, backend);
-    run_each<nk_u8_k, fma_k, nk_f32_k>(env, "each_fma_u8_cuda", nk_each_fma_u8_cuda, backend);
-    run_each<nk_i32_k, sum_k, nk_f64_k>(env, "each_sum_i32_cuda", nk_each_sum_i32_cuda, backend);
-    run_each<nk_i32_k, scale_k, nk_f64_k>(env, "each_scale_i32_cuda", nk_each_scale_i32_cuda, backend);
-    run_each<nk_i32_k, blend_k, nk_f64_k>(env, "each_blend_i32_cuda", nk_each_blend_i32_cuda, backend);
-    run_each<nk_i32_k, fma_k, nk_f64_k>(env, "each_fma_i32_cuda", nk_each_fma_i32_cuda, backend);
-    run_rmsnorm<nk_f32_k>(env, "each_rmsnorm_f32_cuda", nk_each_rmsnorm_f32_cuda, backend);
-    run_rmsnorm<nk_bf16_k>(env, "each_rmsnorm_bf16_cuda", nk_each_rmsnorm_bf16_cuda, backend);
-    run_rmsnorm<nk_e4m3_k>(env, "each_rmsnorm_e4m3_cuda", nk_each_rmsnorm_e4m3_cuda, backend);
-    run_swiglu<nk_f32_k>(env, "each_swiglu_f32_cuda", nk_each_swiglu_f32_cuda, backend);
-    run_swiglu<nk_bf16_k>(env, "each_swiglu_bf16_cuda", nk_each_swiglu_bf16_cuda, backend);
-    run_swiglu<nk_e4m3_k>(env, "each_swiglu_e4m3_cuda", nk_each_swiglu_e4m3_cuda, backend);
     run_attention_rope<nk_f32_k>(env, "attention_rope_f32_cuda", nk_attention_rope_f32_cuda, backend);
     run_attention_rope<nk_bf16_k>(env, "attention_rope_bf16_cuda", nk_attention_rope_bf16_cuda, backend);
     run_attention_rope<nk_e4m3_k>(env, "attention_rope_e4m3_cuda", nk_attention_rope_e4m3_cuda, backend);
-}
-
-/** The bulk and block-scaled conversion CUDA baseline rows over 4096 tokens of a 4096-wide hidden
- *  state. */
-void bench_cast_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
-    if (!(enabled & nk_cap_cuda_k)) return;
-    std::size_t const tokens = 4096, hidden = 4096;
-    run_cast_rows<nk_f32_k, nk_bf16_k>(env, "cast_f32_to_bf16_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_cast_rows<nk_bf16_k, nk_f32_k>(env, "cast_bf16_to_f32_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_cast_rows<nk_f32_k, nk_f16_k>(env, "cast_f32_to_f16_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_cast_rows<nk_f32_k, nk_e4m3_k>(env, "cast_f32_to_e4m3_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_cast_rows<nk_bf16_k, nk_e4m3_k>(env, "cast_bf16_to_e4m3_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_cast_rows<nk_e4m3_k, nk_bf16_k>(env, "cast_e4m3_to_bf16_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_cast_rows<nk_f32_k, nk_i8_k>(env, "cast_f32_to_i8_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_cast_rows<nk_f64_k, nk_f32_k>(env, "cast_f64_to_f32_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_nvfp4_k>(env, "cast_block_scaled_nvfp4_encode_cuda",
-                                                                          nk_cast_cuda, tokens, hidden, backend);
-    run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_nvfp4_k>(env, "cast_block_scaled_nvfp4_decode_cuda",
-                                                                          nk_cast_cuda, tokens, hidden, backend);
-    run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp4_k>(env, "cast_block_scaled_mxfp4_encode_cuda",
-                                                                          nk_cast_cuda, tokens, hidden, backend);
-    run_block_scaled_rows<block_scaled_direction_t::encode_k, nk_mxfp8e4m3_k>(
-        env, "cast_block_scaled_mxfp8e4m3_encode_cuda", nk_cast_cuda, tokens, hidden, backend);
-    run_block_scaled_rows<block_scaled_direction_t::decode_k, nk_mxfp8e4m3_k>(
-        env, "cast_block_scaled_mxfp8e4m3_decode_cuda", nk_cast_cuda, tokens, hidden, backend);
-}
-
-/** The moments and min/max CUDA baseline rows over 4096 tokens of a 4096-wide hidden state. */
-void bench_reduce_cuda(environment_t const &env, cuda_backend_t const &backend, nk_capability_t enabled) {
-    if (!(enabled & nk_cap_cuda_k)) return;
-    std::size_t const tokens = 4096, hidden = 4096;
-    run_moments_rows<nk_f64_k>(env, "reduce_moments_f64_cuda", nk_reduce_moments_f64_cuda, tokens, hidden, backend);
-    run_moments_rows<nk_f32_k>(env, "reduce_moments_f32_cuda", nk_reduce_moments_f32_cuda, tokens, hidden, backend);
-    run_moments_rows<nk_bf16_k>(env, "reduce_moments_bf16_cuda", nk_reduce_moments_bf16_cuda, tokens, hidden, backend);
-    run_moments_rows<nk_f16_k>(env, "reduce_moments_f16_cuda", nk_reduce_moments_f16_cuda, tokens, hidden, backend);
-    run_moments_rows<nk_e4m3_k>(env, "reduce_moments_e4m3_cuda", nk_reduce_moments_e4m3_cuda, tokens, hidden, backend);
-    run_moments_rows<nk_i8_k>(env, "reduce_moments_i8_cuda", nk_reduce_moments_i8_cuda, tokens, hidden, backend);
-    run_minmax_rows<nk_f32_k>(env, "reduce_minmax_f32_cuda", nk_reduce_minmax_f32_cuda, tokens, hidden, backend);
-    run_minmax_rows<nk_bf16_k>(env, "reduce_minmax_bf16_cuda", nk_reduce_minmax_bf16_cuda, tokens, hidden, backend);
-    run_minmax_rows<nk_i8_k>(env, "reduce_minmax_i8_cuda", nk_reduce_minmax_i8_cuda, tokens, hidden, backend);
+#endif // NUMKONG_TARGET_CUDA
 }
 
 /** Every Ampere entry point, compiled only when the architecture list includes the family. */
@@ -814,6 +609,42 @@ void bench_cross_blackwellrtx([[maybe_unused]] environment_t const &env, [[maybe
 }
 
 #pragma endregion Rows
+
+#pragma region Baseline Helpers
+
+/** Prints why a baseline row is missing, when @p name passes the filter. */
+void print_skipped(environment_t const &env, std::string const &name, char const *reason) {
+    if (env.settings.selects(name)) print(row_t {name, 0, {}, std::string_view(reason)});
+}
+
+/** The codes behind a kernel operand: the pointer itself, or a block-scaled reference's elements,
+ *  whose unit scales the baselines never read. */
+template <typename operand_type_>
+void const *operand_codes(operand_type_ operand) noexcept {
+    if constexpr (requires { operand->elements; }) return operand->elements;
+    else return operand;
+}
+
+/** Runs a baseline @p kernel over dense B rows through @c run_packed, with a copy of B as
+ *  its pack. */
+template <nk_dtype_t input_dtype_, typename output_type_, typename kernel_type_>
+void run_unpacked(environment_t const &env, std::string const &name, expected_metric_t compute_expected,
+                  kernel_type_ kernel, cuda_backend_t const &backend) {
+    using input_t = typename nk::type_for<input_dtype_>::type;
+    auto const packed_size = [](std::size_t columns, std::size_t depth, nk_size_t *bytes) {
+        *bytes = columns * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
+        return nk_success_k;
+    };
+    auto const copy = [](auto b, std::size_t columns, std::size_t, std::size_t row_bytes, std::size_t, void *packed,
+                         std::size_t, std::size_t, void *stream) {
+        return cudaMemcpyAsync(packed, operand_codes(b), columns * row_bytes, cudaMemcpyDeviceToDevice,
+                               (cudaStream_t)stream);
+    };
+    run_packed<input_dtype_, output_type_, cuda_backend_t>(env, name, compute_expected, packed_size, copy, kernel,
+                                                           backend);
+}
+
+#pragma endregion Baseline Helpers
 
 #pragma region cuBLAS
 #if NUMKONG_COMPARE_TO_CUBLAS

@@ -20,6 +20,7 @@
 
 #include "numkong/attention/cuda.cuh" // `nk_attention_schedule_next_`, `nk_attention_fallback_`
 #include "numkong/dots/ampere.cuh" // `nk_mma_bf16_ampere_`, `nk_load_matrices_x4_ampere_`, `nk_copy_b128_async_ampere_`
+#include "numkong/cast/ampere.cuh" // `nk_f32x2_to_bf16x2_ampere_`, `nk_f32x2_to_f16x2_ampere_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -53,38 +54,6 @@ typedef void (*nk_attention_scores_ampere_t)(nk_fui32_t scores[2][4], nk_u32_t c
 typedef void (*nk_attention_weights_ampere_t)(nk_f32_t const probabilities[4], nk_u32_t packed[2], nk_f32_t *sum);
 
 #pragma endregion Configuration
-
-#pragma region Instructions
-
-/* Rounds two F32 into a BF16 pair, @p low in the low half. */
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-NUMKONG_DEVICE nk_u32_t nk_f32x2_to_bf16x2_ampere_(nk_f32_t low, nk_f32_t high) {
-    nk_u32_t pair;
-    asm("cvt.rn.bf16x2.f32 %0, %1, %2;\n" : "=r"(pair) : "f"(high), "f"(low));
-    return pair;
-}
-
-/* Rounds two F32 into an F16 pair, @p low in the low half. */
-NUMKONG_DEVICE nk_u32_t nk_f32x2_to_f16x2_ampere_(nk_f32_t low, nk_f32_t high) {
-    nk_u32_t pair;
-    asm("cvt.rn.f16x2.f32 %0, %1, %2;\n" : "=r"(pair) : "f"(high), "f"(low));
-    return pair;
-}
-
-#else
-
-NUMKONG_DEVICE nk_u32_t nk_f32x2_to_bf16x2_ampere_(nk_f32_t low, nk_f32_t high) {
-    __trap();
-    return 0;
-}
-NUMKONG_DEVICE nk_u32_t nk_f32x2_to_f16x2_ampere_(nk_f32_t low, nk_f32_t high) {
-    __trap();
-    return 0;
-}
-
-#endif // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
-
-#pragma endregion Instructions
 
 #pragma region Fragments
 

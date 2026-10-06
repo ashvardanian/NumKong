@@ -14,6 +14,7 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
 void test_reduce_cuda(error_stats_section_t &check) {
+#if NUMKONG_TARGET_CUDA
     check.section("Reductions CUDA", nk_cap_cuda_k);
     check("reduce_moments_f32_cuda", test_reduce_moments<f32_t, cuda_backend_t>, nk_reduce_moments_f32_cuda);
     check("reduce_moments_f64_cuda", test_reduce_moments<f64_t, cuda_backend_t>, nk_reduce_moments_f64_cuda);
@@ -54,6 +55,7 @@ void test_reduce_cuda(error_stats_section_t &check) {
     check("reduce_minmax_i4_cuda", test_reduce_minmax<i4x2_t, cuda_backend_t>, nk_reduce_minmax_i4_cuda);
     check("reduce_minmax_u4_cuda", test_reduce_minmax<u4x2_t, cuda_backend_t>, nk_reduce_minmax_u4_cuda);
     check("reduce_minmax_u1_cuda", test_reduce_minmax<u1x8_t, cuda_backend_t>, nk_reduce_minmax_u1_cuda);
+#endif // NUMKONG_TARGET_CUDA
 }
 
 #else  // !NUMKONG_ARCH_CUDA_
