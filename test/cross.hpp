@@ -468,10 +468,11 @@ struct operand_scales {
     }
 };
 
-/** Scales for @p rows rows of @p depth dimensions whose codes lie @p stride bytes apart. */
+/** Scales for @p rows rows of @p depth dimensions whose codes lie @p stride bytes apart, UE8M0 ones
+ *  within @p exponent_limit binades of one. */
 template <typename scalar_type_, typename backend_type_>
 auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t rows, std::size_t depth,
-                   std::size_t stride, float tensor_scale) {
+                   std::size_t stride, float tensor_scale, int exponent_limit = 3) {
     using operand_t = operand_scales<scalar_type_, backend_type_>;
     using scale_t = typename operand_t::scale_t;
     operand_t operand;
@@ -480,7 +481,7 @@ auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t 
                           scale_stride = stride / operand_t::format.block_bytes;
         operand.scale_stride = scale_stride;
         operand.blocks = operand_t::blocks_t::zeros({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
-        std::uniform_int_distribution<int> exponents(-3, 3), finite_scales(1, 126);
+        std::uniform_int_distribution<int> exponents(-exponent_limit, exponent_limit), finite_scales(1, 126);
         for (std::size_t row = 0; row != rows; ++row)
             for (std::size_t block = 0; block != blocks; ++block) {
                 if constexpr (operand_t::format.scale_dtype == nk_ue4m3_k)
@@ -520,6 +521,10 @@ enum class dots_operands_t {
 
     /** F64 halves cancelling to ~2⁻³³ of Σ|a · b|, which plain F64 accumulation visibly misses. */
     ill_conditioned_k,
+
+    /** Drawn from the configured distribution, with UE8M0 block scales over ±40 binades, wider than
+     *  the SME kernels fold exactly. */
+    wide_scales_k,
 };
 
 /** One case: C shaped @b [rows,columns] equals A shaped @b [rows,depth] times B transposed,
@@ -558,9 +563,12 @@ std::vector<dots_packed_case_t> dots_packed_cases(settings_t const &settings) {
         {257, 129, 300, tight, random},
         {257, 129, 300, padded, random},
         {33, 100, 4096, tight, random},
+        {48, 100, 1536, tight, random},
     };
     if constexpr (std::is_same_v<scalar_type_, f64_t>)
         cases.push_back({32, 48, 300, tight, dots_operands_t::ill_conditioned_k});
+    if constexpr (nk_block_scaled_format_of_dtype(scalar_type_::dtype()).scale_dtype == nk_ue8m0_k)
+        cases.push_back({48, 100, 1536, tight, dots_operands_t::wide_scales_k});
     return cases;
 }
 
@@ -615,6 +623,91 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
     using bytes_t = nk::vector<char, typename backend_type_::template allocator<char>>;
 
     error_stats_t stats(nk_dot_error_bound(scalar_type_::dtype()));
+    if constexpr (scalar_type_::dtype() == nk_nvfp4_k) {
+        using tensor_scales_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
+        auto codes = scalars_t::zeros(1, allocator_of<scalar_t>(backend)).value;
+        auto tensor = tensor_scales_t::zeros(1, allocator_of<f32_t>(backend)).value;
+        tensor[0] = f32_t(std::numeric_limits<float>::infinity());
+        nk_nvfp4_cref_t const operand {codes.raw_values_data(), nullptr, tensor.raw_values_data()};
+        auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, 65, 0), allocator_of<char>(backend)).value;
+        auto result = results_t::zeros(33 * 65, allocator_of<result_t>(backend)).value;
+        {
+            nk_status_t submission_status = backend.call(pack_fn, &operand, 65, 0, 0, packed.raw_values_data(), 0, 65);
+            if (submission_status == nk_success_k)
+                submission_status = backend.call(dots_fn, &operand, packed.raw_values_data(), result.raw_values_data(),
+                                                 33, 65, 0, 0, 65 * sizeof(result_t));
+            nk_status_t const synchronization_status = backend.synchronize();
+            stats.expect(submission_status);
+            stats.expect(synchronization_status);
+            if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+        }
+        for (std::size_t i = 0; i < result.size(); ++i)
+            stats.expect(std::isnan(static_cast<float>(result[i])), "empty NVFP4 dot loses infinite tensor scale");
+    }
+    if constexpr (scalar_type_::dtype() == nk_mxfp4_k) {
+        using scales_t = nk::vector<ue8m0_t, typename backend_type_::template allocator<ue8m0_t>>;
+        auto codes = scalars_t::zeros(format.block_size, allocator_of<scalar_t>(backend)).value;
+        std::memset(codes.raw_values_data(), 0x11, codes.size_bytes());
+        auto scales = scales_t::zeros(2, allocator_of<ue8m0_t>(backend)).value;
+        reinterpret_cast<nk_u8_t *>(scales.raw_values_data())[1] = 253;
+        nk_mxfp4_cref_t const a {codes.raw_values_data(), scales.raw_values_data()};
+        nk_mxfp4_cref_t const b {codes.raw_values_data(), scales.raw_values_data() + 1};
+        auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, 1, format.block_size),
+                                     allocator_of<char>(backend))
+                          .value;
+        auto result = results_t::zeros(1, allocator_of<result_t>(backend)).value;
+        {
+            nk_status_t submission_status = backend.call(pack_fn, &b, 1, format.block_size, format.block_bytes,
+                                                         packed.raw_values_data(), 0, 1);
+            if (submission_status == nk_success_k)
+                submission_status = backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1,
+                                                 format.block_size, format.block_bytes, sizeof(result_t));
+            nk_status_t const synchronization_status = backend.synchronize();
+            stats.expect(submission_status);
+            stats.expect(synchronization_status);
+            if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+        }
+        stats.expect(static_cast<float>(result[0]) == 0, "MXFP4 zero scale decodes as a nonzero exponent");
+    }
+    if constexpr (format.block_size != 0) {
+        using scale_t = typename nk::type_for<format.scale_dtype>::type;
+        using scales_t = nk::vector<scale_t, typename backend_type_::template allocator<scale_t>>;
+        using tensor_scales_t = nk::vector<f32_t, typename backend_type_::template allocator<f32_t>>;
+        std::size_t const depth = 2 * format.block_size, columns = 3, row_bytes = 2 * format.block_bytes;
+        auto codes = scalars_t::zeros(4 * row_bytes / sizeof(scalar_t), allocator_of<scalar_t>(backend)).value;
+        std::memset(codes.raw_values_data(), 0x22, codes.size_bytes());
+        auto scales = scales_t::zeros(8, allocator_of<scale_t>(backend)).value;
+        auto tensor = tensor_scales_t::zeros(1, allocator_of<f32_t>(backend)).value;
+        tensor[0] = f32_t(1.0f);
+        nk_u8_t *raw_scales = reinterpret_cast<nk_u8_t *>(scales.raw_values_data());
+        for (std::size_t index = 0; index < 8; ++index)
+            raw_scales[index] = format.scale_dtype == nk_ue8m0_k ? 127 : 0x38;
+        raw_scales[0] = format.scale_dtype == nk_ue8m0_k ? 255 : 127;
+        typename cref_of_<scalar_type_>::type a {}, b {};
+        a.elements = reinterpret_cast<decltype(a.elements)>(codes.raw_values_data());
+        b.elements = reinterpret_cast<decltype(b.elements)>(reinterpret_cast<char *>(codes.raw_values_data()) +
+                                                            row_bytes);
+        a.scales = reinterpret_cast<decltype(a.scales)>(raw_scales);
+        b.scales = reinterpret_cast<decltype(b.scales)>(raw_scales + 2);
+        if constexpr (format.tensor_scale_dtype == nk_f32_k)
+            a.tensor_scale = tensor.raw_values_data(), b.tensor_scale = tensor.raw_values_data();
+        auto packed =
+            bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, columns, depth), allocator_of<char>(backend)).value;
+        auto result = results_t::zeros(columns, allocator_of<result_t>(backend)).value;
+        {
+            nk_status_t submission_status = backend.call(pack_fn, &b, columns, depth, row_bytes,
+                                                         packed.raw_values_data(), 0, columns);
+            if (submission_status == nk_success_k)
+                submission_status = backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1,
+                                                 columns, depth, row_bytes, columns * sizeof(result_t));
+            nk_status_t const synchronization_status = backend.synchronize();
+            stats.expect(submission_status);
+            stats.expect(synchronization_status);
+            if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+        }
+        for (std::size_t column = 0; column < columns; ++column)
+            stats.expect(std::isnan(static_cast<float>(result[column])), "a NaN block scale does not reach the dot");
+    }
     std::mt19937 generator(settings.seed.value);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
@@ -659,8 +752,11 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                 }
             fill_padding_canary(a, rows, row_bytes, a_stride), fill_padding_canary(b, columns, row_bytes, b_stride);
             fill_canary(c);
-            auto const a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, a_stride, 1.5f),
-                       b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, b_stride, 0.75f);
+            int const exponent_limit = test_case.operands == dots_operands_t::wide_scales_k ? 40 : 3;
+            auto const a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, a_stride, 1.5f,
+                                                              exponent_limit),
+                       b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, b_stride, 0.75f,
+                                                              exponent_limit);
 
             // Run kernel being tested
             {
@@ -1219,6 +1315,33 @@ error_stats_t test_angulars_packed(settings_t const &settings, pack_size_kernel_
 
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_angular_error_bound(scalar_type_::dtype()));
+    if constexpr (scalar_type_::dtype() == nk_mxfp8e5m2_k) {
+        using scales_t = nk::vector<ue8m0_t, typename backend_type_::template allocator<ue8m0_t>>;
+        auto codes = scalars_t::zeros(64, allocator_of<scalar_t>(backend)).value;
+        auto *raw = reinterpret_cast<nk_u8_t *>(codes.raw_values_data());
+        std::memset(raw, 0x3c, 32);
+        std::memset(raw + 33, 0x04, 15);
+        std::memset(raw + 49, 0x84, 15);
+        raw[32] = 0x7b, raw[48] = 0xfb;
+        auto scales = scales_t::zeros(2, allocator_of<ue8m0_t>(backend)).value;
+        auto *scale_codes = reinterpret_cast<nk_u8_t *>(scales.raw_values_data());
+        scale_codes[0] = 253, scale_codes[1] = 1;
+        nk_mxfp8e5m2_cref_t const a {codes.raw_values_data(), scales.raw_values_data()};
+        nk_mxfp8e5m2_cref_t const b {codes.raw_values_data() + 32, scales.raw_values_data() + 1};
+        auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, 1, 32), allocator_of<char>(backend)).value;
+        auto result = results_t::zeros(1, allocator_of<result_t>(backend)).value;
+        {
+            nk_status_t submission_status = backend.call(pack_fn, &b, 1, 32, 32, packed.raw_values_data(), 0, 1);
+            if (submission_status == nk_success_k)
+                submission_status = backend.call(angulars_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1,
+                                                 1, 32, 32, sizeof(result_t));
+            nk_status_t const synchronization_status = backend.synchronize();
+            stats.expect(submission_status);
+            stats.expect(synchronization_status);
+            if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
+        }
+        stats.expect(static_cast<float>(result[0]) == 0, "MXFP8 cancellation changes the angular endpoint");
+    }
     std::mt19937 generator(settings.seed.value);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dims_per_value);
@@ -1431,11 +1554,8 @@ error_stats_t test_angulars_symmetric(settings_t const &settings, symmetric_kern
             if (nk_status_t const status = backend.call(symmetric_fn, scales.operand(a.raw_values_data()), n, k, stride,
                                                         c.raw_values_data(), c_stride, 0, n);
                 status != nk_success_k) {
-
                 stats.expect(status);
-
                 stats.expect(backend.synchronize());
-
                 return stats;
             }
             if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
@@ -1502,11 +1622,8 @@ error_stats_t test_euclideans_symmetric(settings_t const &settings, symmetric_ke
             if (nk_status_t const status = backend.call(symmetric_fn, scales.operand(a.raw_values_data()), n, k, stride,
                                                         c.raw_values_data(), c_stride, 0, n);
                 status != nk_success_k) {
-
                 stats.expect(status);
-
                 stats.expect(backend.synchronize());
-
                 return stats;
             }
             if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {
@@ -1726,11 +1843,8 @@ error_stats_t test_attention_rope(settings_t const &settings, rope_kernel_type_ 
                     rope_fn, in_place ? y.raw_values_data() : x.raw_values_data(), cosines.raw_values_data(),
                     sines.raw_values_data(), y.raw_values_data(), rows, head_count, depth, row_bytes, row_bytes);
                 status != nk_success_k) {
-
                 stats.expect(status);
-
                 stats.expect(backend.synchronize());
-
                 return stats;
             }
             if (nk_status_t const status = backend.synchronize(); status != nk_success_k) {

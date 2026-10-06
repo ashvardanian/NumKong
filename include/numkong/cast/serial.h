@@ -757,7 +757,7 @@ NUMKONG_INLINE void nk_f32_to_bf16_(nk_f32_t const *src, nk_bf16_t *dest) {
 }
 
 /** Widens one E4M3FN value to F32, exactly. */
-NUMKONG_CONSTEXPR void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) {
+NUMKONG_CONSTEXPR void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     nk_u8_t raw = *src;
     nk_u32_t sign = (nk_u32_t)(raw & 0x80) << 24;
     nk_u32_t exponent = (raw >> 3) & 0x0Fu;
@@ -958,7 +958,7 @@ NUMKONG_INLINE void nk_e4m3_to_f16_serial_(nk_e4m3_t const *src, nk_f16_t *dest)
  *  @see OCP 8-bit Floating Point Specification: https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
  */
-NUMKONG_INLINE void nk_e5m2_to_f32_(nk_e5m2_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e5m2_to_f32_(nk_e5m2_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     static nk_u32_t const lut[128] = {
         0x00000000, 0x37800000, 0x38000000, 0x38400000, // exp=0  sub
         0x38800000, 0x38A00000, 0x38C00000, 0x38E00000, // exp=1
@@ -1086,7 +1086,7 @@ NUMKONG_CONSTEXPR void nk_f32_to_e5m2_(nk_f32_t const *src, nk_e5m2_t *dest) {
  *  @see OCP Microscaling Formats Specification: https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf
  *  @see FP6-LLM: https://arxiv.org/abs/2401.14112
  */
-NUMKONG_INLINE void nk_e2m3_to_f32_(nk_e2m3_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e2m3_to_f32_(nk_e2m3_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3E000000, 0x3E800000, 0x3EC00000, 0x3F000000, 0x3F200000, 0x3F400000, 0x3F600000, // exp=0 sub
         0x3F800000, 0x3F900000, 0x3FA00000, 0x3FB00000, 0x3FC00000, 0x3FD00000, 0x3FE00000, 0x3FF00000, // exp=1
@@ -1185,7 +1185,7 @@ NUMKONG_CONSTEXPR void nk_f32_to_e2m3_(nk_f32_t const *src, nk_e2m3_t *dest) {
  *  E3M2FN (FP6) format: 1 sign bit, 3 exponent bits (bias=3), 2 mantissa bits.
  *  Range: [-28, +28], no infinity or NaN (OCP Microscaling FN format).
  */
-NUMKONG_INLINE void nk_e3m2_to_f32_(nk_e3m2_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e3m2_to_f32_(nk_e3m2_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3D800000, 0x3E000000, 0x3E400000, // exp=0 sub
         0x3E800000, 0x3EA00000, 0x3EC00000, 0x3EE00000, // exp=1
@@ -1315,7 +1315,7 @@ NUMKONG_INLINE void nk_e2m1_nibble_to_f32_serial_(nk_u8_t nibble, nk_f32_t *dest
 }
 
 /** Twice a single E2M1 nibble (low 4 bits) as an exact i8 in [-12, +12]. */
-NUMKONG_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) {
+NUMKONG_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) NUMKONG_STREAMABLE_ {
     static nk_i8_t const doubled_values[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     return doubled_values[nibble & 0x0F];
 }

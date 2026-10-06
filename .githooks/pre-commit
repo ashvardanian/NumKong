@@ -90,9 +90,9 @@ paragraph_room_awk='
 '
 
 # Runs an awk program over the staged file with `added[line]` preloaded, so a structural check sees the
-# whole file as context and still reports only what this commit added.
-scan_staged_file_marking_added_lines() { # scan_staged_file_marking_added_lines <awk-program>
-    awk "$comment_structure_awk"'NR == FNR { added[$1 + 0]; next } '"$1" "$staged_lines_path" "$staged_text_path"
+# whole file as context and still reports only what this commit added; code checks use the comment-free copy.
+scan_staged_file_marking_added_lines() { # scan_staged_file_marking_added_lines <awk-program> [source]
+    awk "$comment_structure_awk"'FILENAME == ARGV[1] { added[$1 + 0]; next } '"$1" "$staged_lines_path" "${2:-$staged_text_path}"
 }
 
 # Blanks C-family comments to spaces, keeping every line and column in place, so a code check never fires
@@ -1985,7 +1985,7 @@ check_abbreviations_spelled_out() {
                 if ((prose && token !~ /_/) || !(token in existing)) { print "    " token ": " substr($0, 2); break }
             }
         }' <(printf '%s\n' "$previous_text") \
-        <(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns) \
+        "$staged_code_path" \
         <(printf '%s\n' "$staged_added_text") || true)
     [ -z "$abbreviated" ] || reject_with_reason "$abbreviated" \
         "$staged_path abbreviates a word this project spells out; write \`high\`, \`low\`, \`accumulator\`, and so on:"
@@ -1994,12 +1994,7 @@ check_abbreviations_spelled_out() {
 # Template parameters are private names; public aliases belong inside the instantiated type.
 check_template_parameter_names() {
     local names
-    names=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        added_list="$staged_added_line_numbers_list" awk '
-        BEGIN {
-            count = split(ENVIRON["added_list"], lines, "\n")
-            for (index_ = 1; index_ <= count; ++index_) added[lines[index_] + 0] = 1
-        }
+    names=$(scan_staged_file_marking_added_lines '
         function check_parameter(    declaration, words, count, name) {
             declaration = parameter
             sub(/=.*/, "", declaration)
@@ -2029,7 +2024,7 @@ check_template_parameter_names() {
                 parameter = parameter character
             }
             if (depth) parameter = parameter " "
-        }' || true)
+        }' "$staged_code_path")
     [ -z "$names" ] || reject_with_reason "$names" \
         "$staged_path exposes a template parameter name; append an underscore and define public aliases inside:"
 }
@@ -2038,11 +2033,10 @@ check_template_parameter_names() {
 # restitches unpinned fragments into a staircase.
 check_split_string_literal_pinned() {
     local unpinned
-    unpinned=$(printf '%s\n' "$staged_file_text" | added_list="$staged_added_line_numbers_list" awk '
-        BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+    unpinned=$(scan_staged_file_marking_added_lines '
         (FNR in added) && ((FNR - 1) in added) && previous ~ /"[[:space:]]*$/ && previous !~ /\/\/[[:space:]]*$/ &&
             $0 ~ /^[[:space:]]*"/ { print FNR - 1 ": " previous }
-        { previous = $0 }' || true)
+        { previous = $0 }')
     [ -z "$unpinned" ] || reject_with_reason "$unpinned" \
         "$staged_path splits a string literal without a trailing \`//\` pin;" \
         "            end every fragment but the last with \`\" //\`:"
@@ -2067,9 +2061,7 @@ check_boolean_parameters() {
 # reads as hiding something.
 check_void_discards() {
     local casts
-    casts=$(printf '%s\n' "$staged_added_text" |
-        grep -vE "$added_comment_line_pattern" |
-        grep -E '\(void\)[[:space:]]*[A-Za-z_:(]' || true)
+    casts=$(grep -E '(^|[^A-Za-z0-9_])\(void\)[[:space:]]*[A-Za-z_:(]' "$staged_added_code_path" || true)
     [ -z "$casts" ] || reject_with_reason "$casts" \
         "$staged_path casts a result to void - bind it to a [[maybe_unused]] variable instead:"
 }
@@ -2155,9 +2147,8 @@ check_rust_macros_absent() {
 # `TRANSFORM` into an `OUTPUT_VARIABLE` defines a new list rather than mutating its source.
 check_cmake_variable_written_once() {
     local mutated
-    mutated=$(printf '%s\n' "$staged_file_text" | sed -E 's,#.*$,,' |
-        added_list="$staged_added_line_numbers_list" awk '
-        BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+    mutated=$(scan_staged_file_marking_added_lines '
+        { sub(/#.*/, "") }
         /^[[:space:]]*foreach[[:space:]]*\(/ { ++loops }
         /^[[:space:]]*endforeach[[:space:]]*\(/ { --loops }
         (FNR in added) && !(loops > 0 && /^[[:space:]]*list[[:space:]]*\([[:space:]]*APPEND[[:space:]]/) { print FNR ":" $0 }' |
@@ -2199,7 +2190,7 @@ check_harness_namespace_matches_directory() {
         fi
         ;;
     esac
-    foreign=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns | awk -v expected="$expected_namespace" '
+    foreign=$(awk -v expected="$expected_namespace" '
         continued { continued = ($0 ~ /\\$/); next }
         /^[[:space:]]*#/ { continued = ($0 ~ /\\$/); next }
         {
@@ -2215,7 +2206,7 @@ check_harness_namespace_matches_directory() {
             }
             depth += gsub(/\{/, "{", code) - gsub(/\}/, "}", code)
         }
-        END { if (!opened) print "no namespace at all" }' || true)
+        END { if (!opened) print "no namespace at all" }' "$staged_code_path")
     [ -z "$foreign" ] || reject_with_reason "$foreign" \
         "$staged_path opens a file-scope namespace other than \`$expected_namespace\`;" \
         "            wrap its contents in the namespace its directory names, and open no other:"
@@ -2789,7 +2780,7 @@ check_kernel_documented_at_declaration() {
         /^NUMKONG_API / && (FNR in added) && ((FNR - 1) in added) && is_comment_closer(previous) {
             print "+" $0
         }
-        { previous = $0 }' || true)
+        { previous = $0 }')
     [ -z "$documented_definitions" ] || reject_with_reason "$documented_definitions" \
         "$staged_path documents a public kernel definition;" \
         "            move the docblock to its declaration in include/numkong/<family>.h and @copydoc it:"
@@ -2803,16 +2794,15 @@ check_register_names_carry_dtype_and_width() {
     local register_grammar exempt_line_numbers misnamed
     case "${staged_path##*/}" in
     haswell.h | skylake.h | icelake.h | genoa.h | sapphire.h | sapphireamx.h | graniteamx.h | alder.h | \
-        sierra.h | turin.h | v128.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) register_grammar="fixed" ;;
+        sierra.h | turin.h | diamond*.h | v128.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) register_grammar="fixed" ;;
     sve*.h | sme*.h) register_grammar="sve" ;;
     rvv*.h) register_grammar="rvv" ;;
     *) return 0 ;;
     esac
     exempt_line_numbers=$(printf '%s\n' "$staged_file_text" | grep -n 'nk-nolint: naming' | cut -d: -f1)
-    misnamed=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        added_list="$staged_added_line_numbers_list" exempt_list="$exempt_line_numbers" awk -v isa="$register_grammar" '
+    misnamed=$(isa="$register_grammar" exempt_list="$exempt_line_numbers" scan_staged_file_marking_added_lines '
         BEGIN {
-            count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1
+            isa = ENVIRON["isa"]
             count = split(ENVIRON["exempt_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) exempt[numbers[index_] + 0] = 1
         }
         function vector_name_valid(name) {
@@ -2826,14 +2816,15 @@ check_register_names_carry_dtype_and_width() {
             if (isa == "rvv") return name ~ /_b(1|2|4|8|16|32|64)$/
         }
         function name_exempt(name) { return name ~ /(_vec|_tail|_tile)$/ || name == "state" }
-        function check_declarators(text, type, is_mask,    name, rest, character, depth, position) {
+        function check_declarators(text, type, is_mask, multiple,    name, rest, character, depth, position) {
             while (text != "") {
-                sub(/^[[:space:]]*(const[[:space:]]+)?/, "", text)
+                sub(/^[[:space:]]*(const[[:space:]]+)?[*[:space:]]*/, "", text)
                 name = text; sub(/[^A-Za-z0-9_].*/, "", name)
                 rest = substr(text, length(name) + 1)
                 if (rest ~ /^[[:space:]]*\(/) return
                 if (name != "" && !name_exempt(name) && !(is_mask ? mask_name_valid(name) : vector_name_valid(name)))
                     printf "line %d: %s %s\n", FNR, type, name
+                if (!multiple) return
                 depth = 0
                 for (position = 1; position <= length(rest); ++position) {
                     character = substr(rest, position, 1)
@@ -2845,6 +2836,12 @@ check_register_names_carry_dtype_and_width() {
                 text = substr(rest, position + 1)
             }
         }
+        function parentheses(text,    opened, closed) {
+            gsub(/"(\\.|[^"\\])*"/, "", text)
+            opened = gsub(/\(/, "", text); closed = gsub(/\)/, "", text)
+            return opened - closed
+        }
+        { previous_depth = parenthesis_depth; parenthesis_depth += parentheses($0) }
         (FNR in added) && !(FNR in exempt) {
             token_count = split($0, tokens, /[[:space:]]+/)
             for (token_index = 1; token_index <= token_count; ++token_index) {
@@ -2852,12 +2849,15 @@ check_register_names_carry_dtype_and_width() {
                 is_mask = (token ~ /^(__mmask[0-9]+|svbool_t|vbool[0-9]+_t)$/)
                 is_vector = (token ~ /^(__m(128|256|512)[id]?|__m512bh|v128_t|(float|int|uint|bfloat|poly)[0-9]+x[0-9]+(x[234])?_t|sv(float|int|uint|bfloat)[0-9]*_t|v(float|int|uint|bfloat)[0-9]+m[1248](x[234])?_t|nk_v[a-z0-9]+_t|nk_b(32|64|128|256|512)_vec_t)$/)
                 if (!is_mask && !is_vector) continue
-                prefix = substr($0, 1, index($0, token) - 1)
-                if (token ~ /^nk_b/ && prefix !~ /^[[:space:]]*((static|const)[[:space:]]+)*$/) continue
-                check_declarators(substr($0, index($0, token) + length(token)), token, is_mask)
+                match($0, "(^|[[:space:]])" token "([[:space:]]|$)")
+                position = RSTART + (substr($0, RSTART, 1) ~ /[[:space:]]/)
+                prefix = substr($0, 1, position - 1)
+                declaration = previous_depth + parentheses(prefix) == 0 && prefix ~ /^[[:space:]]*((static|const)[[:space:]]+)*$/
+                if (token ~ /^nk_b/ && !declaration) continue
+                check_declarators(substr($0, position + length(token)), token, is_mask, declaration)
                 break
             }
-        }' || true)
+        }' "$staged_code_path")
     [ -z "$misnamed" ] || reject_with_reason "$misnamed" \
         "$staged_path names a SIMD register against the $register_grammar convention," \
         "            <role>_<dtype>x<lanes>, _<dtype>x or _<dtype>m<lmul>, with masks per ISA;" \
@@ -2872,8 +2872,7 @@ check_predicated_loads_avoid_serial() {
         turin.h | diamond*.h) ;;
     *) return 0 ;;
     esac
-    serial_loads=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E 'nk_partial_load_[A-Za-z0-9_]+_serial_' || true)
+    serial_loads=$(grep -E 'nk_partial_load_[A-Za-z0-9_]+_serial_' "$staged_added_code_path" || true)
     [ -z "$serial_loads" ] || reject_with_reason "$serial_loads" \
         "$staged_path uses a serial partial loader in a predicated backend; use its masked or vector-length-controlled load:"
 }
@@ -2909,12 +2908,10 @@ check_backend_includes_no_dispatch_umbrella() {
 # so the C dispatch units can link them; `extern "C"` is the one C++ spelling allowed.
 check_cuda_headers_stay_c() {
     local cpp_constructs
-    cpp_constructs=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns | grep -nE \
-        '(^|[^A-Za-z0-9_])(template[[:space:]]*<|class[[:space:]]+[A-Za-z_]|namespace[[:space:]]|auto[[:space:]]+[A-Za-z_*&]|nullptr|new[[:space:]]+[A-Za-z_]|delete[[:space:]]|std::|constexpr[[:space:]]|noexcept|public:|private:|protected:|operator[[:space:]]*[^(])|<<<' |
-        grep -vE 'extern[[:space:]]+"C"' |
-        added_list="$staged_added_line_numbers_list" awk -F: '
-            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
-            ($1 + 0) in added' || true)
+    cpp_constructs=$(scan_staged_file_marking_added_lines '
+        !(FNR in added) || /extern[[:space:]]+"C"/ { next }
+        /(^|[^A-Za-z0-9_])(template[[:space:]]*<|class[[:space:]]+[A-Za-z_]|namespace[[:space:]]|auto[[:space:]]+[A-Za-z_*&]|nullptr|new[[:space:]]+[A-Za-z_]|delete[[:space:]]|std::|constexpr[[:space:]]|noexcept|public:|private:|protected:|operator[[:space:]]*[^(])|<<</ { print FNR ":" $0 }
+        ' "$staged_code_path")
     [ -z "$cpp_constructs" ] || reject_with_reason "$cpp_constructs" \
         "$staged_path adds C++, but include/numkong .cuh tiers are C with \`extern \"C\"\` linkage;" \
         "            write C, and launch with cudaLaunchKernel and an explicit dim3 instead of <<< >>>:"
@@ -2923,7 +2920,7 @@ check_cuda_headers_stay_c() {
 # Rejects a `<<< >>>` launch in a c/ unit, because it drops the launch status that every library launch reports.
 check_launches_report_status() {
     local launches
-    launches=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns | grep -F '<<<' || true)
+    launches=$(grep -F '<<<' "$staged_added_code_path" || true)
     [ -z "$launches" ] || reject_with_reason "$launches" \
         "$staged_path launches with <<< >>>, which loses the launch status; call the vendor's launch API:"
 }
@@ -2933,12 +2930,11 @@ check_launches_report_status() {
 # spell a device helper per vendor, and types.h derives the architecture macros from the compiler.
 check_vendor_tested_only_in_kernels() {
     local tests
-    tests=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        grep -nE '__CUDACC__|__HIP__|__HIP_DEVICE_COMPILE__' |
-        added_list="$staged_added_line_numbers_list" guarded="${staged_path##*/}" awk -F: '
-            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
-            !guard_seen && ENVIRON["guarded"] ~ /^(cuda|rocm)\.cuh$/ && $2 ~ /^#if / { guard_seen = 1; next }
-            ($1 + 0) in added' || true)
+    tests=$(guarded="${staged_path##*/}" scan_staged_file_marking_added_lines '
+        !/__CUDACC__|__HIP__|__HIP_DEVICE_COMPILE__/ { next }
+        !guard_seen && ENVIRON["guarded"] ~ /^(cuda|rocm)\.cuh$/ && /^#if / { guard_seen = 1; next }
+        FNR in added { print FNR ":" $0 }
+        ' "$staged_code_path")
     [ -z "$tests" ] || reject_with_reason "$tests" \
         "$staged_path tests the GPU compiler in host code; put the body in the vendor's cuda.cuh or rocm.cuh:"
 }
@@ -2958,8 +2954,7 @@ check_cmake_internal_variables_uppercase() {
 # stderr, so a passing run reads the same in every sibling.
 check_test_bodies_quiet() {
     local prints
-    prints=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -nE '\b(fmt::println|fmt::print|printf|puts)[[:space:]]*\(|\bstd::cout\b|\bfprintf[[:space:]]*\([[:space:]]*stdout\b' |
+    prints=$(grep -nE '\b(fmt::println|fmt::print|printf|puts)[[:space:]]*\(|\bstd::cout\b|\bfprintf[[:space:]]*\([[:space:]]*stdout\b' "$staged_added_code_path" |
         grep -vE '\([[:space:]]*stderr\b' || true)
     [ -z "$prints" ] || reject_with_reason "$prints" \
         "$staged_path prints to stdout from a test body; report failures to stderr and leave progress" \
@@ -2980,8 +2975,7 @@ check_retired_prefix_absent() {
 # always defined as 0 or 1 and `defined` is true on every platform; `!defined` and `#ifndef` guards pass.
 check_facts_tested_by_value() {
     local tested
-    tested=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E '(^|[^!A-Za-z0-9_])defined[[:space:]]*\(?[[:space:]]*NUMKONG_(ARCH|OS|HAS)_|#[[:space:]]*ifdef[[:space:]]+NUMKONG_(ARCH|OS|HAS)_' || true)
+    tested=$(grep -E '(^|[^!A-Za-z0-9_])defined[[:space:]]*\(?[[:space:]]*NUMKONG_(ARCH|OS|HAS)_|#[[:space:]]*ifdef[[:space:]]+NUMKONG_(ARCH|OS|HAS)_' "$staged_added_code_path" || true)
     [ -z "$tested" ] || reject_with_reason "$tested" \
         "$staged_path tests an always-defined NUMKONG_ARCH_, _OS_ or _HAS_ fact with defined; use #if:"
 }
@@ -2990,8 +2984,7 @@ check_facts_tested_by_value() {
 # Every ALL_CAPS macro is object-like; the few that must take arguments, like `nk_static_assert_`, are snake_case_.
 check_all_caps_macros_object_like() {
     local generators
-    generators=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+[A-Z][A-Z0-9_]*\(' || true)
+    generators=$(grep -E '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+[A-Z][A-Z0-9_]*\(' "$staged_added_code_path" || true)
     [ -z "$generators" ] || reject_with_reason "$generators" \
         "$staged_path defines a function-like ALL_CAPS macro; write a helper function or the expansion out," \
         "            or name a file-local generator snake_case_ and #undef it after use:"
@@ -3000,9 +2993,7 @@ check_all_caps_macros_object_like() {
 # Rejects expanded or constant-folded ceiling division and alignment rounding outside their helpers.
 check_ceiling_divisions_use_helpers() {
     local ceilings
-    ceilings=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        added_list="$staged_added_line_numbers_list" awk '
-            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+    ceilings=$(scan_staged_file_marking_added_lines '
             /^(NUMKONG_CONSTEXPR|constexpr)[^(]*[[:space:]](nk_[a-z0-9]+_)?divide_round_up_?\(/ { helper = !/}/; next }
             helper { if (/^}/) helper = 0; next }
             !(FNR in added) { next }
@@ -3025,7 +3016,7 @@ check_ceiling_divisions_use_helpers() {
                         break
                     }
                 }
-            }' || true)
+            }' "$staged_code_path")
     [ -z "$ceilings" ] || reject_with_reason "$ceilings" \
         "$staged_path hand-rolls a ceiling division or alignment rounding; use the divide_round_up or" \
         "            round_up_to_multiple helpers (nk_size_*_ in C, nk::* in C++ and Metal):"
@@ -3036,8 +3027,7 @@ check_ceiling_divisions_use_helpers() {
 # specifier is a crash rather than a compile error, and argument parsing skips the fast calling convention.
 check_cpython_format_shortcuts_absent() {
     local shortcuts
-    shortcuts=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E '\b(Py_BuildValue|PyArg_Parse[A-Za-z]*|PyArg_UnpackTuple|PyObject_CallFunction|PyObject_CallMethod)[[:space:]]*\(' || true)
+    shortcuts=$(grep -E '\b(Py_BuildValue|PyArg_Parse[A-Za-z]*|PyArg_UnpackTuple|PyObject_CallFunction|PyObject_CallMethod)[[:space:]]*\(' "$staged_added_code_path" || true)
     [ -z "$shortcuts" ] || reject_with_reason "$shortcuts" \
         "$staged_path calls a format-string shortcut of the CPython API; parse METH_FASTCALL arguments by hand," \
         "            build tuples with PyTuple_Pack and PyLong_From*, and call with PyObject_CallOneArg:"
@@ -3184,8 +3174,15 @@ load_path_files() {
     [ -s "$results_directory/$ordinal.added" ] || return 1
     [ -f "$staged_diff_path" ] || staged_diff_path=$results_directory/$ordinal.added
     staged_added_text=$(< "$results_directory/$ordinal.added")
-    staged_added_line_numbers_list=$(< "$staged_lines_path")
     staged_file_text=$(< "$staged_text_path")
+    case "$staged_path" in
+    *.c | *.h | *.hpp | *.cpp | *.cc | *.cu | *.cuh | *.hip | *.metal)
+        staged_code_path=$results_directory/$ordinal.code
+        staged_added_code_path=$results_directory/$ordinal.added-code
+        blank_c_comments_preserving_columns < "$staged_text_path" > "$staged_code_path"
+        scan_staged_file_marking_added_lines 'FNR in added { print "+" $0 }' "$staged_code_path" > "$staged_added_code_path"
+        ;;
+    esac
 }
 
 # `--all-lines <path>...` judges whole working-tree files as though every line outside a function body were

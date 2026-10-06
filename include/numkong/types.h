@@ -950,9 +950,9 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_STREAMABLE_
 #endif
 #if NUMKONG_ARCH_ARM64_ && NUMKONG_ARCH_ARM64_SME_ && defined(__GNUC__) && !defined(__clang__)
-#define NUMKONG_OUTLINED_ __attribute__((noinline)) static
+#define NUMKONG_OUTLINED_ NUMKONG_MAYBE_UNUSED_ __attribute__((noinline)) static
 #else
-#define NUMKONG_OUTLINED_ static
+#define NUMKONG_OUTLINED_ NUMKONG_MAYBE_UNUSED_ static
 #endif
 
 /** @c NUMKONG_DEVICE marks helpers that kernels call, forced inline on the device. CUDA and
@@ -1548,37 +1548,37 @@ NUMKONG_CONSTEXPR int nk_same_literal_(char const *name, nk_size_t length, char 
 }
 
 /** `{nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8}` — NVIDIA NVFP4 (Blackwell-native). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_nvfp4(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_nvfp4(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8};
     return format;
 }
 
 /** `{nk_e2m1_k, nk_ue8m0_k, unknown, 32, 16}` — OCP MXFP4. */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp4(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp4(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 16};
     return format;
 }
 
 /** `{nk_e2m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E2M3 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e2m3(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e2m3(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
 /** `{nk_e3m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E3M2 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e3m2(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e3m2(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e3m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
 /** `{nk_e4m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E4M3 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e4m3(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e4m3(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e4m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
 /** `{nk_e5m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E5M2 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e5m2(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e5m2(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e5m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
@@ -1590,14 +1590,14 @@ NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxint8(void) {
 }
 
 /** `{element_dtype, unknown, unknown, 0, 0}` — plain scalar buffer of @p element_dtype. */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {element_dtype, nk_dtype_unknown_k, nk_dtype_unknown_k, 0, 0};
     return format;
 }
 
 /** Build a block-scaled format descriptor from a composite @p dtype enum value. Returns
  *  `nk_plain(dtype)` when @p dtype is not a composite. */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype) NUMKONG_STREAMABLE_ {
     switch (dtype) {
     case nk_nvfp4_k: return nk_nvfp4();
     case nk_mxfp4_k: return nk_mxfp4();

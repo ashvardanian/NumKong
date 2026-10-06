@@ -123,7 +123,7 @@ nk_static_assert_(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_pac
  *
  *  The 1-tile remainder uses ZA0 only, with predicated loads for partial tiles.
  */
-__arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_f32_t *result) NUMKONG_STREAMING_ {
 
@@ -297,7 +297,7 @@ __arm_new("za") static void nk_maxsim_packed_f16_streaming_( //
  *
  *  The 1-tile remainder uses ZA0 only, with predicated loads for partial tiles.
  */
-__arm_new("za") static void nk_maxsim_packed_bf16_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_bf16_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_f32_t *result) NUMKONG_STREAMING_ {
 
@@ -574,7 +574,7 @@ NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                               
  *  in f64 every (query, document) pair the screen cannot rule out, so the compensated sum of
  *  angular distances 1 − dot / (‖q‖ · ‖d‖) matches an exhaustive search.
  */
-__arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f32_streaming_( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t residue, nk_f64_t *result) NUMKONG_STREAMING_ {
 

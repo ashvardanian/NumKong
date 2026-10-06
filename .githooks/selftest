@@ -2023,6 +2023,10 @@ assert_rejects "discarding through a void cast" "casts a result to void" include
 static inline void probe(void) { (void)compute(); }
 FIXTURE
 
+assert_accepts "void parameter list before a streaming attribute" include/numkong/probe.h <<'FIXTURE'
+NUMKONG_INLINE int probe(void) NUMKONG_STREAMABLE_ { return 0; }
+FIXTURE
+
 assert_rejects "thread_local state" "declares a thread_local" include/numkong/probe.hpp <<'FIXTURE'
 static thread_local int probe_counter = 0;
 FIXTURE
@@ -2424,9 +2428,15 @@ typedef struct probe_t {
     __m512 low_f32x16, high_f32x16;
     nk_b512_vec_t input_vec, output_vec;
 } probe_t;
-NUMKONG_INLINE void probe(nk_b512_vec_t a, nk_b512_vec_t b) {
+NUMKONG_INLINE void probe(nk_b512_vec_t a,
+                         nk_b512_vec_t b, nk_size_t count) {
     __m512 sum_f32x16 = _mm512_add_ps(a.zmm_ps, b.zmm_ps), zero_f32x16 = _mm512_setzero_ps();
 }
+NUMKONG_INLINE void convert(__m512i input_i32x16, __m512 *low_f32x16, __m512 *high_f32x16) {
+    __m512 sum_f32x16 = (__m512)input_i32x16;
+}
+NUMKONG_INLINE void masked(__mmask16 columns_m16, __m256i *a_bf16x16,
+                          __m256i *b_bf16x16) {}
 FIXTURE
 
 for backend in skylake diamondamx sve2 smef64 rvvhalf; do
@@ -2450,6 +2460,21 @@ NUMKONG_INLINE void probe(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     nk_partial_load_b8x16_skylake_(src, dst, n);
 }
 FIXTURE
+
+stage_fixture_with_header include/numkong/probe/skylake.h <<'FIXTURE'
+NUMKONG_INLINE void probe(void) {
+    /*
+    Kept as prose.
+    */
+}
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+sed 's/Kept as prose./nk_partial_load_b8x16_serial_(src, dst, n);/' \
+    "$fixture_directory/include/numkong/probe/skylake.h" > "$fixture_directory/edited.h"
+mv "$fixture_directory/edited.h" "$fixture_directory/include/numkong/probe/skylake.h"
+git -C "$fixture_directory" add -- include/numkong/probe/skylake.h
+run_precommit
+expect_acceptance "added code spelling inside an existing block comment"
 
 assert_rejects "Metal template parameter without private suffix" "exposes a template parameter name" include/numkong/probe.metal <<'FIXTURE'
 template <typename stage_t, uint dtype>

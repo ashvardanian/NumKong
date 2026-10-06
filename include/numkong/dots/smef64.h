@@ -173,7 +173,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f32_smef64(nk_f32_t const *b, nk_size_t col
     return nk_success_k;
 }
 
-__arm_new("za") static void nk_dots_packed_f32_smef64_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_dots_packed_f32_smef64_streaming_( //
     nk_f32_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 
@@ -428,7 +428,7 @@ NUMKONG_API nk_status_t nk_dots_packed_f32_smef64( //
 /** f32 × f32 → f32 symmetric kernel using MOPA self-GEMM with f64 accumulation. Time-shares ZA0 for
  *  both A and B transposition: loads A horizontally, pre-reads A columns into Z registers, then
  *  reloads ZA0 with widened B data per column tile. Eliminates all scalar B-packing loops. */
-__arm_new("za") static void nk_dots_symmetric_f32_smef64_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_dots_symmetric_f32_smef64_streaming_( //
     nk_f32_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 
@@ -1004,7 +1004,7 @@ NUMKONG_INLINE nk_size_t nk_dots_f64_smef64_tiles_offset_(nk_size_t columns) NUM
     return nk_size_round_up_to_multiple_(sizeof(nk_dots_sme_packed_header_t) + columns * sizeof(nk_f64_t), 64);
 }
 
-__arm_new("za") static void nk_dots_symmetric_f64_smef64_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_dots_symmetric_f64_smef64_streaming_( //
     nk_f64_t const *vectors, nk_size_t vectors_count, nk_size_t depth, nk_size_t stride_elements, nk_f64_t *result,
     nk_size_t result_stride_elements, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 
@@ -1211,7 +1211,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f64_smef64(nk_f64_t const *b, nk_size_t col
     return nk_success_k;
 }
 
-__arm_new("za") static void nk_dots_packed_f64_smef64_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_dots_packed_f64_smef64_streaming_( //
     nk_f64_t const *a, void const *b_packed, nk_f64_t *c, nk_size_t rows, nk_size_t columns, nk_size_t depth,
     nk_size_t a_stride_elements, nk_size_t c_stride_elements) NUMKONG_STREAMING_ {
 

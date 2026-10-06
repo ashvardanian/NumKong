@@ -164,7 +164,8 @@ NUMKONG_CONSTEXPR nk_size_t nk_cross_scales_stride_(nk_dtype_t dtype, nk_size_t 
 
 /** Element @p index of a block-scaled row of @p element_dtype, without its scale. E2M1 rows hold
  *  element 0 in the high nibble, as @c nk_cast writes them. */
-NUMKONG_INLINE nk_f64_t nk_cross_scaled_element_serial_(nk_dtype_t element_dtype, nk_u8_t const *row, nk_size_t index) {
+NUMKONG_INLINE nk_f64_t nk_cross_scaled_element_serial_(nk_dtype_t element_dtype, nk_u8_t const *row,
+                                                        nk_size_t index) NUMKONG_STREAMABLE_ {
     nk_f32_t value;
     if (element_dtype == nk_e2m1_k)
         return 0.5 * nk_e2m1_nibble_to_i8x2_serial_((nk_u8_t)(row[index / 2] >> (index & 1 ? 0 : 4)));
@@ -231,7 +232,7 @@ NUMKONG_INLINE nk_cross_operand_t nk_cross_operand_(nk_dtype_t dtype, void const
 }
 
 /** The value behind @p tensor_scale, 1 when it is null. */
-NUMKONG_INLINE nk_f32_t nk_cross_tensor_scale_(nk_f32_t const *tensor_scale) {
+NUMKONG_INLINE nk_f32_t nk_cross_tensor_scale_(nk_f32_t const *tensor_scale) NUMKONG_STREAMABLE_ {
     return tensor_scale ? *tensor_scale : 1;
 }
 
@@ -244,7 +245,7 @@ NUMKONG_INLINE void nk_cross_scale_results_(nk_f32_t *results, nk_size_t count, 
 /** Squared norm of one block-scaled row of @p dtype times @p tensor_scale squared, exact per
  *  block in F64 and rounded once. */
 NUMKONG_INLINE nk_f32_t nk_cross_scaled_sumsq_serial_(nk_dtype_t dtype, void const *row, void const *scales,
-                                                      nk_f64_t tensor_scale, nk_size_t depth) {
+                                                      nk_f64_t tensor_scale, nk_size_t depth) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(dtype);
     nk_f64_t sum = 0;
     for (nk_size_t block = 0; block * format.block_size < depth; ++block) {

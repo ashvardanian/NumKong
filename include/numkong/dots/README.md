@@ -56,6 +56,7 @@ Power-of-2 stride detection — when `stride & (stride - 1) == 0` — adds `dept
 Type conversion is amortized into the pack step: BFloat16 → Float32, Float16 → Float32, and Float8 → Float32 conversions happen once during packing instead of per-row during GEMM.
 A 64-byte header stores metadata: column count, depth dimensions, and padded depth.
 Row grouping (`group_size=16`) zero-pads partial groups at matrix edges for uniform SIMD processing.
+SME packs store each 16-column tile in outer-product operand order, 2 depth steps per 32-bit lane for 16-bit operands and 4 for 8-bit ones, with the same layout the A panels use.
 
 ### Tiled Register Accumulation
 
@@ -80,15 +81,26 @@ Granite Rapids adds `TDPFP16PS` (same tile shape, FP16 operands); the E5M2 varia
 
 ### SME Outer-Product Streaming
 
-`nk_dots_packed_f32_smef64`, `nk_dots_packed_bf16_sme`, `nk_dots_packed_f64_smef64` use Arm's SME ZA tile array (up to 4 named tiles ZA0–ZA3 in 32-bit mode, each SVL×SVL elements).
-`FMOPA za, pn/m, pm/m, zn.s, zm.s` computes a full SVL×SVL rank-1 update in one instruction — one row of A times one row of B, accumulated into ZA.
-ZA0 time-shares between data staging and accumulation: A rows are loaded horizontally into ZA0 (`st1w {za0h.s[ws]}, ...`), then read vertically (`svread_ver_za32_f32_m`) to produce transposed column vectors for B.
-This avoids explicit transpose operations — the tile's 2D addressing provides free transposition.
-ZA1–ZA3 serve as accumulators while ZA0 stages the next data.
-A 3-column-tile fast path handles B column count ≤ 3×SVL using ZA1–ZA3 as three separate accumulator tiles, avoiding spill/reload cycles.
-For wider B, the kernel falls back to multi-pass accumulation with ZA store/load between passes.
-`BFMOPA` for BFloat16 uses the same outer-product pattern but with BFloat16 → Float32 widening — 2× the depth per instruction vs Float32 `FMOPA`.
+The SME kernels use Arm's ZA tile array: four 32-bit tiles ZA0–ZA3, each SVL × SVL elements, 16 × 16 on Apple M4 and M5.
+A widening `FMOPA`, `BFMOPA`, `SMOPA` or `UMOPA` adds a full 16 × 16 rank-2 or rank-4 update of one A vector and one B vector to a tile.
+Every kernel decodes 16 rows of A once per depth chunk into a stack panel already in MOPA operand order, transposing through ZA0 with horizontal writes and vertical stores, so A is never re-decoded per column tile.
+All four tiles then accumulate: 2 × 2 tiles over two 16-row panels and two column tiles, or 1 × 4 tiles over one panel and four column tiles for the last 16-row strip and for BFloat16 operands.
+Depth chunks of 2048 dimensions for 16-bit operands and 4096 for 8-bit ones keep two panels within 128 KB of stack; partial sums of longer rows spill straight from ZA and reload before the next chunk, and the scaling waits for the last chunk.
+Each chunk pays a pipeline drain per tile group, which is what longer chunks buy back on skinny shapes.
+Symmetric kernels decode a window of 8 column tiles once per depth chunk and sweep every row tile of the upper triangle across it.
+Every kernel is vector-length agnostic: decoder tables of up to 16 halfwords or 32 bytes load as register pairs for the two-register `TBL`, which holds them even at a 128-bit streaming vector length.
+On M5 the streaming integer, `TBL`, `LUTI4` and load instructions overlap `FMOPA` up to about 2 per outer product, while streaming FP vector instructions run at a quarter of that rate, so the hot loops spend at most half an FP instruction per outer product.
+Helpers called inside ZA-owning functions are always inlined: any other call costs an `SMSTART ZA` and a lazy-save restore.
 `SMSTART`/`SMSTOP` streaming mode transitions cost ~50–100 cycles, amortized across the full M×N output.
+
+Block-scaled kernels fold every block scale into the decoded operands instead of draining ZA per block.
+An NVFP4 element times its UE4M3 scale has at most 6 significant bits within 2⁻¹⁰ … 2688, so it is an exact Float16 and the tensor scales multiply once in the epilogue.
+MX elements have at most 4 significant bits, so element · 2^(e − base) is an exact BFloat16 while a row spans at most 32 binades: A rows rebase to their smallest block exponent, MXFP4 rows and packed B columns to their largest, and the epilogue applies `FSCALE` by both bases with one rounding.
+Rows or columns spanning more than 32 binades are recomputed by an exact scalar loop after streaming mode ends.
+NVFP4 and MXFP4 packs keep one byte per code and decode B with `TBL` inside the loop: MXFP4 restores the exponent with one saturating subtract, which leaves zeros untouched, and NVFP4 multiplies by a Float16 scale vector shared by the two outer products of a 2 × 2 step.
+That matches `LUTI4` from a 4-bit pack in speed without requiring SME2, while decoding packed nibbles in the loop measured 15–20% slower.
+MXFP6 and MXFP8 packs store the folded BFloat16 values.
+
 Ozaki splitting for Float64 (`nk_dots_packed_f64_smef64`, `nk_dots_symmetric_f64_smef64`) scales every row of A and column of B by a power of two and cuts it into 4 slices on 20-bit grids plus a remainder.
 The 13 grid products with index sums up to 4 add up exactly in 5 ZA tiles for 4096 depth steps, the 2 remainder products round in a sixth, and TwoSum folds them into a running sum, so results are compensated like Dot2.
 Streaming mode issues Float64 arithmetic only every 4 cycles, so the unpacked side is split with exponent-field additions, `FRINTN`, conversions and shifts, leaving 3 multiplies per vector.
