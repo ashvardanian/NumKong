@@ -34,7 +34,7 @@
 
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
-#include "numkong/cast/simt.cuh"   // `nk_bf16_to_f32_simt_`, `nk_load_b128_vec_`
+#include "numkong/cast/simt.cuh"   // `nk_bf16_to_f32_simt_`
 #include "numkong/reduce/simt.cuh" // `nk_f32_two_sum_simt_`, `nk_f32_mul_rn_simt_`
 #include "numkong/dots/simt.cuh"   // `nk_shuffle_xor_f32_`
 
@@ -85,36 +85,38 @@ typedef struct {
  *  @p isa_suffix, calling for every value the helper that the verb's own generator defines. Its
  *  chunk loop stays rolled, as unrolled copies cannot load before the stores they follow and only
  *  add registers, which cost the F64 kernels the occupancy that B300's FP64 pipe needs. */
-#define nk_define_each_elementwise_kernel_simt_(verb, operands, input_type, accumulator_type, isa_suffix)           \
-    static __global__ void nk_each_##verb##_##input_type##_##isa_suffix##_kernel_(                                  \
-        nk_each_elementwise_arguments_t arguments) {                                                                \
-        nk_##input_type##_t const *a = (nk_##input_type##_t const *)arguments.a;                                    \
-        nk_##input_type##_t const *b = operands > 1 ? (nk_##input_type##_t const *)arguments.b : a;                 \
-        nk_##input_type##_t const *c = operands > 2 ? (nk_##input_type##_t const *)arguments.c : a;                 \
-        nk_##input_type##_t *result = (nk_##input_type##_t *)arguments.result;                                      \
-        nk_##accumulator_type##_t const *alpha_address = (nk_##accumulator_type##_t const *)arguments.alpha;        \
-        nk_##accumulator_type##_t const *beta_address = (nk_##accumulator_type##_t const *)arguments.beta;          \
-        nk_##accumulator_type##_t const alpha = alpha_address ? *alpha_address : 0;                                 \
-        nk_##accumulator_type##_t const beta = beta_address ? *beta_address : 0;                                    \
-        unsigned const chunk_values = 16 / sizeof(nk_##input_type##_t);                                             \
-        nk_size_t const threads = (nk_size_t)gridDim.x * blockDim.x;                                                \
-        nk_size_t const first = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x;                                   \
-        int const aligned = !(((nk_size_t)a | (nk_size_t)b | (nk_size_t)c | (nk_size_t)result) & 15);               \
-        nk_size_t const chunks = aligned ? arguments.count / chunk_values : 0;                                      \
-        nk_b128_vec_t a_chunk, b_chunk, c_chunk, result_chunk;                                                      \
-        _Pragma("unroll 1") for (nk_size_t chunk = first; chunk < chunks; chunk += threads) {                       \
-            a_chunk = nk_load_b128_vec_(a + chunk * chunk_values);                                                  \
-            b_chunk = operands > 1 ? nk_load_b128_vec_(b + chunk * chunk_values) : a_chunk;                         \
-            c_chunk = operands > 2 ? nk_load_b128_vec_(c + chunk * chunk_values) : a_chunk;                         \
-            _Pragma("unroll") for (unsigned offset = 0; offset != chunk_values; ++offset)                           \
-                nk_each_##verb##_##input_type##_##isa_suffix##_value_(                                              \
-                    a_chunk.input_type##s + offset, b_chunk.input_type##s + offset, c_chunk.input_type##s + offset, \
-                    alpha, beta, result_chunk.input_type##s + offset);                                              \
-            nk_store_b128_vec_(result + chunk * chunk_values, &result_chunk);                                       \
-        }                                                                                                           \
-        for (nk_size_t index = chunks * chunk_values + first; index < arguments.count; index += threads)            \
-            nk_each_##verb##_##input_type##_##isa_suffix##_value_(a + index, b + index, c + index, alpha, beta,     \
-                                                                  result + index);                                  \
+#define nk_define_each_elementwise_kernel_simt_(verb, operands, input_type, accumulator_type, isa_suffix)         \
+    static __global__ void nk_each_##verb##_##input_type##_##isa_suffix##_kernel_(                                \
+        nk_each_elementwise_arguments_t arguments) {                                                              \
+        nk_##input_type##_t const *a = (nk_##input_type##_t const *)arguments.a;                                  \
+        nk_##input_type##_t const *b = operands > 1 ? (nk_##input_type##_t const *)arguments.b : a;               \
+        nk_##input_type##_t const *c = operands > 2 ? (nk_##input_type##_t const *)arguments.c : a;               \
+        nk_##input_type##_t *result = (nk_##input_type##_t *)arguments.result;                                    \
+        nk_##accumulator_type##_t const *alpha_address = (nk_##accumulator_type##_t const *)arguments.alpha;      \
+        nk_##accumulator_type##_t const *beta_address = (nk_##accumulator_type##_t const *)arguments.beta;        \
+        nk_##accumulator_type##_t const alpha = alpha_address ? *alpha_address : 0;                               \
+        nk_##accumulator_type##_t const beta = beta_address ? *beta_address : 0;                                  \
+        unsigned const chunk_values = 16 / sizeof(nk_##input_type##_t);                                           \
+        nk_size_t const threads = (nk_size_t)gridDim.x * blockDim.x;                                              \
+        nk_size_t const first = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x;                                 \
+        int const aligned = !(((nk_size_t)a | (nk_size_t)b | (nk_size_t)c | (nk_size_t)result) & 15);             \
+        nk_size_t const chunks = aligned ? arguments.count / chunk_values : 0;                                    \
+        uint4 inputs[3], output;                                                                                  \
+        nk_b128_vec_t const *const input_vectors = (nk_b128_vec_t const *)inputs;                                 \
+        nk_b128_vec_t *const output_vector = (nk_b128_vec_t *)&output;                                            \
+        _Pragma("unroll 1") for (nk_size_t chunk = first; chunk < chunks; chunk += threads) {                     \
+            inputs[0] = ((uint4 const *)a)[chunk];                                                                \
+            inputs[1] = operands > 1 ? ((uint4 const *)b)[chunk] : inputs[0];                                     \
+            inputs[2] = operands > 2 ? ((uint4 const *)c)[chunk] : inputs[0];                                     \
+            _Pragma("unroll") for (unsigned offset = 0; offset != chunk_values; ++offset)                         \
+                nk_each_##verb##_##input_type##_##isa_suffix##_value_(                                            \
+                    input_vectors[0].input_type##s + offset, input_vectors[1].input_type##s + offset,             \
+                    input_vectors[2].input_type##s + offset, alpha, beta, output_vector->input_type##s + offset); \
+            ((uint4 *)result)[chunk] = output;                                                                    \
+        }                                                                                                         \
+        for (nk_size_t index = chunks * chunk_values + first; index < arguments.count; index += threads)          \
+            nk_each_##verb##_##input_type##_##isa_suffix##_value_(a + index, b + index, c + index, alpha, beta,   \
+                                                                  result + index);                                \
     }
 
 /** Generates the element-wise sum kernel of @p input_type for @p isa_suffix, after
@@ -198,7 +200,9 @@ typedef struct {
                                up_stride | (nk_size_t)arguments.y | arguments.y_stride) &                              \
                               15);                                                                                     \
         nk_size_t const chunks = aligned ? arguments.columns / chunk_values : 0;                                       \
-        nk_b128_vec_t gate_chunk, up_chunk, y_chunk;                                                                   \
+        uint4 inputs[2], output;                                                                                       \
+        nk_b128_vec_t const *const input_vectors = (nk_b128_vec_t const *)inputs;                                      \
+        nk_b128_vec_t *const output_vector = (nk_b128_vec_t *)&output;                                                 \
         for (nk_size_t row = blockIdx.x * block_teams + threadIdx.x / nk_each_team_lanes_simt_k; row < arguments.rows; \
              row += teams) {                                                                                           \
             unsigned char const *gate_row = arguments.gate + row * arguments.gate_stride;                              \
@@ -207,13 +211,14 @@ typedef struct {
             nk_##input_type##_t const *up = (nk_##input_type##_t const *)up_row;                                       \
             nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride);                  \
             for (nk_size_t chunk = lane; chunk < chunks; chunk += nk_each_team_lanes_simt_k) {                         \
-                gate_chunk = nk_load_b128_vec_(gate + chunk * chunk_values);                                           \
-                if (up) up_chunk = nk_load_b128_vec_(up + chunk * chunk_values);                                       \
+                inputs[0] = ((uint4 const *)gate)[chunk];                                                              \
+                if (up) inputs[1] = ((uint4 const *)up)[chunk];                                                        \
                 _Pragma("unroll") for (unsigned offset = 0; offset != chunk_values; ++offset)                          \
                     nk_each_swiglu_##input_type##_##isa_suffix##_value_(                                               \
-                        gate_chunk.input_type##s + offset, up ? up_chunk.input_type##s + offset : NUMKONG_NULL,        \
-                        arguments.gate_scale, arguments.output_scale, y_chunk.input_type##s + offset);                 \
-                nk_store_b128_vec_(y + chunk * chunk_values, &y_chunk);                                                \
+                        input_vectors[0].input_type##s + offset,                                                       \
+                        up ? input_vectors[1].input_type##s + offset : NUMKONG_NULL, arguments.gate_scale,             \
+                        arguments.output_scale, output_vector->input_type##s + offset);                                \
+                ((uint4 *)y)[chunk] = output;                                                                          \
             }                                                                                                          \
             for (nk_size_t column = chunks * chunk_values + lane; column < arguments.columns;                          \
                  column += nk_each_team_lanes_simt_k)                                                                  \
@@ -282,18 +287,20 @@ NUMKONG_DEVICE nk_f32_t nk_each_inverse_rms_simt_(nk_f32_t sum, nk_f32_t compens
         unsigned const chunk_values = 16 / sizeof(nk_##output_type##_t) < piece_values                               \
                                           ? piece_values                                                             \
                                           : 16 / sizeof(nk_##output_type##_t);                                       \
-        nk_b128_vec_t gains[4], normalized;                                                                          \
+        uint4 gains[4], normalized;                                                                                  \
+        nk_b128_vec_t const *const gain_vectors = (nk_b128_vec_t const *)gains;                                      \
+        nk_##output_type##_t *const outputs = ((nk_b128_vec_t *)&normalized)->output_type##s;                        \
         nk_f32_t value, result;                                                                                      \
         if (gamma) {                                                                                                 \
             _Pragma("unroll") for (unsigned quad = 0; quad != chunk_values / 4; ++quad)                              \
-                gains[quad] = nk_load_b128_vec_(gamma + quad * 4);                                                   \
+                gains[quad] = ((uint4 const *)gamma)[quad];                                                          \
         }                                                                                                            \
         _Pragma("unroll") for (unsigned offset = 0; offset != chunk_values; ++offset) {                              \
             load_and_convert(pieces[offset / piece_values].input_type##s + offset % piece_values, &value);           \
-            result = value * inverse_rms * (gamma ? gains[offset / 4].f32s[offset % 4] : 1.0f);                      \
-            convert_and_store(&result, normalized.output_type##s + offset);                                          \
+            result = value * inverse_rms * (gamma ? gain_vectors[offset / 4].f32s[offset % 4] : 1.0f);               \
+            convert_and_store(&result, outputs + offset);                                                            \
         }                                                                                                            \
-        nk_store_b128_vec_(y, &normalized);                                                                          \
+        *(uint4 *)y = normalized;                                                                                    \
     }                                                                                                                \
     static __global__ void nk_each_##verb##_##output_type##_##isa_suffix##_kernel_(                                  \
         nk_each_rmsnorm_arguments_t arguments) {                                                                     \
@@ -320,8 +327,10 @@ NUMKONG_DEVICE nk_f32_t nk_each_inverse_rms_simt_(nk_f32_t sum, nk_f32_t compens
             nk_f32_t sum = 0, compensation = 0, value;                                                               \
             _Pragma("unroll") for (unsigned piece = 0; piece != nk_each_kept_pieces_simt_k; ++piece) {               \
                 nk_size_t const chunk = threadIdx.x + piece / chunk_pieces * blockDim.x;                             \
-                if (chunk < chunks)                                                                                  \
-                    kept[piece] = nk_load_b128_vec_(x + chunk * chunk_values + piece % chunk_pieces * piece_values); \
+                if (chunk >= chunks) continue;                                                                       \
+                uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece % chunk_pieces * piece_values); \
+                nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                             \
+                kept[piece] = vector;                                                                                \
             }                                                                                                        \
             _Pragma("unroll") for (unsigned piece = 0; piece != nk_each_kept_pieces_simt_k; ++piece) {               \
                 if (threadIdx.x + piece / chunk_pieces * blockDim.x >= chunks) break;                                \
@@ -332,7 +341,9 @@ NUMKONG_DEVICE nk_f32_t nk_each_inverse_rms_simt_(nk_f32_t sum, nk_f32_t compens
             }                                                                                                        \
             for (nk_size_t chunk = threadIdx.x + kept_chunks * blockDim.x; chunk < chunks; chunk += blockDim.x)      \
                 _Pragma("unroll") for (unsigned piece = 0; piece != chunk_pieces; ++piece) {                         \
-                    loaded[0] = nk_load_b128_vec_(x + chunk * chunk_values + piece * piece_values);                  \
+                    uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece * piece_values);            \
+                    nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                         \
+                    loaded[0] = vector;                                                                              \
                     _Pragma("unroll") for (unsigned offset = 0; offset != piece_values; ++offset) {                  \
                         load_and_convert(loaded[0].input_type##s + offset, &value);                                  \
                         nk_each_square_add_simt_(value, exact_squares, &sum, &compensation);                         \
@@ -353,8 +364,11 @@ NUMKONG_DEVICE nk_f32_t nk_each_inverse_rms_simt_(nk_f32_t sum, nk_f32_t compens
                     y + chunk * chunk_values);                                                                       \
             }                                                                                                        \
             for (nk_size_t chunk = threadIdx.x + kept_chunks * blockDim.x; chunk < chunks; chunk += blockDim.x) {    \
-                _Pragma("unroll") for (unsigned piece = 0; piece != chunk_pieces; ++piece)                           \
-                    loaded[piece] = nk_load_b128_vec_(x + chunk * chunk_values + piece * piece_values);              \
+                _Pragma("unroll") for (unsigned piece = 0; piece != chunk_pieces; ++piece) {                         \
+                    uint4 const bits = *(uint4 const *)(x + chunk * chunk_values + piece * piece_values);            \
+                    nk_b128_vec_t const vector = {.u32s = {bits.x, bits.y, bits.z, bits.w}};                         \
+                    loaded[piece] = vector;                                                                          \
+                }                                                                                                    \
                 nk_each_##verb##_##output_type##_##isa_suffix##_chunk_(                                              \
                     loaded, gamma ? gamma + chunk * chunk_values : NUMKONG_NULL, inverse_rms,                        \
                     y + chunk * chunk_values);                                                                       \

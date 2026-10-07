@@ -48,19 +48,22 @@ NUMKONG_DEVICE nk_u32_t nk_f32x2_to_f16x2_ampere_(nk_f32_t low, nk_f32_t high) {
 NUMKONG_DEVICE void nk_f32_to_bf16_ampere_(nk_f32_t const *src, nk_bf16_t *dest) {
     nk_u32_t const bits = __float_as_uint(*src);
     // The instruction writes one canonical NaN; the serial cast keeps the sign and top payload bits
-    nk_store_b16_(dest, (bits & 0x7FFFFFFFu) > 0x7F800000u ? (nk_u16_t)((bits >> 16) | 0x0040u)
-                                                           : (nk_u16_t)nk_f32x2_to_bf16x2_ampere_(*src, 0.0f));
+    *(unsigned short *)dest = (bits & 0x7FFFFFFFu) > 0x7F800000u
+                                  ? (unsigned short)((bits >> 16) | 0x0040u)
+                                  : (unsigned short)nk_f32x2_to_bf16x2_ampere_(*src, 0.0f);
 }
 
 /** Narrows the 8 F32 values at @p from into the 16 bytes of BF16 at @p to, like
  *  @c nk_cast_f32x8_to_bf16x8_simt_. */
-NUMKONG_DEVICE void nk_cast_f32x8_to_bf16x8_ampere_(unsigned char const *from, unsigned char *to) {
-    nk_b128_vec_t loaded[2], narrowed;
-    loaded[0] = nk_load_b128_vec_(from), loaded[1] = nk_load_b128_vec_(from + 16);
+NUMKONG_DEVICE void nk_cast_f32x8_to_bf16x8_ampere_(uint4 const *from, uint4 *to) {
+    uint4 const loaded[2] = {from[0], from[1]};
+    uint4 narrowed;
+    nk_b128_vec_t const *const values = (nk_b128_vec_t const *)loaded;
+    nk_bf16_t *const halves = ((nk_b128_vec_t *)&narrowed)->bf16s;
 #pragma unroll
     for (unsigned offset = 0; offset != 8; ++offset)
-        nk_f32_to_bf16_ampere_(loaded[offset / 4].f32s + offset % 4, narrowed.bf16s + offset);
-    nk_store_b128_vec_(to, &narrowed);
+        nk_f32_to_bf16_ampere_(values[offset / 4].f32s + offset % 4, halves + offset);
+    *to = narrowed;
 }
 
 #pragma endregion Conversions
@@ -82,7 +85,7 @@ static __global__ void nk_cast_vectors_ampere_kernel_(nk_cast_arguments_t argume
         return;
     }
     for (nk_size_t chunk = first; chunk < chunks; chunk += threads)
-        nk_cast_f32x8_to_bf16x8_ampere_(arguments.from + chunk * 32, arguments.to + chunk * 16);
+        nk_cast_f32x8_to_bf16x8_ampere_((uint4 const *)arguments.from + chunk * 2, (uint4 *)arguments.to + chunk);
     nk_cast_vectors_tail_simt_(&arguments);
 }
 

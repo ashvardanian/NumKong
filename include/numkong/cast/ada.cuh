@@ -77,26 +77,29 @@ NUMKONG_DEVICE void nk_f32_to_e5m2_ada_(nk_f32_t const *src, nk_e5m2_t *dest) {
 
 /** Narrows the 16 F32 values at @p from into the 16 bytes of E4M3FN at @p to, like
  *  @c nk_cast_f32x16_to_e4m3x16_simt_. */
-NUMKONG_DEVICE void nk_cast_f32x16_to_e4m3x16_ada_(unsigned char const *from, unsigned char *to) {
-    nk_b128_vec_t loaded[4], narrowed;
-#pragma unroll
-    for (unsigned quad = 0; quad != 4; ++quad) loaded[quad] = nk_load_b128_vec_(from + quad * 16);
+NUMKONG_DEVICE void nk_cast_f32x16_to_e4m3x16_ada_(uint4 const *from, uint4 *to) {
+    uint4 const loaded[4] = {from[0], from[1], from[2], from[3]};
+    uint4 narrowed;
+    nk_b128_vec_t const *const values = (nk_b128_vec_t const *)loaded;
+    nk_e4m3_t *const codes = ((nk_b128_vec_t *)&narrowed)->e4m3s;
 #pragma unroll
     for (unsigned offset = 0; offset != 16; ++offset)
-        nk_f32_to_e4m3_ada_(loaded[offset / 4].f32s + offset % 4, narrowed.e4m3s + offset);
-    nk_store_b128_vec_(to, &narrowed);
+        nk_f32_to_e4m3_ada_(values[offset / 4].f32s + offset % 4, codes + offset);
+    *to = narrowed;
 }
 
 /** Widens the 16 bytes of E4M3FN at @p from into 16 F32 values at @p to, like
  *  @c nk_cast_e4m3x16_to_f32x16_simt_. */
-NUMKONG_DEVICE void nk_cast_e4m3x16_to_f32x16_ada_(unsigned char const *from, unsigned char *to) {
-    nk_b128_vec_t const loaded = nk_load_b128_vec_(from);
-    nk_b128_vec_t widened[4];
+NUMKONG_DEVICE void nk_cast_e4m3x16_to_f32x16_ada_(uint4 const *from, uint4 *to) {
+    uint4 const loaded = *from;
+    uint4 widened[4];
+    nk_e4m3_t const *const codes = ((nk_b128_vec_t const *)&loaded)->e4m3s;
+    nk_b128_vec_t *const values = (nk_b128_vec_t *)widened;
 #pragma unroll
     for (unsigned offset = 0; offset != 16; ++offset)
-        nk_e4m3_to_f32_ada_(loaded.e4m3s + offset, widened[offset / 4].f32s + offset % 4);
+        nk_e4m3_to_f32_ada_(codes + offset, values[offset / 4].f32s + offset % 4);
 #pragma unroll
-    for (unsigned quad = 0; quad != 4; ++quad) nk_store_b128_vec_(to + quad * 16, widened + quad);
+    for (unsigned quad = 0; quad != 4; ++quad) to[quad] = widened[quad];
 }
 
 #pragma endregion Conversions
@@ -113,21 +116,21 @@ static __global__ void nk_cast_vectors_ada_kernel_(nk_cast_arguments_t arguments
     nk_size_t const threads = (nk_size_t)gridDim.x * blockDim.x;
     nk_size_t const first = (nk_size_t)blockIdx.x * blockDim.x + threadIdx.x;
     nk_size_t const chunks = arguments.count / arguments.unit_values;
-    unsigned char const *from = arguments.from;
-    unsigned char *to = arguments.to;
+    uint4 const *from = (uint4 const *)arguments.from;
+    uint4 *to = (uint4 *)arguments.to;
     if (arguments.from_dtype == nk_bf16_k) {
         nk_cast_vectors_simt_(&arguments);
         return;
     }
     if (arguments.from_dtype == nk_e4m3_k)
         for (nk_size_t chunk = first; chunk < chunks; chunk += threads)
-            nk_cast_e4m3x16_to_f32x16_ada_(from + chunk * 16, to + chunk * 64);
+            nk_cast_e4m3x16_to_f32x16_ada_(from + chunk, to + chunk * 4);
     else if (arguments.to_dtype == nk_bf16_k)
         for (nk_size_t chunk = first; chunk < chunks; chunk += threads)
-            nk_cast_f32x8_to_bf16x8_ampere_(from + chunk * 32, to + chunk * 16);
+            nk_cast_f32x8_to_bf16x8_ampere_(from + chunk * 2, to + chunk);
     else
         for (nk_size_t chunk = first; chunk < chunks; chunk += threads)
-            nk_cast_f32x16_to_e4m3x16_ada_(from + chunk * 64, to + chunk * 16);
+            nk_cast_f32x16_to_e4m3x16_ada_(from + chunk * 4, to + chunk);
     nk_cast_vectors_tail_simt_(&arguments);
 }
 
