@@ -157,6 +157,7 @@ NUMKONG_INLINE void nk_partial_load_b32x4_powervsx_(void const *source, nk_b128_
 
 /** Partial load for 32-bit elements (n elements, max 2) into 64-bit vector. */
 NUMKONG_INLINE void nk_partial_load_b32x2_powervsx_(void const *source, nk_b64_vec_t *destination, nk_size_t n) {
+    destination->u64 = 0;
     nk_copy_bytes_(destination, source, n * 4);
 }
 
