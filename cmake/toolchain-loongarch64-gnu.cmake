@@ -1,9 +1,13 @@
-# LoongArch 64 GNU toolchain for NumKong, driving GCC.
+# LoongArch 64 GNU toolchain for NumKong, driving GCC 15.
+#
+# GCC 15 is the floor: its `#pragma GCC target("lasx")` opens `lasxintrin.h` inside the LASX kernels' region, so they
+# compile beside the `loongarch64` floor like every other capability. GCC 14 has no LoongArch target pragma and Clang
+# never opens the header, so either leaves LASX off.
 #
 # Two toolchain layouts are supported, selected by whether `LOONGARCH_TOOLCHAIN_PATH` is given.
 #
 #   Distribution cross packages, the default and what CI uses:
-#     sudo apt install gcc-loongarch64-linux-gnu g++-loongarch64-linux-gnu libc6-dev-loong64-cross qemu-user
+#     sudo apt install gcc-15-loongarch64-linux-gnu g++-15-loongarch64-linux-gnu libc6-dev-loong64-cross qemu-user
 #     cmake -B build_loongarch64 -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-loongarch64-gnu.cmake
 #
 #   A self-contained toolchain carrying its own rootfs:
@@ -13,14 +17,14 @@
 # Optional inputs:
 #   -D LOONGARCH_TOOLCHAIN_PATH=/opt/loongarch64 # selects the self-contained layout
 #   -D LOONGARCH_TRIPLE=loongarch64-linux-gnu    # binary prefix and multiarch directory
-#   -D LOONGARCH_COMPILER_SUFFIX=-14             # selects `loongarch64-linux-gnu-gcc-14`
+#   -D LOONGARCH_COMPILER_SUFFIX=-15             # selects `loongarch64-linux-gnu-gcc-15`, the default
 #   -D LOONGARCH_SYSROOT=/opt/loongarch64/sysroot
 #   -D LOONGARCH_QEMU_LD_PREFIX=/usr/loongarch64-linux-gnu
 #   -D LOONGARCH_QEMU_CPU=la464
 #
 # Testing with QEMU:
 #   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `la464` by
-#   default, which runs the LASX kit, or on the baseline with
+#   default, which runs the LASX kernels, or on the baseline with
 #   `-D LOONGARCH_QEMU_CPU=la464,lsx=off,lasx=off`.
 
 set(CMAKE_SYSTEM_NAME Linux)
@@ -44,17 +48,15 @@ endif ()
 set(LOONGARCH_TRIPLE "${LOONGARCH_TRIPLE}" CACHE STRING "LoongArch 64 target triple, used as the compiler prefix")
 set(ENV{LOONGARCH_TRIPLE} "${LOONGARCH_TRIPLE}")
 
-# Debian versions its cross compilers as `<triple>-gcc-14` and only provides an unsuffixed
-# `<triple>-gcc` when the unversioned metapackage is installed, which CI does not install.
-if (NOT DEFINED LOONGARCH_COMPILER_SUFFIX)
-    if (DEFINED ENV{LOONGARCH_COMPILER_SUFFIX})
-        set(LOONGARCH_COMPILER_SUFFIX "$ENV{LOONGARCH_COMPILER_SUFFIX}")
-    else ()
-        set(LOONGARCH_COMPILER_SUFFIX "")
-    endif ()
+# Ubuntu and Debian version their cross compilers as `<triple>-gcc-15`, and an unsuffixed `<triple>-gcc` is whatever
+# the unversioned metapackage points at, so the suffix pins GCC 15; pass an empty one for an unsuffixed GCC 15.
+if (DEFINED ENV{LOONGARCH_COMPILER_SUFFIX})
+    set(LOONGARCH_COMPILER_SUFFIX_DEFAULT_ "$ENV{LOONGARCH_COMPILER_SUFFIX}")
+else ()
+    set(LOONGARCH_COMPILER_SUFFIX_DEFAULT_ "-15")
 endif ()
-set(LOONGARCH_COMPILER_SUFFIX "${LOONGARCH_COMPILER_SUFFIX}" CACHE STRING
-                                                                   "Version suffix on the cross compiler, e.g. `-14`"
+set(LOONGARCH_COMPILER_SUFFIX "${LOONGARCH_COMPILER_SUFFIX_DEFAULT_}" CACHE STRING
+                                                                            "Version suffix on the cross compiler"
 )
 set(ENV{LOONGARCH_COMPILER_SUFFIX} "${LOONGARCH_COMPILER_SUFFIX}")
 
@@ -87,7 +89,7 @@ endif ()
 set(LOONGARCH_QEMU_LD_PREFIX "${LOONGARCH_QEMU_LD_PREFIX}" CACHE PATH "Guest loader prefix for `qemu-loongarch64 -L`")
 set(ENV{LOONGARCH_QEMU_LD_PREFIX} "${LOONGARCH_QEMU_LD_PREFIX}")
 
-# `la464` carries LSX and LASX, every extension NumKong has a kit for on this target.
+# `la464` carries LSX and LASX, every extension NumKong has kernels for on this target.
 if (NOT DEFINED LOONGARCH_QEMU_CPU)
     if (DEFINED ENV{LOONGARCH_QEMU_CPU})
         set(LOONGARCH_QEMU_CPU "$ENV{LOONGARCH_QEMU_CPU}")
@@ -115,8 +117,7 @@ set(CMAKE_C_COMPILER "${_NUMKONG_LOONGARCH_PREFIX}gcc${LOONGARCH_COMPILER_SUFFIX
 set(CMAKE_CXX_COMPILER "${_NUMKONG_LOONGARCH_PREFIX}g++${LOONGARCH_COMPILER_SUFFIX}")
 
 # No `-march` here: `CMakeLists.txt` pins the dispatch floor with
-# `add_compile_options(-march=loongarch64)`, which lands after `CMAKE_C_FLAGS` and wins, and gives
-# `-mlasx` to the LASX unit alone.
+# `add_compile_options(-march=loongarch64)`, which lands after `CMAKE_C_FLAGS` and wins.
 
 if (DEFINED LOONGARCH_SYSROOT)
     set(CMAKE_SYSROOT "${LOONGARCH_SYSROOT}")

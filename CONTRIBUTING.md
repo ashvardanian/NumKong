@@ -8,7 +8,7 @@ To keep the quality of the code high, we follow the [coding style and convention
 include/numkong/          C and C++ headers — one .h per kernel family with its dispatch points, one .hpp per C++ API
 include/numkong/*/        Kernels, one file per CPU or GPU capability — serial, haswell, neon, sme, rvv, ampere, etc.
 c/                        Library units — per-capability kernels, per-family dispatch points, binding thread pools
-probes/                   One compile probe per kit, `<kit>.c`, which CMake runs for every binding
+probes/                   One compile probe per capability, `<capability>.c`, which CMake runs for every binding
 test/                     C++ precision tests — see test/README.md
 bench/                    C++ benchmark suite and JS bench runner — see bench/README.md
 python/                   CPython extension, no SWIG or PyBind11
@@ -57,12 +57,15 @@ Machine-specific settings, like a compiler path, belong in an untracked `CMakeUs
 | `NUMKONG_COMPARE_TO_CUDNN`    | `OFF`                           | Include cuDNN attention into CUDA benchmarks, from `NUMKONG_CUDNN_ROOT`       |
 | `NUMKONG_COMPARE_TO_CUVS`     | `OFF`                           | Include cuVS distances into CUDA benchmarks, from `NUMKONG_CUVS_ROOTS`        |
 | `NUMKONG_TARGET_ARCH`         | `$NUMKONG_TARGET_ARCH`          | Tune for a CPU, like the host with `native`, or pick a WASM `v128relaxed`     |
-| `NUMKONG_TARGET_<KIT>`        | whether `probes/<kit>.c` builds | `0` drops a kit, and `1` keeps one only where its probe compiles              |
+| `NUMKONG_TARGET_<CAPABILITY>` | its probe's verdict             | `0` drops a capability, and `1` keeps one only where its probe compiles       |
 
-Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which kits the toolchain builds.
-Each kit's probe, `probes/<kit>.c`, calls one of its kernels, compiled header-only at the baseline flags as the library compiles it.
-Kits are scoped per function by target pragmas on every platform, except LASX and POWER9, which compile file-wide with `-mlasx` and `-mcpu=power9` in their own unit, probe, and header-only test alone.
-The library compiles every kit the toolchain builds and dispatches between them by runtime detection, and `-D NUMKONG_TARGET_<KIT>=0` or `=1` overrides a probe.
+Every binding builds the static library through this `CMakeLists.txt`, or links one it built, so CMake is the one place that probes which capabilities the toolchain builds.
+Each capability's probe, `probes/<capability>.c`, calls one of its kernels, compiled header-only at the baseline flags as the library compiles it.
+Capabilities are scoped per function by target pragmas on every platform; LASX and POWER9 need GCC 15 or newer for that, and other toolchains leave them off.
+The library compiles every capability the toolchain builds and dispatches between them by runtime detection, and `-D NUMKONG_TARGET_<CAPABILITY>=0` leaves a capability out.
+Units calling capability kernels link `numkong::cpu_capabilities_compiled`, the build-tree twin of `nk_cpu_capabilities_compiled()`: every CPU capability the toolchain compiles.
+`numkong::header` carries no verdict, so a header-only consumer enables what its own flags name, and the runtime mask picks the compiled capabilities the CPU runs.
+Each CPU capability's flags for a unit compiled whole for it are cached as `nk_target_<capability>_flags`, and each GPU capability's architectures as `nk_target_<capability>_architectures`.
 Each binding hands CMake its options its own way:
 
 | Binding | Builds                                            | Passing another option                                                  |
@@ -100,8 +103,8 @@ SIMD kernels live inside `#pragma GCC target(...)` regions and run only when the
 GCC/Clang builds also pass `-fno-tree-vectorize -fno-tree-slp-vectorize` so the auto-vectorizer cannot promote serial fallbacks to baseline SIMD (NEON, SSE2, VSX, …).
 That keeps the capability dispatch design intact: "serial" kernels stay actually serial, and the per-pragma SIMD kernels — which use explicit intrinsics, not vectorized scalar code — are the sole source of SIMD emission.
 MSVC has no per-function target pragma and no command-line vectorizer toggle, so the explicit `/arch:` flags above match defaults and document intent only; NumKong's MSVC strategy is compile-time gating via `_MSC_VER` version checks (see `include/numkong/types.h`).
-LASX and POWER9 are the two kits compiled file-wide, because Clang's `lasxintrin.h` and `altivec.h` hide their contents without `-mlasx` or `-mcpu=power9`.
-CMake gives that flag to `c/target/loongsonasx.c` or `c/target/powervsx.c`, to the kit's probe, and to `test/cross_loongarch64.cpp` or `test/cross_ppc64.cpp` in the header-only test alone, so every other unit stays at the baseline and runs on LASX-less and POWER8 hosts.
+LASX and POWER9 scope per function only under GCC 15 or newer, whose target pragma defines `__loongarch_asx` and `__POWER9_VECTOR__` inside the region, so `types.h` opens `lasxintrin.h` and `altivec.h` there.
+Clang's headers stay closed without `-mlasx` or `-mcpu=power9`, so a Clang build leaves both capabilities off, and the cross toolchains drive GCC 15.
 
 For host-tuned local builds, set `NUMKONG_TARGET_ARCH=native`, either as the CMake option `-DNUMKONG_TARGET_ARCH=native` or as an environment variable.
 `pip install` reads the variable on every build, while `cargo build` and `npm run build-native` read it when they first configure their build directory.
@@ -149,8 +152,8 @@ Targets with a `qemu-*` emulator additionally require `qemu-user`.
 | WASI                    | `wasm32-wasi`         | Wasmtime / Wasmer             | WASI SDK 24+, `v128` by default                 |
 | WASI threads            | `wasm32-wasi-threads` | Wasmtime with threads         | WASI SDK 24+, `v128relaxed` by default          |
 
-Each QEMU toolchain names its emulated core in `<ARCH>_QEMU_CPU`, the richest by default so the tests run every compiled kit.
-A baseline leg passes the baseline core instead, which runs the library without any kit: `-D AARCH64_QEMU_CPU=cortex-a53`, `-D RISCV_QEMU_CPU=rv64`, `-D PPC_QEMU_CPU=power8`, or `-D LOONGARCH_QEMU_CPU=la464,lsx=off,lasx=off`.
+Each QEMU toolchain names its emulated core in `<ARCH>_QEMU_CPU`, the richest by default so the tests run every compiled capability.
+A baseline leg passes the baseline core instead, which runs the library without any capability: `-D AARCH64_QEMU_CPU=cortex-a53`, `-D RISCV_QEMU_CPU=rv64`, `-D PPC_QEMU_CPU=power8`, or `-D LOONGARCH_QEMU_CPU=la464,lsx=off,lasx=off`.
 
 A WebAssembly module carries one SIMD capability, `serial`, `v128` or `v128relaxed`, and `NUMKONG_TARGET_ARCH` selects it for every toolchain and binding.
 Each toolchain file sets its default, and `CMakeLists.txt` turns the choice into `-msimd128` and `-mrelaxed-simd` for every unit, whatever flags a binding passes.
@@ -178,7 +181,7 @@ cmake --build build_riscv --parallel
 NUMKONG_IN_QEMU=1 ctest --test-dir build_riscv # runs under qemu-riscv64 -cpu max
 ```
 
-The ISA floor is `rv64gc`, and the RVV kits dispatch at runtime.
+The ISA floor is `rv64gc`, and the RVV capabilities dispatch at runtime.
 Needs GCC 16 or newer: the RVV kernels gate on `#pragma GCC target("arch=+v")`, which GCC implements for RISC-V only from 16, and 14 and 15 ignore it and then fail on the intrinsics.
 GCC 16 is not in Debian stable yet, so this currently needs it from `sid`.
 

@@ -346,34 +346,34 @@ jobs:
 
   create_linux_exotic_library:
     name: Create Library for Linux, ${{ matrix.name }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: ppc64le
             arch: ppc64le
-            cc: powerpc64le-linux-gnu-gcc-14
-            cxx: powerpc64le-linux-gnu-g++-14
-            pkg: gcc-14-powerpc64le-linux-gnu g++-14-powerpc64le-linux-gnu
+            cc: powerpc64le-linux-gnu-gcc-15
+            cxx: powerpc64le-linux-gnu-g++-15
+            pkg: gcc-15-powerpc64le-linux-gnu g++-15-powerpc64le-linux-gnu
             processor: ppc64le
           - name: loongarch64
             arch: loongarch64
-            cc: loongarch64-linux-gnu-gcc-14
-            cxx: loongarch64-linux-gnu-g++-14
-            pkg: gcc-14-loongarch64-linux-gnu g++-14-loongarch64-linux-gnu
+            cc: loongarch64-linux-gnu-gcc-15
+            cxx: loongarch64-linux-gnu-g++-15
+            pkg: gcc-15-loongarch64-linux-gnu g++-15-loongarch64-linux-gnu
             processor: loongarch64
           - name: s390x
             arch: s390x
-            cc: s390x-linux-gnu-gcc-14
-            cxx: s390x-linux-gnu-g++-14
-            pkg: gcc-14-s390x-linux-gnu g++-14-s390x-linux-gnu
+            cc: s390x-linux-gnu-gcc-15
+            cxx: s390x-linux-gnu-g++-15
+            pkg: gcc-15-s390x-linux-gnu g++-15-s390x-linux-gnu
             processor: s390x
           - name: armv7l
             arch: armv7l
-            cc: arm-linux-gnueabihf-gcc-14
-            cxx: arm-linux-gnueabihf-g++-14
-            pkg: gcc-14-arm-linux-gnueabihf g++-14-arm-linux-gnueabihf
+            cc: arm-linux-gnueabihf-gcc-15
+            cxx: arm-linux-gnueabihf-g++-15
+            pkg: gcc-15-arm-linux-gnueabihf g++-15-arm-linux-gnueabihf
             processor: arm
     steps:
       - name: Checkout Repository

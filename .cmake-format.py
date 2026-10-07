@@ -31,3 +31,12 @@ with section("format"):
 with section("markup"):
     # Do not reflow comment text
     enable_markup = False
+
+# Commands defined here, so their keywords group like those of built-in commands.
+additional_commands = {
+    "nk_cpu_capability_": {"pargs": 2, "kwargs": {"GCC_FLAGS": "+", "MSVC_FLAGS": "+"}},
+    "nk_gpu_capability_": {
+        "pargs": 2,
+        "kwargs": {"CUDA_ARCHITECTURES": "+", "ROCM_ARCHITECTURES": "+", "METAL_ARCHITECTURES": "+"},
+    },
+}

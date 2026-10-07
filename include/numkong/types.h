@@ -438,8 +438,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for LoongArch LASX, 256-bit SIMD, NUMKONG_TARGET_LOONGSONASX:
  *  LASX provides 32 × 256-bit vector registers, widening integer multiply-accumulate, and
- *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. Its units compile with
- *  `-mlasx`, as `lasxintrin.h` hides its contents without the flag. */
+ *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. Its kernels scope it
+ *  per function under GCC 15, while Clang's `lasxintrin.h` needs `-mlasx` across the unit. */
 #if !defined(NUMKONG_TARGET_LOONGSONASX) || (NUMKONG_TARGET_LOONGSONASX && !NUMKONG_ARCH_LOONGARCH64_)
 #if defined(__loongarch_asx)
 #define NUMKONG_TARGET_LOONGSONASX 1
@@ -452,8 +452,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 /*  Compiling for Power VSX, 128-bit SIMD, POWER9+ baseline, NUMKONG_TARGET_POWERVSX:
  *  VSX provides 64 × 128-bit registers, FMA via vec_madd, vec_msum for multiply-sum, hardware f16
  *  conversion via vec_extract_fp32_from_shorth/l, length-limited loads via vec_xl_len, per-byte
- *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. Its units compile
- *  with `-mcpu=power9`, as `altivec.h` hides the POWER9 API without the flag. */
+ *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. Its kernels scope it
+ *  per function under GCC 15, while Clang's `altivec.h` needs `-mcpu=power9` across the unit. */
 #if !defined(NUMKONG_TARGET_POWERVSX) || (NUMKONG_TARGET_POWERVSX && !NUMKONG_ARCH_PPC64_)
 #if defined(__VSX__) && defined(__POWER9_VECTOR__)
 #define NUMKONG_TARGET_POWERVSX 1
@@ -846,7 +846,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_METAL) || ...
 
 /** Whether a capability's helpers compile here: its own target, or any capability built on it. Each
- *  architecture's base, Haswell, NEON, RVV and V128, covers every capability of that architecture.
+ *  architecture's base, Haswell, NEON, RVV, LoongsonASX, PowerVSX and V128, covers every capability
+ *  of that architecture.
  *  @c NUMKONG_TARGET_* alone decides where its kernels are defined. */
 #define NUMKONG_ARCH_X8664_SAPPHIREAMX_ \
     (NUMKONG_TARGET_SAPPHIREAMX || NUMKONG_TARGET_GRANITEAMX || NUMKONG_TARGET_DIAMONDAMX)
@@ -865,6 +866,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
      NUMKONG_TARGET_NEONSDOT || NUMKONG_TARGET_NEONFP8 || NUMKONG_ARCH_ARM64_SVE_)
 #define NUMKONG_ARCH_RISCV64_RVV_ \
     (NUMKONG_TARGET_RVV || NUMKONG_TARGET_RVVHALF || NUMKONG_TARGET_RVVBF16 || NUMKONG_TARGET_RVVBB)
+#define NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_ NUMKONG_TARGET_LOONGSONASX
+#define NUMKONG_ARCH_PPC64_POWERVSX_          NUMKONG_TARGET_POWERVSX
 #define NUMKONG_ARCH_WASM_V128_ (NUMKONG_TARGET_V128 || NUMKONG_TARGET_V128RELAXED)
 #define NUMKONG_ARCH_CUDA_AMPERE_ \
     (NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_HOPPER || NUMKONG_TARGET_BLACKWELL || NUMKONG_TARGET_BLACKWELLRTX)
@@ -891,12 +894,29 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #if NUMKONG_ARCH_RISCV64_RVV_
 #include <riscv_vector.h>
 #endif
-#if defined(__loongarch_asx)
+/*  The LASX and POWER9 intrinsics headers open in the same target region as their kernels.
+ *  GCC 15 defines @c __loongarch_asx and @c __POWER9_VECTOR__ there, while Clang defines them
+ *  only under `-mlasx` or `-mcpu=power9`. */
+#if NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
+#if !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC target("lasx")
+#endif
 #include <lsxintrin.h>  // `__m128i` for LSX SIMD
 #include <lasxintrin.h> // `__m256i` for LASX SIMD
+#if !defined(__clang__)
+#pragma GCC pop_options
 #endif
-#if defined(__POWER9_VECTOR__)
+#endif
+#if NUMKONG_ARCH_PPC64_POWERVSX_
+#if !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC target("power9-vector")
+#endif
 #include <altivec.h>
+#if !defined(__clang__)
+#pragma GCC pop_options
+#endif
 #endif
 #if NUMKONG_ARCH_WASM_V128_
 #include <wasm_simd128.h>
@@ -980,7 +1000,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  AltiVec defines @c bool, @c vector, and @c pixel as macros, which conflict with C++. We use
  *  @c __vector directly in our code, so undef the problematic macros. */
-#if defined(__POWER9_VECTOR__)
+#if NUMKONG_ARCH_PPC64_POWERVSX_
 #ifdef __cplusplus
 #undef bool
 #undef vector
@@ -996,7 +1016,7 @@ typedef __vector signed int nk_vi32x4_t;
 typedef __vector signed long long nk_vi64x2_t;
 typedef __vector float nk_vf32x4_t;
 typedef __vector double nk_vf64x2_t;
-#endif // defined(__POWER9_VECTOR__)
+#endif // NUMKONG_ARCH_PPC64_POWERVSX_
 
 /** Copy 16 bits (2 bytes) from source to destination */
 #if defined(__GNUC__) || defined(__clang__)
@@ -2127,8 +2147,6 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b64_vec_t {
     int16x4_t i16x4;
     int32x2_t i32x2;
     float32x2_t f32x2;
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_
     float16x4_t f16x4;
 #endif
     nk_u8_t u8s[8];
@@ -2146,7 +2164,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b64_vec_t {
 
 /** Small 16-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || defined(__loongarch_asx)
+#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
     __m128i xmm;
     __m128d xmm_pd;
     __m128 xmm_ps;
@@ -2164,14 +2182,10 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
     int32x4_t i32x4;
     int64x2_t i64x2;
     float32x4_t f32x4;
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_ && NUMKONG_ARCH_ARM64_ // double-precision NEON requires AArch64
     float64x2_t f64x2;
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_
     float16x8_t f16x8;
 #endif
-#if defined(__POWER9_VECTOR__)
+#if NUMKONG_ARCH_PPC64_POWERVSX_
     nk_vu8x16_t vu8x16;
     nk_vu16x8_t vu16x8;
     nk_vu32x4_t vu32x4;
@@ -2204,7 +2218,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
 
 /** Small 32-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || defined(__loongarch_asx)
+#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_ARCH_LOONGARCH64_LOONGSONASX_
     __m256i ymm;
     __m256d ymm_pd;
     __m256 ymm_ps;
@@ -2223,11 +2237,9 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
     int32x4_t i32x4s[2];
     int64x2_t i64x2s[2];
     float32x4_t f32x4s[2];
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_ && NUMKONG_ARCH_ARM64_ // double-precision NEON requires AArch64
     float64x2_t f64x2s[2];
 #endif
-#if defined(__POWER9_VECTOR__)
+#if NUMKONG_ARCH_PPC64_POWERVSX_
     nk_vu8x16_t vu8x16s[2];
     nk_vu16x8_t vu16x8s[2];
     nk_vu32x4_t vu32x4s[2];

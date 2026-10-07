@@ -316,8 +316,9 @@ jobs:
   test_qemu_cross:
     name: Test C under QEMU, ${{ matrix.name }}
     runs-on: ubuntu-26.04
-    # Noble's GCC 14 cross ICEs folding SVE intrinsics under LTO; Trixie's builds the same tree.
-    container: debian:trixie
+    # LASX and POWER9 scope per function only from GCC 15 on, and Ubuntu 26.04 ships GCC 15 cross compilers for every leg,
+    # unlike Trixie, which stops at GCC 14.
+    container: ubuntu:26.04
     timeout-minutes: 60
 
     strategy:
@@ -361,7 +362,7 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends git ca-certificates cmake ninja-build g++ qemu-user \
-            gcc-14-${{ matrix.triple }} g++-14-${{ matrix.triple }}
+            gcc-15-${{ matrix.triple }} g++-15-${{ matrix.triple }}
 
       - name: Checkout
         uses: actions/checkout@v7
@@ -370,7 +371,7 @@ jobs:
       - name: Configure for ${{ matrix.qemu_cpu }}
         run: |
           cmake --preset linux_${{ matrix.arch }} \
-            -D ${{ matrix.prefix }}_COMPILER_SUFFIX=-14 -D ${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }}
+            -D ${{ matrix.prefix }}_COMPILER_SUFFIX=-15 -D ${{ matrix.prefix }}_QEMU_CPU=${{ matrix.qemu_cpu }}
 
       - name: Build
         run: cmake --build --preset linux_${{ matrix.arch }}

@@ -718,8 +718,9 @@ When executors ship in your toolchain, replacing the `parallel_for` lambda above
 The build enforces C99 for the C layer and C++20 for the C++ layer.
 [CONTRIBUTING.md](../CONTRIBUTING.md#building) lists the CMake presets and options, and [its cross-compilation section](../CONTRIBUTING.md#cross-compilation) the toolchain files in `cmake/` with a recipe for each target.
 A translation unit linking `numkong::static` or `numkong::shared` sees declarations only, while `numkong::header` defines `NUMKONG_HEADER_ONLY=1` and compiles the kernels inline.
-The library compiles every kit whose probe in `probes/` compiles, each scoped to its kernels by target pragmas, or for LASX and POWER9 to its own unit by `-mlasx` or `-mcpu=power9`, and dispatches between them by runtime detection.
-Header-only units get the kits their own flags enable, LASX and POWER9 only under those two flags, as their intrinsics headers hide their contents without them.
+The library compiles every capability whose probe in `probes/` compiles, each scoped to its kernels by target pragmas, and dispatches between them by runtime detection.
+LASX and POWER9 scope that way only under GCC 15 or newer; Clang's intrinsics headers stay closed without `-mlasx` or `-mcpu=power9`.
+Header-only units enable the capabilities their own flags name.
 
 ## Threading Model
 
