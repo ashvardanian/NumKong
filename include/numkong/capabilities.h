@@ -742,9 +742,9 @@ typedef nk_status_t (*nk_attention_packed_gradients_punned_t)(
     void const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
     nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t key_value_gradient_stride,
-    nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
-    void *stream);
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 
 typedef nk_status_t (*nk_attention_rope_punned_t)(void const *x, void const *cos, void const *sin, void *y,
                                                   nk_size_t rows, nk_size_t head_count, nk_size_t depth,

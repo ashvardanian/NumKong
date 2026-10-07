@@ -248,20 +248,16 @@ void test_cross_serial(error_stats_section_t &check) {
     check("euclideans_symmetric_u8_serial", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_serial);
     check("euclideans_symmetric_u4_serial", test_euclideans_symmetric<u4x2_t>, nk_euclideans_symmetric_u4_serial);
 
-    check("attention_bidirectional_packed_bf16_serial", test_attention_bidirectional_packed<bf16_t>,
-          nk_attention_pack_size_bf16_serial, nk_attention_pack_bf16_serial,
-          nk_attention_bidirectional_packed_bf16_serial);
-    check("attention_causal_packed_bf16_serial", test_attention_causal_packed<bf16_t>,
-          nk_attention_pack_size_bf16_serial, nk_attention_pack_bf16_serial, nk_attention_causal_packed_bf16_serial);
-    check("attention_bidirectional_packed_e4m3_serial", test_attention_bidirectional_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_serial, nk_attention_pack_e4m3_serial,
-          nk_attention_bidirectional_packed_e4m3_serial);
-    check("attention_causal_packed_e4m3_serial", test_attention_causal_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_serial, nk_attention_pack_e4m3_serial, nk_attention_causal_packed_e4m3_serial);
-    check("attention_bidirectional_packed_i8_serial", test_attention_bidirectional_packed<i8_t>,
-          nk_attention_pack_size_i8_serial, nk_attention_pack_i8_serial, nk_attention_bidirectional_packed_i8_serial);
-    check("attention_causal_packed_i8_serial", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_serial,
-          nk_attention_pack_i8_serial, nk_attention_causal_packed_i8_serial);
+    check("attention_packed_bf16_serial", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_serial,
+          nk_attention_pack_bf16_serial, nk_attention_packed_bf16_serial);
+    check("attention_packed_f16_serial", test_attention_packed<f16_t>, nk_attention_pack_size_f16_serial,
+          nk_attention_pack_f16_serial, nk_attention_packed_f16_serial);
+    check("attention_packed_e4m3_serial", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_serial,
+          nk_attention_pack_e4m3_serial, nk_attention_packed_e4m3_serial);
+    check("attention_packed_i8_serial", test_attention_packed<i8_t>, nk_attention_pack_size_i8_serial,
+          nk_attention_pack_i8_serial, nk_attention_packed_i8_serial);
+    check("attention_packed_gradients_bf16_serial", test_attention_packed_gradients<bf16_t>,
+          nk_attention_pack_size_bf16_serial, nk_attention_pack_bf16_serial, nk_attention_packed_gradients_bf16_serial);
     check("attention_rope_f32_serial", test_attention_rope<f32_t>, nk_attention_rope_f32_serial);
     check("attention_rope_bf16_serial", test_attention_rope<bf16_t>, nk_attention_rope_bf16_serial);
     check("attention_rope_e4m3_serial", test_attention_rope<e4m3_t>, nk_attention_rope_e4m3_serial);

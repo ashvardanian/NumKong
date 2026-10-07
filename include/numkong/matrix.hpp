@@ -83,7 +83,8 @@ expected<std::size_t> dots_pack_size(std::size_t row_count, std::size_t depth,
 
 /**
  *  @brief Packs matrix B into row-major form for efficient dots_packed access.
- *  @param[in] b Input matrix B, row-major, of shape @b [row_count,depth], see @c operand_pointer
+ *  @param[in] b Input matrix B, row-major, of shape @b [row_count,depth], see @c operand_pointer;
+ *      packing fuses no transposition, so a transposed B is transposed in a separate pass first
  *  @param[in] row_count Number of rows in B (n)
  *  @param[in] depth Number of dimensions per row (k)
  *  @param[in] b_stride Stride between rows of B in bytes
@@ -186,7 +187,8 @@ expected<std::size_t> maxsim_pack_size(std::size_t vector_count, std::size_t dep
 
 /**
  *  @brief Packs vectors into a backend-specific layout for maxsim computation.
- *  @param[in] vectors Input vectors in row-major order.
+ *  @param[in] vectors Input vectors in row-major order. Packing fuses no transposition, so
+ *      depth-major vectors are transposed in a separate pass first.
  *  @param[in] vector_count Number of vectors.
  *  @param[in] depth Number of dimensions per vector.
  *  @param[in] stride Row stride in bytes for the input vectors.
@@ -218,100 +220,109 @@ status_t maxsim_pack(typename in_type_::raw_t const *vectors, std::size_t vector
 }
 
 /**
- *  @brief Sizes the packed KV-cache of a ragged batch of segments.
+ *  @brief Bounds the packed KV-cache of a ragged batch of segments, however its tokens split.
  *  @param[in] key_value_head_count Number of K/V heads, a nonzero divisor of the query head count.
  *  @param[in] depth Head dimension; any value ≥ 1.
- *  @param[in] segment_lengths Live token counts, one per segment; zeros allowed.
+ *  @param[in] token_count Live tokens across all segments.
  *  @param[in] segment_count Number of segments packed together.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  *  @return The size in bytes, or @c missing_kernel_k when no capability in @p capabilities packs
  *      @p in_type_.
  *
- *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
+ *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t).
  */
 template <numeric_dtype in_type_>
-expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std::size_t depth,
-                                          std::uint32_t const *segment_lengths, std::size_t segment_count,
+expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std::size_t depth, std::size_t token_count,
+                                          std::size_t segment_count,
                                           nk_capability_t capabilities = default_capabilities()) {
     nk_size_t bytes = 0;
     nk_status_t status = nk_missing_kernel_k;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
-            status = nk_attention_pack_size_bf16_best(key_value_head_count, depth, segment_lengths, segment_count,
+            status = nk_attention_pack_size_bf16_best(key_value_head_count, depth, token_count, segment_count,
                                                       capabilities, &bytes);
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            status = nk_attention_pack_size_f16_best(key_value_head_count, depth, token_count, segment_count,
+                                                     capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-            status = nk_attention_pack_size_e4m3_best(key_value_head_count, depth, segment_lengths, segment_count,
+            status = nk_attention_pack_size_e4m3_best(key_value_head_count, depth, token_count, segment_count,
                                                       capabilities, &bytes);
         else if constexpr (std::is_same_v<in_type_, i8_t>)
-            status = nk_attention_pack_size_i8_best(key_value_head_count, depth, segment_lengths, segment_count,
+            status = nk_attention_pack_size_i8_best(key_value_head_count, depth, token_count, segment_count,
                                                     capabilities, &bytes);
     }
     else if constexpr (std::is_same_v<in_type_, bf16_t>)
-        status = nk_attention_pack_size_bf16_serial(key_value_head_count, depth, segment_lengths, segment_count,
-                                                    &bytes);
+        status = nk_attention_pack_size_bf16_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        status = nk_attention_pack_size_f16_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
-        status = nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, segment_lengths, segment_count,
-                                                    &bytes);
+        status = nk_attention_pack_size_e4m3_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
     else if constexpr (std::is_same_v<in_type_, i8_t>)
-        status = nk_attention_pack_size_i8_serial(key_value_head_count, depth, segment_lengths, segment_count, &bytes);
+        status = nk_attention_pack_size_i8_serial(key_value_head_count, depth, token_count, segment_count, &bytes);
     return {static_cast<std::size_t>(bytes), static_cast<status_t>(status)};
 }
 
 /**
  *  @brief Packs ragged K/V token matrices into a backend-opaque KV-cache blob.
- *  @param[in] keys,values Token-major matrices, one row of @p key_value_head_count × @p depth
- *      elements per token.
+ *  @param[in] keys,values Token-major matrices, element (token, head, d) of @p keys at @p keys
+ *      + token × @p key_stride + (head × depth + d) elements, likewise for @p values. Packing
+ *      fuses no transposition, so depth-major K or V is transposed in a separate pass first.
  *  @param[in] segment_offsets Start token of each segment, @p segment_count + 1 prefix sums.
  *  @param[in] segment_lengths Live token counts, one per segment; zeros mark padding slots.
- *  @param[in] keys_stride Row (token) stride of @p keys in bytes.
- *  @param[in] values_stride Row (token) stride of @p values in bytes.
+ *  @param[in] key_stride Bytes between tokens of @p keys.
+ *  @param[in] value_stride Bytes between tokens of @p values.
  *  @param[out] key_value_packed 64-byte-aligned buffer of @c attention_pack_size bytes.
- *  @param[in] task_start First task of a window over the segments × K/V heads grid.
- *  @param[in] task_count Tasks in that window, clipped to the grid, so callers can shard packing.
+ *  @param[in] task_begin First task of a window over the segments × K/V heads grid.
+ *  @param[in] task_end End of that half-open window, clipped to the grid, so callers can shard.
  *  @param[in] capabilities Capabilities to pick from, or zero for the serial reference.
  *  @param[in] stream Null on the CPU, or the stream of the device @p capabilities describes.
  *
- *  @tparam in_type_ Input element type (bf16_t, e4m3_t, i8_t).
+ *  @tparam in_type_ Input element type (bf16_t, f16_t, e4m3_t, i8_t).
  */
 template <numeric_dtype in_type_>
 status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
                         std::size_t depth, std::uint32_t const *segment_offsets, std::uint32_t const *segment_lengths,
-                        std::size_t segment_count, std::size_t keys_stride, std::size_t values_stride,
-                        void *key_value_packed, std::size_t task_start = 0,
-                        std::size_t task_count = static_cast<std::size_t>(-1),
+                        std::size_t segment_count, std::size_t key_stride, std::size_t value_stride,
+                        void *key_value_packed, std::size_t task_begin = 0,
+                        std::size_t task_end = std::numeric_limits<std::size_t>::max(),
                         nk_capability_t capabilities = default_capabilities(), void *stream = nullptr) {
     using raw_t = typename in_type_::raw_t;
     raw_t const *keys_raw = reinterpret_cast<raw_t const *>(keys);
     raw_t const *values_raw = reinterpret_cast<raw_t const *>(values);
-    // The C kernels take a half-open [begin, end) window, clipped to the grid
-    std::size_t const task_end = task_count > NUMKONG_SIZE_MAX - task_start ? NUMKONG_SIZE_MAX
-                                                                            : task_start + task_count;
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_pack_bf16_best(
                 keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                keys_stride, values_stride, key_value_packed, task_start, task_end, capabilities, stream));
+                key_stride, value_stride, key_value_packed, task_begin, task_end, capabilities, stream));
+        else if constexpr (std::is_same_v<in_type_, f16_t>)
+            return static_cast<status_t>(nk_attention_pack_f16_best(
+                keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+                key_stride, value_stride, key_value_packed, task_begin, task_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_pack_e4m3_best(
                 keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                keys_stride, values_stride, key_value_packed, task_start, task_end, capabilities, stream));
+                key_stride, value_stride, key_value_packed, task_begin, task_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_pack_i8_best(
                 keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                keys_stride, values_stride, key_value_packed, task_start, task_end, capabilities, stream));
+                key_stride, value_stride, key_value_packed, task_begin, task_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_pack_bf16_serial(
             keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride, values_stride, key_value_packed, task_start, task_end, stream));
+            key_stride, value_stride, key_value_packed, task_begin, task_end, stream));
+    else if constexpr (std::is_same_v<in_type_, f16_t>)
+        return static_cast<status_t>(nk_attention_pack_f16_serial(
+            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
+            key_stride, value_stride, key_value_packed, task_begin, task_end, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_pack_e4m3_serial(
             keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride, values_stride, key_value_packed, task_start, task_end, stream));
+            key_stride, value_stride, key_value_packed, task_begin, task_end, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_pack_i8_serial(
             keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            keys_stride, values_stride, key_value_packed, task_start, task_end, stream));
+            key_stride, value_stride, key_value_packed, task_begin, task_end, stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -504,8 +515,7 @@ class packed_maxsim {
  *  @brief Pre-packed ragged KV-cache for scaled-dot-product attention.
  *
  *  Packs K and V once, keeping a copy of the segment offsets after the packed bytes, so the view
- *  overloads of `attention_bidirectional_packed()` and `attention_causal_packed()` run
- *  self-attention against it without restating the batch.
+ *  overloads of `attention_packed()` run self-attention against it without restating the batch.
  *
  *  Supported types: bf16_t, e4m3_t, i8_t.
  */
@@ -553,7 +563,8 @@ class packed_attention {
 
     /**
      *  @brief Size, allocate and pack a ragged batch of K and V tokens.
-     *  @param[in] keys,values @b [tokens,key_value_heads,depth] views with contiguous heads.
+     *  @param[in] keys,values @b [tokens,key_value_heads,depth] views whose heads sit back to back
+     *      along their depth stride, so a transposed depth packs without a copy.
      *  @param[in] segment_offsets Start token of each segment, holding one more entry than
      *      @p segment_lengths.
      *  @param[in] segment_lengths Live token counts, one per segment; zeros mark padding slots.
@@ -580,8 +591,10 @@ class packed_attention {
         packed_attention pa(alloc);
         pa.key_value_head_count_ = keys.extent(1);
         pa.depth_ = keys.extent(2);
-        auto size = attention_pack_size<value_type_>(pa.key_value_head_count_, pa.depth_, segment_lengths.data(),
-                                                     segment_count, capabilities);
+        std::size_t token_count = 0;
+        for (std::size_t segment = 0; segment < segment_count; ++segment) token_count += segment_lengths[segment];
+        auto size = attention_pack_size<value_type_>(pa.key_value_head_count_, pa.depth_, token_count, segment_count,
+                                                     capabilities);
         if (!size) return {packed_attention(alloc), size.status};
         pa.size_bytes_ = size.value;
         pa.segment_count_ = segment_count;

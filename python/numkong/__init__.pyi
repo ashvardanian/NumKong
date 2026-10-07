@@ -624,7 +624,7 @@ class MaxSimPackedMatrix:
 class AttentionPackedMatrix:
     """Opaque pre-packed ragged KV-cache for scaled-dot-product attention.
 
-    Created by attention_pack() and used with attention_bidirectional_packed() or attention_causal_packed().
+    Created by attention_pack() and used with attention_packed().
     """
 
     @property
@@ -1612,32 +1612,40 @@ def attention_pack(
     """Pack ragged K/V token matrices into a backend-opaque KV-cache blob."""
     ...
 
-def attention_bidirectional_packed(
+def attention_packed(
     q: _BufferType,
     kv: AttentionPackedMatrix,
     /,
     query_offsets: _BufferType,
     out: Tensor | None = None,
     scale: float | None = None,
+    keys_before: int | None = None,
+    keys_after: int | None = None,
+    log_sum_exp: _BufferType | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> Tensor:
-    """Compute ragged bidirectional scaled-dot-product attention against a packed KV-cache."""
+    """Compute ragged attention, query row r of q queries over k keys seeing the keys from
+    `r + k - q - keys_before` through `r + k - q + keys_after`, each side unbounded at None."""
     ...
 
-def attention_causal_packed(
+def attention_packed_gradients(
     q: _BufferType,
     kv: AttentionPackedMatrix,
     /,
     query_offsets: _BufferType,
-    out: Tensor | None = None,
+    key_offsets: _BufferType,
+    output: _BufferType,
+    output_gradient: _BufferType,
+    log_sum_exp: _BufferType,
     scale: float | None = None,
-    diagonal_offset: int = 0,
-    window: int | None = None,
+    keys_before: int | None = None,
+    keys_after: int | None = None,
+    query_gradient: Tensor | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
-) -> Tensor:
-    """Compute ragged causal attention, row r seeing the `window` keys ending at `r + diagonal_offset`."""
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Compute the bf16 query, key and value gradients of `attention_packed` under the same band."""
     ...
 
 # NeoX split-half rotary position embedding.

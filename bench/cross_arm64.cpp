@@ -195,11 +195,8 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<e4m3_k>(env, "euclideans_symmetric_e4m3_neonfhm",
                                          nk_euclideans_symmetric_e4m3_neonfhm);
 
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_neonfhm",
-                                            nk_attention_pack_size_e4m3_neonfhm, nk_attention_pack_e4m3_neonfhm,
-                                            nk_attention_bidirectional_packed_e4m3_neonfhm);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_neonfhm", nk_attention_pack_size_e4m3_neonfhm,
-                                     nk_attention_pack_e4m3_neonfhm, nk_attention_causal_packed_e4m3_neonfhm);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_neonfhm", nk_attention_pack_size_e4m3_neonfhm,
+                              nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
     }
 #endif // NUMKONG_TARGET_NEONFHM
 
@@ -217,12 +214,8 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<bf16_k>(env, "euclideans_symmetric_bf16_neonbfdot",
                                          nk_euclideans_symmetric_bf16_neonbfdot);
 
-        run_attention_bidirectional<bf16_k>(env, "attention_bidirectional_packed_bf16_neonbfdot",
-                                            nk_attention_pack_size_bf16_neonbfdot, nk_attention_pack_bf16_neonbfdot,
-                                            nk_attention_bidirectional_packed_bf16_neonbfdot);
-        run_attention_causal<bf16_k>(env, "attention_causal_packed_bf16_neonbfdot",
-                                     nk_attention_pack_size_bf16_neonbfdot, nk_attention_pack_bf16_neonbfdot,
-                                     nk_attention_causal_packed_bf16_neonbfdot);
+        run_attention<bf16_k>(env, "attention_packed_bf16_neonbfdot", nk_attention_pack_size_bf16_neonbfdot,
+                              nk_attention_pack_bf16_neonbfdot, nk_attention_packed_bf16_neonbfdot);
     }
 #endif // NUMKONG_TARGET_NEONBFDOT
 
@@ -301,11 +294,8 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<e2m1_k>(env, "euclideans_symmetric_e2m1_neonsdot",
                                          nk_euclideans_symmetric_e2m1_neonsdot);
 
-        run_attention_bidirectional<i8_k>(env, "attention_bidirectional_packed_i8_neonsdot",
-                                          nk_attention_pack_size_i8_neonsdot, nk_attention_pack_i8_neonsdot,
-                                          nk_attention_bidirectional_packed_i8_neonsdot);
-        run_attention_causal<i8_k>(env, "attention_causal_packed_i8_neonsdot", nk_attention_pack_size_i8_neonsdot,
-                                   nk_attention_pack_i8_neonsdot, nk_attention_causal_packed_i8_neonsdot);
+        run_attention<i8_k>(env, "attention_packed_i8_neonsdot", nk_attention_pack_size_i8_neonsdot,
+                            nk_attention_pack_i8_neonsdot, nk_attention_packed_i8_neonsdot);
     }
 #endif // NUMKONG_TARGET_NEONSDOT
 
@@ -366,20 +356,12 @@ void bench_cross_arm64(environment_t const &env) {
 
 #if NUMKONG_TARGET_SME
     if (section(env, "Cross SME", nk_cap_sme_k)) {
-        run_attention_bidirectional<bf16_k>(env, "attention_bidirectional_packed_bf16_sme",
-                                            nk_attention_pack_size_bf16_sme, nk_attention_pack_bf16_sme,
-                                            nk_attention_bidirectional_packed_bf16_sme);
-        run_attention_causal<bf16_k>(env, "attention_causal_packed_bf16_sme", nk_attention_pack_size_bf16_sme,
-                                     nk_attention_pack_bf16_sme, nk_attention_causal_packed_bf16_sme);
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_sme",
-                                            nk_attention_pack_size_e4m3_sme, nk_attention_pack_e4m3_sme,
-                                            nk_attention_bidirectional_packed_e4m3_sme);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme,
-                                     nk_attention_pack_e4m3_sme, nk_attention_causal_packed_e4m3_sme);
-        run_attention_bidirectional<i8_k>(env, "attention_bidirectional_packed_i8_sme", nk_attention_pack_size_i8_sme,
-                                          nk_attention_pack_i8_sme, nk_attention_bidirectional_packed_i8_sme);
-        run_attention_causal<i8_k>(env, "attention_causal_packed_i8_sme", nk_attention_pack_size_i8_sme,
-                                   nk_attention_pack_i8_sme, nk_attention_causal_packed_i8_sme);
+        run_attention<bf16_k>(env, "attention_packed_bf16_sme", nk_attention_pack_size_bf16_sme,
+                              nk_attention_pack_bf16_sme, nk_attention_packed_bf16_sme);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_sme", nk_attention_pack_size_e4m3_sme,
+                              nk_attention_pack_e4m3_sme, nk_attention_packed_e4m3_sme);
+        run_attention<i8_k>(env, "attention_packed_i8_sme", nk_attention_pack_size_i8_sme, nk_attention_pack_i8_sme,
+                            nk_attention_packed_i8_sme);
 
         run_dots_packed<bf16_k>(env, "dots_packed_bf16_sme", nk_dots_pack_size_bf16_sme, nk_dots_pack_bf16_sme,
                                 nk_dots_packed_bf16_sme);

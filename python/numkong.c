@@ -1354,10 +1354,9 @@ static PyMethodDef nk_methods[] = {
     {"maxsim_packed", (PyCFunction)api_maxsim_packed, METH_FASTCALL | METH_KEYWORDS, doc_maxsim_packed},
     {"maxsim", (PyCFunction)api_maxsim, METH_FASTCALL | METH_KEYWORDS, doc_maxsim},
     {"attention_pack", (PyCFunction)api_attention_pack, METH_FASTCALL | METH_KEYWORDS, doc_attention_pack},
-    {"attention_bidirectional_packed", (PyCFunction)api_attention_bidirectional_packed, METH_FASTCALL | METH_KEYWORDS,
-     doc_attention_bidirectional_packed},
-    {"attention_causal_packed", (PyCFunction)api_attention_causal_packed, METH_FASTCALL | METH_KEYWORDS,
-     doc_attention_causal_packed},
+    {"attention_packed", (PyCFunction)api_attention_packed, METH_FASTCALL | METH_KEYWORDS, doc_attention_packed},
+    {"attention_packed_gradients", (PyCFunction)api_attention_packed_gradients, METH_FASTCALL | METH_KEYWORDS,
+     doc_attention_packed_gradients},
     {"attention_rope", (PyCFunction)api_attention_rope, METH_FASTCALL | METH_KEYWORDS, doc_attention_rope},
 
     // Capabilities of the CPU and each GPU, and GPU streams, the only calls taking a device ordinal

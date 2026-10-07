@@ -810,6 +810,21 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_TARGET_BLACKWELLRTX 0
 #endif // !defined(NUMKONG_TARGET_BLACKWELLRTX) || ...
 
+/*  Compiling for NVIDIA Blackwell Ultra, compute capability 10.3, "103f" code, @c tcgen05.ld.red:
+ *  NUMKONG_TARGET_BLACKWELLULTRA. The host pass reads "103f" and "103" alike, so a build targeting
+ *  only the 10.3 parts sets it. */
+#if !defined(NUMKONG_TARGET_BLACKWELLULTRA) || (NUMKONG_TARGET_BLACKWELLULTRA && !NUMKONG_ARCH_CUDA_)
+#undef NUMKONG_TARGET_BLACKWELLULTRA
+#define NUMKONG_TARGET_BLACKWELLULTRA 0
+#endif // !defined(NUMKONG_TARGET_BLACKWELLULTRA) || ...
+
+/*  Compiling for AMD Instinct MI300 GPUs, gfx942: NUMKONG_TARGET_CDNA3. The host pass never names
+ *  the AMD GPU it compiles for, so a build targeting only gfx942 sets it. */
+#if !defined(NUMKONG_TARGET_CDNA3) || (NUMKONG_TARGET_CDNA3 && !NUMKONG_ARCH_ROCM_)
+#undef NUMKONG_TARGET_CDNA3
+#define NUMKONG_TARGET_CDNA3 0
+#endif // !defined(NUMKONG_TARGET_CDNA3) || ...
+
 /*  Compiling for AMD Instinct MI350 GPUs, gfx950: NUMKONG_TARGET_CDNA4. The host pass never names
  *  the AMD GPU it compiles for, so a build targeting only gfx950 sets it. */
 #if !defined(NUMKONG_TARGET_CDNA4) || (NUMKONG_TARGET_CDNA4 && !NUMKONG_ARCH_ROCM_)
@@ -866,12 +881,14 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_ARCH_RISCV64_RVV_ \
     (NUMKONG_TARGET_RVV || NUMKONG_TARGET_RVVHALF || NUMKONG_TARGET_RVVBF16 || NUMKONG_TARGET_RVVBB)
 #define NUMKONG_ARCH_WASM_V128_ (NUMKONG_TARGET_V128 || NUMKONG_TARGET_V128RELAXED)
-#define NUMKONG_ARCH_CUDA_AMPERE_                                                                        \
-    (NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_TARGET_BLACKWELL || \
+#define NUMKONG_ARCH_CUDA_BLACKWELL_ (NUMKONG_TARGET_BLACKWELL || NUMKONG_TARGET_BLACKWELLULTRA)
+#define NUMKONG_ARCH_CUDA_AMPERE_                                                                            \
+    (NUMKONG_TARGET_AMPERE || NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_ARCH_CUDA_BLACKWELL_ || \
      NUMKONG_TARGET_BLACKWELLRTX)
 #define NUMKONG_ARCH_CUDA_ADA_ \
-    (NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_TARGET_BLACKWELL || NUMKONG_TARGET_BLACKWELLRTX)
+    (NUMKONG_TARGET_ADA || NUMKONG_TARGET_HOPPER || NUMKONG_ARCH_CUDA_BLACKWELL_ || NUMKONG_TARGET_BLACKWELLRTX)
 #define NUMKONG_ARCH_ROCM_CDNA4_ (NUMKONG_TARGET_CDNA4 || NUMKONG_TARGET_CDNA5)
+#define NUMKONG_ARCH_ROCM_CDNA3_ (NUMKONG_TARGET_CDNA3 || NUMKONG_ARCH_ROCM_CDNA4_)
 
 /* Include the relevant intrinsics headers */
 #if defined(_MSC_VER)
@@ -1381,6 +1398,59 @@ typedef struct nk_allocator_t {
     nk_free_t free;
     void *handle;
 } nk_allocator_t;
+
+/** The cells of a rows × columns grid a kernel visits, by their distance from the diagonal: column
+ *  c of row r is visible when r − subdiagonals ≤ c ≤ r + superdiagonals, each side unbounded at
+ *  NUMKONG_SIZE_MAX, like LAPACK's kl and ku. The @c symmetric products visit the upper triangle
+ *  (0, NUMKONG_SIZE_MAX), because A × Aᵀ mirrors it. Masked attention visits (keys_before,
+ *  keys_after) around each query's position, because the other keys are forbidden rather than
+ *  mirrored: causal attention, (NUMKONG_SIZE_MAX, 0), skips the same triangle of tiles for a
+ *  different reason. So the band is a parameter of @c packed attention rather than a verb like
+ *  @c symmetric, as its operands and outputs don't change. */
+typedef struct {
+    nk_size_t subdiagonals;
+    nk_size_t superdiagonals;
+} nk_diagonal_band_t;
+
+/** Where a banded grid's tile lies: no visible cell, every cell visible, or an edge across it. */
+typedef enum {
+    nk_diagonal_band_outside_k = 0,
+    nk_diagonal_band_inside_k = 1,
+    nk_diagonal_band_crossing_k = 2,
+} nk_diagonal_band_coverage_t;
+
+/** Writes the half-open range of the first @p columns that @p band shows to @p row, which may sit
+ *  before column 0 or past the last column; @p column_begin equals @p column_end when none is. */
+NUMKONG_INLINE void nk_diagonal_band_row_range_(nk_diagonal_band_t band, nk_i64_t row, nk_size_t columns,
+                                                nk_size_t *column_begin, nk_size_t *column_end) NUMKONG_STREAMABLE_ {
+    nk_size_t const superdiagonals = band.superdiagonals;
+    if (row < 0) {
+        nk_size_t const lag = (nk_size_t)-row;
+        *column_begin = 0;
+        *column_end = superdiagonals < lag ? 0 : superdiagonals - lag < columns ? superdiagonals - lag + 1 : columns;
+        return;
+    }
+    nk_size_t const lead = (nk_size_t)row;
+    nk_size_t const begin = lead > band.subdiagonals ? lead - band.subdiagonals : 0;
+    *column_begin = begin < columns ? begin : columns;
+    *column_end = lead < columns && superdiagonals < columns - lead - 1 ? lead + superdiagonals + 1 : columns;
+}
+
+/** Classifies the tile of @p rows rows from @p row by @p columns columns from @p column against
+ *  @p band, so tiled kernels skip outside tiles and run inside ones without per-cell masks. */
+NUMKONG_INLINE nk_diagonal_band_coverage_t nk_diagonal_band_tile_coverage_(nk_diagonal_band_t band, nk_i64_t row,
+                                                                           nk_size_t rows, nk_size_t column,
+                                                                           nk_size_t columns) NUMKONG_STREAMABLE_ {
+    if (rows == 0 || columns == 0) return nk_diagonal_band_outside_k;
+    // Visible ranges only grow with the row, so the first and last rows bound the whole tile.
+    nk_size_t const column_end = column + columns;
+    nk_size_t first_begin, first_end, last_begin, last_end;
+    nk_diagonal_band_row_range_(band, row, column_end, &first_begin, &first_end);
+    nk_diagonal_band_row_range_(band, row + (nk_i64_t)rows - 1, column_end, &last_begin, &last_end);
+    if (last_end <= column || first_begin >= column_end) return nk_diagonal_band_outside_k;
+    if (last_begin <= column && first_end >= column_end) return nk_diagonal_band_inside_k;
+    return nk_diagonal_band_crossing_k;
+}
 
 /** Static English description of @p status, behind @c nk_status_name. */
 NUMKONG_CONSTEXPR char const *nk_status_name_(nk_status_t status) {
@@ -2344,6 +2414,11 @@ NUMKONG_CONSTEXPR nk_size_t nk_size_divide_round_up_(nk_size_t number, nk_size_t
 
 /** Divides rounding up in 32 bits, for device code where the @c nk_size_t form costs registers. */
 NUMKONG_CONSTEXPR nk_u32_t nk_u32_divide_round_up_(nk_u32_t number, nk_u32_t divisor) NUMKONG_STREAMABLE_ {
+    return (number + divisor - 1) / divisor;
+}
+
+/** Divides rounding up in 64 bits, for counts that outgrow @c nk_size_t on 32-bit targets. */
+NUMKONG_CONSTEXPR nk_u64_t nk_u64_divide_round_up_(nk_u64_t number, nk_u64_t divisor) NUMKONG_STREAMABLE_ {
     return (number + divisor - 1) / divisor;
 }
 

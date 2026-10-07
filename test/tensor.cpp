@@ -1529,7 +1529,7 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
                      packed.value.segment_count() == 2,
                  "packed attention shape mismatch");
 
-    auto packed_bytes = nk::attention_pack_size<value_type_>(key_value_heads, depth, lengths, 2);
+    auto packed_bytes = nk::attention_pack_size<value_type_>(key_value_heads, depth, tokens, 2);
     stats.expect(packed_bytes.status);
     if (!packed_bytes) return stats;
     auto raw_packed = make_vector<char>(packed_bytes.value);
@@ -1543,31 +1543,31 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
         for (std::size_t i = 0; i < actual.numel(); ++i) stats.accumulate(actual[i], reference.value[i]);
     };
 
-    stats.expect(nk::attention_bidirectional_packed<value_type_>(queries.value.data(), raw_packed.values_data(),
-                                                                 reference.value.data(), heads, key_value_heads, depth,
-                                                                 offsets, query_stride, output_stride, scale));
-    stats.expect(nk::attention_bidirectional_packed<value_type_>(queries.value.view(), packed.value,
-                                                                 output.value.span(), scale));
+    stats.expect(nk::attention_packed<value_type_>(queries.value.data(), raw_packed.values_data(),
+                                                   reference.value.data(), nullptr, heads, key_value_heads, depth,
+                                                   offsets, query_stride, output_stride, scale));
+    stats.expect(nk::attention_packed<value_type_>(queries.value.view(), packed.value, output.value.span(), scale));
     expect_equal(output.value.view());
-    auto bidirectional = nk::attention_bidirectional_packed<value_type_>(queries.value.view(), packed.value, scale);
+    auto bidirectional = nk::attention_packed<value_type_>(queries.value.view(), packed.value, scale);
     stats.expect(bidirectional.status);
     if (bidirectional) expect_equal(bidirectional.value.view());
 
-    stats.expect(nk::attention_causal_packed<value_type_>(queries.value.data(), raw_packed.values_data(),
-                                                          reference.value.data(), heads, key_value_heads, depth,
-                                                          offsets, query_stride, output_stride, scale, 1, 3));
-    stats.expect(nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, output.value.span(),
-                                                          scale, {.diagonal_offset = 1, .window = 3}));
+    // A sliding window of three keys, causal
+    std::size_t const keys_before = 2, keys_after = 0;
+    stats.expect(nk::attention_packed<value_type_>(
+        queries.value.data(), raw_packed.values_data(), reference.value.data(), nullptr, heads, key_value_heads, depth,
+        offsets, query_stride, output_stride, scale, keys_before, keys_after));
+    stats.expect(nk::attention_packed<value_type_>(queries.value.view(), packed.value, output.value.span(), scale,
+                                                   keys_before, keys_after));
     expect_equal(output.value.view());
-    auto causal = nk::attention_causal_packed<value_type_>(queries.value.view(), packed.value, scale,
-                                                           {.diagonal_offset = 1, .window = 3});
-    stats.expect(causal.status);
-    if (causal) expect_equal(causal.value.view());
+    auto windowed = nk::attention_packed<value_type_>(queries.value.view(), packed.value, scale, keys_before,
+                                                      keys_after);
+    stats.expect(windowed.status);
+    if (windowed) expect_equal(windowed.value.view());
 
     auto narrow = nk::tensor<result_t>::zeros({tokens, heads, depth / 2});
-    stats.expect(narrow && nk::attention_bidirectional_packed<value_type_>(queries.value.view(), packed.value,
-                                                                           narrow.value.span(), scale) ==
-                               nk::status_t::unexpected_dimensions_k,
+    stats.expect(narrow && nk::attention_packed<value_type_>(queries.value.view(), packed.value, narrow.value.span(),
+                                                             scale) == nk::status_t::unexpected_dimensions_k,
                  "mismatched output shape must be rejected");
     stats.expect(nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), segment_lengths,
                                                          segment_lengths)

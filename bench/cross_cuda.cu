@@ -208,21 +208,18 @@ void bench_cross_ampere([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_ampere", nk_euclideans_symmetric_u4_ampere,
                                       backend);
 
-    run_attention_bidirectional<nk_bf16_k>(env, "attention_bidirectional_packed_bf16_ampere",
-                                           nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere,
-                                           nk_attention_bidirectional_packed_bf16_ampere, backend);
-    run_attention_causal<nk_bf16_k>(env, "attention_causal_packed_bf16_ampere", nk_attention_pack_size_bf16_ampere,
-                                    nk_attention_pack_bf16_ampere, nk_attention_causal_packed_bf16_ampere, backend);
-    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_ampere",
-                                           nk_attention_pack_size_e4m3_ampere, nk_attention_pack_e4m3_ampere,
-                                           nk_attention_bidirectional_packed_e4m3_ampere, backend);
-    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_ampere", nk_attention_pack_size_e4m3_ampere,
-                                    nk_attention_pack_e4m3_ampere, nk_attention_causal_packed_e4m3_ampere, backend);
-    run_attention_bidirectional<nk_i8_k>(env, "attention_bidirectional_packed_i8_ampere",
-                                         nk_attention_pack_size_i8_ampere, nk_attention_pack_i8_ampere,
-                                         nk_attention_bidirectional_packed_i8_ampere, backend);
-    run_attention_causal<nk_i8_k>(env, "attention_causal_packed_i8_ampere", nk_attention_pack_size_i8_ampere,
-                                  nk_attention_pack_i8_ampere, nk_attention_causal_packed_i8_ampere, backend);
+    run_attention<nk_bf16_k>(env, "attention_packed_bf16_ampere", nk_attention_pack_size_bf16_ampere,
+                             nk_attention_pack_bf16_ampere, nk_attention_packed_bf16_ampere, backend);
+    run_attention<nk_f16_k>(env, "attention_packed_f16_ampere", nk_attention_pack_size_f16_ampere,
+                            nk_attention_pack_f16_ampere, nk_attention_packed_f16_ampere, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_ampere",
+                                       nk_attention_pack_size_bf16_ampere, nk_attention_pack_bf16_ampere,
+                                       nk_attention_packed_bf16_ampere, nk_attention_packed_gradients_bf16_ampere,
+                                       backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_ampere", nk_attention_pack_size_e4m3_ampere,
+                             nk_attention_pack_e4m3_ampere, nk_attention_packed_e4m3_ampere, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_ampere", nk_attention_pack_size_i8_ampere,
+                           nk_attention_pack_i8_ampere, nk_attention_packed_i8_ampere, backend);
 #endif // NUMKONG_TARGET_AMPERE
 }
 
@@ -320,21 +317,16 @@ void bench_cross_hopper([[maybe_unused]] environment_t const &env, [[maybe_unuse
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_hopper", nk_euclideans_symmetric_u4_hopper,
                                       backend);
 
-    run_attention_bidirectional<nk_bf16_k>(env, "attention_bidirectional_packed_bf16_hopper",
-                                           nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper,
-                                           nk_attention_bidirectional_packed_bf16_hopper, backend);
-    run_attention_causal<nk_bf16_k>(env, "attention_causal_packed_bf16_hopper", nk_attention_pack_size_bf16_hopper,
-                                    nk_attention_pack_bf16_hopper, nk_attention_causal_packed_bf16_hopper, backend);
-    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_hopper",
-                                           nk_attention_pack_size_e4m3_hopper, nk_attention_pack_e4m3_hopper,
-                                           nk_attention_bidirectional_packed_e4m3_hopper, backend);
-    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_hopper", nk_attention_pack_size_e4m3_hopper,
-                                    nk_attention_pack_e4m3_hopper, nk_attention_causal_packed_e4m3_hopper, backend);
-    run_attention_bidirectional<nk_i8_k>(env, "attention_bidirectional_packed_i8_hopper",
-                                         nk_attention_pack_size_i8_hopper, nk_attention_pack_i8_hopper,
-                                         nk_attention_bidirectional_packed_i8_hopper, backend);
-    run_attention_causal<nk_i8_k>(env, "attention_causal_packed_i8_hopper", nk_attention_pack_size_i8_hopper,
-                                  nk_attention_pack_i8_hopper, nk_attention_causal_packed_i8_hopper, backend);
+    run_attention<nk_bf16_k>(env, "attention_packed_bf16_hopper", nk_attention_pack_size_bf16_hopper,
+                             nk_attention_pack_bf16_hopper, nk_attention_packed_bf16_hopper, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_hopper",
+                                       nk_attention_pack_size_bf16_hopper, nk_attention_pack_bf16_hopper,
+                                       nk_attention_packed_bf16_hopper, nk_attention_packed_gradients_bf16_hopper,
+                                       backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_hopper", nk_attention_pack_size_e4m3_hopper,
+                             nk_attention_pack_e4m3_hopper, nk_attention_packed_e4m3_hopper, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_hopper", nk_attention_pack_size_i8_hopper,
+                           nk_attention_pack_i8_hopper, nk_attention_packed_i8_hopper, backend);
 #endif // NUMKONG_TARGET_HOPPER
 }
 
@@ -519,12 +511,18 @@ void bench_cross_blackwell([[maybe_unused]] environment_t const &env, [[maybe_un
                                       backend);
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_blackwell", nk_euclideans_symmetric_u4_blackwell,
                                       backend);
-    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_blackwell",
-                                           nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,
-                                           nk_attention_bidirectional_packed_e4m3_blackwell, backend);
-    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_blackwell",
-                                    nk_attention_pack_size_e4m3_blackwell, nk_attention_pack_e4m3_blackwell,
-                                    nk_attention_causal_packed_e4m3_blackwell, backend);
+    run_attention<nk_bf16_k>(env, "attention_packed_bf16_blackwell", nk_attention_pack_size_bf16_blackwell,
+                             nk_attention_pack_bf16_blackwell, nk_attention_packed_bf16_blackwell, backend);
+    run_attention<nk_f16_k>(env, "attention_packed_f16_blackwell", nk_attention_pack_size_f16_blackwell,
+                            nk_attention_pack_f16_blackwell, nk_attention_packed_f16_blackwell, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_blackwell",
+                                       nk_attention_pack_size_bf16_blackwell, nk_attention_pack_bf16_blackwell,
+                                       nk_attention_packed_bf16_blackwell, nk_attention_packed_gradients_bf16_blackwell,
+                                       backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_blackwell", nk_attention_pack_size_i8_blackwell,
+                           nk_attention_pack_i8_blackwell, nk_attention_packed_i8_blackwell, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_blackwell", nk_attention_pack_size_e4m3_blackwell,
+                             nk_attention_pack_e4m3_blackwell, nk_attention_packed_e4m3_blackwell, backend);
 #endif // NUMKONG_TARGET_BLACKWELL
 }
 
@@ -599,13 +597,30 @@ void bench_cross_blackwellrtx([[maybe_unused]] environment_t const &env, [[maybe
     run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_blackwellrtx",
                                         nk_euclideans_symmetric_e2m1_blackwellrtx, backend);
 
-    run_attention_bidirectional<nk_e4m3_k>(
-        env, "attention_bidirectional_packed_e4m3_blackwellrtx", nk_attention_pack_size_e4m3_blackwellrtx,
-        nk_attention_pack_e4m3_blackwellrtx, nk_attention_bidirectional_packed_e4m3_blackwellrtx, backend);
-    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_blackwellrtx",
-                                    nk_attention_pack_size_e4m3_blackwellrtx, nk_attention_pack_e4m3_blackwellrtx,
-                                    nk_attention_causal_packed_e4m3_blackwellrtx, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_blackwellrtx", nk_attention_pack_size_e4m3_blackwellrtx,
+                             nk_attention_pack_e4m3_blackwellrtx, nk_attention_packed_e4m3_blackwellrtx, backend);
 #endif // NUMKONG_TARGET_BLACKWELLRTX
+}
+
+/** Every Blackwell Ultra entry point, compiled only when the architecture list includes it. */
+void bench_cross_blackwellultra([[maybe_unused]] environment_t const &env,
+                                [[maybe_unused]] cuda_backend_t const &backend,
+                                [[maybe_unused]] nk_capability_t enabled) {
+#if NUMKONG_TARGET_BLACKWELLULTRA
+    if (!(enabled & nk_cap_blackwellultra_k)) return;
+    run_attention<nk_bf16_k>(env, "attention_packed_bf16_blackwellultra", nk_attention_pack_size_bf16_blackwellultra,
+                             nk_attention_pack_bf16_blackwellultra, nk_attention_packed_bf16_blackwellultra, backend);
+    run_attention<nk_f16_k>(env, "attention_packed_f16_blackwellultra", nk_attention_pack_size_f16_blackwellultra,
+                            nk_attention_pack_f16_blackwellultra, nk_attention_packed_f16_blackwellultra, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_blackwellultra",
+                                       nk_attention_pack_size_bf16_blackwellultra,
+                                       nk_attention_pack_bf16_blackwellultra, nk_attention_packed_bf16_blackwellultra,
+                                       nk_attention_packed_gradients_bf16_blackwellultra, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_blackwellultra", nk_attention_pack_size_i8_blackwellultra,
+                           nk_attention_pack_i8_blackwellultra, nk_attention_packed_i8_blackwellultra, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_blackwellultra", nk_attention_pack_size_e4m3_blackwellultra,
+                             nk_attention_pack_e4m3_blackwellultra, nk_attention_packed_e4m3_blackwellultra, backend);
+#endif // NUMKONG_TARGET_BLACKWELLULTRA
 }
 
 #pragma endregion Rows
@@ -635,8 +650,8 @@ void run_unpacked(environment_t const &env, std::string const &name, expected_me
         *bytes = columns * nk::divide_round_up(depth, nk::dimensions_per_value<input_t>()) * sizeof(input_t);
         return nk_success_k;
     };
-    auto const copy = [](auto b, std::size_t columns, std::size_t, std::size_t row_bytes, std::size_t, void *packed,
-                         std::size_t, std::size_t, void *stream) {
+    auto const copy = [](auto b, std::size_t columns, std::size_t, std::size_t row_bytes, void *packed, std::size_t,
+                         std::size_t, void *stream) {
         return cudaMemcpyAsync(packed, operand_codes(b), columns * row_bytes, cudaMemcpyDeviceToDevice,
                                (cudaStream_t)stream);
     };
@@ -1156,22 +1171,22 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
     auto const plan = std::make_shared<cudnn_attention_plan_t>();
     if (cudnnStatus_t const status = plan->build(input_dtype_, visibility_, shape, backend))
         return print_skipped(env, attention_row_name(name, visibility_, shape), cudnnGetErrorString(status));
-    auto const packed_size = [](std::size_t key_value_heads, std::size_t depth, nk_u32_t const *lengths, std::size_t,
+    auto const packed_size = [](std::size_t key_value_heads, std::size_t depth, std::size_t token_count, std::size_t,
                                 nk_size_t *bytes) {
-        *bytes = 2 * std::size_t(lengths[0]) * key_value_heads * depth * nk_dtype_bits(input_dtype_) / 8;
+        *bytes = 2 * token_count * key_value_heads * depth * nk_dtype_bits(input_dtype_) / 8;
         return nk_success_k;
     };
-    auto const pack = [key_bytes = plan->key_bytes](void const *keys, void const *, void const *values, void const *,
-                                                    std::size_t, std::size_t, nk_u32_t const *, nk_u32_t const *,
-                                                    std::size_t, std::size_t, std::size_t, std::size_t, std::size_t,
-                                                    void *packed, std::size_t, std::size_t, void *stream) {
+    auto const pack = [key_bytes = plan->key_bytes](void const *keys, void const *values, std::size_t, std::size_t,
+                                                    nk_u32_t const *, nk_u32_t const *, std::size_t, std::size_t,
+                                                    std::size_t, std::size_t, std::size_t, void *packed, std::size_t,
+                                                    std::size_t, void *stream) {
         cudaMemcpyAsync(packed, keys, key_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
         return cudaMemcpyAsync(static_cast<char *>(packed) + key_bytes, values, key_bytes, cudaMemcpyDeviceToDevice,
                                (cudaStream_t)stream);
     };
     run_attention_row<input_dtype_, visibility_, cuda_backend_t>(
         env, name, packed_size, pack,
-        [plan](void const *queries, void const *, void const *packed, void *output, auto...) {
+        [plan](void const *queries, void const *packed, void *output, auto...) {
             return plan->launch(queries, packed, output);
         },
         shape, backend);
@@ -1180,15 +1195,13 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
 /** Runs cuDNN rows beside the NumKong ones: bidirectional, causal, and windowed where the
  *  window clips. */
 template <nk_dtype_t input_dtype_>
-void run_attention_with_cudnn(environment_t const &env, std::string const &bidirectional_name,
-                              std::string const &causal_name, cuda_backend_t const &backend) {
+void run_attention_with_cudnn(environment_t const &env, std::string const &name, cuda_backend_t const &backend) {
     for (attention_shape_t const shape : backend.attention_shapes(env)) {
-        run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::bidirectional_k>(env, bidirectional_name,
-                                                                                            shape, backend);
-        run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_k>(env, causal_name, shape, backend);
+        run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::bidirectional_k>(env, name, shape, backend);
+        run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_k>(env, name, shape, backend);
         if (attention_window_clips(shape))
-            run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_window_1024_k>(env, causal_name,
-                                                                                                     shape, backend);
+            run_attention_row_with_cudnn<input_dtype_, attention_visibility_t::causal_window_1024_k>(env, name, shape,
+                                                                                                     backend);
     }
 }
 
@@ -1198,10 +1211,8 @@ void run_attention_with_cudnn(environment_t const &env, std::string const &bidir
  *  clips. */
 void bench_cross_cudnn([[maybe_unused]] environment_t const &env, [[maybe_unused]] cuda_backend_t const &backend) {
 #if NUMKONG_COMPARE_TO_CUDNN
-    run_attention_with_cudnn<nk_bf16_k>(env, "attention_bidirectional_bf16_with_cudnn",
-                                        "attention_causal_bf16_with_cudnn", backend);
-    run_attention_with_cudnn<nk_e4m3_k>(env, "attention_bidirectional_e4m3_with_cudnn",
-                                        "attention_causal_e4m3_with_cudnn", backend);
+    run_attention_with_cudnn<nk_bf16_k>(env, "attention_packed_bf16_with_cudnn", backend);
+    run_attention_with_cudnn<nk_e4m3_k>(env, "attention_packed_e4m3_with_cudnn", backend);
 #endif // NUMKONG_COMPARE_TO_CUDNN
 }
 #pragma endregion cuDNN
@@ -1296,6 +1307,7 @@ nk::status_t bench_cross_cuda([[maybe_unused]] environment_t const &env,
     bench_cross_hopper(env, backend, capabilities);
     bench_cross_blackwell(env, backend, capabilities);
     bench_cross_blackwellrtx(env, backend, capabilities);
+    bench_cross_blackwellultra(env, backend, capabilities);
     bench_cross_cublas(env, backend);
     bench_cross_cudnn(env, backend);
     bench_cross_cuvs(env, backend);

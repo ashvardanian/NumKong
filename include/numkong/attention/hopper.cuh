@@ -24,7 +24,7 @@
 
 #include "numkong/attention/ampere.cuh" // `nk_attention_weights_bf16_ampere_`, `nk_attention_wide_depth_ampere_k`
 #include "numkong/attention/ada.cuh"    // `nk_attention_weights_e4m3_ada_`
-#include "numkong/dots/hopper.cuh"      // `nk_wgmma_descriptor_hopper_`, `nk_wgmma_fence_hopper_`
+#include "numkong/dots/hopper.cuh"      // `nk_smem_descriptor_hopper_`, `nk_wgmma_fence_hopper_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -52,24 +52,6 @@ typedef void (*nk_attention_values_hopper_t)(nk_fui32_t output[32], nk_u32_t con
 
 #pragma region Instructions
 
-/** The operands of 32 F32 accumulators. */
-#define nk_wgmma_n64_f32_operands_hopper_(d)                                                                        \
-    "+f"(d[0].f), "+f"(d[1].f), "+f"(d[2].f), "+f"(d[3].f), "+f"(d[4].f), "+f"(d[5].f), "+f"(d[6].f), "+f"(d[7].f), \
-        "+f"(d[8].f), "+f"(d[9].f), "+f"(d[10].f), "+f"(d[11].f), "+f"(d[12].f), "+f"(d[13].f), "+f"(d[14].f),      \
-        "+f"(d[15].f), "+f"(d[16].f), "+f"(d[17].f), "+f"(d[18].f), "+f"(d[19].f), "+f"(d[20].f), "+f"(d[21].f),    \
-        "+f"(d[22].f), "+f"(d[23].f), "+f"(d[24].f), "+f"(d[25].f), "+f"(d[26].f), "+f"(d[27].f), "+f"(d[28].f),    \
-        "+f"(d[29].f), "+f"(d[30].f), "+f"(d[31].f)
-
-/** The operands of 32 integer accumulators. */
-#define nk_wgmma_n64_s32_operands_hopper_(d)                                                                        \
-    "+r"(d[0].u), "+r"(d[1].u), "+r"(d[2].u), "+r"(d[3].u), "+r"(d[4].u), "+r"(d[5].u), "+r"(d[6].u), "+r"(d[7].u), \
-        "+r"(d[8].u), "+r"(d[9].u), "+r"(d[10].u), "+r"(d[11].u), "+r"(d[12].u), "+r"(d[13].u), "+r"(d[14].u),      \
-        "+r"(d[15].u), "+r"(d[16].u), "+r"(d[17].u), "+r"(d[18].u), "+r"(d[19].u), "+r"(d[20].u), "+r"(d[21].u),    \
-        "+r"(d[22].u), "+r"(d[23].u), "+r"(d[24].u), "+r"(d[25].u), "+r"(d[26].u), "+r"(d[27].u), "+r"(d[28].u),    \
-        "+r"(d[29].u), "+r"(d[30].u), "+r"(d[31].u)
-
-#if defined(__CUDA_ARCH_SPECIFIC__) && __CUDA_ARCH_SPECIFIC__ == 900
-
 NUMKONG_DEVICE void nk_attention_scores_bf16_hopper_(nk_fui32_t scores[32], nk_u64_t query_descriptor,
                                                      nk_u64_t key_descriptor, int accumulate) {
     asm volatile("{\n.reg .pred p;\nsetp.ne.b32 p, %34, 0;\n"                                        //
@@ -77,7 +59,13 @@ NUMKONG_DEVICE void nk_attention_scores_bf16_hopper_(nk_fui32_t scores[32], nk_u
                  "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
                  "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31}"             //
                  ", %32, %33, p, 1, 1, 0, 0;\n}\n"
-                 : nk_wgmma_n64_f32_operands_hopper_(scores)
+                 : "+f"(scores[0].f), "+f"(scores[1].f), "+f"(scores[2].f), "+f"(scores[3].f), "+f"(scores[4].f),
+                   "+f"(scores[5].f), "+f"(scores[6].f), "+f"(scores[7].f), "+f"(scores[8].f), "+f"(scores[9].f),
+                   "+f"(scores[10].f), "+f"(scores[11].f), "+f"(scores[12].f), "+f"(scores[13].f), "+f"(scores[14].f),
+                   "+f"(scores[15].f), "+f"(scores[16].f), "+f"(scores[17].f), "+f"(scores[18].f), "+f"(scores[19].f),
+                   "+f"(scores[20].f), "+f"(scores[21].f), "+f"(scores[22].f), "+f"(scores[23].f), "+f"(scores[24].f),
+                   "+f"(scores[25].f), "+f"(scores[26].f), "+f"(scores[27].f), "+f"(scores[28].f), "+f"(scores[29].f),
+                   "+f"(scores[30].f), "+f"(scores[31].f)
                  : "l"(query_descriptor), "l"(key_descriptor), "r"(accumulate)
                  : "memory");
 }
@@ -89,7 +77,13 @@ NUMKONG_DEVICE void nk_attention_scores_e4m3_hopper_(nk_fui32_t scores[32], nk_u
                  "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
                  "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31}"             //
                  ", %32, %33, p, 1, 1;\n}\n"
-                 : nk_wgmma_n64_f32_operands_hopper_(scores)
+                 : "+f"(scores[0].f), "+f"(scores[1].f), "+f"(scores[2].f), "+f"(scores[3].f), "+f"(scores[4].f),
+                   "+f"(scores[5].f), "+f"(scores[6].f), "+f"(scores[7].f), "+f"(scores[8].f), "+f"(scores[9].f),
+                   "+f"(scores[10].f), "+f"(scores[11].f), "+f"(scores[12].f), "+f"(scores[13].f), "+f"(scores[14].f),
+                   "+f"(scores[15].f), "+f"(scores[16].f), "+f"(scores[17].f), "+f"(scores[18].f), "+f"(scores[19].f),
+                   "+f"(scores[20].f), "+f"(scores[21].f), "+f"(scores[22].f), "+f"(scores[23].f), "+f"(scores[24].f),
+                   "+f"(scores[25].f), "+f"(scores[26].f), "+f"(scores[27].f), "+f"(scores[28].f), "+f"(scores[29].f),
+                   "+f"(scores[30].f), "+f"(scores[31].f)
                  : "l"(query_descriptor), "l"(key_descriptor), "r"(accumulate)
                  : "memory");
 }
@@ -101,7 +95,13 @@ NUMKONG_DEVICE void nk_attention_scores_i8_hopper_(nk_fui32_t scores[32], nk_u64
                  "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
                  "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31}"             //
                  ", %32, %33, p;\n}\n"
-                 : nk_wgmma_n64_s32_operands_hopper_(scores)
+                 : "+r"(scores[0].u), "+r"(scores[1].u), "+r"(scores[2].u), "+r"(scores[3].u), "+r"(scores[4].u),
+                   "+r"(scores[5].u), "+r"(scores[6].u), "+r"(scores[7].u), "+r"(scores[8].u), "+r"(scores[9].u),
+                   "+r"(scores[10].u), "+r"(scores[11].u), "+r"(scores[12].u), "+r"(scores[13].u), "+r"(scores[14].u),
+                   "+r"(scores[15].u), "+r"(scores[16].u), "+r"(scores[17].u), "+r"(scores[18].u), "+r"(scores[19].u),
+                   "+r"(scores[20].u), "+r"(scores[21].u), "+r"(scores[22].u), "+r"(scores[23].u), "+r"(scores[24].u),
+                   "+r"(scores[25].u), "+r"(scores[26].u), "+r"(scores[27].u), "+r"(scores[28].u), "+r"(scores[29].u),
+                   "+r"(scores[30].u), "+r"(scores[31].u)
                  : "l"(query_descriptor), "l"(key_descriptor), "r"(accumulate)
                  : "memory");
 }
@@ -114,7 +114,13 @@ NUMKONG_DEVICE void nk_attention_values_bf16_hopper_(nk_fui32_t output[32], nk_u
                  "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
                  "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31}"             //
                  ", {%32, %33, %34, %35}, %36, p, 1, 1, 1;\n}\n"
-                 : nk_wgmma_n64_f32_operands_hopper_(output)
+                 : "+f"(output[0].f), "+f"(output[1].f), "+f"(output[2].f), "+f"(output[3].f), "+f"(output[4].f),
+                   "+f"(output[5].f), "+f"(output[6].f), "+f"(output[7].f), "+f"(output[8].f), "+f"(output[9].f),
+                   "+f"(output[10].f), "+f"(output[11].f), "+f"(output[12].f), "+f"(output[13].f), "+f"(output[14].f),
+                   "+f"(output[15].f), "+f"(output[16].f), "+f"(output[17].f), "+f"(output[18].f), "+f"(output[19].f),
+                   "+f"(output[20].f), "+f"(output[21].f), "+f"(output[22].f), "+f"(output[23].f), "+f"(output[24].f),
+                   "+f"(output[25].f), "+f"(output[26].f), "+f"(output[27].f), "+f"(output[28].f), "+f"(output[29].f),
+                   "+f"(output[30].f), "+f"(output[31].f)
                  : "r"(weights[0]), "r"(weights[1]), "r"(weights[2]), "r"(weights[3]), "l"(value_descriptor),
                    "r"(accumulate)
                  : "memory");
@@ -127,7 +133,13 @@ NUMKONG_DEVICE void nk_attention_values_e4m3_hopper_(nk_fui32_t output[32], nk_u
                  "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
                  "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31}"             //
                  ", {%32, %33, %34, %35}, %36, p, 1, 1;\n}\n"
-                 : nk_wgmma_n64_f32_operands_hopper_(output)
+                 : "+f"(output[0].f), "+f"(output[1].f), "+f"(output[2].f), "+f"(output[3].f), "+f"(output[4].f),
+                   "+f"(output[5].f), "+f"(output[6].f), "+f"(output[7].f), "+f"(output[8].f), "+f"(output[9].f),
+                   "+f"(output[10].f), "+f"(output[11].f), "+f"(output[12].f), "+f"(output[13].f), "+f"(output[14].f),
+                   "+f"(output[15].f), "+f"(output[16].f), "+f"(output[17].f), "+f"(output[18].f), "+f"(output[19].f),
+                   "+f"(output[20].f), "+f"(output[21].f), "+f"(output[22].f), "+f"(output[23].f), "+f"(output[24].f),
+                   "+f"(output[25].f), "+f"(output[26].f), "+f"(output[27].f), "+f"(output[28].f), "+f"(output[29].f),
+                   "+f"(output[30].f), "+f"(output[31].f)
                  : "r"(weights[0]), "r"(weights[1]), "r"(weights[2]), "r"(weights[3]), "l"(value_descriptor),
                    "r"(accumulate)
                  : "memory");
@@ -140,63 +152,19 @@ NUMKONG_DEVICE void nk_attention_values_u8i8_hopper_(nk_fui32_t output[32], nk_u
                  "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
                  "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31}"             //
                  ", {%32, %33, %34, %35}, %36, p;\n}\n"
-                 : nk_wgmma_n64_s32_operands_hopper_(output)
+                 : "+r"(output[0].u), "+r"(output[1].u), "+r"(output[2].u), "+r"(output[3].u), "+r"(output[4].u),
+                   "+r"(output[5].u), "+r"(output[6].u), "+r"(output[7].u), "+r"(output[8].u), "+r"(output[9].u),
+                   "+r"(output[10].u), "+r"(output[11].u), "+r"(output[12].u), "+r"(output[13].u), "+r"(output[14].u),
+                   "+r"(output[15].u), "+r"(output[16].u), "+r"(output[17].u), "+r"(output[18].u), "+r"(output[19].u),
+                   "+r"(output[20].u), "+r"(output[21].u), "+r"(output[22].u), "+r"(output[23].u), "+r"(output[24].u),
+                   "+r"(output[25].u), "+r"(output[26].u), "+r"(output[27].u), "+r"(output[28].u), "+r"(output[29].u),
+                   "+r"(output[30].u), "+r"(output[31].u)
                  : "r"(weights[0]), "r"(weights[1]), "r"(weights[2]), "r"(weights[3]), "l"(value_descriptor),
                    "r"(accumulate)
                  : "memory");
 }
 
-#else
-
-NUMKONG_DEVICE void nk_attention_scores_bf16_hopper_(nk_fui32_t scores[32], nk_u64_t query_descriptor,
-                                                     nk_u64_t key_descriptor, int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_attention_scores_e4m3_hopper_(nk_fui32_t scores[32], nk_u64_t query_descriptor,
-                                                     nk_u64_t key_descriptor, int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_attention_scores_i8_hopper_(nk_fui32_t scores[32], nk_u64_t query_descriptor,
-                                                   nk_u64_t key_descriptor, int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_attention_values_bf16_hopper_(nk_fui32_t output[32], nk_u32_t const weights[4],
-                                                     nk_u64_t value_descriptor, int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_attention_values_e4m3_hopper_(nk_fui32_t output[32], nk_u32_t const weights[4],
-                                                     nk_u64_t value_descriptor, int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_attention_values_u8i8_hopper_(nk_fui32_t output[32], nk_u32_t const weights[4],
-                                                     nk_u64_t value_descriptor, int accumulate) {
-    __trap();
-}
-
-#endif // defined(__CUDA_ARCH_SPECIFIC__) && __CUDA_ARCH_SPECIFIC__ == 900
-
-#undef nk_wgmma_n64_f32_operands_hopper_
-#undef nk_wgmma_n64_s32_operands_hopper_
-
 #pragma endregion Instructions
-
-#pragma region Fragments
-
-/**
- *  @brief The descriptor of a position-major V block, 64-byte swizzled, read transposed: 8
- *      positions of 32 BF16 depth columns per 512-byte atom, the next 8 positions 512 bytes on, and
- *      the next 32 columns @c nk_attention_block_bytes_hopper_k bytes on.
- *
- *  For an N-major operand the leading offset, bits 16-29, steps between 64-byte column groups and
- *  the stride offset, bits 32-45, between 8-row groups of K.
- */
-NUMKONG_DEVICE nk_u64_t nk_attention_transposed_descriptor_hopper_(nk_u32_t shared_address) {
-    nk_u64_t const start = (shared_address & 0x3FFFFu) >> 4, leading = nk_attention_block_bytes_hopper_k >> 4;
-    nk_u64_t const stride = 512 >> 4, swizzle = 2;
-    return start | (leading << 16) | (stride << 32) | (swizzle << 62);
-}
-
-#pragma endregion Fragments
 
 #pragma region Tile
 
@@ -234,6 +202,8 @@ NUMKONG_DEVICE void nk_attention_stage_columns_hopper_(unsigned char *shared, un
  *  @param[in] dtype The input dtype, which the MMAs take as it is: @c nk_bf16_k, @c nk_e4m3_k or
  *      @c nk_i8_k.
  *  @param[in] width Two or four 64-column output blocks in registers, see @c nk_attention_width_t.
+ *  @param[in] mask Whether panels crossing the band's edges mask their scores, see
+ *      @c nk_attention_mask_t; panels past the segment's keys always do.
  *  @param[in] epilogue F32 scores, or exact I32 ones converted per panel.
  *  @param[in] scores One depth step of S, see @c nk_attention_scores_hopper_t.
  *  @param[in] values_mma One step of P · V, see @c nk_attention_values_hopper_t.
@@ -244,13 +214,12 @@ NUMKONG_DEVICE void nk_attention_stage_columns_hopper_(unsigned char *shared, un
  *  15, with scores and output in the Ampere tile's order: register 4t + 2h + e of a thread is row
  *  16w + lane / 4 + 8h at column 8t + 2 · (lane mod 4) + e.
  */
-NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_width_t width, nk_attention_mask_t mask,
                                                nk_cross_epilogue_t epilogue, nk_attention_scores_hopper_t scores,
                                                nk_attention_values_hopper_t values_mma,
                                                nk_attention_weights_ampere_t weights,
                                                nk_attention_arguments_t const *arguments,
-                                               nk_attention_work_t const *work, unsigned char *shared,
-                                               unsigned (*unions)[2]) {
+                                               nk_attention_work_t const *work, unsigned char *shared) {
 
     nk_f32_t const negative_infinity = nk_attention_negative_infinity_();
     unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
@@ -276,40 +245,20 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
     unsigned char const *values_plane = keys_plane + arguments->key_value_head_count * plane_bytes;
     nk_size_t const positions_padded = plane_bytes / row_bytes;
 
-    // Each thread holds rows `group` and `group + 8` of its warp's 16.
-    unsigned key_begin[2], key_end[2];
-    unsigned union_begin = 0xFFFFFFFFu, union_end = 0, common_begin = 0, common_end = 0xFFFFFFFFu;
-#pragma unroll
-    for (unsigned half = 0; half < 2; ++half) {
-        unsigned const local = warp * 16 + group + half * 8;
-        key_begin[half] = key_end[half] = 0;
-        if (local >= work->row_count) continue;
-        nk_size_t const query = (work->row_first + local) / work->heads_selected;
-        nk_attention_row_keys_((nk_i64_t)query + arguments->diagonal_offset, arguments->window, length,
-                               &key_begin[half], &key_end[half]);
-        common_begin = max(common_begin, key_begin[half]), common_end = min(common_end, key_end[half]);
-        if (key_begin[half] < key_end[half])
-            union_begin = min(union_begin, key_begin[half]), union_end = max(union_end, key_end[half]);
-    }
-#pragma unroll
-    for (unsigned offset = 1; offset < 32; offset <<= 1) {
-        union_begin = min(union_begin, __shfl_xor_sync(0xFFFFFFFFu, union_begin, offset));
-        union_end = max(union_end, __shfl_xor_sync(0xFFFFFFFFu, union_end, offset));
-        common_begin = max(common_begin, __shfl_xor_sync(0xFFFFFFFFu, common_begin, offset));
-        common_end = min(common_end, __shfl_xor_sync(0xFFFFFFFFu, common_end, offset));
-    }
-    if (lane == 0) unions[warp][0] = union_begin, unions[warp][1] = union_end;
-    // Also retires the previous item's reads of every buffer this item refills.
-    __syncthreads();
-    unsigned block_begin = unions[0][0], block_end = unions[0][1];
-#pragma unroll
-    for (unsigned other = 1; other < 4; ++other)
-        block_begin = min(block_begin, unions[other][0]), block_end = max(block_end, unions[other][1]);
+    // A thread holds rows `group` and `group + 8` of its warp's 16, which classify panels jointly.
+    nk_diagonal_band_t const band = nk_attention_kernel_band_(mask, arguments);
+    unsigned const warp_rows = work->row_count > warp * 16 ? min((unsigned)work->row_count - warp * 16, 16u) : 0;
+    nk_i64_t const warp_first = nk_attention_row_position_(work, warp * 16, length);
+    nk_size_t block_begin, block_end;
+    nk_attention_rows_keys_(band, nk_attention_row_position_(work, 0, length),
+                            nk_attention_row_position_(work, work->row_count - 1, length), length, &block_begin,
+                            &block_end);
     unsigned const panel = nk_attention_panel_k;
-    unsigned const panel_first = block_begin < block_end ? block_begin / panel : 0;
-    unsigned const panel_end = block_begin < block_end ? (unsigned)nk_size_divide_round_up_(block_end, panel) : 0;
-    // No panel means no barrier below, and the next item would rewrite `unions` under slow warps.
-    if (panel_first == panel_end) __syncthreads();
+    unsigned const panel_first = (unsigned)(block_begin / panel);
+    unsigned const panel_end = block_begin < block_end ? (unsigned)nk_size_divide_round_up_(block_end, panel)
+                                                       : panel_first;
+    // Retires the previous item's reads of every buffer this item refills.
+    __syncthreads();
 
     if (panel_first < panel_end)
         nk_attention_stage_rows_hopper_(keys_shared, keys_plane, (nk_size_t)panel_first * panel, row_bytes);
@@ -318,22 +267,17 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
     // Q rows need not be 16-byte aligned, so they are stored element by element.
     for (unsigned local = warp; local < nk_attention_block_rows_k; local += 4) {
         int const valid = local < work->row_count;
-        unsigned char const *source = arguments->queries;
-        if (valid) {
-            nk_size_t const row = work->row_first + local;
-            nk_size_t const query = row / work->heads_selected;
-            nk_size_t const head = work->head_first + row % work->heads_selected;
-            source += (work->query_first + query) * arguments->query_stride + head * depth * element_bytes;
-        }
+        unsigned char const *source = valid ? nk_attention_query_row_(arguments, work, local, element_bytes)
+                                            : NUMKONG_NULL;
         for (unsigned element = lane; element < depth_padded; element += 32) {
             unsigned const byte = element * element_bytes, column = (byte >> 4) & 3;
             unsigned char *destination = queries_shared + (byte >> 6) * nk_attention_block_bytes_hopper_k +
                                          local * nk_attention_swizzle_bytes_hopper_k +
                                          ((column ^ ((local >> 1) & 3)) << 4) + (byte & 15);
+            int const inside = valid && element < depth;
             if (dtype == nk_bf16_k)
-                *(unsigned short *)destination = valid && element < depth ? ((unsigned short const *)source)[element]
-                                                                          : (unsigned short)0;
-            else *destination = valid && element < depth ? source[element] : (unsigned char)0;
+                *(unsigned short *)destination = inside ? ((unsigned short const *)source)[element] : (unsigned short)0;
+            else *destination = inside ? source[element] : (unsigned char)0;
         }
     }
 
@@ -363,9 +307,11 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
 #pragma unroll
         for (unsigned step = 0; step < max_blocks * 4; ++step) {
             if (step >= depth_steps) continue;
+            // K-major rows, the leading offset unread, each step starting where row 0 holds it.
             nk_u32_t const offset = (step >> 1) * nk_attention_block_bytes_hopper_k + (step & 1) * 32;
-            scores(tile_scores, nk_wgmma_descriptor_hopper_(queries_address + offset),
-                   nk_wgmma_descriptor_hopper_(keys_address + offset), step != 0);
+            scores(tile_scores,
+                   nk_smem_descriptor_hopper_(queries_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
+                   nk_smem_descriptor_hopper_(keys_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512), step != 0);
         }
         nk_wgmma_commit_hopper_();
         nk_wgmma_wait_hopper_();
@@ -376,14 +322,23 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
             tile_scores[index].f = (epilogue == nk_cross_epilogue_i32_to_f32_k ? (nk_f32_t)tile_scores[index].i
                                                                                : tile_scores[index].f) *
                                    scale2;
-        unsigned const chunk_begin = (unsigned)panel_position, chunk_end = chunk_begin + panel;
-        // Padded tails and causal edges fall outside some row's keys; other panels skip this.
-        if (!(common_begin <= chunk_begin && chunk_end <= common_end)) {
+        // The warpgroup multiplies every panel, so a warp outside one masks all of it.
+        if (nk_attention_tile_coverage_(band, warp_first, warp_rows, panel_position, panel, length) !=
+            nk_diagonal_band_inside_k) {
+            nk_u32_t visible[2][2] = {{0, 0}, {0, 0}};
+#pragma unroll
+            for (unsigned half = 0; half < 2; ++half) {
+                unsigned const local = warp * 16 + group + half * 8;
+                if (local >= work->row_count) continue;
+                nk_i64_t const row = nk_attention_row_position_(work, local, length);
+                visible[half][0] = nk_diagonal_band_row_mask_simt_(band, row, panel_position, length);
+                visible[half][1] = nk_diagonal_band_row_mask_simt_(band, row, panel_position + 32, length);
+            }
 #pragma unroll
             for (unsigned index = 0; index < 32; ++index) {
-                unsigned const position = chunk_begin + (index >> 2) * 8 + quad * 2 + (index & 1);
-                unsigned const half = (index >> 1) & 1;
-                if (position < key_begin[half] || position >= key_end[half]) tile_scores[index].f = negative_infinity;
+                unsigned const offset = (index >> 2) * 8 + quad * 2 + (index & 1);
+                if (!((visible[(index >> 1) & 1][offset >> 5] >> (offset & 31)) & 1))
+                    tile_scores[index].f = negative_infinity;
             }
         }
         nk_f32_t subtrahend[2], correction[2];
@@ -399,13 +354,13 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
             nk_f32_t const new_max = fmaxf(row_max[half], chunk_max);
             // With every key so far masked, subtracting 0 keeps exp2(-∞ - max) from turning NaN.
             subtrahend[half] = new_max == negative_infinity ? 0.0f : new_max;
-            correction[half] = nk_f32_exp2_(row_max[half] - subtrahend[half]);
+            correction[half] = nk_f32_exp2_cuda_(row_max[half] - subtrahend[half]);
             row_max[half] = new_max;
             row_sum[half] *= correction[half];
         }
 #pragma unroll
         for (unsigned index = 0; index < 32; ++index)
-            tile_scores[index].f = nk_f32_exp2_(tile_scores[index].f - subtrahend[(index >> 1) & 1]);
+            tile_scores[index].f = nk_f32_exp2_cuda_(tile_scores[index].f - subtrahend[(index >> 1) & 1]);
         nk_u32_t probabilities[4][4];
 #pragma unroll
         for (unsigned position_group = 0; position_group < 4; ++position_group)
@@ -440,16 +395,19 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
         if (dtype == nk_bf16_k) {
             nk_wgmma_fence_operands_hopper_(output, max_blocks * 32, nk_cross_epilogue_f32_k);
             nk_wgmma_fence_hopper_();
+            // N-major rows of 32 columns, the next 32 a block on, in 8-row groups 512 bytes apart.
 #pragma unroll
             for (unsigned block = 0; block < max_blocks; ++block) {
                 if (block >= depth_blocks) continue;
 #pragma unroll
-                for (unsigned position_group = 0; position_group < 4; ++position_group)
+                for (unsigned position_group = 0; position_group < 4; ++position_group) {
+                    nk_u32_t const address = values_address + block * 2 * nk_attention_block_bytes_hopper_k +
+                                             position_group * 16 * nk_attention_swizzle_bytes_hopper_k;
                     values_mma(output + block * 32, probabilities[position_group],
-                               nk_attention_transposed_descriptor_hopper_(
-                                   values_address + block * 2 * nk_attention_block_bytes_hopper_k +
-                                   position_group * 16 * nk_attention_swizzle_bytes_hopper_k),
+                               nk_smem_descriptor_hopper_(address, nk_smem_swizzle_64_hopper_k,
+                                                          nk_attention_block_bytes_hopper_k, 512),
                                1);
+                }
             }
             nk_wgmma_commit_hopper_();
             nk_wgmma_wait_hopper_();
@@ -468,7 +426,8 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
             for (unsigned step = 0; step < 2; ++step)
                 values_mma(
                     sums, probabilities[step],
-                    nk_wgmma_descriptor_hopper_(values_address + block * nk_attention_block_bytes_hopper_k + step * 32),
+                    nk_smem_descriptor_hopper_(values_address + block * nk_attention_block_bytes_hopper_k + step * 32,
+                                               nk_smem_swizzle_64_hopper_k, 16, 512),
                     step);
             nk_wgmma_commit_hopper_();
             nk_wgmma_wait_hopper_();
@@ -491,12 +450,7 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
     for (unsigned half = 0; half < 2; ++half) {
         unsigned const local = warp * 16 + group + half * 8;
         if (local >= work->row_count) continue;
-        nk_size_t const row = work->row_first + local;
-        nk_size_t const query = row / work->heads_selected;
-        nk_size_t const head = work->head_first + row % work->heads_selected;
-        nk_f32_t *destination = (nk_f32_t *)((unsigned char *)arguments->output +
-                                             (work->query_first + query) * arguments->output_stride) +
-                                head * depth;
+        nk_f32_t *destination = nk_attention_output_row_(arguments, work, local);
         nk_f32_t const inverse = row_sum[half] > 0 ? arguments->output_scale / row_sum[half] : 0.0f;
 #pragma unroll
         for (unsigned tile = 0; tile < max_blocks * 8; ++tile)
@@ -505,6 +459,11 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
                 unsigned const column = tile * 8 + quad * 2 + element;
                 if (column < depth) destination[column] = output[tile * 4 + half * 2 + element].f * inverse;
             }
+        nk_f32_t *const log_sum_exp_slot = quad == 0 ? nk_attention_log_sum_exp_slot_(arguments, work, local)
+                                                     : NUMKONG_NULL;
+        if (log_sum_exp_slot)
+            *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(row_max[half], row_sum[half],
+                                                               nk_attention_weight_unit_ampere_(weights));
     }
 }
 
@@ -513,7 +472,7 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
  *      buffer aligned up to the 512-byte boundary the 64-byte swizzle repeats on.
  *  @sa nk_attention_block_hopper_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_hopper_(nk_dtype_t dtype, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_tile_hopper_(nk_dtype_t dtype, nk_attention_width_t width, nk_attention_mask_t mask,
                                               nk_cross_epilogue_t epilogue, nk_attention_scores_hopper_t scores,
                                               nk_attention_values_hopper_t values_mma,
                                               nk_attention_weights_ampere_t weights,
@@ -521,16 +480,13 @@ NUMKONG_DEVICE void nk_attention_tile_hopper_(nk_dtype_t dtype, nk_attention_wid
     extern __shared__ __align__(128) unsigned char nk_attention_shared_hopper_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
-    __shared__ unsigned unions[nk_attention_threads_k / 32][2];
-    unsigned char *shared = nk_attention_shared_hopper_ +
-                            ((512 - (nk_shared_address_ampere_(nk_attention_shared_hopper_) & 511)) & 511);
+    unsigned char *shared = nk_shared_aligned_ampere_(nk_attention_shared_hopper_, 512);
     nk_attention_schedule_t schedule;
-    if (!nk_attention_schedule_start_(arguments, &schedule, prefix, warp_totals)) return;
+    if (!nk_attention_schedule_start_cuda_(arguments, &schedule, prefix, warp_totals)) return;
     nk_attention_work_t work;
-    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_(&schedule, prefix, warp_totals, item, &work);
+    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_cuda_(&schedule, prefix, warp_totals, item, &work);
          item += gridDim.x)
-        nk_attention_block_hopper_(dtype, width, epilogue, scores, values_mma, weights, arguments, &work, shared,
-                                   unions);
+        nk_attention_block_hopper_(dtype, width, mask, epilogue, scores, values_mma, weights, arguments, &work, shared);
 }
 
 #pragma endregion Tile
@@ -569,16 +525,16 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_hopper_(nk_dtype_t dtype, n
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_hopper_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
-    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
-    if (task_count == 0 || depth == 0) return nk_success_k;
+    if (task_begin >= task_end || depth == 0) return nk_success_k;
     nk_attention_arguments_t arguments = nk_attention_arguments_init_(
-        queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
-        scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
+        queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
+        output_stride, scale, score_scale, output_scale, keys_before, keys_after, task_begin, task_end);
     if (depth > nk_attention_wide_depth_ampere_k)
         return nk_launch_resident_cuda_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
                                         stream);
@@ -600,6 +556,20 @@ nk_define_attention_pack_cuda_(bf16, hopper, bf16)
 nk_define_attention_packed_cuda_(bf16, hopper, hopper, nk_attention_launch_hopper_, bf16, nk_cross_epilogue_f32_k,
                                  nk_attention_scores_bf16_hopper_, nk_attention_values_bf16_hopper_,
                                  nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
+
+/** Both BF16 backward kernels, on the Ampere tensor-core loops when the launch gives them shared
+ *  memory and the @c cuda kernels' loops when it does not. */
+static __global__ void __launch_bounds__(nk_attention_threads_k)
+    nk_attention_backward_keys_bf16_hopper_kernel_(nk_attention_backward_arguments_t arguments) {
+    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_ampere_(&arguments);
+    else nk_attention_backward_keys_cuda_(nk_bf16_k, &arguments);
+}
+static __global__ void __launch_bounds__(nk_attention_threads_k)
+    nk_attention_backward_queries_bf16_hopper_kernel_(nk_attention_backward_arguments_t arguments) {
+    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_ampere_(&arguments);
+    else nk_attention_backward_queries_cuda_(nk_bf16_k, &arguments);
+}
+nk_define_attention_backward_cuda_(bf16, hopper, bf16, nk_attention_backward_launch_ampere_)
 
 nk_define_attention_pack_size_simt_(e4m3, hopper, 1)
 nk_define_attention_packed_shape_cuda_(e4m3, hopper)

@@ -36,6 +36,91 @@ void bench_cross_rocm(environment_t const &env, rocm_backend_t const &backend, n
     run_euclideans_symmetric<nk_f32_k>(env, "euclideans_symmetric_f32_rocm", nk_euclideans_symmetric_f32_rocm, backend);
 }
 
+void bench_cross_cdna3([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
+                       [[maybe_unused]] nk_capability_t enabled) {
+#if NUMKONG_TARGET_CDNA3
+    if (!(enabled & nk_cap_cdna3_k)) return;
+    run_dots_packed<nk_f16_k>(env, "dots_packed_f16_cdna3", nk_dots_pack_size_f16_cdna3, nk_dots_pack_f16_cdna3,
+                              nk_dots_packed_f16_cdna3, backend);
+    run_dots_symmetric<nk_f16_k>(env, "dots_symmetric_f16_cdna3", nk_dots_symmetric_f16_cdna3, backend);
+    run_angulars_packed<nk_f16_k>(env, "angulars_packed_f16_cdna3", nk_dots_pack_size_f16_cdna3, nk_dots_pack_f16_cdna3,
+                                  nk_angulars_packed_f16_cdna3, backend);
+    run_angulars_symmetric<nk_f16_k>(env, "angulars_symmetric_f16_cdna3", nk_angulars_symmetric_f16_cdna3, backend);
+    run_euclideans_packed<nk_f16_k>(env, "euclideans_packed_f16_cdna3", nk_dots_pack_size_f16_cdna3,
+                                    nk_dots_pack_f16_cdna3, nk_euclideans_packed_f16_cdna3, backend);
+    run_euclideans_symmetric<nk_f16_k>(env, "euclideans_symmetric_f16_cdna3", nk_euclideans_symmetric_f16_cdna3,
+                                       backend);
+    run_dots_packed<nk_e4m3_k>(env, "dots_packed_e4m3_cdna3", nk_dots_pack_size_e4m3_cdna3, nk_dots_pack_e4m3_cdna3,
+                               nk_dots_packed_e4m3_cdna3, backend);
+    run_dots_symmetric<nk_e4m3_k>(env, "dots_symmetric_e4m3_cdna3", nk_dots_symmetric_e4m3_cdna3, backend);
+    run_angulars_packed<nk_e4m3_k>(env, "angulars_packed_e4m3_cdna3", nk_dots_pack_size_e4m3_cdna3,
+                                   nk_dots_pack_e4m3_cdna3, nk_angulars_packed_e4m3_cdna3, backend);
+    run_angulars_symmetric<nk_e4m3_k>(env, "angulars_symmetric_e4m3_cdna3", nk_angulars_symmetric_e4m3_cdna3, backend);
+    run_euclideans_packed<nk_e4m3_k>(env, "euclideans_packed_e4m3_cdna3", nk_dots_pack_size_e4m3_cdna3,
+                                     nk_dots_pack_e4m3_cdna3, nk_euclideans_packed_e4m3_cdna3, backend);
+    run_euclideans_symmetric<nk_e4m3_k>(env, "euclideans_symmetric_e4m3_cdna3", nk_euclideans_symmetric_e4m3_cdna3,
+                                        backend);
+    run_dots_packed<nk_e5m2_k>(env, "dots_packed_e5m2_cdna3", nk_dots_pack_size_e5m2_cdna3, nk_dots_pack_e5m2_cdna3,
+                               nk_dots_packed_e5m2_cdna3, backend);
+    run_dots_symmetric<nk_e5m2_k>(env, "dots_symmetric_e5m2_cdna3", nk_dots_symmetric_e5m2_cdna3, backend);
+    run_angulars_packed<nk_e5m2_k>(env, "angulars_packed_e5m2_cdna3", nk_dots_pack_size_e5m2_cdna3,
+                                   nk_dots_pack_e5m2_cdna3, nk_angulars_packed_e5m2_cdna3, backend);
+    run_angulars_symmetric<nk_e5m2_k>(env, "angulars_symmetric_e5m2_cdna3", nk_angulars_symmetric_e5m2_cdna3, backend);
+    run_euclideans_packed<nk_e5m2_k>(env, "euclideans_packed_e5m2_cdna3", nk_dots_pack_size_e5m2_cdna3,
+                                     nk_dots_pack_e5m2_cdna3, nk_euclideans_packed_e5m2_cdna3, backend);
+    run_euclideans_symmetric<nk_e5m2_k>(env, "euclideans_symmetric_e5m2_cdna3", nk_euclideans_symmetric_e5m2_cdna3,
+                                        backend);
+    run_dots_packed<nk_e3m2_k>(env, "dots_packed_e3m2_cdna3", nk_dots_pack_size_e3m2_cdna3, nk_dots_pack_e3m2_cdna3,
+                               nk_dots_packed_e3m2_cdna3, backend);
+    run_dots_symmetric<nk_e3m2_k>(env, "dots_symmetric_e3m2_cdna3", nk_dots_symmetric_e3m2_cdna3, backend);
+    run_angulars_packed<nk_e3m2_k>(env, "angulars_packed_e3m2_cdna3", nk_dots_pack_size_e3m2_cdna3,
+                                   nk_dots_pack_e3m2_cdna3, nk_angulars_packed_e3m2_cdna3, backend);
+    run_angulars_symmetric<nk_e3m2_k>(env, "angulars_symmetric_e3m2_cdna3", nk_angulars_symmetric_e3m2_cdna3, backend);
+    run_euclideans_packed<nk_e3m2_k>(env, "euclideans_packed_e3m2_cdna3", nk_dots_pack_size_e3m2_cdna3,
+                                     nk_dots_pack_e3m2_cdna3, nk_euclideans_packed_e3m2_cdna3, backend);
+    run_euclideans_symmetric<nk_e3m2_k>(env, "euclideans_symmetric_e3m2_cdna3", nk_euclideans_symmetric_e3m2_cdna3,
+                                        backend);
+    run_dots_packed<nk_e2m3_k>(env, "dots_packed_e2m3_cdna3", nk_dots_pack_size_e2m3_cdna3, nk_dots_pack_e2m3_cdna3,
+                               nk_dots_packed_e2m3_cdna3, backend);
+    run_dots_symmetric<nk_e2m3_k>(env, "dots_symmetric_e2m3_cdna3", nk_dots_symmetric_e2m3_cdna3, backend);
+    run_angulars_packed<nk_e2m3_k>(env, "angulars_packed_e2m3_cdna3", nk_dots_pack_size_e2m3_cdna3,
+                                   nk_dots_pack_e2m3_cdna3, nk_angulars_packed_e2m3_cdna3, backend);
+    run_angulars_symmetric<nk_e2m3_k>(env, "angulars_symmetric_e2m3_cdna3", nk_angulars_symmetric_e2m3_cdna3, backend);
+    run_euclideans_packed<nk_e2m3_k>(env, "euclideans_packed_e2m3_cdna3", nk_dots_pack_size_e2m3_cdna3,
+                                     nk_dots_pack_e2m3_cdna3, nk_euclideans_packed_e2m3_cdna3, backend);
+    run_euclideans_symmetric<nk_e2m3_k>(env, "euclideans_symmetric_e2m3_cdna3", nk_euclideans_symmetric_e2m3_cdna3,
+                                        backend);
+    run_dots_packed<nk_e2m1_k>(env, "dots_packed_e2m1_cdna3", nk_dots_pack_size_e2m1_cdna3, nk_dots_pack_e2m1_cdna3,
+                               nk_dots_packed_e2m1_cdna3, backend);
+    run_dots_symmetric<nk_e2m1_k>(env, "dots_symmetric_e2m1_cdna3", nk_dots_symmetric_e2m1_cdna3, backend);
+    run_angulars_packed<nk_e2m1_k>(env, "angulars_packed_e2m1_cdna3", nk_dots_pack_size_e2m1_cdna3,
+                                   nk_dots_pack_e2m1_cdna3, nk_angulars_packed_e2m1_cdna3, backend);
+    run_angulars_symmetric<nk_e2m1_k>(env, "angulars_symmetric_e2m1_cdna3", nk_angulars_symmetric_e2m1_cdna3, backend);
+    run_euclideans_packed<nk_e2m1_k>(env, "euclideans_packed_e2m1_cdna3", nk_dots_pack_size_e2m1_cdna3,
+                                     nk_dots_pack_e2m1_cdna3, nk_euclideans_packed_e2m1_cdna3, backend);
+    run_euclideans_symmetric<nk_e2m1_k>(env, "euclideans_symmetric_e2m1_cdna3", nk_euclideans_symmetric_e2m1_cdna3,
+                                        backend);
+    run_dots_packed<nk_i8_k>(env, "dots_packed_i8_cdna3", nk_dots_pack_size_i8_cdna3, nk_dots_pack_i8_cdna3,
+                             nk_dots_packed_i8_cdna3, backend);
+    run_dots_symmetric<nk_i8_k>(env, "dots_symmetric_i8_cdna3", nk_dots_symmetric_i8_cdna3, backend);
+    run_angulars_packed<nk_i8_k>(env, "angulars_packed_i8_cdna3", nk_dots_pack_size_i8_cdna3, nk_dots_pack_i8_cdna3,
+                                 nk_angulars_packed_i8_cdna3, backend);
+    run_angulars_symmetric<nk_i8_k>(env, "angulars_symmetric_i8_cdna3", nk_angulars_symmetric_i8_cdna3, backend);
+    run_euclideans_packed<nk_i8_k>(env, "euclideans_packed_i8_cdna3", nk_dots_pack_size_i8_cdna3, nk_dots_pack_i8_cdna3,
+                                   nk_euclideans_packed_i8_cdna3, backend);
+    run_euclideans_symmetric<nk_i8_k>(env, "euclideans_symmetric_i8_cdna3", nk_euclideans_symmetric_i8_cdna3, backend);
+    run_dots_packed<nk_i4_k>(env, "dots_packed_i4_cdna3", nk_dots_pack_size_i4_cdna3, nk_dots_pack_i4_cdna3,
+                             nk_dots_packed_i4_cdna3, backend);
+    run_dots_symmetric<nk_i4_k>(env, "dots_symmetric_i4_cdna3", nk_dots_symmetric_i4_cdna3, backend);
+    run_angulars_packed<nk_i4_k>(env, "angulars_packed_i4_cdna3", nk_dots_pack_size_i4_cdna3, nk_dots_pack_i4_cdna3,
+                                 nk_angulars_packed_i4_cdna3, backend);
+    run_angulars_symmetric<nk_i4_k>(env, "angulars_symmetric_i4_cdna3", nk_angulars_symmetric_i4_cdna3, backend);
+    run_euclideans_packed<nk_i4_k>(env, "euclideans_packed_i4_cdna3", nk_dots_pack_size_i4_cdna3, nk_dots_pack_i4_cdna3,
+                                   nk_euclideans_packed_i4_cdna3, backend);
+    run_euclideans_symmetric<nk_i4_k>(env, "euclideans_symmetric_i4_cdna3", nk_euclideans_symmetric_i4_cdna3, backend);
+#endif // NUMKONG_TARGET_CDNA3
+}
+
 void bench_cross_cdna4([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
                        [[maybe_unused]] nk_capability_t enabled) {
 #if NUMKONG_TARGET_CDNA4
@@ -146,21 +231,15 @@ void bench_cross_cdna4([[maybe_unused]] environment_t const &env, [[maybe_unused
     run_euclideans_packed<nk_u4_k>(env, "euclideans_packed_u4_cdna4", nk_dots_pack_size_u4_cdna4, nk_dots_pack_u4_cdna4,
                                    nk_euclideans_packed_u4_cdna4, backend);
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_cdna4", nk_euclideans_symmetric_u4_cdna4, backend);
-    run_attention_bidirectional<nk_bf16_k>(env, "attention_bidirectional_packed_bf16_cdna4",
-                                           nk_attention_pack_size_bf16_cdna4, nk_attention_pack_bf16_cdna4,
-                                           nk_attention_bidirectional_packed_bf16_cdna4, backend);
-    run_attention_causal<nk_bf16_k>(env, "attention_causal_packed_bf16_cdna4", nk_attention_pack_size_bf16_cdna4,
-                                    nk_attention_pack_bf16_cdna4, nk_attention_causal_packed_bf16_cdna4, backend);
-    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_cdna4",
-                                           nk_attention_pack_size_e4m3_cdna4, nk_attention_pack_e4m3_cdna4,
-                                           nk_attention_bidirectional_packed_e4m3_cdna4, backend);
-    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_cdna4", nk_attention_pack_size_e4m3_cdna4,
-                                    nk_attention_pack_e4m3_cdna4, nk_attention_causal_packed_e4m3_cdna4, backend);
-    run_attention_bidirectional<nk_i8_k>(env, "attention_bidirectional_packed_i8_cdna4",
-                                         nk_attention_pack_size_i8_cdna4, nk_attention_pack_i8_cdna4,
-                                         nk_attention_bidirectional_packed_i8_cdna4, backend);
-    run_attention_causal<nk_i8_k>(env, "attention_causal_packed_i8_cdna4", nk_attention_pack_size_i8_cdna4,
-                                  nk_attention_pack_i8_cdna4, nk_attention_causal_packed_i8_cdna4, backend);
+    run_attention<nk_bf16_k>(env, "attention_packed_bf16_cdna4", nk_attention_pack_size_bf16_cdna4,
+                             nk_attention_pack_bf16_cdna4, nk_attention_packed_bf16_cdna4, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_cdna4", nk_attention_pack_size_bf16_cdna4,
+                                       nk_attention_pack_bf16_cdna4, nk_attention_packed_bf16_cdna4,
+                                       nk_attention_packed_gradients_bf16_cdna4, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_cdna4", nk_attention_pack_size_e4m3_cdna4,
+                             nk_attention_pack_e4m3_cdna4, nk_attention_packed_e4m3_cdna4, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_cdna4", nk_attention_pack_size_i8_cdna4,
+                           nk_attention_pack_i8_cdna4, nk_attention_packed_i8_cdna4, backend);
 #endif // NUMKONG_TARGET_CDNA4
 }
 void bench_cross_cdna5([[maybe_unused]] environment_t const &env, [[maybe_unused]] rocm_backend_t const &backend,
@@ -273,21 +352,15 @@ void bench_cross_cdna5([[maybe_unused]] environment_t const &env, [[maybe_unused
     run_euclideans_packed<nk_u4_k>(env, "euclideans_packed_u4_cdna5", nk_dots_pack_size_u4_cdna5, nk_dots_pack_u4_cdna5,
                                    nk_euclideans_packed_u4_cdna5, backend);
     run_euclideans_symmetric<nk_u4_k>(env, "euclideans_symmetric_u4_cdna5", nk_euclideans_symmetric_u4_cdna5, backend);
-    run_attention_bidirectional<nk_bf16_k>(env, "attention_bidirectional_packed_bf16_cdna5",
-                                           nk_attention_pack_size_bf16_cdna5, nk_attention_pack_bf16_cdna5,
-                                           nk_attention_bidirectional_packed_bf16_cdna5, backend);
-    run_attention_causal<nk_bf16_k>(env, "attention_causal_packed_bf16_cdna5", nk_attention_pack_size_bf16_cdna5,
-                                    nk_attention_pack_bf16_cdna5, nk_attention_causal_packed_bf16_cdna5, backend);
-    run_attention_bidirectional<nk_e4m3_k>(env, "attention_bidirectional_packed_e4m3_cdna5",
-                                           nk_attention_pack_size_e4m3_cdna5, nk_attention_pack_e4m3_cdna5,
-                                           nk_attention_bidirectional_packed_e4m3_cdna5, backend);
-    run_attention_causal<nk_e4m3_k>(env, "attention_causal_packed_e4m3_cdna5", nk_attention_pack_size_e4m3_cdna5,
-                                    nk_attention_pack_e4m3_cdna5, nk_attention_causal_packed_e4m3_cdna5, backend);
-    run_attention_bidirectional<nk_i8_k>(env, "attention_bidirectional_packed_i8_cdna5",
-                                         nk_attention_pack_size_i8_cdna5, nk_attention_pack_i8_cdna5,
-                                         nk_attention_bidirectional_packed_i8_cdna5, backend);
-    run_attention_causal<nk_i8_k>(env, "attention_causal_packed_i8_cdna5", nk_attention_pack_size_i8_cdna5,
-                                  nk_attention_pack_i8_cdna5, nk_attention_causal_packed_i8_cdna5, backend);
+    run_attention<nk_bf16_k>(env, "attention_packed_bf16_cdna5", nk_attention_pack_size_bf16_cdna5,
+                             nk_attention_pack_bf16_cdna5, nk_attention_packed_bf16_cdna5, backend);
+    run_attention_gradients<nk_bf16_k>(env, "attention_packed_gradients_bf16_cdna5", nk_attention_pack_size_bf16_cdna5,
+                                       nk_attention_pack_bf16_cdna5, nk_attention_packed_bf16_cdna5,
+                                       nk_attention_packed_gradients_bf16_cdna5, backend);
+    run_attention<nk_e4m3_k>(env, "attention_packed_e4m3_cdna5", nk_attention_pack_size_e4m3_cdna5,
+                             nk_attention_pack_e4m3_cdna5, nk_attention_packed_e4m3_cdna5, backend);
+    run_attention<nk_i8_k>(env, "attention_packed_i8_cdna5", nk_attention_pack_size_i8_cdna5,
+                           nk_attention_pack_i8_cdna5, nk_attention_packed_i8_cdna5, backend);
 #endif // NUMKONG_TARGET_CDNA5
 }
 } // namespace ashvardanian::numkong::bench
@@ -307,6 +380,7 @@ nk::status_t bench_cross_rocm([[maybe_unused]] environment_t const &env,
     rocm_backend_t const backend {runtime, std::size_t(std::max(l2_bytes, 0))};
     bench_cross_rocm(env, backend, capabilities);
     bench_each_rocm(env, backend, capabilities);
+    bench_cross_cdna3(env, backend, capabilities);
     bench_cross_cdna4(env, backend, capabilities);
     bench_cross_cdna5(env, backend, capabilities);
     return nk::status_t::success_k;

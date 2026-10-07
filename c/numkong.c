@@ -66,8 +66,8 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
     case nk_kernel_maxsim_packed_shape_k: return nk_maxsim_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_attention_pack_size_k:
     case nk_kernel_attention_pack_k:
-    case nk_kernel_attention_bidirectional_packed_k:
-    case nk_kernel_attention_causal_packed_k:
+    case nk_kernel_attention_packed_k:
+    case nk_kernel_attention_packed_gradients_k:
     case nk_kernel_attention_packed_shape_k:
     case nk_kernel_attention_rope_k: return nk_attention_find_kernel(kind, dtype, capabilities, kernel, capability);
     case nk_kernel_cast_k:

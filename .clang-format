@@ -135,19 +135,13 @@ StatementMacros:
   - nk_define_cross_normalized_symmetric_
   - nk_define_cross_pack_size_simt_
   - nk_define_cross_packed_shape_cuda_
-  - nk_define_cross_packed_shape_rocm_
   - nk_define_cross_pack_rows_cuda_
-  - nk_define_cross_pack_rows_rocm_
   - nk_define_cross_pack_cuda_
   - nk_define_cross_pack_rocm_
   - nk_define_cross_packed_cuda_
-  - nk_define_cross_packed_rocm_
   - nk_define_cross_symmetric_cuda_
-  - nk_define_cross_symmetric_rocm_
   - nk_define_cross_cuda_
   - nk_define_cross_rocm_
-  - nk_define_cross_tma_packed_blackwell_
-  - nk_define_cross_tma_symmetric_blackwell_
   - nk_define_cross_tma_blackwell_
   - nk_define_cross_metal_
   - nk_define_spatials_metal_
@@ -172,6 +166,8 @@ StatementMacros:
   - nk_define_attention_packed_rocm_
   - nk_define_attention_pack_blackwell_
   - nk_define_attention_tma_blackwell_
+  - nk_define_attention_backward_cuda_
+  - nk_define_attention_backward_rocm_
   - nk_define_attention_rope_cuda_
   - nk_define_attention_rope_
   - nk_define_reduce_moments_cuda_

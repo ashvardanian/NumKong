@@ -22,8 +22,8 @@
 
 #if NUMKONG_ARCH_ROCM_CDNA4_
 
-#include "numkong/attention/rocm.cuh" // `nk_attention_schedule_next_`, `nk_attention_fallback_`
-#include "numkong/dots/cdna4.cuh"     // `nk_mfma_bf16_cdna4_`, `nk_mfma_i8_cdna4_`, `nk_byte_permute_cdna4_`
+#include "numkong/attention/rocm.cuh" // `nk_attention_schedule_next_rocm_`, `nk_attention_fallback_rocm_`
+#include "numkong/dots/cdna4.cuh"     // `nk_mfma_bf16_cdna4_`, `nk_dot_i8x4_cdna3_`, `nk_byte_permute_rocm_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -57,14 +57,14 @@ NUMKONG_DEVICE nk_u32_t nk_f32_to_f16_cdna4_(nk_f32_t value) { return __half_as_
 /** Four E4M3 codes as two pairs of F16 patterns scaled by 2⁻⁸: each code lands in the high byte
  *  of a half and keeps only its fields. */
 NUMKONG_DEVICE void nk_e4m3x4_to_f16x4_cdna4_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
-    nk_u32_t const low_halves = nk_byte_permute_cdna4_(0, codes, 0x010C000Cu);
-    nk_u32_t const high_halves = nk_byte_permute_cdna4_(0, codes, 0x030C020Cu);
+    nk_u32_t const low_halves = nk_byte_permute_rocm_(0, codes, 0x010C000Cu);
+    nk_u32_t const high_halves = nk_byte_permute_rocm_(0, codes, 0x030C020Cu);
     // The NaN magnitude 0x7F shifts to a finite 0x3F80, and setting 0x4000 fills its exponent.
     nk_u32_t const nan_bytes = ((codes & 0x7F7F7F7Fu) + 0x01010101u) & 0x80808080u;
     *low = ((low_halves >> 1) & 0x3F803F80u) | (low_halves & 0x80008000u) |
-           (nk_byte_permute_cdna4_(0, nan_bytes, 0x010C000Cu) >> 1);
+           (nk_byte_permute_rocm_(0, nan_bytes, 0x010C000Cu) >> 1);
     *high = ((high_halves >> 1) & 0x3F803F80u) | (high_halves & 0x80008000u) |
-            (nk_byte_permute_cdna4_(0, nan_bytes, 0x030C020Cu) >> 1);
+            (nk_byte_permute_rocm_(0, nan_bytes, 0x030C020Cu) >> 1);
 }
 
 #pragma endregion Conversions
@@ -147,16 +147,16 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_bytes_cdna4_(nk_dtype_t dtype, nk_s
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_cdna4_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
-    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
-    if (task_count == 0 || depth == 0) return nk_success_k;
+    if (task_begin >= task_end || depth == 0) return nk_success_k;
     nk_attention_arguments_t arguments = nk_attention_arguments_init_(
-        queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
-        scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
+        queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
+        output_stride, scale, score_scale, output_scale, keys_before, keys_after, task_begin, task_end);
     if (depth > nk_attention_wide_depth_cdna4_k)
         return nk_launch_resident_rocm_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
                                         stream);
@@ -279,6 +279,15 @@ NUMKONG_DEVICE void nk_attention_weights_u8_cdna4_(nk_f32_t const probabilities[
     *sum += (nk_f32_t)total;
 }
 
+/** The sum @p weights adds for a probability of one, the unit a row's weights sum counts in. */
+NUMKONG_DEVICE nk_f32_t nk_attention_weight_unit_cdna4_(nk_attention_weights_cdna4_t weights) {
+    nk_f32_t probabilities[16] = {1};
+    nk_u32_t packed[4];
+    nk_f32_t unit = 0;
+    weights(probabilities, packed, &unit);
+    return unit;
+}
+
 #pragma endregion Fragments
 
 #pragma region Tile
@@ -289,6 +298,8 @@ NUMKONG_DEVICE void nk_attention_weights_u8_cdna4_(nk_f32_t const probabilities[
  *  @param[in] dtype The input dtype: @c nk_bf16_k throughout, @c nk_e4m3_k scores with F16 P · V,
  *      or @c nk_i8_k throughout.
  *  @param[in] width The depths its registers hold, see @c nk_attention_width_t.
+ *  @param[in] mask Whether panels crossing the band's edges mask their scores, see
+ *      @c nk_attention_mask_t; panels past the segment's keys always do.
  *  @param[in] epilogue F32 scores and P · V sums, or exact I32 ones converted per panel.
  *  @param[in] scores One depth step of Sᵀ, see @c nk_attention_scores_cdna4_t.
  *  @param[in] values_mma One step of P · V, see @c nk_attention_values_cdna4_t.
@@ -298,13 +309,12 @@ NUMKONG_DEVICE void nk_attention_weights_u8_cdna4_(nk_f32_t const probabilities[
  *  of Sᵀ and the A operand of P · V, and rows 4 × (l / 16) + e of P · V's output, whose softmax
  *  corrections and sums it reads from the lanes holding those rows.
  */
-NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_width_t width, nk_attention_mask_t mask,
                                               nk_cross_epilogue_t epilogue, nk_attention_scores_cdna4_t scores,
                                               nk_attention_values_cdna4_t values_mma,
                                               nk_attention_weights_cdna4_t weights,
                                               nk_attention_arguments_t const *arguments,
-                                              nk_attention_work_t const *work, unsigned char *shared,
-                                              unsigned (*unions)[2]) {
+                                              nk_attention_work_t const *work, unsigned char *shared) {
 
     nk_f32_t const negative_infinity = nk_attention_negative_infinity_();
     unsigned const lane = threadIdx.x & 63, wave = threadIdx.x >> 6, group = lane >> 4, column = lane & 15;
@@ -341,50 +351,30 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
     unsigned char const *values_plane = keys_plane + arguments->key_value_head_count * plane_bytes;
     nk_size_t const positions_padded = plane_bytes / row_bytes;
 
-    unsigned key_begin[2], key_end[2];
-    unsigned union_begin = 0xFFFFFFFFu, union_end = 0;
+    // Lane `column` holds row `column` of each query tile, whose 16 rows classify panels together.
+    nk_diagonal_band_t const band = nk_attention_kernel_band_(mask, arguments);
+    unsigned tile_rows[2];
+    nk_i64_t tile_first[2], lane_rows[2];
 #pragma unroll
     for (unsigned tile = 0; tile < 2; ++tile) {
-        unsigned const local = wave * nk_attention_wave_rows_cdna4_k + tile * 16 + column;
-        key_begin[tile] = key_end[tile] = 0;
-        if (local >= work->row_count) continue;
-        nk_size_t const query = (work->row_first + local) / work->heads_selected;
-        nk_attention_row_keys_((nk_i64_t)query + arguments->diagonal_offset, arguments->window, length,
-                               &key_begin[tile], &key_end[tile]);
-        if (key_begin[tile] < key_end[tile])
-            union_begin = min(union_begin, key_begin[tile]), union_end = max(union_end, key_end[tile]);
+        unsigned const tile_local = wave * nk_attention_wave_rows_cdna4_k + tile * 16;
+        tile_rows[tile] = work->row_count > tile_local ? min((unsigned)work->row_count - tile_local, 16u) : 0;
+        tile_first[tile] = nk_attention_row_position_(work, tile_local, length);
+        lane_rows[tile] = nk_attention_row_position_(work, tile_local + column, length);
     }
-#pragma unroll
-    for (unsigned offset = 1; offset < 64; offset <<= 1) {
-        union_begin = min(union_begin, nk_shuffle_xor_u32_(union_begin, offset));
-        union_end = max(union_end, nk_shuffle_xor_u32_(union_end, offset));
-    }
-    if (lane == 0) unions[wave][0] = union_begin, unions[wave][1] = union_end;
+    nk_size_t block_begin, block_end;
+    nk_attention_rows_keys_(band, nk_attention_row_position_(work, 0, length),
+                            nk_attention_row_position_(work, work->row_count - 1, length), length, &block_begin,
+                            &block_end);
+    unsigned const panel_first = (unsigned)(block_begin / nk_attention_panel_k);
+    unsigned const panel_end = block_begin < block_end
+                                   ? (unsigned)nk_size_divide_round_up_(block_end, nk_attention_panel_k)
+                                   : panel_first;
 
-    for (unsigned local = wave; local < nk_attention_block_rows_k; local += 2) {
-        unsigned char *destination = queries_shared + local * row_stride;
-        int const valid = local < work->row_count;
-        unsigned char const *source = arguments->queries;
-        if (valid) {
-            nk_size_t const row = work->row_first + local;
-            nk_size_t const query = row / work->heads_selected;
-            nk_size_t const head = work->head_first + row % work->heads_selected;
-            source += (work->query_first + query) * arguments->query_stride + head * depth * element_bytes;
-        }
-        if (dtype == nk_bf16_k)
-            for (unsigned element = lane; element < row_bytes / 2; element += 64)
-                ((unsigned short *)destination)[element] = valid && element < depth
-                                                               ? ((unsigned short const *)source)[element]
-                                                               : (unsigned short)0;
-        else
-            for (unsigned element = lane; element < row_bytes; element += 64)
-                destination[element] = valid && element < depth ? source[element] : (unsigned char)0;
-    }
+    nk_attention_stage_queries_(dtype, arguments, work, queries_shared, nk_attention_block_rows_k, row_stride,
+                                row_bytes / element_bytes, 64);
     // Also retires the previous item's reads of every buffer this item refills.
     __syncthreads();
-    unsigned const block_begin = min(unions[0][0], unions[1][0]), block_end = max(unions[0][1], unions[1][1]);
-    unsigned const panel_first = block_begin < block_end ? block_begin / nk_attention_panel_k : 0;
-    unsigned const panel_end = block_begin < block_end ? nk_u32_divide_round_up_(block_end, nk_attention_panel_k) : 0;
 
     nk_u32_t queries[2][nk_attention_steps_cdna4_k][8];
 #pragma unroll
@@ -409,8 +399,6 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
 #pragma unroll
             for (unsigned element = 0; element < 4; ++element) output[tile][depth_tile][element].u = 0;
     nk_f32_t const scale2 = arguments->scale2 * arguments->score_scale;
-    int const active[2] = {wave * nk_attention_wave_rows_cdna4_k < work->row_count,
-                           wave * nk_attention_wave_rows_cdna4_k + 16 < work->row_count};
 
     for (unsigned panel_index = panel_first; panel_index < panel_end; ++panel_index) {
         nk_size_t const panel_position = (nk_size_t)panel_index * nk_attention_panel_k;
@@ -419,6 +407,20 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
         nk_attention_stage_values_cdna4_(dtype, values_shared, values_plane, positions_padded, panel_position,
                                          row_bytes, value_stride);
         __syncthreads();
+
+        int active[2], masked[2];
+        nk_u32_t visible[2][2] = {{0, 0}, {0, 0}};
+#pragma unroll
+        for (unsigned tile = 0; tile < 2; ++tile) {
+            nk_diagonal_band_coverage_t const coverage = nk_attention_tile_coverage_(
+                band, tile_first[tile], tile_rows[tile], panel_position, nk_attention_panel_k, length);
+            active[tile] = coverage != nk_diagonal_band_outside_k;
+            masked[tile] = coverage != nk_diagonal_band_inside_k;
+            if (!masked[tile] || wave * nk_attention_wave_rows_cdna4_k + tile * 16 + column >= work->row_count)
+                continue;
+            visible[tile][0] = nk_diagonal_band_row_mask_simt_(band, lane_rows[tile], panel_position, length);
+            visible[tile][1] = nk_diagonal_band_row_mask_simt_(band, lane_rows[tile], panel_position + 32, length);
+        }
 
         nk_fui32_t tile_scores[2][4][4];
 #pragma unroll
@@ -448,26 +450,37 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
         nk_f32_t correction[2] = {1.0f, 1.0f};
 #pragma unroll
         for (unsigned tile = 0; tile < 2; ++tile) {
-            nk_f32_t chunk_max = negative_infinity;
 #pragma unroll
             for (unsigned position_tile = 0; position_tile < 4; ++position_tile)
 #pragma unroll
                 for (unsigned element = 0; element < 4; ++element) {
                     nk_fui32_t *score = &tile_scores[tile][position_tile][element];
                     score->f = (epilogue == nk_cross_epilogue_i32_to_f32_k ? (nk_f32_t)score->i : score->f) * scale2;
-                    nk_size_t const position = panel_position +
-                                               nk_attention_slot_position_(nk_attention_tile_slot_cdna4_(
-                                                   dtype, position_tile, group * 4 + element));
-                    if (position < key_begin[tile] || position >= key_end[tile]) score->f = negative_infinity;
-                    chunk_max = fmaxf(chunk_max, score->f);
                 }
+            if (masked[tile])
+#pragma unroll
+                for (unsigned position_tile = 0; position_tile < 4; ++position_tile)
+#pragma unroll
+                    for (unsigned element = 0; element < 4; ++element) {
+                        unsigned const offset = (unsigned)nk_attention_slot_position_(
+                            nk_attention_tile_slot_cdna4_(dtype, position_tile, group * 4 + element));
+                        nk_u32_t const word = offset < 32 ? visible[tile][0] : visible[tile][1];
+                        if (!((word >> (offset & 31)) & 1))
+                            tile_scores[tile][position_tile][element].f = negative_infinity;
+                    }
+            nk_f32_t chunk_max = negative_infinity;
+#pragma unroll
+            for (unsigned position_tile = 0; position_tile < 4; ++position_tile)
+#pragma unroll
+                for (unsigned element = 0; element < 4; ++element)
+                    chunk_max = fmaxf(chunk_max, tile_scores[tile][position_tile][element].f);
             // The other 3 lane groups hold the rest of this lane's query row.
-            chunk_max = fmaxf(chunk_max, nk_shuffle_xor_f32_(chunk_max, 16));
-            chunk_max = fmaxf(chunk_max, nk_shuffle_xor_f32_(chunk_max, 32));
+            chunk_max = fmaxf(chunk_max, nk_shuffle_xor_f32_rocm_(chunk_max, 16));
+            chunk_max = fmaxf(chunk_max, nk_shuffle_xor_f32_rocm_(chunk_max, 32));
             nk_f32_t const new_max = fmaxf(row_max[tile], chunk_max);
             // Subtracting 0 while every key so far is masked keeps `exp2(-∞ - max)` from NaN.
             nk_f32_t const subtrahend = new_max == negative_infinity ? 0.0f : new_max;
-            correction[tile] = nk_f32_exp2_(row_max[tile] - subtrahend);
+            correction[tile] = nk_f32_exp2_rocm_(row_max[tile] - subtrahend);
             row_max[tile] = new_max;
             row_sum[tile] *= correction[tile];
 #pragma unroll
@@ -477,8 +490,8 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
 #pragma unroll
                 for (unsigned index = 0; index < 16; ++index) {
                     unsigned const position_tile = dtype == nk_i8_k ? index / 4 : value_step * 2 + (index / 4 & 1);
-                    step_probabilities[index] = nk_f32_exp2_(tile_scores[tile][position_tile][index % 4].f -
-                                                             subtrahend);
+                    step_probabilities[index] = nk_f32_exp2_rocm_(tile_scores[tile][position_tile][index % 4].f -
+                                                                  subtrahend);
                 }
                 weights(step_probabilities, probabilities[tile][value_step], &row_sum[tile]);
             }
@@ -504,9 +517,9 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
                 nk_i32_t values_sum = 0;
 #pragma unroll
                 for (unsigned word = 0; word < 4; ++word)
-                    values_sum = nk_dot_i8x4_(values[word], 0x01010101u, values_sum);
-                values_sum += nk_shuffle_xor_i32_(values_sum, 16);
-                values_sum += nk_shuffle_xor_i32_(values_sum, 32);
+                    values_sum = nk_dot_i8x4_cdna3_(values[word], 0x01010101u, values_sum);
+                values_sum += nk_shuffle_xor_i32_rocm_(values_sum, 16);
+                values_sum += nk_shuffle_xor_i32_rocm_(values_sum, 32);
 #pragma unroll
                 for (unsigned tile = 0; tile < 2; ++tile) {
                     if (!active[tile]) continue;
@@ -549,8 +562,16 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
 #pragma unroll
     for (unsigned tile = 0; tile < 2; ++tile) {
         nk_f32_t total = row_sum[tile];
-        total += nk_shuffle_xor_f32_(total, 16);
-        total += nk_shuffle_xor_f32_(total, 32);
+        total += nk_shuffle_xor_f32_rocm_(total, 16);
+        total += nk_shuffle_xor_f32_rocm_(total, 32);
+        // Lanes 0 to 15 hold one score row each, the rows the log-sum-exp needs.
+        unsigned const score_local = wave * nk_attention_wave_rows_cdna4_k + tile * 16 + column;
+        nk_f32_t *const log_sum_exp_slot = group == 0 && score_local < work->row_count
+                                               ? nk_attention_log_sum_exp_slot_(arguments, work, score_local)
+                                               : NUMKONG_NULL;
+        if (log_sum_exp_slot)
+            *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(row_max[tile], total,
+                                                               nk_attention_weight_unit_cdna4_(weights));
         nk_f32_t inverses[4];
 #pragma unroll
         for (unsigned element = 0; element < 4; ++element) {
@@ -561,12 +582,7 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
         for (unsigned element = 0; element < 4; ++element) {
             unsigned const local = wave * nk_attention_wave_rows_cdna4_k + tile * 16 + group * 4 + element;
             if (local >= work->row_count) continue;
-            nk_size_t const row = work->row_first + local;
-            nk_size_t const query = row / work->heads_selected;
-            nk_size_t const head = work->head_first + row % work->heads_selected;
-            nk_f32_t *destination = (nk_f32_t *)((unsigned char *)arguments->output +
-                                                 (work->query_first + query) * arguments->output_stride) +
-                                    head * depth;
+            nk_f32_t *destination = nk_attention_output_row_(arguments, work, local);
 #pragma unroll
             for (unsigned depth_tile = 0; depth_tile < nk_attention_tiles_cdna4_k; ++depth_tile)
                 if ((store_mask >> depth_tile) & 1)
@@ -579,21 +595,21 @@ NUMKONG_DEVICE void nk_attention_block_cdna4_(nk_dtype_t dtype, nk_attention_wid
  *  @brief Every work item of a launch, walked with a stride of the grid.
  *  @sa nk_attention_block_cdna4_ for the parameters.
  */
-NUMKONG_DEVICE void nk_attention_tile_cdna4_(nk_dtype_t dtype, nk_attention_width_t width, nk_cross_epilogue_t epilogue,
-                                             nk_attention_scores_cdna4_t scores, nk_attention_values_cdna4_t values_mma,
+NUMKONG_DEVICE void nk_attention_tile_cdna4_(nk_dtype_t dtype, nk_attention_width_t width, nk_attention_mask_t mask,
+                                             nk_cross_epilogue_t epilogue, nk_attention_scores_cdna4_t scores,
+                                             nk_attention_values_cdna4_t values_mma,
                                              nk_attention_weights_cdna4_t weights,
                                              nk_attention_arguments_t const *arguments) {
     extern __shared__ __attribute__((aligned(16))) unsigned char nk_attention_shared_cdna4_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
-    __shared__ unsigned unions[2][2];
     nk_attention_schedule_t schedule;
-    if (!nk_attention_schedule_start_(arguments, &schedule, prefix, warp_totals)) return;
+    if (!nk_attention_schedule_start_rocm_(arguments, &schedule, prefix, warp_totals)) return;
     nk_attention_work_t work;
-    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_(&schedule, prefix, warp_totals, item, &work);
+    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_rocm_(&schedule, prefix, warp_totals, item, &work);
          item += gridDim.x)
-        nk_attention_block_cdna4_(dtype, width, epilogue, scores, values_mma, weights, arguments, &work,
-                                  nk_attention_shared_cdna4_, unions);
+        nk_attention_block_cdna4_(dtype, width, mask, epilogue, scores, values_mma, weights, arguments, &work,
+                                  nk_attention_shared_cdna4_);
 }
 
 #pragma endregion Tile
@@ -606,6 +622,7 @@ nk_define_attention_pack_rocm_(bf16, cdna4, bf16)
 nk_define_attention_packed_rocm_(bf16, cdna4, cdna4, nk_attention_launch_cdna4_, bf16, nk_cross_epilogue_f32_k,
                                  nk_attention_scores_bf16_cdna4_, nk_attention_values_bf16_cdna4_,
                                  nk_attention_weights_bf16_cdna4_, 1.0f, 1.0f)
+nk_define_attention_backward_rocm_(bf16, cdna4, bf16)
 
 nk_define_attention_pack_size_simt_(e4m3, cdna4, 1)
 nk_define_attention_packed_shape_rocm_(e4m3, cdna4)

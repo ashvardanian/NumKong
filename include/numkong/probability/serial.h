@@ -66,7 +66,7 @@ extern "C" {
  *
  *  @see Logarithm power series: https://en.wikipedia.org/wiki/Logarithm#Power_series
  */
-NUMKONG_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) {
+NUMKONG_INLINE nk_f32_t nk_f32_log_serial_(nk_f32_t x) NUMKONG_STREAMABLE_ {
     nk_fui32_t conv;
     conv.f = x;
     int exp = ((conv.u >> 23) & 0xFF) - 127;

@@ -45,15 +45,12 @@ NUMKONG_INLINE v128_t nk_attention_load_bf16x4_v128_(void const *plane_chunk) {
     return nk_bf16x4_to_f32x4_v128_(raw_vec).v128;
 }
 
+/** Bytes of a pack whose planes keep the source encoding, like the dots family. */
 NUMKONG_INLINE nk_size_t nk_attention_pack_size_v128_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                      nk_size_t token_count, nk_size_t segment_count,
                                                       nk_size_t element_bytes) {
-    nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
-    nk_size_t payload_bytes = 0; // planes keep the source encoding, like the dots family
-    for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
-        payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth_padded *
-                         element_bytes;
-    return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
+    return nk_attention_pack_bound_(key_value_head_count, token_count, segment_count, 1,
+                                    nk_size_round_up_to_multiple_(depth, 8) * element_bytes);
 }
 
 /** Raw strided-row repack, recording the packing @p capability: source encoding is preserved,
@@ -64,28 +61,31 @@ NUMKONG_INLINE void nk_attention_pack_v128_(                               //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,      //
     nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, //
     void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, nk_capability_t capability) {
-
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const row_bytes = depth * element_bytes;
     nk_size_t const padded_row_bytes = depth_padded * element_bytes;
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
                                  task_begin, 1, padded_row_bytes, capability);
-    nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
-    nk_u64_t const *payload_offsets = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
-    char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
+    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
+                         nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     if (task_begin >= total_tasks) return;
     if (task_end > total_tasks) task_end = total_tasks;
 
+    nk_size_t payload_segment = 0;
+    nk_u64_t payload_offset = 0;
     for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count;
         nk_size_t const key_value_head_idx = task_idx % key_value_head_count;
+        for (; payload_segment < segment_idx; payload_segment++)
+            payload_offset += nk_attention_pack_segment_bytes_(segment_lengths[payload_segment], key_value_head_count,
+                                                               1, padded_row_bytes);
         nk_size_t const position_count = segment_lengths[segment_idx];
         if (position_count == 0) continue;
         nk_size_t const position_first = segment_offsets[segment_idx];
         nk_size_t const plane_bytes = position_count * padded_row_bytes;
-        char *keys_plane = payload_base + payload_offsets[segment_idx] + key_value_head_idx * plane_bytes;
+        char *keys_plane = payload_base + payload_offset + key_value_head_idx * plane_bytes;
         char *values_plane = keys_plane + key_value_head_count * plane_bytes;
         for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
             char const *keys_row = (char const *)keys + (position_first + position_idx) * key_stride +

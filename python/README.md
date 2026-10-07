@@ -698,15 +698,31 @@ v = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype(
 kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth)
 
 queries = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
-out = nk.attention_bidirectional_packed(queries, kv, query_offsets=offsets)
-decoded = nk.attention_causal_packed(queries, kv, query_offsets=offsets, diagonal_offset=0, window=4)
+out = nk.attention_packed(queries, kv, query_offsets=offsets)
+windowed = nk.attention_packed(queries, kv, query_offsets=offsets, keys_before=3, keys_after=0)
 
 assert kv.shape == (kv.heads, kv.depth, kv.segments)
 ```
 
-The causal variant places query row `r` at position `r + diagonal_offset` and attends to the `window` keys ending there, inclusive.
-Pass `diagonal_offset = length - queries` to decode against a longer cache, and `window=None` for unbounded causal attention.
+Queries align to the end of each segment's keys: row `r` of `q` queries over `k` keys sits at position `r + k - q` and sees `keys_before` keys before it and `keys_after` after, `None` being unbounded.
+So `keys_after=0` is causal for prefill and decode alike, and adding `keys_before=w - 1` slides a window of `w` keys.
 Rows that see no key come back as zeros.
+
+For training, the forward also fills a `(tokens, heads)` log-sum-exp, and `attention_packed_gradients` turns it, the output and its gradient into BF16 query, key and value gradients under the same band.
+CPUs compute them serially, so the cache is packed with `nk.Capability.SERIAL`:
+
+```python
+kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth, capabilities=nk.Capability.SERIAL)
+log_sum_exp = np.empty((tokens, heads), dtype=np.float32)
+out = nk.attention_packed(queries, kv, query_offsets=offsets, keys_after=0, log_sum_exp=log_sum_exp)
+output_gradient = np.random.randn(tokens, heads * depth).astype(np.float32)
+query_gradient, key_gradient, value_gradient = nk.attention_packed_gradients(
+    queries, kv, query_offsets=offsets, key_offsets=offsets, output=out, output_gradient=output_gradient,
+    log_sum_exp=log_sum_exp, keys_after=0)
+```
+
+`query_gradient=` takes a pre-allocated `(tokens, heads * depth)` f32 tensor, whose rows may sit in a wider buffer.
+With `threads=`, attention cuts its grid of query tokens × heads into a few windows of equal cost per thread, so a single decode token still spreads over its heads.
 
 ## Capabilities, GIL Behavior, and Parallel Partitioning
 

@@ -196,24 +196,12 @@ void test_cross_wasm([[maybe_unused]] error_stats_section_t &check) {
     check("euclideans_symmetric_u4_v128relaxed", test_euclideans_symmetric<u4x2_t>,
           nk_euclideans_symmetric_u4_v128relaxed);
 
-    check("attention_bidirectional_packed_bf16_v128relaxed", test_attention_bidirectional_packed<bf16_t>,
-          nk_attention_pack_size_bf16_v128relaxed, nk_attention_pack_bf16_v128relaxed,
-          nk_attention_bidirectional_packed_bf16_v128relaxed);
-    check("attention_causal_packed_bf16_v128relaxed", test_attention_causal_packed<bf16_t>,
-          nk_attention_pack_size_bf16_v128relaxed, nk_attention_pack_bf16_v128relaxed,
-          nk_attention_causal_packed_bf16_v128relaxed);
-    check("attention_bidirectional_packed_e4m3_v128relaxed", test_attention_bidirectional_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_v128relaxed, nk_attention_pack_e4m3_v128relaxed,
-          nk_attention_bidirectional_packed_e4m3_v128relaxed);
-    check("attention_causal_packed_e4m3_v128relaxed", test_attention_causal_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_v128relaxed, nk_attention_pack_e4m3_v128relaxed,
-          nk_attention_causal_packed_e4m3_v128relaxed);
-    check("attention_bidirectional_packed_i8_v128relaxed", test_attention_bidirectional_packed<i8_t>,
-          nk_attention_pack_size_i8_v128relaxed, nk_attention_pack_i8_v128relaxed,
-          nk_attention_bidirectional_packed_i8_v128relaxed);
-    check("attention_causal_packed_i8_v128relaxed", test_attention_causal_packed<i8_t>,
-          nk_attention_pack_size_i8_v128relaxed, nk_attention_pack_i8_v128relaxed,
-          nk_attention_causal_packed_i8_v128relaxed);
+    check("attention_packed_bf16_v128relaxed", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_v128relaxed,
+          nk_attention_pack_bf16_v128relaxed, nk_attention_packed_bf16_v128relaxed);
+    check("attention_packed_e4m3_v128relaxed", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_v128relaxed,
+          nk_attention_pack_e4m3_v128relaxed, nk_attention_packed_e4m3_v128relaxed);
+    check("attention_packed_i8_v128relaxed", test_attention_packed<i8_t>, nk_attention_pack_size_i8_v128relaxed,
+          nk_attention_pack_i8_v128relaxed, nk_attention_packed_i8_v128relaxed);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 #if NUMKONG_TARGET_V128

@@ -612,13 +612,14 @@ nk_u32_t const offsets[] = {0, 32, 96}, lengths[] = {32, 64};
 auto [packed, packed_status] = nk::packed_attention<nk::bf16_t>::make(
     keys.view(), values.view(), nk::vector_view<nk_u32_t>(offsets, 3u), nk::vector_view<nk_u32_t>(lengths, 2u));
 if (nk::failed(packed_status)) return packed_status;
-nk::status_t status = nk::attention_causal_packed<nk::bf16_t>(queries.view(), packed, output.span(), 0.125f);
-auto [fresh, fresh_status] = nk::attention_bidirectional_packed<nk::bf16_t>(queries.view(), packed, 0.125f); // nk::tensor<nk::f32_t>
+std::size_t const all_keys = std::numeric_limits<std::size_t>::max(), causal = 0;
+nk::status_t status = nk::attention_packed<nk::bf16_t>(queries.view(), packed, output.span(), 0.125f, all_keys, causal);
+auto [fresh, fresh_status] = nk::attention_packed<nk::bf16_t>(queries.view(), packed, 0.125f); // nk::tensor<nk::f32_t>
 ```
 
-The causal overloads also take an `nk::causal_mask_t`, whose diagonal offset aligns queries to the end of a longer cache and whose window slides.
-For example, `nk::attention_causal_packed<nk::bf16_t>(queries.view(), packed, output.span(), 0.125f, {.window = 4096})` attends to at most 4096 keys per row.
-The raw-pointer overloads take the query offsets separately, for cross-attention, and a window over the segments × heads task grid, for sharding one launch across workers.
+Every overload takes the band of keys each query sees, `keys_before` and `keys_after` its position, every key by default.
+Queries align to the end of each segment's keys, so `keys_after = 0` is causal for prefill and decode alike, and `keys_before = 4095` with it attends to at most 4096 keys per row.
+The raw-pointer overloads take the query offsets separately, for cross-attention, and a window over the query tokens × heads task grid, for sharding one launch across workers.
 
 ## Capabilities and Devices
 

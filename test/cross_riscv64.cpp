@@ -140,18 +140,12 @@ void test_cross_riscv64([[maybe_unused]] error_stats_section_t &check) {
     check("euclideans_symmetric_i8_rvv", test_euclideans_symmetric<i8_t>, nk_euclideans_symmetric_i8_rvv);
     check("euclideans_symmetric_u8_rvv", test_euclideans_symmetric<u8_t>, nk_euclideans_symmetric_u8_rvv);
 
-    check("attention_bidirectional_packed_bf16_rvv", test_attention_bidirectional_packed<bf16_t>,
-          nk_attention_pack_size_bf16_rvv, nk_attention_pack_bf16_rvv, nk_attention_bidirectional_packed_bf16_rvv);
-    check("attention_causal_packed_bf16_rvv", test_attention_causal_packed<bf16_t>, nk_attention_pack_size_bf16_rvv,
-          nk_attention_pack_bf16_rvv, nk_attention_causal_packed_bf16_rvv);
-    check("attention_bidirectional_packed_e4m3_rvv", test_attention_bidirectional_packed<e4m3_t>,
-          nk_attention_pack_size_e4m3_rvv, nk_attention_pack_e4m3_rvv, nk_attention_bidirectional_packed_e4m3_rvv);
-    check("attention_causal_packed_e4m3_rvv", test_attention_causal_packed<e4m3_t>, nk_attention_pack_size_e4m3_rvv,
-          nk_attention_pack_e4m3_rvv, nk_attention_causal_packed_e4m3_rvv);
-    check("attention_bidirectional_packed_i8_rvv", test_attention_bidirectional_packed<i8_t>,
-          nk_attention_pack_size_i8_rvv, nk_attention_pack_i8_rvv, nk_attention_bidirectional_packed_i8_rvv);
-    check("attention_causal_packed_i8_rvv", test_attention_causal_packed<i8_t>, nk_attention_pack_size_i8_rvv,
-          nk_attention_pack_i8_rvv, nk_attention_causal_packed_i8_rvv);
+    check("attention_packed_bf16_rvv", test_attention_packed<bf16_t>, nk_attention_pack_size_bf16_rvv,
+          nk_attention_pack_bf16_rvv, nk_attention_packed_bf16_rvv);
+    check("attention_packed_e4m3_rvv", test_attention_packed<e4m3_t>, nk_attention_pack_size_e4m3_rvv,
+          nk_attention_pack_e4m3_rvv, nk_attention_packed_e4m3_rvv);
+    check("attention_packed_i8_rvv", test_attention_packed<i8_t>, nk_attention_pack_size_i8_rvv,
+          nk_attention_pack_i8_rvv, nk_attention_packed_i8_rvv);
 #endif // NUMKONG_TARGET_RVV
 }
 

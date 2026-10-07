@@ -163,23 +163,12 @@ void bench_cross_wasm(environment_t const &env) {
         run_euclideans_symmetric<u8_k>(env, "euclideans_symmetric_u8_v128relaxed",
                                        nk_euclideans_symmetric_u8_v128relaxed);
 
-        run_attention_bidirectional<bf16_k>(env, "attention_bidirectional_packed_bf16_v128relaxed",
-                                            nk_attention_pack_size_bf16_v128relaxed, nk_attention_pack_bf16_v128relaxed,
-                                            nk_attention_bidirectional_packed_bf16_v128relaxed);
-        run_attention_causal<bf16_k>(env, "attention_causal_packed_bf16_v128relaxed",
-                                     nk_attention_pack_size_bf16_v128relaxed, nk_attention_pack_bf16_v128relaxed,
-                                     nk_attention_causal_packed_bf16_v128relaxed);
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_v128relaxed",
-                                            nk_attention_pack_size_e4m3_v128relaxed, nk_attention_pack_e4m3_v128relaxed,
-                                            nk_attention_bidirectional_packed_e4m3_v128relaxed);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_v128relaxed",
-                                     nk_attention_pack_size_e4m3_v128relaxed, nk_attention_pack_e4m3_v128relaxed,
-                                     nk_attention_causal_packed_e4m3_v128relaxed);
-        run_attention_bidirectional<i8_k>(env, "attention_bidirectional_packed_i8_v128relaxed",
-                                          nk_attention_pack_size_i8_v128relaxed, nk_attention_pack_i8_v128relaxed,
-                                          nk_attention_bidirectional_packed_i8_v128relaxed);
-        run_attention_causal<i8_k>(env, "attention_causal_packed_i8_v128relaxed", nk_attention_pack_size_i8_v128relaxed,
-                                   nk_attention_pack_i8_v128relaxed, nk_attention_causal_packed_i8_v128relaxed);
+        run_attention<bf16_k>(env, "attention_packed_bf16_v128relaxed", nk_attention_pack_size_bf16_v128relaxed,
+                              nk_attention_pack_bf16_v128relaxed, nk_attention_packed_bf16_v128relaxed);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_v128relaxed", nk_attention_pack_size_e4m3_v128relaxed,
+                              nk_attention_pack_e4m3_v128relaxed, nk_attention_packed_e4m3_v128relaxed);
+        run_attention<i8_k>(env, "attention_packed_i8_v128relaxed", nk_attention_pack_size_i8_v128relaxed,
+                            nk_attention_pack_i8_v128relaxed, nk_attention_packed_i8_v128relaxed);
     }
 #endif
 #if NUMKONG_TARGET_V128

@@ -8,8 +8,9 @@
  *
  *  - `nk_attention_pack_size_<dtype>_best` - bytes needed to pack a ragged K/V batch
  *  - `nk_attention_pack_<dtype>_best` - one-time K/V packing into a backend-opaque layout
- *  - `nk_attention_bidirectional_packed_<dtype>_best` - bidirectional attention over the batch
- *  - `nk_attention_causal_packed_<dtype>_best` - causal, optionally windowed attention
+ *  - `nk_attention_packed_<dtype>_best` - attention over the batch under a band of visible keys
+ *  - `nk_attention_packed_gradients_<dtype>_best` - the gradients with respect to queries, keys and
+ *    values, for training
  *
  *  For dtypes:
  *
@@ -37,31 +38,39 @@
  *  nk_capability_t cpu;
  *  nk_size_t bytes;
  *  nk_cpu_capabilities_enabled(&cpu);
- *  nk_attention_pack_size_bf16_best(kv_heads, 128, lengths, 3, cpu, &bytes);
+ *  nk_attention_pack_size_bf16_best(kv_heads, 128, 663, 3, cpu, &bytes);   // 663 tokens in 3 segments
  *  void *kv = aligned_alloc(64, bytes);
- *  nk_attention_pack_bf16_best(keys, values, kv_heads, 128, offsets, lengths, 3, stride, stride, kv, 0,
+ *  nk_size_t const bf16 = sizeof(nk_bf16_t);
+ *  nk_attention_pack_bf16_best(keys, values, kv_heads, 128, offsets, lengths, 3, stride, bf16, stride, bf16, kv, 0,
  *                              3 * kv_heads, cpu, NULL);
- *  nk_attention_bidirectional_packed_bf16_best(queries, kv, out, heads, kv_heads, 128, offsets, stride,
- *                                              out_stride, scale, 0, NUMKONG_SIZE_MAX, cpu, NULL);
+ *  nk_size_t const all = NUMKONG_SIZE_MAX, tasks = 663 * heads;   // every query token × head
+ *  nk_attention_packed_bf16_best(queries, kv, out, NULL, heads, kv_heads, 128, offsets, stride, out_stride, scale,
+ *                                all, all, 0, tasks, cpu, NULL);
  *  nk_u32_t one_each[] = {0, 1, 2, 3}; // attention pool: 1 learned query per segment
- *  nk_attention_bidirectional_packed_bf16_best(pool_q, kv, pooled, heads, kv_heads, 128, one_each, stride,
- *                                              out_stride, scale, 0, NUMKONG_SIZE_MAX, cpu, NULL);
+ *  nk_attention_packed_bf16_best(pool_q, kv, pooled, NULL, heads, kv_heads, 128, one_each, stride, out_stride, scale,
+ *                                all, all, 0, 3 * heads, cpu, NULL);
  *  @endcode
  *
  *  Q, K, V, O use the activations-natural layout of shape @b [tokens,heads,depth] with byte
  *  strides, so a fused QKV projection output of shape @b [tokens,3,hidden] is consumable in place.
  *  Packing takes a [task_begin, task_end) window over the flat @b [segments,kv_heads] grid, and
- *  attention a [task_start, task_start + task_count) window over the flat @b [segments,heads] grid;
- *  tasks touch disjoint outputs, so callers parallelize by distributing tasks across threads — one
- *  per physical core, longest segments first. Outputs are F32: every consumer in a transformer
- *  block — normalization, residual epilogues — wants the accumulator precision anyway.
+ *  attention one over the flat @b [query_tokens,heads] grid of output rows, which @c log_sum_exp
+ *  shares. Tasks touch disjoint outputs and windows run in any order, so callers parallelize by
+ *  cutting each grid into a few windows of equal cost per thread, one thread per physical core, an
+ *  attention row costing the keys it sees. Outputs are F32: every consumer in a transformer block,
+ *  such as normalization and residual epilogues, wants the accumulator precision anyway.
  *
- *  Unlike cuDNN's fused attention — head dimensions ≤ 256 and a multiple of 8 for 16-bit dtypes —
- *  any `depth ≥ 1` is supported: SIMD backends cover 1…256 with internal zero-padding, and larger
- *  head dimensions transparently fall back to the width-agnostic serial kernel — the fallback rule
- *  is a pure function of the arguments, so packing and attention always agree on the buffer format.
- *  Causal masking lives in `nk_attention_causal_packed_<dtype>_best`, a separate symbol over the
- *  same pack, rather than a flag on the bidirectional kernel.
+ *  Unlike cuDNN's fused attention, limited to head dimensions ≤ 256 and a multiple of 8 for 16-bit
+ *  dtypes, any `depth ≥ 1` is supported: SIMD backends cover 1…256 with internal zero-padding, and
+ *  larger head dimensions fall back to the width-agnostic serial kernel. The fallback rule is a
+ *  pure function of the arguments, so packing and attention always agree on the buffer format.
+ *
+ *  Attention @c packed is the twin of @c nk_dots_packed: queries meet packed keys and values as A
+ *  meets packed B. A family gets a new verb when its operands or outputs differ, and a parameter
+ *  when only the visible region does: @c nk_dots_symmetric is a verb, as it reads one operand and
+ *  fills the upper triangle, the @c nk_diagonal_band_t (0, NUMKONG_SIZE_MAX), that A × Aᵀ mirrors.
+ *  Masking keeps the operands and outputs of @c packed, so it is the @c keys_before and
+ *  @c keys_after band of every attention verb.
  *
  *  @section attention_research Open Research Directions
  *
@@ -95,21 +104,23 @@
  *  @see RADLADS conversion at <0.005% of pretraining: https://arxiv.org/abs/2505.03005
  *  @see Hedgehog, why zero-shot kernel swaps collapse: https://arxiv.org/abs/2402.04347
  *
- *  @section attention_causal Causal and Sliding-Window Attention
+ *  @section attention_masks Causal, Sliding-Window and Bidirectional Masks
  *
- *  `nk_attention_causal_packed_*` covers decoder inference with two scalars: query row @c r sits at
- *  position `p = r + diagonal_offset` and sees the @c window keys ending at @c p, inclusive.
- *  `offset = 0` gives causal prefill, `offset = position_count − row_count` gives decode and
- *  chunked prefill against a longer cache, a finite @c window gives sliding-window attention, and
- *  the ragged segment directory already provides block-diagonal document masking for packed
- *  batches. Rows whose range is empty, such as `p < 0` or `window = 0`, produce zeros, as do
- *  segments with no keys in both modes.
+ *  Each segment's queries align to the end of its keys: row @c r of a segment with @c q queries and
+ *  @c k keys sits at the signed position `p = r + k − q`, and key `j < k` is visible when
+ *  `p − keys_before ≤ j ≤ p + keys_after`, with saturating arithmetic and @c NUMKONG_SIZE_MAX
+ *  unbounded on either side. Causal attention is (NUMKONG_SIZE_MAX, 0), a sliding window of @c w
+ *  keys is (w − 1, 0), and bidirectional attention is (NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX).
+ *  Prefill, decode and ragged chunked prefill against a longer cache need no offset, as every
+ *  segment's `k − q` places its rows, and the segment directory already provides block-diagonal
+ *  document masking for packed batches. Rows that see no key, such as `p < 0` under a causal mask,
+ *  produce zeros and a log-sum-exp of −∞, as do segments with no keys.
  *
  *  Masking clips each row's key range instead of writing −∞ scores, because the clamped @c exp2,
- *  SME rounding, and I8 score differences all misbehave on sentinels. KV panels outside every row
- *  of a query block are skipped outright, so causality is ≈2× fewer FLOPs at equal context, and a
- *  row that sees no key of a panel keeps its running maximum. Deliberately out of scope: ALiBi,
- *  logit soft-capping, and paged KV caches.
+ *  SME rounding, and I8 score differences all misbehave on sentinels. Tiles of a query block and a
+ *  KV panel outside the band are skipped outright, so causality is ≈2× fewer FLOPs at equal
+ *  context, tiles inside it run unmasked, and a row that sees no key of a panel keeps its running
+ *  maximum. Deliberately out of scope: ALiBi, logit soft-capping, and paged KV caches.
  *
  *  @see FlashAttention-2 causal tiling and work skipping: https://arxiv.org/abs/2307.08691
  *  @see Mistral 7B, sliding-window attention in production: https://arxiv.org/abs/2310.06825
@@ -132,11 +143,11 @@ extern "C" {
 #endif
 
 /**
- *  @brief Returns the packed KV-cache size in bytes for a ragged batch of segments.
+ *  @brief Returns bytes enough to pack a ragged batch of segments however its tokens split.
  *  @param[in] key_value_head_count Number of K/V heads, a nonzero divisor of the query head count;
  *      attention must take it and @p depth as packed, and only debug builds assert these rules.
  *  @param[in] depth Head dimension; any value ≥ 1.
- *  @param[in] segment_lengths Live token counts, one per segment; zeros allowed.
+ *  @param[in] token_count Tokens across all segments, the sum of the pack's @c segment_lengths.
  *  @param[in] segment_count Number of segments packed together.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[out] bytes The size of the packed buffer.
@@ -144,15 +155,19 @@ extern "C" {
  *  @note The packed layout is backend-specific and must be produced by the matching pack function.
  */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_best(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_capability_t capabilities, nk_size_t *bytes);
 /** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_f16_best(nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_size_t token_count, nk_size_t segment_count,
+                                                        nk_capability_t capabilities, nk_size_t *bytes);
+/** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_best(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_capability_t capabilities, nk_size_t *bytes);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_best(nk_size_t key_value_head_count, nk_size_t depth,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_size_t token_count, nk_size_t segment_count,
                                                        nk_capability_t capabilities, nk_size_t *bytes);
 
 /**
@@ -169,6 +184,10 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_best(void const *key_valu
                                                             nk_size_t *depth, nk_size_t *segments,
                                                             nk_capability_t capabilities, void *stream);
 /** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_f16_best(void const *key_value_packed, nk_size_t *heads,
+                                                           nk_size_t *depth, nk_size_t *segments,
+                                                           nk_capability_t capabilities, void *stream);
+/** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_best(void const *key_value_packed, nk_size_t *heads,
                                                             nk_size_t *depth, nk_size_t *segments,
                                                             nk_capability_t capabilities, void *stream);
@@ -180,7 +199,8 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_i8_best(void const *key_value_
 /**
  *  @brief Packs a ragged batch of K and V segments into a backend-opaque layout.
  *  @param[in] keys,values Token-major matrices, one row of @p key_value_head_count × @p depth
- *      elements per token, with strided rows.
+ *      contiguous elements per token, with strided rows. Packing fuses no transposition, so
+ *      depth-major K or V is transposed in a separate pass first.
  *  @param[in] segment_offsets Start token of each segment, @p segment_count + 1 prefix sums.
  *  @param[in] segment_lengths Live token counts, one per segment; zeros mark padding slots.
  *  @param[in] key_stride Row (token) stride of @p keys in bytes.
@@ -192,8 +212,8 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_i8_best(void const *key_value_
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  *
- *  Windows let callers pack in parallel: tasks write disjoint ranges, and the header and directory
- *  are written by the window starting at task 0.
+ *  Windows let callers pack in parallel and in any order: tasks write disjoint ranges, the window
+ *  starting at task 0 also writes the header and directory, and no window reads them.
  */
 NUMKONG_API nk_status_t nk_attention_pack_bf16_best(nk_bf16_t const *keys, nk_bf16_t const *values,
                                                     nk_size_t key_value_head_count, nk_size_t depth,
@@ -202,6 +222,13 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_best(nk_bf16_t const *keys, nk_bf
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end,
                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_f16_best(nk_f16_t const *keys, nk_f16_t const *values,
+                                                   nk_size_t key_value_head_count, nk_size_t depth,
+                                                   nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                   nk_size_t segment_count, nk_size_t key_stride,
+                                                   nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
+                                                   nk_size_t task_end, nk_capability_t capabilities, void *stream);
 /** @copydoc nk_attention_pack_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_e4m3_best(nk_e4m3_t const *keys, nk_e4m3_t const *values,
                                                     nk_size_t key_value_head_count, nk_size_t depth,
@@ -219,11 +246,12 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_best(nk_i8_t const *keys, nk_i8_t c
                                                   nk_capability_t capabilities, void *stream);
 
 /**
- *  @brief Ragged bidirectional scaled-dot-product attention.
+ *  @brief Ragged scaled-dot-product attention under a band of visible keys.
  *
- *  Computes O[s] = softmax(Q[s] × K[s]ᵀ × scale) × V[s] for every segment s. Covers self-attention,
- *  where @p query_offsets equal the pack-time @c segment_offsets, cross-attention, and pooling,
- *  where `query_offsets = {0, 1, 2, …}` holds one query per segment, plus GQA/MQA via
+ *  Computes O[s] = softmax(Q[s] × K[s]ᵀ × scale) × V[s] for every segment s over the keys each
+ *  query row sees, as @ref attention_masks defines. Covers self-attention, where @p query_offsets
+ *  equal the pack-time @c segment_offsets, cross-attention, and pooling, where
+ *  `query_offsets = {0, 1, 2, …}` holds one query per segment, plus GQA/MQA via
  *  @p key_value_head_count < @p head_count. Pack @p key_value_packed with the same
  *  @p capabilities: CPU kernels return @c nk_pack_mismatch_k for buffers another capability packed,
  *  while GPU kernels trust it, as reading its device header would wait on the stream.
@@ -233,67 +261,94 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_best(nk_i8_t const *keys, nk_i8_t c
  *  @param[in] key_value_packed Buffer produced by the matching `nk_attention_pack_*` backend.
  *  @param[out] output Token-major F32 matrix, one row of @p head_count × @p depth elements per
  *      query token, with @p output_stride bytes between rows.
+ *  @param[out] log_sum_exp Optional natural log of Σ exp(score multiplier × q · k) over each row's
+ *      keys, one per query token and head, @b [query_tokens,heads] with no padding, −∞ for a row
+ *      without keys: what the backward pass recomputes the weights from. Null skips it.
  *  @param[in] query_offsets First query row of each segment, as segment count + 1 prefix sums.
  *  @param[in] scale Score multiplier, typically 1 / √depth.
- *  @param[in] task_start,task_count Window over the segments × heads grid, with @p task_count
- *      clipped to segments × heads − @p task_start. Tasks write disjoint output regions, so
- *      callers parallelize freely.
+ *  @param[in] keys_before Keys visible before each query's position: @c NUMKONG_SIZE_MAX for causal
+ *      and bidirectional attention, `w − 1` for a sliding window of @c w keys.
+ *  @param[in] keys_after Keys visible after each query's position: `0` for causal attention,
+ *      @c NUMKONG_SIZE_MAX for bidirectional.
+ *  @param[in] task_begin First task of a window over the query tokens × heads grid, task
+ *      t × @p head_count + h being head @c h of query token @c t, as in @p log_sum_exp.
+ *  @param[in] task_end End of that half-open window, clipped to the grid's live rows from
+ *      @p query_offsets[0] × @p head_count. Tasks write disjoint output rows, so callers
+ *      parallelize freely; a window may split a segment or a head group.
  *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
  *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
  *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
  */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_best(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities,
-    void *stream);
+NUMKONG_API nk_status_t nk_attention_packed_bf16_best(nk_bf16_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      nk_capability_t capabilities, void *stream);
 
 /**
- *  @brief Ragged causal scaled-dot-product attention with an optional sliding window.
+ *  @brief Gradients of ragged attention with respect to its queries, keys and values.
  *
- *  Query row @c r of a segment sits at position `p = r + diagonal_offset` and attends to the keys
- *  `[max(0, p − window + 1), min(p, length − 1)]`; rows with an empty range produce zeros.
- *  Packing and every other parameter follow @c nk_attention_bidirectional_packed_bf16_best.
+ *  Recomputes every attention weight from @p log_sum_exp, so nothing of the forward but its output
+ *  and that per-row statistic is kept. The gradients are F32 and overwritten: @p query_gradient
+ *  holds one row of @p head_count × @p depth elements per query token, while @p key_gradient and
+ *  @p value_gradient hold one row of @p key_value_head_count × @p depth elements per key token,
+ *  token @c t of segment @c s at row `key_offsets[s] + t`. Rows past a segment's live keys, the
+ *  gaps and tails before the next segment's first key, are never written, so callers zero them
+ *  when they matter. Tasks cover the segments × key-value heads grid, each owning one KV head of
+ *  one segment together with the query heads sharing it, so tasks write disjoint gradients and
+ *  each sums in a fixed order.
  *
- *  @param[in] diagonal_offset Position of query row 0: `0` for prefill, `length − query_count`
- *      against a cache.
- *  @param[in] window Visible keys including the query itself; @c NUMKONG_SIZE_MAX is unbounded, `0`
- *      masks every key.
- *  @param[in] capabilities One device's capabilities, like @c nk_cpu_capabilities_enabled reports.
- *  @param[in] stream Null on the CPU, or the GPU stream of that device to queue on.
- *  @return @c nk_success_k, or @c nk_missing_kernel_k when no capability in @p capabilities has it.
+ *  @param[in] output The forward's output for these queries and pack.
+ *  @param[in] output_gradient Gradient of the loss with respect to @p output, laid out like it.
+ *  @param[in] log_sum_exp The forward's natural log of Σ exp(scale × score) over each row's keys,
+ *      one per query token and head, @b [query_tokens,heads] with no padding.
+ *  @param[out] query_gradient Gradient with respect to @p queries.
+ *  @param[out] key_gradient Gradient with respect to the packed keys.
+ *  @param[out] value_gradient Gradient with respect to the packed values.
+ *  @param[in] key_offsets First key token of each segment, the pack-time @c segment_offsets.
+ *  @param[in] query_gradient_stride Bytes between the @p query_gradient rows of consecutive tokens.
+ *  @param[in] key_value_gradient_stride Bytes between the gradient rows of consecutive key tokens.
+ *  @param[in] keys_before Keys before each query that it saw in the forward pass.
+ *  @param[in] keys_after Keys after each query that it saw in the forward pass.
+ *  @param[in] task_begin First task of a window over the segments × key-value heads grid.
+ *  @param[in] task_end End of that half-open window, clipped to the grid.
+ *
+ *  Every other parameter follows @c nk_attention_packed_bf16_best.
  */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_best(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, nk_capability_t capabilities, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_best(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities,
-    void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_best(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, nk_capability_t capabilities, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_best(nk_i8_t const *queries, void const *key_value_packed,
-                                                                  nk_f32_t *output, nk_size_t head_count,
-                                                                  nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                                  nk_size_t output_stride, nk_f32_t scale,
-                                                                  nk_size_t task_start, nk_size_t task_count,
-                                                                  nk_capability_t capabilities, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_best(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, nk_capability_t capabilities, void *stream);
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_best(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, nk_capability_t capabilities, void *stream);
+
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_f16_best(nk_f16_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     nk_capability_t capabilities, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_best(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      nk_capability_t capabilities, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_best(nk_i8_t const *queries, void const *key_value_packed,
+                                                    nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                    nk_capability_t capabilities, void *stream);
 
 /**
  *  @brief NeoX split-half rotary position embedding (RoPE): rotates channel pairs
@@ -338,21 +393,28 @@ NUMKONG_API nk_status_t nk_attention_rope_e4m3_best(nk_e4m3_t const *x, nk_f32_t
 
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_serial(void const *key_value_packed, nk_size_t *heads,
                                                               nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_f16_serial(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_size_t token_count, nk_size_t segment_count,
+                                                          nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_f16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_f16_serial(void const *key_value_packed, nk_size_t *heads,
+                                                             nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_serial(void const *key_value_packed, nk_size_t *heads,
                                                               nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_serial(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_serial(void const *key_value_packed, nk_size_t *heads,
@@ -364,6 +426,13 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_serial(nk_bf16_t const *keys, nk_
                                                       nk_size_t segment_count, nk_size_t key_stride,
                                                       nk_size_t value_stride, void *key_value_packed,
                                                       nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_f16_serial(nk_f16_t const *keys, nk_f16_t const *values,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                     nk_size_t segment_count, nk_size_t key_stride,
+                                                     nk_size_t value_stride, void *key_value_packed,
+                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_e4m3_serial(nk_e4m3_t const *keys, nk_e4m3_t const *values,
                                                       nk_size_t key_value_head_count, nk_size_t depth,
@@ -378,41 +447,46 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_serial(nk_i8_t const *keys, nk_i8_t
                                                     nk_size_t segment_count, nk_size_t key_stride,
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_serial(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_serial(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_serial(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_serial(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_serial(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_serial(nk_i8_t const *queries, void const *key_value_packed,
-                                                             nk_f32_t *output, nk_size_t head_count,
-                                                             nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                             nk_size_t output_stride, nk_f32_t scale,
-                                                             nk_i64_t diagonal_offset, nk_size_t window,
-                                                             nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_serial(nk_bf16_t const *queries, void const *key_value_packed,
+                                                        nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                        nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                        nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                        void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_serial(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_f16_serial(nk_f16_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_serial(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                        nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                        nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                        nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                        void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_serial(nk_i8_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      void *stream);
 /** @copydoc nk_attention_rope_f32_best */
 NUMKONG_API nk_status_t nk_attention_rope_f32_serial(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                      nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
@@ -431,14 +505,14 @@ NUMKONG_API nk_status_t nk_attention_rope_e4m3_serial(nk_e4m3_t const *x, nk_f32
 #if NUMKONG_TARGET_HASWELL
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_haswell(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                            nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_haswell(void const *key_value_packed, nk_size_t *heads,
                                                                nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_haswell(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                            nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_haswell(void const *key_value_packed, nk_size_t *heads,
@@ -457,31 +531,25 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_haswell(nk_e4m3_t const *keys, nk
                                                        nk_size_t segment_count, nk_size_t key_stride,
                                                        nk_size_t value_stride, void *key_value_packed,
                                                        nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_haswell(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_haswell(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_haswell(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_haswell(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_haswell(nk_bf16_t const *queries, void const *key_value_packed,
+                                                         nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                         nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                         nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                         nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                         void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_haswell(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                         nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                         nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                         nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                         nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                         void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_haswell(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_haswell(void const *key_value_packed, nk_size_t *heads,
@@ -493,19 +561,14 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_haswell(nk_i8_t const *keys, nk_i8_
                                                      nk_size_t segment_count, nk_size_t key_stride,
                                                      nk_size_t value_stride, void *key_value_packed,
                                                      nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_haswell(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_haswell(nk_i8_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_haswell(nk_i8_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
 /** @copydoc nk_attention_rope_f32_best */
 NUMKONG_API nk_status_t nk_attention_rope_f32_haswell(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                       nk_f32_t *y, nk_size_t rows, nk_size_t head_count,
@@ -526,14 +589,14 @@ NUMKONG_API nk_status_t nk_attention_rope_e4m3_haswell(nk_e4m3_t const *x, nk_f3
 #if NUMKONG_TARGET_SKYLAKE
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                            nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_skylake(void const *key_value_packed, nk_size_t *heads,
                                                                nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_skylake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                            nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_skylake(void const *key_value_packed, nk_size_t *heads,
@@ -552,28 +615,22 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_skylake(nk_e4m3_t const *keys, nk
                                                        nk_size_t segment_count, nk_size_t key_stride,
                                                        nk_size_t value_stride, void *key_value_packed,
                                                        nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_skylake(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_skylake(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_skylake(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_skylake(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_skylake(nk_bf16_t const *queries, void const *key_value_packed,
+                                                         nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                         nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                         nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                         nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                         void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_skylake(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                         nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                         nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                         nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                         nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                         void *stream);
 /** @copydoc nk_attention_rope_f32_best */
 NUMKONG_API nk_status_t nk_attention_rope_f32_skylake(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                       nk_f32_t *y, nk_size_t rows, nk_size_t head_count,
@@ -594,7 +651,7 @@ NUMKONG_API nk_status_t nk_attention_rope_e4m3_skylake(nk_e4m3_t const *x, nk_f3
 #if NUMKONG_TARGET_ICELAKE
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_icelake(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_icelake(void const *key_value_packed, nk_size_t *heads,
@@ -606,32 +663,27 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_icelake(nk_i8_t const *keys, nk_i8_
                                                      nk_size_t segment_count, nk_size_t key_stride,
                                                      nk_size_t value_stride, void *key_value_packed,
                                                      nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_icelake(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_icelake(nk_i8_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_icelake(nk_i8_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if NUMKONG_TARGET_GENOA
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_genoa(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_genoa(void const *key_value_packed, nk_size_t *heads,
                                                              nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_genoa(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_genoa(void const *key_value_packed, nk_size_t *heads,
@@ -650,39 +702,29 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_genoa(nk_e4m3_t const *keys, nk_e
                                                      nk_size_t segment_count, nk_size_t key_stride,
                                                      nk_size_t value_stride, void *key_value_packed,
                                                      nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_genoa(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_genoa(nk_bf16_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_genoa(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_genoa(nk_e4m3_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_genoa(nk_bf16_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_genoa(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
 #endif // NUMKONG_TARGET_GENOA
 
 #if NUMKONG_TARGET_SAPPHIREAMX
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count, nk_size_t *bytes);
+                                                                nk_size_t token_count, nk_size_t segment_count,
+                                                                nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_sapphireamx(void const *key_value_packed, nk_size_t *heads,
                                                                    nk_size_t *depth, nk_size_t *segments, void *stream);
@@ -691,21 +733,16 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_sapphireamx(
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_sapphireamx(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_sapphireamx(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_sapphireamx(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count, nk_size_t *bytes);
+                                                                nk_size_t token_count, nk_size_t segment_count,
+                                                                nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_sapphireamx(void const *key_value_packed, nk_size_t *heads,
                                                                    nk_size_t *depth, nk_size_t *segments, void *stream);
@@ -714,20 +751,15 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_sapphireamx(
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_sapphireamx(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_sapphireamx(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_sapphireamx(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_sapphireamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                              nk_size_t token_count, nk_size_t segment_count,
                                                               nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_sapphireamx(void const *key_value_packed, nk_size_t *heads,
@@ -737,17 +769,14 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_sapphireamx(
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_sapphireamx(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_sapphireamx(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_sapphireamx(nk_i8_t const *queries, void const *key_value_packed,
+                                                           nk_f32_t *output, nk_f32_t *log_sum_exp,
+                                                           nk_size_t head_count, nk_size_t key_value_head_count,
+                                                           nk_size_t depth, nk_u32_t const *query_offsets,
+                                                           nk_size_t query_stride, nk_size_t output_stride,
+                                                           nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+                                                           nk_size_t task_begin, nk_size_t task_end, void *stream);
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
 /*  Diamond Rapids AMX provides only the E4M3 attention variant: its native FP8 tiles, driven by
@@ -756,7 +785,7 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_sapphireamx(
 #if NUMKONG_TARGET_DIAMONDAMX
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_diamondamx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                               nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                               nk_size_t token_count, nk_size_t segment_count,
                                                                nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_diamondamx(void const *key_value_packed, nk_size_t *heads,
@@ -766,23 +795,20 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_diamondamx(
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_diamondamx(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_diamondamx(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_diamondamx(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                            nk_f32_t *output, nk_f32_t *log_sum_exp,
+                                                            nk_size_t head_count, nk_size_t key_value_head_count,
+                                                            nk_size_t depth, nk_u32_t const *query_offsets,
+                                                            nk_size_t query_stride, nk_size_t output_stride,
+                                                            nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+                                                            nk_size_t task_begin, nk_size_t task_end, void *stream);
 #endif // NUMKONG_TARGET_DIAMONDAMX
 
 #if NUMKONG_TARGET_SME
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_sme(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_sme(void const *key_value_packed, nk_size_t *heads,
@@ -794,22 +820,17 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_sme(nk_bf16_t const *keys, nk_bf1
                                                    nk_size_t segment_count, nk_size_t key_stride,
                                                    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
                                                    nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_sme(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_sme(nk_bf16_t const *queries, void const *key_value_packed,
-                                                            nk_f32_t *output, nk_size_t head_count,
-                                                            nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                            nk_size_t output_stride, nk_f32_t scale,
-                                                            nk_i64_t diagonal_offset, nk_size_t window,
-                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_sme(nk_bf16_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_sme(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_sme(void const *key_value_packed, nk_size_t *heads,
@@ -821,23 +842,17 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_sme(nk_e4m3_t const *keys, nk_e4m
                                                    nk_size_t segment_count, nk_size_t key_stride,
                                                    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
                                                    nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_sme(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_sme(nk_e4m3_t const *queries, void const *key_value_packed,
-                                                            nk_f32_t *output, nk_size_t head_count,
-                                                            nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                            nk_size_t output_stride, nk_f32_t scale,
-                                                            nk_i64_t diagonal_offset, nk_size_t window,
-                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_sme(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_sme(nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                      nk_size_t *bytes);
+                                                      nk_size_t token_count, nk_size_t segment_count, nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_sme(void const *key_value_packed, nk_size_t *heads,
                                                          nk_size_t *depth, nk_size_t *segments, void *stream);
@@ -848,25 +863,20 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_sme(nk_i8_t const *keys, nk_i8_t co
                                                  nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
                                                  void *key_value_packed, nk_size_t task_begin, nk_size_t task_end,
                                                  void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_sme(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_sme(nk_i8_t const *queries, void const *key_value_packed,
-                                                          nk_f32_t *output, nk_size_t head_count,
-                                                          nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                          nk_size_t output_stride, nk_f32_t scale,
-                                                          nk_i64_t diagonal_offset, nk_size_t window,
-                                                          nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_sme(nk_i8_t const *queries, void const *key_value_packed,
+                                                   nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                   nk_size_t key_value_head_count, nk_size_t depth,
+                                                   nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                   nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                   nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                   void *stream);
 #endif // NUMKONG_TARGET_SME
 
 #if NUMKONG_TARGET_NEONBFDOT
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_neonbfdot(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                              nk_size_t token_count, nk_size_t segment_count,
                                                               nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_neonbfdot(void const *key_value_packed, nk_size_t *heads,
@@ -876,23 +886,20 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_neonbfdot(
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_neonbfdot(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_neonbfdot(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_neonbfdot(nk_bf16_t const *queries, void const *key_value_packed,
+                                                           nk_f32_t *output, nk_f32_t *log_sum_exp,
+                                                           nk_size_t head_count, nk_size_t key_value_head_count,
+                                                           nk_size_t depth, nk_u32_t const *query_offsets,
+                                                           nk_size_t query_stride, nk_size_t output_stride,
+                                                           nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+                                                           nk_size_t task_begin, nk_size_t task_end, void *stream);
 #endif // NUMKONG_TARGET_NEONBFDOT
 
 #if NUMKONG_TARGET_NEONFHM
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_neonfhm(nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                            nk_size_t token_count, nk_size_t segment_count,
                                                             nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_neonfhm(void const *key_value_packed, nk_size_t *heads,
@@ -904,23 +911,20 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_neonfhm(nk_e4m3_t const *keys, nk
                                                        nk_size_t segment_count, nk_size_t key_stride,
                                                        nk_size_t value_stride, void *key_value_packed,
                                                        nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_neonfhm(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_neonfhm(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_neonfhm(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                         nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                         nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                         nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                         nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                         void *stream);
 #endif // NUMKONG_TARGET_NEONFHM
 
 #if NUMKONG_TARGET_NEONSDOT
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_neonsdot(nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_neonsdot(void const *key_value_packed, nk_size_t *heads,
@@ -932,38 +936,34 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_neonsdot(nk_i8_t const *keys, nk_i8
                                                       nk_size_t segment_count, nk_size_t key_stride,
                                                       nk_size_t value_stride, void *key_value_packed,
                                                       nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_neonsdot(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_neonsdot(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_neonsdot(nk_i8_t const *queries, void const *key_value_packed,
+                                                        nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                        nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                        nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                        void *stream);
 #endif // NUMKONG_TARGET_NEONSDOT
 
 #if NUMKONG_TARGET_RVV
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_rvv(void const *key_value_packed, nk_size_t *heads,
                                                            nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_rvv(void const *key_value_packed, nk_size_t *heads,
                                                            nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                      nk_size_t *bytes);
+                                                      nk_size_t token_count, nk_size_t segment_count, nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_rvv(void const *key_value_packed, nk_size_t *heads,
                                                          nk_size_t *depth, nk_size_t *segments, void *stream);
@@ -988,65 +988,50 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_rvv(nk_i8_t const *keys, nk_i8_t co
                                                  nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
                                                  void *key_value_packed, nk_size_t task_begin, nk_size_t task_end,
                                                  void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_rvv(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_rvv(nk_bf16_t const *queries, void const *key_value_packed,
-                                                            nk_f32_t *output, nk_size_t head_count,
-                                                            nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                            nk_size_t output_stride, nk_f32_t scale,
-                                                            nk_i64_t diagonal_offset, nk_size_t window,
-                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_rvv(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_rvv(nk_e4m3_t const *queries, void const *key_value_packed,
-                                                            nk_f32_t *output, nk_size_t head_count,
-                                                            nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                            nk_size_t output_stride, nk_f32_t scale,
-                                                            nk_i64_t diagonal_offset, nk_size_t window,
-                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_rvv(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_rvv(nk_i8_t const *queries, void const *key_value_packed,
-                                                          nk_f32_t *output, nk_size_t head_count,
-                                                          nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                          nk_size_t output_stride, nk_f32_t scale,
-                                                          nk_i64_t diagonal_offset, nk_size_t window,
-                                                          nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_rvv(nk_bf16_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_rvv(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_rvv(nk_i8_t const *queries, void const *key_value_packed,
+                                                   nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                   nk_size_t key_value_head_count, nk_size_t depth,
+                                                   nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                   nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                   nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                   void *stream);
 #endif // NUMKONG_TARGET_RVV
 
 #if NUMKONG_TARGET_V128RELAXED
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count, nk_size_t *bytes);
+                                                                nk_size_t token_count, nk_size_t segment_count,
+                                                                nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_v128relaxed(void const *key_value_packed, nk_size_t *heads,
                                                                    nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count, nk_size_t *bytes);
+                                                                nk_size_t token_count, nk_size_t segment_count,
+                                                                nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_v128relaxed(void const *key_value_packed, nk_size_t *heads,
                                                                    nk_size_t *depth, nk_size_t *segments, void *stream);
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_v128relaxed(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                              nk_size_t token_count, nk_size_t segment_count,
                                                               nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_v128relaxed(void const *key_value_packed, nk_size_t *heads,
@@ -1066,39 +1051,26 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_v128relaxed(
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_v128relaxed(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_v128relaxed(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_v128relaxed(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_v128relaxed(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_v128relaxed(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_v128relaxed(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_v128relaxed(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_v128relaxed(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_v128relaxed(nk_i8_t const *queries, void const *key_value_packed,
+                                                           nk_f32_t *output, nk_f32_t *log_sum_exp,
+                                                           nk_size_t head_count, nk_size_t key_value_head_count,
+                                                           nk_size_t depth, nk_u32_t const *query_offsets,
+                                                           nk_size_t query_stride, nk_size_t output_stride,
+                                                           nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+                                                           nk_size_t task_begin, nk_size_t task_end, void *stream);
 #endif // NUMKONG_TARGET_V128RELAXED
 
 /*  GPU kernels take their CPU counterparts' arguments and return without waiting on the device.
@@ -1109,8 +1081,30 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_v128relaxed(
  *  backend makes, and the pack routine every GPU capability shares. */
 #if NUMKONG_TARGET_CUDA
 /** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_f16_cuda(nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_size_t token_count, nk_size_t segment_count,
+                                                        nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_f16_cuda(void const *key_value_packed, nk_size_t *heads,
+                                                           nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_f16_cuda(nk_f16_t const *keys, nk_f16_t const *values,
+                                                   nk_size_t key_value_head_count, nk_size_t depth,
+                                                   nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                   nk_size_t segment_count, nk_size_t key_stride,
+                                                   nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
+                                                   nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_f16_cuda(nk_f16_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
+/** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_cuda(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_cuda(void const *key_value_packed, nk_size_t *heads,
@@ -1122,22 +1116,25 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_cuda(nk_bf16_t const *keys, nk_bf
                                                     nk_size_t segment_count, nk_size_t key_stride,
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_cuda(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_cuda(nk_bf16_t const *queries, void const *key_value_packed,
-                                                             nk_f32_t *output, nk_size_t head_count,
-                                                             nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                             nk_size_t output_stride, nk_f32_t scale,
-                                                             nk_i64_t diagonal_offset, nk_size_t window,
-                                                             nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_cuda(nk_bf16_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_cuda(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_cuda(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_cuda(void const *key_value_packed, nk_size_t *heads,
@@ -1149,22 +1146,17 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_cuda(nk_e4m3_t const *keys, nk_e4
                                                     nk_size_t segment_count, nk_size_t key_stride,
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_cuda(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_cuda(nk_e4m3_t const *queries, void const *key_value_packed,
-                                                             nk_f32_t *output, nk_size_t head_count,
-                                                             nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                             nk_size_t output_stride, nk_f32_t scale,
-                                                             nk_i64_t diagonal_offset, nk_size_t window,
-                                                             nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_cuda(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      void *stream);
 /** @copydoc nk_attention_pack_size_i8_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_cuda(nk_size_t key_value_head_count, nk_size_t depth,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_size_t token_count, nk_size_t segment_count,
                                                        nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_cuda(void const *key_value_packed, nk_size_t *heads,
@@ -1176,19 +1168,14 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_cuda(nk_i8_t const *keys, nk_i8_t c
                                                   nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
                                                   void *key_value_packed, nk_size_t task_begin, nk_size_t task_end,
                                                   void *stream);
-/** @copydoc nk_attention_bidirectional_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_cuda(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_cuda(nk_i8_t const *queries, void const *key_value_packed,
-                                                           nk_f32_t *output, nk_size_t head_count,
-                                                           nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                           nk_size_t output_stride, nk_f32_t scale,
-                                                           nk_i64_t diagonal_offset, nk_size_t window,
-                                                           nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_cuda(nk_i8_t const *queries, void const *key_value_packed,
+                                                    nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                    void *stream);
 /** @copydoc nk_attention_rope_f32_best */
 NUMKONG_API nk_status_t nk_attention_rope_f32_cuda(nk_f32_t const *x, nk_f32_t const *cos, nk_f32_t const *sin,
                                                    nk_f32_t *y, nk_size_t rows, nk_size_t head_count, nk_size_t depth,
@@ -1207,8 +1194,30 @@ NUMKONG_API nk_status_t nk_attention_rope_e4m3_cuda(nk_e4m3_t const *x, nk_f32_t
  *  CUDA baseline past it. */
 #if NUMKONG_TARGET_AMPERE
 /** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_f16_ampere(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_size_t token_count, nk_size_t segment_count,
+                                                          nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_f16_ampere(void const *key_value_packed, nk_size_t *heads,
+                                                             nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_f16_ampere(nk_f16_t const *keys, nk_f16_t const *values,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                     nk_size_t segment_count, nk_size_t key_stride,
+                                                     nk_size_t value_stride, void *key_value_packed,
+                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_f16_ampere(nk_f16_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
+/** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_ampere(nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_ampere(void const *key_value_packed, nk_size_t *heads,
@@ -1220,20 +1229,25 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_ampere(nk_bf16_t const *keys, nk_
                                                       nk_size_t segment_count, nk_size_t key_stride,
                                                       nk_size_t value_stride, void *key_value_packed,
                                                       nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_ampere(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_ampere(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_ampere(nk_bf16_t const *queries, void const *key_value_packed,
+                                                        nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                        nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                        nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                        void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_ampere(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_ampere(nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_ampere(void const *key_value_packed, nk_size_t *heads,
@@ -1245,20 +1259,17 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_ampere(nk_e4m3_t const *keys, nk_
                                                       nk_size_t segment_count, nk_size_t key_stride,
                                                       nk_size_t value_stride, void *key_value_packed,
                                                       nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_ampere(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_ampere(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_ampere(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                        nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                        nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                        nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                        void *stream);
 /** @copydoc nk_attention_pack_size_i8_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_ampere(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_ampere(void const *key_value_packed, nk_size_t *heads,
@@ -1270,19 +1281,14 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_ampere(nk_i8_t const *keys, nk_i8_t
                                                     nk_size_t segment_count, nk_size_t key_stride,
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_ampere(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_ampere(nk_i8_t const *queries, void const *key_value_packed,
-                                                             nk_f32_t *output, nk_size_t head_count,
-                                                             nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                             nk_size_t output_stride, nk_f32_t scale,
-                                                             nk_i64_t diagonal_offset, nk_size_t window,
-                                                             nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_ampere(nk_i8_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      void *stream);
 #endif // NUMKONG_TARGET_AMPERE
 
 /*  NVIDIA Hopper backends, compute capability 9.0, through warpgroup @c wgmma over shared-memory
@@ -1290,7 +1296,7 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_i8_ampere(nk_i8_t const *quer
 #if NUMKONG_TARGET_HOPPER
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_hopper(nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_hopper(void const *key_value_packed, nk_size_t *heads,
@@ -1302,20 +1308,25 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_hopper(nk_bf16_t const *keys, nk_
                                                       nk_size_t segment_count, nk_size_t key_stride,
                                                       nk_size_t value_stride, void *key_value_packed,
                                                       nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_hopper(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_hopper(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_hopper(nk_bf16_t const *queries, void const *key_value_packed,
+                                                        nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                        nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                        nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                        void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_hopper(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_hopper(nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                           nk_size_t token_count, nk_size_t segment_count,
                                                            nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_hopper(void const *key_value_packed, nk_size_t *heads,
@@ -1327,20 +1338,17 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_hopper(nk_e4m3_t const *keys, nk_
                                                       nk_size_t segment_count, nk_size_t key_stride,
                                                       nk_size_t value_stride, void *key_value_packed,
                                                       nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_hopper(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_hopper(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_hopper(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                        nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                        nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                        nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                        nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                        void *stream);
 /** @copydoc nk_attention_pack_size_i8_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_hopper(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_hopper(void const *key_value_packed, nk_size_t *heads,
@@ -1352,27 +1360,92 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_hopper(nk_i8_t const *keys, nk_i8_t
                                                     nk_size_t segment_count, nk_size_t key_stride,
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_hopper(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_hopper(nk_i8_t const *queries, void const *key_value_packed,
-                                                             nk_f32_t *output, nk_size_t head_count,
-                                                             nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                             nk_size_t output_stride, nk_f32_t scale,
-                                                             nk_i64_t diagonal_offset, nk_size_t window,
-                                                             nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_hopper(nk_i8_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      void *stream);
 #endif // NUMKONG_TARGET_HOPPER
 
 /*  NVIDIA datacenter Blackwell backends, the compute capability 10.x family, through single-thread
  *  @c tcgen05 MMAs into tensor memory. */
 #if NUMKONG_TARGET_BLACKWELL
+/** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_f16_blackwell(nk_size_t key_value_head_count, nk_size_t depth,
+                                                             nk_size_t token_count, nk_size_t segment_count,
+                                                             nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_f16_blackwell(void const *key_value_packed, nk_size_t *heads,
+                                                                nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_f16_blackwell(
+    nk_f16_t const *keys, nk_f16_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_f16_blackwell(nk_f16_t const *queries, void const *key_value_packed,
+                                                          nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                          nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                          nk_size_t output_stride, nk_f32_t scale,
+                                                          nk_size_t keys_before, nk_size_t keys_after,
+                                                          nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_bf16_blackwell(nk_size_t key_value_head_count, nk_size_t depth,
+                                                              nk_size_t token_count, nk_size_t segment_count,
+                                                              nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_blackwell(void const *key_value_packed, nk_size_t *heads,
+                                                                 nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_bf16_blackwell(
+    nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_blackwell(nk_bf16_t const *queries, void const *key_value_packed,
+                                                           nk_f32_t *output, nk_f32_t *log_sum_exp,
+                                                           nk_size_t head_count, nk_size_t key_value_head_count,
+                                                           nk_size_t depth, nk_u32_t const *query_offsets,
+                                                           nk_size_t query_stride, nk_size_t output_stride,
+                                                           nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+                                                           nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_blackwell(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_pack_size_i8_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_blackwell(nk_size_t key_value_head_count, nk_size_t depth,
+                                                            nk_size_t token_count, nk_size_t segment_count,
+                                                            nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_i8_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_i8_blackwell(void const *key_value_packed, nk_size_t *heads,
+                                                               nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_i8_best */
+NUMKONG_API nk_status_t nk_attention_pack_i8_blackwell(nk_i8_t const *keys, nk_i8_t const *values,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                       nk_size_t segment_count, nk_size_t key_stride,
+                                                       nk_size_t value_stride, void *key_value_packed,
+                                                       nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_blackwell(nk_i8_t const *queries, void const *key_value_packed,
+                                                         nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                         nk_size_t key_value_head_count, nk_size_t depth,
+                                                         nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                         nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                         nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                         void *stream);
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_blackwell(nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                              nk_size_t token_count, nk_size_t segment_count,
                                                               nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_blackwell(void const *key_value_packed, nk_size_t *heads,
@@ -1382,17 +1455,14 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_blackwell(
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_blackwell(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_blackwell(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_blackwell(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                           nk_f32_t *output, nk_f32_t *log_sum_exp,
+                                                           nk_size_t head_count, nk_size_t key_value_head_count,
+                                                           nk_size_t depth, nk_u32_t const *query_offsets,
+                                                           nk_size_t query_stride, nk_size_t output_stride,
+                                                           nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+                                                           nk_size_t task_begin, nk_size_t task_end, void *stream);
 #endif // NUMKONG_TARGET_BLACKWELL
 
 /*  NVIDIA backends for the compute capability 12.x family, with E4M3 on the tensor cores natively.
@@ -1400,8 +1470,8 @@ NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_blackwell(
 #if NUMKONG_TARGET_BLACKWELLRTX
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_blackwellrtx(nk_size_t key_value_head_count, nk_size_t depth,
-                                                                 nk_u32_t const *segment_lengths,
-                                                                 nk_size_t segment_count, nk_size_t *bytes);
+                                                                 nk_size_t token_count, nk_size_t segment_count,
+                                                                 nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_blackwellrtx(void const *key_value_packed, nk_size_t *heads,
                                                                     nk_size_t *depth, nk_size_t *segments,
@@ -1411,24 +1481,108 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_blackwellrtx(
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_blackwellrtx(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_blackwellrtx(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_blackwellrtx(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 #endif // NUMKONG_TARGET_BLACKWELLRTX
+
+/*  NVIDIA Blackwell Ultra backends, the compute capability 10.3 parts: the Blackwell kernels with
+ *  each row's maximum found by @c tcgen05.ld.red as it loads the scores. */
+#if NUMKONG_TARGET_BLACKWELLULTRA
+/** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_bf16_blackwellultra(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                   nk_size_t token_count, nk_size_t segment_count,
+                                                                   nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_blackwellultra(void const *key_value_packed, nk_size_t *heads,
+                                                                      nk_size_t *depth, nk_size_t *segments,
+                                                                      void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_bf16_blackwellultra(
+    nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_blackwellultra(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_blackwellultra(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_f16_blackwellultra(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                  nk_size_t token_count, nk_size_t segment_count,
+                                                                  nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_f16_blackwellultra(void const *key_value_packed, nk_size_t *heads,
+                                                                     nk_size_t *depth, nk_size_t *segments,
+                                                                     void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_f16_blackwellultra(
+    nk_f16_t const *keys, nk_f16_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_f16_blackwellultra(
+    nk_f16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_pack_size_e4m3_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_blackwellultra(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                   nk_size_t token_count, nk_size_t segment_count,
+                                                                   nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_e4m3_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_blackwellultra(void const *key_value_packed, nk_size_t *heads,
+                                                                      nk_size_t *depth, nk_size_t *segments,
+                                                                      void *stream);
+/** @copydoc nk_attention_pack_e4m3_best */
+NUMKONG_API nk_status_t nk_attention_pack_e4m3_blackwellultra(
+    nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_blackwellultra(
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_pack_size_i8_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_blackwellultra(nk_size_t key_value_head_count, nk_size_t depth,
+                                                                 nk_size_t token_count, nk_size_t segment_count,
+                                                                 nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_i8_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_i8_blackwellultra(void const *key_value_packed, nk_size_t *heads,
+                                                                    nk_size_t *depth, nk_size_t *segments,
+                                                                    void *stream);
+/** @copydoc nk_attention_pack_i8_best */
+NUMKONG_API nk_status_t nk_attention_pack_i8_blackwellultra(
+    nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth,
+    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_blackwellultra(
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t task_begin,
+    nk_size_t task_end, void *stream);
+#endif // NUMKONG_TARGET_BLACKWELLULTRA
 
 /*  ROCm on every AMD device: the CUDA baseline's source, compiled by HIP. */
 #if NUMKONG_TARGET_ROCM
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_rocm(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_rocm(void const *key_value_packed, nk_size_t *heads,
@@ -1440,22 +1594,25 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_rocm(nk_bf16_t const *keys, nk_bf
                                                     nk_size_t segment_count, nk_size_t key_stride,
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_rocm(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_rocm(nk_bf16_t const *queries, void const *key_value_packed,
-                                                             nk_f32_t *output, nk_size_t head_count,
-                                                             nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                             nk_size_t output_stride, nk_f32_t scale,
-                                                             nk_i64_t diagonal_offset, nk_size_t window,
-                                                             nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_rocm(nk_bf16_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_rocm(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_rocm(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_rocm(void const *key_value_packed, nk_size_t *heads,
@@ -1467,22 +1624,17 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_rocm(nk_e4m3_t const *keys, nk_e4
                                                     nk_size_t segment_count, nk_size_t key_stride,
                                                     nk_size_t value_stride, void *key_value_packed,
                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_rocm(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_rocm(nk_e4m3_t const *queries, void const *key_value_packed,
-                                                             nk_f32_t *output, nk_size_t head_count,
-                                                             nk_size_t key_value_head_count, nk_size_t depth,
-                                                             nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                             nk_size_t output_stride, nk_f32_t scale,
-                                                             nk_i64_t diagonal_offset, nk_size_t window,
-                                                             nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_rocm(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      void *stream);
 /** @copydoc nk_attention_pack_size_i8_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_rocm(nk_size_t key_value_head_count, nk_size_t depth,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_size_t token_count, nk_size_t segment_count,
                                                        nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_rocm(void const *key_value_packed, nk_size_t *heads,
@@ -1494,26 +1646,21 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_rocm(nk_i8_t const *keys, nk_i8_t c
                                                   nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
                                                   void *key_value_packed, nk_size_t task_begin, nk_size_t task_end,
                                                   void *stream);
-/** @copydoc nk_attention_bidirectional_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_rocm(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_rocm(nk_i8_t const *queries, void const *key_value_packed,
-                                                           nk_f32_t *output, nk_size_t head_count,
-                                                           nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                           nk_size_t output_stride, nk_f32_t scale,
-                                                           nk_i64_t diagonal_offset, nk_size_t window,
-                                                           nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_rocm(nk_i8_t const *queries, void const *key_value_packed,
+                                                    nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                    void *stream);
 #endif // NUMKONG_TARGET_ROCM
 
 /*  AMD Instinct MI350 backends, gfx950, through its matrix cores. */
 #if NUMKONG_TARGET_CDNA4
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_cdna4(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_cdna4(void const *key_value_packed, nk_size_t *heads,
@@ -1525,22 +1672,25 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_cdna4(nk_bf16_t const *keys, nk_b
                                                      nk_size_t segment_count, nk_size_t key_stride,
                                                      nk_size_t value_stride, void *key_value_packed,
                                                      nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_cdna4(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_cdna4(nk_bf16_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_cdna4(nk_bf16_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_cdna4(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_cdna4(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_cdna4(void const *key_value_packed, nk_size_t *heads,
@@ -1552,22 +1702,17 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_cdna4(nk_e4m3_t const *keys, nk_e
                                                      nk_size_t segment_count, nk_size_t key_stride,
                                                      nk_size_t value_stride, void *key_value_packed,
                                                      nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_cdna4(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_cdna4(nk_e4m3_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_cdna4(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
 /** @copydoc nk_attention_pack_size_i8_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_cdna4(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_cdna4(void const *key_value_packed, nk_size_t *heads,
@@ -1579,26 +1724,21 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_cdna4(nk_i8_t const *keys, nk_i8_t 
                                                    nk_size_t segment_count, nk_size_t key_stride,
                                                    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
                                                    nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_cdna4(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_cdna4(nk_i8_t const *queries, void const *key_value_packed,
-                                                            nk_f32_t *output, nk_size_t head_count,
-                                                            nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                            nk_size_t output_stride, nk_f32_t scale,
-                                                            nk_i64_t diagonal_offset, nk_size_t window,
-                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_cdna4(nk_i8_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
 #endif // NUMKONG_TARGET_CDNA4
 
 /*  AMD Instinct MI400 backends, through its matrix cores. */
 #if NUMKONG_TARGET_CDNA5
 /** @copydoc nk_attention_pack_size_bf16_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_cdna5(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_bf16_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_cdna5(void const *key_value_packed, nk_size_t *heads,
@@ -1610,22 +1750,25 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_cdna5(nk_bf16_t const *keys, nk_b
                                                      nk_size_t segment_count, nk_size_t key_stride,
                                                      nk_size_t value_stride, void *key_value_packed,
                                                      nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_cdna5(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_bf16_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_cdna5(nk_bf16_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_cdna5(nk_bf16_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_cdna5(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
 /** @copydoc nk_attention_pack_size_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_cdna5(nk_size_t key_value_head_count, nk_size_t depth,
-                                                          nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                          nk_size_t token_count, nk_size_t segment_count,
                                                           nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_e4m3_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_cdna5(void const *key_value_packed, nk_size_t *heads,
@@ -1637,22 +1780,17 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_cdna5(nk_e4m3_t const *keys, nk_e
                                                      nk_size_t segment_count, nk_size_t key_stride,
                                                      nk_size_t value_stride, void *key_value_packed,
                                                      nk_size_t task_begin, nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_cdna5(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_e4m3_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_cdna5(nk_e4m3_t const *queries, void const *key_value_packed,
-                                                              nk_f32_t *output, nk_size_t head_count,
-                                                              nk_size_t key_value_head_count, nk_size_t depth,
-                                                              nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                              nk_size_t output_stride, nk_f32_t scale,
-                                                              nk_i64_t diagonal_offset, nk_size_t window,
-                                                              nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_cdna5(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
 /** @copydoc nk_attention_pack_size_i8_best */
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_cdna5(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes);
 /** @copydoc nk_attention_packed_shape_i8_best */
 NUMKONG_API nk_status_t nk_attention_packed_shape_i8_cdna5(void const *key_value_packed, nk_size_t *heads,
@@ -1664,25 +1802,21 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_cdna5(nk_i8_t const *keys, nk_i8_t 
                                                    nk_size_t segment_count, nk_size_t key_stride,
                                                    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
                                                    nk_size_t task_end, void *stream);
-/** @copydoc nk_attention_bidirectional_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_cdna5(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
-/** @copydoc nk_attention_causal_packed_i8_best */
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_cdna5(nk_i8_t const *queries, void const *key_value_packed,
-                                                            nk_f32_t *output, nk_size_t head_count,
-                                                            nk_size_t key_value_head_count, nk_size_t depth,
-                                                            nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                            nk_size_t output_stride, nk_f32_t scale,
-                                                            nk_i64_t diagonal_offset, nk_size_t window,
-                                                            nk_size_t task_start, nk_size_t task_count, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_cdna5(nk_i8_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
 #endif // NUMKONG_TARGET_CDNA5
 
 /** Returns the output dtype for attention: accumulator-precision F32 for all inputs. */
 NUMKONG_INLINE nk_dtype_t nk_attention_output_dtype(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_bf16_k: return nk_f32_k;
+    case nk_f16_k: return nk_f32_k;
     case nk_e4m3_k: return nk_f32_k;
     case nk_i8_k: return nk_f32_k; // quantized-weight softmax, F32 outputs
     default: return nk_dtype_unknown_k;
@@ -1731,6 +1865,7 @@ NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype
 #include "numkong/attention/hopper.cuh"
 #include "numkong/attention/blackwell.cuh"
 #include "numkong/attention/blackwellrtx.cuh"
+#include "numkong/attention/blackwellultra.cuh"
 #include "numkong/attention/cdna4.cuh"
 #include "numkong/attention/cdna5.cuh"
 
@@ -1739,9 +1874,9 @@ extern "C" {
 #endif
 
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_best(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_capability_t capabilities, nk_size_t *bytes) {
-    nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(segment_lengths), nk_unused_(segment_count),
+    nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(token_count), nk_unused_(segment_count),
         nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
@@ -1768,34 +1903,85 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_best(nk_bf16_t const *keys, nk_bf
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_best(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities,
-    void *stream) {
-    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(head_count),
-        nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets), nk_unused_(query_stride),
-        nk_unused_(output_stride), nk_unused_(scale), nk_unused_(task_start), nk_unused_(task_count),
+NUMKONG_API nk_status_t nk_attention_packed_bf16_best(nk_bf16_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(log_sum_exp),
+        nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets),
+        nk_unused_(query_stride), nk_unused_(output_stride), nk_unused_(scale), nk_unused_(keys_before),
+        nk_unused_(keys_after), nk_unused_(task_begin), nk_unused_(task_end), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_best(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, nk_capability_t capabilities, void *stream) {
+    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(output_gradient),
+        nk_unused_(log_sum_exp), nk_unused_(query_gradient), nk_unused_(key_gradient), nk_unused_(value_gradient),
+        nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets),
+        nk_unused_(key_offsets), nk_unused_(query_stride), nk_unused_(output_stride), nk_unused_(query_gradient_stride),
+        nk_unused_(key_value_gradient_stride), nk_unused_(scale), nk_unused_(keys_before), nk_unused_(keys_after),
+        nk_unused_(task_begin), nk_unused_(task_end), nk_unused_(capabilities), nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_size_f16_best(nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_size_t token_count, nk_size_t segment_count,
+                                                        nk_capability_t capabilities, nk_size_t *bytes) {
+    nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(token_count), nk_unused_(segment_count),
+        nk_unused_(capabilities), nk_unused_(bytes);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_packed_shape_f16_best(void const *key_value_packed, nk_size_t *heads,
+                                                           nk_size_t *depth, nk_size_t *segments,
+                                                           nk_capability_t capabilities, void *stream) {
+    nk_unused_(key_value_packed), nk_unused_(heads), nk_unused_(depth), nk_unused_(segments), nk_unused_(capabilities),
+        nk_unused_(stream);
+    return nk_missing_library_k;
+}
+
+NUMKONG_API nk_status_t nk_attention_pack_f16_best(nk_f16_t const *keys, nk_f16_t const *values,
+                                                   nk_size_t key_value_head_count, nk_size_t depth,
+                                                   nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                   nk_size_t segment_count, nk_size_t key_stride,
+                                                   nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
+                                                   nk_size_t task_end, nk_capability_t capabilities, void *stream) {
+    nk_unused_(keys), nk_unused_(values), nk_unused_(key_value_head_count), nk_unused_(depth),
+        nk_unused_(segment_offsets), nk_unused_(segment_lengths), nk_unused_(segment_count), nk_unused_(key_stride),
+        nk_unused_(value_stride), nk_unused_(key_value_packed), nk_unused_(task_begin), nk_unused_(task_end),
         nk_unused_(capabilities), nk_unused_(stream);
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_best(
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
-    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(head_count),
-        nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets), nk_unused_(query_stride),
-        nk_unused_(output_stride), nk_unused_(scale), nk_unused_(diagonal_offset), nk_unused_(window),
-        nk_unused_(task_start), nk_unused_(task_count), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_attention_packed_f16_best(nk_f16_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     nk_capability_t capabilities, void *stream) {
+    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(log_sum_exp),
+        nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets),
+        nk_unused_(query_stride), nk_unused_(output_stride), nk_unused_(scale), nk_unused_(keys_before),
+        nk_unused_(keys_after), nk_unused_(task_begin), nk_unused_(task_end), nk_unused_(capabilities),
+        nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_best(nk_size_t key_value_head_count, nk_size_t depth,
-                                                         nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                         nk_size_t token_count, nk_size_t segment_count,
                                                          nk_capability_t capabilities, nk_size_t *bytes) {
-    nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(segment_lengths), nk_unused_(segment_count),
+    nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(token_count), nk_unused_(segment_count),
         nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
@@ -1822,34 +2008,25 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_best(nk_e4m3_t const *keys, nk_e4
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_best(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, nk_capability_t capabilities,
-    void *stream) {
-    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(head_count),
-        nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets), nk_unused_(query_stride),
-        nk_unused_(output_stride), nk_unused_(scale), nk_unused_(task_start), nk_unused_(task_count),
-        nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_best(
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
-    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(head_count),
-        nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets), nk_unused_(query_stride),
-        nk_unused_(output_stride), nk_unused_(scale), nk_unused_(diagonal_offset), nk_unused_(window),
-        nk_unused_(task_start), nk_unused_(task_count), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_best(nk_e4m3_t const *queries, void const *key_value_packed,
+                                                      nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                      nk_size_t key_value_head_count, nk_size_t depth,
+                                                      nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                      nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                      nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                      nk_capability_t capabilities, void *stream) {
+    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(log_sum_exp),
+        nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets),
+        nk_unused_(query_stride), nk_unused_(output_stride), nk_unused_(scale), nk_unused_(keys_before),
+        nk_unused_(keys_after), nk_unused_(task_begin), nk_unused_(task_end), nk_unused_(capabilities),
+        nk_unused_(stream);
     return nk_missing_library_k;
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_best(nk_size_t key_value_head_count, nk_size_t depth,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_size_t token_count, nk_size_t segment_count,
                                                        nk_capability_t capabilities, nk_size_t *bytes) {
-    nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(segment_lengths), nk_unused_(segment_count),
+    nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(token_count), nk_unused_(segment_count),
         nk_unused_(capabilities), nk_unused_(bytes);
     return nk_missing_library_k;
 }
@@ -1875,29 +2052,18 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_best(nk_i8_t const *keys, nk_i8_t c
     return nk_missing_library_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_best(nk_i8_t const *queries, void const *key_value_packed,
-                                                                  nk_f32_t *output, nk_size_t head_count,
-                                                                  nk_size_t key_value_head_count, nk_size_t depth,
-                                                                  nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                                  nk_size_t output_stride, nk_f32_t scale,
-                                                                  nk_size_t task_start, nk_size_t task_count,
-                                                                  nk_capability_t capabilities, void *stream) {
-    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(head_count),
-        nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets), nk_unused_(query_stride),
-        nk_unused_(output_stride), nk_unused_(scale), nk_unused_(task_start), nk_unused_(task_count),
-        nk_unused_(capabilities), nk_unused_(stream);
-    return nk_missing_library_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_best(
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start,
-    nk_size_t task_count, nk_capability_t capabilities, void *stream) {
-    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(head_count),
-        nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets), nk_unused_(query_stride),
-        nk_unused_(output_stride), nk_unused_(scale), nk_unused_(diagonal_offset), nk_unused_(window),
-        nk_unused_(task_start), nk_unused_(task_count), nk_unused_(capabilities), nk_unused_(stream);
+NUMKONG_API nk_status_t nk_attention_packed_i8_best(nk_i8_t const *queries, void const *key_value_packed,
+                                                    nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                    nk_capability_t capabilities, void *stream) {
+    nk_unused_(queries), nk_unused_(key_value_packed), nk_unused_(output), nk_unused_(log_sum_exp),
+        nk_unused_(head_count), nk_unused_(key_value_head_count), nk_unused_(depth), nk_unused_(query_offsets),
+        nk_unused_(query_stride), nk_unused_(output_stride), nk_unused_(scale), nk_unused_(keys_before),
+        nk_unused_(keys_after), nk_unused_(task_begin), nk_unused_(task_end), nk_unused_(capabilities),
+        nk_unused_(stream);
     return nk_missing_library_k;
 }
 

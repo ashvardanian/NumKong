@@ -175,12 +175,13 @@ impl WorkerStatus {
     /// Keeps the status of a kernel call that failed.
     pub(crate) fn record(&self, result: Result<(), Error>) {
         if let Err(Error::KernelFailed { status }) = result {
-            self.0.store(status as nk_status_t, Ordering::Relaxed);
+            self.0
+                .store(status as nk_status_t, core::sync::atomic::Ordering::Relaxed);
         }
     }
 
     /// `Ok(())` unless a worker recorded a failure.
-    pub(crate) fn check(&self) -> Result<(), Error> { self.0.load(Ordering::Relaxed).check() }
+    pub(crate) fn check(&self) -> Result<(), Error> { self.0.load(core::sync::atomic::Ordering::Relaxed).check() }
 }
 
 /// One capability, numbered like the C `nk_cap_<capability>_k` bits: each capability group in a

@@ -17,7 +17,7 @@
  *
  *  Owns the backend-opaque packed blob inline as a flex-array, together with the geometry needed to
  *  validate query batches against it. Created via `nk.attention_pack()` and consumed by
- *  `nk.attention_bidirectional_packed()` or `nk.attention_causal_packed()`.
+ *  `nk.attention_packed()`.
  */
 typedef struct AttentionPackedMatrix {
     PyObject_HEAD
@@ -53,19 +53,18 @@ extern PyTypeObject AttentionPackedMatrixType;
 /** Pack ragged K/V token matrices into a backend-opaque KV-cache blob. */
 PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
-/** Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache. */
-PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
-                                             PyObject *kwnames);
+/** Ragged scaled-dot-product attention against a pre-packed KV-cache, under a band of keys. */
+PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
-/** Ragged causal scaled-dot-product attention against a pre-packed KV-cache. */
-PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
+/** Gradients of ragged attention with respect to its queries, keys and values. */
+PyObject *api_attention_packed_gradients(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 /** NeoX split-half rotary position embedding, RoPE, separate aliasable output. */
 PyObject *api_attention_rope(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames);
 
 extern char const doc_attention_pack[];
-extern char const doc_attention_bidirectional_packed[];
-extern char const doc_attention_causal_packed[];
+extern char const doc_attention_packed[];
+extern char const doc_attention_packed_gradients[];
 extern char const doc_attention_rope[];
 
 #endif // NUMKONG_PYTHON_ATTENTION_H

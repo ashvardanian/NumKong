@@ -7,13 +7,16 @@
  *  @sa include/numkong/attention.h
  *  @sa include/numkong/attention/serial.h
  *
- *  The pack, the work scheduler and the one kernel they feed, which the tensor-core kernels share:
- *  a warp or wavefront per query row, two sweeps over its keys as the serial kernel makes, products
- *  in F32 and I8 scores in exact I32 like the serial kernel's. The pack keeps the serial header and
- *  directory, with 1-byte V transposed and permuted within every 16 positions so the tensor-core
- *  kernels form MMA fragments without shuffles. Only @c pack_size reads @c segment_lengths on the
- *  host, so the pack and both attention kernels need device or managed memory for the segment
- *  offsets and lengths.
+ *  The portable parts of the pack and the work scheduler, which every kernel of both vendors
+ *  shares. The pack keeps the serial header and directory, with 1-byte V transposed and permuted
+ *  within every 16 positions so the tensor-core kernels form MMA fragments without shuffles. Only
+ *  @c pack_size reads @c segment_lengths on the host, so the pack and both attention kernels need
+ *  device or managed memory for the segment offsets and lengths.
+ *
+ *  Everything that scans or reduces across lanes lives in the vendor baselines, `cuda.cuh` and
+ *  `rocm.cuh` beside this file: the scheduler's block scan, the directory kernel, the backward
+ *  loops, and the fallback kernel, a warp or wavefront per query row making the serial kernel's
+ *  two sweeps over its keys, with products in F32 and I8 scores in exact I32 like the serial ones.
  */
 #ifndef NUMKONG_ATTENTION_SIMT_CUH
 #define NUMKONG_ATTENTION_SIMT_CUH
@@ -21,7 +24,6 @@
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
 #include "numkong/attention/serial.h" // `nk_attention_packed_header_t`, `nk_attention_pack_directory_size_`
-#include "numkong/dots/simt.cuh"      // `nk_shuffle_xor_f32_`, `nk_warp_lanes_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -37,11 +39,11 @@ enum {
     nk_attention_pack_threads_k = 256,
 };
 
-/** Which keys each query row sees: its whole segment, or, when causal, the @c window keys ending at
- *  the row's position `r + diagonal_offset`. */
+/** Which keys a kernel lets each query row see: its whole segment, or the launch's diagonal band
+ *  around the row's position. */
 typedef enum {
-    nk_attention_mask_bidirectional_k,
-    nk_attention_mask_causal_k,
+    nk_attention_mask_none_k,
+    nk_attention_mask_diagonal_band_k,
 } nk_attention_mask_t;
 
 /** Which tensor-core tile a head's depth takes: up to 128 or up to 256. Deeper heads
@@ -63,6 +65,9 @@ typedef struct {
     /** F32 output rows, [query tokens, heads × depth]. */
     nk_f32_t *output;
 
+    /** Natural log-sum-exp per query token and head, [query tokens, heads], or null. */
+    nk_f32_t *log_sum_exp;
+
     /** First query row of each segment, with segments + 1 entries. */
     nk_u32_t const *query_offsets;
 
@@ -81,17 +86,14 @@ typedef struct {
     /** Bytes between output rows. */
     nk_size_t output_stride;
 
-    /** Position of query row 0 in its segment. */
-    nk_i64_t diagonal_offset;
+    /** Keys each query row sees around its position. */
+    nk_diagonal_band_t band;
 
-    /** Visible keys, including the query's own. */
-    nk_size_t window;
+    /** First task of the window over query tokens × heads. */
+    nk_size_t task_begin;
 
-    /** First task of the window over segments × heads. */
-    nk_size_t task_start;
-
-    /** Tasks in the window, clipped on the device. */
-    nk_size_t task_count;
+    /** One past the last task of the window, clipped on the device. */
+    nk_size_t task_end;
 
     /** Score multiplier in base 2, scale · log₂e. */
     nk_f32_t scale2;
@@ -124,8 +126,8 @@ typedef struct {
     /** Query heads per K and V head. */
     nk_size_t group_heads;
 
-    /** First task of the window. */
-    nk_size_t task_start;
+    /** First task of the window, clipped to the grid. */
+    nk_size_t task_begin;
 
     /** One past the last task, clipped to the grid. */
     nk_size_t task_end;
@@ -140,8 +142,8 @@ typedef struct {
     nk_size_t items_before;
 } nk_attention_schedule_t;
 
-/** One work item: up to 64 rows, each row being query × heads_selected + head, of one segment
- *  against one K and V head. */
+/** One work item: a block of rows, each row being query × heads_selected + head, of one segment
+ *  against one K and V head, every query head of the group selected. */
 typedef struct {
 
     /** Segment index. */
@@ -156,7 +158,7 @@ typedef struct {
     /** Query heads the rows cycle through. */
     nk_size_t heads_selected;
 
-    /** First row of the item. */
+    /** First row of the item: where its block of the segment's rows starts, or the window does. */
     nk_size_t row_first;
 
     /** Rows of the item. */
@@ -164,6 +166,9 @@ typedef struct {
 
     /** Query token of the segment's first query. */
     nk_size_t query_first;
+
+    /** Queries of the segment, which align to the end of its keys. */
+    nk_size_t query_count;
 } nk_attention_work_t;
 
 #pragma endregion Configuration
@@ -171,17 +176,6 @@ typedef struct {
 #pragma region Fragments
 
 NUMKONG_DEVICE nk_f32_t nk_attention_negative_infinity_(void) { return __int_as_float(0xFF800000); }
-
-/** 2^x to 2⁻²² relative on NVIDIA, flushing results below 2⁻¹²⁶ to zero, and 0 for −∞. */
-NUMKONG_DEVICE nk_f32_t nk_f32_exp2_(nk_f32_t exponent) {
-#if NUMKONG_ARCH_ROCM_
-    return exp2f(exponent);
-#else
-    nk_f32_t power;
-    asm("ex2.approx.ftz.f32 %0, %1;\n" : "=f"(power) : "f"(exponent));
-    return power;
-#endif
-}
 
 /** Slot of @p position in a transposed V: within every 16, position `2t + 8h + e` sits at
  *  `4t + 2h + e`. */
@@ -194,154 +188,192 @@ NUMKONG_DEVICE nk_size_t nk_attention_slot_position_(nk_size_t slot) {
     return (slot & ~(nk_size_t)15) | ((slot & 12) >> 1) | ((slot & 2) << 2) | (slot & 1);
 }
 
-/** Writes the half-open range of keys visible to the query at @p position into @p key_begin and
- *  @p key_end, with the serial backend's rule. */
-NUMKONG_DEVICE void nk_attention_row_keys_(nk_i64_t position, nk_size_t window, nk_size_t length, unsigned *key_begin,
-                                           unsigned *key_end) {
-    if (position < 0 || window == 0) {
-        *key_begin = *key_end = 0;
+#pragma endregion Fragments
+
+#pragma region Diagonal Band
+
+/** Writes the half-open range of the first @p columns that @p band shows to @p row, which may sit
+ *  before column 0 or past the last column; @p column_begin equals @p column_end when none is. */
+NUMKONG_DEVICE void nk_diagonal_band_row_range_simt_(nk_diagonal_band_t band, nk_i64_t row, nk_size_t columns,
+                                                     nk_size_t *column_begin, nk_size_t *column_end) {
+    nk_size_t const superdiagonals = band.superdiagonals;
+    if (row < 0) {
+        nk_size_t const lag = (nk_size_t)-row;
+        *column_begin = 0;
+        *column_end = superdiagonals < lag ? 0 : superdiagonals - lag < columns ? superdiagonals - lag + 1 : columns;
         return;
     }
-    nk_size_t const query_position = (nk_size_t)position;
-    nk_size_t const end = query_position < length ? query_position + 1 : length;
-    nk_size_t const begin = window > query_position ? 0 : query_position - window + 1;
-    *key_end = (unsigned)end, *key_begin = (unsigned)(begin < end ? begin : end);
+    nk_size_t const lead = (nk_size_t)row;
+    nk_size_t const begin = lead > band.subdiagonals ? lead - band.subdiagonals : 0;
+    *column_begin = begin < columns ? begin : columns;
+    *column_end = lead < columns && superdiagonals < columns - lead - 1 ? lead + superdiagonals + 1 : columns;
 }
 
-#pragma endregion Fragments
+/** Classifies the tile of @p rows rows from @p row by @p columns columns from @p column against
+ *  @p band, so tiled kernels skip outside tiles and run inside ones without per-cell masks.
+ *  Symmetric dots skip the outside of band (0, NUMKONG_SIZE_MAX) as mirrored, while attention skips
+ *  it as forbidden. */
+NUMKONG_DEVICE nk_diagonal_band_coverage_t nk_diagonal_band_tile_coverage_simt_(nk_diagonal_band_t band, nk_i64_t row,
+                                                                                nk_size_t rows, nk_size_t column,
+                                                                                nk_size_t columns) {
+    if (rows == 0 || columns == 0) return nk_diagonal_band_outside_k;
+    // Visible ranges only grow with the row, so the first and last rows bound the whole tile.
+    nk_size_t const column_end = column + columns;
+    nk_size_t first_begin, first_end, last_begin, last_end;
+    nk_diagonal_band_row_range_simt_(band, row, column_end, &first_begin, &first_end);
+    nk_diagonal_band_row_range_simt_(band, row + (nk_i64_t)rows - 1, column_end, &last_begin, &last_end);
+    if (last_end <= column || first_begin >= column_end) return nk_diagonal_band_outside_k;
+    if (last_begin <= column && first_end >= column_end) return nk_diagonal_band_inside_k;
+    return nk_diagonal_band_crossing_k;
+}
+
+/** Bit i set when key @p first_key + i of a segment of @p key_count keys is visible to @p row, for
+ *  the 32 keys a thread holds of a crossing tile, so each score tests one bit instead of
+ *  recomputing the band. */
+NUMKONG_DEVICE nk_u32_t nk_diagonal_band_row_mask_simt_(nk_diagonal_band_t band, nk_i64_t row, nk_size_t first_key,
+                                                        nk_size_t key_count) {
+    nk_size_t key_begin, key_end;
+    nk_diagonal_band_row_range_simt_(band, row, key_count, &key_begin, &key_end);
+    nk_size_t const begin = key_begin > first_key ? key_begin - first_key : 0;
+    nk_size_t const end = key_end > first_key + 32 ? 32 : key_end > first_key ? key_end - first_key : 0;
+    return begin < end ? (0xFFFFFFFFu >> (32 - (unsigned)(end - begin))) << (unsigned)begin : 0u;
+}
+
+/** Writes the keys of a segment of @p key_count that rows @p first_row to @p last_row see together,
+ *  one range as both ends of a row's keys only grow with the row: from the first row seeing any to
+ *  the last row. */
+NUMKONG_DEVICE void nk_attention_rows_keys_(nk_diagonal_band_t band, nk_i64_t first_row, nk_i64_t last_row,
+                                            nk_size_t key_count, nk_size_t *key_begin, nk_size_t *key_end) {
+    // Rows above −superdiagonals see no key.
+    nk_i64_t const first_seeing = first_row < 0 && band.superdiagonals < (nk_size_t)-first_row
+                                      ? -(nk_i64_t)band.superdiagonals
+                                      : first_row;
+    nk_size_t unused;
+    nk_diagonal_band_row_range_simt_(band, first_seeing, key_count, key_begin, &unused);
+    nk_diagonal_band_row_range_simt_(band, last_row, key_count, &unused, key_end);
+}
+
+/** @c nk_diagonal_band_tile_coverage_simt_ of @p rows rows from @p row by the @p tile_keys keys
+ *  from @p first_key of a segment of @p key_count, crossing wherever the tile runs past the
+ *  segment's last key. */
+NUMKONG_DEVICE nk_diagonal_band_coverage_t nk_attention_tile_coverage_(nk_diagonal_band_t band, nk_i64_t row,
+                                                                       nk_size_t rows, nk_size_t first_key,
+                                                                       nk_size_t tile_keys, nk_size_t key_count) {
+    if (first_key >= key_count) return nk_diagonal_band_outside_k;
+    nk_size_t const keys = key_count - first_key < tile_keys ? key_count - first_key : tile_keys;
+    nk_diagonal_band_coverage_t const coverage = nk_diagonal_band_tile_coverage_simt_(band, row, rows, first_key, keys);
+    return coverage == nk_diagonal_band_inside_k && keys < tile_keys ? nk_diagonal_band_crossing_k : coverage;
+}
+
+#pragma endregion Diagonal Band
 
 #pragma region Schedule
 
-/** Inclusive block-wide prefix sum of one value per thread; the block total lands in @p total. */
-NUMKONG_DEVICE nk_u64_t nk_attention_block_scan_(nk_u64_t value, nk_u64_t *warp_totals, nk_u64_t *total) {
-    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, warps = blockDim.x >> 5;
-#pragma unroll
-    for (unsigned offset = 1; offset < 32; offset <<= 1) {
-        nk_u64_t const other = nk_shuffle_up_u64_(value, offset);
-        if (lane >= offset) value += other;
-    }
-    if (lane == 31) warp_totals[warp] = value;
-    __syncthreads();
-    nk_u64_t before = 0, sum = 0;
-    for (unsigned other_warp = 0; other_warp < warps; ++other_warp) {
-        nk_u64_t const warp_total = warp_totals[other_warp];
-        before += other_warp < warp ? warp_total : 0, sum += warp_total;
-    }
-    // Every thread reads the totals before a following scan rewrites them.
-    __syncthreads();
-    *total = sum;
-    return value + before;
+/** The rows of K and V head @p key_value_head before task @p task of a segment's own grid, row
+ *  query × group + head, counting heads within the group. */
+NUMKONG_DEVICE nk_size_t nk_attention_group_rows_before_(nk_attention_schedule_t const *schedule, nk_size_t task,
+                                                         nk_size_t key_value_head) {
+    nk_size_t const group = schedule->group_heads, head = task % schedule->head_count;
+    nk_size_t const head_first = key_value_head * group;
+    nk_size_t const heads_before = head <= head_first ? 0 : head - head_first < group ? head - head_first : group;
+    return task / schedule->head_count * group + heads_before;
 }
 
-NUMKONG_DEVICE nk_size_t nk_attention_row_blocks_(nk_size_t queries, nk_size_t heads) {
-    return nk_size_divide_round_up_(queries * heads, nk_attention_block_rows_k);
+/** Writes the rows of @p segment against @p key_value_head that the window covers into @p row_begin
+ *  and @p row_end: one range, as a window of query tokens × heads cuts each head group in order. */
+NUMKONG_DEVICE void nk_attention_segment_rows_(nk_attention_schedule_t const *schedule, nk_size_t segment,
+                                               nk_size_t key_value_head, nk_size_t *row_begin, nk_size_t *row_end) {
+    nk_size_t const grid_first = schedule->query_offsets[segment] * schedule->head_count;
+    nk_size_t const grid_end = schedule->query_offsets[segment + 1] * schedule->head_count;
+    nk_size_t const begin = schedule->task_begin > grid_first ? schedule->task_begin : grid_first;
+    nk_size_t const end = schedule->task_end < grid_end ? schedule->task_end : grid_end;
+    *row_begin = *row_end = 0;
+    if (begin >= end) return;
+    *row_begin = nk_attention_group_rows_before_(schedule, begin - grid_first, key_value_head);
+    *row_end = nk_attention_group_rows_before_(schedule, end - grid_first, key_value_head);
 }
 
-/** Writes the half-open range of heads of @p segment inside the task window into @p head_begin and
- *  @p head_end, counted within the segment. */
-NUMKONG_DEVICE void nk_attention_segment_heads_(nk_attention_schedule_t const *schedule, nk_size_t segment,
-                                                nk_size_t *head_begin, nk_size_t *head_end) {
-    nk_size_t const task_first = segment * schedule->head_count;
-    *head_begin = schedule->task_start > task_first ? schedule->task_start - task_first : 0;
-    *head_end = schedule->task_end < task_first + schedule->head_count ? schedule->task_end - task_first
-                                                                       : schedule->head_count;
+/** Whether the window covers every task of @p segment, which then cuts every head group alike. */
+NUMKONG_DEVICE int nk_attention_segment_whole_(nk_attention_schedule_t const *schedule, nk_size_t segment) {
+    return schedule->task_begin <= schedule->query_offsets[segment] * schedule->head_count &&
+           schedule->query_offsets[segment + 1] * schedule->head_count <= schedule->task_end;
 }
 
-NUMKONG_DEVICE nk_size_t nk_attention_segment_items_(nk_attention_schedule_t const *schedule, nk_size_t segment) {
+/** Items of up to @p rows rows that @p segment splits into in the window, one K and V head each,
+ *  cut at multiples of @p rows of the segment's grid so every window tiles a row alike. */
+NUMKONG_DEVICE nk_size_t nk_attention_segment_items_(nk_attention_schedule_t const *schedule, nk_size_t segment,
+                                                     nk_size_t rows) {
     if (segment >= schedule->segment_end) return 0;
+    nk_size_t const key_value_heads = schedule->head_count / schedule->group_heads;
     nk_size_t const queries = schedule->query_offsets[segment + 1] - schedule->query_offsets[segment];
-    nk_size_t head_begin, head_end;
-    nk_attention_segment_heads_(schedule, segment, &head_begin, &head_end);
-    if (queries == 0 || head_begin >= head_end) return 0;
-    nk_size_t const group = schedule->group_heads;
-    nk_size_t const first = head_begin / group, last = (head_end - 1) / group;
-    if (first == last) return nk_attention_row_blocks_(queries, head_end - head_begin);
-    return nk_attention_row_blocks_(queries, (first + 1) * group - head_begin) +
-           (last - first - 1) * nk_attention_row_blocks_(queries, group) +
-           nk_attention_row_blocks_(queries, head_end - last * group);
+    if (nk_attention_segment_whole_(schedule, segment))
+        return key_value_heads * nk_size_divide_round_up_(queries * schedule->group_heads, rows);
+    nk_size_t items = 0;
+    for (nk_size_t key_value_head = 0; key_value_head < key_value_heads; ++key_value_head) {
+        nk_size_t row_begin, row_end;
+        nk_attention_segment_rows_(schedule, segment, key_value_head, &row_begin, &row_end);
+        if (row_begin < row_end) items += nk_size_divide_round_up_(row_end, rows) - row_begin / rows;
+    }
+    return items;
 }
 
-/** Fills @p prefix with the running item counts of the 128 segments from
- *  `schedule->chunk_first`. */
-NUMKONG_DEVICE void nk_attention_schedule_chunk_(nk_attention_schedule_t const *schedule, nk_u64_t *prefix,
-                                                 nk_u64_t *warp_totals) {
-    nk_u64_t const items = nk_attention_segment_items_(schedule, schedule->chunk_first + threadIdx.x);
-    nk_u64_t total;
-    nk_u64_t const inclusive = nk_attention_block_scan_(items, warp_totals, &total);
-    prefix[threadIdx.x + 1] = inclusive;
-    if (threadIdx.x == 0) prefix[0] = 0;
-    __syncthreads();
-}
-
-/** Finds work item @p item, returning 0 once the window has no more; every thread of the block
- *  calls it in step. */
-NUMKONG_DEVICE int nk_attention_schedule_next_(nk_attention_schedule_t *schedule, nk_u64_t *prefix,
-                                               nk_u64_t *warp_totals, nk_size_t item, nk_attention_work_t *work) {
-    while (item >= schedule->items_before + prefix[nk_attention_threads_k]) {
-        if (schedule->chunk_first + nk_attention_threads_k >= schedule->segment_end) return 0;
-        schedule->items_before += prefix[nk_attention_threads_k];
-        schedule->chunk_first += nk_attention_threads_k;
-        __syncthreads();
-        nk_attention_schedule_chunk_(schedule, prefix, warp_totals);
+/** Decodes item @p index of @p segment, of up to @p rows rows, into @p work. */
+NUMKONG_DEVICE void nk_attention_segment_work_(nk_attention_schedule_t const *schedule, nk_size_t segment,
+                                               nk_size_t index, nk_size_t rows, nk_attention_work_t *work) {
+    nk_size_t key_value_head = 0, row_begin = 0, row_end = 0, block_first = 0;
+    if (nk_attention_segment_whole_(schedule, segment)) {
+        row_end = (schedule->query_offsets[segment + 1] - schedule->query_offsets[segment]) * schedule->group_heads;
+        nk_size_t const blocks = nk_size_divide_round_up_(row_end, rows);
+        key_value_head = index / blocks, index %= blocks;
     }
-    nk_u64_t const local = item - schedule->items_before;
-    unsigned low = 0, high = nk_attention_threads_k;
-    while (high - low > 1) {
-        unsigned const middle = (low + high) >> 1;
-        if (prefix[middle] <= local) low = middle;
-        else high = middle;
-    }
-    nk_size_t const segment = schedule->chunk_first + low;
-    nk_size_t index = (nk_size_t)(local - prefix[low]);
-    nk_size_t const queries = schedule->query_offsets[segment + 1] - schedule->query_offsets[segment];
-    nk_size_t head_begin, head_end;
-    nk_attention_segment_heads_(schedule, segment, &head_begin, &head_end);
-    nk_size_t const group = schedule->group_heads;
-    nk_size_t const first = head_begin / group, last = (head_end - 1) / group;
-    nk_size_t key_value_head = first, row_block = index;
-    if (first != last) {
-        nk_size_t const first_items = nk_attention_row_blocks_(queries, (first + 1) * group - head_begin);
-        if (index >= first_items) {
-            index -= first_items;
-            nk_size_t const full_items = nk_attention_row_blocks_(queries, group);
-            nk_size_t const middle_items = (last - first - 1) * full_items;
-            if (index < middle_items) key_value_head = first + 1 + index / full_items, row_block = index % full_items;
-            else key_value_head = last, row_block = index - middle_items;
+    else
+        for (;; ++key_value_head) {
+            nk_attention_segment_rows_(schedule, segment, key_value_head, &row_begin, &row_end);
+            if (row_begin == row_end) continue;
+            block_first = row_begin / rows;
+            nk_size_t const blocks = nk_size_divide_round_up_(row_end, rows) - block_first;
+            if (index < blocks) break;
+            index -= blocks;
         }
-    }
+    nk_size_t const block_begin = (block_first + index) * rows;
     work->segment = segment;
     work->key_value_head = key_value_head;
-    work->head_first = key_value_head * group > head_begin ? key_value_head * group : head_begin;
-    work->heads_selected = ((key_value_head + 1) * group < head_end ? (key_value_head + 1) * group : head_end) -
-                           work->head_first;
-    work->row_first = row_block * nk_attention_block_rows_k;
-    nk_size_t const rows = queries * work->heads_selected - work->row_first;
-    work->row_count = rows < nk_attention_block_rows_k ? rows : nk_attention_block_rows_k;
+    work->head_first = key_value_head * schedule->group_heads;
+    work->heads_selected = schedule->group_heads;
+    work->row_first = block_begin > row_begin ? block_begin : row_begin;
+    work->row_count = (block_begin + rows < row_end ? block_begin + rows : row_end) - work->row_first;
     work->query_first = schedule->query_offsets[segment];
+    work->query_count = schedule->query_offsets[segment + 1] - work->query_first;
+}
+
+/** Reads the header, returning 0 when it disagrees with the arguments or the window is empty, and
+ *  clips the window to the pack's query tokens × heads, starting at the first segment. */
+NUMKONG_DEVICE int nk_attention_schedule_init_(nk_attention_arguments_t const *arguments,
+                                               nk_attention_schedule_t *schedule) {
+    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)arguments->packed;
+    if (header->depth != arguments->depth || header->heads != arguments->key_value_head_count) return 0;
+    nk_size_t const segments = header->segments, heads = arguments->head_count;
+    nk_u32_t const *query_offsets = arguments->query_offsets;
+    nk_size_t const grid_begin = query_offsets[0] * heads, grid_end = query_offsets[segments] * heads;
+    schedule->task_begin = arguments->task_begin > grid_begin ? arguments->task_begin : grid_begin;
+    schedule->task_end = arguments->task_end < grid_end ? arguments->task_end : grid_end;
+    if (schedule->task_begin >= schedule->task_end) return 0;
+    schedule->query_offsets = query_offsets;
+    schedule->head_count = heads;
+    schedule->group_heads = heads / arguments->key_value_head_count;
+    schedule->chunk_first = nk_attention_segment_of_(query_offsets, segments, schedule->task_begin / heads);
+    schedule->segment_end = nk_attention_segment_of_(query_offsets, segments, (schedule->task_end - 1) / heads) + 1;
+    schedule->items_before = 0;
     return 1;
 }
 
-/** Reads the header, returning 0 when it disagrees with the arguments, and primes the
- *  schedule's first chunk. */
-NUMKONG_DEVICE int nk_attention_schedule_start_(nk_attention_arguments_t const *arguments,
-                                                nk_attention_schedule_t *schedule, nk_u64_t *prefix,
-                                                nk_u64_t *warp_totals) {
-    nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)arguments->packed;
-    if (header->depth != arguments->depth || header->heads != arguments->key_value_head_count) return 0;
-    nk_size_t const total_tasks = (nk_size_t)header->segments * arguments->head_count;
-    if (arguments->task_start >= total_tasks) return 0;
-    schedule->query_offsets = arguments->query_offsets;
-    schedule->head_count = arguments->head_count;
-    schedule->group_heads = arguments->head_count / arguments->key_value_head_count;
-    schedule->task_start = arguments->task_start;
-    schedule->task_end = arguments->task_count < total_tasks - arguments->task_start
-                             ? arguments->task_start + arguments->task_count
-                             : total_tasks;
-    schedule->segment_end = nk_size_divide_round_up_(schedule->task_end, arguments->head_count);
-    schedule->chunk_first = arguments->task_start / arguments->head_count;
-    schedule->items_before = 0;
-    nk_attention_schedule_chunk_(schedule, prefix, warp_totals);
-    return 1;
+/** Bytes from the start of a pack of @p segment_count segments to its payload: the header and
+ *  directory, rounded up to whole @p row_bytes rows, so one tensor map at the start reaches every
+ *  row of every plane. */
+NUMKONG_CONSTEXPR nk_size_t nk_attention_payload_offset_(nk_size_t segment_count, nk_size_t row_bytes) {
+    nk_size_t const directory_bytes = nk_size_round_up_to_multiple_(
+        (segment_count + 1) * sizeof(nk_u64_t) + segment_count * sizeof(nk_u32_t), 64);
+    return nk_size_round_up_to_multiple_(sizeof(nk_attention_packed_header_t) + directory_bytes, row_bytes);
 }
 
 /** K plane of the work item's head; its V plane follows @c key_value_head_count planes later. */
@@ -351,199 +383,182 @@ NUMKONG_DEVICE unsigned char const *nk_attention_keys_plane_(nk_attention_argume
     nk_size_t const segments = ((nk_attention_packed_header_t const *)arguments->packed)->segments;
     nk_u64_t const *payload_offsets = (nk_u64_t const *)(arguments->packed + sizeof(nk_attention_packed_header_t));
     nk_u32_t const *lengths = (nk_u32_t const *)(payload_offsets + segments + 1);
-    nk_size_t const directory_bytes = nk_size_round_up_to_multiple_(
-        (segments + 1) * sizeof(nk_u64_t) + segments * sizeof(nk_u32_t), 64);
     *length = lengths[work->segment];
     *plane_bytes = nk_size_round_up_to_multiple_(*length, nk_attention_panel_k) * row_bytes;
-    return arguments->packed + sizeof(nk_attention_packed_header_t) + directory_bytes + payload_offsets[work->segment] +
+    return arguments->packed + nk_attention_payload_offset_(segments, row_bytes) + payload_offsets[work->segment] +
            work->key_value_head * *plane_bytes;
+}
+
+/** The query row of row @p local of the work item, of @p element_bytes per element. */
+NUMKONG_DEVICE unsigned char const *nk_attention_query_row_(nk_attention_arguments_t const *arguments,
+                                                            nk_attention_work_t const *work, nk_size_t local,
+                                                            nk_size_t element_bytes) {
+    nk_size_t const row = work->row_first + local;
+    nk_size_t const query = row / work->heads_selected, head = work->head_first + row % work->heads_selected;
+    return arguments->queries + (work->query_first + query) * arguments->query_stride +
+           head * arguments->depth * element_bytes;
+}
+
+/** The output row of row @p local of the work item. */
+NUMKONG_DEVICE nk_f32_t *nk_attention_output_row_(nk_attention_arguments_t const *arguments,
+                                                  nk_attention_work_t const *work, nk_size_t local) {
+    nk_size_t const row = work->row_first + local;
+    nk_size_t const query = row / work->heads_selected, head = work->head_first + row % work->heads_selected;
+    return (nk_f32_t *)((unsigned char *)arguments->output + (work->query_first + query) * arguments->output_stride) +
+           head * arguments->depth;
+}
+
+/** The signed band row of row @p local of the work item, its query aligned to the end of the
+ *  segment's @p length keys. */
+NUMKONG_DEVICE nk_i64_t nk_attention_row_position_(nk_attention_work_t const *work, nk_size_t local, nk_size_t length) {
+    return (nk_i64_t)((work->row_first + local) / work->heads_selected + length) - (nk_i64_t)work->query_count;
+}
+
+/** The band a kernel of @p mask applies: the launch's, or one reaching every key, which the
+ *  compiler folds away. */
+NUMKONG_DEVICE nk_diagonal_band_t nk_attention_kernel_band_(nk_attention_mask_t mask,
+                                                            nk_attention_arguments_t const *arguments) {
+    nk_diagonal_band_t band = arguments->band;
+    if (mask == nk_attention_mask_none_k) band.subdiagonals = band.superdiagonals = NUMKONG_SIZE_MAX;
+    return band;
+}
+
+/** Where row @p local keeps its log-sum-exp, or null when the launch skips them. */
+NUMKONG_DEVICE nk_f32_t *nk_attention_log_sum_exp_slot_(nk_attention_arguments_t const *arguments,
+                                                        nk_attention_work_t const *work, nk_size_t local) {
+    if (!arguments->log_sum_exp) return NUMKONG_NULL;
+    nk_size_t const row = work->row_first + local;
+    nk_size_t const query = row / work->heads_selected, head = work->head_first + row % work->heads_selected;
+    return arguments->log_sum_exp + (work->query_first + query) * arguments->head_count + head;
+}
+
+/** The natural log-sum-exp of a row whose base-2 scores peak at @p max2, given the @p sum of its
+ *  weights relative to that peak, each @p unit for a probability of one, as U8 weights count 255
+ *  and amplified E4M3 ones 256; −∞ for a row that saw no key. */
+NUMKONG_DEVICE nk_f32_t nk_attention_log_sum_exp_simt_(nk_f32_t max2, nk_f32_t sum, nk_f32_t unit) {
+    return sum > 0 ? (max2 + log2f(sum / unit)) * NUMKONG_F32_LN2_ : nk_attention_negative_infinity_();
 }
 
 #pragma endregion Schedule
 
 #pragma region Tile
 
+/** Bytes of one element of @p dtype: 2 for BF16 and F16, which keep V position-major, and 1 for the
+ *  8-bit dtypes. */
+NUMKONG_CONSTEXPR nk_size_t nk_attention_element_bytes_(nk_dtype_t dtype) {
+    return dtype == nk_bf16_k || dtype == nk_f16_k ? 2 : 1;
+}
+
+/** Copies the first @p rows query rows of the work item into @p queries, rows @p row_stride bytes
+ *  apart, @p depth_padded elements each with zeros past the item and past the depth, @p lanes
+ *  threads per row. */
+NUMKONG_DEVICE void nk_attention_stage_queries_(nk_dtype_t dtype, nk_attention_arguments_t const *arguments,
+                                                nk_attention_work_t const *work, unsigned char *queries, unsigned rows,
+                                                unsigned row_stride, unsigned depth_padded, unsigned lanes) {
+    unsigned const lane = threadIdx.x % lanes;
+    nk_size_t const element_bytes = nk_attention_element_bytes_(dtype);
+    for (unsigned local = threadIdx.x / lanes; local < rows; local += nk_attention_threads_k / lanes) {
+        unsigned char *destination = queries + local * row_stride;
+        int const valid = local < work->row_count;
+        unsigned char const *source = valid ? nk_attention_query_row_(arguments, work, local, element_bytes)
+                                            : NUMKONG_NULL;
+        for (unsigned element = lane; element < depth_padded; element += lanes) {
+            int const inside = valid && element < arguments->depth;
+            if (element_bytes == 2)
+                ((unsigned short *)destination)[element] = inside ? ((unsigned short const *)source)[element]
+                                                                  : (unsigned short)0;
+            else destination[element] = inside ? source[element] : (unsigned char)0;
+        }
+    }
+}
+
 /** One element of a K row or V element, decoded to F32; I8 stays an exact integer in F32. */
 NUMKONG_DEVICE nk_f32_t nk_attention_decode_(nk_dtype_t dtype, unsigned char const *bytes, nk_size_t index) {
     if (dtype == nk_bf16_k) return __uint_as_float((nk_u32_t)((unsigned short const *)bytes)[index] << 16);
+    if (dtype == nk_f16_k) return __half2float(__ushort_as_half(((unsigned short const *)bytes)[index]));
     if (dtype == nk_i8_k) return (nk_f32_t)(signed char)bytes[index];
     unsigned const code = bytes[index];
     return __half2float(__ushort_as_half((unsigned short)(((code & 0x7Fu) << 7) | ((code & 0x80u) << 8)))) * 256.0f;
-}
-
-/** The dot product of @p query_row and @p key_row, shared by @p lanes lanes and returned in each:
- *  F32 FMAs, or for I8 an exact I32 sum like the serial backend's, converted once. */
-NUMKONG_DEVICE nk_f32_t nk_attention_score_(nk_dtype_t dtype, unsigned char const *query_row,
-                                            unsigned char const *key_row, nk_size_t depth, unsigned lane,
-                                            unsigned lanes) {
-    if (dtype == nk_i8_k) {
-        nk_u32_t sum = 0;
-        for (nk_size_t element = lane; element < depth; element += lanes)
-            sum += (nk_u32_t)((nk_i32_t)(signed char)query_row[element] * (nk_i32_t)(signed char)key_row[element]);
-        for (unsigned offset = lanes / 2; offset != 0; offset >>= 1) sum += nk_shuffle_xor_u32_(sum, offset);
-        return (nk_f32_t)(nk_i32_t)sum;
-    }
-    nk_f32_t sum = 0;
-    for (nk_size_t element = lane; element < depth; element += lanes)
-        sum = fmaf(nk_attention_decode_(dtype, query_row, element), nk_attention_decode_(dtype, key_row, element), sum);
-    for (unsigned offset = lanes / 2; offset != 0; offset >>= 1) sum += nk_shuffle_xor_f32_(sum, offset);
-    return sum;
-}
-
-/** The U8 weight the I8 contract gives a softmax weight in [0, 1]: ⌊255 · w + ½⌋, as F32. */
-NUMKONG_DEVICE nk_f32_t nk_attention_quantize_weight_(nk_f32_t weight) {
-#if NUMKONG_ARCH_ROCM_
-    return floorf(weight * 255.0f + 0.5f);
-#else
-    // A round-down add of 2²³ truncates at the full F32 rate, where sm_103 converts at 2 per clock.
-    return __fadd_rd(weight * 255.0f + 0.5f, 8388608.0f) - 8388608.0f;
-#endif
-}
-
-/** Attends one query row to the keys from @p key_begin up to @p key_end in the serial backend's
- *  two sweeps: the largest score first, then the weighted V rows, summed into @p output_row and
- *  divided by the sum of their weights. */
-NUMKONG_DEVICE void nk_attention_fallback_row_(nk_dtype_t dtype, nk_attention_arguments_t const *arguments,
-                                               unsigned char const *query_row, unsigned char const *keys_plane,
-                                               unsigned char const *values_plane, nk_size_t row_bytes,
-                                               nk_size_t positions_padded, unsigned key_begin, unsigned key_end,
-                                               nk_f32_t *output_row, unsigned lane, unsigned lanes) {
-    nk_size_t const depth = arguments->depth;
-    nk_f32_t row_max = nk_attention_negative_infinity_(), weights_sum = 0;
-    for (unsigned position = key_begin; position < key_end; ++position)
-        row_max = fmaxf(row_max,
-                        nk_attention_score_(dtype, query_row, keys_plane + position * row_bytes, depth, lane, lanes) *
-                            arguments->scale2);
-    for (nk_size_t element = lane; element < depth; element += lanes) output_row[element] = 0;
-    for (unsigned position = key_begin; position < key_end; ++position) {
-        nk_f32_t const score = nk_attention_score_(dtype, query_row, keys_plane + position * row_bytes, depth, lane,
-                                                   lanes);
-        nk_f32_t weight = exp2f(score * arguments->scale2 - row_max);
-        if (dtype == nk_i8_k) weight = nk_attention_quantize_weight_(weight);
-        weights_sum += weight;
-        for (nk_size_t element = lane; element < depth; element += lanes) {
-            nk_f32_t const value = dtype == nk_bf16_k
-                                       ? nk_attention_decode_(dtype, values_plane + position * row_bytes, element)
-                                       : nk_attention_decode_(dtype, values_plane + element * positions_padded,
-                                                              nk_attention_slot_(position));
-            output_row[element] = fmaf(weight, value, output_row[element]);
-        }
-    }
-    nk_f32_t const inverse = weights_sum > 0 ? 1.0f / weights_sum : 0.0f;
-    for (nk_size_t element = lane; element < depth; element += lanes) output_row[element] *= inverse;
-}
-
-/** The whole baseline kernel, and the tensor-core capabilities' kernel past depth 256: one warp or
- *  wavefront per row, with the output row as the accumulator, so that every depth fits. */
-NUMKONG_DEVICE void nk_attention_fallback_(nk_dtype_t dtype, nk_attention_arguments_t const *arguments) {
-    __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
-    __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
-    unsigned const lanes = nk_warp_lanes_(), lane = threadIdx.x % lanes, group = threadIdx.x / lanes;
-    unsigned const groups = nk_attention_threads_k / lanes;
-    nk_size_t const element_bytes = dtype == nk_bf16_k ? 2 : 1, depth = arguments->depth;
-    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
-    nk_attention_schedule_t schedule;
-    if (!nk_attention_schedule_start_(arguments, &schedule, prefix, warp_totals)) return;
-    nk_attention_work_t work;
-    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_(&schedule, prefix, warp_totals, item, &work);
-         item += gridDim.x) {
-        nk_size_t length, plane_bytes;
-        unsigned char const *keys_plane = nk_attention_keys_plane_(arguments, &work, row_bytes, &length, &plane_bytes);
-        unsigned char const *values_plane = keys_plane + arguments->key_value_head_count * plane_bytes;
-        for (nk_size_t local = group; local < work.row_count; local += groups) {
-            nk_size_t const row = work.row_first + local;
-            nk_size_t const query = row / work.heads_selected;
-            nk_size_t const head = work.head_first + row % work.heads_selected;
-            unsigned char const *query_row = arguments->queries + (work.query_first + query) * arguments->query_stride +
-                                             head * depth * element_bytes;
-            nk_f32_t *output_row = (nk_f32_t *)((unsigned char *)arguments->output +
-                                                (work.query_first + query) * arguments->output_stride) +
-                                   head * depth;
-            unsigned key_begin, key_end;
-            nk_attention_row_keys_((nk_i64_t)query + arguments->diagonal_offset, arguments->window, length, &key_begin,
-                                   &key_end);
-            nk_attention_fallback_row_(dtype, arguments, query_row, keys_plane, values_plane, row_bytes,
-                                       plane_bytes / row_bytes, key_begin, key_end, output_row, lane, lanes);
-        }
-    }
 }
 
 #pragma endregion Tile
 
 #pragma region Pack
 
-/** Writes the header, recording the packing @p capability, and the directory, one block walking the
- *  segments 128 at a time. */
-static __global__ void nk_attention_pack_directory_simt_kernel_(unsigned char *packed, nk_size_t key_value_head_count,
-                                                                nk_size_t depth, nk_u32_t const *segment_lengths,
-                                                                nk_size_t segment_count, nk_size_t row_bytes,
-                                                                nk_size_t directory_bytes, nk_capability_t capability) {
-    __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
-    nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)packed;
-    if (threadIdx.x == 0) {
-        header->heads = (nk_u32_t)key_value_head_count;
-        header->depth = (nk_u32_t)depth;
-        header->segments = (nk_u32_t)segment_count;
-        header->capability = capability;
-        for (unsigned reserved_index = 0; reserved_index < 11; ++reserved_index) header->reserved[reserved_index] = 0;
+/** Moves a block's cursor from segment @p segment, whose payload starts @p offset bytes in, to
+ *  segment @p target, adding the payload bytes of the segments it passes as a block-wide sum, which
+ *  every thread of a block of @c nk_attention_pack_threads_k threads calls in step. */
+NUMKONG_DEVICE void nk_attention_pack_advance_(nk_u32_t const *segment_lengths, nk_size_t key_value_head_count,
+                                               nk_size_t row_bytes, nk_size_t target, nk_size_t *segment,
+                                               nk_u64_t *offset) {
+    __shared__ nk_u64_t partials[nk_attention_pack_threads_k];
+    if (*segment == target) return;
+    nk_u64_t sum = 0;
+    for (nk_size_t passed = *segment + threadIdx.x; passed < target; passed += blockDim.x)
+        sum += nk_attention_pack_segment_bytes_(segment_lengths[passed], key_value_head_count, nk_attention_panel_k,
+                                                row_bytes);
+    partials[threadIdx.x] = sum;
+    __syncthreads();
+    for (unsigned half = blockDim.x / 2; half != 0; half >>= 1) {
+        if (threadIdx.x < half) partials[threadIdx.x] += partials[threadIdx.x + half];
+        __syncthreads();
     }
-    nk_u64_t *payload_offsets = (nk_u64_t *)(packed + sizeof(nk_attention_packed_header_t));
-    nk_u32_t *lengths = (nk_u32_t *)(payload_offsets + segment_count + 1);
-    nk_u64_t running = 0;
-    for (nk_size_t chunk = 0; chunk < segment_count; chunk += blockDim.x) {
-        nk_size_t const segment = chunk + threadIdx.x;
-        nk_u32_t const length = segment < segment_count ? segment_lengths[segment] : 0;
-        nk_u64_t const bytes = 2 * key_value_head_count * nk_size_round_up_to_multiple_(length, nk_attention_panel_k) *
-                               row_bytes;
-        nk_u64_t total;
-        nk_u64_t const inclusive = nk_attention_block_scan_(bytes, warp_totals, &total);
-        if (segment < segment_count) payload_offsets[segment] = running + inclusive - bytes, lengths[segment] = length;
-        running += total;
-    }
-    if (threadIdx.x == 0) payload_offsets[segment_count] = running;
-    for (nk_size_t byte = (segment_count + 1) * sizeof(nk_u64_t) + segment_count * sizeof(nk_u32_t) + threadIdx.x;
-         byte < directory_bytes; byte += blockDim.x)
-        packed[sizeof(nk_attention_packed_header_t) + byte] = 0;
+    *offset += partials[0], *segment = target;
+    // Every thread reads the sum before a later advance rewrites it.
+    __syncthreads();
 }
 
-/** Copies the K and V planes of each @b (segment,kv_head) task, one block per task, zeroing
- *  every padded element. */
+/** Copies the K and V planes of each @b (segment,kv_head) task, one block per task, at offsets the
+ *  segment lengths alone give, zeroing every padded element. */
 NUMKONG_DEVICE void nk_attention_pack_payload_(nk_dtype_t dtype, unsigned char const *keys, unsigned char const *values,
                                                nk_size_t key_value_head_count, nk_size_t depth,
                                                nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
                                                nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,
                                                unsigned char *packed, nk_size_t task_begin, nk_size_t task_end) {
-    nk_size_t const element_bytes = dtype == nk_bf16_k ? 2 : 1;
-    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
-    nk_size_t const row_elements = row_bytes / element_bytes;
-    nk_u64_t const *payload_offsets = (nk_u64_t const *)(packed + sizeof(nk_attention_packed_header_t));
-    nk_size_t const directory_bytes = nk_size_round_up_to_multiple_(
-        (segment_count + 1) * sizeof(nk_u64_t) + segment_count * sizeof(nk_u32_t), 64);
-    unsigned char *payload = packed + sizeof(nk_attention_packed_header_t) + directory_bytes;
+    nk_size_t const element_bytes = nk_attention_element_bytes_(dtype), depth_bytes = depth * element_bytes;
+    nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth_bytes, nk_attention_step_bytes_k);
+    nk_size_t const row_elements = row_bytes / element_bytes, row_chunks = row_bytes / 16;
+    unsigned char *payload = packed + nk_attention_payload_offset_(segment_count, row_bytes);
+    // Planes start on 16 bytes, so 16-byte chunks move whenever every source head row does too.
+    int const chunked = (((nk_size_t)keys | (nk_size_t)values | key_stride | value_stride | depth_bytes) & 15) == 0;
+    uint4 const zero = make_uint4(0, 0, 0, 0);
+    nk_size_t cursor_segment = 0;
+    nk_u64_t payload_offset = 0;
     for (nk_size_t task = task_begin + blockIdx.x; task < task_end; task += gridDim.x) {
         nk_size_t const segment = task / key_value_head_count, head = task % key_value_head_count;
+        nk_attention_pack_advance_(segment_lengths, key_value_head_count, row_bytes, segment, &cursor_segment,
+                                   &payload_offset);
         nk_size_t const length = segment_lengths[segment];
         if (length == 0) continue;
         nk_size_t const positions_padded = nk_size_round_up_to_multiple_(length, nk_attention_panel_k);
         nk_size_t const plane_bytes = positions_padded * row_bytes;
-        unsigned char *keys_plane = payload + payload_offsets[segment] + head * plane_bytes;
+        unsigned char *keys_plane = payload + payload_offset + head * plane_bytes;
         unsigned char *values_plane = keys_plane + key_value_head_count * plane_bytes;
-        unsigned char const *keys_first = keys + segment_offsets[segment] * key_stride + head * depth * element_bytes;
-        unsigned char const *values_first = values + segment_offsets[segment] * value_stride +
-                                            head * depth * element_bytes;
-        for (nk_size_t index = threadIdx.x; index < positions_padded * row_elements; index += blockDim.x) {
-            nk_size_t const position = index / row_elements, element = index % row_elements;
-            int const inside = position < length && element < depth;
-            if (element_bytes == 2) {
-                ((unsigned short *)keys_plane)[index] =
-                    inside ? ((unsigned short const *)(keys_first + position * key_stride))[element]
-                           : (unsigned short)0;
-                ((unsigned short *)values_plane)[index] =
-                    inside ? ((unsigned short const *)(values_first + position * value_stride))[element]
-                           : (unsigned short)0;
+        unsigned char const *keys_first = keys + segment_offsets[segment] * key_stride + head * depth_bytes;
+        unsigned char const *values_first = values + segment_offsets[segment] * value_stride + head * depth_bytes;
+        if (chunked)
+            for (nk_size_t index = threadIdx.x; index < plane_bytes / 16; index += blockDim.x) {
+                nk_size_t const position = index / row_chunks, byte = index % row_chunks * 16;
+                int const inside = position < length && byte < depth_bytes;
+                ((uint4 *)keys_plane)[index] = inside ? *(uint4 const *)(keys_first + position * key_stride + byte)
+                                                      : zero;
+                if (element_bytes == 2)
+                    ((uint4 *)values_plane)[index] =
+                        inside ? *(uint4 const *)(values_first + position * value_stride + byte) : zero;
             }
-            else keys_plane[index] = inside ? keys_first[position * key_stride + element] : (unsigned char)0;
-        }
+        else
+            for (nk_size_t index = threadIdx.x; index < positions_padded * row_elements; index += blockDim.x) {
+                nk_size_t const position = index / row_elements, element = index % row_elements;
+                int const inside = position < length && element < depth;
+                unsigned char const *key = keys_first + position * key_stride + element * element_bytes;
+                unsigned char const *value = values_first + position * value_stride + element * element_bytes;
+                if (element_bytes == 2) {
+                    ((unsigned short *)keys_plane)[index] = inside ? *(unsigned short const *)key : (unsigned short)0;
+                    ((unsigned short *)values_plane)[index] = inside ? *(unsigned short const *)value
+                                                                     : (unsigned short)0;
+                }
+                else keys_plane[index] = inside ? *key : (unsigned char)0;
+            }
         if (element_bytes == 2) continue;
         for (nk_size_t index = threadIdx.x; index < row_elements * positions_padded; index += blockDim.x) {
             nk_size_t const element = index / positions_padded;
@@ -554,37 +569,153 @@ NUMKONG_DEVICE void nk_attention_pack_payload_(nk_dtype_t dtype, unsigned char c
     }
 }
 
-/** Mirrors the device pack: header, directory, then both planes of every segment and head. */
-NUMKONG_INLINE nk_size_t nk_attention_pack_size_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                 nk_u32_t const *segment_lengths, nk_size_t segment_count,
-                                                 nk_size_t element_bytes) {
+/** Bounds the device pack of @p token_count keys in @p segment_count segments however they split:
+ *  header and directory up to the payload, then both planes of every segment and head, each
+ *  padded to a whole panel. */
+NUMKONG_INLINE nk_size_t nk_attention_pack_size_(nk_size_t key_value_head_count, nk_size_t depth, nk_size_t token_count,
+                                                 nk_size_t segment_count, nk_size_t element_bytes) {
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
-    nk_size_t payload_bytes = 0;
-    for (nk_size_t segment = 0; segment < segment_count; ++segment)
-        payload_bytes += 2 * key_value_head_count *
-                         nk_size_round_up_to_multiple_(segment_lengths[segment], nk_attention_panel_k) * row_bytes;
-    return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
+    nk_size_t const positions = token_count + segment_count * (nk_attention_panel_k - 1);
+    return nk_attention_payload_offset_(segment_count, row_bytes) + 2 * key_value_head_count * positions * row_bytes;
 }
 
 #pragma endregion Pack
 
+#pragma region Backward
+
+/** Everything one backward launch shares, passed by value as the kernels' only argument. */
+typedef struct {
+
+    /** Query rows, @c query_stride bytes apart. */
+    unsigned char const *queries;
+
+    /** The packed buffer the forward read, header first. */
+    unsigned char const *packed;
+
+    /** The forward's F32 output rows, @c output_stride bytes apart. */
+    nk_f32_t const *output;
+
+    /** Gradient of the loss with respect to the output, laid out like it. */
+    nk_f32_t const *output_gradient;
+
+    /** The forward's natural log-sum-exp per query token and head. */
+    nk_f32_t const *log_sum_exp;
+
+    /** Gradient with respect to the queries, rows @c query_gradient_stride bytes apart. */
+    nk_f32_t *query_gradient;
+
+    /** Gradients of the keys and values, rows @c key_value_gradient_stride bytes apart. */
+    nk_f32_t *key_gradient;
+    nk_f32_t *value_gradient;
+
+    /** First query and first key token of each segment. */
+    nk_u32_t const *query_offsets;
+    nk_u32_t const *key_offsets;
+
+    nk_size_t head_count;
+    nk_size_t key_value_head_count;
+    nk_size_t depth;
+    nk_size_t query_stride;
+    nk_size_t output_stride;
+    nk_size_t query_gradient_stride;
+    nk_size_t key_value_gradient_stride;
+
+    /** Score multiplier, and the same in base 2. */
+    nk_f32_t scale;
+    nk_f32_t scale2;
+
+    /** Keys each query row sees around its position. */
+    nk_diagonal_band_t band;
+
+    /** The window over segments × key-value heads, its end clipped on the device. */
+    nk_size_t task_begin;
+    nk_size_t task_end;
+
+    /** Whether a dQ row holds its dO as BF16 and D past it, until the query pass overwrites it. */
+    int prepared;
+} nk_attention_backward_arguments_t;
+
+/** One backward task's segment: its keys and values planes, key count and query rows, and the band
+ *  row of its first query, which aligns its queries to the end of its keys. */
+typedef struct {
+    unsigned char const *keys_plane;
+    unsigned char const *values_plane;
+    nk_size_t length;
+    nk_size_t rows;
+    nk_size_t segment;
+    nk_size_t key_value_head;
+    nk_i64_t first_band_row;
+} nk_attention_backward_task_t;
+
+/** Resolves @p task of the window against the pack's directory. */
+NUMKONG_DEVICE nk_attention_backward_task_t
+nk_attention_backward_task_(nk_attention_backward_arguments_t const *arguments, nk_size_t task, nk_size_t row_bytes) {
+    nk_size_t const segments = ((nk_attention_packed_header_t const *)arguments->packed)->segments;
+    nk_u64_t const *payload_offsets = (nk_u64_t const *)(arguments->packed + sizeof(nk_attention_packed_header_t));
+    nk_u32_t const *lengths = (nk_u32_t const *)(payload_offsets + segments + 1);
+    nk_attention_backward_task_t result;
+    result.segment = task / arguments->key_value_head_count;
+    result.key_value_head = task % arguments->key_value_head_count;
+    result.length = lengths[result.segment];
+    result.rows = arguments->query_offsets[result.segment + 1] - arguments->query_offsets[result.segment];
+    result.first_band_row = (nk_i64_t)result.length - (nk_i64_t)result.rows;
+    nk_size_t const plane_bytes = nk_size_round_up_to_multiple_(result.length, nk_attention_panel_k) * row_bytes;
+    result.keys_plane = arguments->packed + nk_attention_payload_offset_(segments, row_bytes) +
+                        payload_offsets[result.segment] + result.key_value_head * plane_bytes;
+    result.values_plane = result.keys_plane + arguments->key_value_head_count * plane_bytes;
+    return result;
+}
+
+/** The one past the last task of the window, clipped to the pack's segments × key-value heads. */
+NUMKONG_DEVICE nk_size_t nk_attention_backward_task_end_(nk_attention_backward_arguments_t const *arguments) {
+    nk_size_t const tasks = ((nk_attention_packed_header_t const *)arguments->packed)->segments *
+                            arguments->key_value_head_count;
+    return arguments->task_end < tasks ? arguments->task_end : tasks;
+}
+
+/** Fills the backward arguments, @p task_end left for the device to clip. */
+NUMKONG_INLINE nk_attention_backward_arguments_t nk_attention_backward_arguments_init_(
+    void const *queries, void const *packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end) {
+    nk_attention_backward_arguments_t arguments;
+    arguments.queries = (unsigned char const *)queries, arguments.packed = (unsigned char const *)packed;
+    arguments.output = output, arguments.output_gradient = output_gradient, arguments.log_sum_exp = log_sum_exp;
+    arguments.query_gradient = query_gradient, arguments.key_gradient = key_gradient;
+    arguments.value_gradient = value_gradient;
+    arguments.query_offsets = query_offsets, arguments.key_offsets = key_offsets;
+    arguments.head_count = head_count, arguments.key_value_head_count = key_value_head_count, arguments.depth = depth;
+    arguments.query_stride = query_stride, arguments.output_stride = output_stride;
+    arguments.query_gradient_stride = query_gradient_stride;
+    arguments.key_value_gradient_stride = key_value_gradient_stride;
+    arguments.scale = scale, arguments.scale2 = scale * NUMKONG_F32_LOG2E_;
+    arguments.band.subdiagonals = keys_before, arguments.band.superdiagonals = keys_after;
+    arguments.task_begin = task_begin, arguments.task_end = task_end;
+    arguments.prepared = 0;
+    return arguments;
+}
+
+#pragma endregion Backward
+
 #pragma region Launch Arguments
 
-/** The arguments of one launch, with the shared-memory offsets zero for the capability to place. A
- *  bidirectional @p mask lets every row see its whole segment. */
+/** The arguments of one launch, with the shared-memory offsets zero for the capability to place and
+ *  @p task_end left for the device to clip. */
 NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_(
-    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
-    nk_size_t task_start, nk_size_t task_count) {
+    void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end) {
     nk_attention_arguments_t arguments;
     arguments.queries = (unsigned char const *)queries, arguments.packed = (unsigned char const *)packed;
-    arguments.output = output, arguments.query_offsets = query_offsets;
+    arguments.output = output, arguments.log_sum_exp = log_sum_exp, arguments.query_offsets = query_offsets;
     arguments.head_count = head_count, arguments.key_value_head_count = key_value_head_count;
     arguments.depth = depth, arguments.query_stride = query_stride, arguments.output_stride = output_stride;
-    arguments.diagonal_offset = mask == nk_attention_mask_causal_k ? diagonal_offset : NUMKONG_I64_MAX / 2;
-    arguments.window = mask == nk_attention_mask_causal_k ? window : NUMKONG_SIZE_MAX;
-    arguments.task_start = task_start, arguments.task_count = task_count;
+    arguments.band.subdiagonals = keys_before, arguments.band.superdiagonals = keys_after;
+    arguments.task_begin = task_begin, arguments.task_end = task_end;
     arguments.scale2 = scale * NUMKONG_F32_LOG2E_;
     arguments.score_scale = score_scale, arguments.output_scale = output_scale;
     arguments.key_offset[0] = arguments.key_offset[1] = 0;
@@ -599,58 +730,12 @@ NUMKONG_INLINE nk_attention_arguments_t nk_attention_arguments_init_(
 
 /** Generates the host-side size of a pack: header, directory, and both planes of every
  *  segment and head. */
-#define nk_define_attention_pack_size_simt_(input_type_name, isa_suffix, element_bytes)                               \
-    NUMKONG_API nk_status_t nk_attention_pack_size_##input_type_name##_##isa_suffix(                                  \
-        nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *segment_lengths, nk_size_t segment_count,    \
-        nk_size_t *bytes) {                                                                                           \
-        *bytes = nk_attention_pack_size_(key_value_head_count, depth, segment_lengths, segment_count, element_bytes); \
-        return nk_success_k;                                                                                          \
-    }
-
-/**
- *  @brief Generates the kernel of a device pack, one block per task.
- *
- *  V keeps position rows for BF16 and takes σ-ordered depth rows for 1-byte dtypes.
- */
-#define nk_define_attention_pack_kernel_simt_(input_type_name, isa_suffix, input_value_type)                          \
-    static __global__ void nk_attention_pack_##input_type_name##_##isa_suffix##_kernel_(                              \
-        unsigned char const *keys, unsigned char const *values, nk_size_t key_value_head_count, nk_size_t depth,      \
-        nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,                    \
-        nk_size_t key_stride, nk_size_t value_stride, unsigned char *packed, nk_size_t task_begin,                    \
-        nk_size_t task_end) {                                                                                         \
-        nk_attention_pack_payload_(nk_##input_value_type##_k, keys, values, key_value_head_count, depth,              \
-                                   segment_offsets, segment_lengths, segment_count, key_stride, value_stride, packed, \
-                                   task_begin, task_end);                                                             \
-    }
-
-/** Generates the fallback kernel of one dtype, which the vendor baselines run for every query. */
-#define nk_define_attention_fallback_kernel_simt_(input_type_name, isa_suffix, input_value_type)             \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                         \
-        nk_attention_packed_##input_type_name##_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) { \
-        nk_attention_fallback_(nk_##input_value_type##_k, &arguments);                                       \
-    }
-
-/**
- *  @brief Generates the narrow, wide and fallback kernels of one dtype, which a capability's launch
- *      picks between.
- *  @param[in] tile The tiling kernel family, like @c ampere, whose tile function the narrow and
- *      wide kernels run.
- */
-#define nk_define_attention_packed_kernels_simt_(input_type_name, isa_suffix, tile, input_value_type, epilogue,       \
-                                                 scores_fn, values_mma_fn, weights_fn)                                \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
-        nk_attention_packed_##input_type_name##_narrow_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {   \
-        nk_attention_tile_##tile##_(nk_##input_value_type##_k, nk_attention_width_128_k, epilogue, scores_fn,         \
-                                    values_mma_fn, weights_fn, &arguments);                                           \
-    }                                                                                                                 \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
-        nk_attention_packed_##input_type_name##_wide_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) {     \
-        nk_attention_tile_##tile##_(nk_##input_value_type##_k, nk_attention_width_256_k, epilogue, scores_fn,         \
-                                    values_mma_fn, weights_fn, &arguments);                                           \
-    }                                                                                                                 \
-    static __global__ void __launch_bounds__(nk_attention_threads_k)                                                  \
-        nk_attention_packed_##input_type_name##_fallback_##isa_suffix##_kernel_(nk_attention_arguments_t arguments) { \
-        nk_attention_fallback_(nk_##input_value_type##_k, &arguments);                                                \
+#define nk_define_attention_pack_size_simt_(input_type_name, isa_suffix, element_bytes)                           \
+    NUMKONG_API nk_status_t nk_attention_pack_size_##input_type_name##_##isa_suffix(                              \
+        nk_size_t key_value_head_count, nk_size_t depth, nk_size_t token_count, nk_size_t segment_count,          \
+        nk_size_t *bytes) {                                                                                       \
+        *bytes = nk_attention_pack_size_(key_value_head_count, depth, token_count, segment_count, element_bytes); \
+        return nk_success_k;                                                                                      \
     }
 
 #pragma endregion Attention Macros
@@ -669,36 +754,6 @@ typedef struct {
     nk_size_t x_stride;
     nk_size_t y_stride;
 } nk_attention_rope_arguments_t;
-
-/** Generates the RoPE kernel of @p input_type for @p isa_suffix, after @c nk_define_attention_rope_
- *  of the serial backend: each warp or wavefront rotates one head of one row, so the row and head
- *  divisions happen once per head rather than once per pair. */
-#define nk_define_attention_rope_kernel_simt_(input_type, isa_suffix, load_and_convert, convert_and_store)         \
-    static __global__ void nk_attention_rope_##input_type##_##isa_suffix##_kernel_(                                \
-        nk_attention_rope_arguments_t arguments) {                                                                 \
-        unsigned const lanes = nk_warp_lanes_(), lane = threadIdx.x % lanes;                                       \
-        nk_size_t const groups = blockDim.x / lanes;                                                               \
-        for (nk_size_t head = (nk_size_t)blockIdx.x * groups + threadIdx.x / lanes; head < arguments.heads;        \
-             head += (nk_size_t)gridDim.x * groups) {                                                              \
-            nk_size_t const row = head / arguments.head_count;                                                     \
-            nk_size_t const first = (head - row * arguments.head_count) * 2 * arguments.half_depth;                \
-            nk_f32_t const *cos_row = arguments.cos + row * arguments.half_depth;                                  \
-            nk_f32_t const *sin_row = arguments.sin + row * arguments.half_depth;                                  \
-            nk_##input_type##_t const *x = (nk_##input_type##_t const *)(arguments.x + row * arguments.x_stride) + \
-                                           first;                                                                  \
-            nk_##input_type##_t *y = (nk_##input_type##_t *)(arguments.y + row * arguments.y_stride) + first;      \
-            for (nk_size_t pair = lane; pair < arguments.half_depth; pair += lanes) {                              \
-                nk_f32_t low, high;                                                                                \
-                load_and_convert(x + pair, &low);                                                                  \
-                load_and_convert(x + pair + arguments.half_depth, &high);                                          \
-                nk_f32_t const cosine = cos_row[pair], sine = sin_row[pair];                                       \
-                nk_f32_t const rotated_low = low * cosine - high * sine;                                           \
-                nk_f32_t const rotated_high = low * sine + high * cosine;                                          \
-                convert_and_store(&rotated_low, y + pair);                                                         \
-                convert_and_store(&rotated_high, y + pair + arguments.half_depth);                                 \
-            }                                                                                                      \
-        }                                                                                                          \
-    }
 
 #pragma endregion Rotary Embeddings
 

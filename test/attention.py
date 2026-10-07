@@ -1,4 +1,4 @@
-"""Tests for ragged scaled-dot-product attention: `attention_pack` with both compute modes, and RoPE.
+"""Tests for ragged scaled-dot-product attention: `attention_pack`, `attention_packed` bands, and RoPE.
 
 The reference is a float64 NumPy softmax-attention over the same dtype-rounded inputs and an
 explicit visibility mask, so tolerances only cover kernel arithmetic, not input rounding.
@@ -31,21 +31,23 @@ SCENARIOS = {
     "tiny": [1, 2, 3],
 }
 
-ATTENTION_MODES = ["bidirectional", "causal"]
-
-CAUSAL_MASKS = [(0, None), (0, 7), (-3, None), (2, 1)]
-"""(diagonal_offset, window) pairs; None is an unbounded window, -3 leaves the first rows empty."""
+BANDS = [(None, None), (None, 0), (0, 0), (6, 0), (32, 0), (3, 5)]
+"""(keys_before, keys_after) pairs; None is unbounded: bidirectional, causal, three sliding windows, two-sided."""
 
 
-def visibility_mask(query_count, key_count, mode, diagonal_offset, window):
-    """Boolean `[query_count, key_count]` mask: key j is visible to row r iff lo <= j <= hi."""
-    if mode == "bidirectional":
-        return np.ones((query_count, key_count), dtype=bool)
-    positions = np.arange(query_count)[:, None] + diagonal_offset
+def visibility_mask(query_count, key_count, keys_before, keys_after):
+    """Boolean `[query_count, key_count]` mask; queries align to the end of the keys.
+
+    Row r sits at position p = r + key_count - query_count and sees key j iff
+    p - keys_before <= j <= p + keys_after.
+    """
+    positions = np.arange(query_count)[:, None] + key_count - query_count
     keys = np.arange(key_count)[None, :]
-    visible = keys <= positions
-    if window is not None:
-        visible &= keys >= positions - window + 1
+    visible = np.ones((query_count, key_count), dtype=bool)
+    if keys_before is not None:
+        visible &= keys >= positions - keys_before
+    if keys_after is not None:
+        visible &= keys <= positions + keys_after
     return visible
 
 
@@ -60,16 +62,15 @@ def reference_attention(
     key_value_head_count,
     depth,
     scale,
-    mode="bidirectional",
-    diagonal_offset=0,
-    window=None,
+    keys_before=None,
+    keys_after=None,
 ):
     out = np.zeros((q_f64.shape[0], head_count * depth), dtype=np.float64)
     gqa = head_count // key_value_head_count
     for segment in range(len(lengths)):
         first, last = int(query_offsets[segment]), int(query_offsets[segment + 1])
         key_first, kv_len = int(key_offsets[segment]), int(lengths[segment])
-        visible = visibility_mask(last - first, kv_len, mode, diagonal_offset, window)
+        visible = visibility_mask(last - first, kv_len, keys_before, keys_after)
         for head in range(head_count):
             kv_head = head // gqa
             queries = q_f64[first:last, head * depth : (head + 1) * depth]
@@ -85,24 +86,11 @@ def reference_attention(
     return out
 
 
-def run_attention(q, kv, query_offsets, mode, diagonal_offset=0, window=None, **kwargs):
-    if mode == "bidirectional":
-        return nk.attention_bidirectional_packed(q, kv, query_offsets=query_offsets, **kwargs)
-    return nk.attention_causal_packed(
-        q, kv, query_offsets=query_offsets, diagonal_offset=diagonal_offset, window=window, **kwargs
-    )
-
-
-def mode_masks(mode):
-    return [(0, None)] if mode == "bidirectional" else CAUSAL_MASKS
-
-
 @pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
 @pytest.mark.parametrize("scenario", SCENARIOS.keys())
 @pytest.mark.parametrize("depth", [64, 128])
 @pytest.mark.parametrize("threads", [1, 0])
-@pytest.mark.parametrize("mode", ATTENTION_MODES)
-def test_attention_packed(dtype, tolerance, scenario, depth, threads, mode, np_rng: np.random.Generator):
+def test_attention_packed(dtype, tolerance, scenario, depth, threads, np_rng: np.random.Generator):
     lengths = SCENARIOS[scenario]
     offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
     tokens, head_count, key_value_head_count = int(offsets[-1]), 4, 2
@@ -120,8 +108,10 @@ def test_attention_packed(dtype, tolerance, scenario, depth, threads, mode, np_r
     assert kv.tokens == tokens
 
     rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
-    for diagonal_offset, window in mode_masks(mode):
-        out = run_attention(q, kv, offsets, mode, diagonal_offset, window, threads=threads)
+    for keys_before, keys_after in BANDS:
+        out = nk.attention_packed(
+            q, kv, query_offsets=offsets, keys_before=keys_before, keys_after=keys_after, threads=threads
+        )
         result = np.from_dlpack(out)
         expected = reference_attention(
             *rounded,
@@ -132,17 +122,16 @@ def test_attention_packed(dtype, tolerance, scenario, depth, threads, mode, np_r
             key_value_head_count,
             depth,
             scale,
-            mode,
-            diagonal_offset,
-            window,
+            keys_before,
+            keys_after,
         )
         np.testing.assert_allclose(result, expected, atol=tolerance, rtol=tolerance)
 
 
 @pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
-@pytest.mark.parametrize("window", [None, 5])
-def test_attention_causal_decode(dtype, tolerance, window, np_rng: np.random.Generator):
-    """A few trailing queries per segment against a longer cache: `diagonal_offset = length - queries`."""
+@pytest.mark.parametrize("keys_before", [None, 4])
+def test_attention_causal_decode(dtype, tolerance, keys_before, np_rng: np.random.Generator):
+    """A few trailing queries per segment against a longer cache: queries align to the end of the keys."""
     length, query_count, segment_count, head_count, depth = 37, 3, 2, 4, 64
     key_offsets = np.arange(segment_count + 1, dtype=np.uint32) * length
     query_offsets = np.arange(segment_count + 1, dtype=np.uint32) * query_count
@@ -155,10 +144,7 @@ def test_attention_causal_decode(dtype, tolerance, window, np_rng: np.random.Gen
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
     kv = nk.attention_pack(k, v, segment_offsets=key_offsets, depth=depth, threads=1)
-    diagonal_offset = length - query_count
-    out = nk.attention_causal_packed(
-        q, kv, query_offsets=query_offsets, diagonal_offset=diagonal_offset, window=window, threads=1
-    )
+    out = nk.attention_packed(q, kv, query_offsets=query_offsets, keys_before=keys_before, keys_after=0, threads=1)
     result = np.from_dlpack(out)
 
     rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
@@ -171,9 +157,8 @@ def test_attention_causal_decode(dtype, tolerance, window, np_rng: np.random.Gen
         head_count,
         depth,
         scale,
-        "causal",
-        diagonal_offset,
-        window,
+        keys_before,
+        0,
     )
     np.testing.assert_allclose(result, expected, atol=tolerance, rtol=tolerance)
 
@@ -193,7 +178,7 @@ def test_attention_pool(dtype, tolerance, np_rng: np.random.Generator):
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
     kv = nk.attention_pack(k, v, segment_offsets=kv_offsets, depth=depth, threads=1)
-    out = nk.attention_bidirectional_packed(q, kv, query_offsets=pool_offsets, threads=1)
+    out = nk.attention_packed(q, kv, query_offsets=pool_offsets, threads=1)
     result = np.from_dlpack(out)
 
     q_r, k_r, v_r = (np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v))
@@ -208,8 +193,7 @@ def test_attention_pool(dtype, tolerance, np_rng: np.random.Generator):
             np.testing.assert_allclose(result[segment, sl], expected, atol=tolerance, rtol=tolerance)
 
 
-@pytest.mark.parametrize("mode", ATTENTION_MODES)
-def test_attention_i8(mode, np_rng: np.random.Generator):
+def test_attention_i8(np_rng: np.random.Generator):
     """I8 contract: exact integer scores, softmax weights quantized to u8, f32 outputs.
 
     The reference uses unquantized weights, so the tolerance is the u8 quantization
@@ -226,14 +210,105 @@ def test_attention_i8(mode, np_rng: np.random.Generator):
 
     kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth, threads=0)
     rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
-    for diagonal_offset, window in mode_masks(mode):
-        out = run_attention(q, kv, offsets, mode, diagonal_offset, window, scale=scale, threads=0)
+    for keys_before, keys_after in BANDS:
+        out = nk.attention_packed(
+            q, kv, query_offsets=offsets, scale=scale, keys_before=keys_before, keys_after=keys_after, threads=0
+        )
         result = np.from_dlpack(out)
         expected = reference_attention(
-            *rounded, offsets, offsets, lengths, head_count, head_count, depth, scale, mode, diagonal_offset, window
+            *rounded, offsets, offsets, lengths, head_count, head_count, depth, scale, keys_before, keys_after
         )
         value_scale = np.abs(expected).max()
         np.testing.assert_allclose(result, expected, atol=0.02 * value_scale)
+
+
+def reference_attention_gradients(
+    q_f64,
+    k_f64,
+    v_f64,
+    output_gradient,
+    query_offsets,
+    key_offsets,
+    head_count,
+    key_value_head_count,
+    depth,
+    scale,
+    band,
+):
+    """Float64 query, key and value gradients of banded softmax attention, straight from the definition."""
+    query_gradient, key_gradient, value_gradient = np.zeros_like(q_f64), np.zeros_like(k_f64), np.zeros_like(v_f64)
+    gqa = head_count // key_value_head_count
+    for segment in range(len(key_offsets) - 1):
+        first, last = int(query_offsets[segment]), int(query_offsets[segment + 1])
+        key_first, key_last = int(key_offsets[segment]), int(key_offsets[segment + 1])
+        visible = visibility_mask(last - first, key_last - key_first, *band)
+        for head in range(head_count):
+            query_columns = slice(head * depth, (head + 1) * depth)
+            key_columns = slice(head // gqa * depth, (head // gqa + 1) * depth)
+            queries = q_f64[first:last, query_columns]
+            keys, values = k_f64[key_first:key_last, key_columns], v_f64[key_first:key_last, key_columns]
+            scores = np.where(visible, queries @ keys.T * scale, -np.inf)
+            row_max = scores.max(axis=1, keepdims=True, initial=-np.inf)
+            weights = np.where(visible, np.exp(scores - np.where(np.isfinite(row_max), row_max, 0.0)), 0.0)
+            sums = weights.sum(axis=1, keepdims=True)
+            weights = np.divide(weights, sums, out=np.zeros_like(weights), where=sums > 0)
+            gradient = output_gradient[first:last, query_columns]
+            row_dots = (gradient * (weights @ values)).sum(axis=1, keepdims=True)
+            score_gradient = weights * (gradient @ values.T - row_dots) * scale
+            query_gradient[first:last, query_columns] = score_gradient @ keys
+            key_gradient[key_first:key_last, key_columns] += score_gradient.T @ queries
+            value_gradient[key_first:key_last, key_columns] += weights.T @ gradient
+    return query_gradient, key_gradient, value_gradient
+
+
+@pytest.mark.parametrize("band", BANDS)
+def test_attention_packed_gradients(band, np_rng: np.random.Generator):
+    """BF16 gradients fed the serial forward's own output and log-sum-exp, over segments that offset
+    their queries differently, one without keys, against a float64 reference."""
+    lengths, query_counts = [40, 0, 17, 5], [40, 2, 1, 9]
+    key_offsets = np.array([0, *np.cumsum(lengths)], dtype=np.uint32)
+    query_offsets = np.array([0, *np.cumsum(query_counts)], dtype=np.uint32)
+    query_tokens, key_tokens = int(query_offsets[-1]), int(key_offsets[-1])
+    head_count, key_value_head_count, depth = 4, 2, 64
+    scale = 1.0 / np.sqrt(depth)
+    keys_before, keys_after = band
+
+    q = nk.Tensor((np_rng.standard_normal((query_tokens, head_count * depth)) * 0.3).astype(np.float32)).astype("bf16")
+    k, v = (
+        nk.Tensor((np_rng.standard_normal((key_tokens, key_value_head_count * depth)) * 0.3).astype(np.float32)).astype(
+            "bf16"
+        )
+        for _ in range(2)
+    )
+    output_gradient = (np_rng.standard_normal((query_tokens, head_count * depth)) * 0.3).astype(np.float32)
+    kv = nk.attention_pack(k, v, segment_offsets=key_offsets, depth=depth, capabilities=nk.Capability.SERIAL)
+
+    log_sum_exp = np.empty((query_tokens, head_count), dtype=np.float32)
+    out = nk.attention_packed(
+        q, kv, query_offsets=query_offsets, keys_before=keys_before, keys_after=keys_after, log_sum_exp=log_sum_exp
+    )
+    # The query gradient lands in a slice of a wider buffer, so its row stride exceeds the output's.
+    query_gradient_buffer = nk.Tensor(np.full((query_tokens, head_count * depth + 4), np.nan, dtype=np.float32))
+    gradients = nk.attention_packed_gradients(
+        q,
+        kv,
+        query_offsets=query_offsets,
+        key_offsets=key_offsets,
+        output=out,
+        output_gradient=output_gradient,
+        log_sum_exp=log_sum_exp,
+        keys_before=keys_before,
+        keys_after=keys_after,
+        query_gradient=query_gradient_buffer[:, : head_count * depth],
+        threads=0,
+    )
+    rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
+    expected = reference_attention_gradients(
+        *rounded, output_gradient, query_offsets, key_offsets, head_count, key_value_head_count, depth, scale, band
+    )
+    for result, reference in zip(gradients, expected):
+        np.testing.assert_allclose(np.from_dlpack(result), reference, atol=1e-4 * max(1.0, np.abs(reference).max()))
+    assert np.isnan(np.from_dlpack(query_gradient_buffer)[:, head_count * depth :]).all()
 
 
 def test_attention_validation():
@@ -242,13 +317,13 @@ def test_attention_validation():
     kv = nk.attention_pack(matrix, matrix, segment_offsets=offsets, depth=128, threads=1)
 
     with pytest.raises(TypeError):
-        nk.attention_bidirectional_packed(matrix, "not-packed", query_offsets=offsets)
+        nk.attention_packed(matrix, "not-packed", query_offsets=offsets)
     with pytest.raises(ValueError):  # wrong offsets length
-        nk.attention_bidirectional_packed(matrix, kv, query_offsets=np.array([0, 2, 4], dtype=np.uint32))
+        nk.attention_packed(matrix, kv, query_offsets=np.array([0, 2, 4], dtype=np.uint32))
     with pytest.raises(ValueError):  # offsets past the query token count
-        nk.attention_causal_packed(matrix, kv, query_offsets=np.array([0, 9], dtype=np.uint32))
-    with pytest.raises(TypeError):  # mask arguments belong to the causal kernel only
-        nk.attention_bidirectional_packed(matrix, kv, query_offsets=offsets, window=4)
+        nk.attention_packed(matrix, kv, query_offsets=np.array([0, 9], dtype=np.uint32), keys_after=0)
+    with pytest.raises(TypeError):  # the old diagonal and window keywords are gone
+        nk.attention_packed(matrix, kv, query_offsets=offsets, window=4)
     with pytest.raises(TypeError):  # missing depth for a 2-D input
         nk.attention_pack(matrix, matrix, segment_offsets=offsets)
 

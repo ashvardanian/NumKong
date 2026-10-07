@@ -8,17 +8,23 @@
  *  @sa include/numkong/dots/ampere.cuh
  *
  *  FlashAttention-2 on warp-level `mma.sync`: four warps own 64 rows folding the GQA group, stream
- *  K and V panels through `cp.async`, and keep a base-2 online softmax per row; items of at most 16
- *  rows split every panel across the warps instead. BF16 multiplies on BF16 MMA, E4M3 converts to
- *  F16 for F16 MMA, I8 runs exact integer MMA with U8 probabilities, and depths above 256 fall back
- *  to the @c cuda kernel. The pack layout and the work scheduler are the @c cuda capability's.
+ *  K and V panels through `cp.async`, and keep a base-2 online softmax per row; blocks of at most
+ *  16 rows split every panel across the warps instead. BF16 multiplies on BF16 MMA, E4M3 converts
+ *  to F16 for F16 MMA, I8 runs exact integer MMA with U8 probabilities, and depths above 256 fall
+ *  back to the @c cuda kernel. The pack layout and the work scheduler are the @c cuda capability's.
+ *
+ *  The BF16 backward is FlashAttention-2's on the same MMAs, recomputing P from the log-sum-exp:
+ *  blocks of 64 keys accumulate dK and dV over the rows that see them, then blocks of 64 rows
+ *  accumulate dQ over their keys, both in registers and without atomics, 128 gradient columns at a
+ *  time: heads past 128 dimensions recompute S and dP for each slice. Heads past 256, or past the
+ *  device's shared memory, run the @c cuda loops.
  */
 #ifndef NUMKONG_ATTENTION_AMPERE_CUH
 #define NUMKONG_ATTENTION_AMPERE_CUH
 
 #if NUMKONG_ARCH_CUDA_AMPERE_
 
-#include "numkong/attention/cuda.cuh" // `nk_attention_schedule_next_`, `nk_attention_fallback_`
+#include "numkong/attention/cuda.cuh" // `nk_attention_schedule_next_cuda_`, `nk_attention_fallback_cuda_`
 #include "numkong/dots/ampere.cuh" // `nk_mma_bf16_ampere_`, `nk_load_matrices_x4_ampere_`, `nk_copy_b128_async_ampere_`
 #include "numkong/cast/ampere.cuh" // `nk_f32x2_to_bf16x2_ampere_`, `nk_f32x2_to_f16x2_ampere_`
 
@@ -61,6 +67,12 @@ NUMKONG_DEVICE void nk_attention_scores_bf16_ampere_(nk_fui32_t scores[2][4], nk
                                                      nk_u32_t const keys[4]) {
     nk_mma_bf16_ampere_(scores[0], query, keys[0], keys[1]);
     nk_mma_bf16_ampere_(scores[1], query, keys[2], keys[3]);
+}
+
+NUMKONG_DEVICE void nk_attention_scores_f16_ampere_(nk_fui32_t scores[2][4], nk_u32_t const query[8],
+                                                    nk_u32_t const keys[4]) {
+    nk_mma_f16_ampere_(scores[0], query, keys[0], keys[1]);
+    nk_mma_f16_ampere_(scores[1], query, keys[2], keys[3]);
 }
 
 /** Converts K to F16 as the E4M3 dots do, in the order @c nk_attention_query_ampere_ gives Q. */
@@ -116,6 +128,15 @@ NUMKONG_DEVICE void nk_attention_weights_f16_ampere_(nk_f32_t const probabilitie
                 __half2float(__ushort_as_half((unsigned short)(packed[word] >> 16)));
 }
 
+/** The sum @p weights adds for a probability of one, the unit a row's weights sum counts in. */
+NUMKONG_DEVICE nk_f32_t nk_attention_weight_unit_ampere_(nk_attention_weights_ampere_t weights) {
+    nk_f32_t const probabilities[4] = {1, 0, 0, 0};
+    nk_u32_t packed[2];
+    nk_f32_t unit = 0;
+    weights(probabilities, packed, &unit);
+    return unit;
+}
+
 /** U8 weights round(255 · p), the max-scoring position landing on 255. */
 NUMKONG_DEVICE void nk_attention_weights_u8_ampere_(nk_f32_t const probabilities[4], nk_u32_t packed[2],
                                                     nk_f32_t *sum) {
@@ -164,10 +185,12 @@ NUMKONG_DEVICE void nk_attention_stage_columns_ampere_(unsigned char *shared, un
 /**
  *  @brief One work item on one block: scores, online softmax and P · V over every panel its rows
  *      see, then the output.
- *  @param[in] dtype The input dtype: @c nk_bf16_k, @c nk_e4m3_k or @c nk_i8_k.
+ *  @param[in] dtype The input dtype: @c nk_bf16_k, @c nk_f16_k, @c nk_e4m3_k or @c nk_i8_k.
  *  @param[in] mma_dtype The dtype the MMAs consume: @c nk_f16_k for E4M3 converted first, else
  *      @p dtype.
  *  @param[in] width Panel width and where Q fragments live, see @c nk_attention_width_t.
+ *  @param[in] mask Whether chunks crossing the band's edges mask their scores, see
+ *      @c nk_attention_mask_t; chunks past the segment's keys always do.
  *  @param[in] split Whether warps own rows or positions, see @c nk_attention_split_t.
  *  @param[in] epilogue F32 scores and P · V sums, or exact I32 ones converted per panel.
  *  @param[in] scores One depth step of S, see @c nk_attention_scores_ampere_t.
@@ -175,16 +198,15 @@ NUMKONG_DEVICE void nk_attention_stage_columns_ampere_(unsigned char *shared, un
  *  @param[in] weights P from probabilities, see @c nk_attention_weights_ampere_t.
  */
 NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
-                                               nk_attention_split_t split, nk_cross_epilogue_t epilogue,
-                                               nk_attention_scores_ampere_t scores, nk_cross_mma_ampere_t values_mma,
-                                               nk_attention_weights_ampere_t weights,
+                                               nk_attention_mask_t mask, nk_attention_split_t split,
+                                               nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
+                                               nk_cross_mma_ampere_t values_mma, nk_attention_weights_ampere_t weights,
                                                nk_attention_arguments_t const *arguments,
-                                               nk_attention_work_t const *work, unsigned char *shared,
-                                               unsigned (*unions)[2]) {
+                                               nk_attention_work_t const *work, unsigned char *shared) {
 
     nk_f32_t const negative_infinity = nk_attention_negative_infinity_();
     unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
-    unsigned const element_bytes = dtype == nk_bf16_k ? 2 : 1;
+    unsigned const element_bytes = nk_attention_element_bytes_(dtype);
     unsigned const panel = split == nk_attention_split_positions_k || width == nk_attention_width_128_k
                                ? nk_attention_panel_k
                                : nk_attention_wide_panel_ampere_k;
@@ -202,7 +224,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
     unsigned const row_stride = row_bytes + nk_attention_row_padding_ampere_k;
     unsigned const depth_steps = row_bytes / nk_attention_step_bytes_k;
     unsigned const depth_padded = row_bytes / element_bytes, depth_tiles = depth_padded / 8;
-    unsigned const value_stride = dtype == nk_bf16_k ? row_stride : panel + nk_attention_row_padding_ampere_k;
+    unsigned const value_stride = element_bytes == 2 ? row_stride : panel + nk_attention_row_padding_ampere_k;
     unsigned char *keys_shared = shared + arguments->key_offset[split];
     unsigned char *values_shared = shared + arguments->value_offset[split];
     unsigned char *queries_shared = shared + arguments->query_offset[split];
@@ -212,61 +234,27 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
     unsigned char const *values_plane = keys_plane + arguments->key_value_head_count * plane_bytes;
     nk_size_t const positions_padded = plane_bytes / row_bytes;
 
-    // Each thread holds rows `group` and `group + 8` of its warp's 16.
-    unsigned key_begin[2], key_end[2];
-    unsigned union_begin = 0xFFFFFFFFu, union_end = 0, common_begin = 0, common_end = 0xFFFFFFFFu;
-#pragma unroll
-    for (unsigned half = 0; half < 2; ++half) {
-        unsigned const local = warp_row_base + group + half * 8;
-        key_begin[half] = key_end[half] = 0;
-        if (local >= work->row_count) continue;
-        nk_size_t const query = (work->row_first + local) / work->heads_selected;
-        nk_attention_row_keys_((nk_i64_t)query + arguments->diagonal_offset, arguments->window, length,
-                               &key_begin[half], &key_end[half]);
-        common_begin = max(common_begin, key_begin[half]), common_end = min(common_end, key_end[half]);
-        if (key_begin[half] < key_end[half])
-            union_begin = min(union_begin, key_begin[half]), union_end = max(union_end, key_end[half]);
-    }
-#pragma unroll
-    for (unsigned offset = 1; offset < 32; offset <<= 1) {
-        union_begin = min(union_begin, __shfl_xor_sync(0xFFFFFFFFu, union_begin, offset));
-        union_end = max(union_end, __shfl_xor_sync(0xFFFFFFFFu, union_end, offset));
-        common_begin = max(common_begin, __shfl_xor_sync(0xFFFFFFFFu, common_begin, offset));
-        common_end = min(common_end, __shfl_xor_sync(0xFFFFFFFFu, common_end, offset));
-    }
-    if (lane == 0) unions[warp][0] = union_begin, unions[warp][1] = union_end;
-    // Also retires the previous item's reads of every buffer this item refills.
+    // A thread holds rows `group` and `group + 8` of its warp's 16, which classify chunks jointly.
+    nk_diagonal_band_t const band = nk_attention_kernel_band_(mask, arguments);
+    unsigned const warp_rows = work->row_count > warp_row_base ? min((unsigned)work->row_count - warp_row_base, 16u)
+                                                               : 0;
+    nk_i64_t const warp_first = nk_attention_row_position_(work, warp_row_base, length);
+    nk_size_t block_begin, block_end;
+    nk_attention_rows_keys_(band, nk_attention_row_position_(work, 0, length),
+                            nk_attention_row_position_(work, work->row_count - 1, length), length, &block_begin,
+                            &block_end);
+    unsigned const panel_first = (unsigned)(block_begin / panel);
+    unsigned const panel_end = block_begin < block_end ? (unsigned)nk_size_divide_round_up_(block_end, panel)
+                                                       : panel_first;
+    // Retires the previous item's reads of every buffer this item refills.
     __syncthreads();
-    unsigned block_begin = unions[0][0], block_end = unions[0][1];
-#pragma unroll
-    for (unsigned other = 1; other < 4; ++other)
-        block_begin = min(block_begin, unions[other][0]), block_end = max(block_end, unions[other][1]);
-    unsigned const panel_first = block_begin < block_end ? block_begin / panel : 0;
-    unsigned const panel_end = block_begin < block_end ? (unsigned)nk_size_divide_round_up_(block_end, panel) : 0;
 
     if (panel_first < panel_end)
         nk_attention_stage_rows_ampere_(keys_shared, keys_plane, (nk_size_t)panel_first * panel, panel, row_bytes);
     nk_commit_async_ampere_();
 
-    for (unsigned local = warp; local < block_rows; local += 4) {
-        unsigned char *destination = queries_shared + local * row_stride;
-        int const valid = local < work->row_count;
-        unsigned char const *source = arguments->queries;
-        if (valid) {
-            nk_size_t const row = work->row_first + local;
-            nk_size_t const query = row / work->heads_selected;
-            nk_size_t const head = work->head_first + row % work->heads_selected;
-            source += (work->query_first + query) * arguments->query_stride + head * depth * element_bytes;
-        }
-        if (dtype == nk_bf16_k)
-            for (unsigned element = lane; element < depth_padded; element += 32)
-                ((unsigned short *)destination)[element] = valid && element < depth
-                                                               ? ((unsigned short const *)source)[element]
-                                                               : (unsigned short)0;
-        else
-            for (unsigned element = lane; element < depth_padded; element += 32)
-                destination[element] = valid && element < depth ? source[element] : (unsigned char)0;
-    }
+    nk_attention_stage_queries_(dtype, arguments, work, queries_shared, block_rows, row_stride, depth_padded,
+                                nk_warp_lanes_cuda_());
     __syncthreads();
 
     nk_u32_t query_registers[nk_attention_query_steps_ampere_k][8];
@@ -298,7 +286,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
         // K has landed, and every warp is done with the V buffer this refills.
         __syncthreads();
         nk_size_t const panel_position = (nk_size_t)panel_index * panel;
-        if (dtype == nk_bf16_k)
+        if (element_bytes == 2)
             nk_attention_stage_rows_ampere_(values_shared, values_plane, panel_position, panel, row_bytes);
         else
             nk_attention_stage_columns_ampere_(values_shared, values_plane, positions_padded, panel_position, panel,
@@ -306,8 +294,10 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
         nk_commit_async_ampere_();
 
         unsigned const chunk_begin = (unsigned)panel_position + chunk_offset;
-        unsigned const chunk_end = chunk_begin + groups * nk_attention_group_ampere_k;
-        int const active = chunk_begin < union_end && union_begin < chunk_end;
+        unsigned const chunk_keys = groups * nk_attention_group_ampere_k;
+        nk_diagonal_band_coverage_t const coverage = nk_attention_tile_coverage_(band, warp_first, warp_rows,
+                                                                                 chunk_begin, chunk_keys, length);
+        int const active = coverage != nk_diagonal_band_outside_k;
         nk_u32_t probabilities[4][4];
         nk_f32_t correction[2] = {1.0f, 1.0f};
         if (active) {
@@ -360,15 +350,24 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
                                                         ? (nk_f32_t)tile_scores[tile][element].i
                                                         : tile_scores[tile][element].f) *
                                                    scale2;
-            // Padded tails and causal edges fall outside some row's keys; whole chunks inside every row skip this.
-            if (!(common_begin <= chunk_begin && chunk_end <= common_end)) {
+            if (coverage == nk_diagonal_band_crossing_k) {
+                nk_u32_t visible[2][2] = {{0, 0}, {0, 0}};
+#pragma unroll
+                for (unsigned half = 0; half < 2; ++half) {
+                    unsigned const local = warp_row_base + group + half * 8;
+                    if (local >= work->row_count) continue;
+                    nk_i64_t const row = nk_attention_row_position_(work, local, length);
+#pragma unroll
+                    for (unsigned word = 0; word * 32 < chunk_keys; ++word)
+                        visible[half][word] = nk_diagonal_band_row_mask_simt_(band, row, chunk_begin + word * 32,
+                                                                              length);
+                }
 #pragma unroll
                 for (unsigned tile = 0; tile < 2 * groups; ++tile)
 #pragma unroll
                     for (unsigned element = 0; element < 4; ++element) {
-                        unsigned const position = chunk_begin + tile * 8 + quad * 2 + (element & 1);
-                        unsigned const half = element >> 1;
-                        if (position < key_begin[half] || position >= key_end[half])
+                        unsigned const offset = tile * 8 + quad * 2 + (element & 1);
+                        if (!((visible[element >> 1][offset >> 5] >> (offset & 31)) & 1))
                             tile_scores[tile][element].f = negative_infinity;
                     }
             }
@@ -385,7 +384,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
                 nk_f32_t const new_max = fmaxf(row_max[half], chunk_max);
                 // With every key so far masked, subtracting 0 keeps `exp2(-∞ - max)` from turning into NaN.
                 subtrahend[half] = new_max == negative_infinity ? 0.0f : new_max;
-                correction[half] = nk_f32_exp2_(row_max[half] - subtrahend[half]);
+                correction[half] = nk_f32_exp2_cuda_(row_max[half] - subtrahend[half]);
                 row_max[half] = new_max;
                 row_sum[half] *= correction[half];
             }
@@ -393,8 +392,8 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
             for (unsigned tile = 0; tile < 2 * groups; ++tile)
 #pragma unroll
                 for (unsigned element = 0; element < 4; ++element)
-                    tile_scores[tile][element].f = nk_f32_exp2_(tile_scores[tile][element].f -
-                                                                subtrahend[element >> 1]);
+                    tile_scores[tile][element].f = nk_f32_exp2_cuda_(tile_scores[tile][element].f -
+                                                                     subtrahend[element >> 1]);
 #pragma unroll
             for (unsigned position_group = 0; position_group < groups; ++position_group)
 #pragma unroll
@@ -405,13 +404,13 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
                                               tile_scores[position_group * 2 + 1][half * 2 + 1].f};
                     nk_u32_t packed[2];
                     weights(four, packed, &row_sum[half]);
-                    if (dtype != nk_bf16_k && mma_dtype == dtype)
+                    if (element_bytes == 1 && mma_dtype == dtype)
                         probabilities[position_group >> 1][(position_group & 1) * 2 + half] = packed[0];
                     else
                         probabilities[position_group][half] = packed[0],
                         probabilities[position_group][half + 2] = packed[1];
                 }
-            if (dtype != nk_bf16_k && mma_dtype == dtype && groups == 1) probabilities[0][2] = probabilities[0][3] = 0;
+            if (element_bytes == 1 && mma_dtype == dtype && groups == 1) probabilities[0][2] = probabilities[0][3] = 0;
             if (epilogue == nk_cross_epilogue_f32_k) {
 #pragma unroll
                 for (unsigned tile = 0; tile < max_tiles; ++tile)
@@ -430,7 +429,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
         nk_commit_async_ampere_();
         if (!active) continue;
 
-        if (dtype == nk_bf16_k) {
+        if (element_bytes == 2) {
 #pragma unroll
             for (unsigned pair = 0; pair < max_tiles / 2; ++pair) {
                 if (pair * 2 >= depth_tiles) continue;
@@ -554,8 +553,9 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
 #pragma unroll
         for (unsigned half = 0; half < 2; ++half) {
             subtrahend[half] = merged_max[half] == negative_infinity ? 0.0f : merged_max[half];
-            own_factor[half] = nk_f32_exp2_(row_max[half] - subtrahend[half]);
+            own_factor[half] = nk_f32_exp2_cuda_(row_max[half] - subtrahend[half]);
             row_sum[half] *= own_factor[half];
+            row_max[half] = merged_max[half];
         }
 #pragma unroll
         for (unsigned tile = 0; tile < max_tiles; ++tile)
@@ -566,7 +566,8 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
             nk_f32_t factor[2];
 #pragma unroll
             for (unsigned half = 0; half < 2; ++half) {
-                factor[half] = nk_f32_exp2_(statistics[((other * 2 + half) * 2 + 0) * 32 + lane] - subtrahend[half]);
+                factor[half] = nk_f32_exp2_cuda_(statistics[((other * 2 + half) * 2 + 0) * 32 + lane] -
+                                                 subtrahend[half]);
                 row_sum[half] += statistics[((other * 2 + half) * 2 + 1) * 32 + lane] * factor[half];
             }
 #pragma unroll
@@ -584,12 +585,7 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
     for (unsigned half = 0; half < 2; ++half) {
         unsigned const local = warp_row_base + group + half * 8;
         if (local >= work->row_count) continue;
-        nk_size_t const row = work->row_first + local;
-        nk_size_t const query = row / work->heads_selected;
-        nk_size_t const head = work->head_first + row % work->heads_selected;
-        nk_f32_t *destination = (nk_f32_t *)((unsigned char *)arguments->output +
-                                             (work->query_first + query) * arguments->output_stride) +
-                                head * depth;
+        nk_f32_t *destination = nk_attention_output_row_(arguments, work, local);
         nk_f32_t const inverse = row_sum[half] > 0 ? arguments->output_scale / row_sum[half] : 0.0f;
 #pragma unroll
         for (unsigned tile = 0; tile < max_tiles; ++tile)
@@ -598,55 +594,494 @@ NUMKONG_DEVICE void nk_attention_block_ampere_(nk_dtype_t dtype, nk_dtype_t mma_
                 unsigned const column = tile * 8 + quad * 2 + element;
                 if (column < depth) destination[column] = output[tile][half * 2 + element].f * inverse;
             }
+        nk_f32_t *const log_sum_exp_slot = quad == 0 ? nk_attention_log_sum_exp_slot_(arguments, work, local)
+                                                     : NUMKONG_NULL;
+        if (log_sum_exp_slot)
+            *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(row_max[half], row_sum[half],
+                                                               nk_attention_weight_unit_ampere_(weights));
     }
 }
 
 /**
- *  @brief Every work item of a launch, walked with a stride of the grid, each on the split its row
- *      count calls for.
+ *  @brief Every work item of a launch, walked with a stride of the grid, each on the split the row
+ *      count of its block calls for.
  *  @sa nk_attention_block_ampere_ for the parameters.
  */
 NUMKONG_DEVICE void nk_attention_tile_mma_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype, nk_attention_width_t width,
-                                                  nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
-                                                  nk_cross_mma_ampere_t values_mma,
+                                                  nk_attention_mask_t mask, nk_cross_epilogue_t epilogue,
+                                                  nk_attention_scores_ampere_t scores, nk_cross_mma_ampere_t values_mma,
                                                   nk_attention_weights_ampere_t weights,
                                                   nk_attention_arguments_t const *arguments) {
     extern __shared__ __align__(128) unsigned char nk_attention_shared_ampere_[];
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
-    __shared__ unsigned unions[nk_attention_threads_k / 32][2];
     nk_attention_schedule_t schedule;
-    if (!nk_attention_schedule_start_(arguments, &schedule, prefix, warp_totals)) return;
+    if (!nk_attention_schedule_start_cuda_(arguments, &schedule, prefix, warp_totals)) return;
     nk_attention_work_t work;
-    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_(&schedule, prefix, warp_totals, item, &work);
+    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_cuda_(&schedule, prefix, warp_totals, item, &work);
          item += gridDim.x) {
-        if (work.row_count <= nk_attention_warp_rows_ampere_k)
-            nk_attention_block_ampere_(dtype, mma_dtype, width, nk_attention_split_positions_k, epilogue, scores,
-                                       values_mma, weights, arguments, &work, nk_attention_shared_ampere_, unions);
+        // The whole block's rows pick the split, so a window that cuts the block splits it alike.
+        nk_size_t const block_first = work.row_first / nk_attention_block_rows_k * nk_attention_block_rows_k;
+        if (work.query_count * work.heads_selected - block_first <= nk_attention_warp_rows_ampere_k)
+            nk_attention_block_ampere_(dtype, mma_dtype, width, mask, nk_attention_split_positions_k, epilogue, scores,
+                                       values_mma, weights, arguments, &work, nk_attention_shared_ampere_);
         else
-            nk_attention_block_ampere_(dtype, mma_dtype, width, nk_attention_split_rows_k, epilogue, scores, values_mma,
-                                       weights, arguments, &work, nk_attention_shared_ampere_, unions);
+            nk_attention_block_ampere_(dtype, mma_dtype, width, mask, nk_attention_split_rows_k, epilogue, scores,
+                                       values_mma, weights, arguments, &work, nk_attention_shared_ampere_);
     }
 }
 
 /** The tile on MMAs of the input dtype itself. */
-NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_dtype_t dtype, nk_attention_width_t width,
+NUMKONG_DEVICE void nk_attention_tile_ampere_(nk_dtype_t dtype, nk_attention_width_t width, nk_attention_mask_t mask,
                                               nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
                                               nk_cross_mma_ampere_t values_mma, nk_attention_weights_ampere_t weights,
                                               nk_attention_arguments_t const *arguments) {
-    nk_attention_tile_mma_ampere_(dtype, dtype, width, epilogue, scores, values_mma, weights, arguments);
+    nk_attention_tile_mma_ampere_(dtype, dtype, width, mask, epilogue, scores, values_mma, weights, arguments);
 }
 
 /** The tile on F16 MMAs, for E4M3 converted to F16 first. */
 NUMKONG_DEVICE void nk_attention_tile_ampere_f16_mma_(nk_dtype_t dtype, nk_attention_width_t width,
-                                                      nk_cross_epilogue_t epilogue, nk_attention_scores_ampere_t scores,
+                                                      nk_attention_mask_t mask, nk_cross_epilogue_t epilogue,
+                                                      nk_attention_scores_ampere_t scores,
                                                       nk_cross_mma_ampere_t values_mma,
                                                       nk_attention_weights_ampere_t weights,
                                                       nk_attention_arguments_t const *arguments) {
-    nk_attention_tile_mma_ampere_(dtype, nk_f16_k, width, epilogue, scores, values_mma, weights, arguments);
+    nk_attention_tile_mma_ampere_(dtype, nk_f16_k, width, mask, epilogue, scores, values_mma, weights, arguments);
 }
 
 #pragma endregion Tile
+
+#pragma region Backward
+
+enum {
+    // Deepest BF16 head the backward runs on tensor cores; deeper ones take the @c cuda kernels.
+    nk_attention_backward_depth_ampere_k = 256,
+    // Gradient columns a warp accumulates in registers at once; deeper heads take slices of them,
+    // recomputing S and dP for each.
+    nk_attention_backward_slice_ampere_k = 128,
+};
+
+/** Bytes of dynamic shared memory the launch gave this block, which tells the backward kernels
+ *  whether their launcher picked the tensor-core path. */
+NUMKONG_DEVICE nk_u32_t nk_dynamic_shared_bytes_ampere_(void) {
+    nk_u32_t bytes;
+    asm("mov.u32 %0, %%dynamic_smem_size;" : "=r"(bytes));
+    return bytes;
+}
+
+/** Per-row state of the folded rows a backward block holds, at most 128. */
+typedef struct {
+    nk_f32_t log_sum_exp2[128];
+
+    /** D = dO · O, the softmax gradient's row offset. */
+    nk_f32_t dot[128];
+    unsigned key_begin[128];
+    unsigned key_end[128];
+} nk_attention_backward_rows_ampere_t;
+
+/** Shared memory of a backward block: 64-row panels of K, V, Q and dO, then the rows' state. */
+NUMKONG_INLINE nk_size_t nk_attention_backward_shared_ampere_(nk_size_t depth) {
+    nk_size_t const row_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_bf16_t), nk_attention_step_bytes_k) +
+                                 nk_attention_row_padding_ampere_k;
+    return 4 * nk_attention_panel_k * row_stride + sizeof(nk_attention_backward_rows_ampere_t);
+}
+
+/**
+ *  @brief Stages @p rows folded rows of @p task from @p first, its query heads interleaved per
+ *      query: Q and dO as BF16 in @p chunks 16-byte chunks per row, zero past the head, and each
+ *      row's state, the rows past the task seeing no keys.
+ *  @param[in] block_bytes Bytes of a 128-byte column block of the 128-byte swizzle the chunks land
+ *      in, or 0 for plain rows @p row_stride bytes apart.
+ *  @param[in] warp This warp's index among the @p warps that stage.
+ */
+NUMKONG_DEVICE void nk_attention_backward_stage_rows_ampere_(
+    nk_attention_backward_arguments_t const *arguments, nk_attention_backward_task_t const *task, nk_size_t first,
+    unsigned rows, unsigned chunks, unsigned block_bytes, unsigned row_stride, unsigned char *queries_shared,
+    unsigned char *gradients_shared, nk_attention_backward_rows_ampere_t *state, unsigned warp, unsigned warps) {
+    // Each warp keeps four rows' loads in flight, a lane taking four adjacent elements of each row.
+    enum { rows_in_flight = 4 };
+    unsigned const lane = threadIdx.x & 31;
+    nk_size_t const depth = arguments->depth, group = arguments->head_count / arguments->key_value_head_count;
+    for (unsigned base = warp * rows_in_flight; base < rows; base += warps * rows_in_flight) {
+        nk_size_t queries[rows_in_flight], tokens[rows_in_flight], heads[rows_in_flight];
+        nk_u16_t const *query_rows[rows_in_flight];
+        nk_f32_t const *output_rows[rows_in_flight], *gradient_rows[rows_in_flight];
+        nk_f32_t dots[rows_in_flight];
+        int lives[rows_in_flight];
+#pragma unroll
+        for (unsigned row = 0; row < rows_in_flight; ++row) {
+            nk_size_t const folded = first + base + row;
+            queries[row] = folded / group, lives[row] = base + row < rows && queries[row] < task->rows;
+            tokens[row] = arguments->query_offsets[task->segment] + queries[row];
+            heads[row] = task->key_value_head * group + folded % group;
+            query_rows[row] = (nk_u16_t const *)(arguments->queries + tokens[row] * arguments->query_stride) +
+                              heads[row] * depth;
+            nk_size_t const offset = tokens[row] * arguments->output_stride;
+            output_rows[row] = (nk_f32_t const *)((unsigned char const *)arguments->output + offset) +
+                               heads[row] * depth;
+            gradient_rows[row] = (nk_f32_t const *)((unsigned char const *)arguments->output_gradient + offset) +
+                                 heads[row] * depth;
+            dots[row] = 0;
+        }
+        for (unsigned step = 0; step < chunks * 8; step += 128) {
+            unsigned const element_first = step + lane * 4;
+            nk_u32_t query_words[rows_in_flight][2];
+            nk_f32_t gradients[rows_in_flight][4];
+#pragma unroll
+            for (unsigned row = 0; row < rows_in_flight; ++row)
+#pragma unroll
+                for (unsigned index = 0; index < 4; ++index) {
+                    nk_size_t const element = element_first + index;
+                    int const inside = lives[row] && element < depth;
+                    nk_u32_t const query = inside ? query_rows[row][element] : 0u;
+                    gradients[row][index] = inside ? gradient_rows[row][element] : 0.0f;
+                    dots[row] = fmaf(gradients[row][index], inside ? output_rows[row][element] : 0.0f, dots[row]);
+                    if (index & 1) query_words[row][index / 2] |= query << 16;
+                    else query_words[row][index / 2] = query;
+                }
+            if (element_first >= chunks * 8) continue;
+#pragma unroll
+            for (unsigned row = 0; row < rows_in_flight; ++row) {
+                if (base + row >= rows) continue;
+                unsigned const local = base + row, byte = element_first * 2;
+                unsigned const destination = block_bytes ? nk_swizzled_panel_offset_(local, byte, 128, block_bytes)
+                                                         : local * row_stride + byte;
+                *(uint2 *)(queries_shared + destination) = make_uint2(query_words[row][0], query_words[row][1]);
+                *(uint2 *)(gradients_shared + destination) = make_uint2(
+                    nk_f32x2_to_bf16x2_ampere_(gradients[row][0], gradients[row][1]),
+                    nk_f32x2_to_bf16x2_ampere_(gradients[row][2], gradients[row][3]));
+            }
+        }
+#pragma unroll
+        for (unsigned row = 0; row < rows_in_flight; ++row)
+            for (unsigned offset = 16; offset != 0; offset >>= 1)
+                dots[row] += __shfl_xor_sync(0xFFFFFFFFu, dots[row], offset);
+        if (lane != 0) continue;
+#pragma unroll
+        for (unsigned row = 0; row < rows_in_flight; ++row) {
+            if (base + row >= rows) continue;
+            unsigned const local = base + row;
+            nk_size_t key_begin = 0, key_end = 0;
+            if (lives[row])
+                nk_diagonal_band_row_range_simt_(arguments->band, task->first_band_row + (nk_i64_t)queries[row],
+                                                 task->length, &key_begin, &key_end);
+            state->log_sum_exp2[local] =
+                lives[row]
+                    ? arguments->log_sum_exp[tokens[row] * arguments->head_count + heads[row]] * NUMKONG_F32_LOG2E_
+                    : 0.0f;
+            state->dot[local] = dots[row];
+            state->key_begin[local] = (unsigned)key_begin, state->key_end[local] = (unsigned)key_end;
+        }
+    }
+}
+
+/** The keys the folded rows from @p first to @p last see together. */
+NUMKONG_DEVICE void nk_attention_backward_span_ampere_(nk_attention_backward_arguments_t const *arguments,
+                                                       nk_attention_backward_task_t const *task, nk_size_t first,
+                                                       nk_size_t last, nk_size_t *key_begin, nk_size_t *key_end) {
+    nk_size_t const group = arguments->head_count / arguments->key_value_head_count;
+    nk_attention_rows_keys_(arguments->band, task->first_band_row + (nk_i64_t)(first / group),
+                            task->first_band_row + (nk_i64_t)(last / group), task->length, key_begin, key_end);
+}
+
+/** P = 2^(S · scale₂ − lse₂) and dS = P · (dP − D) of one 16 × 16 fragment pair, @p transposed when
+ *  rows run along the fragments' columns, packed into BF16 A fragments; positions a row does not
+ *  see weigh 0. */
+NUMKONG_DEVICE void nk_attention_backward_weights_ampere_(nk_fui32_t const scores[2][4],
+                                                          nk_fui32_t const weight_gradients[2][4],
+                                                          nk_attention_backward_rows_ampere_t const *rows,
+                                                          unsigned row_first, unsigned position_first, int transposed,
+                                                          nk_f32_t scale2, nk_u32_t weights[4],
+                                                          nk_u32_t score_gradients[4]) {
+    unsigned const lane = threadIdx.x & 31, fragment_row = lane >> 2, quad = lane & 3;
+    nk_f32_t weight[2][4], score_gradient[2][4];
+#pragma unroll
+    for (unsigned tile = 0; tile < 2; ++tile)
+#pragma unroll
+        for (unsigned element = 0; element < 4; ++element) {
+            unsigned const across = fragment_row + (element >> 1) * 8, along = tile * 8 + quad * 2 + (element & 1);
+            unsigned const local = row_first + (transposed ? along : across);
+            unsigned const position = position_first + (transposed ? across : along);
+            int const visible = position >= rows->key_begin[local] && position < rows->key_end[local];
+            weight[tile][element] =
+                visible ? nk_f32_exp2_cuda_(scores[tile][element].f * scale2 - rows->log_sum_exp2[local]) : 0.0f;
+            score_gradient[tile][element] = weight[tile][element] *
+                                            (weight_gradients[tile][element].f - rows->dot[local]);
+        }
+#pragma unroll
+    for (unsigned tile = 0; tile < 2; ++tile)
+#pragma unroll
+        for (unsigned half = 0; half < 2; ++half) {
+            weights[tile * 2 + half] = nk_f32x2_to_bf16x2_ampere_(weight[tile][half * 2], weight[tile][half * 2 + 1]);
+            score_gradients[tile * 2 + half] = nk_f32x2_to_bf16x2_ampere_(score_gradient[tile][half * 2],
+                                                                          score_gradient[tile][half * 2 + 1]);
+        }
+}
+
+/** The key and value gradients of every task of the window, a block per 64 keys: each warp owns 16
+ *  keys and walks the 64-row chunks of folded rows that see any of the block's keys, accumulating
+ *  dV += Pᵀ · dO and dK += dSᵀ · Q in registers a slice of columns at a time and writing each of
+ *  them once at the end. */
+NUMKONG_DEVICE void nk_attention_backward_keys_ampere_(nk_attention_backward_arguments_t const *arguments) {
+    extern __shared__ __align__(128) unsigned char nk_attention_shared_ampere_[];
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, fragment_row = lane >> 2, quad = lane & 3;
+    // `ldmatrix.x4` lanes: an A fragment or a transposed B pair, then a B pair.
+    unsigned const a_row = (lane & 7) + ((lane >> 3) & 1) * 8, a_column = (lane >> 4) * 16;
+    unsigned const b_row = (lane & 7) + (lane >> 4) * 8, b_column = ((lane >> 3) & 1) * 16;
+    enum { max_tiles = nk_attention_backward_slice_ampere_k / 8 };
+
+    nk_size_t const depth = arguments->depth, group = arguments->head_count / arguments->key_value_head_count;
+    unsigned const row_bytes = (unsigned)nk_size_round_up_to_multiple_(depth * 2, nk_attention_step_bytes_k);
+    unsigned const row_stride = row_bytes + nk_attention_row_padding_ampere_k;
+    unsigned const depth_steps = row_bytes / nk_attention_step_bytes_k, depth_tiles = row_bytes / 16;
+    unsigned const slices = nk_u32_divide_round_up_(depth_tiles, max_tiles);
+    unsigned char *keys_shared = nk_attention_shared_ampere_;
+    unsigned char *values_shared = keys_shared + nk_attention_panel_k * row_stride;
+    unsigned char *queries_shared = values_shared + nk_attention_panel_k * row_stride;
+    unsigned char *gradients_shared = queries_shared + nk_attention_panel_k * row_stride;
+    nk_attention_backward_rows_ampere_t *rows =
+        (nk_attention_backward_rows_ampere_t *)(gradients_shared + nk_attention_panel_k * row_stride);
+    nk_size_t const gradient_floats = arguments->key_value_gradient_stride / sizeof(nk_f32_t);
+
+    // Blocks take every grid-th 64-key block of the window's tasks in turn.
+    nk_size_t segment_first = arguments->task_begin / arguments->key_value_head_count, items_before = 0;
+    nk_size_t task_index, block;
+    for (nk_size_t item = blockIdx.x; nk_attention_backward_next_cuda_(
+             arguments, 1, nk_attention_panel_k, &segment_first, &items_before, item, &task_index, &block);
+         item += gridDim.x) {
+        nk_attention_backward_task_t const task = nk_attention_backward_task_(arguments, task_index, row_bytes);
+        nk_size_t const folded_rows = group * task.rows;
+        unsigned const key_first = (unsigned)block * nk_attention_panel_k;
+        nk_wait_async_ampere_(0);
+        // Every warp is done with the previous block's panels.
+        __syncthreads();
+        nk_attention_stage_rows_ampere_(keys_shared, task.keys_plane, key_first, nk_attention_panel_k, row_bytes);
+        nk_attention_stage_rows_ampere_(values_shared, task.values_plane, key_first, nk_attention_panel_k, row_bytes);
+        nk_commit_async_ampere_();
+
+        for (unsigned slice = 0; slice < slices; ++slice) {
+            unsigned const pair_first = slice * max_tiles / 2;
+            nk_fui32_t key_gradient[max_tiles][4], value_gradient[max_tiles][4];
+#pragma unroll
+            for (unsigned tile = 0; tile < max_tiles; ++tile)
+#pragma unroll
+                for (unsigned element = 0; element < 4; ++element)
+                    key_gradient[tile][element].u = 0, value_gradient[tile][element].u = 0;
+
+            for (nk_size_t first = 0; first < folded_rows; first += nk_attention_panel_k) {
+                nk_size_t const last =
+                    (first + nk_attention_panel_k < folded_rows ? first + nk_attention_panel_k : folded_rows) - 1;
+                nk_size_t span_begin, span_end;
+                nk_attention_backward_span_ampere_(arguments, &task, first, last, &span_begin, &span_end);
+                if (span_begin >= key_first + nk_attention_panel_k || span_end <= key_first) continue;
+                // Every warp is done with the previous chunk's rows.
+                __syncthreads();
+                nk_attention_backward_stage_rows_ampere_(arguments, &task, first, nk_attention_panel_k, row_bytes / 16,
+                                                         0, row_stride, queries_shared, gradients_shared, rows, warp,
+                                                         blockDim.x >> 5);
+                nk_wait_async_ampere_(0);
+                __syncthreads();
+
+                for (unsigned row_group = 0; row_group < nk_attention_panel_k / 16; ++row_group) {
+                    if (first + row_group * 16 >= folded_rows) break;
+                    // Sᵀ = K · Qᵀ and dPᵀ = V · dOᵀ over the full depth, keys on fragment rows.
+                    nk_fui32_t scores[2][4], weight_gradients[2][4];
+#pragma unroll
+                    for (unsigned tile = 0; tile < 2; ++tile)
+#pragma unroll
+                        for (unsigned element = 0; element < 4; ++element)
+                            scores[tile][element].u = 0, weight_gradients[tile][element].u = 0;
+                    for (unsigned step = 0; step < depth_steps; ++step) {
+                        unsigned const a_offset = (warp * 16 + a_row) * row_stride + step * 32 + a_column;
+                        unsigned const b_offset = (row_group * 16 + b_row) * row_stride + step * 32 + b_column;
+                        nk_u32_t keys[4], values[4], queries[4], gradients[4];
+                        nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(keys_shared + a_offset), keys);
+                        nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(values_shared + a_offset), values);
+                        nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(queries_shared + b_offset), queries);
+                        nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(gradients_shared + b_offset), gradients);
+                        nk_mma_bf16_ampere_(scores[0], keys, queries[0], queries[1]);
+                        nk_mma_bf16_ampere_(scores[1], keys, queries[2], queries[3]);
+                        nk_mma_bf16_ampere_(weight_gradients[0], values, gradients[0], gradients[1]);
+                        nk_mma_bf16_ampere_(weight_gradients[1], values, gradients[2], gradients[3]);
+                    }
+                    nk_u32_t weights[4], score_gradients[4];
+                    nk_attention_backward_weights_ampere_(scores, weight_gradients, rows, row_group * 16,
+                                                          key_first + warp * 16, 1, arguments->scale2, weights,
+                                                          score_gradients);
+                    // dV += Pᵀ · dO and dK += dSᵀ · Q over the 16 rows, for the slice columns.
+#pragma unroll
+                    for (unsigned pair = 0; pair < max_tiles / 2; ++pair) {
+                        if ((pair_first + pair) * 2 >= depth_tiles) continue;
+                        unsigned const offset = (row_group * 16 + a_row) * row_stride + (pair_first + pair) * 32 +
+                                                a_column;
+                        nk_u32_t gradients[4], queries[4];
+                        nk_load_matrices_x4_transposed_ampere_(nk_shared_address_ampere_(gradients_shared + offset),
+                                                               gradients);
+                        nk_load_matrices_x4_transposed_ampere_(nk_shared_address_ampere_(queries_shared + offset),
+                                                               queries);
+                        nk_mma_bf16_ampere_(value_gradient[pair * 2], weights, gradients[0], gradients[1]);
+                        nk_mma_bf16_ampere_(value_gradient[pair * 2 + 1], weights, gradients[2], gradients[3]);
+                        nk_mma_bf16_ampere_(key_gradient[pair * 2], score_gradients, queries[0], queries[1]);
+                        nk_mma_bf16_ampere_(key_gradient[pair * 2 + 1], score_gradients, queries[2], queries[3]);
+                    }
+                }
+            }
+
+#pragma unroll
+            for (unsigned half = 0; half < 2; ++half) {
+                unsigned const position = key_first + warp * 16 + fragment_row + half * 8;
+                if (position >= task.length) continue;
+                nk_size_t const first = (arguments->key_offsets[task.segment] + position) * gradient_floats +
+                                        task.key_value_head * depth;
+#pragma unroll
+                for (unsigned tile = 0; tile < max_tiles; ++tile)
+#pragma unroll
+                    for (unsigned element = 0; element < 2; ++element) {
+                        unsigned const column = (pair_first * 2 + tile) * 8 + quad * 2 + element;
+                        if (column >= depth) continue;
+                        arguments->key_gradient[first + column] = key_gradient[tile][half * 2 + element].f *
+                                                                  arguments->scale;
+                        arguments->value_gradient[first + column] = value_gradient[tile][half * 2 + element].f;
+                    }
+            }
+        }
+    }
+}
+
+/** The query gradients of every task of the window, a block per 64 folded rows: each warp owns 16
+ *  rows and walks the 64-key panels they see, accumulating dQ += dS · K in registers a slice of
+ *  columns at a time. */
+NUMKONG_DEVICE void nk_attention_backward_queries_ampere_(nk_attention_backward_arguments_t const *arguments) {
+    extern __shared__ __align__(128) unsigned char nk_attention_shared_ampere_[];
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, fragment_row = lane >> 2, quad = lane & 3;
+    unsigned const a_row = (lane & 7) + ((lane >> 3) & 1) * 8, a_column = (lane >> 4) * 16;
+    unsigned const b_row = (lane & 7) + (lane >> 4) * 8, b_column = ((lane >> 3) & 1) * 16;
+    enum { max_tiles = nk_attention_backward_slice_ampere_k / 8, position_groups = nk_attention_panel_k / 16 };
+
+    nk_size_t const depth = arguments->depth, group = arguments->head_count / arguments->key_value_head_count;
+    unsigned const row_bytes = (unsigned)nk_size_round_up_to_multiple_(depth * 2, nk_attention_step_bytes_k);
+    unsigned const row_stride = row_bytes + nk_attention_row_padding_ampere_k;
+    unsigned const depth_steps = row_bytes / nk_attention_step_bytes_k, depth_tiles = row_bytes / 16;
+    unsigned const slices = nk_u32_divide_round_up_(depth_tiles, max_tiles);
+    unsigned char *keys_shared = nk_attention_shared_ampere_;
+    unsigned char *values_shared = keys_shared + nk_attention_panel_k * row_stride;
+    unsigned char *queries_shared = values_shared + nk_attention_panel_k * row_stride;
+    unsigned char *gradients_shared = queries_shared + nk_attention_panel_k * row_stride;
+    nk_attention_backward_rows_ampere_t *rows =
+        (nk_attention_backward_rows_ampere_t *)(gradients_shared + nk_attention_panel_k * row_stride);
+
+    nk_size_t segment_first = arguments->task_begin / arguments->key_value_head_count, items_before = 0;
+    nk_size_t task_index, chunk;
+    for (nk_size_t item = blockIdx.x; nk_attention_backward_next_cuda_(
+             arguments, 0, nk_attention_panel_k, &segment_first, &items_before, item, &task_index, &chunk);
+         item += gridDim.x) {
+        nk_attention_backward_task_t const task = nk_attention_backward_task_(arguments, task_index, row_bytes);
+        nk_size_t const folded_rows = group * task.rows;
+        nk_size_t const first = chunk * nk_attention_panel_k;
+        nk_size_t const last =
+            (first + nk_attention_panel_k < folded_rows ? first + nk_attention_panel_k : folded_rows) - 1;
+        nk_size_t span_begin, span_end;
+        nk_attention_backward_span_ampere_(arguments, &task, first, last, &span_begin, &span_end);
+        unsigned const panel_first = (unsigned)(span_begin / nk_attention_panel_k);
+        unsigned const panel_end = span_begin < span_end
+                                       ? (unsigned)nk_size_divide_round_up_(span_end, nk_attention_panel_k)
+                                       : panel_first;
+        // Every warp is done with the previous chunk's rows and panels.
+        __syncthreads();
+        nk_attention_backward_stage_rows_ampere_(arguments, &task, first, nk_attention_panel_k, row_bytes / 16, 0,
+                                                 row_stride, queries_shared, gradients_shared, rows, warp,
+                                                 blockDim.x >> 5);
+        int const warp_live = first + warp * 16 < folded_rows;
+
+        for (unsigned slice = 0; slice < slices; ++slice) {
+            unsigned const pair_first = slice * max_tiles / 2;
+            nk_fui32_t query_gradient[max_tiles][4];
+#pragma unroll
+            for (unsigned tile = 0; tile < max_tiles; ++tile)
+#pragma unroll
+                for (unsigned element = 0; element < 4; ++element) query_gradient[tile][element].u = 0;
+
+            for (unsigned panel_index = panel_first; panel_index < panel_end; ++panel_index) {
+                unsigned const position_first = panel_index * nk_attention_panel_k;
+                // The rows have landed, and every warp is done with the previous panels.
+                __syncthreads();
+                nk_attention_stage_rows_ampere_(keys_shared, task.keys_plane, position_first, nk_attention_panel_k,
+                                                row_bytes);
+                nk_attention_stage_rows_ampere_(values_shared, task.values_plane, position_first, nk_attention_panel_k,
+                                                row_bytes);
+                nk_commit_async_ampere_();
+                nk_wait_async_ampere_(0);
+                __syncthreads();
+                if (!warp_live) continue;
+
+                // S = Q · Kᵀ and dP = dO · Vᵀ over the full depth, rows on fragment rows.
+                nk_fui32_t scores[2 * position_groups][4], weight_gradients[2 * position_groups][4];
+#pragma unroll
+                for (unsigned tile = 0; tile < 2 * position_groups; ++tile)
+#pragma unroll
+                    for (unsigned element = 0; element < 4; ++element)
+                        scores[tile][element].u = 0, weight_gradients[tile][element].u = 0;
+                for (unsigned step = 0; step < depth_steps; ++step) {
+                    unsigned const a_offset = (warp * 16 + a_row) * row_stride + step * 32 + a_column;
+                    nk_u32_t queries[4], gradients[4];
+                    nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(queries_shared + a_offset), queries);
+                    nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(gradients_shared + a_offset), gradients);
+#pragma unroll
+                    for (unsigned position_group = 0; position_group < position_groups; ++position_group) {
+                        unsigned const b_offset = (position_group * 16 + b_row) * row_stride + step * 32 + b_column;
+                        nk_u32_t keys[4], values[4];
+                        nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(keys_shared + b_offset), keys);
+                        nk_load_matrices_x4_ampere_(nk_shared_address_ampere_(values_shared + b_offset), values);
+                        nk_mma_bf16_ampere_(scores[position_group * 2], queries, keys[0], keys[1]);
+                        nk_mma_bf16_ampere_(scores[position_group * 2 + 1], queries, keys[2], keys[3]);
+                        nk_mma_bf16_ampere_(weight_gradients[position_group * 2], gradients, values[0], values[1]);
+                        nk_mma_bf16_ampere_(weight_gradients[position_group * 2 + 1], gradients, values[2], values[3]);
+                    }
+                }
+                // dQ += dS · K over the panel's positions, for the slice's columns.
+#pragma unroll
+                for (unsigned position_group = 0; position_group < position_groups; ++position_group) {
+                    nk_u32_t weights[4], score_gradients[4];
+                    nk_attention_backward_weights_ampere_(
+                        scores + position_group * 2, weight_gradients + position_group * 2, rows, warp * 16,
+                        position_first + position_group * 16, 0, arguments->scale2, weights, score_gradients);
+#pragma unroll
+                    for (unsigned pair = 0; pair < max_tiles / 2; ++pair) {
+                        if ((pair_first + pair) * 2 >= depth_tiles) continue;
+                        nk_u32_t keys[4];
+                        nk_load_matrices_x4_transposed_ampere_(
+                            nk_shared_address_ampere_(keys_shared + (position_group * 16 + a_row) * row_stride +
+                                                      (pair_first + pair) * 32 + a_column),
+                            keys);
+                        nk_mma_bf16_ampere_(query_gradient[pair * 2], score_gradients, keys[0], keys[1]);
+                        nk_mma_bf16_ampere_(query_gradient[pair * 2 + 1], score_gradients, keys[2], keys[3]);
+                    }
+                }
+            }
+
+#pragma unroll
+            for (unsigned half = 0; half < 2; ++half) {
+                nk_size_t const folded = first + warp * 16 + fragment_row + half * 8, query = folded / group;
+                if (query >= task.rows) continue;
+                nk_size_t const token = arguments->query_offsets[task.segment] + query;
+                nk_size_t const head = task.key_value_head * group + folded % group;
+                nk_f32_t *destination = (nk_f32_t *)((unsigned char *)arguments->query_gradient +
+                                                     token * arguments->query_gradient_stride) +
+                                        head * depth;
+#pragma unroll
+                for (unsigned tile = 0; tile < max_tiles; ++tile)
+#pragma unroll
+                    for (unsigned element = 0; element < 2; ++element) {
+                        unsigned const column = (pair_first * 2 + tile) * 8 + quad * 2 + element;
+                        if (column < depth)
+                            destination[column] = query_gradient[tile][half * 2 + element].f * arguments->scale;
+                    }
+            }
+        }
+    }
+}
+
+#pragma endregion Backward
 
 #pragma region Launch
 
@@ -655,15 +1090,15 @@ NUMKONG_DEVICE void nk_attention_tile_ampere_f16_mma_(nk_dtype_t dtype, nk_atten
 NUMKONG_INLINE nk_size_t nk_attention_shared_layout_ampere_(nk_dtype_t dtype, nk_dtype_t mma_dtype,
                                                             nk_attention_width_t width, nk_size_t depth,
                                                             nk_attention_arguments_t *arguments) {
-    nk_size_t const element_bytes = dtype == nk_bf16_k ? 2 : 1;
+    nk_size_t const element_bytes = nk_attention_element_bytes_(dtype);
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
     nk_size_t const row_stride = row_bytes + nk_attention_row_padding_ampere_k,
                     depth_padded = row_bytes / element_bytes;
     nk_size_t const keys_narrow = nk_attention_panel_k * row_stride;
     nk_size_t const keys_wide = nk_attention_wide_panel_ampere_k * row_stride;
-    nk_size_t const values_narrow = dtype == nk_bf16_k ? keys_narrow
+    nk_size_t const values_narrow = element_bytes == 2 ? keys_narrow
                                                        : depth_padded * nk_attention_padded_panel_ampere_k;
-    nk_size_t const values_wide = dtype == nk_bf16_k ? keys_wide
+    nk_size_t const values_wide = element_bytes == 2 ? keys_wide
                                                      : depth_padded * (nk_attention_wide_panel_ampere_k +
                                                                        nk_attention_row_padding_ampere_k);
     nk_size_t const queries_block = nk_attention_block_rows_k * row_stride;
@@ -716,16 +1151,16 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_ampere_(nk_dtype_t dtype, n
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_mma_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
-    nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask,
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
+    nk_dtype_t mma_dtype, void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
-    if (task_count == 0 || depth == 0) return nk_success_k;
+    if (task_begin >= task_end || depth == 0) return nk_success_k;
     nk_attention_arguments_t arguments = nk_attention_arguments_init_(
-        queries, packed, output, head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride,
-        scale, score_scale, output_scale, mask, diagonal_offset, window, task_start, task_count);
+        queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
+        output_stride, scale, score_scale, output_scale, keys_before, keys_after, task_begin, task_end);
     if (depth > nk_attention_wide_depth_ampere_k)
         return nk_launch_resident_cuda_(fallback_kernel, nk_attention_threads_k, 0, 0, NUMKONG_SIZE_MAX, &arguments,
                                         stream);
@@ -740,27 +1175,44 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_mma_ampere_(
 /** The launch for the tile on MMAs of the input dtype itself. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
-    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     return nk_attention_launch_mma_ampere_(narrow_kernel, wide_kernel, fallback_kernel, dtype, dtype, queries, packed,
-                                           output, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                                           output_stride, scale, score_scale, output_scale, mask, diagonal_offset,
-                                           window, task_start, task_count, stream);
+                                           output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
+                                           query_stride, output_stride, scale, score_scale, output_scale, keys_before,
+                                           keys_after, task_begin, task_end, stream);
 }
 
 /** The launch for the tile on F16 MMAs, for E4M3 converted to F16 first. */
 NUMKONG_INLINE nk_status_t nk_attention_launch_ampere_f16_mma_(
     void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
-    void const *queries, void const *packed, nk_f32_t *output, nk_size_t head_count, nk_size_t key_value_head_count,
-    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
-    nk_f32_t score_scale, nk_f32_t output_scale, nk_attention_mask_t mask, nk_i64_t diagonal_offset, nk_size_t window,
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
+    void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
+    nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     return nk_attention_launch_mma_ampere_(narrow_kernel, wide_kernel, fallback_kernel, dtype, nk_f16_k, queries,
-                                           packed, output, head_count, key_value_head_count, depth, query_offsets,
-                                           query_stride, output_stride, scale, score_scale, output_scale, mask,
-                                           diagonal_offset, window, task_start, task_count, stream);
+                                           packed, output, log_sum_exp, head_count, key_value_head_count, depth,
+                                           query_offsets, query_stride, output_stride, scale, score_scale, output_scale,
+                                           keys_before, keys_after, task_begin, task_end, stream);
+}
+
+/** Launches the BF16 backward kernels of Ampere and later with as many blocks as stay resident,
+ *  or, with no shared memory, a block per task of the @c cuda loops for heads too deep for the
+ *  tensor cores or for the device's shared memory. */
+NUMKONG_INLINE nk_status_t nk_attention_backward_launch_ampere_(void const *keys_kernel, void const *queries_kernel,
+                                                                nk_attention_backward_arguments_t arguments,
+                                                                void *stream) {
+    nk_size_t const shared_bytes = nk_attention_backward_shared_ampere_(arguments.depth);
+    int shared_limit = 0;
+    nk_status_t const status = nk_device_attribute_cuda_(cudaDevAttrMaxSharedMemoryPerBlockOptin, &shared_limit,
+                                                         stream);
+    if (status != nk_success_k) return status;
+    if (arguments.depth > nk_attention_backward_depth_ampere_k || shared_bytes > (nk_size_t)shared_limit)
+        return nk_attention_backward_launch_cuda_(keys_kernel, queries_kernel, arguments, stream);
+    return nk_attention_backward_launch_kernels_cuda_(NUMKONG_NULL, keys_kernel, queries_kernel, nk_attention_threads_k,
+                                                      shared_bytes, shared_bytes, NUMKONG_SIZE_MAX, arguments, stream);
 }
 
 #pragma endregion Launch
@@ -776,6 +1228,27 @@ nk_define_attention_pack_cuda_(bf16, ampere, bf16)
 nk_define_attention_packed_cuda_(bf16, ampere, ampere, nk_attention_launch_ampere_, bf16, nk_cross_epilogue_f32_k,
                                  nk_attention_scores_bf16_ampere_, nk_mma_bf16_ampere_,
                                  nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
+
+/** Both BF16 backward kernels: tensor cores when the launch gives them shared memory, the
+ *  @c cuda kernels' loops when it does not. */
+static __global__ void __launch_bounds__(nk_attention_threads_k)
+    nk_attention_backward_keys_bf16_ampere_kernel_(nk_attention_backward_arguments_t arguments) {
+    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_ampere_(&arguments);
+    else nk_attention_backward_keys_cuda_(nk_bf16_k, &arguments);
+}
+static __global__ void __launch_bounds__(nk_attention_threads_k)
+    nk_attention_backward_queries_bf16_ampere_kernel_(nk_attention_backward_arguments_t arguments) {
+    if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_ampere_(&arguments);
+    else nk_attention_backward_queries_cuda_(nk_bf16_k, &arguments);
+}
+nk_define_attention_backward_cuda_(bf16, ampere, bf16, nk_attention_backward_launch_ampere_)
+
+nk_define_attention_pack_size_simt_(f16, ampere, 2)
+nk_define_attention_packed_shape_cuda_(f16, ampere)
+nk_define_attention_pack_cuda_(f16, ampere, f16)
+nk_define_attention_packed_cuda_(f16, ampere, ampere, nk_attention_launch_ampere_, f16, nk_cross_epilogue_f32_k,
+                                 nk_attention_scores_f16_ampere_, nk_mma_f16_ampere_, nk_attention_weights_f16_ampere_,
+                                 1.0f, 1.0f)
 
 nk_define_attention_pack_size_simt_(e4m3, ampere, 1)
 nk_define_attention_packed_shape_cuda_(e4m3, ampere)

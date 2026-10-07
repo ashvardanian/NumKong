@@ -315,7 +315,9 @@ mod tests {
         assert_eq!(kv.tokens(), tokens);
 
         // With constant V, softmax weights sum to 1 → every output equals V's value.
-        let outputs = kv.attention(&keys.view(), &offsets, None).unwrap();
+        let outputs = kv
+            .attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX)
+            .unwrap();
         assert_eq!(outputs.shape(), [tokens, heads * depth]);
         for &x in outputs.as_slice() {
             assert!((x - 0.5).abs() < 1e-2, "expected 0.5, got {x}");
@@ -353,7 +355,9 @@ mod tests {
         assert_eq!(kv.capacity(), cap_big, "clear keeps the allocation");
 
         kv.pack_into(&small.view(), &small.view(), depth, &small_off).unwrap();
-        let outputs = kv.attention(&small.view(), &small_off, None).unwrap();
+        let outputs = kv
+            .attention(&small.view(), &small_off, None, usize::MAX, usize::MAX)
+            .unwrap();
         assert_eq!(outputs.shape(), [10, heads * depth]);
     }
 
@@ -374,12 +378,22 @@ mod tests {
         let values = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.75)).unwrap();
         let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
 
-        let sequential = kv.attention(&keys.view(), &offsets, None).unwrap();
+        let sequential = kv
+            .attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX)
+            .unwrap();
         let topology = fu::Topology::new().unwrap();
         let mut pool = fu::ThreadPool::try_spawn(&topology, 4).unwrap();
         let mut parallel = Tensor::<f32>::full(&[tokens, heads * depth], 0.0).unwrap();
-        kv.attention_parallel_into(&keys.view(), &offsets, None, &mut parallel, &mut pool)
-            .unwrap();
+        kv.attention_parallel_into(
+            &keys.view(),
+            &offsets,
+            None,
+            usize::MAX,
+            usize::MAX,
+            &mut parallel,
+            &mut pool,
+        )
+        .unwrap();
 
         // Per-task dynamic scheduling must be bit-identical to the single-window run:
         // tasks are independent and write disjoint rows.
@@ -409,8 +423,7 @@ mod tests {
         let values = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.75)).unwrap();
 
         // The `pack_size` query must predict the produced blob size exactly.
-        let seg_lengths: Vec<u32> = offsets.windows(2).map(|p| p[1] - p[0]).collect();
-        let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, depth, &seg_lengths).unwrap();
+        let predicted = AttentionPackedMatrix::<bf16>::pack_size(heads, depth, tokens, offsets.len() - 1).unwrap();
 
         // Serial pack via the typed constructor.
         let kv_serial = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
@@ -432,9 +445,11 @@ mod tests {
         );
 
         // Serial and parallel attention must agree bit-for-bit.
-        let serial = kv_serial.attention(&keys.view(), &offsets, None).unwrap();
+        let serial = kv_serial
+            .attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX)
+            .unwrap();
         let par_alloc = kv_parallel
-            .attention_parallel(&keys.view(), &offsets, None, &mut pool)
+            .attention_parallel(&keys.view(), &offsets, None, usize::MAX, usize::MAX, &mut pool)
             .unwrap();
         for (index, (a, b)) in serial.as_slice().iter().zip(par_alloc.as_slice()).enumerate() {
             assert!(

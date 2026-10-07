@@ -136,20 +136,19 @@ NUMKONG_INLINE void nk_attention_pack_row_i8_rvv_(void const *source, void *dest
     }
 }
 
+/** Bytes of a pack of raw unpadded planes, as VLA strip-mining needs no channel padding, of
+ *  @p packed_element_bytes each, past the RVV depths in serial F32. */
 NUMKONG_INLINE nk_size_t nk_attention_pack_size_rvv_(nk_size_t key_value_head_count, nk_size_t depth,
-                                                     nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                     nk_size_t token_count, nk_size_t segment_count,
                                                      nk_size_t packed_element_bytes) {
-    nk_size_t payload_bytes = 0; // raw unpadded planes: VLA strip-mining needs no channel padding
-    for (nk_size_t segment_idx = 0; segment_idx < segment_count; segment_idx++)
-        payload_bytes += 2 * key_value_head_count * (nk_size_t)segment_lengths[segment_idx] * depth *
-                         packed_element_bytes;
-    return sizeof(nk_attention_packed_header_t) + nk_attention_pack_directory_size_(segment_count) + payload_bytes;
+    nk_size_t const unit_bytes = depth *
+                                 (depth > nk_attention_max_depth_rvv_k_ ? sizeof(nk_f32_t) : packed_element_bytes);
+    return nk_attention_pack_bound_(key_value_head_count, token_count, segment_count, 1, unit_bytes);
 }
 
 /** Shared packing core: repacks K and V rows into raw `[key_value_head][position][channel]`
- *  planes per segment, one @c pack_row call per row, no padding in either axis. The header and
- *  directory are deterministic functions of the arguments, so concurrent packing tasks may
- *  rewrite them with identical bytes. */
+ *  planes per segment, one @c pack_row call per row, no padding in either axis. Each window
+ *  derives its plane offsets from @p segment_lengths, so windows run in any order. */
 NUMKONG_INLINE void nk_attention_pack_rvv_(                                                        //
     void const *keys, void const *values, nk_size_t element_bytes,                                 //
     nk_size_t packed_element_bytes, nk_attention_pack_row_rvv_t_ pack_row,                         //
@@ -157,25 +156,28 @@ NUMKONG_INLINE void nk_attention_pack_rvv_(                                     
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,                              //
     nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed, //
     nk_size_t task_begin, nk_size_t task_end) {
-
     nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
                                  task_begin, 1, depth * packed_element_bytes, nk_cap_rvv_k);
-    nk_attention_packed_header_t *header = (nk_attention_packed_header_t *)key_value_packed;
-    nk_u64_t const *payload_offsets_ro = (nk_u64_t const *)((char *)key_value_packed + sizeof(*header));
-    char *payload_base = (char *)key_value_packed + sizeof(*header) + nk_attention_pack_directory_size_(segment_count);
+    char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
+                         nk_attention_pack_directory_size_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     if (task_begin >= total_tasks) return;
     if (task_end > total_tasks) task_end = total_tasks;
 
+    nk_size_t payload_segment = 0;
+    nk_u64_t payload_offset = 0;
     for (nk_size_t task_idx = task_begin; task_idx < task_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count;
         nk_size_t const key_value_head_idx = task_idx % key_value_head_count;
+        for (; payload_segment < segment_idx; payload_segment++)
+            payload_offset += nk_attention_pack_segment_bytes_(segment_lengths[payload_segment], key_value_head_count,
+                                                               1, depth * packed_element_bytes);
         nk_size_t const position_count = segment_lengths[segment_idx];
         if (position_count == 0) continue;
         nk_size_t const position_first = segment_offsets[segment_idx];
         nk_size_t const plane_bytes = position_count * depth * packed_element_bytes;
-        char *keys_plane = payload_base + payload_offsets_ro[segment_idx] + key_value_head_idx * plane_bytes;
+        char *keys_plane = payload_base + payload_offset + key_value_head_idx * plane_bytes;
         char *values_plane = keys_plane + key_value_head_count * plane_bytes;
         for (nk_size_t position_idx = 0; position_idx < position_count; position_idx++) {
             pack_row((char const *)keys + (position_first + position_idx) * key_stride +
@@ -194,10 +196,10 @@ NUMKONG_INLINE void nk_attention_pack_rvv_(                                     
 NUMKONG_INLINE void nk_attention_packed_float_rvv_(                                                 //
     void const *queries, nk_size_t query_element_bytes, nk_attention_load_f32m2_rvv_t_ query_load,  //
     nk_size_t key_value_element_bytes, nk_attention_load_f32m2_rvv_t_ key_value_load,               //
-    void const *key_value_packed, nk_f32_t *output,                                                 //
+    void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,                          //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
+    nk_diagonal_band_t band, nk_size_t task_begin, nk_size_t task_end) {
 
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
@@ -214,180 +216,147 @@ NUMKONG_INLINE void nk_attention_packed_float_rvv_(                             
     nk_size_t const panel_width = nk_attention_panel_rvv_k_;
     nk_size_t const vlmax2 = __riscv_vsetvlmax_e32m2();
     nk_size_t const vlmax4 = __riscv_vsetvlmax_e32m4();
-
-    nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (task_begin < grid_begin) task_begin = grid_begin;
+    if (task_end > grid_end) task_end = grid_end;
 
     nk_align_(64) nk_f32_t query_row[nk_attention_max_depth_rvv_k_];
     nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_rvv_k_];
     nk_align_(64) nk_f32_t scores[nk_attention_panel_rvv_k_];
 
-    for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
-        nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
-        nk_size_t const position_count = segment_lengths[segment_idx];
-        nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
-        if (row_count == 0) continue;
-        nk_size_t const plane_bytes = position_count * plane_row_bytes;
-        char const *keys_plane = payload_base + payload_offsets[segment_idx] +
-                                 (head_idx / head_group_size) * plane_bytes;
-        char const *values_plane = keys_plane + key_value_head_count * plane_bytes;
+    for (nk_size_t head_idx = 0; head_idx < head_count && task_begin < task_end; head_idx++) {
+        nk_size_t const token_first = (task_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (task_end + head_count - 1 - head_idx) / head_count;
+        for (nk_size_t segment_idx = nk_attention_segment_of_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = segment_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_(query_end - query_first, position_count);
+            nk_size_t const plane_bytes = position_count * plane_row_bytes;
+            char const *keys_plane = payload_base + payload_offsets[segment_idx] +
+                                     (head_idx / head_group_size) * plane_bytes;
+            char const *values_plane = keys_plane + key_value_head_count * plane_bytes;
 
-        for (nk_size_t row_idx = 0; row_idx < row_count; row_idx++) {
-            nk_size_t key_begin, key_end;
-            nk_attention_row_range_((nk_i64_t)row_idx + diagonal_offset, window, position_count, &key_begin, &key_end);
-            char const *query_source = (char const *)queries + (query_offsets[segment_idx] + row_idx) * query_stride +
-                                       head_idx * depth * query_element_bytes;
-            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
-                 remaining -= vector_length, channel_idx += vector_length) {
-                vector_length = __riscv_vsetvl_e32m2(remaining);
-                __riscv_vse32_v_f32m2(query_row + channel_idx,
-                                      query_load(query_source + channel_idx * query_element_bytes, vector_length),
-                                      vector_length);
-                __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vector_length),
-                                      vector_length);
-            }
-            nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
-
-            for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
-                nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
-                                                                                      : (key_end - panel_start);
-                for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-                    char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
-                    vfloat32m2_t accumulator_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, vlmax2);
-                    for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
-                         remaining -= vector_length, channel_idx += vector_length) {
-                        vector_length = __riscv_vsetvl_e32m2(remaining);
-                        accumulator_f32m2 = __riscv_vfmacc_vv_f32m2_tu(
-                            accumulator_f32m2, __riscv_vle32_v_f32m2(query_row + channel_idx, vector_length),
-                            key_value_load(keys_row + channel_idx * key_value_element_bytes, vector_length),
-                            vector_length);
-                    }
-                    scores[position_idx] = __riscv_vfmv_f_s_f32m1_f32(
-                        __riscv_vfredusum_vs_f32m2_f32m1(accumulator_f32m2, __riscv_vfmv_v_f_f32m1(0.0f, 1), vlmax2));
-                }
-
-                vfloat32m4_t max_f32m4 = __riscv_vfmv_v_f_f32m4(NUMKONG_F32_MIN, vlmax4);
-                for (nk_size_t position_idx = 0, remaining = panel_length, vector_length = 0; remaining > 0;
-                     remaining -= vector_length, position_idx += vector_length) {
-                    vector_length = __riscv_vsetvl_e32m4(remaining);
-                    max_f32m4 = __riscv_vfmax_vv_f32m4_tu(max_f32m4, max_f32m4,
-                                                          __riscv_vle32_v_f32m4(scores + position_idx, vector_length),
-                                                          vector_length);
-                }
-                nk_f32_t const panel_max2 = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m4_f32m1(
-                                                max_f32m4, __riscv_vfmv_v_f_f32m1(NUMKONG_F32_MIN, 1), vlmax4)) *
-                                            scale2;
-                nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
-                nk_f32_t const correction = nk_f32_exp2_serial_(running_max2 - new_max2);
-                running_max2 = new_max2;
+            for (nk_size_t row_idx = row_begin; row_idx < row_end; row_idx++) {
+                nk_size_t key_begin, key_end;
+                nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row_idx, position_count, &key_begin,
+                                            &key_end);
+                char const *query_source = (char const *)queries + (query_first + row_idx) * query_stride +
+                                           head_idx * depth * query_element_bytes;
                 for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
                      remaining -= vector_length, channel_idx += vector_length) {
                     vector_length = __riscv_vsetvl_e32m2(remaining);
-                    __riscv_vse32_v_f32m2(
-                        output_row + channel_idx,
-                        __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
-                                               correction, vector_length),
-                        vector_length);
+                    __riscv_vse32_v_f32m2(query_row + channel_idx,
+                                          query_load(query_source + channel_idx * query_element_bytes, vector_length),
+                                          vector_length);
+                    __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vector_length),
+                                          vector_length);
                 }
+                nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
 
-                vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, vlmax4);
-                for (nk_size_t position_idx = 0, remaining = panel_length, vector_length = 0; remaining > 0;
-                     remaining -= vector_length, position_idx += vector_length) {
-                    vector_length = __riscv_vsetvl_e32m4(remaining);
-                    vfloat32m4_t weights_f32m4 = nk_exp2_f32m4_rvv_(
-                        __riscv_vfsub_vf_f32m4(
-                            __riscv_vfmul_vf_f32m4(__riscv_vle32_v_f32m4(scores + position_idx, vector_length), scale2,
-                                                   vector_length),
-                            new_max2, vector_length),
-                        vector_length);
-                    sum_f32m4 = __riscv_vfadd_vv_f32m4_tu(sum_f32m4, sum_f32m4, weights_f32m4, vector_length);
-                    __riscv_vse32_v_f32m4(scores + position_idx, weights_f32m4, vector_length);
-                }
-                nk_f32_t const panel_sum = __riscv_vfmv_f_s_f32m1_f32(
-                    __riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, __riscv_vfmv_v_f_f32m1(0.0f, 1), vlmax4));
+                for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
+                    nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
+                                                                                          : (key_end - panel_start);
+                    for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
+                        char const *keys_row = keys_plane + (panel_start + position_idx) * plane_row_bytes;
+                        vfloat32m2_t accumulator_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, vlmax2);
+                        for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                             remaining -= vector_length, channel_idx += vector_length) {
+                            vector_length = __riscv_vsetvl_e32m2(remaining);
+                            accumulator_f32m2 = __riscv_vfmacc_vv_f32m2_tu(
+                                accumulator_f32m2, __riscv_vle32_v_f32m2(query_row + channel_idx, vector_length),
+                                key_value_load(keys_row + channel_idx * key_value_element_bytes, vector_length),
+                                vector_length);
+                        }
+                        scores[position_idx] = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredusum_vs_f32m2_f32m1(
+                            accumulator_f32m2, __riscv_vfmv_v_f_f32m1(0.0f, 1), vlmax2));
+                    }
 
-                for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-                    nk_f32_t const weight = scores[position_idx];
-                    char const *values_row = values_plane + (panel_start + position_idx) * plane_row_bytes;
+                    vfloat32m4_t max_f32m4 = __riscv_vfmv_v_f_f32m4(NUMKONG_F32_MIN, vlmax4);
+                    for (nk_size_t position_idx = 0, remaining = panel_length, vector_length = 0; remaining > 0;
+                         remaining -= vector_length, position_idx += vector_length) {
+                        vector_length = __riscv_vsetvl_e32m4(remaining);
+                        max_f32m4 = __riscv_vfmax_vv_f32m4_tu(
+                            max_f32m4, max_f32m4, __riscv_vle32_v_f32m4(scores + position_idx, vector_length),
+                            vector_length);
+                    }
+                    nk_f32_t const panel_max2 = __riscv_vfmv_f_s_f32m1_f32(__riscv_vfredmax_vs_f32m4_f32m1(
+                                                    max_f32m4, __riscv_vfmv_v_f_f32m1(NUMKONG_F32_MIN, 1), vlmax4)) *
+                                                scale2;
+                    nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
+                    nk_f32_t const correction = nk_f32_exp2_serial_(running_max2 - new_max2);
+                    running_max2 = new_max2;
                     for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
                          remaining -= vector_length, channel_idx += vector_length) {
                         vector_length = __riscv_vsetvl_e32m2(remaining);
                         __riscv_vse32_v_f32m2(
                             output_row + channel_idx,
-                            __riscv_vfmacc_vf_f32m2(
-                                __riscv_vle32_v_f32m2(output_row + channel_idx, vector_length), weight,
-                                key_value_load(values_row + channel_idx * key_value_element_bytes, vector_length),
-                                vector_length),
+                            __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
+                                                   correction, vector_length),
                             vector_length);
                     }
-                }
-                running_sum = running_sum * correction + panel_sum;
-            }
 
-            nk_f32_t const inverse_sum = running_sum > 0 ? 1.0f / running_sum : 0.0f;
-            nk_f32_t *destination = output + (query_offsets[segment_idx] + row_idx) * output_stride_floats +
-                                    head_idx * depth;
-            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
-                 remaining -= vector_length, channel_idx += vector_length) {
-                vector_length = __riscv_vsetvl_e32m2(remaining);
-                __riscv_vse32_v_f32m2(
-                    destination + channel_idx,
-                    __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length), inverse_sum,
-                                           vector_length),
-                    vector_length);
+                    vfloat32m4_t sum_f32m4 = __riscv_vfmv_v_f_f32m4(0.0f, vlmax4);
+                    for (nk_size_t position_idx = 0, remaining = panel_length, vector_length = 0; remaining > 0;
+                         remaining -= vector_length, position_idx += vector_length) {
+                        vector_length = __riscv_vsetvl_e32m4(remaining);
+                        vfloat32m4_t weights_f32m4 = nk_exp2_f32m4_rvv_(
+                            __riscv_vfsub_vf_f32m4(
+                                __riscv_vfmul_vf_f32m4(__riscv_vle32_v_f32m4(scores + position_idx, vector_length),
+                                                       scale2, vector_length),
+                                new_max2, vector_length),
+                            vector_length);
+                        sum_f32m4 = __riscv_vfadd_vv_f32m4_tu(sum_f32m4, sum_f32m4, weights_f32m4, vector_length);
+                        __riscv_vse32_v_f32m4(scores + position_idx, weights_f32m4, vector_length);
+                    }
+                    nk_f32_t const panel_sum = __riscv_vfmv_f_s_f32m1_f32(
+                        __riscv_vfredusum_vs_f32m4_f32m1(sum_f32m4, __riscv_vfmv_v_f_f32m1(0.0f, 1), vlmax4));
+
+                    for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
+                        nk_f32_t const weight = scores[position_idx];
+                        char const *values_row = values_plane + (panel_start + position_idx) * plane_row_bytes;
+                        for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                             remaining -= vector_length, channel_idx += vector_length) {
+                            vector_length = __riscv_vsetvl_e32m2(remaining);
+                            __riscv_vse32_v_f32m2(
+                                output_row + channel_idx,
+                                __riscv_vfmacc_vf_f32m2(
+                                    __riscv_vle32_v_f32m2(output_row + channel_idx, vector_length), weight,
+                                    key_value_load(values_row + channel_idx * key_value_element_bytes, vector_length),
+                                    vector_length),
+                                vector_length);
+                        }
+                    }
+                    running_sum = running_sum * correction + panel_sum;
+                }
+
+                nk_f32_t const inverse_sum = running_sum > 0 ? 1 / running_sum : 0.0f;
+                nk_size_t const token = query_first + row_idx;
+                nk_f32_t *destination = output + token * output_stride_floats + head_idx * depth;
+                for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                     remaining -= vector_length, channel_idx += vector_length) {
+                    vector_length = __riscv_vsetvl_e32m2(remaining);
+                    __riscv_vse32_v_f32m2(
+                        destination + channel_idx,
+                        __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
+                                               inverse_sum, vector_length),
+                        vector_length);
+                }
+                if (log_sum_exp)
+                    log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_(running_max2, running_sum);
             }
         }
     }
 }
 
-NUMKONG_INLINE void nk_attention_packed_bf16_rvv_(                            //
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output, //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,    //
-    nk_u32_t const *query_offsets,                                            //
-    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,          //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
-    if (depth > nk_attention_max_depth_rvv_k_) {
-        nk_attention_serial_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_packed, output,
-                             head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
-                             diagonal_offset, window, task_start, task_count);
-        return;
-    }
-    nk_attention_packed_float_rvv_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_f32m2_rvv_, sizeof(nk_bf16_t),
-                                   &nk_attention_load_bf16_f32m2_rvv_, key_value_packed, output, head_count,
-                                   key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
-                                   diagonal_offset, window, task_start, task_count);
-}
-
-NUMKONG_INLINE void nk_attention_packed_e4m3_rvv_(                            //
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output, //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,    //
-    nk_u32_t const *query_offsets,                                            //
-    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,          //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
-    if (depth > nk_attention_max_depth_rvv_k_) {
-        nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
-                             head_count, key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
-                             diagonal_offset, window, task_start, task_count);
-        return;
-    }
-    // Queries stay E4M3 (unpacked, LUT-gather loader); the packed K/V planes are BF16 (shift loader).
-    nk_attention_packed_float_rvv_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_f32m2_rvv_, sizeof(nk_bf16_t),
-                                   &nk_attention_load_bf16_f32m2_rvv_, key_value_packed, output, head_count,
-                                   key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
-                                   diagonal_offset, window, task_start, task_count);
-}
-
-NUMKONG_INLINE void nk_attention_packed_i8_rvv_(                            //
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,  //
-    nk_u32_t const *query_offsets,                                          //
-    nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,        //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count) {
-    if (depth > nk_attention_max_depth_rvv_k_) {
-        nk_attention_packed_i8_serial_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                       query_offsets, query_stride, output_stride, scale, diagonal_offset, window,
-                                       task_start, task_count);
-        return;
-    }
+NUMKONG_INLINE void nk_attention_packed_i8_rvv_(                                                    //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,  //
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
+    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
+    nk_diagonal_band_t band, nk_size_t task_begin, nk_size_t task_end) {
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
     nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
                head_count % key_value_head_count == 0);
@@ -401,110 +370,123 @@ NUMKONG_INLINE void nk_attention_packed_i8_rvv_(                            //
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_; // softmax(x) = softmax₂(x · log₂e)
     nk_size_t const panel_width = nk_attention_panel_rvv_k_;
     nk_size_t const vlmax4 = __riscv_vsetvlmax_e32m4();
-
-    nk_size_t const task_end = nk_attention_task_end_(task_start, task_count, segment_count * head_count);
+    nk_size_t const grid_begin = query_offsets[0] * head_count, grid_end = query_offsets[segment_count] * head_count;
+    if (task_begin < grid_begin) task_begin = grid_begin;
+    if (task_end > grid_end) task_end = grid_end;
 
     nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_rvv_k_];
     nk_align_(64) nk_i32_t scores[nk_attention_panel_rvv_k_];
 
-    for (nk_size_t task_idx = task_start; task_idx < task_end; task_idx++) {
-        nk_size_t const segment_idx = task_idx / head_count, head_idx = task_idx % head_count;
-        nk_size_t const position_count = segment_lengths[segment_idx];
-        nk_size_t const row_count = query_offsets[segment_idx + 1] - query_offsets[segment_idx];
-        if (row_count == 0) continue;
-        nk_size_t const plane_bytes = position_count * depth;
-        nk_i8_t const *keys_plane = (nk_i8_t const *)(payload_base + payload_offsets[segment_idx]) +
-                                    (head_idx / head_group_size) * plane_bytes;
-        nk_i8_t const *values_plane = keys_plane + key_value_head_count * plane_bytes;
+    for (nk_size_t head_idx = 0; head_idx < head_count && task_begin < task_end; head_idx++) {
+        nk_size_t const token_first = (task_begin + head_count - 1 - head_idx) / head_count;
+        nk_size_t const token_end = (task_end + head_count - 1 - head_idx) / head_count;
+        for (nk_size_t segment_idx = nk_attention_segment_of_(query_offsets, segment_count, token_first);
+             segment_idx < segment_count && query_offsets[segment_idx] < token_end; segment_idx++) {
+            nk_size_t const query_first = query_offsets[segment_idx], query_end = query_offsets[segment_idx + 1];
+            nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
+            nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
+            if (row_begin >= row_end) continue;
+            nk_size_t const position_count = segment_lengths[segment_idx];
+            nk_i64_t const first_position = nk_attention_first_position_(query_end - query_first, position_count);
+            nk_size_t const plane_bytes = position_count * depth;
+            nk_i8_t const *keys_plane = (nk_i8_t const *)(payload_base + payload_offsets[segment_idx]) +
+                                        (head_idx / head_group_size) * plane_bytes;
+            nk_i8_t const *values_plane = keys_plane + key_value_head_count * plane_bytes;
 
-        for (nk_size_t row_idx = 0; row_idx < row_count; row_idx++) {
-            nk_size_t key_begin, key_end;
-            nk_attention_row_range_((nk_i64_t)row_idx + diagonal_offset, window, position_count, &key_begin, &key_end);
-            nk_i8_t const *query_row = (nk_i8_t const *)((char const *)queries +
-                                                         (query_offsets[segment_idx] + row_idx) * query_stride) +
-                                       head_idx * depth;
-            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
-                 remaining -= vector_length, channel_idx += vector_length) {
-                vector_length = __riscv_vsetvl_e32m2(remaining);
-                __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vector_length),
-                                      vector_length);
-            }
-            nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
+            for (nk_size_t row_idx = row_begin; row_idx < row_end; row_idx++) {
+                nk_size_t key_begin, key_end;
+                nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row_idx, position_count, &key_begin,
+                                            &key_end);
+                nk_i8_t const *query_row = (nk_i8_t const *)((char const *)queries +
+                                                             (query_first + row_idx) * query_stride) +
+                                           head_idx * depth;
+                for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                     remaining -= vector_length, channel_idx += vector_length) {
+                    vector_length = __riscv_vsetvl_e32m2(remaining);
+                    __riscv_vse32_v_f32m2(output_row + channel_idx, __riscv_vfmv_v_f_f32m2(0.0f, vector_length),
+                                          vector_length);
+                }
+                nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
 
-            for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
-                nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
-                                                                                      : (key_end - panel_start);
-                for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-                    nk_i8_t const *keys_row = keys_plane + (panel_start + position_idx) * depth;
-                    vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, vlmax4);
+                for (nk_size_t panel_start = key_begin; panel_start < key_end; panel_start += panel_width) {
+                    nk_size_t const panel_length = (panel_start + panel_width <= key_end) ? panel_width
+                                                                                          : (key_end - panel_start);
+                    for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
+                        nk_i8_t const *keys_row = keys_plane + (panel_start + position_idx) * depth;
+                        vint32m4_t accumulator_i32m4 = __riscv_vmv_v_x_i32m4(0, vlmax4);
+                        for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                             remaining -= vector_length, channel_idx += vector_length) {
+                            vector_length = __riscv_vsetvl_e8m1(remaining);
+                            vint16m2_t product_i16m2 = __riscv_vwmul_vv_i16m2(
+                                __riscv_vle8_v_i8m1(query_row + channel_idx, vector_length),
+                                __riscv_vle8_v_i8m1(keys_row + channel_idx, vector_length), vector_length);
+                            accumulator_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_i32m4, accumulator_i32m4,
+                                                                          product_i16m2, vector_length);
+                        }
+                        scores[position_idx] = __riscv_vmv_x_s_i32m1_i32(
+                            __riscv_vredsum_vs_i32m4_i32m1(accumulator_i32m4, __riscv_vmv_v_x_i32m1(0, 1), vlmax4));
+                    }
+
+                    nk_f32_t panel_max2 = NUMKONG_F32_MIN;
+                    for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
+                        nk_f32_t const scaled2 = (nk_f32_t)scores[position_idx] * scale2;
+                        if (scaled2 > panel_max2) panel_max2 = scaled2;
+                    }
+                    nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
+                    nk_f32_t const correction = nk_f32_exp2_serial_(running_max2 - new_max2);
+                    running_max2 = new_max2;
                     for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
                          remaining -= vector_length, channel_idx += vector_length) {
-                        vector_length = __riscv_vsetvl_e8m1(remaining);
-                        vint16m2_t product_i16m2 = __riscv_vwmul_vv_i16m2(
-                            __riscv_vle8_v_i8m1(query_row + channel_idx, vector_length),
-                            __riscv_vle8_v_i8m1(keys_row + channel_idx, vector_length), vector_length);
-                        accumulator_i32m4 = __riscv_vwadd_wv_i32m4_tu(accumulator_i32m4, accumulator_i32m4,
-                                                                      product_i16m2, vector_length);
+                        vector_length = __riscv_vsetvl_e32m2(remaining);
+                        __riscv_vse32_v_f32m2(
+                            output_row + channel_idx,
+                            __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
+                                                   correction, vector_length),
+                            vector_length);
                     }
-                    scores[position_idx] = __riscv_vmv_x_s_i32m1_i32(
-                        __riscv_vredsum_vs_i32m4_i32m1(accumulator_i32m4, __riscv_vmv_v_x_i32m1(0, 1), vlmax4));
+
+                    nk_f32_t panel_sum = 0;
+                    for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
+                        nk_u32_t const weight_u8 =
+                            (nk_u32_t)(nk_f32_exp2_serial_((nk_f32_t)scores[position_idx] * scale2 - new_max2) *
+                                           255.0f +
+                                       0.5f);
+                        if (weight_u8 == 0) continue;
+                        panel_sum += (nk_f32_t)weight_u8;
+                        nk_f32_t const weight = (nk_f32_t)weight_u8;
+                        nk_i8_t const *values_row = values_plane + (panel_start + position_idx) * depth;
+                        for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
+                             remaining -= vector_length, channel_idx += vector_length) {
+                            vector_length = __riscv_vsetvl_e32m2(remaining);
+                            vfloat32m2_t value_f32m2 = __riscv_vfcvt_f_x_v_f32m2(
+                                __riscv_vsext_vf4_i32m2(__riscv_vle8_v_i8mf2(values_row + channel_idx, vector_length),
+                                                        vector_length),
+                                vector_length);
+                            __riscv_vse32_v_f32m2(
+                                output_row + channel_idx,
+                                __riscv_vfmacc_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
+                                                        weight, value_f32m2, vector_length),
+                                vector_length);
+                        }
+                    }
+                    running_sum = running_sum * correction + panel_sum;
                 }
 
-                nk_f32_t panel_max2 = NUMKONG_F32_MIN;
-                for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-                    nk_f32_t const scaled2 = (nk_f32_t)scores[position_idx] * scale2;
-                    if (scaled2 > panel_max2) panel_max2 = scaled2;
-                }
-                nk_f32_t const new_max2 = running_max2 > panel_max2 ? running_max2 : panel_max2;
-                nk_f32_t const correction = nk_f32_exp2_serial_(running_max2 - new_max2);
-                running_max2 = new_max2;
+                nk_f32_t const inverse_sum = running_sum > 0 ? 1 / running_sum : 0.0f;
+                nk_size_t const token = query_first + row_idx;
+                nk_f32_t *destination = output + token * output_stride_floats + head_idx * depth;
                 for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
                      remaining -= vector_length, channel_idx += vector_length) {
                     vector_length = __riscv_vsetvl_e32m2(remaining);
                     __riscv_vse32_v_f32m2(
-                        output_row + channel_idx,
+                        destination + channel_idx,
                         __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
-                                               correction, vector_length),
+                                               inverse_sum, vector_length),
                         vector_length);
                 }
-
-                nk_f32_t panel_sum = 0;
-                for (nk_size_t position_idx = 0; position_idx < panel_length; position_idx++) {
-                    nk_u32_t const weight_u8 =
-                        (nk_u32_t)(nk_f32_exp2_serial_((nk_f32_t)scores[position_idx] * scale2 - new_max2) * 255.0f +
-                                   0.5f);
-                    if (weight_u8 == 0) continue;
-                    panel_sum += (nk_f32_t)weight_u8;
-                    nk_f32_t const weight = (nk_f32_t)weight_u8;
-                    nk_i8_t const *values_row = values_plane + (panel_start + position_idx) * depth;
-                    for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
-                         remaining -= vector_length, channel_idx += vector_length) {
-                        vector_length = __riscv_vsetvl_e32m2(remaining);
-                        vfloat32m2_t value_f32m2 = __riscv_vfcvt_f_x_v_f32m2(
-                            __riscv_vsext_vf4_i32m2(__riscv_vle8_v_i8mf2(values_row + channel_idx, vector_length),
-                                                    vector_length),
-                            vector_length);
-                        __riscv_vse32_v_f32m2(
-                            output_row + channel_idx,
-                            __riscv_vfmacc_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length),
-                                                    weight, value_f32m2, vector_length),
-                            vector_length);
-                    }
-                }
-                running_sum = running_sum * correction + panel_sum;
-            }
-
-            nk_f32_t const inverse_sum = running_sum > 0 ? 1.0f / running_sum : 0.0f;
-            nk_f32_t *destination = output + (query_offsets[segment_idx] + row_idx) * output_stride_floats +
-                                    head_idx * depth;
-            for (nk_size_t channel_idx = 0, remaining = depth, vector_length = 0; remaining > 0;
-                 remaining -= vector_length, channel_idx += vector_length) {
-                vector_length = __riscv_vsetvl_e32m2(remaining);
-                __riscv_vse32_v_f32m2(
-                    destination + channel_idx,
-                    __riscv_vfmul_vf_f32m2(__riscv_vle32_v_f32m2(output_row + channel_idx, vector_length), inverse_sum,
-                                           vector_length),
-                    vector_length);
+                if (log_sum_exp)
+                    log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_(running_max2,
+                                                                                           running_sum / 255.0f);
             }
         }
     }
@@ -513,13 +495,9 @@ NUMKONG_INLINE void nk_attention_packed_i8_rvv_(                            //
 #if NUMKONG_TARGET_RVV
 
 NUMKONG_API nk_status_t nk_attention_pack_size_bf16_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes) {
-    if (depth > nk_attention_max_depth_rvv_k_)
-        *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
-    else
-        *bytes = nk_attention_pack_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
-                                             sizeof(nk_bf16_t));
+    *bytes = nk_attention_pack_size_rvv_(key_value_head_count, depth, token_count, segment_count, sizeof(nk_bf16_t));
     return nk_success_k;
 }
 
@@ -532,13 +510,10 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_rvv(void const *key_value
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                        nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                        nk_size_t token_count, nk_size_t segment_count,
                                                         nk_size_t *bytes) {
-    if (depth > nk_attention_max_depth_rvv_k_)
-        *bytes = nk_attention_pack_size_serial_(key_value_head_count, depth, segment_lengths, segment_count);
-    else // E4M3 K/V packs as BF16
-        *bytes = nk_attention_pack_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
-                                             sizeof(nk_bf16_t));
+    // E4M3 K/V packs as BF16
+    *bytes = nk_attention_pack_size_rvv_(key_value_head_count, depth, token_count, segment_count, sizeof(nk_bf16_t));
     return nk_success_k;
 }
 
@@ -551,13 +526,10 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_rvv(void const *key_value
 }
 
 NUMKONG_API nk_status_t nk_attention_pack_size_i8_rvv(nk_size_t key_value_head_count, nk_size_t depth,
-                                                      nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                      nk_size_t token_count, nk_size_t segment_count,
                                                       nk_size_t *bytes) {
-    if (depth > nk_attention_max_depth_rvv_k_)
-        *bytes = nk_attention_pack_size_i8_(key_value_head_count, depth, segment_lengths, segment_count);
-    else
-        *bytes = nk_attention_pack_size_rvv_(key_value_head_count, depth, segment_lengths, segment_count,
-                                             sizeof(nk_i8_t));
+    // Raw I8 planes at every depth, the serial fallback's too
+    *bytes = nk_attention_pack_bound_(key_value_head_count, token_count, segment_count, 1, depth);
     return nk_success_k;
 }
 
@@ -572,9 +544,7 @@ NUMKONG_API nk_status_t nk_attention_packed_shape_i8_rvv(void const *key_value_p
 NUMKONG_API nk_status_t nk_attention_pack_bf16_rvv(                                                  //
     nk_bf16_t const *keys, nk_bf16_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride,
-    void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_rvv_k_)
         nk_attention_pack_serial_(keys, values, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_,
@@ -590,9 +560,7 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_rvv(                             
 NUMKONG_API nk_status_t nk_attention_pack_e4m3_rvv(                                                  //
     nk_e4m3_t const *keys, nk_e4m3_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride,
-    void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_rvv_k_)
         nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_,
@@ -608,9 +576,7 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_rvv(                             
 NUMKONG_API nk_status_t nk_attention_pack_i8_rvv(                                                //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
-    nk_size_t value_stride,
-    void *key_value_packed, //
-    nk_size_t task_begin, nk_size_t task_end, void *stream) {
+    nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (depth > nk_attention_max_depth_rvv_k_)
         nk_attention_pack_i8_serial_(keys, values, key_value_head_count, depth, segment_offsets, segment_lengths,
@@ -623,81 +589,65 @@ NUMKONG_API nk_status_t nk_attention_pack_i8_rvv(                               
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_bf16_rvv(                                 //
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                       //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
-    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
+NUMKONG_API nk_status_t nk_attention_packed_bf16_rvv(                            //
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
+    nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_rvv_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_bf16_rvv_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                  query_offsets, query_stride, output_stride, scale, NUMKONG_I64_MAX / 2,
-                                  NUMKONG_SIZE_MAX, task_start, task_count);
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    if (depth > nk_attention_max_depth_rvv_k_)
+        nk_attention_serial_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_packed, output,
+                             log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
+                             output_stride, scale, band, task_begin, task_end);
+    else
+        nk_attention_packed_float_rvv_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_f32m2_rvv_,
+                                       sizeof(nk_bf16_t), &nk_attention_load_bf16_f32m2_rvv_, key_value_packed, output,
+                                       log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
+                                       query_stride, output_stride, scale, band, task_begin, task_end);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_causal_packed_bf16_rvv(                                        //
-    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t *output,                       //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
-    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
+NUMKONG_API nk_status_t nk_attention_packed_e4m3_rvv(                            //
+    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,    //
+    nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_rvv_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_bf16_rvv_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                  query_offsets, query_stride, output_stride, scale, diagonal_offset, window,
-                                  task_start, task_count);
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    if (depth > nk_attention_max_depth_rvv_k_)
+        nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
+                             log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
+                             output_stride, scale, band, task_begin, task_end);
+    else // queries load as E4M3 through a LUT gather, the packed K/V planes as BF16 through shifts
+        nk_attention_packed_float_rvv_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_f32m2_rvv_,
+                                       sizeof(nk_bf16_t), &nk_attention_load_bf16_f32m2_rvv_, key_value_packed, output,
+                                       log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
+                                       query_stride, output_stride, scale, band, task_begin, task_end);
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_e4m3_rvv(                                 //
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                       //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
-    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
+NUMKONG_API nk_status_t nk_attention_packed_i8_rvv(                              //
+    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,      //
+    nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, //
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,      //
+    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
+    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_rvv_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_e4m3_rvv_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                  query_offsets, query_stride, output_stride, scale, NUMKONG_I64_MAX / 2,
-                                  NUMKONG_SIZE_MAX, task_start, task_count);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_causal_packed_e4m3_rvv(                                        //
-    nk_e4m3_t const *queries, void const *key_value_packed, nk_f32_t *output,                       //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
-    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_attention_packed_by_(key_value_packed, nk_cap_rvv_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_e4m3_rvv_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                  query_offsets, query_stride, output_stride, scale, diagonal_offset, window,
-                                  task_start, task_count);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_bidirectional_packed_i8_rvv(                                   //
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                         //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
-    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_size_t task_start, nk_size_t task_count, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_attention_packed_by_(key_value_packed, nk_cap_rvv_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_i8_rvv_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                query_offsets, query_stride, output_stride, scale, NUMKONG_I64_MAX / 2,
-                                NUMKONG_SIZE_MAX, task_start, task_count);
-    return nk_success_k;
-}
-
-NUMKONG_API nk_status_t nk_attention_causal_packed_i8_rvv(                                          //
-    nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output,                         //
-    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
-    nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
-    nk_i64_t diagonal_offset, nk_size_t window, nk_size_t task_start, nk_size_t task_count, void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_attention_packed_by_(key_value_packed, nk_cap_rvv_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_i8_rvv_(queries, key_value_packed, output, head_count, key_value_head_count, depth,
-                                query_offsets, query_stride, output_stride, scale, diagonal_offset, window, task_start,
-                                task_count);
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    if (depth > nk_attention_max_depth_rvv_k_)
+        nk_attention_packed_i8_serial_(queries, key_value_packed, output, log_sum_exp, head_count, key_value_head_count,
+                                       depth, query_offsets, query_stride, output_stride, scale, band, task_begin,
+                                       task_end);
+    else
+        nk_attention_packed_i8_rvv_(queries, key_value_packed, output, log_sum_exp, head_count, key_value_head_count,
+                                    depth, query_offsets, query_stride, output_stride, scale, band, task_begin,
+                                    task_end);
     return nk_success_k;
 }
 

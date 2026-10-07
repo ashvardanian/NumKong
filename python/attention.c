@@ -7,7 +7,7 @@
  *  This module owns:
  *  - @c AttentionPackedMatrix: the opaque pre-packed ragged KV-cache.
  *  - @c attention_pack: packs keys and values into it.
- *  - @c attention_bidirectional_packed and @c attention_causal_packed: compute attention over it.
+ *  - @c attention_packed: computes attention over it under a band of visible keys.
  */
 #include "attention.h"
 #include "parallel.h" // `nk_parallel_for_tiles`
@@ -17,7 +17,8 @@
 
 #include <math.h>
 
-/** One segment-head window of a KV-cache pack, named as in `nk_attention_pack_*`. */
+/** One window of the segments × key-value heads grid of a KV-cache pack, named as in
+ *  `nk_attention_pack_*`. */
 typedef struct attention_pack_task_t {
     nk_attention_pack_punned_t kernel;
     void const *keys;
@@ -27,26 +28,25 @@ typedef struct attention_pack_task_t {
     nk_u32_t const *segment_offsets;
     nk_u32_t const *segment_lengths;
     nk_size_t segment_count;
-    nk_size_t key_stride;
-    nk_size_t value_stride;
+    nk_size_t key_stride, value_stride;
     void *key_value_packed;
     void *stream;
 } attention_pack_task_t;
 
 static nk_status_t attention_pack_tile_(nk_size_t tile_index, void *context) {
     attention_pack_task_t const *task = (attention_pack_task_t const *)context;
-    // Window 0 initializes the blob's header and directory before the pool starts, so tile 0 is window 1.
-    nk_size_t const window = tile_index + 1;
     return task->kernel(task->keys, task->values, task->key_value_head_count, task->depth, task->segment_offsets,
                         task->segment_lengths, task->segment_count, task->key_stride, task->value_stride,
-                        task->key_value_packed, window, window + 1, task->stream);
+                        task->key_value_packed, tile_index, tile_index + 1, task->stream);
 }
 
-/** Arguments both attention kernels take, named as in `nk_attention_*_packed_*`. */
+/** Arguments of the attention kernels, named as in `nk_attention_packed_*`; the gradients write
+ *  the query gradient to @c output and read @c log_sum_exp. */
 typedef struct attention_arguments_t {
     void const *queries;
     void const *key_value_packed;
     void *output;
+    nk_f32_t *log_sum_exp;
     nk_size_t head_count;
     nk_size_t key_value_head_count;
     nk_size_t depth;
@@ -54,39 +54,93 @@ typedef struct attention_arguments_t {
     nk_size_t query_stride;
     nk_size_t output_stride;
     nk_f32_t scale;
+    nk_size_t keys_before;
+    nk_size_t keys_after;
     void *stream;
 } attention_arguments_t;
 
-/** One segment-head task of bidirectional attention. */
-typedef struct attention_bidirectional_task_t {
-    nk_attention_bidirectional_packed_punned_t kernel;
-    attention_arguments_t arguments;
-} attention_bidirectional_task_t;
+/** Most windows of the query tokens × heads grid one attention call is cut into. */
+enum { attention_windows_limit_k = 4 * NUMKONG_PARALLEL_MAX_THREADS };
 
-/** One segment-head task of causal attention, which adds the mask to the shared arguments. */
-typedef struct attention_causal_task_t {
-    nk_attention_causal_packed_punned_t kernel;
+/** Attention cut into windows of the query tokens × heads grid, window @c w spanning the tasks
+ *  from `window_bounds[w]` to `window_bounds[w + 1]`. */
+typedef struct attention_task_t {
+    nk_attention_packed_punned_t kernel;
     attention_arguments_t arguments;
-    nk_i64_t diagonal_offset;
-    nk_size_t window;
-} attention_causal_task_t;
+    nk_size_t window_bounds[attention_windows_limit_k + 1];
+} attention_task_t;
 
-static nk_status_t attention_bidirectional_tile_(nk_size_t tile_index, void *context) {
-    attention_bidirectional_task_t const *task = (attention_bidirectional_task_t const *)context;
+static nk_status_t attention_tile_(nk_size_t tile_index, void *context) {
+    attention_task_t const *task = (attention_task_t const *)context;
     attention_arguments_t const *arguments = &task->arguments;
-    return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
-                        arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
-                        arguments->query_stride, arguments->output_stride, arguments->scale, tile_index, 1,
-                        arguments->stream);
+    return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->log_sum_exp,
+                        arguments->head_count, arguments->key_value_head_count, arguments->depth,
+                        arguments->query_offsets, arguments->query_stride, arguments->output_stride, arguments->scale,
+                        arguments->keys_before, arguments->keys_after, task->window_bounds[tile_index],
+                        task->window_bounds[tile_index + 1], arguments->stream);
 }
 
-static nk_status_t attention_causal_tile_(nk_size_t tile_index, void *context) {
-    attention_causal_task_t const *task = (attention_causal_task_t const *)context;
+/** The cost of one head of query @p row of a segment of @p queries queries and @p keys keys: the
+ *  keys it sees under @p band, plus one for writing the row. */
+static nk_u64_t attention_row_cost_(nk_diagonal_band_t band, nk_size_t row, nk_size_t queries, nk_size_t keys) {
+    nk_size_t key_begin, key_end;
+    nk_diagonal_band_row_range_(band, (nk_i64_t)keys - (nk_i64_t)queries + (nk_i64_t)row, keys, &key_begin, &key_end);
+    return key_end - key_begin + 1;
+}
+
+/** Cuts the query tokens × heads grid into @p window_count windows of about equal cost, cutting
+ *  inside a token where a share ends, so a single decode token still spreads over its heads. */
+static void attention_windows_(nk_u32_t const *query_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                               nk_size_t head_count, nk_diagonal_band_t band, nk_size_t window_count,
+                               nk_size_t *window_bounds) {
+    nk_u64_t total = 0;
+    for (nk_size_t segment = 0; segment < segment_count; segment++) {
+        nk_size_t const queries = query_offsets[segment + 1] - query_offsets[segment];
+        for (nk_size_t row = 0; row < queries; row++)
+            total += attention_row_cost_(band, row, queries, segment_lengths[segment]) * head_count;
+    }
+    nk_u64_t done = 0;
+    nk_size_t window = 1;
+    window_bounds[0] = query_offsets[0] * head_count;
+    for (nk_size_t segment = 0; segment < segment_count; segment++) {
+        nk_size_t const queries = query_offsets[segment + 1] - query_offsets[segment];
+        for (nk_size_t row = 0; row < queries; row++) {
+            nk_u64_t const cost = attention_row_cost_(band, row, queries, segment_lengths[segment]);
+            for (; window < window_count; window++) {
+                nk_u64_t const target = total * window / window_count;
+                if (target > done + cost * head_count) break;
+                nk_u64_t const heads = target > done ? nk_u64_divide_round_up_(target - done, cost) : 0;
+                window_bounds[window] = (query_offsets[segment] + row) * head_count + (nk_size_t)heads;
+            }
+            done += cost * head_count;
+        }
+    }
+    for (; window <= window_count; window++) window_bounds[window] = query_offsets[segment_count] * head_count;
+}
+
+/** One segment and key-value head task of the gradients, with the forward's output, the output
+ *  gradient, and the key and value gradients it writes. */
+typedef struct attention_gradients_task_t {
+    nk_attention_packed_gradients_punned_t kernel;
+    attention_arguments_t arguments;
+    nk_f32_t const *output;
+    nk_f32_t const *output_gradient;
+    nk_u32_t const *key_offsets;
+    nk_f32_t *key_gradient;
+    nk_f32_t *value_gradient;
+    nk_size_t query_gradient_stride;
+    nk_size_t key_value_gradient_stride;
+} attention_gradients_task_t;
+
+static nk_status_t attention_gradients_tile_(nk_size_t tile_index, void *context) {
+    attention_gradients_task_t const *task = (attention_gradients_task_t const *)context;
     attention_arguments_t const *arguments = &task->arguments;
-    return task->kernel(arguments->queries, arguments->key_value_packed, arguments->output, arguments->head_count,
-                        arguments->key_value_head_count, arguments->depth, arguments->query_offsets,
-                        arguments->query_stride, arguments->output_stride, arguments->scale, task->diagonal_offset,
-                        task->window, tile_index, 1, arguments->stream);
+    return task->kernel(arguments->queries, arguments->key_value_packed, task->output, task->output_gradient,
+                        arguments->log_sum_exp, (nk_f32_t *)arguments->output, task->key_gradient, task->value_gradient,
+                        arguments->head_count, arguments->key_value_head_count, arguments->depth,
+                        arguments->query_offsets, task->key_offsets, arguments->query_stride, arguments->output_stride,
+                        task->query_gradient_stride, task->key_value_gradient_stride, arguments->scale,
+                        arguments->keys_before, arguments->keys_after, tile_index, tile_index + 1, arguments->stream);
 }
 
 static void AttentionPackedMatrix_dealloc(PyObject *self) { Py_TYPE(self)->tp_free(self); }
@@ -243,8 +297,9 @@ char const doc_attention_pack[] =                                               
     "Pack ragged K/V token matrices into a backend-opaque KV-cache blob.\n\n"                    //
     "Args:\n"                                                                                    //
     "    k, v (array_like): Token matrices, 2-D (tokens, heads*depth) or\n"                      //
-    "        3-D (tokens, heads, depth); bf16 or e4m3, rows may be strided\n"                    //
-    "        interior views of a fused QKV buffer.\n"                                            //
+    "        3-D (tokens, heads, depth); bf16, f16, e4m3 or i8, rows may be strided\n"           //
+    "        interior views of a fused QKV buffer, and depth may be strided too, so\n"           //
+    "        a depth-major buffer's transposed view packs without a copy.\n"                     //
     "    segment_offsets (u32 array): Cumulative token offsets, length segments+1.\n"            //
     "    segment_lengths (u32 array, optional): KV length per segment; defaults to\n"            //
     "        adjacent offset differences, as in self-attention.\n"                               //
@@ -309,7 +364,7 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
 
     nk_dtype_t dtype = resolve_nk_dtype_in_py_buffer(&k_buffer);
     if (dtype == nk_dtype_unknown_k || nk_attention_output_dtype(dtype) == nk_dtype_unknown_k) {
-        PyErr_Format(PyExc_TypeError, "Unsupported attention dtype '%s' (expected bf16 or e4m3)",
+        PyErr_Format(PyExc_TypeError, "Unsupported attention dtype '%s' (expected bf16, f16, e4m3 or i8)",
                      k_buffer.format ? k_buffer.format : "?");
         goto cleanup;
     }
@@ -373,8 +428,9 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         goto cleanup;
     }
 
-    nk_size_t packed_bytes = 0;
-    if (!check_status(size_fn(heads, depth, segment_lengths, segment_count, &packed_bytes))) goto cleanup;
+    nk_size_t packed_bytes = 0, token_count = 0;
+    for (nk_size_t segment = 0; segment < segment_count; ++segment) token_count += segment_lengths[segment];
+    if (!check_status(size_fn(heads, depth, token_count, segment_count, &packed_bytes))) goto cleanup;
     packed = PyObject_NewVar(AttentionPackedMatrix, &AttentionPackedMatrixType, (Py_ssize_t)packed_bytes);
     if (!packed) {
         PyErr_NoMemory();
@@ -402,14 +458,8 @@ PyObject *api_attention_pack(PyObject *self, PyObject *const *args, Py_ssize_t n
         task.value_stride = v_stride;
         task.key_value_packed = packed->start;
         task.stream = stream;
-        nk_size_t const task_count = segment_count * heads;
         PyThreadState *save = PyEval_SaveThread();
-        // The window covering task 0 initializes the blob's header and directory;
-        // running it first keeps the parallel remainder read-only on that region.
-        nk_status_t status = pack_fn(k_buffer.buf, v_buffer.buf, heads, depth, segment_offsets, segment_lengths,
-                                     segment_count, k_stride, v_stride, packed->start, 0, 1, stream);
-        if (status == nk_success_k && task_count > 1)
-            status = nk_parallel_for_tiles(task_count - 1, threads, attention_pack_tile_, &task);
+        nk_status_t const status = nk_parallel_for_tiles(segment_count * heads, threads, attention_pack_tile_, &task);
         PyEval_RestoreThread(save);
         check_status(status);
     }
@@ -427,40 +477,32 @@ cleanup:
     return (PyObject *)packed;
 }
 
-char const doc_attention_bidirectional_packed[] =                                                            //
-    "attention_bidirectional_packed(q, kv, /, query_offsets, out=None, scale=None, threads=1) -> Tensor\n\n" //
-    "Ragged bidirectional scaled-dot-product attention against a pre-packed KV-cache.\n\n"                   //
-    "Args:\n"                                                                                                //
-    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"                                   //
-    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"                                   //
-    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"                               //
-    "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"                          //
-    "        arange(segments+1) turns the call into a batched single-query pool.\n"                          //
-    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n"                         //
-    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"                                     //
-    "    threads (int): Threads over the segment*head task grid; 0 = all.\n\n"                               //
-    "Returns:\n"                                                                                             //
-    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                                //
-    "Signature:\n"                                                                                           //
-    "    >>> def attention_bidirectional_packed(q, kv, /, query_offsets, out=None,\n"                        //
-    "    ...                                    scale=None, threads=1) -> Tensor: ...";
-
-char const doc_attention_causal_packed[] =                                                               //
-    "attention_causal_packed(q, kv, /, query_offsets, out=None, scale=None, diagonal_offset=0,\n"        //
-    "window=None, threads=1) -> Tensor\n\n"                                                              //
-    "Ragged causal, optionally sliding-window, attention against a pre-packed KV-cache.\n\n"             //
-    "Query row r of a segment sits at position p = r + diagonal_offset and attends to keys max(0, p -\n" //
-    "window + 1) through min(p, length - 1); rows seeing no key are zeros.\n\n"                          //
-    "Args:\n"                                                                                            //
-    "    q, kv, query_offsets, out, scale, threads: As in attention_bidirectional_packed().\n"           //
-    "    diagonal_offset (int): Position of query row 0; length - queries for decode.\n"                 //
-    "    window (int, optional): Visible keys including the query; None is unbounded.\n\n"               //
-    "Returns:\n"                                                                                         //
-    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                            //
-    "Signature:\n"                                                                                       //
-    "    >>> def attention_causal_packed(q, kv, /, query_offsets, out=None, scale=None,\n"               //
-    "    ...                             diagonal_offset=0, window=None,\n"                              //
-    "    ...                             threads=1) -> Tensor: ...";
+char const doc_attention_packed[] =                                                                    //
+    "attention_packed(q, kv, /, query_offsets, out=None, scale=None, keys_before=None,\n"              //
+    "keys_after=None, log_sum_exp=None, threads=1) -> Tensor\n\n"                                      //
+    "Ragged scaled-dot-product attention against a pre-packed KV-cache, under a band of keys.\n\n"     //
+    "Each segment's queries align to the end of its keys: query row r of q queries over k keys sits\n" //
+    "at position p = r + k - q and sees keys p - keys_before through p + keys_after. Causal\n"         //
+    "attention is keys_after=0, a sliding window of w keys adds keys_before=w-1, and rows that see\n"  //
+    "no key are zeros.\n\n"                                                                            //
+    "Args:\n"                                                                                          //
+    "    q (array_like): Query tokens, 2-D (tokens, heads*depth) or 3-D\n"                             //
+    "        (tokens, heads, depth), same dtype as the packed KV-cache.\n"                             //
+    "    kv (AttentionPackedMatrix): Packed KV-cache from attention_pack().\n"                         //
+    "    query_offsets (u32 array): Cumulative query offsets, length segments+1;\n"                    //
+    "        arange(segments+1) turns the call into a batched single-query pool.\n"                    //
+    "    out (Tensor, optional): Pre-allocated f32 output of the same shape as q.\n"                   //
+    "    scale (float, optional): Score scale; default 1/sqrt(depth).\n"                               //
+    "    keys_before (int, optional): Keys visible before each query; None is unbounded.\n"            //
+    "    keys_after (int, optional): Keys visible after each query; None is unbounded.\n"              //
+    "    log_sum_exp (array_like, optional): Writable contiguous f32 (tokens, heads) that receives\n"  //
+    "        each row's natural log-sum-exp, -inf for rows without keys, for the gradients.\n"         //
+    "    threads (int): Threads sharing equal-cost windows of the token*head grid; 0 = all.\n\n"       //
+    "Returns:\n"                                                                                       //
+    "    Tensor: f32 outputs, rows covered by query_offsets are written.\n\n"                          //
+    "Signature:\n"                                                                                     //
+    "    >>> def attention_packed(q, kv, /, query_offsets, out=None, scale=None, keys_before=None,\n"  //
+    "    ...                      keys_after=None, log_sum_exp=None, threads=1) -> Tensor: ...";
 
 /** Python buffers and the output tensor behind an @c attention_arguments_t, held until its kernel
  *  returns. */
@@ -469,8 +511,34 @@ typedef struct attention_buffers_t {
     nk_buffer_backing_t queries_backing;
     Py_buffer query_offsets;
     nk_buffer_backing_t query_offsets_backing;
+    Py_buffer log_sum_exp;
+    nk_buffer_backing_t log_sum_exp_backing;
     Tensor *output;
 } attention_buffers_t;
+
+/** Acquires a C-contiguous f32 buffer of exactly @p count values, releasing it on failure. */
+static int attention_parse_f32_values_(PyObject *object, char const *name, nk_size_t count, int flags,
+                                       Py_buffer *buffer, nk_buffer_backing_t *backing) {
+    if (!nk_get_buffer(object, buffer, flags | PyBUF_STRIDES | PyBUF_FORMAT, backing)) {
+        buffer->obj = NULL;
+        PyErr_Format(PyExc_TypeError, "%s must support buffer protocol", name);
+        return 0;
+    }
+    nk_size_t values = 1;
+    Py_ssize_t stride = buffer->itemsize;
+    int contiguous = 1;
+    for (int axis = buffer->ndim - 1; axis >= 0; axis--) {
+        if (buffer->shape[axis] > 1 && buffer->strides[axis] != stride) contiguous = 0;
+        stride *= buffer->shape[axis];
+        values *= (nk_size_t)buffer->shape[axis];
+    }
+    if (resolve_nk_dtype_in_py_buffer(buffer) != nk_f32_k || !contiguous || values != count) {
+        PyBuffer_Release(buffer);
+        PyErr_Format(PyExc_ValueError, "%s must be a contiguous f32 array of %zu values", name, (size_t)count);
+        return 0;
+    }
+    return 1;
+}
 
 /**
  *  @brief Validates the operands both attention modes share, releasing everything on failure.
@@ -481,6 +549,8 @@ static int attention_arguments_parse_(char const *name, PyObject *queries_object
                                       PyObject *query_offsets_object, PyObject *output_object, PyObject *scale_object,
                                       attention_arguments_t *arguments, attention_buffers_t *buffers,
                                       AttentionPackedMatrix **packed_matrix) {
+    buffers->log_sum_exp.obj = NULL;
+    arguments->log_sum_exp = NULL;
     if (!query_offsets_object) {
         PyErr_Format(PyExc_TypeError, "%s() requires 'query_offsets'", name);
         return 0;
@@ -575,6 +645,7 @@ release_queries:
 
 /** Releases input buffers, returns the output tensor, or NULL on a pending Python error. */
 static PyObject *attention_buffers_release_(attention_buffers_t *buffers) {
+    PyBuffer_Release(&buffers->log_sum_exp);
     PyBuffer_Release(&buffers->query_offsets);
     PyBuffer_Release(&buffers->queries);
     if (PyErr_Occurred()) {
@@ -584,15 +655,22 @@ static PyObject *attention_buffers_release_(attention_buffers_t *buffers) {
     return (PyObject *)buffers->output;
 }
 
-PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs,
-                                             PyObject *kwnames) {
+/** Reads an optional count of visible keys into @p keys, leaving it unbounded for None. */
+static int attention_parse_keys_(PyObject *value, nk_size_t *keys) {
+    if (value == Py_None) return 1;
+    *keys = (nk_size_t)PyLong_AsSize_t(value);
+    return !(*keys == (nk_size_t)-1 && PyErr_Occurred());
+}
+
+PyObject *api_attention_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
-    PyObject *query_offsets_object = NULL, *output_object = NULL, *scale_object = NULL;
-    nk_size_t threads = 1;
+    PyObject *query_offsets_object = NULL, *output_object = NULL, *scale_object = NULL, *log_sum_exp_object = NULL;
+    nk_size_t threads = 1, keys_before = NUMKONG_SIZE_MAX, keys_after = NUMKONG_SIZE_MAX;
+    attention_task_t task;
 
     Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
-    if (nargs < 2 || nargs > 3 || nargs + keyword_count > 8) {
-        PyErr_SetString(PyExc_TypeError, doc_attention_bidirectional_packed);
+    if (nargs < 2 || nargs > 3 || nargs + keyword_count > 11) {
+        PyErr_SetString(PyExc_TypeError, doc_attention_packed);
         return NULL;
     }
     // A KV-cache is read with the mask that packed it, unless `capabilities=` says otherwise.
@@ -611,45 +689,97 @@ PyObject *api_attention_bidirectional_packed(PyObject *self, PyObject *const *ar
             threads = (nk_size_t)PyLong_AsSize_t(value);
             if (threads == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
         }
+        else if (PyUnicode_CompareWithASCIIString(keyword, "keys_before") == 0) {
+            if (!attention_parse_keys_(value, &keys_before)) return NULL;
+        }
+        else if (PyUnicode_CompareWithASCIIString(keyword, "keys_after") == 0) {
+            if (!attention_parse_keys_(value, &keys_after)) return NULL;
+        }
+        else if (PyUnicode_CompareWithASCIIString(keyword, "log_sum_exp") == 0) {
+            if (value != Py_None) log_sum_exp_object = value;
+        }
         else if (!parse_dispatch_keyword(keyword, value, &capabilities, &stream)) return NULL;
     }
 
-    attention_bidirectional_task_t task;
     attention_buffers_t buffers;
     AttentionPackedMatrix *packed;
-    if (!attention_arguments_parse_("attention_bidirectional_packed", args[0], args[1], query_offsets_object,
-                                    output_object, scale_object, &task.arguments, &buffers, &packed))
+    if (!attention_arguments_parse_("attention_packed", args[0], args[1], query_offsets_object, output_object,
+                                    scale_object, &task.arguments, &buffers, &packed))
         return NULL;
+    task.arguments.keys_before = keys_before, task.arguments.keys_after = keys_after;
     task.arguments.stream = stream;
+    if (log_sum_exp_object) {
+        nk_size_t const rows = (nk_size_t)buffers.queries.shape[0] * task.arguments.head_count;
+        if (!attention_parse_f32_values_(log_sum_exp_object, "log_sum_exp", rows, PyBUF_WRITABLE, &buffers.log_sum_exp,
+                                         &buffers.log_sum_exp_backing))
+            return attention_buffers_release_(&buffers);
+        task.arguments.log_sum_exp = (nk_f32_t *)buffers.log_sum_exp.buf;
+    }
 
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_bidirectional_packed_k, packed->dtype, capabilities,
-                          (nk_kernel_punned_t *)&task.kernel, &capability);
+    nk_find_kernel_punned(nk_kernel_attention_packed_k, packed->dtype, capabilities, (nk_kernel_punned_t *)&task.kernel,
+                          &capability);
     if (!task.kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No attention_bidirectional_packed kernel for dtype '%s'",
+        PyErr_Format(PyExc_LookupError, "No attention_packed kernel for dtype '%s'",
                      nk_dtype_python_name(packed->dtype));
         return attention_buffers_release_(&buffers);
     }
+    if (threads == 0) threads = nk_parallel_concurrency();
+    nk_u32_t const *query_offsets = task.arguments.query_offsets;
+    nk_size_t const task_count = (query_offsets[packed->segment_count] - query_offsets[0]) * task.arguments.head_count;
+    nk_size_t window_count = threads > 1 ? 4 * threads : 1;
+    if (window_count > attention_windows_limit_k) window_count = attention_windows_limit_k;
+    if (window_count > task_count) window_count = task_count;
     PyThreadState *save = PyEval_SaveThread();
-    nk_status_t const status = nk_parallel_for_tiles(packed->segment_count * task.arguments.head_count, threads,
-                                                     attention_bidirectional_tile_, &task);
+    nk_diagonal_band_t const band = {keys_before, keys_after};
+    // Every pack's directory keeps the lengths past its 64-byte header and segments + 1 offsets.
+    nk_size_t const lengths_offset = 64 + (packed->segment_count + 1) * sizeof(nk_u64_t);
+    nk_u32_t const *segment_lengths = (nk_u32_t const *)(packed->start + lengths_offset);
+    attention_windows_(query_offsets, segment_lengths, packed->segment_count, task.arguments.head_count, band,
+                       window_count, task.window_bounds);
+    nk_status_t const status = nk_parallel_for_tiles(window_count, threads, attention_tile_, &task);
     PyEval_RestoreThread(save);
     check_status(status);
     return attention_buffers_release_(&buffers);
 }
 
-PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
+char const doc_attention_packed_gradients[] =                                                        //
+    "attention_packed_gradients(q, kv, /, query_offsets, key_offsets, output, output_gradient,\n"    //
+    "log_sum_exp, scale=None, keys_before=None, keys_after=None, query_gradient=None,\n"             //
+    "threads=1) -> tuple\n\n"                                                                        //
+    "Gradients of attention_packed() with respect to its queries, keys and values, bf16 only.\n\n"   //
+    "Recomputes every attention weight from the forward's log-sum-exp under the forward's band.\n\n" //
+    "Args:\n"                                                                                        //
+    "    q, query_offsets, scale, keys_before, keys_after: As in the forward attention_packed().\n"  //
+    "    kv (AttentionPackedMatrix): Packed by a gradient-capable capability, SERIAL on CPUs.\n"     //
+    "    key_offsets (u32 array): The segment_offsets kv was packed with, length segments+1.\n"      //
+    "    output (array_like): The forward's contiguous f32 output for these queries.\n"              //
+    "    output_gradient (array_like): Contiguous f32 gradient of the loss, shaped like output.\n"   //
+    "    log_sum_exp (array_like): The forward's contiguous f32 (tokens, heads) log-sum-exp.\n"      //
+    "    query_gradient (Tensor, optional): Pre-allocated f32 (tokens, heads*depth) query\n"         //
+    "        gradient, rows any multiple of 4 bytes apart, such as a slice of a wider buffer.\n"     //
+    "    threads (int): Threads over the segment*kv_head task grid; 0 = all.\n\n"                    //
+    "Returns:\n"                                                                                     //
+    "    tuple[Tensor, Tensor, Tensor]: f32 query, key and value gradients, the query one shaped\n"  //
+    "        like output and the others (key_offsets[-1], kv.heads*depth).\n\n"                      //
+    "Signature:\n"                                                                                   //
+    "    >>> def attention_packed_gradients(q, kv, /, query_offsets, key_offsets, output,\n"         //
+    "    ...                                output_gradient, log_sum_exp, scale=None,\n"             //
+    "    ...                                keys_before=None, keys_after=None,\n"                    //
+    "    ...                                query_gradient=None, threads=1) -> tuple: ...";
+
+PyObject *api_attention_packed_gradients(PyObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames) {
     nk_unused_(self);
-    PyObject *query_offsets_object = NULL, *output_object = NULL, *scale_object = NULL;
-    nk_size_t threads = 1;
-    attention_causal_task_t task;
-    task.diagonal_offset = 0;
-    task.window = NUMKONG_SIZE_MAX;
+    PyObject *query_offsets_object = NULL, *key_offsets_object = NULL, *output_object = NULL,
+             *output_gradient_object = NULL, *log_sum_exp_object = NULL, *scale_object = NULL,
+             *query_gradient_object = NULL;
+    nk_size_t threads = 1, keys_before = NUMKONG_SIZE_MAX, keys_after = NUMKONG_SIZE_MAX;
+    attention_gradients_task_t task;
 
     Py_ssize_t const keyword_count = kwnames ? PyTuple_Size(kwnames) : 0;
-    if (nargs < 2 || nargs > 3 || nargs + keyword_count > 10) {
-        PyErr_SetString(PyExc_TypeError, doc_attention_causal_packed);
+    if (nargs != 2 || keyword_count > 12) {
+        PyErr_SetString(PyExc_TypeError, doc_attention_packed_gradients);
         return NULL;
     }
     // A KV-cache is read with the mask that packed it, unless `capabilities=` says otherwise.
@@ -657,52 +787,115 @@ PyObject *api_attention_causal_packed(PyObject *self, PyObject *const *args, Py_
                                        ? ((AttentionPackedMatrix *)args[1])->capabilities
                                        : nk_cap_cpus_k;
     void *stream = NULL;
-    if (nargs >= 3) query_offsets_object = args[2];
     for (Py_ssize_t keyword_index = 0; keyword_index < keyword_count; keyword_index++) {
         PyObject *keyword = PyTuple_GET_ITEM(kwnames, keyword_index);
         PyObject *value = args[nargs + keyword_index];
         if (PyUnicode_CompareWithASCIIString(keyword, "query_offsets") == 0) query_offsets_object = value;
-        else if (PyUnicode_CompareWithASCIIString(keyword, "out") == 0) output_object = value;
+        else if (PyUnicode_CompareWithASCIIString(keyword, "key_offsets") == 0) key_offsets_object = value;
+        else if (PyUnicode_CompareWithASCIIString(keyword, "output") == 0) output_object = value;
+        else if (PyUnicode_CompareWithASCIIString(keyword, "output_gradient") == 0) output_gradient_object = value;
+        else if (PyUnicode_CompareWithASCIIString(keyword, "log_sum_exp") == 0) log_sum_exp_object = value;
         else if (PyUnicode_CompareWithASCIIString(keyword, "scale") == 0) scale_object = value;
+        else if (PyUnicode_CompareWithASCIIString(keyword, "query_gradient") == 0) {
+            if (value != Py_None) query_gradient_object = value;
+        }
         else if (PyUnicode_CompareWithASCIIString(keyword, "threads") == 0) {
             threads = (nk_size_t)PyLong_AsSize_t(value);
             if (threads == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
         }
-        else if (PyUnicode_CompareWithASCIIString(keyword, "diagonal_offset") == 0) {
-            task.diagonal_offset = (nk_i64_t)PyLong_AsLongLong(value);
-            if (task.diagonal_offset == -1 && PyErr_Occurred()) return NULL;
+        else if (PyUnicode_CompareWithASCIIString(keyword, "keys_before") == 0) {
+            if (!attention_parse_keys_(value, &keys_before)) return NULL;
         }
-        else if (PyUnicode_CompareWithASCIIString(keyword, "window") == 0) {
-            if (value != Py_None) {
-                task.window = (nk_size_t)PyLong_AsSize_t(value);
-                if (task.window == (nk_size_t)-1 && PyErr_Occurred()) return NULL;
-            }
+        else if (PyUnicode_CompareWithASCIIString(keyword, "keys_after") == 0) {
+            if (!attention_parse_keys_(value, &keys_after)) return NULL;
         }
         else if (!parse_dispatch_keyword(keyword, value, &capabilities, &stream)) return NULL;
     }
+    if (!key_offsets_object || !output_object || !output_gradient_object || !log_sum_exp_object) {
+        PyErr_SetString(PyExc_TypeError,
+                        "attention_packed_gradients() requires 'key_offsets', 'output', " //
+                        "'output_gradient' and 'log_sum_exp'");
+        return NULL;
+    }
 
+    // The output tensor the forward's parser checks or allocates is the query gradient
     attention_buffers_t buffers;
     AttentionPackedMatrix *packed;
-    if (!attention_arguments_parse_("attention_causal_packed", args[0], args[1], query_offsets_object, output_object,
-                                    scale_object, &task.arguments, &buffers, &packed))
+    if (!attention_arguments_parse_("attention_packed_gradients", args[0], args[1], query_offsets_object,
+                                    query_gradient_object, scale_object, &task.arguments, &buffers, &packed))
         return NULL;
+    task.arguments.keys_before = keys_before, task.arguments.keys_after = keys_after;
     task.arguments.stream = stream;
+    task.query_gradient_stride = (nk_size_t)buffers.output->strides[0];
+    if (buffers.output->strides[1] != (Py_ssize_t)sizeof(nk_f32_t) || task.query_gradient_stride % sizeof(nk_f32_t)) {
+        PyErr_SetString(PyExc_ValueError, "query_gradient rows must be contiguous and 4-byte aligned");
+        return attention_buffers_release_(&buffers);
+    }
+
+    Py_buffer output_buffer, output_gradient_buffer, key_offsets_buffer;
+    nk_buffer_backing_t output_backing, output_gradient_backing, key_offsets_backing;
+    output_buffer.obj = output_gradient_buffer.obj = key_offsets_buffer.obj = NULL;
+    Tensor *key_gradient = NULL, *value_gradient = NULL;
+    PyObject *gradients = NULL;
+    nk_size_t const query_rows = (nk_size_t)buffers.queries.shape[0] * task.arguments.head_count;
+    nk_size_t key_offsets_count = 0;
+    if (!attention_parse_f32_values_(output_object, "output", query_rows * packed->depth, 0, &output_buffer,
+                                     &output_backing) ||
+        !attention_parse_f32_values_(output_gradient_object, "output_gradient", query_rows * packed->depth, 0,
+                                     &output_gradient_buffer, &output_gradient_backing) ||
+        !attention_parse_f32_values_(log_sum_exp_object, "log_sum_exp", query_rows, 0, &buffers.log_sum_exp,
+                                     &buffers.log_sum_exp_backing) ||
+        !attention_parse_u32_vector(key_offsets_object, "key_offsets", &key_offsets_buffer, &key_offsets_backing,
+                                    &task.key_offsets, &key_offsets_count))
+        goto release;
+    if (key_offsets_count != packed->segment_count + 1) {
+        PyErr_Format(PyExc_ValueError, "key_offsets must have %zu entries (segments + 1)",
+                     (size_t)packed->segment_count + 1);
+        goto release;
+    }
 
     task.kernel = NULL;
     nk_capability_t capability = nk_cap_serial_k;
-    nk_find_kernel_punned(nk_kernel_attention_causal_packed_k, packed->dtype, capabilities,
+    nk_find_kernel_punned(nk_kernel_attention_packed_gradients_k, packed->dtype, capabilities,
                           (nk_kernel_punned_t *)&task.kernel, &capability);
     if (!task.kernel || !capability) {
-        PyErr_Format(PyExc_LookupError, "No attention_causal_packed kernel for dtype '%s'",
+        PyErr_Format(PyExc_LookupError, "No attention_packed_gradients kernel for dtype '%s'",
                      nk_dtype_python_name(packed->dtype));
-        return attention_buffers_release_(&buffers);
+        goto release;
     }
+    // Rows between segments stay untouched by the kernel, so the gradients start at zero
+    nk_size_t const key_row_values = packed->heads * packed->depth;
+    Py_ssize_t const key_shape[2] = {(Py_ssize_t)task.key_offsets[packed->segment_count], (Py_ssize_t)key_row_values};
+    key_gradient = Tensor_new(nk_f32_k, 2, key_shape);
+    value_gradient = key_gradient ? Tensor_new(nk_f32_k, 2, key_shape) : NULL;
+    if (!value_gradient) goto release;
+    memset(key_gradient->data, 0, (size_t)key_shape[0] * key_row_values * sizeof(nk_f32_t));
+    memset(value_gradient->data, 0, (size_t)key_shape[0] * key_row_values * sizeof(nk_f32_t));
+    task.output = (nk_f32_t const *)output_buffer.buf;
+    task.output_gradient = (nk_f32_t const *)output_gradient_buffer.buf;
+    task.arguments.log_sum_exp = (nk_f32_t *)buffers.log_sum_exp.buf;
+    task.key_gradient = (nk_f32_t *)key_gradient->data;
+    task.value_gradient = (nk_f32_t *)value_gradient->data;
+    task.key_value_gradient_stride = key_row_values * sizeof(nk_f32_t);
+
     PyThreadState *save = PyEval_SaveThread();
-    nk_status_t const status = nk_parallel_for_tiles(packed->segment_count * task.arguments.head_count, threads,
-                                                     attention_causal_tile_, &task);
+    nk_status_t const status = nk_parallel_for_tiles(packed->segment_count * packed->heads, threads,
+                                                     attention_gradients_tile_, &task);
     PyEval_RestoreThread(save);
     check_status(status);
-    return attention_buffers_release_(&buffers);
+    if (!PyErr_Occurred())
+        gradients = PyTuple_Pack(3, (PyObject *)buffers.output, (PyObject *)key_gradient, (PyObject *)value_gradient);
+
+release:
+    PyBuffer_Release(&key_offsets_buffer);
+    PyBuffer_Release(&output_gradient_buffer);
+    PyBuffer_Release(&output_buffer);
+    Py_XDECREF(key_gradient);
+    Py_XDECREF(value_gradient);
+    PyObject *query_gradient = attention_buffers_release_(&buffers);
+    if (!query_gradient) return NULL;
+    Py_DECREF(query_gradient);
+    return gradients;
 }
 
 char const doc_attention_rope[] =                                                                        //

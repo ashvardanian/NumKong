@@ -157,21 +157,12 @@ void bench_cross_x8664(environment_t const &env) {
                                   nk_dots_pack_u1_haswell, nk_jaccards_packed_u1_haswell);
         run_jaccards_symmetric<u1_k>(env, "jaccards_symmetric_u1_haswell", nk_jaccards_symmetric_u1_haswell);
 
-        run_attention_bidirectional<bf16_k>(env, "attention_bidirectional_packed_bf16_haswell",
-                                            nk_attention_pack_size_bf16_haswell, nk_attention_pack_bf16_haswell,
-                                            nk_attention_bidirectional_packed_bf16_haswell);
-        run_attention_causal<bf16_k>(env, "attention_causal_packed_bf16_haswell", nk_attention_pack_size_bf16_haswell,
-                                     nk_attention_pack_bf16_haswell, nk_attention_causal_packed_bf16_haswell);
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_haswell",
-                                            nk_attention_pack_size_e4m3_haswell, nk_attention_pack_e4m3_haswell,
-                                            nk_attention_bidirectional_packed_e4m3_haswell);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_haswell", nk_attention_pack_size_e4m3_haswell,
-                                     nk_attention_pack_e4m3_haswell, nk_attention_causal_packed_e4m3_haswell);
-        run_attention_bidirectional<i8_k>(env, "attention_bidirectional_packed_i8_haswell",
-                                          nk_attention_pack_size_i8_haswell, nk_attention_pack_i8_haswell,
-                                          nk_attention_bidirectional_packed_i8_haswell);
-        run_attention_causal<i8_k>(env, "attention_causal_packed_i8_haswell", nk_attention_pack_size_i8_haswell,
-                                   nk_attention_pack_i8_haswell, nk_attention_causal_packed_i8_haswell);
+        run_attention<bf16_k>(env, "attention_packed_bf16_haswell", nk_attention_pack_size_bf16_haswell,
+                              nk_attention_pack_bf16_haswell, nk_attention_packed_bf16_haswell);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_haswell", nk_attention_pack_size_e4m3_haswell,
+                              nk_attention_pack_e4m3_haswell, nk_attention_packed_e4m3_haswell);
+        run_attention<i8_k>(env, "attention_packed_i8_haswell", nk_attention_pack_size_i8_haswell,
+                            nk_attention_pack_i8_haswell, nk_attention_packed_i8_haswell);
         run_attention_rope<f32_k>(env, "attention_rope_f32_haswell", nk_attention_rope_f32_haswell);
         run_attention_rope<bf16_k>(env, "attention_rope_bf16_haswell", nk_attention_rope_bf16_haswell);
         run_attention_rope<e4m3_k>(env, "attention_rope_e4m3_haswell", nk_attention_rope_e4m3_haswell);
@@ -353,16 +344,10 @@ void bench_cross_x8664(environment_t const &env) {
         run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_skylake",
                                                  nk_euclideans_symmetric_mxfp8e5m2_skylake);
 
-        run_attention_bidirectional<bf16_k>(env, "attention_bidirectional_packed_bf16_skylake",
-                                            nk_attention_pack_size_bf16_skylake, nk_attention_pack_bf16_skylake,
-                                            nk_attention_bidirectional_packed_bf16_skylake);
-        run_attention_causal<bf16_k>(env, "attention_causal_packed_bf16_skylake", nk_attention_pack_size_bf16_skylake,
-                                     nk_attention_pack_bf16_skylake, nk_attention_causal_packed_bf16_skylake);
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_skylake",
-                                            nk_attention_pack_size_e4m3_skylake, nk_attention_pack_e4m3_skylake,
-                                            nk_attention_bidirectional_packed_e4m3_skylake);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_skylake", nk_attention_pack_size_e4m3_skylake,
-                                     nk_attention_pack_e4m3_skylake, nk_attention_causal_packed_e4m3_skylake);
+        run_attention<bf16_k>(env, "attention_packed_bf16_skylake", nk_attention_pack_size_bf16_skylake,
+                              nk_attention_pack_bf16_skylake, nk_attention_packed_bf16_skylake);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_skylake", nk_attention_pack_size_e4m3_skylake,
+                              nk_attention_pack_e4m3_skylake, nk_attention_packed_e4m3_skylake);
         run_attention_rope<f32_k>(env, "attention_rope_f32_skylake", nk_attention_rope_f32_skylake);
         run_attention_rope<bf16_k>(env, "attention_rope_bf16_skylake", nk_attention_rope_bf16_skylake);
         run_attention_rope<e4m3_k>(env, "attention_rope_e4m3_skylake", nk_attention_rope_e4m3_skylake);
@@ -425,11 +410,8 @@ void bench_cross_x8664(environment_t const &env) {
                                   nk_dots_pack_u1_icelake, nk_jaccards_packed_u1_icelake);
         run_jaccards_symmetric<u1_k>(env, "jaccards_symmetric_u1_icelake", nk_jaccards_symmetric_u1_icelake);
 
-        run_attention_bidirectional<i8_k>(env, "attention_bidirectional_packed_i8_icelake",
-                                          nk_attention_pack_size_i8_icelake, nk_attention_pack_i8_icelake,
-                                          nk_attention_bidirectional_packed_i8_icelake);
-        run_attention_causal<i8_k>(env, "attention_causal_packed_i8_icelake", nk_attention_pack_size_i8_icelake,
-                                   nk_attention_pack_i8_icelake, nk_attention_causal_packed_i8_icelake);
+        run_attention<i8_k>(env, "attention_packed_i8_icelake", nk_attention_pack_size_i8_icelake,
+                            nk_attention_pack_i8_icelake, nk_attention_packed_i8_icelake);
     }
 
 #endif
@@ -465,16 +447,10 @@ void bench_cross_x8664(environment_t const &env) {
         run_euclideans_symmetric<e5m2_k>(env, "euclideans_symmetric_e5m2_genoa", nk_euclideans_symmetric_e5m2_genoa);
         run_euclideans_symmetric<e4m3_k>(env, "euclideans_symmetric_e4m3_genoa", nk_euclideans_symmetric_e4m3_genoa);
 
-        run_attention_bidirectional<bf16_k>(env, "attention_bidirectional_packed_bf16_genoa",
-                                            nk_attention_pack_size_bf16_genoa, nk_attention_pack_bf16_genoa,
-                                            nk_attention_bidirectional_packed_bf16_genoa);
-        run_attention_causal<bf16_k>(env, "attention_causal_packed_bf16_genoa", nk_attention_pack_size_bf16_genoa,
-                                     nk_attention_pack_bf16_genoa, nk_attention_causal_packed_bf16_genoa);
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_genoa",
-                                            nk_attention_pack_size_e4m3_genoa, nk_attention_pack_e4m3_genoa,
-                                            nk_attention_bidirectional_packed_e4m3_genoa);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_genoa", nk_attention_pack_size_e4m3_genoa,
-                                     nk_attention_pack_e4m3_genoa, nk_attention_causal_packed_e4m3_genoa);
+        run_attention<bf16_k>(env, "attention_packed_bf16_genoa", nk_attention_pack_size_bf16_genoa,
+                              nk_attention_pack_bf16_genoa, nk_attention_packed_bf16_genoa);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_genoa", nk_attention_pack_size_e4m3_genoa,
+                              nk_attention_pack_e4m3_genoa, nk_attention_packed_e4m3_genoa);
     }
 
 #endif
@@ -645,23 +621,12 @@ void bench_cross_x8664(environment_t const &env) {
         run_dots_symmetric<i8_k>(env, "dots_symmetric_i8_sapphireamx", nk_dots_symmetric_i8_sapphireamx);
         run_dots_symmetric<u8_k>(env, "dots_symmetric_u8_sapphireamx", nk_dots_symmetric_u8_sapphireamx);
 
-        run_attention_bidirectional<bf16_k>(env, "attention_bidirectional_packed_bf16_sapphireamx",
-                                            nk_attention_pack_size_bf16_sapphireamx, nk_attention_pack_bf16_sapphireamx,
-                                            nk_attention_bidirectional_packed_bf16_sapphireamx);
-        run_attention_causal<bf16_k>(env, "attention_causal_packed_bf16_sapphireamx",
-                                     nk_attention_pack_size_bf16_sapphireamx, nk_attention_pack_bf16_sapphireamx,
-                                     nk_attention_causal_packed_bf16_sapphireamx);
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_sapphireamx",
-                                            nk_attention_pack_size_e4m3_sapphireamx, nk_attention_pack_e4m3_sapphireamx,
-                                            nk_attention_bidirectional_packed_e4m3_sapphireamx);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_sapphireamx",
-                                     nk_attention_pack_size_e4m3_sapphireamx, nk_attention_pack_e4m3_sapphireamx,
-                                     nk_attention_causal_packed_e4m3_sapphireamx);
-        run_attention_bidirectional<i8_k>(env, "attention_bidirectional_packed_i8_sapphireamx",
-                                          nk_attention_pack_size_i8_sapphireamx, nk_attention_pack_i8_sapphireamx,
-                                          nk_attention_bidirectional_packed_i8_sapphireamx);
-        run_attention_causal<i8_k>(env, "attention_causal_packed_i8_sapphireamx", nk_attention_pack_size_i8_sapphireamx,
-                                   nk_attention_pack_i8_sapphireamx, nk_attention_causal_packed_i8_sapphireamx);
+        run_attention<bf16_k>(env, "attention_packed_bf16_sapphireamx", nk_attention_pack_size_bf16_sapphireamx,
+                              nk_attention_pack_bf16_sapphireamx, nk_attention_packed_bf16_sapphireamx);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_sapphireamx", nk_attention_pack_size_e4m3_sapphireamx,
+                              nk_attention_pack_e4m3_sapphireamx, nk_attention_packed_e4m3_sapphireamx);
+        run_attention<i8_k>(env, "attention_packed_i8_sapphireamx", nk_attention_pack_size_i8_sapphireamx,
+                            nk_attention_pack_i8_sapphireamx, nk_attention_packed_i8_sapphireamx);
 
         run_angulars_packed<bf16_k>(env, "angulars_packed_bf16_sapphireamx", nk_dots_pack_size_bf16_sapphireamx,
                                     nk_dots_pack_bf16_sapphireamx, nk_angulars_packed_bf16_sapphireamx);
@@ -803,12 +768,8 @@ void bench_cross_x8664(environment_t const &env) {
 
 #if NUMKONG_TARGET_DIAMONDAMX
     if (section(env, "Cross Diamond AMX", nk_cap_diamondamx_k)) {
-        run_attention_bidirectional<e4m3_k>(env, "attention_bidirectional_packed_e4m3_diamondamx",
-                                            nk_attention_pack_size_e4m3_diamondamx, nk_attention_pack_e4m3_diamondamx,
-                                            nk_attention_bidirectional_packed_e4m3_diamondamx);
-        run_attention_causal<e4m3_k>(env, "attention_causal_packed_e4m3_diamondamx",
-                                     nk_attention_pack_size_e4m3_diamondamx, nk_attention_pack_e4m3_diamondamx,
-                                     nk_attention_causal_packed_e4m3_diamondamx);
+        run_attention<e4m3_k>(env, "attention_packed_e4m3_diamondamx", nk_attention_pack_size_e4m3_diamondamx,
+                              nk_attention_pack_e4m3_diamondamx, nk_attention_packed_e4m3_diamondamx);
     }
 #endif
 }
