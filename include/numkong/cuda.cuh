@@ -21,17 +21,34 @@
 extern "C" {
 #endif
 
-/** Makes the stream's device current, retaining the caller's device for restoration. */
-NUMKONG_INLINE nk_status_t nk_device_enter_cuda_(void *stream, int *caller) {
-    int device = 0;
-    if (cudaGetDevice(caller) != cudaSuccess) return nk_missing_gpu_k;
-    if (!stream) return nk_success_k;
-    if (cudaStreamGetDevice((cudaStream_t)stream, &device) != cudaSuccess) return nk_device_memory_mismatch_k;
-    if (device == *caller) return nk_success_k;
-    return cudaSetDevice(device) == cudaSuccess ? nk_success_k : nk_missing_gpu_k;
+/** The device @p stream runs on: its own, or the current one for the null stream and while the
+ *  stream captures a graph, as @c cudaStreamGetDevice would void the capture. */
+NUMKONG_INLINE cudaError_t nk_stream_device_cuda_(void *stream, int *device) {
+    enum cudaStreamCaptureStatus capture = cudaStreamCaptureStatusNone;
+    if (!stream) return cudaGetDevice(device);
+    cudaError_t const status = cudaStreamIsCapturing((cudaStream_t)stream, &capture);
+    if (status != cudaSuccess) return status;
+    return capture == cudaStreamCaptureStatusNone ? cudaStreamGetDevice((cudaStream_t)stream, device)
+                                                  : cudaGetDevice(device);
 }
 
-NUMKONG_INLINE void nk_device_leave_cuda_(int caller) { nk_unused_(cudaSetDevice(caller)); }
+/** Makes the stream's device current, setting @p caller to the device to restore, or to −1 when
+ *  the current one already was the stream's. */
+NUMKONG_INLINE nk_status_t nk_device_enter_cuda_(void *stream, int *caller) {
+    int current = 0, device = 0;
+    *caller = -1;
+    if (cudaGetDevice(&current) != cudaSuccess) return nk_missing_gpu_k;
+    if (!stream) return nk_success_k;
+    if (nk_stream_device_cuda_(stream, &device) != cudaSuccess) return nk_device_memory_mismatch_k;
+    if (device == current) return nk_success_k;
+    if (cudaSetDevice(device) != cudaSuccess) return nk_missing_gpu_k;
+    *caller = current;
+    return nk_success_k;
+}
+
+NUMKONG_INLINE void nk_device_leave_cuda_(int caller) {
+    if (caller >= 0) nk_unused_(cudaSetDevice(caller));
+}
 
 /** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
  *  address. The runtime's own error stays readable through @c cudaGetLastError. */
@@ -71,24 +88,24 @@ NUMKONG_INLINE nk_status_t nk_launch_resident_cuda_(void const *kernel, unsigned
         nk_device_leave_cuda_(caller);
         return nk_device_code_mismatch_k;
     }
-    nk_size_t const blocks = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
-    if (blocks == 0) {
-        nk_device_leave_cuda_(caller);
-        return nk_device_code_mismatch_k;
-    }
+    nk_size_t const resident = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
+    nk_size_t const blocks = resident < blocks_wanted ? resident : blocks_wanted;
     void *launch_arguments[1];
     launch_arguments[0] = arguments;
-    nk_status_t const launched = nk_launch_cuda_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads,
-                                                 launch_arguments, shared_bytes, stream);
+    dim3 grid, block;
+    grid.x = (unsigned)blocks, grid.y = 1, grid.z = 1;
+    block.x = threads, block.y = 1, block.z = 1;
+    cudaError_t const status = blocks ? cudaLaunchKernel(kernel, grid, block, launch_arguments, shared_bytes,
+                                                         (cudaStream_t)stream)
+                                      : cudaErrorInvalidConfiguration;
     nk_device_leave_cuda_(caller);
-    return launched;
+    return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
 /** Reads @p attribute of the stream's device into @p value. */
 NUMKONG_INLINE nk_status_t nk_device_attribute_cuda_(enum cudaDeviceAttr attribute, int *value, void *stream) {
     int device = 0;
-    cudaError_t const status = stream ? cudaStreamGetDevice((cudaStream_t)stream, &device) : cudaGetDevice(&device);
-    if (status != cudaSuccess) return nk_device_code_mismatch_k;
+    if (nk_stream_device_cuda_(stream, &device) != cudaSuccess) return nk_device_code_mismatch_k;
     return cudaDeviceGetAttribute(value, attribute, device) == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 

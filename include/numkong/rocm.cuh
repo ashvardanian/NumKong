@@ -25,15 +25,20 @@ extern "C" {
 
 /** Makes the stream's device current, retaining the caller's device for restoration. */
 NUMKONG_INLINE nk_status_t nk_device_enter_rocm_(void *stream, int *caller) {
-    int device = 0;
-    if (hipGetDevice(caller) != hipSuccess) return nk_missing_gpu_k;
+    int current = 0, device = 0;
+    *caller = -1;
+    if (hipGetDevice(&current) != hipSuccess) return nk_missing_gpu_k;
     if (!stream) return nk_success_k;
     if (hipStreamGetDevice((hipStream_t)stream, &device) != hipSuccess) return nk_device_memory_mismatch_k;
-    if (device == *caller) return nk_success_k;
-    return hipSetDevice(device) == hipSuccess ? nk_success_k : nk_missing_gpu_k;
+    if (device == current) return nk_success_k;
+    if (hipSetDevice(device) != hipSuccess) return nk_missing_gpu_k;
+    *caller = current;
+    return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_device_leave_rocm_(int caller) { nk_unused_(hipSetDevice(caller)); }
+NUMKONG_INLINE void nk_device_leave_rocm_(int caller) {
+    if (caller >= 0) nk_unused_(hipSetDevice(caller));
+}
 
 /** Launches @p blocks blocks of @p threads running @p kernel on @p stream, its arguments passed by
  *  address. The runtime's own error stays readable through @c hipGetLastError. */
@@ -73,17 +78,18 @@ NUMKONG_INLINE nk_status_t nk_launch_resident_rocm_(void const *kernel, unsigned
         nk_device_leave_rocm_(caller);
         return nk_device_code_mismatch_k;
     }
-    nk_size_t const blocks = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
-    if (blocks == 0) {
-        nk_device_leave_rocm_(caller);
-        return nk_device_code_mismatch_k;
-    }
+    nk_size_t const resident = (nk_size_t)multiprocessors * (nk_size_t)per_multiprocessor;
+    nk_size_t const blocks = resident < blocks_wanted ? resident : blocks_wanted;
     void *launch_arguments[1];
     launch_arguments[0] = arguments;
-    nk_status_t const launched = nk_launch_rocm_(kernel, blocks < blocks_wanted ? blocks : blocks_wanted, threads,
-                                                 launch_arguments, shared_bytes, stream);
+    dim3 grid, block;
+    grid.x = (unsigned)blocks, grid.y = 1, grid.z = 1;
+    block.x = threads, block.y = 1, block.z = 1;
+    hipError_t const status = blocks ? hipLaunchKernel(kernel, grid, block, launch_arguments, shared_bytes,
+                                                       (hipStream_t)stream)
+                                     : hipErrorInvalidConfiguration;
     nk_device_leave_rocm_(caller);
-    return launched;
+    return status == hipSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
 /** Reads @p attribute of the stream's device into @p value. */
