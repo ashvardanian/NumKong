@@ -771,6 +771,10 @@ NK_DYNAMIC void nk_cast(void const *from, nk_dtype_t from_type, nk_size_t n, voi
     nk_dispatch_table.cast(from, from_type, n, to, to_type);
 }
 
+NK_DYNAMIC void nk_cast_truncate(void const *from, nk_dtype_t from_type, nk_size_t n, void *to, nk_dtype_t to_type) {
+    nk_dispatch_table.cast_truncate(from, from_type, n, to, to_type);
+}
+
 // Forward declarations for dtype-specific dispatch initialization functions
 void nk_dispatch_f64c_init_(nk_capability_t caps);
 void nk_dispatch_f32c_init_(nk_capability_t caps);

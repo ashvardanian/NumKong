@@ -715,3 +715,21 @@ with open("data.bin", "r+b") as f:
         ctypes.c_char.from_buffer(mapping)),
         (1024,), 'float32', owner=mapping)
 ```
+
+### Truncating float-to-integer casts
+
+`nk.astype(values, "uint8", rounding="truncate", out=output)` discards fractional
+parts toward zero before saturating to the destination range. For example,
+`-1.9` becomes `-1` when casting to `int8`, and `1.9` becomes `1`.
+The default `rounding="nearest_even"` preserves ties-to-even rounding.
+Both modes map NaN to zero and saturate infinities and overflow.
+
+Truncation accepts real floating-point inputs (`float64`, `float32`, `float16`,
+`bfloat16`, and NumKong mini-floats) and signed or unsigned 8/16/32/64-bit integer
+outputs. Other pairs, including packed integer outputs and complex inputs, raise
+`ValueError`. Shapes and input strides are preserved logically; `out` must have
+the exact shape and dtype, be writable and C-contiguous, and not overlap the input.
+The supplied output is returned; omitting it allocates a Tensor.
+
+This opt-in mode uses the native `nk_cast_truncate` dispatch entry and currently
+has a portable serial implementation. `Tensor.astype` retains its existing API.
