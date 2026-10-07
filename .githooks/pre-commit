@@ -29,6 +29,122 @@ project_include_prefix="numkong"
 sibling_projects='stringzilla|usearch|forkunion|smashtable|simsimd|smallfield|stringtape'
 abbreviations_refused="hi lo bot acc accum tmp temp res bcast ext idx cnt buf len str val obj elem iter"
 rustfmt_command="cargo +nightly fmt"
+approved_codegen_macros="
+    nk_define_angular_
+    nk_define_approximate_givens_quaternion_
+    nk_define_attention_baseline_cuda_
+    nk_define_attention_baseline_packed_cuda_
+    nk_define_attention_baseline_packed_rocm_
+    nk_define_attention_baseline_rocm_
+    nk_define_attention_fallback_kernel_simt_
+    nk_define_attention_pack_cuda_
+    nk_define_attention_pack_kernel_simt_
+    nk_define_attention_pack_rocm_
+    nk_define_attention_pack_size_simt_
+    nk_define_attention_packed_cuda_
+    nk_define_attention_packed_kernels_simt_
+    nk_define_attention_packed_rocm_
+    nk_define_attention_packed_shape_cuda_
+    nk_define_attention_packed_shape_rocm_
+    nk_define_attention_rope_
+    nk_define_attention_rope_cuda_
+    nk_define_attention_rope_kernel_simt_
+    nk_define_bilinear_
+    nk_define_bilinear_complex_
+    nk_define_cond_swap_
+    nk_define_conditional_negating_swap_
+    nk_define_cross_compensated_pack_
+    nk_define_cross_compensated_pack_size_
+    nk_define_cross_compensated_packed_
+    nk_define_cross_compensated_symmetric_
+    nk_define_cross_cuda_
+    nk_define_cross_metal_
+    nk_define_cross_normalized_packed_
+    nk_define_cross_normalized_symmetric_
+    nk_define_cross_pack_
+    nk_define_cross_pack_cuda_
+    nk_define_cross_pack_kernel_simt_
+    nk_define_cross_pack_rocm_
+    nk_define_cross_pack_rows_cuda_
+    nk_define_cross_pack_rows_rocm_
+    nk_define_cross_pack_size_
+    nk_define_cross_pack_size_simt_
+    nk_define_cross_packed_
+    nk_define_cross_packed_cuda_
+    nk_define_cross_packed_kernel_simt_
+    nk_define_cross_packed_rocm_
+    nk_define_cross_packed_shape_
+    nk_define_cross_packed_shape_cuda_
+    nk_define_cross_packed_shape_rocm_
+    nk_define_cross_rocm_
+    nk_define_cross_scaled_exact_
+    nk_define_cross_scaled_packed_
+    nk_define_cross_scaled_serial_
+    nk_define_cross_scaled_symmetric_
+    nk_define_cross_sme_pack_
+    nk_define_cross_sme_packed_
+    nk_define_cross_sme_symmetric_
+    nk_define_cross_symmetric_
+    nk_define_cross_symmetric_cuda_
+    nk_define_cross_symmetric_kernel_simt_
+    nk_define_cross_symmetric_rocm_
+    nk_define_cross_tma_blackwell_
+    nk_define_cross_tma_packed_blackwell_
+    nk_define_cross_tma_symmetric_blackwell_
+    nk_define_det3x3_
+    nk_define_dot_
+    nk_define_dot_complex_
+    nk_define_dot_serial_
+    nk_define_each_blend_
+    nk_define_each_blend_cuda_
+    nk_define_each_blend_kernel_simt_
+    nk_define_each_fma_
+    nk_define_each_fma_cuda_
+    nk_define_each_fma_kernel_simt_
+    nk_define_each_rmsnorm_
+    nk_define_each_rmsnorm_cuda_
+    nk_define_each_rmsnorm_kernel_simt_
+    nk_define_each_rmsnorm_rocm_
+    nk_define_each_scale_
+    nk_define_each_scale_cuda_
+    nk_define_each_scale_kernel_simt_
+    nk_define_each_sum_
+    nk_define_each_sum_cuda_
+    nk_define_each_sum_kernel_simt_
+    nk_define_each_sum_rocm_
+    nk_define_each_swiglu_
+    nk_define_each_swiglu_cuda_
+    nk_define_each_swiglu_kernel_simt_
+    nk_define_each_swiglu_rocm_
+    nk_define_euclidean_
+    nk_define_jacobi_conjugation_
+    nk_define_jacobi_eigenanalysis_
+    nk_define_jsd_
+    nk_define_kabsch_
+    nk_define_kld_
+    nk_define_lane_sumsq_simt_
+    nk_define_mahalanobis_
+    nk_define_mesh_
+    nk_define_qr_givens_quaternion_
+    nk_define_qr_orthogonal_factor_
+    nk_define_quaternion_to_mat3x3_
+    nk_define_reduce_minmax_cuda_
+    nk_define_reduce_minmax_kernels_simt_
+    nk_define_reduce_moments_cuda_
+    nk_define_reduce_moments_kernel_simt_
+    nk_define_rmsd_
+    nk_define_sort_singular_values_
+    nk_define_sparse_dot_
+    nk_define_sparse_dot_helpers_
+    nk_define_sparse_intersect_
+    nk_define_sparse_intersect_helpers_
+    nk_define_spatials_metal_
+    nk_define_sqeuclidean_
+    nk_define_sqeuclidean_serial_
+    nk_define_svd3x3_
+    nk_define_umeyama_
+    nk_define_vdot_complex_
+"
 
 # endregion Project Settings
 
@@ -349,6 +465,91 @@ check_kernels_call_no_public_kernels() {
     [ -z "$calls" ] || reject_with_reason "$calls" \
         "$staged_path calls a public kernel from a kernel header;" \
         "            call the helper it is built on, or add one named for what it computes:"
+}
+
+# Rejects an added kernel signature with a runtime `nk_dtype_t` parameter, because a kernel takes typed
+# function arguments, generated per dtype by a macro; a `NUMKONG_CONSTEXPR` helper may fold the lookup.
+check_kernels_take_no_runtime_dtype() {
+    case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
+    local runtime_dtypes
+    runtime_dtypes=$(scan_staged_file_marking_added_lines '
+        !in_signature && /^[[:space:]]*(NUMKONG_INLINE|NUMKONG_OUTLINED_|NUMKONG_API|NUMKONG_DEVICE|__global__|static[[:space:]])/ {
+            in_signature = 1; touched = 0; constexpr = 0; typed_line = 0
+        }
+        in_signature {
+            if (FNR in added) touched = 1
+            if ($0 ~ /NUMKONG_CONSTEXPR/) constexpr = 1
+            if (!typed_line && $0 ~ /(^|[^A-Za-z0-9_])nk_dtype_t[[:space:]]+(const[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[,)]/) {
+                typed_line = FNR; typed_text = $0
+            }
+            if ($0 ~ /[{;]/) {
+                if (touched && typed_line && !constexpr) printf "line %d: %s\n", typed_line, typed_text
+                in_signature = 0
+            }
+        }' "$staged_code_path")
+    [ -z "$runtime_dtypes" ] || reject_with_reason "$runtime_dtypes" \
+        "$staged_path gives a kernel a runtime nk_dtype_t parameter;" \
+        "            kernels take typed function arguments, generated per dtype by a macro:"
+}
+
+# Rejects an added function-pointer typedef or struct field in a kernel header, because a stored callback
+# defeats inlining; a function-pointer parameter stays allowed.
+check_kernels_store_no_function_pointers() {
+    case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
+    local stored
+    stored=$(scan_staged_file_marking_added_lines '
+        function names_function_pointer(text) { return text ~ /\(\*[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)[[:space:]]*\(/ }
+        struct_depth == 0 && (FNR in added) && /^[[:space:]]*typedef[^;]*\(\*/ && names_function_pointer($0) { print "line " FNR ": " $0; next }
+        struct_depth == 0 && /^[[:space:]]*(typedef[[:space:]]+)?(struct|union)([[:space:]]+[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*\{[[:space:]]*$/ { struct_depth = 1; next }
+        struct_depth > 0 {
+            code = $0
+            struct_depth += gsub(/\{/, "{", code) - gsub(/\}/, "}", code)
+            if (struct_depth <= 0) { struct_depth = 0; next }
+            if ((FNR in added) && names_function_pointer($0)) print "line " FNR ": " $0
+        }' "$staged_code_path")
+    [ -z "$stored" ] || reject_with_reason "$stored" \
+        "$staged_path stores a function pointer in a kernel header;" \
+        "            pass the function to a per-dtype macro or an always-inline body instead of storing it:"
+}
+
+# Rejects F64 in the body of a block-scaled kernel, because those kernels rebase into F32 and fall back to
+# the exact F32 path; a function is block-scaled when its name holds `scaled`, `nvfp4`, `mxfp`, `ue8m0` or
+# `ue4m3`, and a macro counts as one function.
+check_scaled_kernels_avoid_f64() {
+    case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
+    local wide
+    wide=$(scan_staged_file_marking_added_lines '
+        /^#[[:space:]]*define[[:space:]]+[A-Za-z_]/ {
+            function_name = $0; sub(/^#[[:space:]]*define[[:space:]]+/, "", function_name); sub(/[^A-Za-z0-9_].*$/, "", function_name)
+            in_macro = 1
+        }
+        !in_macro && /^[^[:space:]#}\/]/ {
+            function_name = ""; header = $0; gsub(/__attribute__\(\([^)]*\)\)/, "", header)
+            if (match(header, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(/)) {
+                function_name = substr(header, RSTART, RLENGTH); sub(/[^A-Za-z0-9_].*$/, "", function_name)
+            }
+        }
+        (FNR in added) && function_name ~ /(scaled|nvfp4|mxfp|ue8m0|ue4m3)/ &&
+            $0 ~ /(^|[^A-Za-z0-9_])(nk_f64_t|double|float64)([^A-Za-z0-9_]|$)|_f64([^A-Za-z0-9_]|$)/ { print "line " FNR ": " $0 }
+        in_macro && $0 !~ /\\[[:space:]]*$/ { in_macro = 0; function_name = "" }
+        /^\}/ { function_name = "" }' "$staged_code_path")
+    [ -z "$wide" ] || reject_with_reason "$wide" \
+        "$staged_path uses F64 inside a block-scaled kernel;" \
+        "            block-scaled kernels rebase into F32 and fall back to the exact F32 path, F64 belongs only in test oracles:"
+}
+
+# Rejects an added `#define nk_define_<name>(` missing from `approved_codegen_macros`, because every new
+# code-generation macro family goes through review, and the list in the same commit is what shows it.
+check_codegen_macros_are_approved() {
+    case "$staged_path" in include/*) ;; *) return 0 ;; esac
+    local macro_name unapproved=""
+    for macro_name in $(printf '%s\n' "$staged_added_text" |
+        grep -oE '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+nk_define_[A-Za-z0-9_]+\(' | grep -oE 'nk_define_[A-Za-z0-9_]+'); do
+        case " $approved_codegen_macros " in *[[:space:]]"$macro_name"[[:space:]]*) ;; *) unapproved="$unapproved$macro_name"$'\n' ;; esac
+    done
+    [ -z "$unapproved" ] || reject_with_reason "$unapproved" \
+        "$staged_path defines a code-generation macro family nobody approved;" \
+        "            a new one needs Ash's approval, so add it to approved_codegen_macros in the same commit:"
 }
 
 # Rejects a tensor shape spelled `[rows x cols]`, `[rows × cols]`, or backticked `rows × cols`, because a
@@ -2665,6 +2866,10 @@ run_shared_checks() {
         check_region_label_plain
         check_regions_not_pragma_mark
         check_string_fragments_one_per_line
+        check_kernels_take_no_runtime_dtype
+        check_kernels_store_no_function_pointers
+        check_scaled_kernels_avoid_f64
+        check_codegen_macros_are_approved
         ;;
     esac
     case "$staged_path" in
@@ -2877,6 +3082,18 @@ check_predicated_loads_avoid_serial() {
         "$staged_path uses a serial partial loader in a predicated backend; use its masked or vector-length-controlled load:"
 }
 
+# Rejects NEON helpers, intrinsics and vector types in an SME header, because NEON faults in streaming mode
+# and calling it between streaming sections costs a mode switch and another pass over the outputs.
+check_sme_kernels_avoid_neon() {
+    case "${staged_path##*/}" in sme*.h) ;; *) return 0 ;; esac
+    local neon
+    neon=$(grep -E '_neon_?\(|(^|[^A-Za-z0-9_])v[a-z0-9_]+_[suf](8|16|32|64)\(|(^|[^A-Za-z0-9_])(b?float|u?int|poly)(8|16|32|64)x[0-9]+(x[0-9]+)?_t|nk_b(64|128)_vec_t' \
+        "$staged_added_code_path" || true)
+    [ -z "$neon" ] || reject_with_reason "$neon" \
+        "$staged_path uses NEON in an SME backend;" \
+        "            streaming kernels stay in predicated SVE, including their tails and finishing passes:"
+}
+
 # Rejects new repetitions of the header's own target guard.
 check_backend_target_guard_unique() {
     local target repeated
@@ -3053,6 +3270,7 @@ run_project_checks() {
         check_kernel_documented_at_declaration
         check_register_names_carry_dtype_and_width
         check_predicated_loads_avoid_serial
+        check_sme_kernels_avoid_neon
         check_backend_target_guard_unique
         ;;
     esac

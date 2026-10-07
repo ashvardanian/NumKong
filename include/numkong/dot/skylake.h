@@ -789,6 +789,79 @@ NUMKONG_INLINE void nk_f32x4_scale_skylake_(nk_b128_vec_t *values, nk_f32_t mant
     values->xmm_ps = _mm_scalef_ps(_mm_mul_ps(values->xmm_ps, _mm_set1_ps(mantissa)), _mm_cvtepi32_ps(exponents_i32x4));
 }
 
+/** Squared norms as mantissas times four to the power of @p halves_f32x4, clamped to [−63, 63]:
+ *  normal norms take mantissas in [1, 4), and zeros, NaNs and infinities stay themselves. */
+NUMKONG_INLINE __m128 nk_f32x4_split_squares_skylake_(__m128 squares_f32x4, __m128 *halves_f32x4) {
+    __m128 const exponents_f32x4 = _mm_floor_ps(_mm_mul_ps(_mm_getexp_ps(squares_f32x4), _mm_set1_ps(0.5f)));
+    // The bounds come second, so a NaN exponent takes one
+    *halves_f32x4 = _mm_min_ps(_mm_max_ps(exponents_f32x4, _mm_set1_ps(-63)), _mm_set1_ps(63));
+    return _mm_scalef_ps(squares_f32x4, _mm_mul_ps(*halves_f32x4, _mm_set1_ps(-2)));
+}
+
+/*  Finishers of four relative sums for the rebased kernels: lane i's dot is values[i] ·
+ *  mantissa · 2^(row_exponent + column_exponents[i]), and its squared norms are row_norm ·
+ *  4^row_exponent and column_norms[i] · 4^column_exponents[i]. */
+
+/** Dot products; the norms go unused. */
+NUMKONG_INLINE void nk_dot_f32x4_from_relative_skylake_(nk_b128_vec_t *values, nk_f32_t mantissa, nk_i32_t row_exponent,
+                                                        nk_i32_t const *column_exponents, nk_f32_t row_norm,
+                                                        nk_f32_t const *column_norms) {
+    nk_unused_(row_norm), nk_unused_(column_norms);
+    nk_f32x4_scale_skylake_(values, mantissa, row_exponent, column_exponents);
+}
+
+/** Angular distances, where the exponents cancel: 0 for two zero vectors, else 1 for a zero dot,
+ *  else max(0, 1 − cosine); NaNs propagate. */
+NUMKONG_INLINE void nk_angular_f32x4_from_relative_skylake_(nk_b128_vec_t *values, nk_f32_t mantissa,
+                                                            nk_i32_t row_exponent, nk_i32_t const *column_exponents,
+                                                            nk_f32_t row_norm, nk_f32_t const *column_norms) {
+    nk_unused_(row_exponent), nk_unused_(column_exponents);
+    __m128 const zeros_f32x4 = _mm_setzero_ps();
+    __m128 const row_norms_f32x4 = _mm_set1_ps(row_norm), column_norms_f32x4 = _mm_loadu_ps(column_norms);
+    __m128 row_halves_f32x4, column_halves_f32x4;
+    __m128 const row_mantissas_f32x4 = nk_f32x4_split_squares_skylake_(row_norms_f32x4, &row_halves_f32x4);
+    __m128 const column_mantissas_f32x4 = nk_f32x4_split_squares_skylake_(column_norms_f32x4, &column_halves_f32x4);
+    __m128 const dots_f32x4 = _mm_mul_ps(values->xmm_ps, _mm_set1_ps(mantissa));
+    // Over both halves the dot is the cosine times the root of the mantissas' product, at most 4
+    __m128 const scaled_f32x4 = _mm_scalef_ps(
+        dots_f32x4, _mm_sub_ps(zeros_f32x4, _mm_add_ps(row_halves_f32x4, column_halves_f32x4)));
+    __m128 const cosines_f32x4 = _mm_div_ps(scaled_f32x4,
+                                            _mm_sqrt_ps(_mm_mul_ps(row_mantissas_f32x4, column_mantissas_f32x4)));
+    // The maximum passes a NaN in its second operand
+    __m128 angular_f32x4 = _mm_max_ps(zeros_f32x4, _mm_sub_ps(_mm_set1_ps(1), cosines_f32x4));
+    angular_f32x4 = _mm_mask_mov_ps(angular_f32x4, _mm_cmp_ps_mask(dots_f32x4, zeros_f32x4, _CMP_EQ_OQ),
+                                    _mm_set1_ps(1));
+    __mmask8 const empty_m8 = _mm_cmp_ps_mask(row_norms_f32x4, zeros_f32x4, _CMP_EQ_OQ) &
+                              _mm_cmp_ps_mask(column_norms_f32x4, zeros_f32x4, _CMP_EQ_OQ);
+    values->xmm_ps = _mm_mask_mov_ps(angular_f32x4, empty_m8, zeros_f32x4);
+}
+
+/** Euclidean distances from dots over the leading squared norm's even power of two, clamped
+ *  at zero, with the root scaled back by half that power and rounded once. A NaN in any
+ *  operand gives NaN. */
+NUMKONG_INLINE void nk_euclidean_f32x4_from_relative_skylake_(nk_b128_vec_t *values, nk_f32_t mantissa,
+                                                              nk_i32_t row_exponent, nk_i32_t const *column_exponents,
+                                                              nk_f32_t row_norm, nk_f32_t const *column_norms) {
+    __m128 const half_f32x4 = _mm_set1_ps(0.5f);
+    __m128 const row_norms_f32x4 = _mm_set1_ps(row_norm), column_norms_f32x4 = _mm_loadu_ps(column_norms);
+    __m128 const row_powers_f32x4 = _mm_set1_ps(2.0f * row_exponent);
+    __m128 const column_powers_f32x4 = _mm_cvtepi32_ps(
+        _mm_slli_epi32(_mm_loadu_si128((__m128i const *)column_exponents), 1));
+    // Twice this power is even and at most the larger squared norm's, as zero norms take -inf
+    __m128 const leading_f32x4 = _mm_max_ps(_mm_add_ps(row_powers_f32x4, _mm_getexp_ps(row_norms_f32x4)),
+                                            _mm_add_ps(column_powers_f32x4, _mm_getexp_ps(column_norms_f32x4)));
+    __m128 const half_top_f32x4 = _mm_max_ps(_mm_floor_ps(_mm_mul_ps(leading_f32x4, half_f32x4)), _mm_set1_ps(-512));
+    __m128 const top_f32x4 = _mm_add_ps(half_top_f32x4, half_top_f32x4);
+    __m128 const row_terms_f32x4 = _mm_scalef_ps(row_norms_f32x4, _mm_sub_ps(row_powers_f32x4, top_f32x4));
+    __m128 const column_terms_f32x4 = _mm_scalef_ps(column_norms_f32x4, _mm_sub_ps(column_powers_f32x4, top_f32x4));
+    __m128 const mean_powers_f32x4 = _mm_mul_ps(_mm_add_ps(row_powers_f32x4, column_powers_f32x4), half_f32x4);
+    __m128 const dot_terms_f32x4 = _mm_scalef_ps(_mm_mul_ps(values->xmm_ps, _mm_set1_ps(2 * mantissa)),
+                                                 _mm_sub_ps(mean_powers_f32x4, top_f32x4));
+    __m128 const squares_f32x4 = _mm_max_ps(
+        _mm_setzero_ps(), _mm_sub_ps(_mm_add_ps(row_terms_f32x4, column_terms_f32x4), dot_terms_f32x4));
+    values->xmm_ps = _mm_scalef_ps(_mm_sqrt_ps(squares_f32x4), half_top_f32x4);
+}
+
 #pragma endregion Block Scaled Floats
 
 #if NUMKONG_TARGET_SKYLAKE

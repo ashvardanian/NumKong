@@ -44,12 +44,15 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512dq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
-/** Reciprocal square root of 16 floats with Newton-Raphson refinement (~28-bit precision). */
+/** Reciprocal square root of 16 floats with Newton-Raphson refinement (~28-bit precision), 0 for an
+ *  infinite input. */
 NUMKONG_INLINE __m512 nk_rsqrt_f32x16_skylake_(__m512 x) {
     __m512 rsqrt_f32x16 = _mm512_rsqrt14_ps(x);
     __m512 nr_f32x16 = _mm512_mul_ps(_mm512_mul_ps(x, rsqrt_f32x16), rsqrt_f32x16);
     nr_f32x16 = _mm512_sub_ps(_mm512_set1_ps(3.0f), nr_f32x16);
-    return _mm512_mul_ps(_mm512_mul_ps(_mm512_set1_ps(0.5f), rsqrt_f32x16), nr_f32x16);
+    // The Newton step turns the estimate of 0 for an infinite input into ∞ × 0 = NaN
+    __mmask16 const finite_m16 = _mm512_cmp_ps_mask(x, _mm512_set1_ps(NUMKONG_F32_INF), _CMP_NEQ_UQ);
+    return _mm512_maskz_mul_ps(finite_m16, _mm512_mul_ps(_mm512_set1_ps(0.5f), rsqrt_f32x16), nr_f32x16);
 }
 
 #pragma region F32 and F64 Floats
@@ -135,19 +138,24 @@ nk_sqeuclidean_f64_skylake_cycle:
 }
 
 /** Angular from_dot for native f64: 1 − dot / (√q × √t) for 4 pairs, where q is @p query_sumsq and
- *  t each target's sum of squares. Separate square roots avoid overflowing the product of two
- *  finite-but-large norms. */
+ *  t each target's sum of squares, with the rules of the serial variant. Separate square roots
+ *  avoid overflowing the product of two finite-but-large norms. */
 NUMKONG_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                        nk_b256_vec_t const *target_sumsqs_vec,
                                                        nk_b256_vec_t *result_vec) {
-    __m256d dots_f64x4 = dots_vec->ymm_pd;
-    __m256d query_sqrt_f64x4 = _mm256_sqrt_pd(_mm256_set1_pd(query_sumsq));
-    __m256d target_sqrt_f64x4 = _mm256_sqrt_pd(target_sumsqs_vec->ymm_pd);
-    __m256d norm_f64x4 = _mm256_mul_pd(query_sqrt_f64x4, target_sqrt_f64x4);
-    __m256d normalized_f64x4 = _mm256_div_pd(dots_f64x4, norm_f64x4);
-    __m256d ones_f64x4 = _mm256_set1_pd(1.0);
-    __m256d angular_f64x4 = _mm256_sub_pd(ones_f64x4, normalized_f64x4);
-    result_vec->ymm_pd = _mm256_max_pd(angular_f64x4, _mm256_setzero_pd());
+    __m256d const zeros_f64x4 = _mm256_setzero_pd(), ones_f64x4 = _mm256_set1_pd(1.0), dots_f64x4 = dots_vec->ymm_pd;
+    __m256d const query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq), target_sumsqs_f64x4 = target_sumsqs_vec->ymm_pd;
+    __m256d const norm_f64x4 = _mm256_mul_pd(_mm256_sqrt_pd(query_sumsq_f64x4), _mm256_sqrt_pd(target_sumsqs_f64x4));
+    __m256d angular_f64x4 = _mm256_max_pd(_mm256_sub_pd(ones_f64x4, _mm256_div_pd(dots_f64x4, norm_f64x4)),
+                                          zeros_f64x4);
+    __mmask8 const query_zero_m8 = _mm256_cmp_pd_mask(query_sumsq_f64x4, zeros_f64x4, _CMP_EQ_OQ);
+    __mmask8 const target_zero_m8 = _mm256_cmp_pd_mask(target_sumsqs_f64x4, zeros_f64x4, _CMP_EQ_OQ);
+    __mmask8 const unit_m8 = query_zero_m8 | target_zero_m8 | _mm256_cmp_pd_mask(dots_f64x4, zeros_f64x4, _CMP_EQ_OQ);
+    angular_f64x4 = _mm256_mask_mov_pd(angular_f64x4, unit_m8, ones_f64x4);
+    angular_f64x4 = _mm256_mask_mov_pd(angular_f64x4, query_zero_m8 & target_zero_m8, zeros_f64x4);
+    // A NaN dot outranks the zero-norm cases
+    result_vec->ymm_pd = _mm256_mask_mov_pd(angular_f64x4, _mm256_cmp_pd_mask(dots_f64x4, dots_f64x4, _CMP_UNORD_Q),
+                                            dots_f64x4);
 }
 
 /** Euclidean from_dot for native f64: √(q + t − 2 × dot) for 4 pairs, where q is @p query_sumsq and
@@ -155,14 +163,11 @@ NUMKONG_INLINE void nk_angular_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots
 NUMKONG_INLINE void nk_euclidean_f64x4_from_dot_skylake_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                          nk_b256_vec_t const *target_sumsqs_vec,
                                                          nk_b256_vec_t *result_vec) {
-    __m256d dots_f64x4 = dots_vec->ymm_pd;
-    __m256d query_sumsq_f64x4 = _mm256_set1_pd(query_sumsq);
-    __m256d two_f64x4 = _mm256_set1_pd(2.0);
-    __m256d sum_sq_f64x4 = _mm256_add_pd(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
-    __m256d dist_sq_f64x4 = _mm256_fnmadd_pd(two_f64x4, dots_f64x4, sum_sq_f64x4);
-    __m256d zeros_f64x4 = _mm256_setzero_pd();
-    __m256d clamped_f64x4 = _mm256_max_pd(dist_sq_f64x4, zeros_f64x4);
-    result_vec->ymm_pd = _mm256_sqrt_pd(clamped_f64x4);
+    __m256d const sum_sq_f64x4 = _mm256_add_pd(_mm256_set1_pd(query_sumsq), target_sumsqs_vec->ymm_pd);
+    __m256d const dist_sq_f64x4 = _mm256_fnmadd_pd(_mm256_set1_pd(2.0), dots_vec->ymm_pd, sum_sq_f64x4);
+    // Negatives from rounding become 0, while the unordered compare keeps a NaN
+    __mmask8 const rooted_m8 = _mm256_cmp_pd_mask(dist_sq_f64x4, _mm256_setzero_pd(), _CMP_NLT_UQ);
+    result_vec->ymm_pd = _mm256_maskz_sqrt_pd(rooted_m8, dist_sq_f64x4);
 }
 
 #pragma endregion F32 and F64 Floats

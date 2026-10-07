@@ -180,6 +180,95 @@ NUMKONG_INLINE void nk_f32x4_scale_neon_(nk_b128_vec_t *values, nk_f32_t mantiss
     values->f32x4 = values_f32x4;
 }
 
+/** Lane i is two to the power of lane i of @p exponents_i32x4, each in [−126, 127]. */
+NUMKONG_INLINE float32x4_t nk_f32x4_powers_of_two_neon_(int32x4_t exponents_i32x4) {
+    return vreinterpretq_f32_s32(vshlq_n_s32(vaddq_s32(exponents_i32x4, vdupq_n_s32(127)), 23));
+}
+
+/** Squared norms as mantissas times four to the power of @p halves_i32x4, clamped to [−63, 63]:
+ *  normal norms take mantissas in [1, 4), and zeros, NaNs and infinities stay themselves. */
+NUMKONG_INLINE float32x4_t nk_f32x4_split_squares_neon_(float32x4_t squares_f32x4, int32x4_t *halves_i32x4) {
+    uint32x4_t const biased_u32x4 = vandq_u32(vshrq_n_u32(vreinterpretq_u32_f32(squares_f32x4), 23), vdupq_n_u32(0xFF));
+    int32x4_t const exponents_i32x4 = vshrq_n_s32(vsubq_s32(vreinterpretq_s32_u32(biased_u32x4), vdupq_n_s32(127)), 1);
+    *halves_i32x4 = vmaxq_s32(vminq_s32(exponents_i32x4, vdupq_n_s32(63)), vdupq_n_s32(-63));
+    return vmulq_f32(squares_f32x4, nk_f32x4_powers_of_two_neon_(vmulq_n_s32(*halves_i32x4, -2)));
+}
+
+/*  Finishers of four relative sums, for rebased kernels and the SME epilogue alike: lane i's dot is
+ *  values[i] · mantissa · 2^(row_exponent + column_exponents[i]), and its squared norms are
+ *  row_norm · 4^row_exponent and column_norms[i] · 4^column_exponents[i]. */
+
+/** Dot products; the norms go unused. */
+NUMKONG_INLINE void nk_dot_f32x4_from_relative_neon_(nk_b128_vec_t *values, nk_f32_t mantissa, nk_i32_t row_exponent,
+                                                     nk_i32_t const *column_exponents, nk_f32_t row_norm,
+                                                     nk_f32_t const *column_norms) {
+    nk_unused_(row_norm), nk_unused_(column_norms);
+    nk_f32x4_scale_neon_(values, mantissa, row_exponent, column_exponents);
+}
+
+/** Angular distances, where the exponents cancel: 0 for two zero vectors, else 1 for a zero dot,
+ *  else max(0, 1 − cosine); NaNs propagate. */
+NUMKONG_INLINE void nk_angular_f32x4_from_relative_neon_(nk_b128_vec_t *values, nk_f32_t mantissa,
+                                                         nk_i32_t row_exponent, nk_i32_t const *column_exponents,
+                                                         nk_f32_t row_norm, nk_f32_t const *column_norms) {
+    nk_unused_(row_exponent), nk_unused_(column_exponents);
+    int32x4_t row_halves_i32x4, column_halves_i32x4;
+    float32x4_t const row_norms_f32x4 = vdupq_n_f32(row_norm), column_norms_f32x4 = vld1q_f32(column_norms);
+    float32x4_t const row_mantissas_f32x4 = nk_f32x4_split_squares_neon_(row_norms_f32x4, &row_halves_i32x4);
+    float32x4_t const column_mantissas_f32x4 = nk_f32x4_split_squares_neon_(column_norms_f32x4, &column_halves_i32x4);
+    float32x4_t const dots_f32x4 = vmulq_n_f32(values->f32x4, mantissa);
+    // Over both halves the dot is the cosine times the root of the mantissas' product, at most 4
+    float32x4_t const scaled_f32x4 = vmulq_f32(
+        dots_f32x4, nk_f32x4_powers_of_two_neon_(vnegq_s32(vaddq_s32(row_halves_i32x4, column_halves_i32x4))));
+    float32x4_t const cosines_f32x4 = vdivq_f32(scaled_f32x4,
+                                                vsqrtq_f32(vmulq_f32(row_mantissas_f32x4, column_mantissas_f32x4)));
+    float32x4_t angular_f32x4 = vmaxq_f32(vsubq_f32(vdupq_n_f32(1), cosines_f32x4), vdupq_n_f32(0));
+    angular_f32x4 = vbslq_f32(vceqzq_f32(dots_f32x4), vdupq_n_f32(1), angular_f32x4);
+    uint32x4_t const empty_u32x4 = vandq_u32(vceqzq_f32(row_norms_f32x4), vceqzq_f32(column_norms_f32x4));
+    values->f32x4 = vbslq_f32(empty_u32x4, vdupq_n_f32(0), angular_f32x4);
+}
+
+/** Euclidean distances from dots over the leading squared norm's even power of two, clamped
+ *  at zero, with the root scaled back by half that power and rounded once. A NaN in any
+ *  operand gives NaN. */
+NUMKONG_INLINE void nk_euclidean_f32x4_from_relative_neon_(nk_b128_vec_t *values, nk_f32_t mantissa,
+                                                           nk_i32_t row_exponent, nk_i32_t const *column_exponents,
+                                                           nk_f32_t row_norm, nk_f32_t const *column_norms) {
+    int32x4_t row_halves_i32x4, column_halves_i32x4;
+    float32x4_t const row_norms_f32x4 = vdupq_n_f32(row_norm), column_norms_f32x4 = vld1q_f32(column_norms);
+    float32x4_t const row_mantissas_f32x4 = nk_f32x4_split_squares_neon_(row_norms_f32x4, &row_halves_i32x4);
+    float32x4_t const column_mantissas_f32x4 = nk_f32x4_split_squares_neon_(column_norms_f32x4, &column_halves_i32x4);
+    // Squared norms are their mantissas times 2^powers, even powers, and zero norms never lead
+    int32x4_t const lowest_i32x4 = vdupq_n_s32(-126), floor_i32x4 = vdupq_n_s32(-(1 << 20));
+    int32x4_t const row_powers_i32x4 = vbslq_s32(
+        vceqzq_f32(row_norms_f32x4), floor_i32x4,
+        vshlq_n_s32(vaddq_s32(vdupq_n_s32(row_exponent), row_halves_i32x4), 1));
+    int32x4_t const column_powers_i32x4 = vbslq_s32(
+        vceqzq_f32(column_norms_f32x4), floor_i32x4,
+        vshlq_n_s32(vaddq_s32(vld1q_s32(column_exponents), column_halves_i32x4), 1));
+    int32x4_t const top_i32x4 = vmaxq_s32(row_powers_i32x4, column_powers_i32x4);
+    // Each term over 2^top is at most 8, so shifts clamped at 2^-126 only drop negligible bits
+    float32x4_t const row_terms_f32x4 = vmulq_f32(
+        row_mantissas_f32x4,
+        nk_f32x4_powers_of_two_neon_(vmaxq_s32(vsubq_s32(row_powers_i32x4, top_i32x4), lowest_i32x4)));
+    float32x4_t const column_terms_f32x4 = vmulq_f32(
+        column_mantissas_f32x4,
+        nk_f32x4_powers_of_two_neon_(vmaxq_s32(vsubq_s32(column_powers_i32x4, top_i32x4), lowest_i32x4)));
+    int32x4_t const mean_powers_i32x4 = vshrq_n_s32(vaddq_s32(row_powers_i32x4, column_powers_i32x4), 1);
+    float32x4_t dot_terms_f32x4 = vmulq_n_f32(values->f32x4, 2 * mantissa);
+    dot_terms_f32x4 = vmulq_f32(
+        dot_terms_f32x4, nk_f32x4_powers_of_two_neon_(vnegq_s32(vaddq_s32(row_halves_i32x4, column_halves_i32x4))));
+    dot_terms_f32x4 = vmulq_f32(dot_terms_f32x4, nk_f32x4_powers_of_two_neon_(
+                                                     vmaxq_s32(vsubq_s32(mean_powers_i32x4, top_i32x4), lowest_i32x4)));
+    float32x4_t const squares_f32x4 = vmaxq_f32(
+        vsubq_f32(vaddq_f32(row_terms_f32x4, column_terms_f32x4), dot_terms_f32x4), vdupq_n_f32(0));
+    // Nonzero roots lie in 2^-75 … 4, so two powers of two reach every finite result
+    int32x4_t const halves_i32x4 = vmaxq_s32(vminq_s32(vshrq_n_s32(top_i32x4, 1), vdupq_n_s32(254)), vdupq_n_s32(-252));
+    int32x4_t const first_i32x4 = vmaxq_s32(vminq_s32(halves_i32x4, vdupq_n_s32(127)), lowest_i32x4);
+    float32x4_t const roots_f32x4 = vmulq_f32(vsqrtq_f32(squares_f32x4), nk_f32x4_powers_of_two_neon_(first_i32x4));
+    values->f32x4 = vmulq_f32(roots_f32x4, nk_f32x4_powers_of_two_neon_(vsubq_s32(halves_i32x4, first_i32x4)));
+}
+
 /** 64 i8-lifted elements, SDOT lane j of every register summing a 16-element group of one block,
  *  and their four F32 lane scales: one per NVFP4 block, or each MX block scale twice. */
 typedef struct nk_dot_scaled_i8x64_operand_neon_t {

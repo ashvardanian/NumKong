@@ -499,6 +499,11 @@ To add a new operation family, for example `foo`:
 2. __Kernels per capability__: add `include/numkong/foo/serial.h`, `foo/neon.h`, `foo/haswell.h`, etc.
    Helpers compile wherever `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` holds, and kernels only under their own `NUMKONG_TARGET_<CAPABILITY>`.
    A kernel never calls another public kernel: logic two kernels share lives in a helper named for what it computes.
+   A kernel takes typed arguments from a per-dtype macro, never a runtime `nk_dtype_t`.
+   A kernel never stores a function pointer: pass it to a per-dtype macro or an inline body.
+   Block-scaled kernels rebase into F32 and fall back to the exact F32 path, never F64.
+   SME kernels finish in predicated streaming SVE, never NEON, which faults in streaming mode.
+   A new `nk_define_*` macro needs approval: add it to `approved_codegen_macros` in the same commit.
 3. __Library__: create `c/dispatch/foo.c` with a `static` capability list per dispatch point, like `nk_foo_f32_capabilities`, the `_best` body that picks from it, and `nk_foo_find_kernel`.
    Include each capability header from its unit, like `c/target/haswell.c`, and route the family's kernel kinds to `nk_foo_find_kernel` in `c/numkong.c`.
 4. __C++ wrapper__: create `include/numkong/foo.hpp` with the typed C++ API, ending in the dispatch point's mask and stream.

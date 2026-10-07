@@ -44,6 +44,26 @@
  *  Angular distance:  1 - dot(a,b) / sqrt(sumsq(a) * sumsq(b))
  *  Euclidean distance: sqrt(max(0, sumsq(a) + sumsq(b) - 2*dot(a,b)))
  *
+ *  The packed and symmetric kernels of every capability share one rule for degenerate inputs. A NaN
+ *  dot, from a NaN element or a NaN scale code, gives NaN for both metrics. Angular distance is 0
+ *  when both norms are zero, 1 when either norm or the dot is exactly zero, and otherwise 1 minus
+ *  dot · rsqrt(sumsq(a)) · rsqrt(sumsq(b)), clamped to at least 0, where an infinite norm has a
+ *  reciprocal square root of 0. A zero vector has an exactly zero dot on every capability, so its
+ *  angle to any nonzero vector is exactly 1.
+ *
+ *  @section spatials_guarantees Guarantees
+ *
+ *  The bounds of @c nk_angular_error_bound and @c nk_euclidean_error_bound hold per input dtype:
+ *
+ *  - f64: while every sumsq(x) is finite in F64, from compensated dots within 2⁻⁵¹.
+ *  - f32: for all finite inputs, from products and sums in F64 within 2⁻⁵¹.
+ *  - f16, e4m3, e5m2, e3m2: for all finite inputs with norms up to 2⁵⁶, from F32 sums within
+ *    2⁻²².
+ *  - bf16: while every sumsq(x) is finite in F32, from F32 sums within 2⁻²².
+ *  - e2m3, e2m1, i8, u8, i4, u4: for all inputs whose sums fit 32 bits, from exact integer sums.
+ *  - nvfp4, mxfp4, mxfp6e2m3, mxfp6e3m2, mxfp8e4m3, mxfp8e5m2: for all finite inputs, from dots and
+ *    norms rebased in F32 within 2⁻²².
+ *
  *  @section spatials_packing Packing
  *
  *  Uses the same pack functions as dot products, nk_dots_pack_size_*, nk_dots_pack_*. The packed

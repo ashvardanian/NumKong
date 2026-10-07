@@ -16,7 +16,7 @@
 #if NUMKONG_TARGET_NEONFHM
 
 #include "numkong/dots/serial.h"
-#include "numkong/dots/neon.h" // `nk_pack_mxfp8_scales_neon_`, `nk_cross_scaled_f16_values_neon_`
+#include "numkong/dots/neon.h" // `nk_pack_mxfp8_scales_neon_`, `nk_cross_scaled_exact_wide_mxfp8e4m3_neon_`
 #include "numkong/dot/neonfhm.h"
 
 #if defined(__cplusplus)
@@ -102,15 +102,16 @@ nk_define_cross_pack_(dots, mxfp8e4m3, neonfhm, e4m3, f16, nk_b256_vec_t, nk_loa
 nk_define_cross_scaled_packed_(dots, mxfp8e4m3, neonfhm, f16, nk_dot_scaled_f16x32_operand_neon_t,
                                nk_dot_scaled_f32_state_neon_t, nk_dot_scaled_f32_init_neon, nk_load_scaled_f16x32_neon_,
                                nk_dot_scaled_f16x32_update_neonfhm, nk_dot_scaled_f32_finalize_neon,
-                               nk_f32x4_scale_neon_, nk_cross_scaled_f16_values_neon_, /*depth_simd_dimensions=*/32,
+                               nk_dot_f32x4_from_relative_neon_, nk_cross_scaled_exact_wide_mxfp8e4m3_neon_,
+                               nk_dot_f32_from_wide_, /*normalized=*/0, /*depth_simd_dimensions=*/32,
                                /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
                                /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, mxfp8e4m3, neonfhm, f16, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, mxfp8e4m3, neonfhm, f16, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
-        nk_define_cross_pack_size_(dots, mxfp8e5m2, neonfhm, e5m2, f16, /*norm_value_type=*/f32,
-                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5)
+nk_define_cross_pack_size_(dots, mxfp8e5m2, neonfhm, e5m2, f16, /*norm_value_type=*/f32,
+                           /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5)
 nk_define_cross_packed_shape_(dots, mxfp8e5m2, neonfhm)
 nk_define_cross_pack_(dots, mxfp8e5m2, neonfhm, e5m2, f16, nk_b256_vec_t, nk_load_e5m2x16_to_f16x16_neon_,
                       nk_partial_load_e5m2x16_to_f16x16_neon_, nk_store_b256_neon_, nk_partial_store_b16x16_serial_,
@@ -120,12 +121,13 @@ nk_define_cross_pack_(dots, mxfp8e5m2, neonfhm, e5m2, f16, nk_b256_vec_t, nk_loa
 nk_define_cross_scaled_packed_(dots, mxfp8e5m2, neonfhm, f16, nk_dot_scaled_f16x32_operand_neon_t,
                                nk_dot_scaled_f32_state_neon_t, nk_dot_scaled_f32_init_neon, nk_load_scaled_f16x32_neon_,
                                nk_dot_scaled_f16x32_update_neonfhm, nk_dot_scaled_f32_finalize_neon,
-                               nk_f32x4_scale_neon_, nk_cross_scaled_f16_values_neon_, /*depth_simd_dimensions=*/32,
+                               nk_dot_f32x4_from_relative_neon_, nk_cross_scaled_exact_wide_mxfp8e5m2_neon_,
+                               nk_dot_f32_from_wide_, /*normalized=*/0, /*depth_simd_dimensions=*/32,
                                /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
                                /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, neonfhm, f16, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, neonfhm, f16, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
 #if defined(__clang__)
 #pragma clang attribute pop

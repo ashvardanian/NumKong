@@ -47,15 +47,31 @@ def dots_symmetric(a: np.ndarray) -> np.ndarray:
 | `u4`       | `u32`       | 4-bit unsigned integers, packed nibble pairs     |
 | `u1`       | `u32`       | 1-bit binary packed octets, popcount of AND      |
 
+## Guarantees
+
+Every capability sums each input group the same way, so `nk_dot_error_bound` holds on all of them:
+
+| Inputs                                | Sums              | Holds while        |
+| :------------------------------------ | :---------------- | :----------------- |
+| `f64`                                 | Compensated, 2⁻⁵¹ | ‖x‖² finite in F64 |
+| `f32`                                 | F64, 2⁻⁵¹         | inputs are finite  |
+| `f16`, `bf16`, `e4m3`, `e5m2`, `e3m2` | F32, 2⁻²²         | ‖x‖² finite in F32 |
+| `e2m3`, `e2m1`, integers              | Exact             | sums fit 32 bits   |
+| `nvfp4`, `mxfp*`                      | Rebased F32, 2⁻²² | inputs are finite  |
+
+Block-scaled rows and columns whose exponents spread past the rebasing window take an exact path instead.
+A NaN element, a NaN scale code or a non-finite tensor scale gives NaN, a zero scale code contributes zero, and a zero vector's dot is exactly zero.
+
 ## Optimizations
 
 ### B Matrix Pre-Packing with Stride Breaking
 
 `nk_dots_pack_f32_serial`, `nk_dots_pack_f32_haswell`, `nk_dots_pack_bf16_haswell`, `nk_dots_pack_i8_haswell` pre-pack the B matrix into a contiguous buffer optimized for streaming access during GEMM.
-Power-of-2 stride detection — when `stride & (stride - 1) == 0` — adds `depth_simd_dimensions` padding to avoid cache associativity conflicts on set-associative caches.
+Power-of-2 strides, where `stride & (stride - 1) == 0`, get `depth_simd_dimensions` of padding against cache associativity conflicts.
 Type conversion is amortized into the pack step: BFloat16 → Float32, Float16 → Float32, and Float8 → Float32 conversions happen once during packing instead of per-row during GEMM.
-A 64-byte header stores metadata: column count, depth dimensions, and padded depth.
+A 64-byte header stores the column count, depth, padded depth and the offset of the column norms.
 Row grouping (`group_size=16`) zero-pads partial groups at matrix edges for uniform SIMD processing.
+Block-scaled NEON packs also decode the codes into the integer or Float16 values their updates read and the scales into Float32 or Float64, so no row tile decodes B again.
 SME packs store each 16-column tile in outer-product operand order, 2 depth steps per 32-bit lane for 16-bit operands and 4 for 8-bit ones, with the same layout the A panels use.
 
 ### Tiled Register Accumulation
@@ -119,26 +135,18 @@ Haswell fallback uses `VPMADDUBSW` (UInt8 × Int8 → Int16) + `VPMADDWD` (Int16
 ### 4-Way Finalizer Amortization
 
 All packed and symmetric kernels across the dots, spatials, and sets modules share a finalizer-based design.
-The 4×4 tile accumulates 16 dot products in registers, then stores results 4-wide via `nk_b128_vec_t` — a union of `f32[4]`, `i32[4]`, `u32[4]` fitting a 128-bit register.
-A finalizer function pointer processes 4 results simultaneously, amortizing horizontal reductions and type conversions:
+The 4×4 tile accumulates 16 dot products in registers, then stores results 4-wide via `nk_b128_vec_t`, a union of `f32[4]`, `i32[4]`, `u32[4]` fitting a 128-bit register.
+The kernel macros take the finalizer as a typed argument, so it inlines into every generated kernel and turns 4 dots at a time into 4 outputs:
 
-```
-// 4-wide finalizer signature — per-lane arrays always pass as `nk_bXXX_vec_t const *`
-void finalizer(nk_b128_vec_t const *dots_vec,          // 4 dot products
-               nk_f32_t query_norm,                    // precomputed query squared-norm (scalar)
-               nk_b128_vec_t const *target_norms_vec,  // 4 target squared-norms
-               nk_b128_vec_t *result_vec)              // 4 output distances
-
-// Angular: 4 divisions + 4 subtractions in one call
-result_vec->f32s[i] = 1 - dots_vec->f32s[i] / sqrt(query_norm * target_norms_vec->f32s[i])
-
-// Euclidean: 4 sqrt(a² + b² - 2ab) in one call
-result_vec->f32s[i] = sqrt(query_norm + target_norms_vec->f32s[i] - 2 * dots_vec->f32s[i])
+```c
+void finalizer(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq, nk_b128_vec_t const *target_sumsqs_vec,
+               nk_b128_vec_t *result_vec);
 ```
 
-The 4×4 tile emits 4 rows of 4 results each — the finalizer is called 4 times per tile, once per query row.
-For the 1×8 edge tile, two finalizer calls handle 8 results.
-This design decouples the GEMM loop from the distance metric: the same tiled accumulation code serves dots, spatials, and sets by swapping only the finalizer function pointer.
+Angular finalizers compute 1 − d · rsqrt(q) · rsqrt(t) with separate reciprocal roots, so two large norms never overflow, and Euclidean ones √(q + t − 2d).
+Integer angular and Euclidean finalizers form q · t − d² and q + t − 2d exactly before rounding, so identical vectors give exactly 0.
+The 4×4 tile calls the finalizer once per query row, and the 1×8 edge tile twice.
+Dots, spatials and sets differ only in the finalizer over the same accumulation loop.
 
 ## Performance
 

@@ -245,16 +245,16 @@ nk_define_cross_pack_(dots, nvfp4, skylake, e2m1x2, e2m1x2, nk_b512_vec_t, nk_lo
 nk_define_cross_scaled_packed_(dots, nvfp4, skylake, e2m1x2, nk_dot_f32x32_operand_skylake_t,
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_nvfp4x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
-                               nk_dot_scaled_f32_reduce_skylake_, nk_f32x4_scale_skylake_, nk_cross_scaled_raw_values_,
+                               nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
+                               nk_cross_scaled_exact_wide_nvfp4_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, nvfp4, skylake, e2m1x2, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/2, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, nvfp4, skylake, e2m1x2, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
-        nk_define_cross_pack_size_(dots, mxfp4, skylake, e2m1x2, e2m1x2, /*norm_value_type=*/f32,
-                                   /*depth_simd_dimensions=*/32,
-                                   /*dimensions_per_value=*/2, /*scale_bytes=*/5)
+nk_define_cross_pack_size_(dots, mxfp4, skylake, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
+                           /*dimensions_per_value=*/2, /*scale_bytes=*/5)
 nk_define_cross_packed_shape_(dots, mxfp4, skylake)
 nk_define_cross_pack_(dots, mxfp4, skylake, e2m1x2, e2m1x2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
@@ -264,16 +264,16 @@ nk_define_cross_pack_(dots, mxfp4, skylake, e2m1x2, e2m1x2, nk_b512_vec_t, nk_lo
 nk_define_cross_scaled_packed_(dots, mxfp4, skylake, e2m1x2, nk_dot_f32x32_operand_skylake_t,
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp4x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
-                               nk_dot_scaled_f32_reduce_skylake_, nk_f32x4_scale_skylake_, nk_cross_scaled_raw_values_,
+                               nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
+                               nk_cross_scaled_exact_wide_mxfp4_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, mxfp4, skylake, e2m1x2, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/2, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, mxfp4, skylake, e2m1x2, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
-        nk_define_cross_pack_size_(dots, mxfp6e2m3, skylake, e2m3, e2m3, /*norm_value_type=*/f32,
-                                   /*depth_simd_dimensions=*/32,
-                                   /*dimensions_per_value=*/1, /*scale_bytes=*/5)
+nk_define_cross_pack_size_(dots, mxfp6e2m3, skylake, e2m3, e2m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/5)
 nk_define_cross_packed_shape_(dots, mxfp6e2m3, skylake)
 nk_define_cross_pack_(dots, mxfp6e2m3, skylake, e2m3, e2m3, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
@@ -283,16 +283,16 @@ nk_define_cross_pack_(dots, mxfp6e2m3, skylake, e2m3, e2m3, nk_b512_vec_t, nk_lo
 nk_define_cross_scaled_packed_(dots, mxfp6e2m3, skylake, e2m3, nk_dot_f32x32_operand_skylake_t,
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp6e2m3x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
-                               nk_dot_scaled_f32_reduce_skylake_, nk_f32x4_scale_skylake_, nk_cross_scaled_raw_values_,
+                               nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
+                               nk_cross_scaled_exact_wide_mxfp6e2m3_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, mxfp6e2m3, skylake, e2m3, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, mxfp6e2m3, skylake, e2m3, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
-        nk_define_cross_pack_size_(dots, mxfp6e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32,
-                                   /*depth_simd_dimensions=*/32,
-                                   /*dimensions_per_value=*/1, /*scale_bytes=*/5)
+nk_define_cross_pack_size_(dots, mxfp6e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/5)
 nk_define_cross_packed_shape_(dots, mxfp6e3m2, skylake)
 nk_define_cross_pack_(dots, mxfp6e3m2, skylake, e3m2, e3m2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
@@ -302,16 +302,16 @@ nk_define_cross_pack_(dots, mxfp6e3m2, skylake, e3m2, e3m2, nk_b512_vec_t, nk_lo
 nk_define_cross_scaled_packed_(dots, mxfp6e3m2, skylake, e3m2, nk_dot_f32x32_operand_skylake_t,
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp6e3m2x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
-                               nk_dot_scaled_f32_reduce_skylake_, nk_f32x4_scale_skylake_, nk_cross_scaled_raw_values_,
+                               nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
+                               nk_cross_scaled_exact_wide_mxfp6e3m2_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, mxfp6e3m2, skylake, e3m2, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, mxfp6e3m2, skylake, e3m2, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
-        nk_define_cross_pack_size_(dots, mxfp8e4m3, skylake, e4m3, e4m3, /*norm_value_type=*/f32,
-                                   /*depth_simd_dimensions=*/32,
-                                   /*dimensions_per_value=*/1, /*scale_bytes=*/5)
+nk_define_cross_pack_size_(dots, mxfp8e4m3, skylake, e4m3, e4m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/5)
 nk_define_cross_packed_shape_(dots, mxfp8e4m3, skylake)
 nk_define_cross_pack_(dots, mxfp8e4m3, skylake, e4m3, e4m3, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
@@ -321,16 +321,16 @@ nk_define_cross_pack_(dots, mxfp8e4m3, skylake, e4m3, e4m3, nk_b512_vec_t, nk_lo
 nk_define_cross_scaled_packed_(dots, mxfp8e4m3, skylake, e4m3, nk_dot_f32x32_operand_skylake_t,
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp8e4m3x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
-                               nk_dot_scaled_f32_reduce_skylake_, nk_f32x4_scale_skylake_, nk_cross_scaled_raw_values_,
+                               nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
+                               nk_cross_scaled_exact_wide_mxfp8e4m3_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, mxfp8e4m3, skylake, e4m3, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, mxfp8e4m3, skylake, e4m3, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
-        nk_define_cross_pack_size_(dots, mxfp8e5m2, skylake, e5m2, e5m2, /*norm_value_type=*/f32,
-                                   /*depth_simd_dimensions=*/32,
-                                   /*dimensions_per_value=*/1, /*scale_bytes=*/5)
+nk_define_cross_pack_size_(dots, mxfp8e5m2, skylake, e5m2, e5m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/5)
 nk_define_cross_packed_shape_(dots, mxfp8e5m2, skylake)
 nk_define_cross_pack_(dots, mxfp8e5m2, skylake, e5m2, e5m2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
@@ -340,17 +340,18 @@ nk_define_cross_pack_(dots, mxfp8e5m2, skylake, e5m2, e5m2, nk_b512_vec_t, nk_lo
 nk_define_cross_scaled_packed_(dots, mxfp8e5m2, skylake, e5m2, nk_dot_f32x32_operand_skylake_t,
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp8e5m2x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
-                               nk_dot_scaled_f32_reduce_skylake_, nk_f32x4_scale_skylake_, nk_cross_scaled_raw_values_,
+                               nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
+                               nk_cross_scaled_exact_wide_mxfp8e5m2_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-    nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, skylake, e5m2, /*depth_simd_dimensions=*/32,
-                                      /*dimensions_per_value=*/1, /*scale_bytes=*/5, /*register_rows=*/2,
-                                      /*register_columns=*/4)
+nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, skylake, e5m2, nk_dot_f32_from_wide_, /*normalized=*/0,
+                                  /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
+                                  /*register_rows=*/2, /*register_columns=*/4)
 
-    /*  E3M2 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 e3m2s span the 64
-     *  bytes of an AVX-512 register. */
-    nk_define_cross_pack_size_(dots, e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
-                               /*dimensions_per_value=*/1, /*scale_bytes=*/1)
+/*  E3M2 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 e3m2s span the 64
+ *  bytes of an AVX-512 register. */
+nk_define_cross_pack_size_(dots, e3m2, skylake, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e3m2, skylake)
 nk_define_cross_pack_(dots, e3m2, skylake, e3m2, e3m2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,

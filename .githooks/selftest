@@ -495,6 +495,81 @@ NUMKONG_API int nk_probe_haswell(int value) {
 }
 FIXTURE
 
+assert_rejects "kernel taking a runtime dtype" "runtime nk_dtype_t parameter" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE void nk_probe_haswell_(nk_size_t count,
+                                      nk_dtype_t dtype, nk_size_t stride) {
+    nk_probe_serial_(count, dtype, stride);
+}
+FIXTURE
+
+assert_accepts "constexpr helper taking a dtype, kernel with a dtype local" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_CONSTEXPR nk_size_t nk_probe_size_(nk_dtype_t dtype) { return dtype == nk_f32_k ? 4 : 2; }
+
+NUMKONG_INLINE void nk_probe_haswell_(nk_size_t count) {
+    nk_dtype_t dtype = nk_f32_k;
+    nk_probe_serial_(count, nk_probe_size_(dtype));
+}
+FIXTURE
+
+assert_rejects "typedef of a function pointer in a kernel" "stores a function pointer" include/numkong/probe/haswell.h <<'FIXTURE'
+typedef void (*nk_probe_load_haswell_t_)(void const *source, nk_size_t count);
+FIXTURE
+
+assert_rejects "function pointer field in a kernel struct" "stores a function pointer" include/numkong/probe/haswell.h <<'FIXTURE'
+typedef struct {
+    void (*load)(void const *source, nk_size_t count);
+} nk_probe_haswell_t_;
+FIXTURE
+
+assert_accepts "function pointer parameter in a kernel" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE void nk_probe_haswell_(void (*load)(void const *source), void const *source) { load(source); }
+FIXTURE
+
+assert_rejects "F64 in a block-scaled kernel" "uses F64 inside a block-scaled kernel" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE nk_f32_t nk_probe_scaled_haswell_(nk_f32_t value) {
+    nk_f64_t wide = value;
+    return (nk_f32_t)wide;
+}
+FIXTURE
+
+assert_accepts "F64 in an exact kernel, F32 in a block-scaled one" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE nk_f64_t nk_probe_exact_haswell_(nk_f32_t value) {
+    nk_f64_t wide = value;
+    return wide;
+}
+
+NUMKONG_INLINE nk_f32_t nk_probe_scaled_haswell_(nk_f32_t value) {
+    nk_f32_t narrow = value;
+    return narrow;
+}
+FIXTURE
+
+stage_fixture_with_header include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE void nk_probe_haswell_(nk_dtype_t dtype, nk_size_t count) { nk_probe_serial_(dtype, count); }
+
+typedef void (*nk_probe_load_haswell_t_)(void const *source);
+
+NUMKONG_INLINE nk_f32_t nk_probe_scaled_haswell_(nk_f32_t value) {
+    nk_f64_t wide = value;
+    return (nk_f32_t)wide;
+}
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+printf '\nNUMKONG_INLINE nk_f32_t nk_probe_scaled_next_haswell_(nk_f32_t value) {\n    return value;\n}\n' >> "$fixture_directory/include/numkong/probe/haswell.h"
+git -C "$fixture_directory" add -- include/numkong/probe/haswell.h
+run_precommit
+expect_acceptance "legacy dtype, callback and F64 lines left unchanged"
+
+assert_rejects "unapproved code-generation macro" "nobody approved" include/numkong/probe/serial.h <<'FIXTURE'
+#define nk_define_probe_unapproved_(name) \
+    NUMKONG_API void nk_probe_##name##_serial(void) {}
+FIXTURE
+
+assert_accepts "approved code-generation macro" include/numkong/probe/serial.h <<'FIXTURE'
+#define nk_define_dot_(name) \
+    NUMKONG_API void nk_probe_##name##_serial(void) {}
+FIXTURE
+
 assert_rejects "shape with x" "spells a shape" include/numkong/probe.h <<'FIXTURE'
 /** Returns a matrix of shape [rows x columns]. */
 int probe(void);
@@ -2441,11 +2516,30 @@ FIXTURE
 
 for backend in skylake diamondamx sve2 smef64 rvvhalf; do
     assert_rejects "serial partial loader on $backend" "uses a serial partial loader in a predicated backend" "include/numkong/probe/$backend.h" <<'FIXTURE'
-NUMKONG_INLINE void probe(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void probe(void const *src, void *dst, nk_size_t n) {
     nk_partial_load_b8x16_serial_(src, dst, n);
 }
 FIXTURE
 done
+
+assert_rejects "NEON finish in an SME header" "uses NEON in an SME backend" include/numkong/probe/sme.h <<'FIXTURE'
+NUMKONG_INLINE void probe(nk_f32_t const *dots, nk_f32_t norm, nk_f32_t const *norms, nk_f32_t *out) {
+    nk_angular_through_f32_from_dot_neon_(dots, norm, norms, out);
+}
+FIXTURE
+
+assert_rejects "NEON intrinsics in an SME header" "uses NEON in an SME backend" include/numkong/probe/smef64.h <<'FIXTURE'
+NUMKONG_INLINE nk_f64_t probe(nk_f64_t value) {
+    return vget_lane_f64(vsqrt_f64(vdup_n_f64(value)), 0);
+}
+FIXTURE
+
+assert_accepts "streaming SVE tuples in an SME header" include/numkong/probe/sme.h <<'FIXTURE'
+NUMKONG_INLINE svuint16x2_t probe(nk_u16_t const *data) NUMKONG_STREAMING_ {
+    svbool_t const predicate_b16x = svptrue_b16();
+    return svcreate2_u16(svld1_u16(predicate_b16x, data), svld1_u16(predicate_b16x, data + svcnth()));
+}
+FIXTURE
 
 for backend in neon haswell; do
     assert_accepts "serial byte tail without byte predication on $backend" "include/numkong/probe/$backend.h" <<'FIXTURE'

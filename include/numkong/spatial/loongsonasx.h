@@ -61,31 +61,38 @@ NUMKONG_INLINE nk_f32_t nk_angular_normalize_i32_loongsonasx_(nk_i32_t ab, nk_i3
 
 #pragma region Vectorized From Dot Helpers
 
-/** Safe square root of 4 floats with zero-clamping for numerical stability (LSX 128-bit). */
+/** Square root of 4 floats, clamping negatives from rounding to zero and keeping NaN, which
+ *  @c __lsx_vfmax_s would replace (LSX 128-bit). */
 NUMKONG_INLINE __m128 nk_sqrt_f32x4_loongsonasx_(__m128 x_f32x4) {
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    return __lsx_vfsqrt_s(__lsx_vfmax_s(x_f32x4, zero_f32x4));
+    __m128i const negative_i32x4 = __lsx_vfcmp_clt_s(x_f32x4, (__m128)__lsx_vreplgr2vr_w(0));
+    return __lsx_vfsqrt_s((__m128)__lsx_vandn_v(negative_i32x4, (__m128i)x_f32x4));
 }
 
 /**
- *  @brief Angular from_dot for 4 pairs (LSX 128-bit f32).
+ *  @brief Angular from_dot for 4 pairs (LSX 128-bit f32), with the rules of the serial variant.
  *
  *  @verbatim
- *      1 − dot × rsqrt(query_sumsq × target_sumsq)
+ *      1 − dot × rsqrt(query_sumsq) × rsqrt(target_sumsq)
  *  @endverbatim
  */
 NUMKONG_INLINE void nk_angular_through_f32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                                  nk_b128_vec_t const *target_sumsqs_vec,
                                                                  nk_b128_vec_t *result_vec) {
-    __m128 dots_f32x4 = dots_vec->xmm_ps;
-    __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_(query_sumsq);
-    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, target_sumsqs_vec->xmm_ps);
-    __m128 rsqrt_f32x4 = __lsx_vfrsqrt_s(products_f32x4);
-    __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
-    __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
-    __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    __m128 const zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0), one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
+    __m128 const dots_f32x4 = dots_vec->xmm_ps, target_sumsqs_f32x4 = target_sumsqs_vec->xmm_ps;
+    __m128 const query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_(query_sumsq);
+    __m128 const rsqrt_f32x4 = __lsx_vfmul_s(__lsx_vfrsqrt_s(query_sumsq_f32x4), __lsx_vfrsqrt_s(target_sumsqs_f32x4));
+    __m128 const angular_f32x4 = __lsx_vfmax_s(__lsx_vfsub_s(one_f32x4, __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4)),
+                                               zero_f32x4);
+    __m128i const unit_i32x4 = __lsx_vor_v(__lsx_vfcmp_ceq_s(dots_f32x4, zero_f32x4),
+                                           __lsx_vor_v(__lsx_vfcmp_ceq_s(query_sumsq_f32x4, zero_f32x4),
+                                                       __lsx_vfcmp_ceq_s(target_sumsqs_f32x4, zero_f32x4)));
+    __m128i result_i32x4 = __lsx_vbitsel_v((__m128i)angular_f32x4, (__m128i)one_f32x4, unit_i32x4);
+    result_i32x4 = __lsx_vandn_v(__lsx_vfcmp_ceq_s(__lsx_vfadd_s(query_sumsq_f32x4, target_sumsqs_f32x4), zero_f32x4),
+                                 result_i32x4);
+    // A NaN dot outranks the zero-norm cases
+    result_i32x4 = __lsx_vbitsel_v(result_i32x4, (__m128i)dots_f32x4, __lsx_vfcmp_cun_s(dots_f32x4, dots_f32x4));
+    result_vec->xmm_ps = (__m128)result_i32x4;
 }
 
 /**
@@ -108,24 +115,32 @@ NUMKONG_INLINE void nk_euclidean_through_f32_from_dot_loongsonasx_(nk_b128_vec_t
 }
 
 /**
- *  @brief Angular from_dot for native f64, over 4 pairs (LASX 256-bit).
+ *  @brief Angular from_dot for native f64, over 4 pairs (LASX 256-bit), with the rules of
+ *      the serial variant.
  *
  *  @verbatim
- *      1 − dot / √(query_sumsq × target_sumsq)
+ *      1 − dot / (√query_sumsq × √target_sumsq)
  *  @endverbatim
  */
 NUMKONG_INLINE void nk_angular_through_f64_from_dot_loongsonasx_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                                  nk_b256_vec_t const *target_sumsqs_vec,
                                                                  nk_b256_vec_t *result_vec) {
-    __m256d dots_f64x4 = dots_vec->ymm_pd;
-    __m256d query_sumsq_f64x4 = nk_xvfreplgr2vr_d_(query_sumsq);
-    __m256d products_f64x4 = __lasx_xvfmul_d(query_sumsq_f64x4, target_sumsqs_vec->ymm_pd);
-    __m256d sqrt_products_f64x4 = __lasx_xvfsqrt_d(products_f64x4);
-    __m256d normalized_f64x4 = __lasx_xvfdiv_d(dots_f64x4, sqrt_products_f64x4);
-    __m256d one_f64x4 = nk_xvfreplgr2vr_d_(1.0);
-    __m256d angular_f64x4 = __lasx_xvfsub_d(one_f64x4, normalized_f64x4);
-    __m256d zero_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    result_vec->ymm_pd = __lasx_xvfmax_d(angular_f64x4, zero_f64x4);
+    __m256d const zero_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0), one_f64x4 = nk_xvfreplgr2vr_d_(1.0);
+    __m256d const dots_f64x4 = dots_vec->ymm_pd, target_sumsqs_f64x4 = target_sumsqs_vec->ymm_pd;
+    __m256d const query_sumsq_f64x4 = nk_xvfreplgr2vr_d_(query_sumsq);
+    __m256d const norm_f64x4 = __lasx_xvfmul_d(__lasx_xvfsqrt_d(query_sumsq_f64x4),
+                                               __lasx_xvfsqrt_d(target_sumsqs_f64x4));
+    __m256d const angular_f64x4 = __lasx_xvfmax_d(__lasx_xvfsub_d(one_f64x4, __lasx_xvfdiv_d(dots_f64x4, norm_f64x4)),
+                                                  zero_f64x4);
+    __m256i const unit_i64x4 = __lasx_xvor_v(__lasx_xvfcmp_ceq_d(dots_f64x4, zero_f64x4),
+                                             __lasx_xvor_v(__lasx_xvfcmp_ceq_d(query_sumsq_f64x4, zero_f64x4),
+                                                           __lasx_xvfcmp_ceq_d(target_sumsqs_f64x4, zero_f64x4)));
+    __m256i result_i64x4 = __lasx_xvbitsel_v((__m256i)angular_f64x4, (__m256i)one_f64x4, unit_i64x4);
+    result_i64x4 = __lasx_xvandn_v(
+        __lasx_xvfcmp_ceq_d(__lasx_xvfadd_d(query_sumsq_f64x4, target_sumsqs_f64x4), zero_f64x4), result_i64x4);
+    // A NaN dot outranks the zero-norm cases
+    result_i64x4 = __lasx_xvbitsel_v(result_i64x4, (__m256i)dots_f64x4, __lasx_xvfcmp_cun_d(dots_f64x4, dots_f64x4));
+    result_vec->ymm_pd = (__m256d)result_i64x4;
 }
 
 /**
@@ -144,66 +159,111 @@ NUMKONG_INLINE void nk_euclidean_through_f64_from_dot_loongsonasx_(nk_b256_vec_t
     __m256d two_f64x4 = nk_xvfreplgr2vr_d_(2.0);
     // dist_sq = sum_sq − 2 × dots = -(2 × dots − sum_sq)
     __m256d dist_sq_f64x4 = __lasx_xvfnmsub_d(two_f64x4, dots_f64x4, sum_sq_f64x4);
-    __m256d zero_f64x4 = (__m256d)__lasx_xvreplgr2vr_d(0);
-    result_vec->ymm_pd = __lasx_xvfsqrt_d(__lasx_xvfmax_d(dist_sq_f64x4, zero_f64x4));
+    // Unlike `__lasx_xvfmax_d`, the compare keeps NaN
+    __m256i const negative_i64x4 = __lasx_xvfcmp_clt_d(dist_sq_f64x4, (__m256d)__lasx_xvreplgr2vr_d(0));
+    result_vec->ymm_pd = __lasx_xvfsqrt_d((__m256d)__lasx_xvandn_v(negative_i64x4, (__m256i)dist_sq_f64x4));
 }
 
-/** Angular from_dot for 4 pairs of i32 accumulators (LSX 128-bit): casts i32 → f32, then rsqrt+NR,
- *  then clamp. */
-NUMKONG_INLINE void nk_angular_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+/** Rounds 4 exact u64 lanes, given as lanes {0, 2} and {1, 3}, into f32 lanes in order. The
+ *  u64 → f64 step keeps the full unsigned range that the signed @c vffint.s.l would wrap. */
+NUMKONG_INLINE __m128 nk_u64x4_to_f32x4_loongsonasx_(__m128i even_u64x2, __m128i odd_u64x2) {
+    __m128 const swapped_f32x4 = __lsx_vfcvt_s_d(__lsx_vffint_d_lu(odd_u64x2), __lsx_vffint_d_lu(even_u64x2));
+    return (__m128)__lsx_vshuf4i_w((__m128i)swapped_f32x4, 0b11011000);
+}
+
+/** Angular from_dot for 4 i32 dots and u32 norms (LSX 128-bit). @c vmulwev/vmulwod make ab and
+ *  d² exact in 64 bits, the gap ab − d² converts through f64, and FMA keeps the rest in f32. */
+NUMKONG_INLINE void nk_angular_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                  nk_b128_vec_t const *target_sumsqs_vec,
                                                                  nk_b128_vec_t *result_vec) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
-    __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
-    __m128 rsqrt_f32x4 = __lsx_vfrsqrt_s(products_f32x4);
-    __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
-    __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
-    __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    __m128i const dots_i32x4 = dots_vec->xmm, targets_u32x4 = target_sumsqs_vec->xmm;
+    __m128i const query_u32x4 = __lsx_vreplgr2vr_w((int)query_sumsq);
+    __m128 const one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
+    __m128i const product_even_u64x2 = __lsx_vmulwev_d_wu(targets_u32x4, query_u32x4);
+    __m128i const product_odd_u64x2 = __lsx_vmulwod_d_wu(targets_u32x4, query_u32x4);
+    // Cauchy–Schwarz keeps the gap non-negative
+    __m128 const gap_f32x4 = nk_u64x4_to_f32x4_loongsonasx_(
+        __lsx_vsub_d(product_even_u64x2, __lsx_vmulwev_d_w(dots_i32x4, dots_i32x4)),
+        __lsx_vsub_d(product_odd_u64x2, __lsx_vmulwod_d_w(dots_i32x4, dots_i32x4)));
+    __m128 const product_f32x4 = nk_u64x4_to_f32x4_loongsonasx_(product_even_u64x2, product_odd_u64x2);
+    __m128 const dots_f32x4 = __lsx_vffint_s_w(dots_i32x4);
+    __m128 const norm_f32x4 = __lsx_vfsqrt_s(product_f32x4);
+    // A positive dot takes (ab − d²) / (ab + d × s), any other 1 + |d| / s
+    __m128i const nonpositive_i32x4 = __lsx_vslei_w(dots_i32x4, 0);
+    __m128i const numerator_i32x4 = __lsx_vbitsel_v((__m128i)gap_f32x4, __lsx_vbitrevi_w((__m128i)dots_f32x4, 31),
+                                                    nonpositive_i32x4);
+    __m128i const denominator_i32x4 = __lsx_vbitsel_v((__m128i)__lsx_vfmadd_s(dots_f32x4, norm_f32x4, product_f32x4),
+                                                      (__m128i)norm_f32x4, nonpositive_i32x4);
+    __m128 const angular_f32x4 = __lsx_vfadd_s(__lsx_vfdiv_s((__m128)numerator_i32x4, (__m128)denominator_i32x4),
+                                               (__m128)__lsx_vand_v(nonpositive_i32x4, (__m128i)one_f32x4));
+    // A zero norm gives 1, and two zero norms give 0
+    __m128i const target_zero_i32x4 = __lsx_vseqi_w(targets_u32x4, 0);
+    __m128i const query_zero_i32x4 = __lsx_vseqi_w(query_u32x4, 0);
+    __m128i const result_i32x4 = __lsx_vbitsel_v((__m128i)angular_f32x4, (__m128i)one_f32x4,
+                                                 __lsx_vor_v(target_zero_i32x4, query_zero_i32x4));
+    result_vec->xmm = __lsx_vandn_v(__lsx_vand_v(target_zero_i32x4, query_zero_i32x4), result_i32x4);
 }
 
-/** Euclidean from_dot for 4 pairs of i32 accumulators (LSX 128-bit): casts i32 → f32, then
- *  computes √(a² + b² − 2ab). */
-NUMKONG_INLINE void nk_euclidean_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+/** Euclidean from_dot for 4 i32 dots and u32 norms (LSX 128-bit). @c vaddwev/vaddwod make the
+ *  34-bit q + t − 2d exact in 64 bits, rounding once in fewer ops than 16-bit halves would. */
+NUMKONG_INLINE void nk_euclidean_through_i32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                    nk_b128_vec_t const *target_sumsqs_vec,
                                                                    nk_b128_vec_t *result_vec) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
-    __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
-    __m128 two_f32x4 = nk_xvreplgr2vr_s_128_(2.0f);
-    __m128 dist_sq_f32x4 = __lsx_vfnmsub_s(two_f32x4, dots_f32x4, sum_sq_f32x4);
-    result_vec->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
+    __m128i const dots_i32x4 = dots_vec->xmm, targets_u32x4 = target_sumsqs_vec->xmm;
+    __m128i const query_u32x4 = __lsx_vreplgr2vr_w((int)query_sumsq);
+    __m128i const distance_sq_even_i64x2 = __lsx_vsub_d(__lsx_vaddwev_d_wu(targets_u32x4, query_u32x4),
+                                                        __lsx_vaddwev_d_w(dots_i32x4, dots_i32x4));
+    __m128i const distance_sq_odd_i64x2 = __lsx_vsub_d(__lsx_vaddwod_d_wu(targets_u32x4, query_u32x4),
+                                                       __lsx_vaddwod_d_w(dots_i32x4, dots_i32x4));
+    // The conversion packs lanes {0, 2} low and {1, 3} high, which the shuffle interleaves
+    __m128i const distance_sq_f32x4 = __lsx_vshuf4i_w(
+        (__m128i)__lsx_vffint_s_l(distance_sq_odd_i64x2, distance_sq_even_i64x2), 0b11011000);
+    result_vec->xmm_ps = __lsx_vfsqrt_s((__m128)distance_sq_f32x4);
 }
 
-/** Angular from_dot for 4 pairs of u32 accumulators (LSX 128-bit): casts u32 → f32, then rsqrt+NR,
- *  then clamp. */
+/** Angular from_dot for 4 u32 dots and norms (LSX 128-bit). @c vmulwev/vmulwod make ab and d²
+ *  exact in 64 bits, the gap ab − d² converts through f64, and FMA keeps the rest in f32. */
 NUMKONG_INLINE void nk_angular_through_u32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                  nk_b128_vec_t const *target_sumsqs_vec,
                                                                  nk_b128_vec_t *result_vec) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
-    __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 products_f32x4 = __lsx_vfmul_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
-    __m128 rsqrt_f32x4 = __lsx_vfrsqrt_s(products_f32x4);
-    __m128 normalized_f32x4 = __lsx_vfmul_s(dots_f32x4, rsqrt_f32x4);
-    __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
-    __m128 angular_f32x4 = __lsx_vfsub_s(one_f32x4, normalized_f32x4);
-    __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    result_vec->xmm_ps = __lsx_vfmax_s(angular_f32x4, zero_f32x4);
+    __m128i const dots_u32x4 = dots_vec->xmm, targets_u32x4 = target_sumsqs_vec->xmm;
+    __m128i const query_u32x4 = __lsx_vreplgr2vr_w((int)query_sumsq);
+    __m128i const product_even_u64x2 = __lsx_vmulwev_d_wu(targets_u32x4, query_u32x4);
+    __m128i const product_odd_u64x2 = __lsx_vmulwod_d_wu(targets_u32x4, query_u32x4);
+    // Cauchy–Schwarz keeps the gap non-negative
+    __m128 const gap_f32x4 = nk_u64x4_to_f32x4_loongsonasx_(
+        __lsx_vsub_d(product_even_u64x2, __lsx_vmulwev_d_wu(dots_u32x4, dots_u32x4)),
+        __lsx_vsub_d(product_odd_u64x2, __lsx_vmulwod_d_wu(dots_u32x4, dots_u32x4)));
+    __m128 const product_f32x4 = nk_u64x4_to_f32x4_loongsonasx_(product_even_u64x2, product_odd_u64x2);
+    __m128 const norm_f32x4 = __lsx_vfsqrt_s(product_f32x4);
+    // (ab − d²) / (ab + d × s) keeps the small angles that 1 − d / s cancels
+    __m128 const angular_f32x4 = __lsx_vfdiv_s(
+        gap_f32x4, __lsx_vfmadd_s(__lsx_vffint_s_wu(dots_u32x4), norm_f32x4, product_f32x4));
+    // A zero norm or a zero dot gives 1, and two zero norms give 0
+    __m128i const target_zero_i32x4 = __lsx_vseqi_w(targets_u32x4, 0);
+    __m128i const query_zero_i32x4 = __lsx_vseqi_w(query_u32x4, 0);
+    __m128i const unit_i32x4 = __lsx_vor_v(__lsx_vseqi_w(dots_u32x4, 0),
+                                           __lsx_vor_v(target_zero_i32x4, query_zero_i32x4));
+    __m128i const result_i32x4 = __lsx_vbitsel_v((__m128i)angular_f32x4, (__m128i)nk_xvreplgr2vr_s_128_(1.0f),
+                                                 unit_i32x4);
+    result_vec->xmm = __lsx_vandn_v(__lsx_vand_v(target_zero_i32x4, query_zero_i32x4), result_i32x4);
 }
 
-/** Euclidean from_dot for 4 pairs of u32 accumulators (LSX 128-bit): casts u32 → f32, then
- *  computes √(a² + b² − 2ab). */
+/** Euclidean from_dot for 4 u32 dots and norms (LSX 128-bit). @c vaddwev/vaddwod make the 33-bit
+ *  q + t − 2d exact in 64 bits, rounding once in fewer ops than 16-bit halves would. */
 NUMKONG_INLINE void nk_euclidean_through_u32_from_dot_loongsonasx_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                                    nk_b128_vec_t const *target_sumsqs_vec,
                                                                    nk_b128_vec_t *result_vec) {
-    __m128 dots_f32x4 = __lsx_vffint_s_w(dots_vec->xmm);
-    __m128 query_sumsq_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_sumsq);
-    __m128 sum_sq_f32x4 = __lsx_vfadd_s(query_sumsq_f32x4, __lsx_vffint_s_w(target_sumsqs_vec->xmm));
-    __m128 two_f32x4 = nk_xvreplgr2vr_s_128_(2.0f);
-    __m128 dist_sq_f32x4 = __lsx_vfnmsub_s(two_f32x4, dots_f32x4, sum_sq_f32x4);
-    result_vec->xmm_ps = nk_sqrt_f32x4_loongsonasx_(dist_sq_f32x4);
+    __m128i const dots_u32x4 = dots_vec->xmm, targets_u32x4 = target_sumsqs_vec->xmm;
+    __m128i const query_u32x4 = __lsx_vreplgr2vr_w((int)query_sumsq);
+    __m128i const distance_sq_even_i64x2 = __lsx_vsub_d(__lsx_vaddwev_d_wu(targets_u32x4, query_u32x4),
+                                                        __lsx_vaddwev_d_wu(dots_u32x4, dots_u32x4));
+    __m128i const distance_sq_odd_i64x2 = __lsx_vsub_d(__lsx_vaddwod_d_wu(targets_u32x4, query_u32x4),
+                                                       __lsx_vaddwod_d_wu(dots_u32x4, dots_u32x4));
+    // The conversion packs lanes {0, 2} low and {1, 3} high, which the shuffle interleaves
+    __m128i const distance_sq_f32x4 = __lsx_vshuf4i_w(
+        (__m128i)__lsx_vffint_s_l(distance_sq_odd_i64x2, distance_sq_even_i64x2), 0b11011000);
+    result_vec->xmm_ps = __lsx_vfsqrt_s((__m128)distance_sq_f32x4);
 }
 
 #pragma endregion Vectorized From Dot Helpers

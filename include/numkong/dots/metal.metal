@@ -221,7 +221,7 @@ struct nk_cross_pack_arguments_metal_t {
 struct nk_cross_packed_buffer_header_t {
     uint column_count, depth_dimensions, depth_padded_values, scales_stride;
     float tensor_scale;
-    uint reserved[9];
+    uint norms_offset, reserved[8];
     ulong capability;
 };
 
@@ -242,8 +242,10 @@ void nk_cross_pack_metal_(device uchar const *b, device uchar *b_packed,
         header->depth_padded_values = arguments.depth_padded_values;
         header->scales_stride = 0;
         header->tensor_scale = 1;
+        header->norms_offset = (uint)(sizeof(nk_cross_packed_buffer_header_t) +
+                                      arguments.column_count * arguments.row_bytes);
         header->capability = arguments.capability;
-        for (uint reserved = 0; reserved != 9; ++reserved) header->reserved[reserved] = 0;
+        for (uint reserved = 0; reserved != 8; ++reserved) header->reserved[reserved] = 0;
     }
     uint const column = arguments.columns_begin + column_first;
     if (column >= arguments.columns_end) return;
@@ -286,14 +288,22 @@ enum nk_cross_metric_metal_t { nk_cross_dot_metal_k, nk_cross_angular_metal_k, n
 template <nk_cross_metric_metal_t metric_>
 float nk_cross_subnormal_distance_metal_(float dot, float a_norm, float b_norm);
 
+/** A distance from its dot and squared norms: a NaN dot gives NaN, and angular is 0 for two
+ *  zero norms and 1 for one zero norm or a zero dot. Bit tests stand in for the comparisons
+ *  fast math drops. */
 template <nk_cross_metric_metal_t metric_>
 float nk_cross_distance_metal_(float dot, float a_norm, float b_norm) {
     uint const dot_bits = as_type<uint>(dot), a_bits = as_type<uint>(a_norm), b_bits = as_type<uint>(b_norm);
+    if ((dot_bits & 0x7fffffff) > 0x7f800000) return dot;
+    if (metric_ == nk_cross_angular_metal_k) {
+        bool const a_zero = (a_bits & 0x7fffffff) == 0, b_zero = (b_bits & 0x7fffffff) == 0;
+        if (a_zero && b_zero) return 0.0f;
+        if (a_zero || b_zero || (dot_bits & 0x7fffffff) == 0) return 1.0f;
+    }
     if (((dot_bits & 0x7f800000) == 0 && (dot_bits & 0x7fffff)) ||
         ((a_bits & 0x7f800000) == 0 && (a_bits & 0x7fffff)) || ((b_bits & 0x7f800000) == 0 && (b_bits & 0x7fffff)))
         return nk_cross_subnormal_distance_metal_<metric_>(dot, a_norm, b_norm);
     if (metric_ == nk_cross_angular_metal_k) {
-        if (!(a_norm > 0 && b_norm > 0)) return dot == 0 ? 0.0f : 1.0f;
         float const distance = 1.0f - dot * rsqrt(a_norm) * rsqrt(b_norm);
         return distance > 0 ? distance : 0.0f;
     }
@@ -667,11 +677,8 @@ float nk_cross_scaled_dot_metal_(nk_cross_scaled_sum_metal_t state, uint tensor_
 
 template <nk_cross_metric_metal_t metric_>
 float nk_cross_subnormal_distance_metal_(float dot, float a_norm, float b_norm) {
-    uint const a_bits = as_type<uint>(a_norm), b_bits = as_type<uint>(b_norm), dot_bits = as_type<uint>(dot);
+    uint const a_bits = as_type<uint>(a_norm), b_bits = as_type<uint>(b_norm);
     if (metric_ == nk_cross_angular_metal_k) {
-        bool const a_positive = !(a_bits & 0x80000000) && (a_bits & 0x7fffffff) && !isnan(a_norm);
-        bool const b_positive = !(b_bits & 0x80000000) && (b_bits & 0x7fffffff) && !isnan(b_norm);
-        if (!(a_positive && b_positive)) return (dot_bits & 0x7fffffff) == 0 ? 0 : 1;
         int a_exponent, b_exponent, dot_exponent;
         float const a_mantissa = nk_cross_float_mantissa_metal_(a_norm, a_exponent);
         float const b_mantissa = nk_cross_float_mantissa_metal_(b_norm, b_exponent);
@@ -764,8 +771,10 @@ void nk_cross_scaled_pack_metal_(device uchar const *b, device uchar *packed, de
         header->depth_padded_values = arguments.depth_padded_values;
         header->scales_stride = stride;
         header->tensor_scale = tensor;
+        header->norms_offset = (uint)(sizeof(nk_cross_packed_buffer_header_t) +
+                                      arguments.column_count * (arguments.row_bytes + stride));
         header->capability = arguments.capability;
-        for (uint index = 0; index != 9; ++index) header->reserved[index] = 0;
+        for (uint index = 0; index != 8; ++index) header->reserved[index] = 0;
     }
     uint const column = arguments.columns_begin + column_first;
     if (column >= arguments.columns_end) return;
@@ -824,27 +833,6 @@ void nk_cross_scaled_block_add_metal_(thread nk_cross_scaled_sum_metal_t &state,
                                                                : float2(state.sum.x + product, 0);
     }
     else nk_cross_scaled_add_metal_(state, product, exponent);
-}
-
-template <typename dtype_, uint block_size_, nk_cross_scale_metal_t scale_>
-float nk_cross_scaled_zero_norm_dot_metal_(device uchar const *a, device uchar const *b, device uchar const *a_scales,
-                                           device uchar const *b_scales, uint depth, uint tensor_product) {
-    nk_cross_scaled_sum_metal_t state = {float2(0), 0};
-    for (uint block = 0; block != depth / block_size_; ++block) {
-        nk_cross_scaled_sum_metal_t unscaled = {float2(0), 0};
-        for (uint dimension = 0; dimension != block_size_; ++dimension) {
-            uint const index = block * block_size_ + dimension;
-            nk_cross_scaled_add_metal_(unscaled, dtype_::load(a, index) * dtype_::load(b, index), 0);
-        }
-        int exponent;
-        float const scale = nk_cross_block_scale_metal_<scale_>(a_scales[block], b_scales[block], exponent);
-        exponent += unscaled.exponent;
-        float const product = unscaled.sum.x * scale;
-        nk_cross_scaled_add_metal_(state, product, exponent);
-        if (isfinite(product)) nk_cross_scaled_add_metal_(state, fma(unscaled.sum.x, scale, -product), exponent);
-        nk_cross_scaled_add_metal_(state, unscaled.sum.y * scale, exponent);
-    }
-    return nk_cross_scaled_dot_metal_(state, tensor_product);
 }
 
 template <typename dtype_, uint block_size_, nk_cross_scale_metal_t scale_, nk_cross_metric_metal_t metric_>
@@ -912,12 +900,6 @@ void nk_cross_scaled_tile_metal_(device uchar const *a, device uchar const *b, d
         float value = nk_cross_scaled_dot_metal_(sums[row_step][column_step], tensor_product);
         if (metric_ != nk_cross_dot_metal_k) {
             float const a_norm = norms[0][row - first_row], b_norm = norms[1][column - first_column];
-            if (metric_ == nk_cross_angular_metal_k && (as_type<uint>(value) & 0x7fffffff) &&
-                (((as_type<uint>(a_norm) & 0x7fffffff) == 0) || ((as_type<uint>(b_norm) & 0x7fffffff) == 0)))
-                value = nk_cross_scaled_zero_norm_dot_metal_<dtype_, block_size_, scale_>(
-                    a + row * arguments.a_stride, b + column * arguments.b_stride,
-                    a_scales + row * arguments.a_scales_stride, b_scales + column * arguments.b_scales_stride,
-                    arguments.depth, tensor_product);
             value = arguments.upper_triangle && row == column
                         ? 0.0f
                         : nk_cross_distance_metal_<metric_>(value, a_norm, b_norm);

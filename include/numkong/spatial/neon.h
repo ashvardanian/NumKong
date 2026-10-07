@@ -53,11 +53,12 @@ extern "C" {
  *  Uses @c vrsqrteq_f32 (~8-bit initial estimate) followed by two Newton-Raphson iterations
  *  via @c vrsqrtsq_f32, achieving ~23-bit precision — sufficient for f32.
  *  Much faster than @c vsqrtq_f32 (2 cy vs 9-12 cy latency, 2/cy vs 0.25/cy throughput).
+ *  @c vmulxq_f32 takes ∞ × 0 as 2, so an infinite input keeps its estimate of 0.
  */
 NUMKONG_INLINE float32x4_t nk_rsqrt_f32x4_neon_(float32x4_t x) {
     float32x4_t rsqrt_f32x4 = vrsqrteq_f32(x);
-    rsqrt_f32x4 = vmulq_f32(rsqrt_f32x4, vrsqrtsq_f32(vmulq_f32(x, rsqrt_f32x4), rsqrt_f32x4));
-    rsqrt_f32x4 = vmulq_f32(rsqrt_f32x4, vrsqrtsq_f32(vmulq_f32(x, rsqrt_f32x4), rsqrt_f32x4));
+    rsqrt_f32x4 = vmulq_f32(rsqrt_f32x4, vrsqrtsq_f32(vmulxq_f32(x, rsqrt_f32x4), rsqrt_f32x4));
+    rsqrt_f32x4 = vmulq_f32(rsqrt_f32x4, vrsqrtsq_f32(vmulxq_f32(x, rsqrt_f32x4), rsqrt_f32x4));
     return rsqrt_f32x4;
 }
 
@@ -67,12 +68,13 @@ NUMKONG_INLINE float32x4_t nk_rsqrt_f32x4_neon_(float32x4_t x) {
  *  Uses @c vrsqrteq_f64 (~8-bit initial estimate) followed by three Newton-Raphson iterations via
  *  @c vrsqrtsq_f64, achieving ~48-bit precision. That is reasonable for f64 distance computations,
  *  whose result is often narrowed to f32, while full 52-bit mantissa fidelity needs @c vsqrtq_f64.
+ *  @c vmulxq_f64 keeps an infinite input's estimate of 0, like @c nk_rsqrt_f32x4_neon_.
  */
 NUMKONG_INLINE float64x2_t nk_rsqrt_f64x2_neon_(float64x2_t x) {
     float64x2_t rsqrt_f64x2 = vrsqrteq_f64(x);
-    rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
-    rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
-    rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
+    rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulxq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
+    rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulxq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
+    rsqrt_f64x2 = vmulq_f64(rsqrt_f64x2, vrsqrtsq_f64(vmulxq_f64(x, rsqrt_f64x2), rsqrt_f64x2));
     return rsqrt_f64x2;
 }
 
@@ -353,54 +355,41 @@ nk_sqeuclidean_e5m2_neon_cycle:
 }
 
 /** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f64, where q is
- *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
- *  overflowing the product of two finite-but-large norms. */
+ *  @p query_sumsq and t each target's sum of squares, with the rules of the serial variant.
+ *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
 NUMKONG_INLINE void nk_angular_through_f64_from_dot_neon_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                           nk_b256_vec_t const *target_sumsqs_vec,
                                                           nk_b256_vec_t *result_vec) {
-    float64x2_t dots_ab_f64x2 = dots_vec->f64x2s[0];
-    float64x2_t dots_cd_f64x2 = dots_vec->f64x2s[1];
-    float64x2_t query_sumsq_f64x2 = vdupq_n_f64(query_sumsq);
-    float64x2_t target_sumsqs_ab_f64x2 = target_sumsqs_vec->f64x2s[0];
-    float64x2_t target_sumsqs_cd_f64x2 = target_sumsqs_vec->f64x2s[1];
+    float64x2_t const zeros_f64x2 = vdupq_n_f64(0), ones_f64x2 = vdupq_n_f64(1);
+    float64x2_t const dots_ab_f64x2 = dots_vec->f64x2s[0], dots_cd_f64x2 = dots_vec->f64x2s[1];
+    float64x2_t const query_sumsq_f64x2 = vdupq_n_f64(query_sumsq);
+    float64x2_t const target_sumsqs_ab_f64x2 = target_sumsqs_vec->f64x2s[0];
+    float64x2_t const target_sumsqs_cd_f64x2 = target_sumsqs_vec->f64x2s[1];
 
-    // combined rsqrt = rsqrt(query_sumsq) × rsqrt(target_sumsq), each via Newton-Raphson refinement
-    float64x2_t query_rsqrt_f64x2 = nk_rsqrt_f64x2_neon_(query_sumsq_f64x2);
-    float64x2_t rsqrt_ab_f64x2 = vmulq_f64(query_rsqrt_f64x2, nk_rsqrt_f64x2_neon_(target_sumsqs_ab_f64x2));
-    float64x2_t rsqrt_cd_f64x2 = vmulq_f64(query_rsqrt_f64x2, nk_rsqrt_f64x2_neon_(target_sumsqs_cd_f64x2));
+    float64x2_t const query_rsqrt_f64x2 = nk_rsqrt_f64x2_neon_(query_sumsq_f64x2);
+    float64x2_t const rsqrt_ab_f64x2 = vmulq_f64(query_rsqrt_f64x2, nk_rsqrt_f64x2_neon_(target_sumsqs_ab_f64x2));
+    float64x2_t const rsqrt_cd_f64x2 = vmulq_f64(query_rsqrt_f64x2, nk_rsqrt_f64x2_neon_(target_sumsqs_cd_f64x2));
+    float64x2_t angular_ab_f64x2 = vmaxq_f64(vsubq_f64(ones_f64x2, vmulq_f64(dots_ab_f64x2, rsqrt_ab_f64x2)),
+                                             zeros_f64x2);
+    float64x2_t angular_cd_f64x2 = vmaxq_f64(vsubq_f64(ones_f64x2, vmulq_f64(dots_cd_f64x2, rsqrt_cd_f64x2)),
+                                             zeros_f64x2);
 
-    // angular = 1 − dot × rsqrt
-    float64x2_t ones_f64x2 = vdupq_n_f64(1.0);
-    float64x2_t zeros_f64x2 = vdupq_n_f64(0.0);
-    float64x2_t result_ab_f64x2 = vsubq_f64(ones_f64x2, vmulq_f64(dots_ab_f64x2, rsqrt_ab_f64x2));
-    float64x2_t result_cd_f64x2 = vsubq_f64(ones_f64x2, vmulq_f64(dots_cd_f64x2, rsqrt_cd_f64x2));
+    // A zero norm or an exactly zero dot gives 1, and two zero norms give 0
+    uint64x2_t const query_zero_u64x2 = vceqzq_f64(query_sumsq_f64x2);
+    uint64x2_t const unit_ab_u64x2 = vorrq_u64(vceqzq_f64(dots_ab_f64x2),
+                                               vorrq_u64(query_zero_u64x2, vceqzq_f64(target_sumsqs_ab_f64x2)));
+    uint64x2_t const unit_cd_u64x2 = vorrq_u64(vceqzq_f64(dots_cd_f64x2),
+                                               vorrq_u64(query_zero_u64x2, vceqzq_f64(target_sumsqs_cd_f64x2)));
+    angular_ab_f64x2 = vbslq_f64(unit_ab_u64x2, ones_f64x2, angular_ab_f64x2);
+    angular_cd_f64x2 = vbslq_f64(unit_cd_u64x2, ones_f64x2, angular_cd_f64x2);
+    angular_ab_f64x2 = vbslq_f64(vceqzq_f64(vaddq_f64(query_sumsq_f64x2, target_sumsqs_ab_f64x2)), zeros_f64x2,
+                                 angular_ab_f64x2);
+    angular_cd_f64x2 = vbslq_f64(vceqzq_f64(vaddq_f64(query_sumsq_f64x2, target_sumsqs_cd_f64x2)), zeros_f64x2,
+                                 angular_cd_f64x2);
 
-    // Clamp to [0, inf)
-    result_ab_f64x2 = vmaxq_f64(result_ab_f64x2, zeros_f64x2);
-    result_cd_f64x2 = vmaxq_f64(result_cd_f64x2, zeros_f64x2);
-
-    // Edge cases: a zero norm (query or target) reproduces the previous product==0 branch
-    uint64x2_t query_zero_u64x2 = vceqq_f64(query_sumsq_f64x2, zeros_f64x2);
-    uint64x2_t norm_zero_ab_u64x2 = vorrq_u64(query_zero_u64x2, vceqq_f64(target_sumsqs_ab_f64x2, zeros_f64x2));
-    uint64x2_t norm_zero_cd_u64x2 = vorrq_u64(query_zero_u64x2, vceqq_f64(target_sumsqs_cd_f64x2, zeros_f64x2));
-    uint64x2_t dots_zero_ab_u64x2 = vceqq_f64(dots_ab_f64x2, zeros_f64x2);
-    uint64x2_t dots_zero_cd_u64x2 = vceqq_f64(dots_cd_f64x2, zeros_f64x2);
-
-    // Both zero → result = 0; norm zero but dots nonzero → result = 1
-    uint64x2_t both_zero_ab_u64x2 = vandq_u64(norm_zero_ab_u64x2, dots_zero_ab_u64x2);
-    uint64x2_t both_zero_cd_u64x2 = vandq_u64(norm_zero_cd_u64x2, dots_zero_cd_u64x2);
-    result_ab_f64x2 = vbslq_f64(both_zero_ab_u64x2, zeros_f64x2, result_ab_f64x2);
-    result_cd_f64x2 = vbslq_f64(both_zero_cd_u64x2, zeros_f64x2, result_cd_f64x2);
-
-    uint64x2_t norm_zero_dot_nonzero_ab_u64x2 = vandq_u64(
-        norm_zero_ab_u64x2, vreinterpretq_u64_u32(vmvnq_u32(vreinterpretq_u32_u64(dots_zero_ab_u64x2))));
-    uint64x2_t norm_zero_dot_nonzero_cd_u64x2 = vandq_u64(
-        norm_zero_cd_u64x2, vreinterpretq_u64_u32(vmvnq_u32(vreinterpretq_u32_u64(dots_zero_cd_u64x2))));
-    result_ab_f64x2 = vbslq_f64(norm_zero_dot_nonzero_ab_u64x2, ones_f64x2, result_ab_f64x2);
-    result_cd_f64x2 = vbslq_f64(norm_zero_dot_nonzero_cd_u64x2, ones_f64x2, result_cd_f64x2);
-
-    result_vec->f64x2s[0] = result_ab_f64x2;
-    result_vec->f64x2s[1] = result_cd_f64x2;
+    // A NaN dot outranks the zero-norm cases
+    result_vec->f64x2s[0] = vbslq_f64(vceqq_f64(dots_ab_f64x2, dots_ab_f64x2), angular_ab_f64x2, dots_ab_f64x2);
+    result_vec->f64x2s[1] = vbslq_f64(vceqq_f64(dots_cd_f64x2, dots_cd_f64x2), angular_cd_f64x2, dots_cd_f64x2);
 }
 
 /** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f64, where q is @p query_sumsq
@@ -433,23 +422,23 @@ NUMKONG_INLINE void nk_euclidean_through_f64_from_dot_neon_(nk_b256_vec_t const 
 }
 
 /** Angular from_dot: computes 1 − dot × rsqrt(q) × rsqrt(t) for 4 pairs in f32, where q is
- *  @p query_sumsq and t each target's sum of squares. Separate reciprocal square roots avoid
- *  overflowing the product of two finite-but-large norms. */
+ *  @p query_sumsq and t each target's sum of squares, with the rules of the serial variant.
+ *  Separate reciprocal square roots avoid overflowing the product of two finite-but-large norms. */
 NUMKONG_INLINE void nk_angular_through_f32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                           nk_b128_vec_t const *target_sumsqs_vec,
                                                           nk_b128_vec_t *result_vec) {
-    float32x4_t dots_f32x4 = dots_vec->f32x4;
-    float32x4_t query_sumsq_f32x4 = vdupq_n_f32(query_sumsq), target_sumsqs_f32x4 = target_sumsqs_vec->f32x4;
-    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(query_sumsq_f32x4);
-    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(target_sumsqs_f32x4);
-    float32x4_t rsqrt_f32x4 = vmulq_f32(query_rsqrt_f32x4, target_rsqrt_f32x4);
-
-    float32x4_t normalized_f32x4 = vmulq_f32(dots_f32x4, rsqrt_f32x4);
-    float32x4_t angular_f32x4 = vsubq_f32(vdupq_n_f32(1.0f), normalized_f32x4);
-    // A zero norm makes the Newton step 0 × ∞ = NaN, and its distance is 0 like the serial kernel
-    uint32x4_t const normed_u32x4 = vandq_u32(vcgtq_f32(query_sumsq_f32x4, vdupq_n_f32(0.0f)),
-                                              vcgtq_f32(target_sumsqs_f32x4, vdupq_n_f32(0.0f)));
-    result_vec->f32x4 = vbslq_f32(normed_u32x4, vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f)), vdupq_n_f32(0.0f));
+    float32x4_t const zeros_f32x4 = vdupq_n_f32(0), ones_f32x4 = vdupq_n_f32(1), dots_f32x4 = dots_vec->f32x4;
+    float32x4_t const query_sumsq_f32x4 = vdupq_n_f32(query_sumsq), target_sumsqs_f32x4 = target_sumsqs_vec->f32x4;
+    float32x4_t const rsqrt_f32x4 = vmulq_f32(nk_rsqrt_f32x4_neon_(query_sumsq_f32x4),
+                                              nk_rsqrt_f32x4_neon_(target_sumsqs_f32x4));
+    float32x4_t angular_f32x4 = vmaxq_f32(vsubq_f32(ones_f32x4, vmulq_f32(dots_f32x4, rsqrt_f32x4)), zeros_f32x4);
+    uint32x4_t const unit_u32x4 = vorrq_u32(vceqzq_f32(dots_f32x4),
+                                            vorrq_u32(vceqzq_f32(query_sumsq_f32x4), vceqzq_f32(target_sumsqs_f32x4)));
+    angular_f32x4 = vbslq_f32(unit_u32x4, ones_f32x4, angular_f32x4);
+    angular_f32x4 = vbslq_f32(vceqzq_f32(vaddq_f32(query_sumsq_f32x4, target_sumsqs_f32x4)), zeros_f32x4,
+                              angular_f32x4);
+    // A NaN dot outranks the zero-norm cases
+    result_vec->f32x4 = vbslq_f32(vceqq_f32(dots_f32x4, dots_f32x4), angular_f32x4, dots_f32x4);
 }
 
 /** Euclidean from_dot: computes √(q + t − 2 × dot) for 4 pairs in f32, where q is @p query_sumsq
@@ -467,64 +456,91 @@ NUMKONG_INLINE void nk_euclidean_through_f32_from_dot_neon_(nk_b128_vec_t const 
     result_vec->f32x4 = vsqrtq_f32(dist_sq_f32x4);
 }
 
-/** Angular from_dot for i32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
-NUMKONG_INLINE void nk_angular_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+/** Angular from_dot for i32 dots d against u32 norms a, b, with the rules of the f32 variant.
+ *  With s = √(ab), a positive dot takes 1 − d / s as (ab − d²) / (ab + d · s), whose
+ *  numerator is an exact integer by Cauchy–Schwarz, and any other dot as (ab − d · s) / ab,
+ *  so neither cancels and equal vectors give exactly 0. UMULL and SMLSL form ab − d² exactly
+ *  in U64 lanes, cheaper than F32 TwoProduct behind a range guard or than F64 lanes. */
+NUMKONG_INLINE void nk_angular_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                           nk_b128_vec_t const *target_sumsqs_vec,
                                                           nk_b128_vec_t *result_vec) {
-    float32x4_t dots_f32x4 = vcvtq_f32_s32(dots_vec->i32x4);
-    float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq),
-                target_sumsqs_f32x4 = vcvtq_f32_s32(target_sumsqs_vec->i32x4);
-    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(query_sumsq_f32x4);
-    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(target_sumsqs_f32x4);
-    float32x4_t rsqrt_f32x4 = vmulq_f32(query_rsqrt_f32x4, target_rsqrt_f32x4);
-    float32x4_t normalized_f32x4 = vmulq_f32(dots_f32x4, rsqrt_f32x4);
-    float32x4_t angular_f32x4 = vsubq_f32(vdupq_n_f32(1.0f), normalized_f32x4);
-    // A zero norm makes the Newton step 0 × ∞ = NaN, and its distance is 0 like the serial kernel
-    uint32x4_t const normed_u32x4 = vandq_u32(vcgtq_f32(query_sumsq_f32x4, vdupq_n_f32(0.0f)),
-                                              vcgtq_f32(target_sumsqs_f32x4, vdupq_n_f32(0.0f)));
-    result_vec->f32x4 = vbslq_f32(normed_u32x4, vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f)), vdupq_n_f32(0.0f));
+    int32x4_t const dots_i32x4 = dots_vec->i32x4;
+    uint32x4_t const target_sumsqs_u32x4 = target_sumsqs_vec->u32x4;
+    uint64x2_t const products_ab_u64x2 = vmull_n_u32(vget_low_u32(target_sumsqs_u32x4), query_sumsq);
+    uint64x2_t const products_cd_u64x2 = vmull_high_n_u32(target_sumsqs_u32x4, query_sumsq);
+    // ab − d² wraps through I64 lanes into the exact U64 gap
+    int64x2_t const gaps_ab_i64x2 = vmlsl_s32(vreinterpretq_s64_u64(products_ab_u64x2), vget_low_s32(dots_i32x4),
+                                              vget_low_s32(dots_i32x4));
+    int64x2_t const gaps_cd_i64x2 = vmlsl_high_s32(vreinterpretq_s64_u64(products_cd_u64x2), dots_i32x4, dots_i32x4);
+    float32x4_t const gaps_f32x4 = vcvt_high_f32_f64(vcvt_f32_f64(vcvtq_f64_u64(vreinterpretq_u64_s64(gaps_ab_i64x2))),
+                                                     vcvtq_f64_u64(vreinterpretq_u64_s64(gaps_cd_i64x2)));
+    float32x4_t const products_f32x4 = vcvt_high_f32_f64(vcvt_f32_f64(vcvtq_f64_u64(products_ab_u64x2)),
+                                                         vcvtq_f64_u64(products_cd_u64x2));
+    float32x4_t const dots_f32x4 = vcvtq_f32_s32(dots_i32x4);
+    float32x4_t const roots_f32x4 = vsqrtq_f32(products_f32x4);
+    uint32x4_t const positive_u32x4 = vcgtzq_s32(dots_i32x4);
+    float32x4_t const numerators_f32x4 = vbslq_f32(positive_u32x4, gaps_f32x4,
+                                                   vfmsq_f32(products_f32x4, dots_f32x4, roots_f32x4));
+    float32x4_t const denominators_f32x4 = vfmaq_f32(products_f32x4, vmaxq_f32(dots_f32x4, vdupq_n_f32(0)),
+                                                     roots_f32x4);
+    // A zero norm makes 0 / 0, and FMAXNM turns that NaN into 1 for one zero norm and 0 for two
+    float32x4_t const zero_norms_f32x4 = vbslq_f32(vceqzq_u32(target_sumsqs_u32x4), vdupq_n_f32(query_sumsq != 0),
+                                                   vdupq_n_f32(query_sumsq == 0));
+    result_vec->f32x4 = vmaxnmq_f32(vdivq_f32(numerators_f32x4, denominators_f32x4), zero_norms_f32x4);
 }
 
-/** Euclidean from_dot for i32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
-NUMKONG_INLINE void nk_euclidean_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_i32_t query_sumsq,
+/** Euclidean from_dot for i32 dots d against u32 norms a, b: a + b − 2d is the exact
+ *  squared distance in I64 lanes, below 2³⁵ and so exact in F64, and rounds once into F32
+ *  for the root. */
+NUMKONG_INLINE void nk_euclidean_through_i32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
-    float32x4_t dots_f32x4 = vcvtq_f32_s32(dots_vec->i32x4);
-    float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq);
-    float32x4_t sum_sq_f32x4 = vaddq_f32(query_sumsq_f32x4, vcvtq_f32_s32(target_sumsqs_vec->i32x4));
-    float32x4_t dist_sq_f32x4 = vfmsq_f32(sum_sq_f32x4, vdupq_n_f32(2.0f), dots_f32x4);
-    dist_sq_f32x4 = vmaxq_f32(dist_sq_f32x4, vdupq_n_f32(0.0f));
-    result_vec->f32x4 = vsqrtq_f32(dist_sq_f32x4);
+    int32x4_t const dots_i32x4 = dots_vec->i32x4;
+    uint32x4_t const target_sumsqs_u32x4 = target_sumsqs_vec->u32x4;
+    uint64x2_t const query_sumsq_u64x2 = vdupq_n_u64(query_sumsq);
+    int64x2_t const distances_sq_ab_i64x2 = vmlsl_n_s32(
+        vreinterpretq_s64_u64(vaddw_u32(query_sumsq_u64x2, vget_low_u32(target_sumsqs_u32x4))),
+        vget_low_s32(dots_i32x4), 2);
+    int64x2_t const distances_sq_cd_i64x2 = vmlsl_high_n_s32(
+        vreinterpretq_s64_u64(vaddw_high_u32(query_sumsq_u64x2, target_sumsqs_u32x4)), dots_i32x4, 2);
+    result_vec->f32x4 = vsqrtq_f32(
+        vcvt_high_f32_f64(vcvt_f32_f64(vcvtq_f64_s64(distances_sq_ab_i64x2)), vcvtq_f64_s64(distances_sq_cd_i64x2)));
 }
 
-/** Angular from_dot for u32 accumulators: cast to f32, separate rsqrt+NR, clamp. 4 pairs. */
+/** Angular from_dot for u32 dots d and norms a, b: (ab − d²) / (ab + d · √(ab)) as in the i32
+ *  variant, where an unsigned dot is never negative and a zero dot gives exactly 1. */
 NUMKONG_INLINE void nk_angular_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                           nk_b128_vec_t const *target_sumsqs_vec,
                                                           nk_b128_vec_t *result_vec) {
-    float32x4_t dots_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
-    float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq),
-                target_sumsqs_f32x4 = vcvtq_f32_u32(target_sumsqs_vec->u32x4);
-    float32x4_t query_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(query_sumsq_f32x4);
-    float32x4_t target_rsqrt_f32x4 = nk_rsqrt_f32x4_neon_(target_sumsqs_f32x4);
-    float32x4_t rsqrt_f32x4 = vmulq_f32(query_rsqrt_f32x4, target_rsqrt_f32x4);
-    float32x4_t normalized_f32x4 = vmulq_f32(dots_f32x4, rsqrt_f32x4);
-    float32x4_t angular_f32x4 = vsubq_f32(vdupq_n_f32(1.0f), normalized_f32x4);
-    // A zero norm makes the Newton step 0 × ∞ = NaN, and its distance is 0 like the serial kernel
-    uint32x4_t const normed_u32x4 = vandq_u32(vcgtq_f32(query_sumsq_f32x4, vdupq_n_f32(0.0f)),
-                                              vcgtq_f32(target_sumsqs_f32x4, vdupq_n_f32(0.0f)));
-    result_vec->f32x4 = vbslq_f32(normed_u32x4, vmaxq_f32(angular_f32x4, vdupq_n_f32(0.0f)), vdupq_n_f32(0.0f));
+    uint32x4_t const dots_u32x4 = dots_vec->u32x4, target_sumsqs_u32x4 = target_sumsqs_vec->u32x4;
+    uint64x2_t const products_ab_u64x2 = vmull_n_u32(vget_low_u32(target_sumsqs_u32x4), query_sumsq);
+    uint64x2_t const products_cd_u64x2 = vmull_high_n_u32(target_sumsqs_u32x4, query_sumsq);
+    uint64x2_t const gaps_ab_u64x2 = vmlsl_u32(products_ab_u64x2, vget_low_u32(dots_u32x4), vget_low_u32(dots_u32x4));
+    uint64x2_t const gaps_cd_u64x2 = vmlsl_high_u32(products_cd_u64x2, dots_u32x4, dots_u32x4);
+    float32x4_t const gaps_f32x4 = vcvt_high_f32_f64(vcvt_f32_f64(vcvtq_f64_u64(gaps_ab_u64x2)),
+                                                     vcvtq_f64_u64(gaps_cd_u64x2));
+    float32x4_t const products_f32x4 = vcvt_high_f32_f64(vcvt_f32_f64(vcvtq_f64_u64(products_ab_u64x2)),
+                                                         vcvtq_f64_u64(products_cd_u64x2));
+    float32x4_t const denominators_f32x4 = vfmaq_f32(products_f32x4, vcvtq_f32_u32(dots_u32x4),
+                                                     vsqrtq_f32(products_f32x4));
+    // A zero norm makes 0 / 0, and FMAXNM turns that NaN into 1 for one zero norm and 0 for two
+    float32x4_t const zero_norms_f32x4 = vbslq_f32(vceqzq_u32(target_sumsqs_u32x4), vdupq_n_f32(query_sumsq != 0),
+                                                   vdupq_n_f32(query_sumsq == 0));
+    result_vec->f32x4 = vmaxnmq_f32(vdivq_f32(gaps_f32x4, denominators_f32x4), zero_norms_f32x4);
 }
 
-/** Euclidean from_dot for u32 accumulators: cast to f32, then √(a² + b² − 2ab). 4 pairs. */
+/** Euclidean from_dot for u32 dots d and norms a, b: a + b − 2d is exact in U64 lanes. */
 NUMKONG_INLINE void nk_euclidean_through_u32_from_dot_neon_(nk_b128_vec_t const *dots_vec, nk_u32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
-    float32x4_t dots_f32x4 = vcvtq_f32_u32(dots_vec->u32x4);
-    float32x4_t query_sumsq_f32x4 = vdupq_n_f32((nk_f32_t)query_sumsq);
-    float32x4_t sum_sq_f32x4 = vaddq_f32(query_sumsq_f32x4, vcvtq_f32_u32(target_sumsqs_vec->u32x4));
-    float32x4_t dist_sq_f32x4 = vfmsq_f32(sum_sq_f32x4, vdupq_n_f32(2.0f), dots_f32x4);
-    dist_sq_f32x4 = vmaxq_f32(dist_sq_f32x4, vdupq_n_f32(0.0f));
-    result_vec->f32x4 = vsqrtq_f32(dist_sq_f32x4);
+    uint32x4_t const dots_u32x4 = dots_vec->u32x4, target_sumsqs_u32x4 = target_sumsqs_vec->u32x4;
+    uint64x2_t const query_sumsq_u64x2 = vdupq_n_u64(query_sumsq);
+    uint64x2_t const distances_sq_ab_u64x2 = vmlsl_n_u32(
+        vaddw_u32(query_sumsq_u64x2, vget_low_u32(target_sumsqs_u32x4)), vget_low_u32(dots_u32x4), 2);
+    uint64x2_t const distances_sq_cd_u64x2 = vmlsl_high_n_u32(vaddw_high_u32(query_sumsq_u64x2, target_sumsqs_u32x4),
+                                                              dots_u32x4, 2);
+    result_vec->f32x4 = vsqrtq_f32(
+        vcvt_high_f32_f64(vcvt_f32_f64(vcvtq_f64_u64(distances_sq_ab_u64x2)), vcvtq_f64_u64(distances_sq_cd_u64x2)));
 }
 
 #pragma endregion F16 and BF16 Floats

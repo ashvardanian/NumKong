@@ -1310,6 +1310,123 @@ error_stats_t test_jaccards_symmetric(settings_t const &settings,
 
 #pragma region Spatial Distances
 
+/** The angular distance of a reference @p dot and squared norms by the rule of `spatials.h`: 0 for
+ *  two zero norms, 1 for one zero norm or a zero dot, else 1 − dot / s with s = ‖a‖ ‖b‖.
+ *  A positive dot takes it in F118 as (s² − dot²) / (s² + dot · s), which cancels nothing, so
+ *  integer inputs get it exact up to its final rounding. */
+template <typename reference_type_>
+reference_type_ angular_from_dot(reference_type_ dot, reference_type_ a_sumsq, reference_type_ b_sumsq) {
+    reference_type_ const zero(0), one(1);
+    if (a_sumsq == zero && b_sumsq == zero) return zero;
+    if (dot == zero || a_sumsq == zero || b_sumsq == zero) return one;
+    f118_t const dot_f118(dot), product = f118_t(a_sumsq) * f118_t(b_sumsq), root = product.sqrt();
+    if (dot_f118 > f118_t(0)) return reference_type_((product - dot_f118 * dot_f118) / (product + dot_f118 * root));
+    return reference_type_(f118_t(1) - dot_f118 / root);
+}
+
+/** Launches @p launch, a @p kind_ kernel shaped as for @c expect_angular_edges, over rows x, y and
+ *  x again of an integer @p scalar_type_: x repeats the type's widest value and y moves one element
+ *  a step toward zero, at the first depth from 1024 up where ‖x‖² passes 2²³, so norms and dots no
+ *  longer survive a cast to F32. Equal rows must be exactly 0 apart, and x and y within four F32
+ *  ulps of their exact angular distance, or one ulp of their exact euclidean one, both relative. */
+template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename launch_type_>
+void expect_near_parallel_integers(error_stats_t &stats, backend_type_ &backend, launch_type_ launch) {
+    constexpr bool angular_ = kind_ == nk_kernel_angulars_packed_k || kind_ == nk_kernel_angulars_symmetric_k;
+    constexpr bool symmetric_ = kind_ == nk_kernel_angulars_symmetric_k || kind_ == nk_kernel_euclideans_symmetric_k;
+    using result_t = std::conditional_t<angular_, typename scalar_type_::angular_result_t,
+                                        typename scalar_type_::euclidean_result_t>;
+    using scalars_t = nk::vector<scalar_type_, typename backend_type_::template allocator<scalar_type_>>;
+    using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
+    constexpr nk_dtype_t dtype = scalar_type_::dtype();
+    constexpr double widest = dtype == nk_i8_k ? -128 : dtype == nk_u8_k ? 255 : dtype == nk_i4_k ? -8 : 15;
+    constexpr std::size_t rows = 3;
+    std::size_t depth = 1024;
+    while (widest * widest * static_cast<double>(depth) <= 0x1p23) depth *= 2;
+    std::size_t const dims_per_value = nk::dimensions_per_value<scalar_type_>();
+    std::size_t const stride = backend.row_stride(depth / dims_per_value * sizeof(scalar_type_));
+    std::size_t const stride_values = stride / sizeof(scalar_type_);
+
+    std::vector<double> values(rows * depth, widest);
+    values[depth + depth / 3] -= widest > 0 ? 1 : -1;
+    auto codes = scalars_t::zeros(rows * stride_values * dims_per_value, allocator_of<scalar_type_>(backend)).value;
+    for (std::size_t row = 0; row != rows; ++row)
+        stats.expect(nk_cast_serial(values.data() + row * depth, nk_f64_k,
+                                    codes.raw_values_data() + row * stride_values, dtype, depth, nullptr));
+    auto results = results_t::zeros(rows * rows, allocator_of<result_t>(backend)).value;
+    nk_status_t const status = launch(codes.raw_values_data(), rows, depth, stride, results.raw_values_data(),
+                                      rows * sizeof(result_t));
+    stats.expect(status);
+    if (status != nk_success_k) return;
+
+    auto const exact_dot = [&](std::size_t first, std::size_t second) {
+        std::int64_t dot = 0;
+        for (std::size_t i = 0; i != depth; ++i)
+            dot += static_cast<std::int64_t>(values[first * depth + i] * values[second * depth + i]);
+        return dot;
+    };
+    for (std::size_t i = 0; i != rows; ++i)
+        for (std::size_t j = symmetric_ ? i + 1 : 0; j != rows; ++j) {
+            double const distance = static_cast<double>(results[i * rows + j]);
+            std::int64_t const dot = exact_dot(i, j), a_sumsq = exact_dot(i, i), b_sumsq = exact_dot(j, j);
+            if (dot == a_sumsq && dot == b_sumsq) {
+                stats.expect(distance == 0, "equal integer vectors are not exactly 0 apart");
+                continue;
+            }
+            double expected;
+            if constexpr (angular_)
+                expected = static_cast<double>(angular_from_dot(f118_t(dot), f118_t(a_sumsq), f118_t(b_sumsq)));
+            else expected = std::sqrt(static_cast<double>(a_sumsq + b_sumsq - 2 * dot));
+            stats.expect(std::fabs(distance - expected) <= std::ldexp(expected, angular_ ? -21 : -23),
+                         "integer vectors one step apart miss their exact distance");
+        }
+}
+
+/** Launches angular distances through @p launch, a @p kind_ kernel, over two zero rows, a row of
+ *  ones, and, for dtypes that hold NaN, a row with a NaN element or a NaN first block scale. Checks
+ *  the angles of `spatials.h`: 0 between the zero rows, 1 from a zero row to the ones, and NaN with
+ *  the NaN row. @p launch takes the operand, its rows, depth and stride, and the output and its
+ *  stride, and returns once the output is readable. */
+template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename launch_type_>
+void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt19937 &generator, launch_type_ launch) {
+    constexpr bool symmetric_ = kind_ == nk_kernel_angulars_symmetric_k;
+    constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
+    using scalar_t = typename nk::type_for<format.element_dtype>::type;
+    using result_t = typename scalar_type_::angular_result_t;
+    using scalars_t = nk::vector<scalar_t, typename backend_type_::template allocator<scalar_t>>;
+    using results_t = nk::vector<result_t, typename backend_type_::template allocator<result_t>>;
+    constexpr std::size_t rows = format.block_size || nk::nan_capable_dtype<scalar_t> ? 4 : 3;
+    std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
+    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dims_per_value);
+    std::size_t const depth = nk::divide_round_up(64, depth_multiple) * depth_multiple;
+    std::size_t const stride = backend.row_stride(nk::divide_round_up(depth, dims_per_value) * sizeof(scalar_t));
+    std::size_t const stride_values = stride / sizeof(scalar_t);
+
+    auto codes = scalars_t::zeros(rows * stride_values * dims_per_value, allocator_of<scalar_t>(backend)).value;
+    std::vector<double> values(depth, 1.0);
+    for (std::size_t row = 2; row != rows; ++row) {
+        if (row == 3 && !format.block_size) values[0] = std::numeric_limits<double>::quiet_NaN();
+        stats.expect(nk_cast_serial(values.data(), nk_f64_k, codes.raw_values_data() + row * stride_values,
+                                    scalar_t::dtype(), depth, nullptr));
+    }
+    auto scales = random_scales<scalar_type_>(backend, generator, rows, depth, stride, 1.0f);
+    if constexpr (format.block_size != 0)
+        scales.blocks.data()[3 * scales.scale_stride] = decltype(scales)::scale_t::from_raw(
+            format.scale_dtype == nk_ue4m3_k ? 0x7F : 0xFF);
+    auto results = results_t::zeros(rows * rows, allocator_of<result_t>(backend)).value;
+    nk_status_t const status = launch(scales.operand(codes.raw_values_data()), rows, depth, stride,
+                                      results.raw_values_data(), rows * sizeof(result_t));
+    stats.expect(status);
+    if (status != nk_success_k) return;
+
+    for (std::size_t i = 0; i != rows; ++i)
+        for (std::size_t j = symmetric_ ? i + 1 : 0; j != rows; ++j) {
+            double const angle = static_cast<double>(results[i * rows + j]);
+            if (i == 3 || j == 3) stats.expect(std::isnan(angle), "a NaN input gives no NaN angle");
+            else if (i < 2 && j < 2) stats.expect(angle == 0, "two zero vectors are not 0 apart");
+            else if (i < 2 || j < 2) stats.expect(angle == 1, "a zero vector is not 1 from a nonzero one");
+        }
+}
+
 /** Batched angular distances, 1 − dot / √(‖a‖² · ‖b‖²), with B packed in two column windows. */
 template <typename scalar_type_, typename backend_type_ = host_backend_t, typename pack_size_kernel_type_,
           typename pack_kernel_type_, typename angulars_kernel_type_>
@@ -1350,9 +1467,24 @@ error_stats_t test_angulars_packed(settings_t const &settings, pack_size_kernel_
             stats.expect(synchronization_status);
             if (submission_status != nk_success_k || synchronization_status != nk_success_k) return stats;
         }
-        stats.expect(static_cast<float>(result[0]) == 0, "MXFP8 cancellation changes the angular endpoint");
+        stats.expect(static_cast<float>(result[0]) == 1,
+                     "orthogonal block-scaled vectors whose norms pass F32 range are not 1 apart");
     }
     std::mt19937 generator(settings.seed.value);
+    auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
+                            std::size_t c_stride) {
+        auto packed =
+            bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, rows, depth), allocator_of<char>(backend)).value;
+        nk_status_t status = backend.call(pack_fn, operand, rows, depth, stride, packed.raw_values_data(), 0, rows);
+        if (status == nk_success_k)
+            status = backend.call(angulars_fn, operand, packed.raw_values_data(), c, rows, rows, depth, stride,
+                                  c_stride);
+        nk_status_t const synchronization_status = backend.synchronize();
+        return status != nk_success_k ? status : synchronization_status;
+    };
+    expect_angular_edges<scalar_type_, nk_kernel_angulars_packed_k>(stats, backend, generator, launch);
+    if constexpr (nk::is_integral_dtype<scalar_type_>())
+        expect_near_parallel_integers<scalar_type_, nk_kernel_angulars_packed_k>(stats, backend, launch);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dims_per_value);
 
@@ -1394,11 +1526,8 @@ error_stats_t test_angulars_packed(settings_t const &settings, pack_size_kernel_
                     sizeof(reference_t), 0, 1, no_tiers_k, nullptr));
 
             for (std::size_t i = 0; i < m; ++i)
-                for (std::size_t j = 0; j < n; ++j) {
-                    reference_t ab_sumsq = a_sumsqs[i] * b_sumsqs[j];
-                    reference_t &c_cell = c_ref[i * n + j];
-                    c_cell = ab_sumsq > reference_t(0) ? (reference_t(1) - c_cell * ab_sumsq.rsqrt()) : reference_t(0);
-                }
+                for (std::size_t j = 0; j < n; ++j)
+                    c_ref[i * n + j] = angular_from_dot<reference_t>(c_ref[i * n + j], a_sumsqs[i], b_sumsqs[j]);
 
             // The norms of the second window's columns come from a pack not starting at zero
             {
@@ -1439,6 +1568,21 @@ error_stats_t test_euclideans_packed(settings_t const &settings, pack_size_kerne
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_euclidean_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
+    if constexpr (nk::is_integral_dtype<scalar_type_>())
+        expect_near_parallel_integers<scalar_type_, nk_kernel_euclideans_packed_k>(
+            stats, backend,
+            [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c, std::size_t c_stride) {
+                auto packed = bytes_t::zeros(pack_size_bytes(stats, packed_size_fn, rows, depth),
+                                             allocator_of<char>(backend))
+                                  .value;
+                nk_status_t status = backend.call(pack_fn, operand, rows, depth, stride, packed.raw_values_data(), 0,
+                                                  rows);
+                if (status == nk_success_k)
+                    status = backend.call(euclideans_fn, operand, packed.raw_values_data(), c, rows, rows, depth,
+                                          stride, c_stride);
+                nk_status_t const synchronization_status = backend.synchronize();
+                return status != nk_success_k ? status : synchronization_status;
+            });
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dims_per_value);
 
@@ -1526,6 +1670,15 @@ error_stats_t test_angulars_symmetric(settings_t const &settings, symmetric_kern
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_angular_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
+    auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
+                            std::size_t c_stride) {
+        nk_status_t const status = backend.call(symmetric_fn, operand, rows, depth, stride, c, c_stride, 0, rows);
+        nk_status_t const synchronization_status = backend.synchronize();
+        return status != nk_success_k ? status : synchronization_status;
+    };
+    expect_angular_edges<scalar_type_, nk_kernel_angulars_symmetric_k>(stats, backend, generator, launch);
+    if constexpr (nk::is_integral_dtype<scalar_type_>())
+        expect_near_parallel_integers<scalar_type_, nk_kernel_angulars_symmetric_k>(stats, backend, launch);
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dims_per_value);
 
@@ -1554,11 +1707,8 @@ error_stats_t test_angulars_symmetric(settings_t const &settings, symmetric_kern
 
             for (std::size_t i = 0; i < n; ++i) {
                 c_ref[i * n + i] = reference_t(0);
-                for (std::size_t j = i + 1; j < n; ++j) {
-                    reference_t ab_sumsq = sumsqs[i] * sumsqs[j];
-                    reference_t &c_cell = c_ref[i * n + j];
-                    c_cell = ab_sumsq > reference_t(0) ? (reference_t(1) - c_cell * ab_sumsq.rsqrt()) : reference_t(0);
-                }
+                for (std::size_t j = i + 1; j < n; ++j)
+                    c_ref[i * n + j] = angular_from_dot<reference_t>(c_ref[i * n + j], sumsqs[i], sumsqs[j]);
             }
 
             if (nk_status_t const status = backend.call(symmetric_fn, scales.operand(a.raw_values_data()), n, k, stride,
@@ -1594,6 +1744,15 @@ error_stats_t test_euclideans_symmetric(settings_t const &settings, symmetric_ke
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(nk_euclidean_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
+    if constexpr (nk::is_integral_dtype<scalar_type_>())
+        expect_near_parallel_integers<scalar_type_, nk_kernel_euclideans_symmetric_k>(
+            stats, backend,
+            [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c, std::size_t c_stride) {
+                nk_status_t const status = backend.call(symmetric_fn, operand, rows, depth, stride, c, c_stride, 0,
+                                                        rows);
+                nk_status_t const synchronization_status = backend.synchronize();
+                return status != nk_success_k ? status : synchronization_status;
+            });
     std::size_t const dims_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dims_per_value);
 

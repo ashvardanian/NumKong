@@ -133,6 +133,10 @@ StatementMacros:
   - nk_define_cross_compensated_symmetric_
   - nk_define_cross_normalized_packed_
   - nk_define_cross_normalized_symmetric_
+  - nk_define_cross_scaled_exact_
+  - nk_define_cross_scaled_serial_
+  - nk_define_cross_scaled_packed_
+  - nk_define_cross_scaled_symmetric_
   - nk_define_cross_pack_size_simt_
   - nk_define_cross_packed_shape_cuda_
   - nk_define_cross_packed_shape_rocm_
