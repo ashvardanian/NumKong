@@ -96,6 +96,12 @@ NUMKONG_INLINE void nk_store_b256_neon_(nk_b256_vec_t const *src, void *dst) {
     vst1q_u8((nk_u8_t *)dst + 16, src->u8x16s[1]);
 }
 
+/** Type-agnostic 512-bit full store (NEON). */
+NUMKONG_INLINE void nk_store_b512_neon_(nk_b512_vec_t const *src, void *dst) {
+    vst1q_u8((nk_u8_t *)dst, src->u8x16s[0]), vst1q_u8((nk_u8_t *)dst + 16, src->u8x16s[1]);
+    vst1q_u8((nk_u8_t *)dst + 32, src->u8x16s[2]), vst1q_u8((nk_u8_t *)dst + 48, src->u8x16s[3]);
+}
+
 /** Type-agnostic 64-bit full load (NEON). */
 NUMKONG_INLINE void nk_load_b64_neon_(void const *src, nk_b64_vec_t *dst) { dst->u8x8 = vld1_u8((nk_u8_t const *)src); }
 

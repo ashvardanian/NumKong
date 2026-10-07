@@ -703,116 +703,90 @@ typedef struct nk_dot_f32x32_operand_skylake_t {
     __m512 low_f32x16, high_f32x16;
 } nk_dot_f32x32_operand_skylake_t;
 
-/** Decodes one UE8M0 scale from its exponent bits: 0x00 to zero, 0xFF to a NaN. */
-NUMKONG_INLINE nk_f32_t nk_ue8m0_to_f32_skylake_(nk_ue8m0_t code) {
-    nk_fui32_t bits;
-    bits.u = ((nk_u32_t)code << 23) | ((nk_u32_t)(code == 0xFF) << 22);
-    return bits.f;
+/*  Loaders of one 32-element step of a pack or panel, @p offset in dims: raw codes decoded to F32
+ *  and folded with their F32 scale rows, relative to the row or column base.
+ *  Products of folded values stay exact. */
+
+NUMKONG_INLINE void nk_load_scaled_nvfp4x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                     nk_dot_f32x32_operand_skylake_t *dst) {
+    __m128i const codes_u8x16 = _mm_loadu_si128((__m128i const *)((nk_u8_t const *)values + offset / 2));
+    nk_f32_t const *block_scales = (nk_f32_t const *)scales + offset / 16;
+    dst->low_f32x16 = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(codes_u8x16), _mm512_set1_ps(block_scales[0]));
+    dst->high_f32x16 = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(_mm_srli_si128(codes_u8x16, 8)),
+                                     _mm512_set1_ps(block_scales[1]));
 }
 
-NUMKONG_INLINE void nk_partial_load_nvfp4x1_to_f32x16_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                               nk_size_t offset, nk_b512_vec_t *dst, nk_size_t n) {
-    __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFF, (unsigned int)(n / NUMKONG_NIBBLES_PER_BYTE));
-    __m128i codes_u8x16 = _mm_maskz_loadu_epi8(mask_m16, codes + offset);
-    nk_f32_t scale;
-    nk_ue4m3_to_f32_(scales + offset / 8, &scale);
-    dst->zmm_ps = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(codes_u8x16), _mm512_set1_ps(scale));
-}
-
-NUMKONG_INLINE void nk_load_nvfp4x1_to_f32x16_skylake_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                       nk_b512_vec_t *dst) {
-    __m128i codes_u8x16 = _mm_loadu_si64(codes + offset);
-    nk_f32_t scale;
-    nk_ue4m3_to_f32_(scales + offset / 8, &scale);
-    dst->zmm_ps = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(codes_u8x16), _mm512_set1_ps(scale));
-}
-
-NUMKONG_INLINE void nk_partial_load_mxfp4x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                               nk_size_t offset, nk_dot_f32x32_operand_skylake_t *dst,
-                                                               nk_size_t n) {
-    __mmask16 mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(n / NUMKONG_NIBBLES_PER_BYTE));
-    __m128i codes_u8x16 = _mm_maskz_loadu_epi8(mask_m16, codes + offset);
-    __m512 scale_f32x16 = _mm512_set1_ps(nk_ue8m0_to_f32_skylake_(scales[offset / 16]));
+NUMKONG_INLINE void nk_load_scaled_mxfp4x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                     nk_dot_f32x32_operand_skylake_t *dst) {
+    __m128i const codes_u8x16 = _mm_loadu_si128((__m128i const *)((nk_u8_t const *)values + offset / 2));
+    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(codes_u8x16), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(_mm_srli_si128(codes_u8x16, 8)), scale_f32x16);
 }
 
-NUMKONG_INLINE void nk_load_mxfp4x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                       nk_dot_f32x32_operand_skylake_t *dst) {
-    nk_partial_load_mxfp4x1_to_f32x32_skylake_(codes, scales, offset, dst, 32);
-}
-
-NUMKONG_INLINE void nk_partial_load_mxfp6e2m3x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                                   nk_size_t offset,
-                                                                   nk_dot_f32x32_operand_skylake_t *dst, nk_size_t n) {
-    __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-    __m256i codes_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, codes + offset);
-    __m512 scale_f32x16 = _mm512_set1_ps(nk_ue8m0_to_f32_skylake_(scales[offset / 32]));
+NUMKONG_INLINE void nk_load_scaled_mxfp6e2m3x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                         nk_dot_f32x32_operand_skylake_t *dst) {
+    __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
+    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e2m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e2m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
 }
 
-NUMKONG_INLINE void nk_load_mxfp6e2m3x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                           nk_size_t offset, nk_dot_f32x32_operand_skylake_t *dst) {
-    nk_partial_load_mxfp6e2m3x1_to_f32x32_skylake_(codes, scales, offset, dst, 32);
-}
-
-NUMKONG_INLINE void nk_partial_load_mxfp6e3m2x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                                   nk_size_t offset,
-                                                                   nk_dot_f32x32_operand_skylake_t *dst, nk_size_t n) {
-    __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-    __m256i codes_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, codes + offset);
-    __m512 scale_f32x16 = _mm512_set1_ps(nk_ue8m0_to_f32_skylake_(scales[offset / 32]));
+NUMKONG_INLINE void nk_load_scaled_mxfp6e3m2x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                         nk_dot_f32x32_operand_skylake_t *dst) {
+    __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
+    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e3m2x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e3m2x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
 }
 
-NUMKONG_INLINE void nk_load_mxfp6e3m2x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                           nk_size_t offset, nk_dot_f32x32_operand_skylake_t *dst) {
-    nk_partial_load_mxfp6e3m2x1_to_f32x32_skylake_(codes, scales, offset, dst, 32);
-}
-
-NUMKONG_INLINE void nk_partial_load_mxfp8e4m3x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                                   nk_size_t offset,
-                                                                   nk_dot_f32x32_operand_skylake_t *dst, nk_size_t n) {
-    __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-    __m256i codes_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, codes + offset);
-    __m512 scale_f32x16 = _mm512_set1_ps(nk_ue8m0_to_f32_skylake_(scales[offset / 32]));
+NUMKONG_INLINE void nk_load_scaled_mxfp8e4m3x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                         nk_dot_f32x32_operand_skylake_t *dst) {
+    __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
+    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
 }
 
-NUMKONG_INLINE void nk_load_mxfp8e4m3x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                           nk_size_t offset, nk_dot_f32x32_operand_skylake_t *dst) {
-    nk_partial_load_mxfp8e4m3x1_to_f32x32_skylake_(codes, scales, offset, dst, 32);
-}
-
-NUMKONG_INLINE void nk_partial_load_mxfp8e5m2x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                                   nk_size_t offset,
-                                                                   nk_dot_f32x32_operand_skylake_t *dst, nk_size_t n) {
-    __mmask32 mask_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)n);
-    __m256i codes_u8x32 = _mm256_maskz_loadu_epi8(mask_m32, codes + offset);
-    __m512 scale_f32x16 = _mm512_set1_ps(nk_ue8m0_to_f32_skylake_(scales[offset / 32]));
+NUMKONG_INLINE void nk_load_scaled_mxfp8e5m2x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                         nk_dot_f32x32_operand_skylake_t *dst) {
+    __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
+    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e5m2x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e5m2x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
 }
 
-NUMKONG_INLINE void nk_load_mxfp8e5m2x1_to_f32x32_skylake_(nk_u8_t const *codes, nk_u8_t const *scales,
-                                                           nk_size_t offset, nk_dot_f32x32_operand_skylake_t *dst) {
-    nk_partial_load_mxfp8e5m2x1_to_f32x32_skylake_(codes, scales, offset, dst, 32);
+/** Starts a sum at @p seed, the raw partial an earlier depth chunk stored. */
+NUMKONG_INLINE void nk_dot_scaled_f32_init_skylake_(nk_dot_through_f32_state_skylake_t_ *state, nk_f32_t seed) {
+    state->sum_f32x16 = _mm512_zextps128_ps512(_mm_set_ss(seed));
 }
 
-NUMKONG_INLINE void nk_dot_f32x32_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state,
-                                                  nk_dot_f32x32_operand_skylake_t a, nk_dot_f32x32_operand_skylake_t b,
-                                                  nk_size_t depth_offset, nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
+NUMKONG_INLINE void nk_dot_scaled_f32x32_update_skylake_(nk_dot_through_f32_state_skylake_t_ *state,
+                                                         nk_dot_f32x32_operand_skylake_t a,
+                                                         nk_dot_f32x32_operand_skylake_t b) {
     state->sum_f32x16 = _mm512_fmadd_ps(a.low_f32x16, b.low_f32x16, state->sum_f32x16);
     state->sum_f32x16 = _mm512_fmadd_ps(a.high_f32x16, b.high_f32x16, state->sum_f32x16);
+}
+
+/** Four sums with their lanes added. */
+NUMKONG_INLINE void nk_dot_scaled_f32_reduce_skylake_(                                                      //
+    nk_dot_through_f32_state_skylake_t_ const *state_a, nk_dot_through_f32_state_skylake_t_ const *state_b, //
+    nk_dot_through_f32_state_skylake_t_ const *state_c, nk_dot_through_f32_state_skylake_t_ const *state_d, //
+    nk_b128_vec_t *result) {
+    nk_dot_through_f32_finalize_skylake_(state_a, state_b, state_c, state_d, 0, result);
+}
+
+/** Multiplies lane i of @p values by @p mantissa and by two to the power of @p exponent plus
+ *  @p lane_exponents[i], rounding once. */
+NUMKONG_INLINE void nk_f32x4_scale_skylake_(nk_b128_vec_t *values, nk_f32_t mantissa, nk_i32_t exponent,
+                                            nk_i32_t const *lane_exponents) {
+    __m128i const exponents_i32x4 = _mm_add_epi32(_mm_loadu_si128((__m128i const *)lane_exponents),
+                                                  _mm_set1_epi32(exponent));
+    values->xmm_ps = _mm_scalef_ps(_mm_mul_ps(values->xmm_ps, _mm_set1_ps(mantissa)), _mm_cvtepi32_ps(exponents_i32x4));
 }
 
 #pragma endregion Block Scaled Floats

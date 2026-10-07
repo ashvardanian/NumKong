@@ -1021,9 +1021,12 @@ struct error_stats_t {
         std::uint64_t ulps = use_integer_distance ? integer_distance(actual, expected_as_actual)
                                                   : ulp_distance(actual, expected_as_actual);
 
-        // Skip NaN/Inf pairs, whose sentinel distance means the comparison is meaningless; integers have none
+        // A NaN reference makes the distance meaningless; a NaN result against a number fails
         if constexpr (!nk::is_integral_dtype<actual_type_>())
-            if (ulps == std::numeric_limits<std::uint64_t>::max()) return;
+            if (ulps == std::numeric_limits<std::uint64_t>::max()) {
+                if (!std::isnan(static_cast<double>(expected_as_actual))) expect(false, "NaN result for a number");
+                return;
+            }
 
         if constexpr (!nk::is_integral_dtype<actual_type_>()) saw_floating_distance = true;
         if constexpr (requires { actual_type_::dtype(); }) result_dtype = actual_type_::dtype();

@@ -162,13 +162,13 @@ NUMKONG_INLINE void nk_partial_load_b32x4_serial_(void const *src, nk_b128_vec_t
 
 /** Type-agnostic partial store for 32-bit elements (4 elements max) from 128-bit vector. */
 NUMKONG_INLINE void nk_partial_store_b32x4_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
-    nk_u32_t *d = (nk_u32_t *)dst;
+    nk_b32_vec_t *d = (nk_b32_vec_t *)dst;
     switch (n) {
     default:
-    case 4: d[3] = src->u32s[3]; // fallthrough
-    case 3: d[2] = src->u32s[2]; // fallthrough
-    case 2: d[1] = src->u32s[1]; // fallthrough
-    case 1: d[0] = src->u32s[0]; // fallthrough
+    case 4: d[3].u32 = src->u32s[3]; // fallthrough
+    case 3: d[2].u32 = src->u32s[2]; // fallthrough
+    case 2: d[1].u32 = src->u32s[1]; // fallthrough
+    case 1: d[0].u32 = src->u32s[0]; // fallthrough
     case 0: break;
     }
 }
@@ -1388,17 +1388,7 @@ NUMKONG_CONSTEXPR void nk_f32x2_to_e2m1x2_(nk_f32_t const *src, nk_e2m1x2_t *des
 NUMKONG_CONSTEXPR void nk_ue8m0_to_f32_(nk_ue8m0_t const *src, nk_f32_t *dest) {
     nk_u8_t raw = *src;
     nk_fui32_t conv;
-    if (raw == 0) {
-        *dest = 0.0f;
-        return;
-    }
-    if (raw == 0xFF) {
-        conv.u = 0x7FC00000u; // quiet NaN
-        *dest = conv.f;
-        return;
-    }
-    // Pow-of-2 is an f32 with biased exponent = raw and mantissa = 0
-    conv.u = (nk_u32_t)raw << 23;
+    conv.u = ((nk_u32_t)raw << 23) | ((nk_u32_t)(raw == 0xFF) << 22);
     *dest = conv.f;
 }
 

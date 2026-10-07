@@ -469,10 +469,10 @@ struct operand_scales {
 };
 
 /** Scales for @p rows rows of @p depth dimensions whose codes lie @p stride bytes apart, UE8M0 ones
- *  within @p exponent_limit binades of one. */
+ *  within @p exponent_limit binades of two to the power of @p exponent_center. */
 template <typename scalar_type_, typename backend_type_>
 auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t rows, std::size_t depth,
-                   std::size_t stride, float tensor_scale, int exponent_limit = 3) {
+                   std::size_t stride, float tensor_scale, int exponent_limit = 3, int exponent_center = 0) {
     using operand_t = operand_scales<scalar_type_, backend_type_>;
     using scale_t = typename operand_t::scale_t;
     operand_t operand;
@@ -481,7 +481,9 @@ auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t 
                           scale_stride = stride / operand_t::format.block_bytes;
         operand.scale_stride = scale_stride;
         operand.blocks = operand_t::blocks_t::zeros({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
-        std::uniform_int_distribution<int> exponents(-exponent_limit, exponent_limit), finite_scales(1, 126);
+        std::uniform_int_distribution<int> exponents(exponent_center - exponent_limit,
+                                                     exponent_center + exponent_limit),
+            finite_scales(1, 126);
         for (std::size_t row = 0; row != rows; ++row)
             for (std::size_t block = 0; block != blocks; ++block) {
                 if constexpr (operand_t::format.scale_dtype == nk_ue4m3_k)
@@ -522,8 +524,10 @@ enum class dots_operands_t {
     /** F64 halves cancelling to ~2⁻³³ of Σ|a · b|, which plain F64 accumulation visibly misses. */
     ill_conditioned_k,
 
-    /** Drawn from the configured distribution, with UE8M0 block scales over ±40 binades, wider than
-     *  the SME kernels fold exactly. */
+    /** Drawn from the configured distribution, with UE8M0 scales of A near 2¹⁰⁰ and of B near
+     *  2⁻¹⁰⁰, so each operand leaves F32 range while products stay near one, and a first row
+     *  spanning every finite exponent, so its outputs take the exact path; NVFP4 tensor scales
+     *  near 2⁻⁷⁰ instead, whose product is an F32 subnormal. */
     wide_scales_k,
 };
 
@@ -567,7 +571,7 @@ std::vector<dots_packed_case_t> dots_packed_cases(settings_t const &settings) {
     };
     if constexpr (std::is_same_v<scalar_type_, f64_t>)
         cases.push_back({32, 48, 300, tight, dots_operands_t::ill_conditioned_k});
-    if constexpr (nk_block_scaled_format_of_dtype(scalar_type_::dtype()).scale_dtype == nk_ue8m0_k)
+    if constexpr (nk_block_scaled_format_of_dtype(scalar_type_::dtype()).block_size != 0)
         cases.push_back({48, 100, 1536, tight, dots_operands_t::wide_scales_k});
     return cases;
 }
@@ -752,11 +756,16 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                 }
             fill_padding_canary(a, rows, row_bytes, a_stride), fill_padding_canary(b, columns, row_bytes, b_stride);
             fill_canary(c);
-            int const exponent_limit = test_case.operands == dots_operands_t::wide_scales_k ? 40 : 3;
-            auto const a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, a_stride, 1.5f,
-                                                              exponent_limit),
-                       b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, b_stride, 0.75f,
-                                                              exponent_limit);
+            bool const wide = test_case.operands == dots_operands_t::wide_scales_k;
+            int const exponent_limit = wide ? 20 : 3, exponent_center = wide ? 100 : 0;
+            auto a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, a_stride,
+                                                        wide ? 0x1.4p-70f : 1.5f, exponent_limit, exponent_center),
+                 b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, b_stride,
+                                                        wide ? 0x1.bp-70f : 0.75f, exponent_limit, -exponent_center);
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (wide && depth >= 2 * format.block_size)
+                    a_scales.blocks.data()[0] = ue8m0_t::from_raw(1),
+                    a_scales.blocks.data()[1] = ue8m0_t::from_raw(254);
 
             // Run kernel being tested
             {
@@ -954,7 +963,8 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
             std::vector<reference_t> c_reference(count * count);
             fill_random(settings, generator, a);
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
-            auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
+            // An NVFP4 tensor scale whose square is an F32 subnormal, never rounded on the way
+            auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 0x1.4p-66f);
 
             // Run kernel being tested
             if (nk_status_t const status = backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth,

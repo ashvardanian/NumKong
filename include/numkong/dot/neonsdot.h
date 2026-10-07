@@ -105,6 +105,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x16_serial_`
+#include "numkong/dot/neon.h"    // `nk_dot_scaled_f32_state_neon_t`, `nk_dot_scaled_i8x64_operand_neon_t`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -702,6 +703,23 @@ NUMKONG_INLINE void nk_dot_e3m2x16_finalize_neonsdot(                           
     int32x4_t sums_i32x4 = vpaddq_s32(ab_i32x4, cd_i32x4);
     result->f32x4 = vmulq_n_f32(vcvtq_f32_s32(sums_i32x4), scale);
 }
+
+#pragma region Block Scaled Floats
+
+/** One 64-element step of the lane layout: 4 SDOT sum each lane's 16-element group of one block,
+ *  and one F32 flush applies the lane scales. */
+NUMKONG_INLINE void nk_dot_scaled_i8x64_update_neonsdot(nk_dot_scaled_f32_state_neon_t *state,
+                                                        nk_dot_scaled_i8x64_operand_neon_t a,
+                                                        nk_dot_scaled_i8x64_operand_neon_t b) {
+    int32x4_t blocks_i32x4 = vdotq_s32(vdupq_n_s32(0), a.values_i8x16[0], b.values_i8x16[0]);
+    blocks_i32x4 = vdotq_s32(blocks_i32x4, a.values_i8x16[1], b.values_i8x16[1]);
+    blocks_i32x4 = vdotq_s32(blocks_i32x4, a.values_i8x16[2], b.values_i8x16[2]);
+    blocks_i32x4 = vdotq_s32(blocks_i32x4, a.values_i8x16[3], b.values_i8x16[3]);
+    state->sum_f32x4 = vfmaq_f32(state->sum_f32x4, vcvtq_f32_s32(blocks_i32x4),
+                                 vmulq_f32(a.scales_f32x4, b.scales_f32x4));
+}
+
+#pragma endregion Block Scaled Floats
 
 #if defined(__clang__)
 #pragma clang attribute pop

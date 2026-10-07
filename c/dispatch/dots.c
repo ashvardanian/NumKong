@@ -639,6 +639,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_nvfp4_capabilities(void)
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_size_nvfp4_sme,
 #endif
@@ -697,6 +700,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp4_capabilities(void)
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp4_sme,
 #endif
@@ -746,6 +752,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp8e4m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e4m3_sme,
@@ -797,6 +806,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp6e2m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e2m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e2m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e2m3_neonsdot,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp6e2m3_sme,
@@ -874,6 +886,9 @@ static nk_capability_kernels_t const *nk_dots_pack_size_mxfp8e5m2_capabilities(v
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_size_mxfp8e5m2_sme,
@@ -2210,6 +2225,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_nvfp4_capabilities(vo
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_shape_nvfp4_sme,
 #endif
@@ -2268,6 +2286,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp4_capabilities(vo
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp4_sme,
 #endif
@@ -2317,6 +2338,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp8e4m3_capabilitie
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e4m3_sme,
@@ -2368,6 +2392,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp6e2m3_capabilitie
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e2m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e2m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e2m3_neonsdot,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp6e2m3_sme,
@@ -2445,6 +2472,9 @@ static nk_capability_kernels_t const *nk_dots_packed_shape_mxfp8e5m2_capabilitie
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_shape_mxfp8e5m2_sme,
@@ -3793,6 +3823,9 @@ static nk_capability_kernels_t const *nk_dots_pack_nvfp4_capabilities(void) {
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_nvfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_pack_nvfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_nvfp4_sme,
 #endif
@@ -3853,6 +3886,9 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp4_capabilities(void) {
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_mxfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_mxfp4_sme,
 #endif
@@ -3902,6 +3938,9 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp8e4m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e4m3_sme,
@@ -3953,6 +3992,9 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp6e2m3_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_mxfp6e2m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_mxfp6e2m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp6e2m3_neonsdot,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_mxfp6e2m3_sme,
@@ -4030,6 +4072,9 @@ static nk_capability_kernels_t const *nk_dots_pack_mxfp8e5m2_capabilities(void) 
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_pack_mxfp8e5m2_sme,
@@ -5398,6 +5443,9 @@ static nk_capability_kernels_t const *nk_dots_packed_nvfp4_capabilities(void) {
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_nvfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_packed_nvfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_nvfp4_sme,
 #endif
@@ -5458,6 +5506,9 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp4_capabilities(void) {
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_mxfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_mxfp4_sme,
 #endif
@@ -5507,6 +5558,9 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp8e4m3_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e4m3_sme,
@@ -5558,6 +5612,9 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp6e2m3_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_mxfp6e2m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_mxfp6e2m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp6e2m3_neonsdot,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_mxfp6e2m3_sme,
@@ -5635,6 +5692,9 @@ static nk_capability_kernels_t const *nk_dots_packed_mxfp8e5m2_capabilities(void
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_packed_mxfp8e5m2_sme,
@@ -7007,6 +7067,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_nvfp4_capabilities(void)
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_symmetric_nvfp4_sme,
 #endif
@@ -7068,6 +7131,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp4_capabilities(void)
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_neon,
 #endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_neonsdot,
+#endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp4_sme,
 #endif
@@ -7117,6 +7183,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp8e4m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e4m3_sme,
@@ -7168,6 +7237,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp6e2m3_capabilities(v
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e2m3_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e2m3_neon,
+#endif
+#if NUMKONG_TARGET_NEONSDOT
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e2m3_neonsdot,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp6e2m3_sme,
@@ -7245,6 +7317,9 @@ static nk_capability_kernels_t const *nk_dots_symmetric_mxfp8e5m2_capabilities(v
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_serial,
 #if NUMKONG_TARGET_NEON
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_neon,
+#endif
+#if NUMKONG_TARGET_NEONFHM
+        (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_neonfhm,
 #endif
 #if NUMKONG_TARGET_SME
         (nk_kernel_punned_t)&nk_dots_symmetric_mxfp8e5m2_sme,
