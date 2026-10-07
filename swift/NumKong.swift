@@ -293,9 +293,11 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     public static let hopper = Capabilities(rawValue: 1 << 51)
     public static let blackwell = Capabilities(rawValue: 1 << 52)
     public static let blackwellRTX = Capabilities(rawValue: 1 << 53)
+    public static let blackwellUltra = Capabilities(rawValue: 1 << 54)
     public static let rocm = Capabilities(rawValue: 1 << 56)
-    public static let cdna4 = Capabilities(rawValue: 1 << 57)
-    public static let cdna5 = Capabilities(rawValue: 1 << 58)
+    public static let cdna3 = Capabilities(rawValue: 1 << 57)
+    public static let cdna4 = Capabilities(rawValue: 1 << 58)
+    public static let cdna5 = Capabilities(rawValue: 1 << 59)
     public static let metal = Capabilities(rawValue: 1 << 60)
     public static let apple9 = Capabilities(rawValue: 1 << 61)
     public static let apple10 = Capabilities(rawValue: 1 << 62)
@@ -305,7 +307,8 @@ public struct Capabilities: OptionSet, Sendable, CustomStringConvertible {
     public static let cpus = Capabilities(rawValue: (1 << 48) - 1)
     /// Every GPU capability.
     public static let gpus: Capabilities = [
-        .cuda, .ampere, .ada, .hopper, .blackwell, .blackwellRTX, .rocm, .cdna4, .cdna5, .metal, .apple9, .apple10,
+        .cuda, .ampere, .ada, .hopper, .blackwell, .blackwellRTX, .blackwellUltra, .rocm, .cdna3, .cdna4, .cdna5,
+        .metal, .apple9, .apple10,
     ]
     /// Every capability.
     public static let any = Capabilities(rawValue: .max)

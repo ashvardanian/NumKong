@@ -3,7 +3,8 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief The HIP runtime as the library's ROCm host code drives it: the device a call runs on,
- *      managed memory, the launches, the streams and the device producers.
+ *      managed memory, the launches, the streams and the device producers, then the wavefront and
+ *      rounding primitives every ROCm kernel shares.
  *
  *  Only hipcc sees past the guard, and nothing here is shared with CUDA, whose twins live in
  *  `cuda.cuh` under their own names, so a library holding both vendors links one body per name.
@@ -161,6 +162,7 @@ NUMKONG_INLINE nk_status_t nk_rocm_capabilities_detected_(nk_size_t ordinal, nk_
     if (hipGetDeviceProperties(&properties, (int)ordinal) != hipSuccess) return nk_device_code_mismatch_k;
     char const *const name = properties.gcnArchName;
     nk_capability_t detected = nk_cap_rocm_k;
+    if (strncmp(name, "gfx942", 6) == 0) detected |= nk_cap_cdna3_k;
     if (strncmp(name, "gfx950", 6) == 0) detected |= nk_cap_cdna4_k;
     if (strncmp(name, "gfx1250", 7) == 0 || strncmp(name, "gfx1251", 7) == 0) detected |= nk_cap_cdna5_k;
     *capabilities = detected;
@@ -254,6 +256,51 @@ NUMKONG_INLINE nk_status_t nk_allocator_init_pinned_rocm_(nk_allocator_t *alloca
     allocator->handle = NUMKONG_NULL;
     return nk_success_k;
 }
+
+#pragma region Device Primitives
+
+/** Lanes of a wavefront, 64 on CDNA and 32 on RDNA and MI400, which a build spanning both only
+ *  learns per device pass. */
+NUMKONG_DEVICE unsigned nk_warp_lanes_rocm_(void) { return __builtin_amdgcn_wavefrontsize(); }
+
+/** Lane `lane ^ offset`'s @p value, from across the whole wavefront, where offsets below 32 stay
+ *  inside each half of a 64-lane one. */
+NUMKONG_DEVICE nk_u32_t nk_shuffle_xor_u32_rocm_(nk_u32_t value, unsigned offset) { return __shfl_xor(value, offset); }
+NUMKONG_DEVICE nk_i32_t nk_shuffle_xor_i32_rocm_(nk_i32_t value, unsigned offset) { return __shfl_xor(value, offset); }
+NUMKONG_DEVICE nk_u64_t nk_shuffle_xor_u64_rocm_(nk_u64_t value, unsigned offset) {
+    return __shfl_xor((unsigned long long)value, offset);
+}
+NUMKONG_DEVICE nk_f32_t nk_shuffle_xor_f32_rocm_(nk_f32_t value, unsigned offset) { return __shfl_xor(value, offset); }
+NUMKONG_DEVICE nk_f64_t nk_shuffle_xor_f64_rocm_(nk_f64_t value, unsigned offset) { return __shfl_xor(value, offset); }
+
+/** Lane `lane - offset`'s @p value within each group of 32 lanes, a lane's own below @p offset. */
+NUMKONG_DEVICE nk_u64_t nk_shuffle_up_u64_rocm_(nk_u64_t value, unsigned offset) {
+    return __shfl_up((unsigned long long)value, offset, 32);
+}
+
+/*  Arithmetic rounded one operation at a time, which HIP-Clang never contracts into an FMA that
+ *  would break compensated sums' error terms, as its own @c __dmul_rn may be. */
+NUMKONG_DEVICE nk_f64_t nk_f64_add_rn_rocm_(nk_f64_t a, nk_f64_t b) {
+#pragma clang fp contract(off)
+    return a + b;
+}
+NUMKONG_DEVICE nk_f64_t nk_f64_sub_rn_rocm_(nk_f64_t a, nk_f64_t b) {
+#pragma clang fp contract(off)
+    return a - b;
+}
+NUMKONG_DEVICE nk_f64_t nk_f64_mul_rn_rocm_(nk_f64_t a, nk_f64_t b) {
+#pragma clang fp contract(off)
+    return a * b;
+}
+NUMKONG_DEVICE nk_f32_t nk_f32_mul_rn_rocm_(nk_f32_t a, nk_f32_t b) {
+#pragma clang fp contract(off)
+    return a * b;
+}
+
+/** 2^x through @c exp2f , and 0 for −∞. */
+NUMKONG_DEVICE nk_f32_t nk_f32_exp2_rocm_(nk_f32_t exponent) { return exp2f(exponent); }
+
+#pragma endregion Device Primitives
 
 /*  The library defines these once, in `c/target/rocm.hip`; header-only builds define them here. */
 #if NUMKONG_HEADER_ONLY && NUMKONG_TARGET_ROCM

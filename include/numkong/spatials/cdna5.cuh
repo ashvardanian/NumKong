@@ -7,9 +7,9 @@
  *  @sa include/numkong/spatials.h
  *  @sa include/numkong/dots/cdna5.cuh
  *
- *  The CDNA5 dots tile with the CDNA4 norm updates and metric epilogue: squared norms accumulate
- *  from the staged chunks while the products do, and @c packed reads the column norms its pack
- *  stored. F32 and F64 stay on the @c rocm capability.
+ *  The CDNA5 dots tile with the CDNA4 norm updates and metric epilogue, its own for I8 and I4:
+ *  squared norms accumulate from the staged chunks while the products do, and @c packed reads the
+ *  column norms its pack stored. F32 and F64 stay on the @c rocm capability.
  */
 #ifndef NUMKONG_SPATIALS_CDNA5_CUH
 #define NUMKONG_SPATIALS_CDNA5_CUH
@@ -110,10 +110,10 @@ nk_define_cross_rocm_(euclidean, e2m1, cdna5, cdna5, e2m1x2, e2m1x2, f32, /*dept
 
 nk_define_cross_rocm_(angular, i8, cdna5, cdna5, i8, i8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_i8_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_cdna5_, /*norm_scale=*/1.0f)
 nk_define_cross_rocm_(euclidean, i8, cdna5, cdna5, i8, i8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_i8_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_cdna5_, /*norm_scale=*/1.0f)
 
 #pragma endregion I8
 
@@ -121,10 +121,10 @@ nk_define_cross_rocm_(euclidean, i8, cdna5, cdna5, i8, i8, f32, /*depth_simd_dim
 
 nk_define_cross_rocm_(angular, i4, cdna5, cdna5, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_cdna5_, /*norm_scale=*/1.0f)
 nk_define_cross_rocm_(euclidean, i4, cdna5, cdna5, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_cdna5_, /*norm_scale=*/1.0f)
 
 #pragma endregion I4
 

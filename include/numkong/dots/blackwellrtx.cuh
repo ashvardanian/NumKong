@@ -27,9 +27,6 @@ extern "C" {
 
 #pragma region Instructions
 
-#if defined(__CUDA_ARCH_FAMILY_SPECIFIC__) && __CUDA_ARCH_FAMILY_SPECIFIC__ >= 1200 && \
-    __CUDA_ARCH_FAMILY_SPECIFIC__ < 1300
-
 NUMKONG_DEVICE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
                                               nk_u32_t b_second) {
     asm volatile("mma.sync.aligned.m16n8k32.row.col.kind::f8f6f4.f32.e5m2.e5m2.f32 " //
@@ -72,30 +69,6 @@ NUMKONG_DEVICE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second), "r"(0x7F7F7F7Fu));
 }
 
-#else
-
-NUMKONG_DEVICE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                              nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_e4m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                              nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_e3m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                              nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_e2m3_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                              nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_e2m1_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                              nk_u32_t b_second) {
-    __trap();
-}
-
-#endif // __CUDA_ARCH_FAMILY_SPECIFIC__ in the 12.x family
 
 #pragma endregion Instructions
 

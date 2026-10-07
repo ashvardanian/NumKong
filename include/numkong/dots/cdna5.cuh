@@ -13,7 +13,8 @@
  *  Float8, Float6 and Float4 codes as they are through @c v_wmma_f32_16x16x128_f8f6f4, Float6
  *  packed into its dense 6-bit stream. The integer WMMA takes each operand's signedness, so U8
  *  needs no offset, and I4 and U4 widen into it. The pack stores rows as they are, as the @c rocm
- *  capability does. Only the MI400 code objects carry these kernels.
+ *  capability does. Signed integer norms square through @c v_dot4_i32_iu8 with both operands
+ *  marked signed, as MI400 lacks @c v_dot4_i32_i8 .
  */
 #ifndef NUMKONG_DOTS_CDNA5_CUH
 #define NUMKONG_DOTS_CDNA5_CUH
@@ -39,8 +40,6 @@ typedef void (*nk_cross_multiply_cdna5_t)(nk_fui32_t accumulators[4][2][8], nk_u
 #pragma endregion Configuration
 
 #pragma region Instructions
-
-#if defined(__gfx1250__) || defined(__gfx1251__)
 
 typedef float nk_f32x8_cdna5_t __attribute__((vector_size(32)));
 typedef int nk_i32x8_cdna5_t __attribute__((vector_size(32)));
@@ -148,44 +147,34 @@ NUMKONG_DEVICE void nk_wmma_e2m1_cdna5_(nk_fui32_t accumulator[8], nk_u32_t cons
                                                                                   nk_f32x8_load_cdna5_(accumulator)));
 }
 
-#else
-
-/*  Other device passes and the host pass get trapping bodies, so a code object picked for the
- *  wrong device fails loudly rather than returning zeros. */
-NUMKONG_DEVICE void nk_wmma_bf16_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[8], nk_u32_t const b[8]) {
-    __builtin_trap();
+/** Adds the four signed byte products of @p a and @p b to @p sum with CDNA5's @c v_dot4_i32_iu8 ,
+ *  both operands marked signed. */
+NUMKONG_DEVICE nk_i32_t nk_dot_i8x4_cdna5_(nk_u32_t a, nk_u32_t b, nk_i32_t sum) {
+    return __builtin_amdgcn_sudot4(1, (int)a, 1, (int)b, sum, 0);
 }
-NUMKONG_DEVICE void nk_wmma_f16_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[8], nk_u32_t const b[8]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_i8_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[8], nk_u32_t const b[8]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_u8_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[8], nk_u32_t const b[8]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_u8i8_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[8], nk_u32_t const b[8]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_e4m3_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[16], nk_u32_t const b[16]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_e5m2_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[16], nk_u32_t const b[16]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_e2m3_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[12], nk_u32_t const b[12]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_e3m2_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[12], nk_u32_t const b[12]) {
-    __builtin_trap();
-}
-NUMKONG_DEVICE void nk_wmma_e2m1_cdna5_(nk_fui32_t accumulator[8], nk_u32_t const a[8], nk_u32_t const b[8]) {
-    __builtin_trap();
-}
-
-#endif // defined(__gfx1250__) || defined(__gfx1251__)
 
 #pragma endregion Instructions
+
+/*  The I8 and I4 norms through MI400's own signed dot; every other norm is CDNA4's. */
+#pragma region Norms
+
+NUMKONG_DEVICE void nk_i8_norm_update_cdna5_(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum) {
+#pragma unroll
+    for (unsigned word = 0; word < 4; ++word)
+        *integer_sum = (nk_u32_t)nk_dot_i8x4_cdna5_(words[word], words[word], (nk_i32_t)*integer_sum);
+}
+
+NUMKONG_DEVICE void nk_i4_norm_update_cdna5_(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum) {
+#pragma unroll
+    for (unsigned word = 0; word < 4; ++word) {
+        nk_u32_t low, high;
+        nk_i4x8_to_i8x8_(words[word], &low, &high);
+        *integer_sum = (nk_u32_t)nk_dot_i8x4_cdna5_(low, low, (nk_i32_t)*integer_sum);
+        *integer_sum = (nk_u32_t)nk_dot_i8x4_cdna5_(high, high, (nk_i32_t)*integer_sum);
+    }
+}
+
+#pragma endregion Norms
 
 #pragma region Tile
 
@@ -212,7 +201,7 @@ NUMKONG_DEVICE void nk_cross_tile_cdna5_(nk_cross_multiply_cdna5_t multiply, nk_
                                          nk_cross_norm_update_t norm_update, nk_f32_t norm_scale,
                                          nk_cross_triangle_t triangle, nk_cross_metric_t metric,
                                          nk_cross_tile_arguments_t const *arguments) {
-    __shared__ __attribute__((aligned(16))) unsigned char staged[2][2][nk_cross_stage_bytes_cdna4_k];
+    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna4_t shared;
 
     unsigned const lane = threadIdx.x & 31, wave = threadIdx.x >> 5;
     unsigned const wave_row = (wave >> 2) * 64, wave_column = (wave & 3) * 32;
@@ -240,7 +229,7 @@ NUMKONG_DEVICE void nk_cross_tile_cdna5_(nk_cross_multiply_cdna5_t multiply, nk_
         uint4 chunks[2][nk_cross_loads_cdna4_k];
         nk_cross_load_slab_cdna4_(chunks, arguments, first_row, first_column, 0);
         for (nk_size_t slab = 0; slab < slabs; ++slab) {
-            unsigned char (*stage)[nk_cross_stage_bytes_cdna4_k] = staged[slab & 1];
+            unsigned char (*stage)[nk_cross_stage_bytes_cdna4_k] = shared.stages[slab & 1];
             nk_cross_store_slab_cdna4_(stage, chunks);
             nk_cross_stage_statistics_cdna4_(norm_update, row_squares, column_squares, offsets, chunks, integer_norms,
                                              real_norms, sums);
@@ -260,7 +249,7 @@ NUMKONG_DEVICE void nk_cross_tile_cdna5_(nk_cross_multiply_cdna5_t multiply, nk_
         }
 
         // Row, then column, norms and byte sums go to the first stage once fragment reads retire.
-        nk_fui32_t *statistics = (nk_fui32_t *)staged[0][0];
+        nk_fui32_t *statistics = shared.statistics;
         if (row_squares || offsets) {
             __syncthreads();
             nk_cross_write_statistics_cdna4_(norm, norm_scale, row_squares, column_squares, offsets, arguments,
@@ -430,7 +419,7 @@ NUMKONG_DEVICE void nk_dots_u4_multiply_cdna5_(nk_fui32_t accumulators[4][2][8],
 
 #pragma region BF16
 
-nk_define_cross_pack_rocm_(bf16, cdna5, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(bf16, cdna5, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32, nk_bf16_lane_sumsq_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, bf16, cdna5, cdna5, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
                       /*dimensions_per_value=*/1, nk_dots_bf16_multiply_cdna5_, nk_cross_epilogue_f32_k,
@@ -440,7 +429,7 @@ nk_define_cross_rocm_(dot, bf16, cdna5, cdna5, bf16, bf16, f32, /*depth_simd_dim
 
 #pragma region F16
 
-nk_define_cross_pack_rocm_(f16, cdna5, f16, f16, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(f16, cdna5, f16, f16, nk_load_b8_, /*norm_value_type=*/f32, nk_f16_lane_sumsq_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, f16, cdna5, cdna5, f16, f16, f32, /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1,
                       nk_dots_f16_multiply_cdna5_, nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
@@ -450,7 +439,7 @@ nk_define_cross_rocm_(dot, f16, cdna5, cdna5, f16, f16, f32, /*depth_simd_dimens
 
 #pragma region E5M2
 
-nk_define_cross_pack_rocm_(e5m2, cdna5, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e5m2, cdna5, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32, nk_e5m2_lane_sumsq_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, e5m2, cdna5, cdna5, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_cdna5_, nk_cross_epilogue_f32_k,
@@ -460,7 +449,7 @@ nk_define_cross_rocm_(dot, e5m2, cdna5, cdna5, e5m2, e5m2, f32, /*depth_simd_dim
 
 #pragma region E4M3
 
-nk_define_cross_pack_rocm_(e4m3, cdna5, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e4m3, cdna5, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32, nk_e4m3_lane_sumsq_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, e4m3, cdna5, cdna5, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_cdna5_, nk_cross_epilogue_f32_k,
@@ -470,7 +459,7 @@ nk_define_cross_rocm_(dot, e4m3, cdna5, cdna5, e4m3, e4m3, f32, /*depth_simd_dim
 
 #pragma region E3M2
 
-nk_define_cross_pack_rocm_(e3m2, cdna5, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e3m2, cdna5, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32, nk_e3m2_lane_sumsq_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, e3m2, cdna5, cdna5, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_cdna5_, nk_cross_epilogue_f32_k,
@@ -480,7 +469,7 @@ nk_define_cross_rocm_(dot, e3m2, cdna5, cdna5, e3m2, e3m2, f32, /*depth_simd_dim
 
 #pragma region E2M3
 
-nk_define_cross_pack_rocm_(e2m3, cdna5, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e2m3, cdna5, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32, nk_e2m3_lane_sumsq_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, e2m3, cdna5, cdna5, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_cdna5_, nk_cross_epilogue_f32_k,
@@ -490,7 +479,7 @@ nk_define_cross_rocm_(dot, e2m3, cdna5, cdna5, e2m3, e2m3, f32, /*depth_simd_dim
 
 #pragma region E2M1
 
-nk_define_cross_pack_rocm_(e2m1, cdna5, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_rocm_(e2m1, cdna5, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32, nk_e2m1_lane_sumsq_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_rocm_(dot, e2m1, cdna5, cdna5, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_cdna5_, nk_cross_epilogue_f32_k,
@@ -500,7 +489,7 @@ nk_define_cross_rocm_(dot, e2m1, cdna5, cdna5, e2m1x2, e2m1x2, f32, /*depth_simd
 
 #pragma region I8
 
-nk_define_cross_pack_rocm_(i8, cdna5, i8, i8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(i8, cdna5, i8, i8, nk_load_b8_, /*norm_value_type=*/u32, nk_i8_lane_sumsq_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, i8, cdna5, cdna5, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_i8_multiply_cdna5_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
@@ -510,7 +499,7 @@ nk_define_cross_rocm_(dot, i8, cdna5, cdna5, i8, i8, i32, /*depth_simd_dimension
 
 #pragma region I4
 
-nk_define_cross_pack_rocm_(i4, cdna5, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(i4, cdna5, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32, nk_i4_lane_sumsq_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_rocm_(dot, i4, cdna5, cdna5, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_i4_multiply_cdna5_, nk_cross_epilogue_i32_k,
@@ -520,7 +509,7 @@ nk_define_cross_rocm_(dot, i4, cdna5, cdna5, i4x2, i4x2, i32, /*depth_simd_dimen
 
 #pragma region U8
 
-nk_define_cross_pack_rocm_(u8, cdna5, u8, u8, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(u8, cdna5, u8, u8, nk_load_b8_, /*norm_value_type=*/u32, nk_u8_lane_sumsq_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_rocm_(dot, u8, cdna5, cdna5, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
                       nk_dots_u8_multiply_cdna5_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
@@ -530,7 +519,7 @@ nk_define_cross_rocm_(dot, u8, cdna5, cdna5, u8, u8, u32, /*depth_simd_dimension
 
 #pragma region U4
 
-nk_define_cross_pack_rocm_(u4, cdna5, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32,
+nk_define_cross_pack_rocm_(u4, cdna5, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32, nk_u4_lane_sumsq_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_rocm_(dot, u4, cdna5, cdna5, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_cdna5_, nk_cross_epilogue_i32_k,

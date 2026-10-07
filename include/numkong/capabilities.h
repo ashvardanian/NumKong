@@ -233,23 +233,26 @@ typedef nk_u64_t nk_capability_t;
 /** GPU capabilities, as each vendor's `nk_<vendor>_capabilities_*` functions report them for one
  *  device, grouped by vendor above bit 47 to leave room for more CPU capabilities and more per
  *  vendor. Each vendor's baseline runs on all its devices, as @c serial runs on every CPU. */
-#define nk_cap_cuda_k         ((nk_capability_t)1 << 48)
-#define nk_cap_ampere_k       ((nk_capability_t)1 << 49)
-#define nk_cap_ada_k          ((nk_capability_t)1 << 50)
-#define nk_cap_hopper_k       ((nk_capability_t)1 << 51)
-#define nk_cap_blackwell_k    ((nk_capability_t)1 << 52)
-#define nk_cap_blackwellrtx_k ((nk_capability_t)1 << 53)
-#define nk_cap_rocm_k         ((nk_capability_t)1 << 56)
-#define nk_cap_cdna4_k        ((nk_capability_t)1 << 57)
-#define nk_cap_cdna5_k        ((nk_capability_t)1 << 58)
-#define nk_cap_metal_k        ((nk_capability_t)1 << 60)
-#define nk_cap_apple9_k       ((nk_capability_t)1 << 61)
-#define nk_cap_apple10_k      ((nk_capability_t)1 << 62)
+#define nk_cap_cuda_k           ((nk_capability_t)1 << 48)
+#define nk_cap_ampere_k         ((nk_capability_t)1 << 49)
+#define nk_cap_ada_k            ((nk_capability_t)1 << 50)
+#define nk_cap_hopper_k         ((nk_capability_t)1 << 51)
+#define nk_cap_blackwell_k      ((nk_capability_t)1 << 52)
+#define nk_cap_blackwellrtx_k   ((nk_capability_t)1 << 53)
+#define nk_cap_blackwellultra_k ((nk_capability_t)1 << 54)
+#define nk_cap_rocm_k           ((nk_capability_t)1 << 56)
+#define nk_cap_cdna3_k          ((nk_capability_t)1 << 57)
+#define nk_cap_cdna4_k          ((nk_capability_t)1 << 58)
+#define nk_cap_cdna5_k          ((nk_capability_t)1 << 59)
+#define nk_cap_metal_k          ((nk_capability_t)1 << 60)
+#define nk_cap_apple9_k         ((nk_capability_t)1 << 61)
+#define nk_cap_apple10_k        ((nk_capability_t)1 << 62)
 
 /** Every GPU capability above, which the CPU dispatch never detects, compiles or enables. */
 #define nk_cap_gpus_k                                                                                                \
     (nk_cap_cuda_k | nk_cap_ampere_k | nk_cap_ada_k | nk_cap_hopper_k | nk_cap_blackwell_k | nk_cap_blackwellrtx_k | \
-     nk_cap_rocm_k | nk_cap_cdna4_k | nk_cap_cdna5_k | nk_cap_metal_k | nk_cap_apple9_k | nk_cap_apple10_k)
+     nk_cap_blackwellultra_k | nk_cap_rocm_k | nk_cap_cdna3_k | nk_cap_cdna4_k | nk_cap_cdna5_k | nk_cap_metal_k |   \
+     nk_cap_apple9_k | nk_cap_apple10_k)
 
 /** Every CPU capability, the bits below the first GPU vendor's. */
 #define nk_cap_cpus_k (nk_cap_cuda_k - 1)
@@ -304,7 +307,9 @@ static struct {
     {"hopper", nk_cap_hopper_k},
     {"blackwell", nk_cap_blackwell_k},
     {"blackwellrtx", nk_cap_blackwellrtx_k},
+    {"blackwellultra", nk_cap_blackwellultra_k},
     {"rocm", nk_cap_rocm_k},
+    {"cdna3", nk_cap_cdna3_k},
     {"cdna4", nk_cap_cdna4_k},
     {"cdna5", nk_cap_cdna5_k},
     {"metal", nk_cap_metal_k},
@@ -481,11 +486,11 @@ typedef enum {
     /** Attention K/V packing (KV cache → the capability's layout). */
     nk_kernel_attention_pack_k = 'V',
 
-    /** Fused (Flash-style) bidirectional attention. */
-    nk_kernel_attention_bidirectional_packed_k = 'F',
+    /** Fused, Flash-style, attention under a band of visible keys. */
+    nk_kernel_attention_packed_k = 'F',
 
-    /** Fused (Flash-style) causal attention. */
-    nk_kernel_attention_causal_packed_k = 'c',
+    /** Gradients of banded attention. */
+    nk_kernel_attention_packed_gradients_k = 'g',
 
     /** Attention packed shape read (heads, depth, segments). */
     nk_kernel_attention_packed_shape_k = 'z',
@@ -551,8 +556,8 @@ NUMKONG_CONSTEXPR char const *nk_kernel_name(nk_kernel_kind_t kind) {
     case nk_kernel_maxsim_packed_shape_k: return "maxsim_packed_shape";
     case nk_kernel_attention_pack_size_k: return "attention_pack_size";
     case nk_kernel_attention_pack_k: return "attention_pack";
-    case nk_kernel_attention_bidirectional_packed_k: return "attention_bidirectional_packed";
-    case nk_kernel_attention_causal_packed_k: return "attention_causal_packed";
+    case nk_kernel_attention_packed_k: return "attention_packed";
+    case nk_kernel_attention_packed_gradients_k: return "attention_packed_gradients";
     case nk_kernel_attention_packed_shape_k: return "attention_packed_shape";
     case nk_kernel_attention_rope_k: return "attention_rope";
     case nk_kernel_cast_k: return "cast";
@@ -612,9 +617,8 @@ NUMKONG_CONSTEXPR nk_kernel_kind_t nk_kernel_named(char const *name, nk_size_t l
     if (nk_same_literal_(name, length, "maxsim_packed_shape")) return nk_kernel_maxsim_packed_shape_k;
     if (nk_same_literal_(name, length, "attention_pack_size")) return nk_kernel_attention_pack_size_k;
     if (nk_same_literal_(name, length, "attention_pack")) return nk_kernel_attention_pack_k;
-    if (nk_same_literal_(name, length, "attention_bidirectional_packed"))
-        return nk_kernel_attention_bidirectional_packed_k;
-    if (nk_same_literal_(name, length, "attention_causal_packed")) return nk_kernel_attention_causal_packed_k;
+    if (nk_same_literal_(name, length, "attention_packed")) return nk_kernel_attention_packed_k;
+    if (nk_same_literal_(name, length, "attention_packed_gradients")) return nk_kernel_attention_packed_gradients_k;
     if (nk_same_literal_(name, length, "attention_packed_shape")) return nk_kernel_attention_packed_shape_k;
     if (nk_same_literal_(name, length, "attention_rope")) return nk_kernel_attention_rope_k;
     if (nk_same_literal_(name, length, "cast")) return nk_kernel_cast_k;
@@ -717,7 +721,7 @@ typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk
 
 /** Pack sizes are host arithmetic, so they take no stream. */
 typedef nk_status_t (*nk_attention_pack_size_punned_t)(nk_size_t key_value_head_count, nk_size_t depth,
-                                                       nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                       nk_size_t token_count, nk_size_t segment_count,
                                                        nk_size_t *bytes);
 
 typedef nk_status_t (*nk_attention_pack_punned_t)(void const *keys, void const *values, nk_size_t key_value_head_count,
@@ -726,18 +730,21 @@ typedef nk_status_t (*nk_attention_pack_punned_t)(void const *keys, void const *
                                                   nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed,
                                                   nk_size_t task_begin, nk_size_t task_end, void *stream);
 
-typedef nk_status_t (*nk_attention_bidirectional_packed_punned_t)(
-    void const *queries, void const *key_value_packed, void *output, nk_size_t head_count,
-    nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
-    nk_size_t output_stride, nk_f32_t scale, nk_size_t task_start, nk_size_t task_count, void *stream);
+typedef nk_status_t (*nk_attention_packed_punned_t)(void const *queries, void const *key_value_packed, void *output,
+                                                    nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                    nk_size_t key_value_head_count, nk_size_t depth,
+                                                    nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                    nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                    nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                    void *stream);
 
-typedef nk_status_t (*nk_attention_causal_packed_punned_t)(void const *queries, void const *key_value_packed,
-                                                           void *output, nk_size_t head_count,
-                                                           nk_size_t key_value_head_count, nk_size_t depth,
-                                                           nk_u32_t const *query_offsets, nk_size_t query_stride,
-                                                           nk_size_t output_stride, nk_f32_t scale,
-                                                           nk_i64_t diagonal_offset, nk_size_t window,
-                                                           nk_size_t task_start, nk_size_t task_count, void *stream);
+typedef nk_status_t (*nk_attention_packed_gradients_punned_t)(
+    void const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t key_value_gradient_stride,
+    nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+    void *stream);
 
 typedef nk_status_t (*nk_attention_rope_punned_t)(void const *x, void const *cos, void const *sin, void *y,
                                                   nk_size_t rows, nk_size_t head_count, nk_size_t depth,
@@ -1397,13 +1404,14 @@ NUMKONG_INLINE nk_status_t nk_metal_stream_free_(void *stream) {
 NUMKONG_CONSTEXPR nk_capability_t nk_cuda_capabilities_compiled_(void) {
     return (nk_cap_cuda_k * NUMKONG_TARGET_CUDA) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
            (nk_cap_ada_k * NUMKONG_TARGET_ADA) | (nk_cap_hopper_k * NUMKONG_TARGET_HOPPER) |
-           (nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL) | (nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX);
+           (nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL) | (nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX) |
+           (nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA);
 }
 
 /** The ROCm capabilities this binary holds kernels for. */
 NUMKONG_CONSTEXPR nk_capability_t nk_rocm_capabilities_compiled_(void) {
-    return (nk_cap_rocm_k * NUMKONG_TARGET_ROCM) | (nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4) |
-           (nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5);
+    return (nk_cap_rocm_k * NUMKONG_TARGET_ROCM) | (nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3) |
+           (nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4) | (nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5);
 }
 
 /** The Metal capabilities this binary holds kernels for. */

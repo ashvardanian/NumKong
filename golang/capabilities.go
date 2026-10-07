@@ -53,18 +53,20 @@ const (
 	CapPowerVSX    Capability = C.nk_cap_powervsx_k    // Power VSX 128-bit SIMD
 	CapLoongsonASX Capability = C.nk_cap_loongsonasx_k // LoongArch LASX 256-bit SIMD
 
-	CapCUDA         Capability = C.nk_cap_cuda_k         // Any CUDA device
-	CapAmpere       Capability = C.nk_cap_ampere_k       // 2020: NVIDIA SM 8.0
-	CapAda          Capability = C.nk_cap_ada_k          // 2022: NVIDIA SM 8.9
-	CapHopper       Capability = C.nk_cap_hopper_k       // 2022: NVIDIA SM 9.x
-	CapBlackwell    Capability = C.nk_cap_blackwell_k    // 2024: NVIDIA SM 10.x
-	CapBlackwellRTX Capability = C.nk_cap_blackwellrtx_k // 2025: NVIDIA SM 12.x
-	CapROCm         Capability = C.nk_cap_rocm_k         // Any ROCm device
-	CapCDNA4        Capability = C.nk_cap_cdna4_k        // 2025: AMD gfx950
-	CapCDNA5        Capability = C.nk_cap_cdna5_k        // AMD gfx1250
-	CapMetal        Capability = C.nk_cap_metal_k        // Any Metal device
-	CapApple9       Capability = C.nk_cap_apple9_k       // 2023: Apple GPU family 9
-	CapApple10      Capability = C.nk_cap_apple10_k      // Apple GPU family 10
+	CapCUDA           Capability = C.nk_cap_cuda_k           // Any CUDA device
+	CapAmpere         Capability = C.nk_cap_ampere_k         // 2020: NVIDIA SM 8.0
+	CapAda            Capability = C.nk_cap_ada_k            // 2022: NVIDIA SM 8.9
+	CapHopper         Capability = C.nk_cap_hopper_k         // 2022: NVIDIA SM 9.x
+	CapBlackwell      Capability = C.nk_cap_blackwell_k      // 2024: NVIDIA SM 10.x
+	CapBlackwellRTX   Capability = C.nk_cap_blackwellrtx_k   // 2025: NVIDIA SM 12.x
+	CapBlackwellUltra Capability = C.nk_cap_blackwellultra_k // 2025: NVIDIA SM 10.3
+	CapROCm           Capability = C.nk_cap_rocm_k           // Any ROCm device
+	CapCDNA3          Capability = C.nk_cap_cdna3_k          // 2023: AMD gfx942
+	CapCDNA4          Capability = C.nk_cap_cdna4_k          // 2025: AMD gfx950
+	CapCDNA5          Capability = C.nk_cap_cdna5_k          // AMD gfx1250
+	CapMetal          Capability = C.nk_cap_metal_k          // Any Metal device
+	CapApple9         Capability = C.nk_cap_apple9_k         // 2023: Apple GPU family 9
+	CapApple10        Capability = C.nk_cap_apple10_k        // Apple GPU family 10
 
 	CapCPUs Capability = C.nk_cap_cpus_k // Every CPU capability, which every kernel call passes
 	CapGPUs Capability = C.nk_cap_gpus_k // Every GPU capability

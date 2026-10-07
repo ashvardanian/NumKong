@@ -14,6 +14,8 @@
 #define NUMKONG_TARGET_BLACKWELL 0
 #undef NUMKONG_TARGET_BLACKWELLRTX
 #define NUMKONG_TARGET_BLACKWELLRTX 0
+#undef NUMKONG_TARGET_BLACKWELLULTRA
+#define NUMKONG_TARGET_BLACKWELLULTRA 0
 #include "numkong/numkong.h"
 
 #include "numkong/dots/hopper.cuh"

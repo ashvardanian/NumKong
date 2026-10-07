@@ -188,57 +188,59 @@ impl WorkerStatus {
 #[repr(u64)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Capability {
-    Serial = 1 << 0,        // Always: Fallback
-    Neon = 1 << 1,          // ARM NEON
-    NeonHalf = 1 << 2,      // ARM NEON FP16
-    NeonBfDot = 1 << 3,     // ARM NEON BF16
-    NeonFhm = 1 << 4,       // ARM NEON FP16 FML
-    NeonSdot = 1 << 5,      // ARM NEON i8 dot
-    NeonFp8 = 1 << 6,       // ARM NEON FP8
-    Sve = 1 << 7,           // ARM SVE
-    SveHalf = 1 << 8,       // ARM SVE FP16
-    SveSdot = 1 << 9,       // ARM SVE i8 dot
-    SveBfDot = 1 << 10,     // ARM SVE BF16
-    Sve2 = 1 << 11,         // ARM SVE2
-    Sme = 1 << 12,          // ARM SME
-    SmeF64 = 1 << 13,       // ARM SME F64
-    SmeBi32 = 1 << 14,      // ARM SME BI32I32
-    Haswell = 1 << 15,      // Intel AVX2
-    Alder = 1 << 16,        // Intel AVX2+VNNI
-    Sierra = 1 << 17,       // Intel AVXVNNIINT8
-    Skylake = 1 << 18,      // Intel AVX-512
-    IceLake = 1 << 19,      // Intel AVX-512 VNNI
-    Genoa = 1 << 20,        // AMD AVX-512 BF16
-    Turin = 1 << 21,        // AMD Turin AVX-512 CD
-    Sapphire = 1 << 22,     // Intel AVX-512 FP16
-    Diamond = 1 << 23,      // Intel AVX10.2
-    SapphireAmx = 1 << 24,  // Intel Sapphire AMX
-    GraniteAmx = 1 << 25,   // Intel Granite AMX FP16
-    DiamondAmx = 1 << 26,   // Intel Diamond Rapids AMX
-    Rvv = 1 << 27,          // RISC-V Vector
-    RvvBf16 = 1 << 28,      // RISC-V Zvfbfwma
-    RvvHalf = 1 << 29,      // RISC-V Zvfh
-    RvvBb = 1 << 30,        // RISC-V Zvbb
-    V128 = 1 << 31,         // WASM SIMD128
-    V128Relaxed = 1 << 32,  // WASM Relaxed SIMD
-    PowerVsx = 1 << 33,     // Power VSX 128-bit SIMD
-    LoongsonAsx = 1 << 34,  // LoongArch LASX 256-bit SIMD
-    Cuda = 1 << 48,         // NVIDIA: every CUDA device
-    Ampere = 1 << 49,       // NVIDIA SM 8.0
-    Ada = 1 << 50,          // NVIDIA SM 8.9
-    Hopper = 1 << 51,       // NVIDIA SM 9.x
-    Blackwell = 1 << 52,    // NVIDIA SM 10.x
-    BlackwellRtx = 1 << 53, // NVIDIA SM 12.x
-    Rocm = 1 << 56,         // AMD: every ROCm device
-    Cdna4 = 1 << 57,        // AMD gfx950
-    Cdna5 = 1 << 58,        // AMD gfx1250
-    Metal = 1 << 60,        // Apple: every Metal device
-    Apple9 = 1 << 61,       // Apple GPU family 9
-    Apple10 = 1 << 62,      // Apple GPU family 10
+    Serial = 1 << 0,          // Always: Fallback
+    Neon = 1 << 1,            // ARM NEON
+    NeonHalf = 1 << 2,        // ARM NEON FP16
+    NeonBfDot = 1 << 3,       // ARM NEON BF16
+    NeonFhm = 1 << 4,         // ARM NEON FP16 FML
+    NeonSdot = 1 << 5,        // ARM NEON i8 dot
+    NeonFp8 = 1 << 6,         // ARM NEON FP8
+    Sve = 1 << 7,             // ARM SVE
+    SveHalf = 1 << 8,         // ARM SVE FP16
+    SveSdot = 1 << 9,         // ARM SVE i8 dot
+    SveBfDot = 1 << 10,       // ARM SVE BF16
+    Sve2 = 1 << 11,           // ARM SVE2
+    Sme = 1 << 12,            // ARM SME
+    SmeF64 = 1 << 13,         // ARM SME F64
+    SmeBi32 = 1 << 14,        // ARM SME BI32I32
+    Haswell = 1 << 15,        // Intel AVX2
+    Alder = 1 << 16,          // Intel AVX2+VNNI
+    Sierra = 1 << 17,         // Intel AVXVNNIINT8
+    Skylake = 1 << 18,        // Intel AVX-512
+    IceLake = 1 << 19,        // Intel AVX-512 VNNI
+    Genoa = 1 << 20,          // AMD AVX-512 BF16
+    Turin = 1 << 21,          // AMD Turin AVX-512 CD
+    Sapphire = 1 << 22,       // Intel AVX-512 FP16
+    Diamond = 1 << 23,        // Intel AVX10.2
+    SapphireAmx = 1 << 24,    // Intel Sapphire AMX
+    GraniteAmx = 1 << 25,     // Intel Granite AMX FP16
+    DiamondAmx = 1 << 26,     // Intel Diamond Rapids AMX
+    Rvv = 1 << 27,            // RISC-V Vector
+    RvvBf16 = 1 << 28,        // RISC-V Zvfbfwma
+    RvvHalf = 1 << 29,        // RISC-V Zvfh
+    RvvBb = 1 << 30,          // RISC-V Zvbb
+    V128 = 1 << 31,           // WASM SIMD128
+    V128Relaxed = 1 << 32,    // WASM Relaxed SIMD
+    PowerVsx = 1 << 33,       // Power VSX 128-bit SIMD
+    LoongsonAsx = 1 << 34,    // LoongArch LASX 256-bit SIMD
+    Cuda = 1 << 48,           // NVIDIA: every CUDA device
+    Ampere = 1 << 49,         // NVIDIA SM 8.0
+    Ada = 1 << 50,            // NVIDIA SM 8.9
+    Hopper = 1 << 51,         // NVIDIA SM 9.x
+    Blackwell = 1 << 52,      // NVIDIA SM 10.x
+    BlackwellRtx = 1 << 53,   // NVIDIA SM 12.x
+    BlackwellUltra = 1 << 54, // NVIDIA SM 10.3
+    Rocm = 1 << 56,           // AMD: every ROCm device
+    Cdna3 = 1 << 57,          // AMD gfx942
+    Cdna4 = 1 << 58,          // AMD gfx950
+    Cdna5 = 1 << 59,          // AMD gfx1250
+    Metal = 1 << 60,          // Apple: every Metal device
+    Apple9 = 1 << 61,         // Apple GPU family 9
+    Apple10 = 1 << 62,        // Apple GPU family 10
 }
 
 /// Every [`Capability`], in bit order.
-const CAPABILITIES: [Capability; 47] = [
+const CAPABILITIES: [Capability; 49] = [
     Capability::Serial,
     Capability::Neon,
     Capability::NeonHalf,
@@ -280,7 +282,9 @@ const CAPABILITIES: [Capability; 47] = [
     Capability::Hopper,
     Capability::Blackwell,
     Capability::BlackwellRtx,
+    Capability::BlackwellUltra,
     Capability::Rocm,
+    Capability::Cdna3,
     Capability::Cdna4,
     Capability::Cdna5,
     Capability::Metal,
@@ -325,7 +329,9 @@ impl Capabilities {
             | Capability::Hopper as nk_capability_t
             | Capability::Blackwell as nk_capability_t
             | Capability::BlackwellRtx as nk_capability_t
+            | Capability::BlackwellUltra as nk_capability_t
             | Capability::Rocm as nk_capability_t
+            | Capability::Cdna3 as nk_capability_t
             | Capability::Cdna4 as nk_capability_t
             | Capability::Cdna5 as nk_capability_t
             | Capability::Metal as nk_capability_t
@@ -682,7 +688,9 @@ mod tests {
             "hopper",
             "blackwell",
             "blackwellrtx",
+            "blackwellultra",
             "rocm",
+            "cdna3",
             "cdna4",
             "cdna5",
             "metal",

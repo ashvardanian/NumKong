@@ -6,22 +6,22 @@
  *
  *  @sa include/numkong/dots.h
  *
- *  The baseline every other GPU capability stands on, as serial is on the CPU: no matrix unit, only
- *  each vendor's scalar and dot-product instructions. The same source compiles under NVCC into the
- *  @c cuda capability and under HIP-Clang into the @c rocm capability. F64 inputs sum in Dot2 and
- *  F32 inputs in F64 on the F64 tile. Every narrower type folds 32-bit words on the B32 tile:
- *  integers into wrapping I32 or U32 like the serial backends, through @c dp4a on NVIDIA and
- *  @c v_dot4 or @c v_dot8 on AMD, and the 16-bit and narrower floats into F32, through FMA on
- *  NVIDIA and @c v_dot2_f32_f16 pairs on AMD. Each of 256 threads owns a 4 × 4 grid of one 64 × 64
- *  output tile, over 16-word slabs staged in shared memory. The pack stores rows as they are,
- *  padded to 16 bytes, with the serial backends' norm types.
+ *  The portable half of the baseline every other GPU capability stands on, as serial is on the CPU:
+ *  no matrix unit and no vendor instruction. F64 inputs sum in Dot2 and F32 inputs in F64 on the
+ *  F64 tile. Every narrower type folds 32-bit words on the B32 tile: integers into wrapping I32 or
+ *  U32 like the serial backends, and the 16-bit and narrower floats into F32. Each of 256 threads
+ *  owns a 4 × 4 grid of one 64 × 64 output tile, over 16-word slabs staged in shared memory. The
+ *  pack stores rows as they are, padded to 16 bytes, with the serial backends' norm types.
  *
  *  Every tensor tile of the other capabilities builds on the contract and kernel generators here, so
- *  the file runs from the contract to device code, then to the baseline tiles. Each vendor sizes,
- *  launches and exports them from its own host side, in `cuda.cuh` and `rocm.cuh` beside this file.
+ *  the file runs from the contract to device code, then to the tiles' portable stages. The tiles
+ *  themselves live beside this file: each vendor's F64 tile, merging lanes and rounding through its
+ *  own primitives, and each capability's B32 tile, folding through its own dot instructions, in
+ *  `cuda.cuh`, `rocm.cuh` and `cdna3.cuh`, which also size, launch and export them.
  *
  *  @sa include/numkong/dots/cuda.cuh
  *  @sa include/numkong/dots/rocm.cuh
+ *  @sa include/numkong/dots/cdna3.cuh
  */
 #ifndef NUMKONG_DOTS_SIMT_CUH
 #define NUMKONG_DOTS_SIMT_CUH
@@ -30,32 +30,6 @@
 
 #include "numkong/dots/serial.h"
 #include "numkong/cast/simt.cuh" // `nk_e4m3_to_f32_simt_`, `nk_f32_to_f16_simt_`
-
-/*  AMD dot instructions per device pass: `dot1-insts` multiply signed codes, `dot7-insts` unsigned
- *  ones, `dot8-insts` either, and `dot10-insts` F16 pairs into F32; other targets fold portably. */
-#if defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
-    defined(__gfx1011__) || defined(__gfx1012__) || defined(__gfx1030__) || defined(__gfx1031__) ||                    \
-    defined(__gfx1032__) || defined(__gfx1033__) || defined(__gfx1034__) || defined(__gfx1035__) ||                    \
-    defined(__gfx1036__)
-#define NUMKONG_HAS_ROCM_SDOT_ 1
-#else
-#define NUMKONG_HAS_ROCM_SDOT_ 0
-#endif
-#if defined(__GFX11__) || defined(__GFX12__)
-#define NUMKONG_HAS_ROCM_SUDOT_ 1
-#else
-#define NUMKONG_HAS_ROCM_SUDOT_ 0
-#endif
-#if NUMKONG_HAS_ROCM_SDOT_ || NUMKONG_HAS_ROCM_SUDOT_
-#define NUMKONG_HAS_ROCM_UDOT_ 1
-#else
-#define NUMKONG_HAS_ROCM_UDOT_ 0
-#endif
-#if NUMKONG_HAS_ROCM_SDOT_ || defined(__GFX11__) || defined(__gfx1200__) || defined(__gfx1201__)
-#define NUMKONG_HAS_ROCM_FDOT2_ 1
-#else
-#define NUMKONG_HAS_ROCM_FDOT2_ 0
-#endif
 
 #if defined(__cplusplus)
 extern "C" {
@@ -73,13 +47,6 @@ enum {
     nk_cross_slab_simt_k = 16,
     nk_cross_loads_simt_k = nk_cross_tile_simt_k * nk_cross_slab_simt_k / nk_cross_threads_simt_k,
     nk_cross_grid_side_simt_k = nk_cross_tile_simt_k / nk_cross_thread_tile_simt_k,
-    // Every baseline tile launches that shape, named after each tile for the generators' pastes.
-    nk_cross_threads_f64_simt_k = nk_cross_threads_simt_k,
-    nk_cross_tile_f64_simt_k = nk_cross_tile_simt_k,
-    nk_cross_threads_b32_simt_k = nk_cross_threads_simt_k,
-    nk_cross_tile_b32_simt_k = nk_cross_tile_simt_k,
-    nk_cross_threads_scaled_simt_k = nk_cross_threads_simt_k,
-    nk_cross_tile_scaled_simt_k = nk_cross_tile_simt_k,
     nk_cross_pack_groups_k = 8,
 };
 
@@ -262,175 +229,48 @@ NUMKONG_INLINE nk_size_t nk_cross_padded_values_simt_(nk_size_t depth, nk_size_t
 
 #pragma endregion Pack Layout
 
-#pragma region Primitives
-
-/** Lanes of a warp or wavefront: 32 on NVIDIA, and on AMD 64 on CDNA and 32 on RDNA and MI400,
- *  which a build spanning both only learns per device pass. */
-NUMKONG_DEVICE unsigned nk_warp_lanes_(void) {
-#if NUMKONG_ARCH_ROCM_
-    return __builtin_amdgcn_wavefrontsize();
-#else
-    return 32;
-#endif
-}
-
-/*  The xor shuffles span the whole warp or wavefront, where offsets below 32 stay inside each half
- *  of a 64-lane one, and the up shuffle scans groups of 32 lanes. HIP takes no lane mask. */
-#if NUMKONG_ARCH_ROCM_
-NUMKONG_DEVICE nk_u32_t nk_shuffle_xor_u32_(nk_u32_t value, unsigned offset) { return __shfl_xor(value, offset); }
-NUMKONG_DEVICE nk_i32_t nk_shuffle_xor_i32_(nk_i32_t value, unsigned offset) { return __shfl_xor(value, offset); }
-NUMKONG_DEVICE nk_u64_t nk_shuffle_xor_u64_(nk_u64_t value, unsigned offset) {
-    return __shfl_xor((unsigned long long)value, offset);
-}
-NUMKONG_DEVICE nk_f32_t nk_shuffle_xor_f32_(nk_f32_t value, unsigned offset) { return __shfl_xor(value, offset); }
-NUMKONG_DEVICE nk_f64_t nk_shuffle_xor_f64_(nk_f64_t value, unsigned offset) { return __shfl_xor(value, offset); }
-NUMKONG_DEVICE nk_u64_t nk_shuffle_up_u64_(nk_u64_t value, unsigned offset) {
-    return __shfl_up((unsigned long long)value, offset, 32);
-}
-#else
-NUMKONG_DEVICE nk_u32_t nk_shuffle_xor_u32_(nk_u32_t value, unsigned offset) {
-    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
-}
-NUMKONG_DEVICE nk_i32_t nk_shuffle_xor_i32_(nk_i32_t value, unsigned offset) {
-    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
-}
-NUMKONG_DEVICE nk_u64_t nk_shuffle_xor_u64_(nk_u64_t value, unsigned offset) {
-    return __shfl_xor_sync(0xFFFFFFFFu, (unsigned long long)value, offset);
-}
-NUMKONG_DEVICE nk_f32_t nk_shuffle_xor_f32_(nk_f32_t value, unsigned offset) {
-    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
-}
-NUMKONG_DEVICE nk_f64_t nk_shuffle_xor_f64_(nk_f64_t value, unsigned offset) {
-    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
-}
-NUMKONG_DEVICE nk_u64_t nk_shuffle_up_u64_(nk_u64_t value, unsigned offset) {
-    return __shfl_up_sync(0xFFFFFFFFu, (unsigned long long)value, offset);
-}
-#endif
-
-/*  F64 arithmetic rounded one operation at a time, never contracted into an FMA, which would break
- *  Dot2's error terms. NVCC honors its rounding intrinsics, and HIP-Clang the pragma. */
-#if NUMKONG_ARCH_ROCM_
-NUMKONG_DEVICE nk_f64_t nk_f64_add_rn_(nk_f64_t a, nk_f64_t b) {
-#pragma clang fp contract(off)
-    return a + b;
-}
-NUMKONG_DEVICE nk_f64_t nk_f64_sub_rn_(nk_f64_t a, nk_f64_t b) {
-#pragma clang fp contract(off)
-    return a - b;
-}
-NUMKONG_DEVICE nk_f64_t nk_f64_mul_rn_(nk_f64_t a, nk_f64_t b) {
-#pragma clang fp contract(off)
-    return a * b;
-}
-#else
-NUMKONG_DEVICE nk_f64_t nk_f64_add_rn_(nk_f64_t a, nk_f64_t b) { return __dadd_rn(a, b); }
-NUMKONG_DEVICE nk_f64_t nk_f64_sub_rn_(nk_f64_t a, nk_f64_t b) { return __dsub_rn(a, b); }
-NUMKONG_DEVICE nk_f64_t nk_f64_mul_rn_(nk_f64_t a, nk_f64_t b) { return __dmul_rn(a, b); }
-#endif
-
-/** Adds a × b into a running sum: one F64 FMA, or Dot2's TwoProd and TwoSum with both
- *  errors kept apart. */
-NUMKONG_DEVICE void nk_cross_step_f64_(nk_cross_accumulation_t accumulation, nk_f64_t a, nk_f64_t b, nk_f64_t *sum,
-                                       nk_f64_t *compensation) {
-    if (accumulation == nk_cross_accumulation_f64_k) {
-        *sum = __fma_rn(a, b, *sum);
-        return;
-    }
-    nk_f64_t const product = nk_f64_mul_rn_(a, b), product_error = __fma_rn(a, b, -product);
-    nk_f64_t const total = nk_f64_add_rn_(*sum, product), virtual_addend = nk_f64_sub_rn_(total, *sum);
-    nk_f64_t const sum_error = nk_f64_add_rn_(nk_f64_sub_rn_(*sum, nk_f64_sub_rn_(total, virtual_addend)),
-                                              nk_f64_sub_rn_(product, virtual_addend));
-    *sum = total;
-    *compensation = nk_f64_add_rn_(*compensation, nk_f64_add_rn_(sum_error, product_error));
-}
-
-/** Merges the running sum of lane `lane ^ offset` into this one, through TwoSum under Dot2. */
-NUMKONG_DEVICE void nk_cross_merge_lanes_f64_(nk_cross_accumulation_t accumulation, unsigned offset, nk_f64_t *sum,
-                                              nk_f64_t *compensation) {
-    nk_f64_t const other_sum = nk_shuffle_xor_f64_(*sum, offset);
-    if (accumulation == nk_cross_accumulation_f64_k) {
-        *sum = nk_f64_add_rn_(*sum, other_sum);
-        return;
-    }
-    nk_f64_t const other_compensation = nk_shuffle_xor_f64_(*compensation, offset);
-    nk_f64_t const total = nk_f64_add_rn_(*sum, other_sum), virtual_addend = nk_f64_sub_rn_(total, *sum);
-    nk_f64_t const sum_error = nk_f64_add_rn_(nk_f64_sub_rn_(*sum, nk_f64_sub_rn_(total, virtual_addend)),
-                                              nk_f64_sub_rn_(other_sum, virtual_addend));
-    *sum = total;
-    *compensation = nk_f64_add_rn_(nk_f64_add_rn_(*compensation, other_compensation), sum_error);
-}
+/*  Portable folds of one 32-bit word of each operand, for capabilities lacking a dot instruction of
+ *  that shape; the capabilities that have one name it in their own helpers. */
+#pragma region Folds
 
 /** Adds the four signed byte products of @p a and @p b to @p sum, wrapping like serial I32. */
-NUMKONG_DEVICE nk_i32_t nk_dot_i8x4_(nk_u32_t a, nk_u32_t b, nk_i32_t sum) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-    return __dp4a((int)a, (int)b, sum);
-#elif NUMKONG_HAS_ROCM_SDOT_
-    return __builtin_amdgcn_sdot4((int)a, (int)b, sum, 0);
-#elif NUMKONG_HAS_ROCM_SUDOT_
-    return __builtin_amdgcn_sudot4(1, (int)a, 1, (int)b, sum, 0);
-#else
+NUMKONG_DEVICE nk_i32_t nk_dot_i8x4_simt_(nk_u32_t a, nk_u32_t b, nk_i32_t sum) {
     nk_i32_t products = 0;
     for (unsigned shift = 0; shift < 32; shift += 8)
         products += (nk_i32_t)(signed char)(a >> shift) * (nk_i32_t)(signed char)(b >> shift);
     return (nk_i32_t)((nk_u32_t)sum + (nk_u32_t)products);
-#endif
 }
 
 /** Adds the four unsigned byte products of @p a and @p b to @p sum, wrapping like serial U32. */
-NUMKONG_DEVICE nk_u32_t nk_dot_u8x4_(nk_u32_t a, nk_u32_t b, nk_u32_t sum) {
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 610
-    return __dp4a(a, b, sum);
-#elif NUMKONG_HAS_ROCM_UDOT_
-    return __builtin_amdgcn_udot4(a, b, sum, 0);
-#else
+NUMKONG_DEVICE nk_u32_t nk_dot_u8x4_simt_(nk_u32_t a, nk_u32_t b, nk_u32_t sum) {
     for (unsigned shift = 0; shift < 32; shift += 8) sum += ((a >> shift) & 0xFFu) * ((b >> shift) & 0xFFu);
     return sum;
-#endif
 }
 
 /** Adds the eight signed nibble products of @p a and @p b, paired by position, to @p sum. */
-NUMKONG_DEVICE nk_i32_t nk_dot_i4x8_(nk_u32_t a, nk_u32_t b, nk_i32_t sum) {
-#if NUMKONG_HAS_ROCM_SDOT_
-    return __builtin_amdgcn_sdot8((int)a, (int)b, sum, 0);
-#elif NUMKONG_HAS_ROCM_SUDOT_
-    return __builtin_amdgcn_sudot8(1, (int)a, 1, (int)b, sum, 0);
-#else
+NUMKONG_DEVICE nk_i32_t nk_dot_i4x8_simt_(nk_u32_t a, nk_u32_t b, nk_i32_t sum) {
     nk_i32_t products = 0;
     for (unsigned shift = 0; shift < 32; shift += 4)
         products += ((nk_i32_t)(((a >> shift) & 0xFu) ^ 8u) - 8) * ((nk_i32_t)(((b >> shift) & 0xFu) ^ 8u) - 8);
     return (nk_i32_t)((nk_u32_t)sum + (nk_u32_t)products);
-#endif
 }
 
 /** Adds the eight unsigned nibble products of @p a and @p b, paired by position, to @p sum. */
-NUMKONG_DEVICE nk_u32_t nk_dot_u4x8_(nk_u32_t a, nk_u32_t b, nk_u32_t sum) {
-#if NUMKONG_HAS_ROCM_UDOT_
-    return __builtin_amdgcn_udot8(a, b, sum, 0);
-#else
+NUMKONG_DEVICE nk_u32_t nk_dot_u4x8_simt_(nk_u32_t a, nk_u32_t b, nk_u32_t sum) {
     for (unsigned shift = 0; shift < 32; shift += 4) sum += ((a >> shift) & 0xFu) * ((b >> shift) & 0xFu);
     return sum;
-#endif
 }
 
-/** Adds both F16 products of @p a and @p b to @p sum, each exact in F32. */
-NUMKONG_DEVICE nk_f32_t nk_dot_f16x2_(nk_u32_t a, nk_u32_t b, nk_f32_t sum) {
-#if NUMKONG_HAS_ROCM_FDOT2_
-    union {
-        nk_u32_t bits;
-        _Float16_2 halves;
-    } const a_pair = {a}, b_pair = {b};
-    return __builtin_amdgcn_fdot2(a_pair.halves, b_pair.halves, sum, 0);
-#else
+/** Adds both F16 products of @p a and @p b to @p sum, each exact in F32, low pair first. */
+NUMKONG_DEVICE nk_f32_t nk_dot_f16x2_simt_(nk_u32_t a, nk_u32_t b, nk_f32_t sum) {
     nk_f32_t const a_low = __half2float(__ushort_as_half((unsigned short)(a & 0xFFFFu)));
     nk_f32_t const b_low = __half2float(__ushort_as_half((unsigned short)(b & 0xFFFFu)));
     nk_f32_t const a_high = __half2float(__ushort_as_half((unsigned short)(a >> 16)));
     nk_f32_t const b_high = __half2float(__ushort_as_half((unsigned short)(b >> 16)));
     return __fmaf_rn(a_high, b_high, __fmaf_rn(a_low, b_low, sum));
-#endif
 }
 
-#pragma endregion Primitives
+#pragma endregion Folds
 
 /*  Widenings every vendor's tiles share, then element decoders that widen one element exactly: F64
  *  and F32 to F64 for the F64 tile, and every narrower float to F32. The Float8 and Float6 ones go
@@ -539,32 +379,11 @@ NUMKONG_DEVICE nk_f32_t nk_cross_load_f32_(nk_dtype_t dtype, unsigned char const
 #pragma endregion Conversions
 
 /*  Each lane share returns a lane's part of a column's sum of squares, over indices `lane + 32 × k`
- *  below @c depth, which the pack merges across the 32 lanes: F64 for floats, Dot2-compensated for
- *  F64 and F32 inputs, and exact 64-bit sums for integers. Rows read bytewise, since the source's
- *  stride need not be element-aligned. */
+ *  below @c depth, which the pack merges across the 32 lanes: F64 for floats and exact 64-bit sums
+ *  for integers. The Dot2-compensated shares of F64 and F32 inputs, and the merges, round through
+ *  each vendor's primitives in its own header. Rows read bytewise, since the source's stride need
+ *  not be element-aligned. */
 #pragma region Norms
-
-NUMKONG_DEVICE nk_f64_t nk_f64_lane_sumsq_(unsigned char const *row, nk_size_t depth, unsigned lane) {
-    nk_f64_t sum = 0, compensation = 0;
-    for (nk_size_t index = lane; index < depth; index += 32) {
-        unsigned long long bits = 0;
-        for (unsigned byte = 0; byte < 8; ++byte) bits |= (unsigned long long)row[index * 8 + byte] << (byte * 8);
-        nk_f64_t const value = __longlong_as_double((long long)bits);
-        nk_cross_step_f64_(nk_cross_accumulation_dot2_k, value, value, &sum, &compensation);
-    }
-    return nk_f64_add_rn_(sum, compensation);
-}
-
-NUMKONG_DEVICE nk_f64_t nk_f32_lane_sumsq_(unsigned char const *row, nk_size_t depth, unsigned lane) {
-    nk_f64_t sum = 0, compensation = 0;
-    for (nk_size_t index = lane; index < depth; index += 32) {
-        nk_u32_t bits = 0;
-        for (unsigned byte = 0; byte < 4; ++byte) bits |= (nk_u32_t)row[index * 4 + byte] << (byte * 8);
-        nk_f64_t const value = (nk_f64_t)__uint_as_float(bits);
-        nk_cross_step_f64_(nk_cross_accumulation_dot2_k, value, value, &sum, &compensation);
-    }
-    return nk_f64_add_rn_(sum, compensation);
-}
 
 #define nk_define_lane_sumsq_simt_(input_type_name)                                                       \
     NUMKONG_DEVICE nk_f64_t nk_##input_type_name##_lane_sumsq_(unsigned char const *row, nk_size_t depth, \
@@ -638,23 +457,6 @@ NUMKONG_DEVICE nk_u64_t nk_u4_lane_sumsq_(unsigned char const *row, nk_size_t de
         sum += value * value;
     }
     return sum;
-}
-
-/** A column's norm from each of 32 lanes' F64 shares, merged through TwoSum and rounded once. */
-NUMKONG_DEVICE nk_f64_t nk_cross_pack_norm_f64_(nk_f64_t share) {
-    nk_f64_t compensation = 0;
-    for (unsigned offset = 16; offset != 0; offset >>= 1)
-        nk_cross_merge_lanes_f64_(nk_cross_accumulation_dot2_k, offset, &share, &compensation);
-    return nk_f64_add_rn_(share, compensation);
-}
-
-/** A column's F32 norm from each of 32 lanes' F64 shares, summed in F64 and rounded once. */
-NUMKONG_DEVICE nk_f32_t nk_cross_pack_norm_f32_(nk_f64_t share) { return (nk_f32_t)nk_cross_pack_norm_f64_(share); }
-
-/** A column's U32 norm from each of 32 lanes' exact shares, truncated like the serial backends'. */
-NUMKONG_DEVICE nk_u32_t nk_cross_pack_norm_u32_(nk_u64_t share) {
-    for (unsigned offset = 16; offset != 0; offset >>= 1) share += nk_shuffle_xor_u64_(share, offset);
-    return (nk_u32_t)share;
 }
 
 /*  The tensor tiles' row norms: each update adds the squares of one 16-byte chunk of a staged row,
@@ -742,32 +544,10 @@ NUMKONG_DEVICE nk_f32_t nk_cross_dot_to_f32_(nk_fui32_t sum, nk_cross_epilogue_t
  *  output tile, strided by 16, so shared-memory reads broadcast along one axis and sweep the banks
  *  along the other. The F64 tile stages F64 values and sums F64 or Dot2; the B32 tile stages 32-bit
  *  words and folds each pair with one instruction. For a metric, each thread also squares the A
- *  and, for @c symmetric, B elements it stages, and the threads staging one row merge them. */
+ *  and, for @c symmetric, B elements it stages, and the threads staging one row merge them. Here
+ *  are the stages needing no vendor instruction, which each capability's tile runs around its own
+ *  folds and lane merges. */
 #pragma region Baseline Tile
-
-/** Folds one 32-bit word of each operand into @p sum, by the instruction @p accumulation names. */
-NUMKONG_DEVICE void nk_cross_fold_b32_(nk_cross_accumulation_t accumulation, nk_fui32_t *sum, nk_u32_t a, nk_u32_t b) {
-    switch (accumulation) {
-    case nk_cross_accumulation_f32_k: sum->f = __fmaf_rn(__uint_as_float(a), __uint_as_float(b), sum->f); break;
-    case nk_cross_accumulation_f16x2_k: sum->f = nk_dot_f16x2_(a, b, sum->f); break;
-    case nk_cross_accumulation_i8x4_k:
-    case nk_cross_accumulation_i4x4_k: sum->i = nk_dot_i8x4_(a, b, sum->i); break;
-    case nk_cross_accumulation_u8x4_k:
-    case nk_cross_accumulation_u4x4_k: sum->u = nk_dot_u8x4_(a, b, sum->u); break;
-    case nk_cross_accumulation_i4x8_k: sum->i = nk_dot_i4x8_(a, b, sum->i); break;
-    default: sum->u = nk_dot_u4x8_(a, b, sum->u); break;
-    }
-}
-
-/** Adds lane `lane ^ offset`'s B32 sum into @p sum: in F32 for floats, wrapping for integers. */
-NUMKONG_DEVICE nk_fui32_t nk_cross_merge_lanes_b32_(nk_cross_accumulation_t accumulation, unsigned offset,
-                                                    nk_fui32_t sum) {
-    nk_fui32_t other;
-    other.u = nk_shuffle_xor_u32_(sum.u, offset);
-    if (accumulation == nk_cross_accumulation_f32_k || accumulation == nk_cross_accumulation_f16x2_k) sum.f += other.f;
-    else sum.u += other.u;
-    return sum;
-}
 
 /** A B32 sum as F32: floats as they are, integers read signed or unsigned as serial backends do. */
 NUMKONG_DEVICE nk_f32_t nk_cross_b32_to_f32_(nk_cross_accumulation_t accumulation, nk_fui32_t sum) {
@@ -836,15 +616,14 @@ NUMKONG_DEVICE nk_u32_t nk_cross_stage_b32_(nk_cross_accumulation_t accumulation
     }
 }
 
-/** Stages one slab of F64 values for the tile at @p first_row and @p first_column, squaring each
- *  into its row's compensated norm when @p metric needs norms. */
-NUMKONG_DEVICE void nk_cross_stage_slab_f64_simt_(nk_dtype_t dtype, nk_cross_triangle_t triangle,
-                                                  nk_cross_metric_t metric, nk_cross_tile_arguments_t const *arguments,
+/** Stages one slab of F64 values for the tile at @p first_row and @p first_column, returning the
+ *  values this thread staged in @p a_values and @p b_values for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_f64_simt_(nk_dtype_t dtype, nk_cross_tile_arguments_t const *arguments,
                                                   nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
                                                   nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
                                                   nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-                                                  nk_f64_t a_norms[nk_cross_loads_simt_k][2],
-                                                  nk_f64_t b_norms[nk_cross_loads_simt_k][2]) {
+                                                  nk_f64_t a_values[nk_cross_loads_simt_k],
+                                                  nk_f64_t b_values[nk_cross_loads_simt_k]) {
 #pragma unroll
     for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
         unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
@@ -857,52 +636,17 @@ NUMKONG_DEVICE void nk_cross_stage_slab_f64_simt_(nk_dtype_t dtype, nk_cross_tri
                                      ? nk_cross_load_f64_(dtype, arguments->b + column * arguments->b_stride, index)
                                      : 0;
         a_slab[offset][tile_row] = a_value, b_slab[offset][tile_row] = b_value;
-        if (metric == nk_cross_metric_dot_k) continue;
-        nk_cross_step_f64_(nk_cross_accumulation_dot2_k, a_value, a_value, &a_norms[step][0], &a_norms[step][1]);
-        if (triangle == nk_cross_triangle_upper_k)
-            nk_cross_step_f64_(nk_cross_accumulation_dot2_k, b_value, b_value, &b_norms[step][0], &b_norms[step][1]);
+        a_values[step] = a_value, b_values[step] = b_value;
     }
 }
 
-/** Folds one staged slab into this thread's grid of F64 sums and their compensations. */
-NUMKONG_DEVICE void nk_cross_fold_slab_f64_simt_(
-    nk_cross_accumulation_t accumulation, nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-    nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-    nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
-    nk_f64_t compensations[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
-    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
-    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
-#pragma unroll
-    for (unsigned offset = 0; offset < nk_cross_slab_simt_k; ++offset) {
-        nk_f64_t a_values[nk_cross_thread_tile_simt_k], b_values[nk_cross_thread_tile_simt_k];
-#pragma unroll
-        for (unsigned step = 0; step < nk_cross_thread_tile_simt_k; ++step)
-            a_values[step] = a_slab[offset][thread_row + nk_cross_grid_side_simt_k * step],
-            b_values[step] = b_slab[offset][thread_column + nk_cross_grid_side_simt_k * step];
-#pragma unroll
-        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
-#pragma unroll
-            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
-                nk_cross_step_f64_(accumulation, a_values[row_step], b_values[column_step],
-                                   &sums[row_step][column_step], &compensations[row_step][column_step]);
-    }
-}
-
-/** Merges each staged row's compensated norm across the threads that staged it, then publishes the
- *  tile's row norms and its column norms, read from @c b_norms for @c packed. */
-NUMKONG_DEVICE void nk_cross_finish_norms_f64_simt_(nk_cross_triangle_t triangle,
-                                                    nk_cross_tile_arguments_t const *arguments, nk_size_t first_column,
-                                                    nk_f64_t a_norms[nk_cross_loads_simt_k][2],
-                                                    nk_f64_t b_norms[nk_cross_loads_simt_k][2],
-                                                    nk_f64_t norms[2][nk_cross_tile_simt_k]) {
-#pragma unroll
-    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step)
-#pragma unroll
-        for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
-            nk_cross_merge_lanes_f64_(nk_cross_accumulation_dot2_k, offset, &a_norms[step][0], &a_norms[step][1]);
-            if (triangle == nk_cross_triangle_upper_k)
-                nk_cross_merge_lanes_f64_(nk_cross_accumulation_dot2_k, offset, &b_norms[step][0], &b_norms[step][1]);
-        }
+/** Publishes the tile's row norms, which the threads staging each row merged and rounded, and its
+ *  column norms, merged likewise for @c symmetric and read from @p b_norms for @c packed. */
+NUMKONG_DEVICE void nk_cross_publish_norms_f64_simt_(nk_cross_triangle_t triangle,
+                                                     nk_cross_tile_arguments_t const *arguments, nk_size_t first_column,
+                                                     nk_f64_t const a_norms[nk_cross_loads_simt_k],
+                                                     nk_f64_t const b_norms[nk_cross_loads_simt_k],
+                                                     nk_f64_t norms[2][nk_cross_tile_simt_k]) {
     // Zero-depth tiles skip the slab loop's barriers, so this one retires the last epilogue reads.
     __syncthreads();
     if (threadIdx.x % nk_cross_slab_simt_k == 0)
@@ -910,9 +654,8 @@ NUMKONG_DEVICE void nk_cross_finish_norms_f64_simt_(nk_cross_triangle_t triangle
         for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
             unsigned const tile_row = threadIdx.x / nk_cross_slab_simt_k +
                                       step * (nk_cross_threads_simt_k / nk_cross_slab_simt_k);
-            norms[0][tile_row] = nk_f64_add_rn_(a_norms[step][0], a_norms[step][1]);
-            if (triangle == nk_cross_triangle_upper_k)
-                norms[1][tile_row] = nk_f64_add_rn_(b_norms[step][0], b_norms[step][1]);
+            norms[0][tile_row] = a_norms[step];
+            if (triangle == nk_cross_triangle_upper_k) norms[1][tile_row] = b_norms[step];
         }
     if (triangle == nk_cross_triangle_full_k && threadIdx.x < nk_cross_tile_simt_k) {
         nk_size_t const column = first_column + threadIdx.x;
@@ -921,14 +664,12 @@ NUMKONG_DEVICE void nk_cross_finish_norms_f64_simt_(nk_cross_triangle_t triangle
     __syncthreads();
 }
 
-/** Writes this thread's outputs of the tile as F64: dots, or metrics with zeros on the diagonal of
- *  @c symmetric. */
+/** Writes this thread's outputs of the tile as F64: its rounded @p dots, or metrics with zeros on
+ *  the diagonal of @c symmetric. */
 NUMKONG_DEVICE void nk_cross_store_tile_f64_simt_(
     nk_cross_triangle_t triangle, nk_cross_metric_t metric, nk_cross_tile_arguments_t const *arguments,
     nk_size_t first_row, nk_size_t first_column,
-    nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
-    nk_f64_t compensations[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
-    nk_f64_t norms[2][nk_cross_tile_simt_k]) {
+    nk_f64_t dots[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k], nk_f64_t norms[2][nk_cross_tile_simt_k]) {
     unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
     unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
 #pragma unroll
@@ -942,7 +683,7 @@ NUMKONG_DEVICE void nk_cross_store_tile_f64_simt_(
             unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
             nk_size_t const column = first_column + tile_column;
             if (column >= arguments->column_count || (triangle == nk_cross_triangle_upper_k && column < row)) continue;
-            nk_f64_t const dot = nk_f64_add_rn_(sums[row_step][column_step], compensations[row_step][column_step]);
+            nk_f64_t const dot = dots[row_step][column_step];
             if (metric == nk_cross_metric_dot_k) output[column] = dot;
             else if (triangle == nk_cross_triangle_upper_k && column == row) output[column] = 0;
             else if (metric == nk_cross_metric_angular_k)
@@ -952,53 +693,15 @@ NUMKONG_DEVICE void nk_cross_store_tile_f64_simt_(
     }
 }
 
-/**
- *  @brief The GEMM of one 64 × 64 output tile of F64 or F32 inputs, in F64 or Dot2.
- *  @param[in] dtype @c nk_f64_k or @c nk_f32_k, the rows' element type.
- *  @param[in] accumulation @c nk_cross_accumulation_dot2_k for F64 inputs and
- *      @c nk_cross_accumulation_f64_k for F32 ones; the norms always sum in Dot2.
- *
- *  Tensor-core F64 MMA never exposes a product's rounding error, which Dot2 needs, and outside the
- *  8.0 and 9.0 datacenter parts it runs no faster than these FMAs.
- */
-NUMKONG_DEVICE void nk_cross_tile_f64_simt_(nk_dtype_t dtype, nk_cross_accumulation_t accumulation,
-                                            nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-                                            nk_cross_tile_arguments_t const *arguments) {
-    // One extra column breaks the 64-element stride that would put a slab's stores on one bank.
-    __shared__ nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
-    __shared__ nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
-    __shared__ nk_f64_t norms[2][nk_cross_tile_simt_k];
-
-    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_simt_k;
-        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
-        nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
-        nk_f64_t compensations[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
-        nk_f64_t a_norms[nk_cross_loads_simt_k][2] = {{0}}, b_norms[nk_cross_loads_simt_k][2] = {{0}};
-        for (nk_size_t slab = 0; slab < arguments->depth; slab += nk_cross_slab_simt_k) {
-            nk_cross_stage_slab_f64_simt_(dtype, triangle, metric, arguments, first_row, first_column, slab, a_slab,
-                                          b_slab, a_norms, b_norms);
-            __syncthreads();
-            nk_cross_fold_slab_f64_simt_(accumulation, a_slab, b_slab, sums, compensations);
-            __syncthreads();
-        }
-        if (metric != nk_cross_metric_dot_k)
-            nk_cross_finish_norms_f64_simt_(triangle, arguments, first_column, a_norms, b_norms, norms);
-        nk_cross_store_tile_f64_simt_(triangle, metric, arguments, first_row, first_column, sums, compensations, norms);
-    }
-}
-
-/** Stages one slab of 32-bit words for the tile at @p first_row and @p first_column, folding each
- *  word with itself into its row's norm when @p metric needs norms. */
+/** Stages one slab of 32-bit words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
 NUMKONG_DEVICE void nk_cross_stage_slab_b32_simt_(nk_dtype_t dtype, nk_cross_accumulation_t accumulation,
-                                                  nk_cross_triangle_t triangle, nk_cross_metric_t metric,
                                                   nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
                                                   nk_size_t first_column, nk_size_t slab, nk_size_t words,
                                                   nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
                                                   nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-                                                  nk_fui32_t a_norms[nk_cross_loads_simt_k],
-                                                  nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
+                                                  nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                  nk_u32_t b_words[nk_cross_loads_simt_k]) {
 #pragma unroll
     for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
         unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
@@ -1014,49 +717,17 @@ NUMKONG_DEVICE void nk_cross_stage_slab_b32_simt_(nk_dtype_t dtype, nk_cross_acc
                                                           arguments->depth)
                                     : 0;
         a_slab[offset][tile_row] = a_word, b_slab[offset][tile_row] = b_word;
-        if (metric == nk_cross_metric_dot_k) continue;
-        nk_cross_fold_b32_(accumulation, &a_norms[step], a_word, a_word);
-        if (triangle == nk_cross_triangle_upper_k) nk_cross_fold_b32_(accumulation, &b_norms[step], b_word, b_word);
+        a_words[step] = a_word, b_words[step] = b_word;
     }
 }
 
-/** Folds one staged slab into this thread's grid of 32-bit sums. */
-NUMKONG_DEVICE void nk_cross_fold_slab_b32_simt_(
-    nk_cross_accumulation_t accumulation, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-    nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
-    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
-    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
-#pragma unroll
-    for (unsigned offset = 0; offset < nk_cross_slab_simt_k; ++offset) {
-        nk_u32_t a_words[nk_cross_thread_tile_simt_k], b_words[nk_cross_thread_tile_simt_k];
-#pragma unroll
-        for (unsigned step = 0; step < nk_cross_thread_tile_simt_k; ++step)
-            a_words[step] = a_slab[offset][thread_row + nk_cross_grid_side_simt_k * step],
-            b_words[step] = b_slab[offset][thread_column + nk_cross_grid_side_simt_k * step];
-#pragma unroll
-        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
-#pragma unroll
-            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
-                nk_cross_fold_b32_(accumulation, &sums[row_step][column_step], a_words[row_step], b_words[column_step]);
-    }
-}
-
-/** Merges each staged row's norm across the threads that staged it, then publishes the tile's row
- *  norms and its column norms, read from the pack for @c packed. */
-NUMKONG_DEVICE void nk_cross_finish_norms_b32_simt_(nk_cross_accumulation_t accumulation, nk_cross_triangle_t triangle,
-                                                    nk_cross_tile_arguments_t const *arguments, nk_size_t first_column,
-                                                    nk_fui32_t a_norms[nk_cross_loads_simt_k],
-                                                    nk_fui32_t b_norms[nk_cross_loads_simt_k],
-                                                    nk_fui32_t norms[2][nk_cross_tile_simt_k]) {
-#pragma unroll
-    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step)
-#pragma unroll
-        for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
-            a_norms[step] = nk_cross_merge_lanes_b32_(accumulation, offset, a_norms[step]);
-            if (triangle == nk_cross_triangle_upper_k)
-                b_norms[step] = nk_cross_merge_lanes_b32_(accumulation, offset, b_norms[step]);
-        }
+/** Publishes the tile's row norms, which the threads staging each row merged, and its column norms,
+ *  merged likewise for @c symmetric and read from the pack for @c packed. */
+NUMKONG_DEVICE void nk_cross_publish_norms_b32_simt_(nk_cross_triangle_t triangle,
+                                                     nk_cross_tile_arguments_t const *arguments, nk_size_t first_column,
+                                                     nk_fui32_t const a_norms[nk_cross_loads_simt_k],
+                                                     nk_fui32_t const b_norms[nk_cross_loads_simt_k],
+                                                     nk_fui32_t norms[2][nk_cross_tile_simt_k]) {
     // Zero-depth tiles skip the slab loop's barriers, so this one retires the last epilogue reads.
     __syncthreads();
     if (threadIdx.x % nk_cross_slab_simt_k == 0)
@@ -1109,46 +780,8 @@ NUMKONG_DEVICE void nk_cross_store_tile_b32_simt_(
     }
 }
 
-/**
- *  @brief The GEMM of one 64 × 64 output tile of 16-bit or narrower inputs, folding 32-bit words.
- *  @param[in] dtype The rows' element type, which a float word decodes from.
- *  @param[in] accumulation How each word holds depth and which instruction folds it; the norms fold
- *      the same way.
- */
-NUMKONG_DEVICE void nk_cross_tile_b32_simt_(nk_dtype_t dtype, nk_cross_accumulation_t accumulation,
-                                            nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-                                            nk_cross_tile_arguments_t const *arguments) {
-    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
-    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
-    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
-    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
-    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_b32_dimensions_(accumulation));
-
-    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_simt_k;
-        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
-        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
-        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
-        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
-            nk_cross_stage_slab_b32_simt_(dtype, accumulation, triangle, metric, arguments, first_row, first_column,
-                                          slab, words, a_slab, b_slab, a_norms, b_norms);
-            __syncthreads();
-            nk_cross_fold_slab_b32_simt_(accumulation, a_slab, b_slab, sums);
-            __syncthreads();
-        }
-        if (metric != nk_cross_metric_dot_k)
-            nk_cross_finish_norms_b32_simt_(accumulation, triangle, arguments, first_column, a_norms, b_norms, norms);
-        nk_cross_store_tile_b32_simt_(accumulation, triangle, metric, arguments, first_row, first_column, sums, norms);
-    }
-}
-
-#pragma endregion Baseline Tile
-
-#pragma region Scaled Tile
-
 /** Decodes the scale of block @p block of row `first + threadIdx.x` times @p tensor_scale into
- *  @p scales, zero past @p rows. */
+ *  @p scales, zero past @p rows, for the block-scaled tiles. */
 NUMKONG_DEVICE void nk_cross_stage_scale_simt_(nk_block_scaled_format_t format, unsigned char const *row_scales,
                                                nk_size_t scales_stride, nk_f32_t tensor_scale, nk_size_t first,
                                                nk_size_t rows, nk_size_t block, nk_f32_t *scales) {
@@ -1159,83 +792,7 @@ NUMKONG_DEVICE void nk_cross_stage_scale_simt_(nk_block_scaled_format_t format, 
                                      : 0;
 }
 
-/** The GEMM of a block-scaled @p dtype, each block walking 64 × 64 output tiles with a stride of
- *  the grid. Every 16-element slab lies inside one block, so its products gather in F32 partial
- *  sums that take both scales once the block ends. */
-NUMKONG_DEVICE void nk_cross_tile_scaled_simt_(nk_dtype_t dtype, nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-                                               nk_cross_tile_arguments_t const *arguments) {
-    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
-    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
-    __shared__ nk_f32_t a_scales[nk_cross_tile_simt_k], b_scales[nk_cross_tile_simt_k];
-    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
-    nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(dtype);
-    nk_cross_accumulation_t const accumulation = nk_cross_accumulation_f32_k;
-    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
-    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
-    nk_f32_t const a_tensor_scale = arguments->a_tensor_scale ? *arguments->a_tensor_scale : 1;
-    nk_f32_t const b_tensor_scale = arguments->b_tensor_scale ? *arguments->b_tensor_scale : 1;
-
-    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
-        nk_size_t const first_row = arguments->row_start + tile / arguments->column_tiles * nk_cross_tile_simt_k;
-        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
-        nk_fui32_t partials[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
-        nk_fui32_t totals[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
-        nk_fui32_t unused_norms[nk_cross_loads_simt_k];
-        for (nk_size_t slab = 0; slab < arguments->depth; slab += nk_cross_slab_simt_k) {
-            nk_cross_stage_slab_b32_simt_(format.element_dtype, accumulation, triangle, nk_cross_metric_dot_k,
-                                          arguments, first_row, first_column, slab, arguments->depth, a_slab, b_slab,
-                                          unused_norms, unused_norms);
-            nk_size_t const block = slab / format.block_size;
-            if (threadIdx.x < nk_cross_tile_simt_k) {
-                nk_cross_stage_scale_simt_(format, arguments->a_scales, arguments->a_scales_stride, a_tensor_scale,
-                                           first_row, arguments->row_end, block, a_scales);
-                nk_cross_stage_scale_simt_(format, arguments->b_scales, arguments->b_scales_stride, b_tensor_scale,
-                                           first_column, arguments->column_count, block, b_scales);
-            }
-            __syncthreads();
-            nk_cross_fold_slab_b32_simt_(accumulation, a_slab, b_slab, partials);
-            if ((slab + nk_cross_slab_simt_k) % format.block_size == 0 ||
-                slab + nk_cross_slab_simt_k >= arguments->depth)
-#pragma unroll
-                for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
-#pragma unroll
-                    for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
-                        totals[row_step][column_step].f +=
-                            partials[row_step][column_step].f *
-                            a_scales[thread_row + nk_cross_grid_side_simt_k * row_step] *
-                            b_scales[thread_column + nk_cross_grid_side_simt_k * column_step];
-                        partials[row_step][column_step].f = 0;
-                    }
-            __syncthreads();
-        }
-        if (metric != nk_cross_metric_dot_k) {
-            // The first barrier retires the previous tile's norm reads, the second publishes these.
-            __syncthreads();
-            if (threadIdx.x < nk_cross_tile_simt_k) {
-                nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
-                norms[0][threadIdx.x].f = row < arguments->row_end
-                                              ? (nk_f32_t)nk_cross_scaled_sumsq_simt_(
-                                                    dtype, arguments->a + row * arguments->a_stride,
-                                                    arguments->a_scales + row * arguments->a_scales_stride,
-                                                    a_tensor_scale, arguments->depth, 0, 1)
-                                              : 0;
-                if (column >= arguments->column_count) norms[1][threadIdx.x].f = 0;
-                else if (triangle == nk_cross_triangle_upper_k)
-                    norms[1][threadIdx.x].f = (nk_f32_t)nk_cross_scaled_sumsq_simt_(
-                        dtype, arguments->b + column * arguments->b_stride,
-                        arguments->b_scales + column * arguments->b_scales_stride, b_tensor_scale, arguments->depth, 0,
-                        1);
-                else norms[1][threadIdx.x].f = ((nk_f32_t const *)arguments->b_norms)[column];
-            }
-            __syncthreads();
-        }
-        nk_cross_store_tile_b32_simt_(accumulation, triangle, metric, arguments, first_row, first_column, totals,
-                                      norms);
-    }
-}
-
-#pragma endregion Scaled Tile
+#pragma endregion Baseline Tile
 
 /*  Every tile, baseline or tensor, takes its own leading arguments, then the triangle, the metric
  *  and the launch arguments, so one generator per shape serves them all: the site passes the tile's
@@ -1260,86 +817,6 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_simt_(nk_dtype_t dtype, nk_cross_triang
                  column_count * (row_bytes + nk_cross_scales_stride_(nk_##input_type_name##_k, depth) +              \
                                  sizeof(nk_##norm_value_type##_t));                                                  \
         return nk_success_k;                                                                                         \
-    }
-
-/**
- *  @brief Generates the kernel of a pack into the serial layout, one 32-lane group per column.
- *
- *  The header is written only when @p columns_begin is zero, and each packed column gets its row
- *  and its norm, so disjoint column ranges may be packed by separate calls, exactly as with
- *  @c nk_define_cross_pack_.
- *
- *  @param[in] load_fn Device map from an input byte to its packed byte, the identity unless the
- *      multiply wants a remap.
- *  @param[in] norm_value_type The serial backends' norm type: @c f64, @c f32 or @c u32.
- *  @param[in] compute_norm_fn Device share of a column's sum of squares for one lane of 32, which
- *      @c nk_cross_pack_norm_f64_, @c nk_cross_pack_norm_f32_ or @c nk_cross_pack_norm_u32_ merges.
- *  @sa nk_define_cross_pack_ for the host original.
- */
-#define nk_define_cross_pack_kernel_simt_(input_type_name, isa_suffix, packed_value_type, load_fn, norm_value_type,    \
-                                          compute_norm_fn)                                                             \
-    static __global__ void nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_(                                    \
-        unsigned char const *b, nk_size_t column_count, nk_size_t depth, nk_size_t depth_bytes, nk_size_t b_stride,    \
-        unsigned char *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_size_t depth_values_padded,        \
-        nk_capability_t capability, unsigned char const *b_scales, nk_size_t b_scales_stride,                          \
-        nk_f32_t const *b_tensor_scale, nk_size_t scales_stride) {                                                     \
-        nk_size_t const row_bytes = depth_values_padded * sizeof(nk_##packed_value_type##_t);                          \
-        nk_f32_t const tensor_scale = b_tensor_scale ? *b_tensor_scale : 1;                                            \
-        if (columns_begin == 0 && blockIdx.x == 0 && threadIdx.x == 0) {                                               \
-            nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;                     \
-            header->column_count = (nk_u32_t)column_count;                                                             \
-            header->depth_dimensions = (nk_u32_t)depth;                                                                \
-            header->depth_padded_values = (nk_u32_t)depth_values_padded;                                               \
-            header->scales_stride = (nk_u32_t)scales_stride;                                                           \
-            header->tensor_scale = tensor_scale;                                                                       \
-            header->capability = capability;                                                                           \
-            for (unsigned reserved_index = 0; reserved_index < 9; ++reserved_index)                                    \
-                header->reserved[reserved_index] = 0;                                                                  \
-        }                                                                                                              \
-        unsigned char *rows = b_packed + sizeof(nk_cross_packed_buffer_header_t);                                      \
-        unsigned char *scales = rows + column_count * row_bytes;                                                       \
-        nk_##norm_value_type##_t *norms = (nk_##norm_value_type##_t *)(scales + column_count * scales_stride);         \
-        unsigned const lane = threadIdx.x & 31;                                                                        \
-        nk_size_t const groups = (nk_size_t)gridDim.x * (blockDim.x >> 5);                                             \
-        for (nk_size_t column = columns_begin + (nk_size_t)blockIdx.x * (blockDim.x >> 5) + (threadIdx.x >> 5);        \
-             column < columns_end; column += groups) {                                                                 \
-            unsigned char const *source = b + column * b_stride;                                                       \
-            unsigned char *destination = rows + column * row_bytes;                                                    \
-            for (nk_size_t byte = lane; byte < row_bytes; byte += 32)                                                  \
-                destination[byte] = byte < depth_bytes ? load_fn(source[byte]) : 0;                                    \
-            unsigned char const *source_scales = b_scales + column * b_scales_stride;                                  \
-            for (nk_size_t byte = lane; byte < scales_stride; byte += 32)                                              \
-                scales[column * scales_stride + byte] = byte < nk_cross_scale_blocks_(nk_##input_type_name##_k, depth) \
-                                                            ? source_scales[byte]                                      \
-                                                            : 0;                                                       \
-            nk_##norm_value_type##_t const norm = nk_cross_pack_norm_##norm_value_type##_(                             \
-                scales_stride ? nk_cross_scaled_sumsq_simt_(nk_##input_type_name##_k, source, source_scales,           \
-                                                            tensor_scale, depth, lane, 32)                             \
-                              : compute_norm_fn(source, depth, lane));                                                 \
-            if (lane == 0) norms[column] = norm;                                                                       \
-        }                                                                                                              \
-    }
-
-/**
- *  @brief Generates the kernel of C = A × Bᵀ, or of its angular or euclidean distances, on @p tile
- *      over a packed B, each block walking tiles with a stride of the grid.
- *  @param[in] metric @c dot, @c angular or @c euclidean, naming both the entry and the epilogue.
- *  @param[in] tile The tile stem, like @c b32_simt or @c ampere, naming its function and launch shape.
- *  @param[in] ... The tile's own leading arguments, which precede the triangle, the metric
- *      and the launch arguments.
- */
-#define nk_define_cross_packed_kernel_simt_(metric, input_type_name, isa_suffix, tile, ...)                       \
-    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                         \
-        nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {   \
-        nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_full_k, nk_cross_metric_##metric##_k, &arguments); \
-    }
-
-/** Generates the kernel of the Gram matrix C = A × Aᵀ, or of its angular or euclidean distances, on
- *  @p tile: the upper triangle, skipping tiles wholly below it. */
-#define nk_define_cross_symmetric_kernel_simt_(metric, input_type_name, isa_suffix, tile, ...)                     \
-    static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                          \
-        nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) { \
-        nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_upper_k, nk_cross_metric_##metric##_k, &arguments); \
     }
 
 #pragma endregion Cross Macros

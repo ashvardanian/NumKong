@@ -6,6 +6,8 @@
  */
 #undef NUMKONG_TARGET_ROCM
 #define NUMKONG_TARGET_ROCM 0
+#undef NUMKONG_TARGET_CDNA3
+#define NUMKONG_TARGET_CDNA3 0
 #undef NUMKONG_TARGET_CDNA5
 #define NUMKONG_TARGET_CDNA5 0
 #include "numkong/numkong.h"

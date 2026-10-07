@@ -18,8 +18,9 @@
  *  all squares match the serial ones, and signed sums do unless a block's partial overflows I64.
  *  F64 inputs sum in F64 with Neumaier compensation like their serial kernel. F32 and BF16 inputs
  *  sum as unevaluated F32 pairs and the other narrow floats in F32 with Neumaier compensation,
- *  sparing the F64 units, which run at 2 results per clock per SM on the B300. E2M1 sums twice its
- *  values as exact integers.
+ *  sparing the F64 units, which run at 2 results per clock per SM on the B300. Both loops square
+ *  through the vendor's rounded product, so they live in `cuda.cuh` beside this file. E2M1 sums
+ *  twice its values as exact integers.
  *
  *  Min/max orders every value by a signed key: the narrow floats by the sign-magnitude order of
  *  `nk_*_order_`, -0 below +0, and F32 and F64 by value, ±0 tied, both skipping NaNs. Ties go to
@@ -220,7 +221,7 @@ NUMKONG_DEVICE void nk_reduce_minmax_finish_simt_(nk_dtype_t dtype, nk_u64_t min
 NUMKONG_DEVICE void nk_reduce_minmax_simt_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
     __shared__ nk_reduce_minmax_state_t states[nk_reduce_threads_simt_k];
     nk_reduce_minmax_state_t state;
-    nk_i64_t key, min_sentinel_key, max_sentinel_key;
+    nk_i64_t key;
     state.min_key = 0, state.min_index = NUMKONG_SIZE_MAX, state.max_key = 0, state.max_index = NUMKONG_SIZE_MAX;
     for (nk_size_t first = nk_reduce_lane_simt_(); first < arguments->count;
          first += nk_reduce_lanes_simt_() * nk_reduce_batch_simt_k) {
@@ -357,17 +358,6 @@ NUMKONG_DEVICE nk_f32_t nk_reduce_f32_simt_(nk_dtype_t dtype, nk_u64_t raw) {
     return value;
 }
 
-/*  F32 product rounded on its own, never contracted into the FMA of a following sum, which would
- *  break TwoProduct's error term. NVCC honors its rounding intrinsic, and HIP-Clang the pragma. */
-#if NUMKONG_ARCH_ROCM_
-NUMKONG_DEVICE nk_f32_t nk_f32_mul_rn_simt_(nk_f32_t a, nk_f32_t b) {
-#pragma clang fp contract(off)
-    return a * b;
-}
-#else
-NUMKONG_DEVICE nk_f32_t nk_f32_mul_rn_simt_(nk_f32_t a, nk_f32_t b) { return __fmul_rn(a, b); }
-#endif
-
 /** Adds @p addend to @p sum through TwoSum, gathering the rounding error into @p compensation. */
 NUMKONG_DEVICE void nk_f32_two_sum_simt_(nk_f32_t addend, nk_f32_t *sum, nk_f32_t *compensation) {
     nk_f32_t const total = *sum + addend, virtual_addend = total - *sum;
@@ -382,41 +372,6 @@ typedef struct {
     nk_f32_t sumsq;
     nk_f32_t sumsq_compensation;
 } nk_reduce_f32_moments_t;
-
-/** Sums the narrow float @p dtype values and their squares in F32 with Neumaier compensation, their
- *  squares exact in F32. */
-NUMKONG_DEVICE void nk_reduce_f32_moments_simt_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
-    __shared__ nk_reduce_f32_moments_t states[nk_reduce_threads_simt_k];
-    nk_reduce_f32_moments_t state;
-    state.sum = 0, state.sum_compensation = 0, state.sumsq = 0, state.sumsq_compensation = 0;
-    for (nk_size_t first = nk_reduce_lane_simt_(); first < arguments->count;
-         first += nk_reduce_lanes_simt_() * nk_reduce_batch_simt_k) {
-        nk_u64_t raws[nk_reduce_batch_simt_k];
-        nk_reduce_batch_simt_(dtype, arguments, first, nk_reduce_lanes_simt_(), arguments->count, raws);
-#pragma unroll
-        for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {
-            if (first + slot * nk_reduce_lanes_simt_() >= arguments->count) break;
-            nk_f32_t const value = nk_reduce_f32_simt_(dtype, raws[slot]);
-            nk_f32_two_sum_simt_(value, &state.sum, &state.sum_compensation);
-            nk_f32_two_sum_simt_(nk_f32_mul_rn_simt_(value, value), &state.sumsq, &state.sumsq_compensation);
-        }
-    }
-    states[threadIdx.x] = state;
-    __syncthreads();
-    for (unsigned half = blockDim.x / 2; half; half >>= 1) {
-        if (threadIdx.x < half) {
-            nk_reduce_f32_moments_t *into = &states[threadIdx.x];
-            nk_reduce_f32_moments_t const *other = &states[threadIdx.x + half];
-            nk_f32_two_sum_simt_(other->sum, &into->sum, &into->sum_compensation);
-            nk_f32_two_sum_simt_(other->sumsq, &into->sumsq, &into->sumsq_compensation);
-            into->sum_compensation += other->sum_compensation, into->sumsq_compensation += other->sumsq_compensation;
-        }
-        __syncthreads();
-    }
-    if (threadIdx.x) return;
-    atomicAdd((nk_f32_t *)arguments->first, states[0].sum + states[0].sum_compensation);
-    atomicAdd((nk_f32_t *)arguments->second, states[0].sumsq + states[0].sumsq_compensation);
-}
 
 /** Adds @p value to the Neumaier sum @p sum with its running @p compensation in F64, as the serial
  *  F64 moments do. */
@@ -461,103 +416,11 @@ NUMKONG_DEVICE void nk_reduce_f64_moments_merge_simt_(nk_reduce_f64_moments_t *s
     *state = states[0];
 }
 
-/** Sums F64 values and their squares with Neumaier compensation, like the serial kernel. Misaligned
- *  values run in order on one thread, as the CPU tiers fall back to the serial loop for them, so a
- *  sum overflowing midway overflows at the same step. */
-NUMKONG_DEVICE void nk_reduce_f64_moments_simt_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
-    nk_size_t const lane = nk_reduce_lane_simt_();
-    nk_size_t const first = arguments->aligned ? lane : lane ? arguments->count : 0;
-    nk_size_t const step = arguments->aligned ? nk_reduce_lanes_simt_() : 1;
-    nk_reduce_f64_moments_t state;
-    state.sum = 0, state.sum_compensation = 0, state.sumsq = 0, state.sumsq_compensation = 0;
-    for (nk_size_t batch = first; batch < arguments->count; batch += step * nk_reduce_batch_simt_k) {
-        nk_u64_t raws[nk_reduce_batch_simt_k];
-        nk_reduce_batch_simt_(dtype, arguments, batch, step, arguments->count, raws);
-#pragma unroll
-        for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {
-            if (batch + slot * step >= arguments->count) break;
-            nk_f64_t const value = __longlong_as_double((long long)raws[slot]);
-            nk_reduce_neumaier_f64_simt_(&state.sum, &state.sum_compensation, value);
-            nk_reduce_neumaier_f64_simt_(&state.sumsq, &state.sumsq_compensation, __dmul_rn(value, value));
-        }
-    }
-    nk_reduce_f64_moments_merge_simt_(&state);
-    if (threadIdx.x) return;
-    atomicAdd((nk_f64_t *)arguments->first, state.sum + state.sum_compensation);
-    atomicAdd((nk_f64_t *)arguments->second, state.sumsq + state.sumsq_compensation);
-}
-
 /** Whether F32 squares @p value exactly and sums a thread's squares without overflow: zero, or a
  *  magnitude from 2⁻⁵⁰ up to 2⁵¹. */
 NUMKONG_DEVICE int nk_reduce_pairs_hold_simt_(nk_f32_t value) {
     return ((__float_as_uint(value) >> 23) & 0xFFu) - 77u <= 100u || value == 0;
 }
-
-/** Sums F32 or BF16 values and their squares into F64 totals, mostly without F64 arithmetic: values
- *  F32 can square exactly sum as unevaluated F32 pairs, their squares split exactly by an FMA, and
- *  the rest take a second walk of the thread's values in F64. */
-NUMKONG_DEVICE void nk_reduce_pairs_moments_simt_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments) {
-    nk_f32_t sum_high = 0, sum_low = 0, sumsq_high = 0, sumsq_low = 0;
-    nk_reduce_f64_moments_t state;
-    int rest = 0;
-    state.sum = 0, state.sum_compensation = 0, state.sumsq = 0, state.sumsq_compensation = 0;
-    for (nk_size_t first = nk_reduce_lane_simt_(); first < arguments->count;
-         first += nk_reduce_lanes_simt_() * nk_reduce_batch_simt_k) {
-        nk_u64_t raws[nk_reduce_batch_simt_k];
-        nk_reduce_batch_simt_(dtype, arguments, first, nk_reduce_lanes_simt_(), arguments->count, raws);
-#pragma unroll
-        for (unsigned slot = 0; slot != nk_reduce_batch_simt_k; ++slot) {
-            if (first + slot * nk_reduce_lanes_simt_() >= arguments->count) break;
-            nk_f32_t const value = nk_reduce_f32_simt_(dtype, raws[slot]);
-            nk_f32_t const square = nk_f32_mul_rn_simt_(value, value);
-            if (!nk_reduce_pairs_hold_simt_(value)) {
-                rest = 1;
-                continue;
-            }
-            nk_reduce_two_sum_f32_simt_(&sum_high, &sum_low, value);
-            nk_reduce_two_sum_f32_simt_(&sumsq_high, &sumsq_low, square);
-            sumsq_low += __fmaf_rn(value, value, -square);
-        }
-    }
-    if (rest)
-        for (nk_size_t index = nk_reduce_lane_simt_(); index < arguments->count; index += nk_reduce_lanes_simt_()) {
-            nk_f64_t const value = nk_reduce_f32_simt_(dtype, nk_reduce_raw_simt_(dtype, arguments, index));
-            if (nk_reduce_pairs_hold_simt_((nk_f32_t)value)) continue;
-            state.sum += value, state.sumsq += __dmul_rn(value, value);
-        }
-    nk_reduce_neumaier_f64_simt_(&state.sum, &state.sum_compensation, sum_high);
-    nk_reduce_neumaier_f64_simt_(&state.sum, &state.sum_compensation, sum_low);
-    nk_reduce_neumaier_f64_simt_(&state.sumsq, &state.sumsq_compensation, sumsq_high);
-    nk_reduce_neumaier_f64_simt_(&state.sumsq, &state.sumsq_compensation, sumsq_low);
-    nk_reduce_f64_moments_merge_simt_(&state);
-    if (threadIdx.x) return;
-    nk_f64_t const sum = state.sum + state.sum_compensation, sumsq = state.sumsq + state.sumsq_compensation;
-    if (dtype == nk_f32_k)
-        atomicAdd((nk_f64_t *)arguments->first, sum), atomicAdd((nk_f64_t *)arguments->second, sumsq);
-    else
-        atomicAdd((nk_f32_t *)arguments->first, (nk_f32_t)sum),
-            atomicAdd((nk_f32_t *)arguments->second, (nk_f32_t)sumsq);
-}
-
-/** Generates the moments kernel of @p input_type for @p isa_suffix, summing through the @p family
- *  of @c nk_reduce_<family>_moments_simt_. */
-#define nk_define_reduce_moments_kernel_simt_(input_type, family, isa_suffix)                      \
-    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                             \
-        nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) { \
-        nk_reduce_##family##_moments_simt_(nk_##input_type##_k, &arguments);                       \
-    }
-
-/** Generates the min/max and finishing kernels of @p input_type for @p isa_suffix, their sides
- *  starting from the serial kernels' @p min_sentinel and @p max_sentinel bits. */
-#define nk_define_reduce_minmax_kernels_simt_(input_type, min_sentinel, max_sentinel, isa_suffix)   \
-    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                              \
-        nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {   \
-        nk_reduce_minmax_simt_(nk_##input_type##_k, &arguments);                                    \
-    }                                                                                               \
-    static __global__ void nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_(           \
-        nk_reduce_arguments_t arguments) {                                                          \
-        nk_reduce_minmax_finish_simt_(nk_##input_type##_k, min_sentinel, max_sentinel, &arguments); \
-    }
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -33,6 +33,13 @@ enum {
     nk_cross_stage_bytes_ampere_k = nk_cross_tile_ampere_k * nk_cross_slab_bytes_ampere_k,
 };
 
+/** Shared memory of a tile: the ring of stages, A then B in each, whose first stage holds the row
+ *  norms and then the column norms once every product is done. */
+typedef union {
+    unsigned char stages[nk_cross_stages_ampere_k][2][nk_cross_stage_bytes_ampere_k];
+    nk_fui32_t norms[2 * nk_cross_tile_ampere_k];
+} nk_cross_shared_ampere_t;
+
 /** Folds one warp's fragments of a 32-byte sub-slab, A as 4 row tiles of 16 and B as 8 column
  *  tiles of 8. */
 typedef void (*nk_cross_multiply_ampere_t)(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
@@ -45,8 +52,6 @@ typedef void (*nk_cross_mma_ampere_t)(nk_fui32_t accumulator[4], nk_u32_t const 
 #pragma endregion Configuration
 
 #pragma region Instructions
-
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 
 NUMKONG_DEVICE nk_u32_t nk_shared_address_ampere_(void const *pointer) {
     return (nk_u32_t)__cvta_generic_to_shared(pointer);
@@ -121,65 +126,11 @@ NUMKONG_DEVICE void nk_mma_u8i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t cons
                  : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
 }
 
-NUMKONG_DEVICE void nk_mma_i4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                      nk_u32_t b_second) {
-    asm volatile("mma.sync.aligned.m16n8k64.row.col.s32.s4.s4.s32 " //
-                 "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
-                 : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
-                 : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
+/** The first byte at or past @p pointer whose shared-memory address is a multiple of @p alignment,
+ *  a power of two, which dynamic shared memory promises only up to 16. */
+NUMKONG_DEVICE unsigned char *nk_shared_aligned_ampere_(unsigned char *pointer, unsigned alignment) {
+    return pointer + ((alignment - (nk_shared_address_ampere_(pointer) & (alignment - 1))) & (alignment - 1));
 }
-
-NUMKONG_DEVICE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                      nk_u32_t b_second) {
-    asm volatile("mma.sync.aligned.m16n8k64.row.col.s32.u4.u4.s32 " //
-                 "{%0, %1, %2, %3}, {%4, %5, %6, %7}, {%8, %9}, {%0, %1, %2, %3};\n"
-                 : "+r"(accumulator[0].u), "+r"(accumulator[1].u), "+r"(accumulator[2].u), "+r"(accumulator[3].u)
-                 : "r"(a[0]), "r"(a[1]), "r"(a[2]), "r"(a[3]), "r"(b_first), "r"(b_second));
-}
-
-#else
-
-/*  Device passes older than 8.0 and the host pass get trapping bodies, so a cubin picked for the
- *  wrong device fails loudly rather than returning zeros. */
-NUMKONG_DEVICE nk_u32_t nk_shared_address_ampere_(void const *pointer) {
-    __trap();
-    return 0;
-}
-NUMKONG_DEVICE void nk_copy_b128_async_ampere_(nk_u32_t shared, void const *global, nk_u32_t valid_bytes) { __trap(); }
-NUMKONG_DEVICE void nk_commit_async_ampere_(void) { __trap(); }
-NUMKONG_DEVICE void nk_wait_async_ampere_(unsigned pending) { __trap(); }
-NUMKONG_DEVICE void nk_load_matrices_x4_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) { __trap(); }
-NUMKONG_DEVICE void nk_load_matrices_x4_transposed_ampere_(nk_u32_t shared, nk_u32_t fragments[4]) { __trap(); }
-NUMKONG_DEVICE void nk_mma_bf16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                        nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_f16_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                       nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                      nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_u8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                      nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_u8i8_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                        nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_i4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                      nk_u32_t b_second) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_mma_u4_ampere_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
-                                      nk_u32_t b_second) {
-    __trap();
-}
-
-#endif // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 800
 
 #pragma endregion Instructions
 
@@ -390,7 +341,7 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
                                           nk_cross_norm_update_t norm_update, nk_f32_t norm_scale,
                                           nk_cross_triangle_t triangle, nk_cross_metric_t metric,
                                           nk_cross_tile_arguments_t const *arguments) {
-    __shared__ __align__(128) unsigned char staged[nk_cross_stages_ampere_k][2][nk_cross_stage_bytes_ampere_k];
+    __shared__ __align__(128) nk_cross_shared_ampere_t shared;
 
     unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     unsigned const warp_row = (warp >> 1) * 64, warp_column = (warp & 1) * 64;
@@ -416,8 +367,8 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
 #pragma unroll
         for (unsigned stage = 0; stage + 1 < nk_cross_stages_ampere_k; ++stage) {
             if (stage < slabs)
-                nk_cross_stage_ampere_(staged[stage][0], staged[stage][1], arguments, first_row, first_column,
-                                       stage * nk_cross_slab_bytes_ampere_k);
+                nk_cross_stage_ampere_(shared.stages[stage][0], shared.stages[stage][1], arguments, first_row,
+                                       first_column, stage * nk_cross_slab_bytes_ampere_k);
             nk_commit_async_ampere_();
         }
 
@@ -425,7 +376,7 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
         for (nk_size_t slab = 0; slab < slabs; ++slab) {
             nk_wait_async_ampere_(nk_cross_stages_ampere_k - 2);
             __syncthreads();
-            unsigned char *a_stage = staged[read_stage][0], *b_stage = staged[read_stage][1];
+            unsigned char *a_stage = shared.stages[read_stage][0], *b_stage = shared.stages[read_stage][1];
 #pragma unroll
             for (unsigned sub_slab = 0; sub_slab < 2; ++sub_slab) {
                 nk_u32_t a_fragments[4][4], b_fragments[8][2];
@@ -454,8 +405,8 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
             // Issued after the products, as ptxas otherwise sinks the commit below the fragment loads, stalling them.
             // The stage refilled here was read one iteration ago, and the barrier above retired those reads.
             if (prefetch < slabs)
-                nk_cross_stage_ampere_(staged[write_stage][0], staged[write_stage][1], arguments, first_row,
-                                       first_column, prefetch * nk_cross_slab_bytes_ampere_k);
+                nk_cross_stage_ampere_(shared.stages[write_stage][0], shared.stages[write_stage][1], arguments,
+                                       first_row, first_column, prefetch * nk_cross_slab_bytes_ampere_k);
             nk_commit_async_ampere_();
             // Squares come after the products, once the fragments are dead, and read a stage no copy refills until the
             // next iteration's barrier.
@@ -469,7 +420,7 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
         }
 
         // Row norms, then column norms, in the ring's first stage once every warp's fragment reads retire.
-        nk_fui32_t *norms = (nk_fui32_t *)staged[0][0];
+        nk_fui32_t *norms = shared.norms;
         if (metric != nk_cross_metric_dot_k) {
             __syncthreads();
             norms[threadIdx.x] = nk_cross_norm_finalize_(norm, row_integer_norm, row_real_norm, norm_scale);
@@ -642,10 +593,8 @@ NUMKONG_DEVICE void nk_dots_u8_multiply_ampere_(nk_fui32_t accumulators[4][8][4]
             nk_mma_u8_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
 }
 
-/*  From 9.0 on @c ptxas lowers 4-bit MMA to a software routine, so there the nibbles widen to
- *  8-bit steps instead. */
-#if defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
-
+/*  Nibbles widen to 8-bit steps, since from 9.0 on @c ptxas lowers 4-bit MMA to a software routine
+ *  and this tier runs on every GPU since 8.0. */
 NUMKONG_DEVICE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
                                                 nk_u32_t const b[8][2]) {
     nk_dots_widened_multiply_ampere_(nk_i4x8_to_i8x8_, nk_mma_i8_ampere_, accumulators, a, b);
@@ -655,28 +604,6 @@ NUMKONG_DEVICE void nk_dots_u4_multiply_ampere_(nk_fui32_t accumulators[4][8][4]
                                                 nk_u32_t const b[8][2]) {
     nk_dots_widened_multiply_ampere_(nk_u4x8_to_u8x8_, nk_mma_u8_ampere_, accumulators, a, b);
 }
-
-#else
-
-NUMKONG_DEVICE void nk_dots_i4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                nk_u32_t const b[8][2]) {
-#pragma unroll
-    for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
-#pragma unroll
-        for (unsigned column_tile = 0; column_tile < 8; ++column_tile)
-            nk_mma_i4_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
-}
-
-NUMKONG_DEVICE void nk_dots_u4_multiply_ampere_(nk_fui32_t accumulators[4][8][4], nk_u32_t const a[4][4],
-                                                nk_u32_t const b[8][2]) {
-#pragma unroll
-    for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
-#pragma unroll
-        for (unsigned column_tile = 0; column_tile < 8; ++column_tile)
-            nk_mma_u4_ampere_(accumulators[row_tile][column_tile], a[row_tile], b[column_tile][0], b[column_tile][1]);
-}
-
-#endif // defined(__CUDA_ARCH__) && __CUDA_ARCH__ >= 900
 
 #pragma endregion Multiplies
 

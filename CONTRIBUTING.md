@@ -600,12 +600,13 @@ Kernels: `nk_<operation>_<dtype>_<capability>` — e.g. `nk_dot_f32_sve`, `nk_do
 Dispatch points replace the capability with `best` — e.g. `nk_dot_f32_best` — and the static lists of their kernels in every capability group add `capabilities` — e.g. `nk_dot_f32_capabilities`.
 Internal helpers use a trailing underscore: `nk_reduce_add_f32x16_skylake_`.
 Conversions: `nk_<src>x<count>_to_<dst>x<count>_<isa>_` — e.g. `nk_e4m3x8_to_f32x8_haswell_`.
-Helpers, types and constants put the capability last as well, and only a role suffix may follow it: `_t` for a type, `_k` for a constant, `_kernel_` for a GPU entry point, or the trailing `_` of an internal name, like `nk_attention_pack_directory_simt_kernel_`.
+Helpers, types and constants put the capability last as well, and only a role suffix may follow it: `_t` for a type, `_k` for a constant, `_kernel_` for a GPU entry point, or the trailing `_` of an internal name, like `nk_attention_pack_directory_cuda_kernel_`.
 
 Code that several capabilities share belongs to one of three layers, named in the capability's place:
 
 - `serial`, portable and capability-neutral, in each family's `serial.h`.
-- `simt`, the single C source that CUDA and HIP both compile, in each family's `simt.cuh`, like `nk_cast_bit_simt_`.
+- `simt`, the portable C source that CUDA and HIP both compile, in each family's `simt.cuh`, like `nk_dot_i8x4_simt_`.
+  It holds no vendor or generation intrinsic and no `#if` on either: a vendor's warp primitives live in its baseline, like `nk_shuffle_xor_f32_rocm_`, and an instruction lives in the oldest capability that has it, like `nk_dot_i8x4_cdna3_`, which newer ones call by name.
 - `metal`, what every Metal tier shares, in a family's `metal.h` and the `metal.metal` shaders it embeds, like `nk_cross_encode_metal_`.
 
 A constant identical across the GPU layers is defined once in `serial.h` with the adjective `gpu`, and one whose value differs per layer takes its layer instead.
@@ -628,7 +629,7 @@ Each of these words has one meaning across the library:
 | Word                                             | Meaning                                                                          | Appears as                                                                        |
 | :----------------------------------------------- | :------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- |
 | `cpu`, `cuda`, `rocm`, `metal`                   | A capability group and its baseline bit                                          | Producer prefix, twin and kernel suffix, `c/<group>/`                             |
-| `simt`                                           | The single C source CUDA and HIP both compile                                    | `<family>/simt.cuh`, the suffixes `_simt_`, `_simt_t`, `_simt_k`                  |
+| `simt`                                           | The portable C source CUDA and HIP both compile                                  | `<family>/simt.cuh`, the suffixes `_simt_`, `_simt_t`, `_simt_k`                  |
 | `metal`, as a layer                              | What every Metal tier shares                                                     | `<family>/metal.h`, `<family>/metal.metal`, the suffix `_metal_`                  |
 | `gpu`                                            | Adjective for every GPU group                                                    | `nk_cap_gpus_k`, `nk_missing_gpu_k`                                               |
 | `device`                                         | A processor kernels run on, which a stream belongs to                            | `nk_cuda_count_devices`, `nk_device_memory_mismatch_k`, `nk_device_current_simt_` |

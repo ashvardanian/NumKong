@@ -3,7 +3,8 @@
  *  @author Ash Vardanian
  *  @date October 3, 2026
  *  @brief The CUDA runtime as the library's CUDA host code drives it: the device a call runs on,
- *      managed memory, the launches, the streams and the device producers.
+ *      managed memory, the launches, the streams and the device producers, then the warp and
+ *      rounding primitives every CUDA kernel shares.
  *
  *  Only nvcc sees past the guard, and nothing here is shared with ROCm, whose twins live in
  *  `rocm.cuh` under their own names, so a library holding both vendors links one body per name.
@@ -176,6 +177,7 @@ NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t ordinal, nk_
     if (major == 9) detected |= nk_cap_hopper_k;
     if (major == 10) detected |= nk_cap_blackwell_k;
     if (major == 12) detected |= nk_cap_blackwellrtx_k;
+    if (major == 10 && minor == 3) detected |= nk_cap_blackwellultra_k;
     *capabilities = detected;
     return nk_success_k;
 }
@@ -267,6 +269,50 @@ NUMKONG_INLINE nk_status_t nk_allocator_init_pinned_cuda_(nk_allocator_t *alloca
     allocator->handle = NUMKONG_NULL;
     return nk_success_k;
 }
+
+#pragma region Device Primitives
+
+/** Lanes of a warp, 32 on every NVIDIA device. */
+NUMKONG_DEVICE unsigned nk_warp_lanes_cuda_(void) { return 32; }
+
+/** Lane `lane ^ offset`'s @p value, from across the whole warp with @c shfl.sync.bfly . */
+NUMKONG_DEVICE nk_u32_t nk_shuffle_xor_u32_cuda_(nk_u32_t value, unsigned offset) {
+    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
+}
+NUMKONG_DEVICE nk_i32_t nk_shuffle_xor_i32_cuda_(nk_i32_t value, unsigned offset) {
+    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
+}
+NUMKONG_DEVICE nk_u64_t nk_shuffle_xor_u64_cuda_(nk_u64_t value, unsigned offset) {
+    return __shfl_xor_sync(0xFFFFFFFFu, (unsigned long long)value, offset);
+}
+NUMKONG_DEVICE nk_f32_t nk_shuffle_xor_f32_cuda_(nk_f32_t value, unsigned offset) {
+    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
+}
+NUMKONG_DEVICE nk_f64_t nk_shuffle_xor_f64_cuda_(nk_f64_t value, unsigned offset) {
+    return __shfl_xor_sync(0xFFFFFFFFu, value, offset);
+}
+
+/** Lane `lane - offset`'s @p value, a lane's own below @p offset, with @c shfl.sync.up . */
+NUMKONG_DEVICE nk_u64_t nk_shuffle_up_u64_cuda_(nk_u64_t value, unsigned offset) {
+    return __shfl_up_sync(0xFFFFFFFFu, (unsigned long long)value, offset);
+}
+
+/*  Arithmetic rounded one operation at a time through @c .rn instructions, which NVCC never
+ *  contracts into an FMA that would break compensated sums' error terms. */
+NUMKONG_DEVICE nk_f64_t nk_f64_add_rn_cuda_(nk_f64_t a, nk_f64_t b) { return __dadd_rn(a, b); }
+NUMKONG_DEVICE nk_f64_t nk_f64_sub_rn_cuda_(nk_f64_t a, nk_f64_t b) { return __dsub_rn(a, b); }
+NUMKONG_DEVICE nk_f64_t nk_f64_mul_rn_cuda_(nk_f64_t a, nk_f64_t b) { return __dmul_rn(a, b); }
+NUMKONG_DEVICE nk_f32_t nk_f32_mul_rn_cuda_(nk_f32_t a, nk_f32_t b) { return __fmul_rn(a, b); }
+
+/** 2^x to 2⁻²² relative with @c ex2.approx.ftz , flushing results below 2⁻¹²⁶ to zero, and 0
+ *  for −∞. */
+NUMKONG_DEVICE nk_f32_t nk_f32_exp2_cuda_(nk_f32_t exponent) {
+    nk_f32_t power;
+    asm("ex2.approx.ftz.f32 %0, %1;\n" : "=f"(power) : "f"(exponent));
+    return power;
+}
+
+#pragma endregion Device Primitives
 
 /*  The library defines these once, in `c/target/cuda.cu`; header-only builds define them here. */
 #if NUMKONG_HEADER_ONLY && NUMKONG_TARGET_CUDA

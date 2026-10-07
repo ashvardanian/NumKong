@@ -345,7 +345,7 @@ check_kernels_call_no_public_kernels() {
     calls=$(printf '%s\n' "$staged_added_text" | grep -vE "$added_comment_line_pattern" |
         grep -vE '^\+[[:space:]]*#define[[:space:]]' | sed -E 's/^\+[[:space:]]*NUMKONG_API[^(]*\(/+/' |
         sed -E 's/(^|[^a-z0-9_])nk_[a-z0-9_]+_(init|update|finalize)_[a-z0-9]+[[:space:]]*\(/\1/g' |
-        grep -E '\bnk_[a-z0-9_]+_(serial|haswell|alder|sierra|skylake|icelake|genoa|turin|sapphire|diamond|sapphireamx|graniteamx|diamondamx|neon|neonhalf|neonbfdot|neonfhm|neonsdot|neonfp8|sve|svehalf|svesdot|svebfdot|sve2|sme|smef64|smebi32|rvv|rvvhalf|rvvbf16|rvvbb|v128|v128relaxed|powervsx|loongsonasx|cuda|ampere|ada|hopper|blackwell|blackwellrtx|rocm|cdna4|cdna5|metal|apple9|apple10)[[:space:]]*\(' || true)
+        grep -E '\bnk_[a-z0-9_]+_(serial|haswell|alder|sierra|skylake|icelake|genoa|turin|sapphire|diamond|sapphireamx|graniteamx|diamondamx|neon|neonhalf|neonbfdot|neonfhm|neonsdot|neonfp8|sve|svehalf|svesdot|svebfdot|sve2|sme|smef64|smebi32|rvv|rvvhalf|rvvbf16|rvvbb|v128|v128relaxed|powervsx|loongsonasx|cuda|ampere|ada|hopper|blackwell|blackwellrtx|blackwellultra|rocm|cdna3|cdna4|cdna5|metal|apple9|apple10)[[:space:]]*\(' || true)
     [ -z "$calls" ] || reject_with_reason "$calls" \
         "$staged_path calls a public kernel from a kernel header;" \
         "            call the helper it is built on, or add one named for what it computes:"
@@ -2929,9 +2929,9 @@ check_launches_report_status() {
         "$staged_path launches with <<< >>>, which loses the launch status; call the vendor's launch API:"
 }
 
-# Rejects `__CUDACC__`, `__HIP__` and `__HIP_DEVICE_COMPILE__` in host-side files, because each vendor's host
-# code lives in its own `cuda.cuh` or `rocm.cuh` behind one top guard; only shared kernels in `simt.cuh` may
-# spell a device helper per vendor, and types.h derives the architecture macros from the compiler.
+# Rejects `__CUDACC__`, `__HIP__` and `__HIP_DEVICE_COMPILE__` outside the vendor headers' top guards, because
+# each vendor's code lives in its own `cuda.cuh` or `rocm.cuh`, `simt.cuh` stays portable, and types.h derives
+# the architecture macros from the compiler.
 check_vendor_tested_only_in_kernels() {
     local tests
     tests=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |

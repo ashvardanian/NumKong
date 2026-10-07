@@ -25,7 +25,7 @@
 #ifndef NUMKONG_DOTS_BLACKWELL_CUH
 #define NUMKONG_DOTS_BLACKWELL_CUH
 
-#if NUMKONG_TARGET_BLACKWELL
+#if NUMKONG_ARCH_CUDA_BLACKWELL_
 
 #include <cuda.h> // `CUtensorMap`, `cuTensorMapEncodeTiled`
 
@@ -1419,53 +1419,44 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
 #pragma region Cross Macros
 
 /**
- *  @brief Generates C = A × Bᵀ, or its angular or euclidean distances, over a B packed by
- *      @c nk_define_cross_pack_cuda_, one block per resident slot walking @b [128,128] tiles.
+ *  @brief Generates both shapes of one metric over the TMA launch: C = A × Bᵀ, or its angular or
+ *      euclidean distances, over a B packed by @c nk_define_cross_pack_cuda_, and the Gram matrix
+ *      C = A × Aᵀ, or its distances, over rows [row_start, row_start + row_count).
  *  @param[in] metric @c dot, @c angular or @c euclidean, naming both the entry and the epilogue.
  *  @param[in] ... The tile's own leading arguments, see @c nk_cross_tile_blackwell_.
- *  @sa nk_define_cross_packed_ for the host original.
- */
-#define nk_define_cross_tma_packed_blackwell_(metric, input_type_name, isa_suffix, input_value_type,                  \
-                                              packed_value_type, result_value_type, depth_simd_dimensions,            \
-                                              dimensions_per_value, ...)                                              \
-    static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                         \
-        nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(                                             \
-            __grid_constant__ nk_cross_tile_arguments_blackwell_t const arguments) {                                  \
-        nk_cross_tile_blackwell_(nk_##input_type_name##_k, __VA_ARGS__, nk_cross_triangle_full_k,                     \
-                                 nk_cross_metric_##metric##_k, &arguments);                                           \
-    }                                                                                                                 \
-    NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                   \
-        nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                         \
-        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,           \
-        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                       \
-        nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,  \
-                                                                 sizeof(nk_##packed_value_type##_t)) *                \
-                                    sizeof(nk_##packed_value_type##_t);                                               \
-        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                     \
-        nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;     \
-        nk_u8_t const *b_rows = (nk_u8_t const *)(header + 1);                                                        \
-        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);                \
-        nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,       \
-                                      scales_stride, &header->tensor_scale};                                          \
-        return nk_cross_launch_blackwell_(                                                                            \
-            (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, &a, row_count, &b,        \
-            b_rows + column_count * (row_bytes + scales_stride), c_matrix, sizeof(nk_##result_value_type##_t), 0,     \
-            row_count, column_count, depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                   \
-            depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream); \
-    }
-
-/**
- *  @brief Generates the Gram matrix C = A × Aᵀ, or its angular or euclidean distances, over rows
- *      [row_start, row_start + row_count): the upper triangle, with the diagonal for dots and zeros
- *      on it for distances, skipping tiles wholly below it.
+ *  @sa nk_define_cross_packed_ and nk_define_cross_symmetric_ for the host originals.
  *
- *  Takes the parameters of @c nk_define_cross_tma_packed_blackwell_, so one bundle feeds both.
- *
- *  @sa nk_define_cross_symmetric_ for the host original.
+ *  The Gram matrix covers the upper triangle, with the diagonal for dots and zeros on it for
+ *  distances, skipping tiles wholly below it. Each shape is one block per resident slot walking
+ *  @b [128,128] tiles.
  */
-#define nk_define_cross_tma_symmetric_blackwell_(metric, input_type_name, isa_suffix, input_value_type,                \
-                                                 packed_value_type, result_value_type, depth_simd_dimensions,          \
-                                                 dimensions_per_value, ...)                                            \
+#define nk_define_cross_tma_blackwell_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,       \
+                                       result_value_type, depth_simd_dimensions, dimensions_per_value, ...)            \
+    static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                          \
+        nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(                                              \
+            __grid_constant__ nk_cross_tile_arguments_blackwell_t const arguments) {                                   \
+        nk_cross_tile_blackwell_(nk_##input_type_name##_k, __VA_ARGS__, nk_cross_triangle_full_k,                      \
+                                 nk_cross_metric_##metric##_k, &arguments);                                            \
+    }                                                                                                                  \
+    NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                    \
+        nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                          \
+        nk_##result_value_type##_t *c_matrix, nk_size_t row_count, nk_size_t column_count, nk_size_t depth,            \
+        nk_size_t a_stride, nk_size_t c_stride, void *stream) {                                                        \
+        nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,   \
+                                                                 sizeof(nk_##packed_value_type##_t)) *                 \
+                                    sizeof(nk_##packed_value_type##_t);                                                \
+        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                      \
+        nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;      \
+        nk_u8_t const *b_rows = (nk_u8_t const *)(header + 1);                                                         \
+        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);                 \
+        nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,        \
+                                      scales_stride, &header->tensor_scale};                                           \
+        return nk_cross_launch_blackwell_(                                                                             \
+            (void const *)nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_, &a, row_count, &b,         \
+            b_rows + column_count * (row_bytes + scales_stride), c_matrix, sizeof(nk_##result_value_type##_t), 0,      \
+            row_count, column_count, depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                    \
+            depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), a_stride, row_bytes, c_stride, stream);  \
+    }                                                                                                                  \
     static __global__ void __launch_bounds__(nk_cross_threads_blackwell_k, 1)                                          \
         nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(                                           \
             __grid_constant__ nk_cross_tile_arguments_blackwell_t const arguments) {                                   \
@@ -1484,15 +1475,6 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
             depth, nk_##input_type_name##_k, nk_cross_metric_##metric##_k,                                             \
             depth / dimensions_per_value * sizeof(nk_##input_value_type##_t), stride, stride, result_stride, stream);  \
     }
-
-/** Both shapes of one metric over the TMA launch, packed and symmetric. */
-#define nk_define_cross_tma_blackwell_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,       \
-                                       result_value_type, depth_simd_dimensions, dimensions_per_value, ...)            \
-    nk_define_cross_tma_packed_blackwell_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type,    \
-                                          result_value_type, depth_simd_dimensions, dimensions_per_value, __VA_ARGS__) \
-    nk_define_cross_tma_symmetric_blackwell_(metric, input_type_name, isa_suffix, input_value_type, packed_value_type, \
-                                             result_value_type, depth_simd_dimensions, dimensions_per_value,           \
-                                             __VA_ARGS__)
 
 #pragma endregion Cross Macros
 
@@ -1575,6 +1557,9 @@ NUMKONG_DEVICE void nk_dots_mxfp8e5m2_mma_blackwell_(nk_u32_t accumulator, nk_u6
 }
 
 #pragma endregion Multiplies
+
+/*  Later generations read the helpers above and emit only their own kernels. */
+#if NUMKONG_TARGET_BLACKWELL
 
 #pragma region BF16
 
@@ -1727,9 +1712,11 @@ nk_define_cross_tma_blackwell_(dot, mxfp8e5m2, blackwell, e5m2, e5m2, f32, /*dep
 
 #pragma endregion Block Scaled Floats
 
+#endif // NUMKONG_TARGET_BLACKWELL
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_BLACKWELL
+#endif // NUMKONG_ARCH_CUDA_BLACKWELL_
 #endif // NUMKONG_DOTS_BLACKWELL_CUH

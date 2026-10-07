@@ -1071,6 +1071,10 @@ set(NUMKONG_CUDA_HOPPER_CODES_ "90a" CACHE INTERNAL "")
 set(NUMKONG_CUDA_BLACKWELL_CODES_ "100a;100f;103a;103f" CACHE INTERNAL "")
 # FP6/FP4 `mma.sync`: RTX 50, RTX PRO 6000, DGX Spark.
 set(NUMKONG_CUDA_BLACKWELLRTX_CODES_ "120a;120f;121a;121f" CACHE INTERNAL "")
+# `tcgen05.ld.red`: B300, GB300.
+set(NUMKONG_CUDA_BLACKWELLULTRA_CODES_ "103a;103f" CACHE INTERNAL "")
+# Integer and F16 dot instructions of the SIMT cores: MI300X, MI300A, MI325X.
+set(NUMKONG_ROCM_CDNA3_CODES_ "gfx942" CACHE INTERNAL "")
 # MFMA over FP8, FP6 and FP4: MI350X, MI355X.
 set(NUMKONG_ROCM_CDNA4_CODES_ "gfx950" CACHE INTERNAL "")
 # WMMA over FP8, FP6 and FP4: MI450X and MI455X on gfx1250, MI430X on gfx1251.
@@ -1083,14 +1087,16 @@ function (numkong_cuda_capabilities_ codes output)
     numkong_gpu_capability_(HOPPER "${codes}" "${NUMKONG_CUDA_HOPPER_CODES_}" hopper)
     numkong_gpu_capability_(BLACKWELL "${codes}" "${NUMKONG_CUDA_BLACKWELL_CODES_}" blackwell)
     numkong_gpu_capability_(BLACKWELLRTX "${codes}" "${NUMKONG_CUDA_BLACKWELLRTX_CODES_}" blackwellrtx)
-    set(${output} ${ampere} ${ada} ${hopper} ${blackwell} ${blackwellrtx} PARENT_SCOPE)
+    numkong_gpu_capability_(BLACKWELLULTRA "${codes}" "${NUMKONG_CUDA_BLACKWELLULTRA_CODES_}" blackwellultra)
+    set(${output} ${ampere} ${ada} ${hopper} ${blackwell} ${blackwellrtx} ${blackwellultra} PARENT_SCOPE)
 endfunction ()
 
 # The capabilities the AMD architectures run, as the definitions a translation unit compiles with.
 function (numkong_rocm_capabilities_ architectures output)
+    numkong_gpu_capability_(CDNA3 "${architectures}" "${NUMKONG_ROCM_CDNA3_CODES_}" cdna3)
     numkong_gpu_capability_(CDNA4 "${architectures}" "${NUMKONG_ROCM_CDNA4_CODES_}" cdna4)
     numkong_gpu_capability_(CDNA5 "${architectures}" "${NUMKONG_ROCM_CDNA5_CODES_}" cdna5)
-    set(${output} ${cdna4} ${cdna5} PARENT_SCOPE)
+    set(${output} ${cdna3} ${cdna4} ${cdna5} PARENT_SCOPE)
 endfunction ()
 
 if (NUMKONG_BUILD_CUDA)
@@ -1197,12 +1203,17 @@ if (NUMKONG_BUILD_CUDA)
         "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_BLACKWELLRTX_CODES_}"
         NUMKONG_BLACKWELLRTX_UNIT_CODES_
     )
+    numkong_gpu_codes_(
+        "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" "${NUMKONG_CUDA_BLACKWELLULTRA_CODES_}"
+        NUMKONG_BLACKWELLULTRA_UNIT_CODES_
+    )
     numkong_add_gpu_unit_(c/target/cuda.cu "${NUMKONG_CUDA_RESOLVED_ARCHITECTURES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/ampere.cu "${NUMKONG_AMPERE_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/ada.cu "${NUMKONG_ADA_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/hopper.cu "${NUMKONG_HOPPER_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/blackwell.cu "${NUMKONG_BLACKWELL_UNIT_CODES_}" CUDA::cudart)
     numkong_add_gpu_unit_(c/target/blackwellrtx.cu "${NUMKONG_BLACKWELLRTX_UNIT_CODES_}" CUDA::cudart)
+    numkong_add_gpu_unit_(c/target/blackwellultra.cu "${NUMKONG_BLACKWELLULTRA_UNIT_CODES_}" CUDA::cudart)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})
         target_compile_definitions(${nk_library_} PRIVATE NUMKONG_ARCH_CUDA_=1 ${NUMKONG_CUDA_FAMILY_DEFINITIONS_})
     endforeach ()
@@ -1212,9 +1223,11 @@ endif ()
 # and each numbers its own devices.
 if (NUMKONG_BUILD_ROCM)
     find_package(hip REQUIRED)
+    numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA3_CODES_}" NUMKONG_CDNA3_UNIT_CODES_)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA4_CODES_}" NUMKONG_CDNA4_UNIT_CODES_)
     numkong_gpu_codes_("${NUMKONG_ROCM_ARCHITECTURES}" "${NUMKONG_ROCM_CDNA5_CODES_}" NUMKONG_CDNA5_UNIT_CODES_)
     numkong_add_gpu_unit_(c/target/rocm.hip "${NUMKONG_ROCM_ARCHITECTURES}" hip::host)
+    numkong_add_gpu_unit_(c/target/cdna3.hip "${NUMKONG_CDNA3_UNIT_CODES_}" hip::host)
     numkong_add_gpu_unit_(c/target/cdna4.hip "${NUMKONG_CDNA4_UNIT_CODES_}" hip::host)
     numkong_add_gpu_unit_(c/target/cdna5.hip "${NUMKONG_CDNA5_UNIT_CODES_}" hip::host)
     foreach (nk_library_ ${NUMKONG_LIBRARIES_})

@@ -52,32 +52,6 @@ typedef void (*nk_cross_multiply_hopper_t)(nk_fui32_t accumulators[64], unsigned
 
 #pragma region Instructions
 
-/** The operands of one warpgroup's 64 accumulators as F32. */
-#define nk_wgmma_f32_operands_hopper_(d)                                                                            \
-    "+f"(d[0].f), "+f"(d[1].f), "+f"(d[2].f), "+f"(d[3].f), "+f"(d[4].f), "+f"(d[5].f), "+f"(d[6].f), "+f"(d[7].f), \
-        "+f"(d[8].f), "+f"(d[9].f), "+f"(d[10].f), "+f"(d[11].f), "+f"(d[12].f), "+f"(d[13].f), "+f"(d[14].f),      \
-        "+f"(d[15].f), "+f"(d[16].f), "+f"(d[17].f), "+f"(d[18].f), "+f"(d[19].f), "+f"(d[20].f), "+f"(d[21].f),    \
-        "+f"(d[22].f), "+f"(d[23].f), "+f"(d[24].f), "+f"(d[25].f), "+f"(d[26].f), "+f"(d[27].f), "+f"(d[28].f),    \
-        "+f"(d[29].f), "+f"(d[30].f), "+f"(d[31].f), "+f"(d[32].f), "+f"(d[33].f), "+f"(d[34].f), "+f"(d[35].f),    \
-        "+f"(d[36].f), "+f"(d[37].f), "+f"(d[38].f), "+f"(d[39].f), "+f"(d[40].f), "+f"(d[41].f), "+f"(d[42].f),    \
-        "+f"(d[43].f), "+f"(d[44].f), "+f"(d[45].f), "+f"(d[46].f), "+f"(d[47].f), "+f"(d[48].f), "+f"(d[49].f),    \
-        "+f"(d[50].f), "+f"(d[51].f), "+f"(d[52].f), "+f"(d[53].f), "+f"(d[54].f), "+f"(d[55].f), "+f"(d[56].f),    \
-        "+f"(d[57].f), "+f"(d[58].f), "+f"(d[59].f), "+f"(d[60].f), "+f"(d[61].f), "+f"(d[62].f), "+f"(d[63].f)
-
-/** The operands of one warpgroup's 64 accumulators as integers. */
-#define nk_wgmma_s32_operands_hopper_(d)                                                                            \
-    "+r"(d[0].u), "+r"(d[1].u), "+r"(d[2].u), "+r"(d[3].u), "+r"(d[4].u), "+r"(d[5].u), "+r"(d[6].u), "+r"(d[7].u), \
-        "+r"(d[8].u), "+r"(d[9].u), "+r"(d[10].u), "+r"(d[11].u), "+r"(d[12].u), "+r"(d[13].u), "+r"(d[14].u),      \
-        "+r"(d[15].u), "+r"(d[16].u), "+r"(d[17].u), "+r"(d[18].u), "+r"(d[19].u), "+r"(d[20].u), "+r"(d[21].u),    \
-        "+r"(d[22].u), "+r"(d[23].u), "+r"(d[24].u), "+r"(d[25].u), "+r"(d[26].u), "+r"(d[27].u), "+r"(d[28].u),    \
-        "+r"(d[29].u), "+r"(d[30].u), "+r"(d[31].u), "+r"(d[32].u), "+r"(d[33].u), "+r"(d[34].u), "+r"(d[35].u),    \
-        "+r"(d[36].u), "+r"(d[37].u), "+r"(d[38].u), "+r"(d[39].u), "+r"(d[40].u), "+r"(d[41].u), "+r"(d[42].u),    \
-        "+r"(d[43].u), "+r"(d[44].u), "+r"(d[45].u), "+r"(d[46].u), "+r"(d[47].u), "+r"(d[48].u), "+r"(d[49].u),    \
-        "+r"(d[50].u), "+r"(d[51].u), "+r"(d[52].u), "+r"(d[53].u), "+r"(d[54].u), "+r"(d[55].u), "+r"(d[56].u),    \
-        "+r"(d[57].u), "+r"(d[58].u), "+r"(d[59].u), "+r"(d[60].u), "+r"(d[61].u), "+r"(d[62].u), "+r"(d[63].u)
-
-#if defined(__CUDA_ARCH_SPECIFIC__) && __CUDA_ARCH_SPECIFIC__ == 900
-
 NUMKONG_DEVICE void nk_wgmma_fence_hopper_(void) { asm volatile("wgmma.fence.sync.aligned;\n" ::: "memory"); }
 
 /*  Orders this thread's generic-proxy writes of shared memory, `cp.async` ones included, before
@@ -94,107 +68,146 @@ NUMKONG_DEVICE void nk_wgmma_wait_hopper_(void) { asm volatile("wgmma.wait_group
 
 NUMKONG_DEVICE void nk_wgmma_bf16_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
                                           int accumulate) {
-    asm volatile("{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
-                 "wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 "                            //
-                 "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
-                 "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
-                 "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
-                 "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
-                 ", %64, %65, p, 1, 1, 0, 0;\n}\n"
-                 : nk_wgmma_f32_operands_hopper_(accumulators)
-                 : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
-                 : "memory");
+    asm volatile(
+        "{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
+        "wgmma.mma_async.sync.aligned.m64n128k16.f32.bf16.bf16 "                            //
+        "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
+        "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
+        "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
+        "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
+        ", %64, %65, p, 1, 1, 0, 0;\n}\n"
+        : "+f"(accumulators[0].f), "+f"(accumulators[1].f), "+f"(accumulators[2].f), "+f"(accumulators[3].f),
+          "+f"(accumulators[4].f), "+f"(accumulators[5].f), "+f"(accumulators[6].f), "+f"(accumulators[7].f),
+          "+f"(accumulators[8].f), "+f"(accumulators[9].f), "+f"(accumulators[10].f), "+f"(accumulators[11].f),
+          "+f"(accumulators[12].f), "+f"(accumulators[13].f), "+f"(accumulators[14].f), "+f"(accumulators[15].f),
+          "+f"(accumulators[16].f), "+f"(accumulators[17].f), "+f"(accumulators[18].f), "+f"(accumulators[19].f),
+          "+f"(accumulators[20].f), "+f"(accumulators[21].f), "+f"(accumulators[22].f), "+f"(accumulators[23].f),
+          "+f"(accumulators[24].f), "+f"(accumulators[25].f), "+f"(accumulators[26].f), "+f"(accumulators[27].f),
+          "+f"(accumulators[28].f), "+f"(accumulators[29].f), "+f"(accumulators[30].f), "+f"(accumulators[31].f),
+          "+f"(accumulators[32].f), "+f"(accumulators[33].f), "+f"(accumulators[34].f), "+f"(accumulators[35].f),
+          "+f"(accumulators[36].f), "+f"(accumulators[37].f), "+f"(accumulators[38].f), "+f"(accumulators[39].f),
+          "+f"(accumulators[40].f), "+f"(accumulators[41].f), "+f"(accumulators[42].f), "+f"(accumulators[43].f),
+          "+f"(accumulators[44].f), "+f"(accumulators[45].f), "+f"(accumulators[46].f), "+f"(accumulators[47].f),
+          "+f"(accumulators[48].f), "+f"(accumulators[49].f), "+f"(accumulators[50].f), "+f"(accumulators[51].f),
+          "+f"(accumulators[52].f), "+f"(accumulators[53].f), "+f"(accumulators[54].f), "+f"(accumulators[55].f),
+          "+f"(accumulators[56].f), "+f"(accumulators[57].f), "+f"(accumulators[58].f), "+f"(accumulators[59].f),
+          "+f"(accumulators[60].f), "+f"(accumulators[61].f), "+f"(accumulators[62].f), "+f"(accumulators[63].f)
+        : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
+        : "memory");
 }
 
 NUMKONG_DEVICE void nk_wgmma_f16_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
                                          int accumulate) {
-    asm volatile("{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
-                 "wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 "                              //
-                 "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
-                 "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
-                 "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
-                 "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
-                 ", %64, %65, p, 1, 1, 0, 0;\n}\n"
-                 : nk_wgmma_f32_operands_hopper_(accumulators)
-                 : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
-                 : "memory");
+    asm volatile(
+        "{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
+        "wgmma.mma_async.sync.aligned.m64n128k16.f32.f16.f16 "                              //
+        "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
+        "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
+        "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
+        "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
+        ", %64, %65, p, 1, 1, 0, 0;\n}\n"
+        : "+f"(accumulators[0].f), "+f"(accumulators[1].f), "+f"(accumulators[2].f), "+f"(accumulators[3].f),
+          "+f"(accumulators[4].f), "+f"(accumulators[5].f), "+f"(accumulators[6].f), "+f"(accumulators[7].f),
+          "+f"(accumulators[8].f), "+f"(accumulators[9].f), "+f"(accumulators[10].f), "+f"(accumulators[11].f),
+          "+f"(accumulators[12].f), "+f"(accumulators[13].f), "+f"(accumulators[14].f), "+f"(accumulators[15].f),
+          "+f"(accumulators[16].f), "+f"(accumulators[17].f), "+f"(accumulators[18].f), "+f"(accumulators[19].f),
+          "+f"(accumulators[20].f), "+f"(accumulators[21].f), "+f"(accumulators[22].f), "+f"(accumulators[23].f),
+          "+f"(accumulators[24].f), "+f"(accumulators[25].f), "+f"(accumulators[26].f), "+f"(accumulators[27].f),
+          "+f"(accumulators[28].f), "+f"(accumulators[29].f), "+f"(accumulators[30].f), "+f"(accumulators[31].f),
+          "+f"(accumulators[32].f), "+f"(accumulators[33].f), "+f"(accumulators[34].f), "+f"(accumulators[35].f),
+          "+f"(accumulators[36].f), "+f"(accumulators[37].f), "+f"(accumulators[38].f), "+f"(accumulators[39].f),
+          "+f"(accumulators[40].f), "+f"(accumulators[41].f), "+f"(accumulators[42].f), "+f"(accumulators[43].f),
+          "+f"(accumulators[44].f), "+f"(accumulators[45].f), "+f"(accumulators[46].f), "+f"(accumulators[47].f),
+          "+f"(accumulators[48].f), "+f"(accumulators[49].f), "+f"(accumulators[50].f), "+f"(accumulators[51].f),
+          "+f"(accumulators[52].f), "+f"(accumulators[53].f), "+f"(accumulators[54].f), "+f"(accumulators[55].f),
+          "+f"(accumulators[56].f), "+f"(accumulators[57].f), "+f"(accumulators[58].f), "+f"(accumulators[59].f),
+          "+f"(accumulators[60].f), "+f"(accumulators[61].f), "+f"(accumulators[62].f), "+f"(accumulators[63].f)
+        : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
+        : "memory");
 }
 
 NUMKONG_DEVICE void nk_wgmma_i8_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
                                         int accumulate) {
-    asm volatile("{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
-                 "wgmma.mma_async.sync.aligned.m64n128k32.s32.s8.s8 "                                //
-                 "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
-                 "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
-                 "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
-                 "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
-                 ", %64, %65, p;\n}\n"
-                 : nk_wgmma_s32_operands_hopper_(accumulators)
-                 : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
-                 : "memory");
+    asm volatile(
+        "{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
+        "wgmma.mma_async.sync.aligned.m64n128k32.s32.s8.s8 "                                //
+        "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
+        "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
+        "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
+        "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
+        ", %64, %65, p;\n}\n"
+        : "+r"(accumulators[0].u), "+r"(accumulators[1].u), "+r"(accumulators[2].u), "+r"(accumulators[3].u),
+          "+r"(accumulators[4].u), "+r"(accumulators[5].u), "+r"(accumulators[6].u), "+r"(accumulators[7].u),
+          "+r"(accumulators[8].u), "+r"(accumulators[9].u), "+r"(accumulators[10].u), "+r"(accumulators[11].u),
+          "+r"(accumulators[12].u), "+r"(accumulators[13].u), "+r"(accumulators[14].u), "+r"(accumulators[15].u),
+          "+r"(accumulators[16].u), "+r"(accumulators[17].u), "+r"(accumulators[18].u), "+r"(accumulators[19].u),
+          "+r"(accumulators[20].u), "+r"(accumulators[21].u), "+r"(accumulators[22].u), "+r"(accumulators[23].u),
+          "+r"(accumulators[24].u), "+r"(accumulators[25].u), "+r"(accumulators[26].u), "+r"(accumulators[27].u),
+          "+r"(accumulators[28].u), "+r"(accumulators[29].u), "+r"(accumulators[30].u), "+r"(accumulators[31].u),
+          "+r"(accumulators[32].u), "+r"(accumulators[33].u), "+r"(accumulators[34].u), "+r"(accumulators[35].u),
+          "+r"(accumulators[36].u), "+r"(accumulators[37].u), "+r"(accumulators[38].u), "+r"(accumulators[39].u),
+          "+r"(accumulators[40].u), "+r"(accumulators[41].u), "+r"(accumulators[42].u), "+r"(accumulators[43].u),
+          "+r"(accumulators[44].u), "+r"(accumulators[45].u), "+r"(accumulators[46].u), "+r"(accumulators[47].u),
+          "+r"(accumulators[48].u), "+r"(accumulators[49].u), "+r"(accumulators[50].u), "+r"(accumulators[51].u),
+          "+r"(accumulators[52].u), "+r"(accumulators[53].u), "+r"(accumulators[54].u), "+r"(accumulators[55].u),
+          "+r"(accumulators[56].u), "+r"(accumulators[57].u), "+r"(accumulators[58].u), "+r"(accumulators[59].u),
+          "+r"(accumulators[60].u), "+r"(accumulators[61].u), "+r"(accumulators[62].u), "+r"(accumulators[63].u)
+        : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
+        : "memory");
 }
 
 NUMKONG_DEVICE void nk_wgmma_u8_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
                                         int accumulate) {
-    asm volatile("{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
-                 "wgmma.mma_async.sync.aligned.m64n128k32.s32.u8.u8 "                                //
-                 "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
-                 "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
-                 "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
-                 "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
-                 ", %64, %65, p;\n}\n"
-                 : nk_wgmma_s32_operands_hopper_(accumulators)
-                 : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
-                 : "memory");
+    asm volatile(
+        "{\n.reg .pred p;\nsetp.ne.b32 p, %66, 0;\n"                                        //
+        "wgmma.mma_async.sync.aligned.m64n128k32.s32.u8.u8 "                                //
+        "{%0, %1, %2, %3, %4, %5, %6, %7, %8, %9, %10, %11, %12, %13, %14, %15, %16, %17, " //
+        "%18, %19, %20, %21, %22, %23, %24, %25, %26, %27, %28, %29, %30, %31, %32, %33, "  //
+        "%34, %35, %36, %37, %38, %39, %40, %41, %42, %43, %44, %45, %46, %47, %48, %49, "  //
+        "%50, %51, %52, %53, %54, %55, %56, %57, %58, %59, %60, %61, %62, %63}"             //
+        ", %64, %65, p;\n}\n"
+        : "+r"(accumulators[0].u), "+r"(accumulators[1].u), "+r"(accumulators[2].u), "+r"(accumulators[3].u),
+          "+r"(accumulators[4].u), "+r"(accumulators[5].u), "+r"(accumulators[6].u), "+r"(accumulators[7].u),
+          "+r"(accumulators[8].u), "+r"(accumulators[9].u), "+r"(accumulators[10].u), "+r"(accumulators[11].u),
+          "+r"(accumulators[12].u), "+r"(accumulators[13].u), "+r"(accumulators[14].u), "+r"(accumulators[15].u),
+          "+r"(accumulators[16].u), "+r"(accumulators[17].u), "+r"(accumulators[18].u), "+r"(accumulators[19].u),
+          "+r"(accumulators[20].u), "+r"(accumulators[21].u), "+r"(accumulators[22].u), "+r"(accumulators[23].u),
+          "+r"(accumulators[24].u), "+r"(accumulators[25].u), "+r"(accumulators[26].u), "+r"(accumulators[27].u),
+          "+r"(accumulators[28].u), "+r"(accumulators[29].u), "+r"(accumulators[30].u), "+r"(accumulators[31].u),
+          "+r"(accumulators[32].u), "+r"(accumulators[33].u), "+r"(accumulators[34].u), "+r"(accumulators[35].u),
+          "+r"(accumulators[36].u), "+r"(accumulators[37].u), "+r"(accumulators[38].u), "+r"(accumulators[39].u),
+          "+r"(accumulators[40].u), "+r"(accumulators[41].u), "+r"(accumulators[42].u), "+r"(accumulators[43].u),
+          "+r"(accumulators[44].u), "+r"(accumulators[45].u), "+r"(accumulators[46].u), "+r"(accumulators[47].u),
+          "+r"(accumulators[48].u), "+r"(accumulators[49].u), "+r"(accumulators[50].u), "+r"(accumulators[51].u),
+          "+r"(accumulators[52].u), "+r"(accumulators[53].u), "+r"(accumulators[54].u), "+r"(accumulators[55].u),
+          "+r"(accumulators[56].u), "+r"(accumulators[57].u), "+r"(accumulators[58].u), "+r"(accumulators[59].u),
+          "+r"(accumulators[60].u), "+r"(accumulators[61].u), "+r"(accumulators[62].u), "+r"(accumulators[63].u)
+        : "l"(a_descriptor), "l"(b_descriptor), "r"(accumulate)
+        : "memory");
 }
-
-#else
-
-/*  Every other device pass and the host pass get trapping bodies, so a cubin picked for the wrong
- *  device fails loudly rather than returning zeros. */
-NUMKONG_DEVICE void nk_fence_proxy_async_hopper_(void) { __trap(); }
-NUMKONG_DEVICE void nk_wgmma_fence_hopper_(void) { __trap(); }
-NUMKONG_DEVICE void nk_wgmma_commit_hopper_(void) { __trap(); }
-NUMKONG_DEVICE void nk_wgmma_wait_hopper_(void) { __trap(); }
-NUMKONG_DEVICE void nk_wgmma_bf16_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
-                                          int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_wgmma_f16_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
-                                         int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_wgmma_i8_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
-                                        int accumulate) {
-    __trap();
-}
-NUMKONG_DEVICE void nk_wgmma_u8_hopper_(nk_fui32_t accumulators[64], nk_u64_t a_descriptor, nk_u64_t b_descriptor,
-                                        int accumulate) {
-    __trap();
-}
-
-#endif // defined(__CUDA_ARCH_SPECIFIC__) && __CUDA_ARCH_SPECIFIC__ == 900
-
-#undef nk_wgmma_f32_operands_hopper_
-#undef nk_wgmma_s32_operands_hopper_
 
 #pragma endregion Instructions
 
 #pragma region Descriptors
 
+/** The layout code of a @c wgmma descriptor for the 64-byte swizzle every staged operand takes. */
+enum { nk_smem_swizzle_64_hopper_k = 2 };
+
 /**
- *  @brief The shared-memory descriptor of a K-major @c wgmma operand whose rows are 64 bytes apart
- *      under the 64-byte swizzle, from @p shared_address, the first row's first byte.
+ *  @brief The shared-memory descriptor of a @c wgmma operand at @p address in @p layout, with
+ *      @p leading_bytes between its groups along the leading dimension and @p stride_bytes between
+ *      its 8-row groups.
  *
- *  Bits 0-13 hold the start address in 16-byte units, bits 16-29 the leading offset, which swizzled
- *  K-major layouts ignore and take as one unit, bits 32-45 the 512 bytes between 8-row groups, and
- *  bits 62-63 the swizzle, 2 for 64 bytes. The swizzle XORs address bits 4-5 with bits 7-8, so a
- *  start 32 bytes into a row reads the second half of the same rows, and the base-offset bits stay
- *  zero while every staged block starts on a 512-byte boundary.
+ *  Bits 0-13 hold the start address in 16-byte units, bits 16-29 and 32-45 both offsets alike, and
+ *  bits 62-63 the layout. A K-major swizzled operand ignores the leading offset, and an N-major one
+ *  steps it between column groups of the swizzle's width. The 64-byte swizzle XORs address bits 4-5
+ *  with bits 7-8, so a start 32 bytes into a row reads the second half of the same rows, and the
+ *  base-offset bits stay zero while every staged block starts on a 512-byte boundary.
  */
-NUMKONG_DEVICE nk_u64_t nk_wgmma_descriptor_hopper_(nk_u32_t shared_address) {
-    nk_u64_t const start = (shared_address & 0x3FFFFu) >> 4, leading = 1, stride = 512 >> 4, swizzle = 2;
-    return start | (leading << 16) | (stride << 32) | (swizzle << 62);
+NUMKONG_DEVICE nk_u64_t nk_smem_descriptor_hopper_(nk_u32_t address, nk_u32_t layout, nk_u32_t leading_bytes,
+                                                   nk_u32_t stride_bytes) {
+    nk_u64_t const start = (address & 0x3FFFFu) >> 4, leading = leading_bytes >> 4, stride = stride_bytes >> 4;
+    return start | (leading << 16) | (stride << 32) | ((nk_u64_t)layout << 62);
 }
 
 /** Pins @p count registers between the asynchronous @c wgmma steps and the code around them, so the
@@ -221,8 +234,11 @@ NUMKONG_DEVICE void nk_cross_issue_slab_hopper_(nk_cross_wgmma_hopper_t wgmma, n
     nk_u32_t const b_address = nk_shared_address_ampere_(stage + nk_cross_stage_bytes_ampere_k);
     nk_wgmma_fence_operands_hopper_(accumulators, 64, sums);
     nk_wgmma_fence_hopper_();
-    wgmma(accumulators, nk_wgmma_descriptor_hopper_(a_address), nk_wgmma_descriptor_hopper_(b_address), 1);
-    wgmma(accumulators, nk_wgmma_descriptor_hopper_(a_address + 32), nk_wgmma_descriptor_hopper_(b_address + 32), 1);
+    // K-major rows of 64 bytes, the leading offset unread, in 8-row groups 512 bytes apart.
+#pragma unroll
+    for (unsigned step = 0; step < 2; ++step)
+        wgmma(accumulators, nk_smem_descriptor_hopper_(a_address + 32 * step, nk_smem_swizzle_64_hopper_k, 16, 512),
+              nk_smem_descriptor_hopper_(b_address + 32 * step, nk_smem_swizzle_64_hopper_k, 16, 512), 1);
     nk_wgmma_commit_hopper_();
 }
 
@@ -339,7 +355,7 @@ NUMKONG_DEVICE void nk_cross_tile_hopper_(nk_cross_multiply_hopper_t multiply, n
                                           nk_cross_triangle_t triangle, nk_cross_metric_t metric,
                                           nk_cross_tile_arguments_t const *arguments) {
     // A 512-byte boundary starts every stage, as the 64-byte swizzle's zero base offset requires.
-    __shared__ __align__(1024) unsigned char staged[nk_cross_stages_ampere_k][2][nk_cross_stage_bytes_ampere_k];
+    __shared__ __align__(1024) nk_cross_shared_ampere_t shared;
 
     unsigned const lane = threadIdx.x & 31, warp = (threadIdx.x >> 5) & 3;
     unsigned const warpgroup_row = (threadIdx.x >> 7) * nk_cross_warpgroup_rows_hopper_k;
@@ -363,8 +379,8 @@ NUMKONG_DEVICE void nk_cross_tile_hopper_(nk_cross_multiply_hopper_t multiply, n
 #pragma unroll
         for (unsigned stage = 0; stage + 1 < nk_cross_stages_ampere_k; ++stage) {
             if (copies && stage < slabs)
-                nk_cross_stage_ampere_(staged[stage][0], staged[stage][1], arguments, first_row, first_column,
-                                       stage * nk_cross_slab_bytes_ampere_k);
+                nk_cross_stage_ampere_(shared.stages[stage][0], shared.stages[stage][1], arguments, first_row,
+                                       first_column, stage * nk_cross_slab_bytes_ampere_k);
             nk_commit_async_ampere_();
         }
 
@@ -374,13 +390,13 @@ NUMKONG_DEVICE void nk_cross_tile_hopper_(nk_cross_multiply_hopper_t multiply, n
             nk_fence_proxy_async_hopper_();
             // This stage's copies are in, and every warp is done with the stage refilled below.
             __syncthreads();
-            unsigned char *stage = staged[read_stage][0];
+            unsigned char *stage = shared.stages[read_stage][0];
             if (squares) nk_cross_stage_norm_ampere_(norm_update, stage, &integer_norm, &real_norm);
             multiply(accumulators, stage);
             nk_size_t const prefetch = slab + nk_cross_stages_ampere_k - 1;
             if (copies && prefetch < slabs)
-                nk_cross_stage_ampere_(staged[write_stage][0], staged[write_stage][1], arguments, first_row,
-                                       first_column, prefetch * nk_cross_slab_bytes_ampere_k);
+                nk_cross_stage_ampere_(shared.stages[write_stage][0], shared.stages[write_stage][1], arguments,
+                                       first_row, first_column, prefetch * nk_cross_slab_bytes_ampere_k);
             nk_commit_async_ampere_();
             nk_wgmma_wait_hopper_();
             nk_wgmma_fence_operands_hopper_(accumulators, 64, epilogue);
@@ -389,7 +405,7 @@ NUMKONG_DEVICE void nk_cross_tile_hopper_(nk_cross_multiply_hopper_t multiply, n
         }
 
         // Row norms, then column norms, in the ring's first stage once every warp's steps are done.
-        nk_fui32_t *norms = (nk_fui32_t *)staged[0][0];
+        nk_fui32_t *norms = shared.norms;
         if (metric != nk_cross_metric_dot_k) {
             __syncthreads();
             nk_size_t const column = first_column + threadIdx.x - nk_cross_tile_ampere_k;

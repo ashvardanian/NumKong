@@ -146,8 +146,8 @@ let kernels: [Kernel] = {
         (.rvvBF16, "rvvbf16"), (.rvvHalf, "rvvhalf"), (.rvvBB, "rvvbb"), (.v128, "v128"),
         (.v128Relaxed, "v128relaxed"), (.powerVSX, "powervsx"), (.loongsonASX, "loongsonasx"), (.cuda, "cuda"),
         (.ampere, "ampere"), (.ada, "ada"), (.hopper, "hopper"), (.blackwell, "blackwell"),
-        (.blackwellRTX, "blackwellrtx"), (.rocm, "rocm"), (.cdna4, "cdna4"), (.cdna5, "cdna5"), (.metal, "metal"),
-        (.apple9, "apple9"), (.apple10, "apple10"),
+        (.blackwellRTX, "blackwellrtx"), (.blackwellUltra, "blackwellultra"), (.rocm, "rocm"), (.cdna3, "cdna3"),
+        (.cdna4, "cdna4"), (.cdna5, "cdna5"), (.metal, "metal"), (.apple9, "apple9"), (.apple10, "apple10"),
     ]
     for (capability, name) in names { #expect(capability.description == name) }
     #expect(Capabilities.cpus.union(.gpus).isSubset(of: .any))
