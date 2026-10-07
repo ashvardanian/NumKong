@@ -1304,7 +1304,7 @@ impl From<e3m2> for f32 {
 
 /// Packed 8-bit bit-vector — 8 booleans in one byte.
 ///
-/// Layout: 8 bits packed into one byte, LSB = dimension 0.
+/// Layout: 8 bits packed into one byte, MSB = dimension 0.
 /// Used for Hamming distance and Jaccard similarity via popcount.
 #[repr(transparent)]
 #[derive(Clone, Copy, PartialEq, Eq, Default)]
@@ -1347,33 +1347,33 @@ impl u1x8 {
     #[inline(always)]
     pub const fn bits(self) -> u8 { self.0 }
 
-    /// Construct from 8 booleans (b0 = LSB, b7 = MSB).
+    /// Construct from 8 booleans (b0 = MSB, b7 = LSB).
     #[inline(always)]
     pub const fn from_bools(b0: bool, b1: bool, b2: bool, b3: bool, b4: bool, b5: bool, b6: bool, b7: bool) -> Self {
         u1x8(
-            (b0 as u8)
-                | ((b1 as u8) << 1)
-                | ((b2 as u8) << 2)
-                | ((b3 as u8) << 3)
-                | ((b4 as u8) << 4)
-                | ((b5 as u8) << 5)
-                | ((b6 as u8) << 6)
-                | ((b7 as u8) << 7),
+            ((b0 as u8) << 7)
+                | ((b1 as u8) << 6)
+                | ((b2 as u8) << 5)
+                | ((b3 as u8) << 4)
+                | ((b4 as u8) << 3)
+                | ((b5 as u8) << 2)
+                | ((b6 as u8) << 1)
+                | (b7 as u8),
         )
     }
 
-    /// Extract to 8 booleans (b0 = LSB, b7 = MSB).
+    /// Extract to 8 booleans (b0 = MSB, b7 = LSB).
     #[inline(always)]
     pub const fn to_bools(self) -> (bool, bool, bool, bool, bool, bool, bool, bool) {
         (
-            (self.0 & 1) != 0,
-            (self.0 & 2) != 0,
-            (self.0 & 4) != 0,
-            (self.0 & 8) != 0,
-            (self.0 & 16) != 0,
-            (self.0 & 32) != 0,
-            (self.0 & 64) != 0,
             (self.0 & 128) != 0,
+            (self.0 & 64) != 0,
+            (self.0 & 32) != 0,
+            (self.0 & 16) != 0,
+            (self.0 & 8) != 0,
+            (self.0 & 4) != 0,
+            (self.0 & 2) != 0,
+            (self.0 & 1) != 0,
         )
     }
 }
@@ -2509,7 +2509,7 @@ impl FloatConvertible for u1x8 {
     fn unpack(self) -> [u8; 8] {
         let mut out = [0u8; 8];
         for (i, slot) in out.iter_mut().enumerate() {
-            *slot = (self.0 >> i) & 1;
+            *slot = (self.0 >> (7 - i)) & 1;
         }
         out
     }
@@ -2518,7 +2518,7 @@ impl FloatConvertible for u1x8 {
         let mut byte = 0u8;
         for (i, &dim) in dims.iter().enumerate() {
             if dim != 0 {
-                byte |= 1 << i;
+                byte |= 0x80 >> i;
             }
         }
         u1x8(byte)

@@ -1372,7 +1372,7 @@ error_stats_t test_format_scalars(settings_t const &) {
     stats.expect(std::format("{:x}", uref) == "a", "u4 sub_byte_ref hex format");
     stats.expect(std::format("{:b}", uref) == "1010", "u4 sub_byte_ref binary format");
 
-    nk_u1x8_t packed_b = 0x05;
+    nk_u1x8_t packed_b = 0xA0;
     nk::sub_byte_ref<nk::u1x8_t> bref(&packed_b, 0);
     stats.expect(std::format("{}", bref) == "1", "u1 sub_byte_ref format");
     return stats;

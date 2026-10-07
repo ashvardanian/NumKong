@@ -1032,7 +1032,7 @@ typedef __vector double nk_vf64x2_t;
 extern "C" {
 #endif
 
-/** Packed 8-bit bit-vector (8 booleans in one byte), LSB = dimension 0. Used for Hamming
+/** Packed 8-bit bit-vector (8 booleans in one byte), MSB = dimension 0. Used for Hamming
  *  distance and Jaccard similarity via popcount. Dimension count must be a multiple of 8, the
  *  values per byte. */
 typedef unsigned char nk_u1x8_t;

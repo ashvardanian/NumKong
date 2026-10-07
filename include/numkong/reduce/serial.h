@@ -814,7 +814,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u1_strided_(             //
     for (nk_size_t i = 0; i < count; ++i) {
         nk_size_t byte_idx = i / 8;
         unsigned char byte_val = ptr[byte_idx * stride];
-        nk_u8_t bit = (byte_val >> (i % 8)) & 1;
+        nk_u8_t bit = (byte_val >> (7 - i % 8)) & 1;
         if (bit < min_value) {
             min_value = bit;
             min_idx = i;

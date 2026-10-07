@@ -39,7 +39,7 @@
 //
 // # Binary Vectors
 //
-// Binary vectors pack 8 dimensions per byte, least significant bit first. [DimensionsPerValue] and
+// Binary vectors pack 8 dimensions per byte, most significant bit first. [DimensionsPerValue] and
 // [DimensionsToValues] convert a dimension count into stored values for a dtype name such as "u1".
 //
 // # Threads
