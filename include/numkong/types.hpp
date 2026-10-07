@@ -6882,16 +6882,21 @@ constexpr bool operator>=(double a, f118_t b) noexcept { return f118_t(a) >= b; 
 
 #pragma region Concepts
 
-/** Anything that exposes one run of @p value_type_ through @c std::data and @c std::size. */
+/** Anything exposing @p value_type_ or its @c raw_t through @c std::data and @c std::size. */
 template <typename vector_type_, typename value_type_>
-concept vector_of = requires(vector_type_ const &vector) {
+concept vector_of = (requires(vector_type_ const &vector) {
     { std::data(vector) } -> std::convertible_to<value_type_ const *>;
+} || requires(vector_type_ const &vector) {
+    { std::data(vector) } -> std::convertible_to<typename value_type_::raw_t const *>;
+}) && requires(vector_type_ const &vector) {
     { std::size(vector) } -> std::convertible_to<std::size_t>;
 };
 template <typename vector_type_, typename value_type_>
-concept mutable_vector_of = vector_of<vector_type_, value_type_> && requires(vector_type_ &vector) {
+concept mutable_vector_of = vector_of<vector_type_, value_type_> && (requires(vector_type_ &vector) {
     { std::data(vector) } -> std::convertible_to<value_type_ *>;
-};
+} || requires(vector_type_ &vector) {
+    { std::data(vector) } -> std::convertible_to<typename value_type_::raw_t *>;
+});
 
 /** The storage values of @p vector as one contiguous span; views refuse through their values(). */
 template <typename value_type_, typename vector_type_>
@@ -6902,20 +6907,26 @@ constexpr expected<std::span<value_type_>> contiguous_values_(vector_type_ &&vec
     }
     else if constexpr (requires { vector.size_values(); })
         return {{std::data(vector), vector.size_values()}, status_t::success_k};
-    else return {{std::data(vector), std::size(vector)}, status_t::success_k};
+    else return {{reinterpret_cast<value_type_ *>(std::data(vector)), std::size(vector)}, status_t::success_k};
 }
 
 template <typename matrix_type_, typename element_type_>
-concept const_matrix_of = requires(matrix_type_ const &m) {
+concept const_matrix_of = (requires(matrix_type_ const &m) {
     { m.data() } -> std::convertible_to<element_type_ const *>;
+} || requires(matrix_type_ const &m) {
+    { m.data() } -> std::convertible_to<typename element_type_::raw_t const *>;
+}) && requires(matrix_type_ const &m) {
     { m.extent(0) } -> std::convertible_to<std::size_t>;
     { m.stride_bytes(0) } -> std::convertible_to<std::ptrdiff_t>;
     { m.rank() } -> std::convertible_to<std::size_t>;
 };
 
 template <typename matrix_type_, typename element_type_>
-concept mutable_matrix_of = requires(matrix_type_ &m) {
+concept mutable_matrix_of = (requires(matrix_type_ &m) {
     { m.data() } -> std::convertible_to<element_type_ *>;
+} || requires(matrix_type_ &m) {
+    { m.data() } -> std::convertible_to<typename element_type_::raw_t *>;
+}) && requires(matrix_type_ &m) {
     { m.extent(0) } -> std::convertible_to<std::size_t>;
     { m.stride_bytes(0) } -> std::convertible_to<std::ptrdiff_t>;
     { m.rank() } -> std::convertible_to<std::size_t>;

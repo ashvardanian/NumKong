@@ -565,8 +565,9 @@ template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
 status_t dots_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::dots_symmetric<value_type_>(input.data(), num_vectors, input.extent(1),
-                                                static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
+    return numkong::dots_symmetric<value_type_>(reinterpret_cast<value_type_ const *>(input.data()), num_vectors,
+                                                input.extent(1), static_cast<std::size_t>(input.stride_bytes(0)),
+                                                reinterpret_cast<typename value_type_::dot_result_t *>(output.data()),
                                                 static_cast<std::size_t>(output.stride_bytes(0)));
 }
 
@@ -578,8 +579,9 @@ status_t dots_symmetric(input_matrix_ const &input, output_matrix_ output, std::
                         std::size_t row_count) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::dots_symmetric<value_type_>(input.data(), num_vectors, input.extent(1),
-                                                static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
+    return numkong::dots_symmetric<value_type_>(reinterpret_cast<value_type_ const *>(input.data()), num_vectors,
+                                                input.extent(1), static_cast<std::size_t>(input.stride_bytes(0)),
+                                                reinterpret_cast<typename value_type_::dot_result_t *>(output.data()),
                                                 static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count);
 }
 
@@ -608,9 +610,11 @@ template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
 status_t hammings_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::hammings_symmetric<value_type_>(input.data(), num_vectors, input.extent(1),
-                                                    static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
-                                                    static_cast<std::size_t>(output.stride_bytes(0)));
+    return numkong::hammings_symmetric<value_type_>(
+        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
+        static_cast<std::size_t>(input.stride_bytes(0)),
+        reinterpret_cast<typename value_type_::hamming_result_t *>(output.data()),
+        static_cast<std::size_t>(output.stride_bytes(0)));
 }
 
 /** Allocating symmetric Hamming distances. Empty for an empty input, or the allocation's or
@@ -638,9 +642,11 @@ template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
 status_t jaccards_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::jaccards_symmetric<value_type_>(input.data(), num_vectors, input.extent(1),
-                                                    static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
-                                                    static_cast<std::size_t>(output.stride_bytes(0)));
+    return numkong::jaccards_symmetric<value_type_>(
+        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
+        static_cast<std::size_t>(input.stride_bytes(0)),
+        reinterpret_cast<typename value_type_::jaccard_result_t *>(output.data()),
+        static_cast<std::size_t>(output.stride_bytes(0)));
 }
 
 /** Allocating symmetric Jaccard distances. Empty for an empty input, or the allocation's or
@@ -673,9 +679,10 @@ status_t dots_packed(input_matrix_ const &a, packed_type_ const &packed_b, outpu
     if (packed_b.empty() || a.rank() < 2 || c.rank() < 2) return status_t::unexpected_dimensions_k;
     if (a.extent(1) != packed_b.depth()) return status_t::unexpected_dimensions_k;
     if (c.extent(0) != a.extent(0) || c.extent(1) != packed_b.rows()) return status_t::unexpected_dimensions_k;
-    return numkong::dots_packed<value_type_>(a.data(), packed_b.data(), c.data(), a.extent(0), packed_b.rows(),
-                                             packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)),
-                                             static_cast<std::size_t>(c.stride_bytes(0)));
+    return numkong::dots_packed<value_type_>(
+        reinterpret_cast<value_type_ const *>(a.data()), packed_b.data(),
+        reinterpret_cast<typename value_type_::dot_result_t *>(c.data()), a.extent(0), packed_b.rows(),
+        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)));
 }
 
 /** Allocating packed dot products: C = A × B_packedᵀ. @c unexpected_dimensions_k for an empty pack
@@ -704,9 +711,10 @@ status_t hammings_packed(input_matrix_ const &a, packed_type_ const &packed_b, o
     if (packed_b.empty() || a.rank() < 2 || c.rank() < 2) return status_t::unexpected_dimensions_k;
     if (a.extent(1) != packed_b.depth()) return status_t::unexpected_dimensions_k;
     if (c.extent(0) != a.extent(0) || c.extent(1) != packed_b.rows()) return status_t::unexpected_dimensions_k;
-    return numkong::hammings_packed<value_type_>(a.data(), packed_b.data(), c.data(), a.extent(0), packed_b.rows(),
-                                                 packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)),
-                                                 static_cast<std::size_t>(c.stride_bytes(0)));
+    return numkong::hammings_packed<value_type_>(
+        reinterpret_cast<value_type_ const *>(a.data()), packed_b.data(),
+        reinterpret_cast<typename value_type_::hamming_result_t *>(c.data()), a.extent(0), packed_b.rows(),
+        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)));
 }
 
 /** Allocating packed Hamming distances. @c unexpected_dimensions_k for an empty pack or a rank
@@ -734,9 +742,10 @@ status_t jaccards_packed(input_matrix_ const &a, packed_type_ const &packed_b, o
     if (packed_b.empty() || a.rank() < 2 || c.rank() < 2) return status_t::unexpected_dimensions_k;
     if (a.extent(1) != packed_b.depth()) return status_t::unexpected_dimensions_k;
     if (c.extent(0) != a.extent(0) || c.extent(1) != packed_b.rows()) return status_t::unexpected_dimensions_k;
-    return numkong::jaccards_packed<value_type_>(a.data(), packed_b.data(), c.data(), a.extent(0), packed_b.rows(),
-                                                 packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)),
-                                                 static_cast<std::size_t>(c.stride_bytes(0)));
+    return numkong::jaccards_packed<value_type_>(
+        reinterpret_cast<value_type_ const *>(a.data()), packed_b.data(),
+        reinterpret_cast<typename value_type_::jaccard_result_t *>(c.data()), a.extent(0), packed_b.rows(),
+        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)));
 }
 
 /** Allocating packed Jaccard distances. @c unexpected_dimensions_k for an empty pack or a rank

@@ -440,9 +440,11 @@ template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
 status_t angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::angulars_symmetric<value_type_>(input.data(), num_vectors, input.extent(1),
-                                                    static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
-                                                    static_cast<std::size_t>(output.stride_bytes(0)));
+    return numkong::angulars_symmetric<value_type_>(
+        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
+        static_cast<std::size_t>(input.stride_bytes(0)),
+        reinterpret_cast<typename value_type_::angular_result_t *>(output.data()),
+        static_cast<std::size_t>(output.stride_bytes(0)));
 }
 
 /** Allocating symmetric angular distances. Empty for an empty input, or the allocation's or
@@ -470,9 +472,11 @@ template <numeric_dtype value_type_, const_matrix_of<value_type_> input_matrix_,
 status_t euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&output) noexcept {
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
-    return numkong::euclideans_symmetric<value_type_>(input.data(), num_vectors, input.extent(1),
-                                                      static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
-                                                      static_cast<std::size_t>(output.stride_bytes(0)));
+    return numkong::euclideans_symmetric<value_type_>(
+        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
+        static_cast<std::size_t>(input.stride_bytes(0)),
+        reinterpret_cast<typename value_type_::euclidean_result_t *>(output.data()),
+        static_cast<std::size_t>(output.stride_bytes(0)));
 }
 
 /** Allocating symmetric Euclidean distances. Empty for an empty input, or the allocation's or
@@ -502,7 +506,9 @@ status_t angulars_symmetric(input_matrix_ const &input, output_matrix_ &&output,
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
     return numkong::angulars_symmetric<value_type_>(
-        input.data(), num_vectors, input.extent(1), static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
+        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
+        static_cast<std::size_t>(input.stride_bytes(0)),
+        reinterpret_cast<typename value_type_::angular_result_t *>(output.data()),
         static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count);
 }
 
@@ -515,7 +521,9 @@ status_t euclideans_symmetric(input_matrix_ const &input, output_matrix_ &&outpu
     std::size_t num_vectors = input.extent(0);
     if (output.extent(0) != num_vectors || output.extent(1) != num_vectors) return status_t::unexpected_dimensions_k;
     return numkong::euclideans_symmetric<value_type_>(
-        input.data(), num_vectors, input.extent(1), static_cast<std::size_t>(input.stride_bytes(0)), output.data(),
+        reinterpret_cast<value_type_ const *>(input.data()), num_vectors, input.extent(1),
+        static_cast<std::size_t>(input.stride_bytes(0)),
+        reinterpret_cast<typename value_type_::euclidean_result_t *>(output.data()),
         static_cast<std::size_t>(output.stride_bytes(0)), row_start, row_count);
 }
 
@@ -531,9 +539,10 @@ status_t angulars_packed(input_matrix_ const &a, packed_type_ const &packed_b, o
     if (packed_b.empty() || a.rank() < 2 || c.rank() < 2) return status_t::unexpected_dimensions_k;
     if (a.extent(1) != packed_b.depth()) return status_t::unexpected_dimensions_k;
     if (c.extent(0) != a.extent(0) || c.extent(1) != packed_b.rows()) return status_t::unexpected_dimensions_k;
-    return numkong::angulars_packed<value_type_>(a.data(), packed_b.data(), c.data(), a.extent(0), packed_b.rows(),
-                                                 packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)),
-                                                 static_cast<std::size_t>(c.stride_bytes(0)));
+    return numkong::angulars_packed<value_type_>(
+        reinterpret_cast<value_type_ const *>(a.data()), packed_b.data(),
+        reinterpret_cast<typename value_type_::angular_result_t *>(c.data()), a.extent(0), packed_b.rows(),
+        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)));
 }
 
 /** Allocating packed angular distances. @c unexpected_dimensions_k for an empty pack or a rank
@@ -561,9 +570,10 @@ status_t euclideans_packed(input_matrix_ const &a, packed_type_ const &packed_b,
     if (packed_b.empty() || a.rank() < 2 || c.rank() < 2) return status_t::unexpected_dimensions_k;
     if (a.extent(1) != packed_b.depth()) return status_t::unexpected_dimensions_k;
     if (c.extent(0) != a.extent(0) || c.extent(1) != packed_b.rows()) return status_t::unexpected_dimensions_k;
-    return numkong::euclideans_packed<value_type_>(a.data(), packed_b.data(), c.data(), a.extent(0), packed_b.rows(),
-                                                   packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)),
-                                                   static_cast<std::size_t>(c.stride_bytes(0)));
+    return numkong::euclideans_packed<value_type_>(
+        reinterpret_cast<value_type_ const *>(a.data()), packed_b.data(),
+        reinterpret_cast<typename value_type_::euclidean_result_t *>(c.data()), a.extent(0), packed_b.rows(),
+        packed_b.depth(), static_cast<std::size_t>(a.stride_bytes(0)), static_cast<std::size_t>(c.stride_bytes(0)));
 }
 
 /** Allocating packed Euclidean distances. @c unexpected_dimensions_k for an empty pack or a rank
