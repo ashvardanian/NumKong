@@ -93,6 +93,73 @@ NUMKONG_INLINE void nk_partial_store_b64x4_haswell_(nk_b256_vec_t const *src, vo
     _mm256_maskstore_pd((double *)dst, mask_i64x4, _mm256_castsi256_pd(src->ymm));
 }
 
+/** Loads @p count of at most 8 32-bit values with AVX2 maskload, zeroing the rest. */
+NUMKONG_INLINE void nk_partial_load_b32x8_haswell_(void const *source, nk_b256_vec_t *destination, nk_size_t count) {
+    __m256i const mask_i32x8 = _mm256_cmpgt_epi32(_mm256_set1_epi32((int)count),
+                                                  _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7));
+    destination->ymm = _mm256_maskload_epi32((int const *)source, mask_i32x8);
+}
+
+/** Stores @p count of at most 8 32-bit values with AVX2 maskstore. */
+NUMKONG_INLINE void nk_partial_store_b32x8_haswell_(nk_b256_vec_t const *source, void *destination, nk_size_t count) {
+    __m256i const mask_i32x8 = _mm256_cmpgt_epi32(_mm256_set1_epi32((int)count),
+                                                  _mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7));
+    _mm256_maskstore_epi32((int *)destination, mask_i32x8, source->ymm);
+}
+
+/** Loads @p count of at most 8 16-bit values: whole dwords with AVX maskload, an odd last one
+ *  alone. */
+NUMKONG_INLINE void nk_partial_load_b16x8_haswell_(void const *source, nk_b128_vec_t *destination, nk_size_t count) {
+    nk_partial_load_b32x4_haswell_(source, destination, count / 2);
+    if (count & 1) destination->u16s[count - 1] = ((nk_u16_t const *)source)[count - 1];
+}
+
+/** Loads @p count of at most 16 16-bit values: whole dwords with AVX2 maskload, an odd last one
+ *  alone. */
+NUMKONG_INLINE void nk_partial_load_b16x16_haswell_(void const *source, nk_b256_vec_t *destination, nk_size_t count) {
+    nk_partial_load_b32x8_haswell_(source, destination, count / 2);
+    if (count & 1) destination->u16s[count - 1] = ((nk_u16_t const *)source)[count - 1];
+}
+
+/** Stores @p count of at most 16 16-bit values: whole dwords with AVX2 maskstore, an odd last one
+ *  alone. */
+NUMKONG_INLINE void nk_partial_store_b16x16_haswell_(nk_b256_vec_t const *source, void *destination, nk_size_t count) {
+    nk_partial_store_b32x8_haswell_(source, destination, count / 2);
+    if (count & 1) ((nk_u16_t *)destination)[count - 1] = source->u16s[count - 1];
+}
+
+/** Loads @p count of at most 16 bytes: whole dwords with AVX maskload, the last 1 to 3 bytes
+ *  alone. */
+NUMKONG_INLINE void nk_partial_load_b8x16_haswell_(void const *source, nk_b128_vec_t *destination, nk_size_t count) {
+    nk_partial_load_b32x4_haswell_(source, destination, count / 4);
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
+        destination->u8s[index] = ((nk_u8_t const *)source)[index];
+}
+
+/** Stores @p count of at most 16 bytes: whole dwords with AVX maskstore, the last 1 to 3 bytes
+ *  alone. */
+NUMKONG_INLINE void nk_partial_store_b8x16_haswell_(nk_b128_vec_t const *source, void *destination, nk_size_t count) {
+    nk_partial_store_b32x4_haswell_(source, destination, count / 4);
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
+        ((nk_u8_t *)destination)[index] = source->u8s[index];
+}
+
+/** Loads @p count of at most 32 bytes: whole dwords with AVX2 maskload, the last 1 to 3 bytes
+ *  alone. */
+NUMKONG_INLINE void nk_partial_load_b8x32_haswell_(void const *source, nk_b256_vec_t *destination, nk_size_t count) {
+    nk_partial_load_b32x8_haswell_(source, destination, count / 4);
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
+        destination->u8s[index] = ((nk_u8_t const *)source)[index];
+}
+
+/** Stores @p count of at most 32 bytes: whole dwords with AVX2 maskstore, the last 1 to 3 bytes
+ *  alone. */
+NUMKONG_INLINE void nk_partial_store_b8x32_haswell_(nk_b256_vec_t const *source, void *destination, nk_size_t count) {
+    nk_partial_store_b32x8_haswell_(source, destination, count / 4);
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
+        ((nk_u8_t *)destination)[index] = source->u8s[index];
+}
+
 #pragma endregion Type Punned Loads and Stores
 
 #pragma region Vectorized Conversions
@@ -650,7 +717,7 @@ NUMKONG_INLINE void nk_load_f16x8_to_f32x8_haswell_(void const *src, nk_b256_vec
 /** Partial load for f16 elements (up to 8) with conversion to f32 via F16C. */
 NUMKONG_INLINE void nk_partial_load_f16x8_to_f32x8_haswell_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t vec;
-    nk_partial_load_b16x8_serial_(src, &vec, n);
+    nk_partial_load_b16x8_haswell_(src, &vec, n);
     dst->ymm_ps = _mm256_cvtph_ps(vec.xmm);
 }
 
@@ -662,7 +729,7 @@ NUMKONG_INLINE void nk_load_bf16x8_to_f32x8_haswell_(void const *src, nk_b256_ve
 /** Partial load for bf16 elements (up to 8) with conversion to f32. */
 NUMKONG_INLINE void nk_partial_load_bf16x8_to_f32x8_haswell_(nk_bf16_t const *src, nk_b256_vec_t *dst, nk_size_t n) {
     nk_b128_vec_t vec;
-    nk_partial_load_b16x8_serial_(src, &vec, n);
+    nk_partial_load_b16x8_haswell_(src, &vec, n);
     dst->ymm_ps = nk_bf16x8_to_f32x8_haswell_(vec.xmm);
 }
 

@@ -17,8 +17,8 @@
  *    processing 4 rows per tile via rows_per_tile=4. Narrowed to f32 on store.
  *  - f64 GEMM: every output is a Dot2 product from @c nk_dot_f64_rvv, TwoProd via @c vfmsac and
  *    TwoSum per lane, with the compensation kept through the horizontal reduction.
- *  - B packing: column-panel layout with cache-line padding. Each depth step stores contiguous
- *    elements along depth — one @c vle32 and @c vle64 per vectorized chunk.
+ *  - B packing: column-panel layout with cache-line padding. Each depth step loads a chunk with
+ *    @c vle, converts it in registers and stores it contiguously.
  *  - Edge handling: RVV's @c vsetvl returns actual VL for partial vectors — no separate edge kernel
  *    needed.
  *  - Vectorization axis: depth, the k dimension. Each inner loop iteration loads a chunk of both A
@@ -50,8 +50,9 @@
 
 #include "numkong/types.h"
 #include "numkong/dots/serial.h"
-#include "numkong/cast/rvv.h" // `nk_bf16m1_to_f32m2_rvv_`
-#include "numkong/dot/rvv.h"  // `nk_dot2_f64_rvv_`
+#include "numkong/cast/rvv.h"   // `nk_bf16m1_to_f32m2_rvv_`
+#include "numkong/dot/rvv.h"    // `nk_dot2_f64_rvv_`
+#include "numkong/reduce/rvv.h" // `nk_reduce_moments_f32_rvv_contiguous_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -64,8 +65,8 @@
 extern "C" {
 #endif
 
-/** E2M3 magnitude LUT: 5-bit magnitude → unsigned value × 16 (u8). Shared across scalar helper,
- *  packed kernel, and symmetric kernel. */
+/** E2M3 magnitude LUT: 5-bit magnitude → unsigned value × 16 (u8). Shared across the pack,
+ *  packed, and symmetric kernels. */
 static nk_u8_t const nk_e2m3_magnitude_lut_rvv_[32] = {0,  2,  4,  6,  8,  10, 12, 14,  16,  18, 20,
                                                        22, 24, 26, 28, 30, 32, 36, 40,  44,  48, 52,
                                                        56, 60, 64, 72, 80, 88, 96, 104, 112, 120};
@@ -74,11 +75,75 @@ static nk_u8_t const nk_e2m3_magnitude_lut_rvv_[32] = {0,  2,  4,  6,  8,  10, 1
  *  symmetric kernels. */
 static nk_i8_t const nk_e2m1_doubled_lut_rvv_[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
 
-/** E3M2 magnitude LUT: 5-bit magnitude → unsigned value × 16 (u16). Shared across scalar helper,
- *  packed kernel, and symmetric kernel. */
+/** E3M2 magnitude LUT: 5-bit magnitude → unsigned value × 16 (u16). Shared across the pack,
+ *  packed, and symmetric kernels. */
 static nk_u16_t const nk_e3m2_magnitude_lut_rvv_[32] = {0,  1,   2,   3,   4,   5,   6,   7,   8,   10, 12,
                                                         14, 16,  20,  24,  28,  32,  40,  48,  56,  64, 80,
                                                         96, 112, 128, 160, 192, 224, 256, 320, 384, 448};
+
+/*  Norm helpers shared by every RVV pack and finalizer, each the sum of squares of a contiguous
+ *  row, so the packed and A-side norms come from the same kernel. */
+NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_rvv_(nk_f64_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f64_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_f64_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_rvv_(nk_f32_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f64_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_f32_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_rvv_(nk_bf16_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_bf16_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_rvv_(nk_f16_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_f16_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_rvv_(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_e5m2_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_rvv_(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_e4m3_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_rvv_(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_e3m2_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_rvv_(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_f32_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_e2m3_rvv_contiguous_(data, count, &sum, &sumsq);
+    return sumsq;
+}
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_rvv_(nk_i8_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_i64_t sum;
+    nk_u64_t sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_i8_rvv_contiguous_(data, count, &sum, &sumsq);
+    return (nk_u32_t)sumsq;
+}
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_rvv_(nk_u8_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_u64_t sum, sumsq;
+    nk_unused_(stride);
+    nk_reduce_moments_u8_rvv_contiguous_(data, count, &sum, &sumsq);
+    return (nk_u32_t)sumsq;
+}
 
 #pragma region F32 Floats
 
@@ -251,18 +316,6 @@ NUMKONG_INLINE void nk_dots_symmetric_f64_rvv_upper_(nk_f64_t const *vectors, nk
 #pragma endregion F64 Floats
 
 #pragma region E2M3 Floats
-
-/**
- *  @brief Scalar conversion helper: e2m3 byte → signed i8 (value × 16).
- *
- *  Extracts 5-bit magnitude, looks up in LUT, applies sign from bit 5.
- *  Every e2m3 value × 16 is an exact integer in [-120, +120], fitting in i8.
- */
-NUMKONG_INLINE nk_i8_t nk_e2m3_to_i8_rvv_(nk_u8_t raw) {
-    nk_u8_t magnitude = raw & 0x1Fu;
-    nk_i8_t value = (nk_i8_t)nk_e2m3_magnitude_lut_rvv_[magnitude];
-    return (raw & 0x20u) ? (nk_i8_t)(-value) : value;
-}
 
 /**
  *  @brief e2m3 packed GEMM kernel: C += A * B_packed^T with integer i8 LUT arithmetic.
@@ -664,18 +717,6 @@ NUMKONG_INLINE void nk_dots_symmetric_e2m1_rvv_upper_(nk_e2m1x2_t const *vectors
 #pragma endregion E2M1 Floats
 
 #pragma region E3M2 Floats
-
-/**
- *  @brief Scalar conversion helper: e3m2 byte → signed i16 (value × 16).
- *
- *  Extracts 5-bit magnitude, looks up in LUT, applies sign from bit 5.
- *  Every e3m2 value × 16 is an exact integer in [-448, +448], requiring i16.
- */
-NUMKONG_INLINE nk_i16_t nk_e3m2_to_i16_rvv_(nk_u8_t raw) {
-    nk_u8_t magnitude = raw & 0x1Fu;
-    nk_i16_t value = (nk_i16_t)nk_e3m2_magnitude_lut_rvv_[magnitude];
-    return (raw & 0x20u) ? (nk_i16_t)(-value) : value;
-}
 
 /**
  *  @brief e3m2 packed GEMM kernel: C += A * B_packed^T with integer i16 LUT arithmetic.
@@ -1967,10 +2008,9 @@ NUMKONG_API nk_status_t nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f32_t const *src = (nk_f32_t const *)((char const *)b + column * b_stride);
         nk_f32_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth;) {
-            nk_size_t vector_length = __riscv_vsetvl_e32m8(depth - k);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e32m8(depth - k);
             __riscv_vse32_v_f32m8(dst + k, __riscv_vle32_v_f32m8(src + k, vector_length), vector_length);
-            k += vector_length;
         }
     }
 
@@ -1978,7 +2018,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column
     nk_f64_t *norms = (nk_f64_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f32_t const *src = (nk_f32_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_f32_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_f32_rvv_(src, depth, sizeof(nk_f32_t));
     }
     return nk_success_k;
 }
@@ -2060,10 +2100,9 @@ NUMKONG_API nk_status_t nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f64_t const *src = (nk_f64_t const *)((char const *)b + column * b_stride);
         nk_f64_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth;) {
-            nk_size_t vector_length = __riscv_vsetvl_e64m8(depth - k);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e64m8(depth - k);
             __riscv_vse64_v_f64m8(dst + k, __riscv_vle64_v_f64m8(src + k, vector_length), vector_length);
-            k += vector_length;
         }
     }
 
@@ -2071,7 +2110,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column
     nk_f64_t *norms = (nk_f64_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f64_t const *src = (nk_f64_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_f64_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_f64_rvv_(src, depth, sizeof(nk_f64_t));
     }
     return nk_success_k;
 }
@@ -2153,14 +2192,24 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t colu
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
         nk_i8_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth; ++k) dst[k] = nk_e2m3_to_i8_rvv_(src[k]);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e8m4(depth - k);
+            vuint8m4_t raw_u8m4 = __riscv_vle8_v_u8m4(src + k, vector_length);
+            vuint8m4_t magnitude_u8m4 = __riscv_vand_vx_u8m4(raw_u8m4, 0x1F, vector_length);
+            vint8m4_t value_i8m4 = __riscv_vreinterpret_v_u8m4_i8m4(
+                __riscv_vluxei8_v_u8m4(nk_e2m3_magnitude_lut_rvv_, magnitude_u8m4, vector_length));
+            vbool2_t negative_b2 = __riscv_vmsne_vx_u8m4_b2(__riscv_vand_vx_u8m4(raw_u8m4, 0x20, vector_length), 0,
+                                                            vector_length);
+            value_i8m4 = __riscv_vneg_v_i8m4_mu(negative_b2, value_i8m4, value_i8m4, vector_length);
+            __riscv_vse8_v_i8m4(dst + k, value_i8m4, vector_length);
+        }
     }
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e2m3_t const *src = (nk_e2m3_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_e2m3_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_e2m3_rvv_(src, depth, sizeof(nk_e2m3_t));
     }
     return nk_success_k;
 }
@@ -2240,13 +2289,22 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t co
         }
     }
 
+    nk_size_t const depth_bytes = depth / NUMKONG_NIBBLES_PER_BYTE;
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
         nk_i8_t *high_values = packed + column * depth_padded;
         nk_i8_t *low_values = high_values + half_padded;
-        for (nk_size_t k = 0; k < depth / NUMKONG_NIBBLES_PER_BYTE; ++k) {
-            high_values[k] = nk_e2m1_doubled_lut_rvv_[src[k] >> 4];
-            low_values[k] = nk_e2m1_doubled_lut_rvv_[src[k] & 0x0F];
+        for (nk_size_t k = 0, vector_length; k < depth_bytes; k += vector_length) {
+            vector_length = __riscv_vsetvl_e8m4(depth_bytes - k);
+            vuint8m4_t raw_u8m4 = __riscv_vle8_v_u8m4(src + k, vector_length);
+            vuint8m4_t high_u8m4 = __riscv_vsrl_vx_u8m4(raw_u8m4, 4, vector_length);
+            vuint8m4_t low_u8m4 = __riscv_vand_vx_u8m4(raw_u8m4, 0x0F, vector_length);
+            __riscv_vse8_v_i8m4(high_values + k,
+                                __riscv_vluxei8_v_i8m4(nk_e2m1_doubled_lut_rvv_, high_u8m4, vector_length),
+                                vector_length);
+            __riscv_vse8_v_i8m4(low_values + k,
+                                __riscv_vluxei8_v_i8m4(nk_e2m1_doubled_lut_rvv_, low_u8m4, vector_length),
+                                vector_length);
         }
     }
 
@@ -2254,7 +2312,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t co
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e2m1x2_t const *src = (nk_e2m1x2_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_e2m1_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_e2m1_(src, depth, sizeof(nk_e2m1x2_t));
     }
     return nk_success_k;
 }
@@ -2336,14 +2394,26 @@ NUMKONG_API nk_status_t nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t colu
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
         nk_i16_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth; ++k) dst[k] = nk_e3m2_to_i16_rvv_(src[k]);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e16m4(depth - k);
+            vuint8m2_t raw_u8m2 = __riscv_vle8_v_u8m2(src + k, vector_length);
+            vuint16m4_t offset_u16m4 = __riscv_vsll_vx_u16m4(
+                __riscv_vzext_vf2_u16m4(__riscv_vand_vx_u8m2(raw_u8m2, 0x1F, vector_length), vector_length), 1,
+                vector_length);
+            vint16m4_t value_i16m4 = __riscv_vreinterpret_v_u16m4_i16m4(
+                __riscv_vluxei16_v_u16m4(nk_e3m2_magnitude_lut_rvv_, offset_u16m4, vector_length));
+            vbool4_t negative_b4 = __riscv_vmsne_vx_u8m2_b4(__riscv_vand_vx_u8m2(raw_u8m2, 0x20, vector_length), 0,
+                                                            vector_length);
+            value_i16m4 = __riscv_vneg_v_i16m4_mu(negative_b4, value_i16m4, value_i16m4, vector_length);
+            __riscv_vse16_v_i16m4(dst + k, value_i16m4, vector_length);
+        }
     }
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e3m2_t const *src = (nk_e3m2_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_e3m2_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_e3m2_rvv_(src, depth, sizeof(nk_e3m2_t));
     }
     return nk_success_k;
 }
@@ -2426,13 +2496,10 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t colu
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u16_t const *src = (nk_u16_t const *)((char const *)b + column * b_stride);
         nk_f32_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth; ++k) {
-            union {
-                nk_u32_t u;
-                nk_f32_t f;
-            } conv;
-            conv.u = (nk_u32_t)src[k] << 16;
-            dst[k] = conv.f;
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e16m1(depth - k);
+            vuint16m1_t raw_u16m1 = __riscv_vle16_v_u16m1(src + k, vector_length);
+            __riscv_vse32_v_f32m2(dst + k, nk_bf16m1_to_f32m2_rvv_(raw_u16m1, vector_length), vector_length);
         }
     }
 
@@ -2440,7 +2507,7 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t colu
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_bf16_t const *src = (nk_bf16_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_bf16_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_bf16_rvv_(src, depth, sizeof(nk_bf16_t));
     }
     return nk_success_k;
 }
@@ -2521,16 +2588,20 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column
     }
 
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
-        nk_f16_t const *src = (nk_f16_t const *)((char const *)b + column * b_stride);
+        nk_u16_t const *src = (nk_u16_t const *)((char const *)b + column * b_stride);
         nk_f32_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth; ++k) nk_f16_to_f32_(&src[k], &dst[k]);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e16m1(depth - k);
+            vuint16m1_t raw_u16m1 = __riscv_vle16_v_u16m1(src + k, vector_length);
+            __riscv_vse32_v_f32m2(dst + k, nk_f16m1_to_f32m2_rvv_(raw_u16m1, vector_length), vector_length);
+        }
     }
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_f16_t const *src = (nk_f16_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_f16_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_f16_rvv_(src, depth, sizeof(nk_f16_t));
     }
     return nk_success_k;
 }
@@ -2611,13 +2682,11 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_c
     }
 
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
-        nk_i8_t const *src = (nk_i8_t const *)((char const *)b + column * b_stride);
-        nk_i8_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth;) {
-            nk_size_t vector_length = __riscv_vsetvl_e8m8(depth - k);
-            __riscv_vse8_v_u8m8((nk_u8_t *)(dst + k), __riscv_vle8_v_u8m8((nk_u8_t const *)(src + k), vector_length),
-                                vector_length);
-            k += vector_length;
+        nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
+        nk_u8_t *dst = (nk_u8_t *)(packed + column * depth_padded);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e8m8(depth - k);
+            __riscv_vse8_v_u8m8(dst + k, __riscv_vle8_v_u8m8(src + k, vector_length), vector_length);
         }
     }
 
@@ -2625,7 +2694,7 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_c
     nk_u32_t *norms = (nk_u32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_i8_t const *src = (nk_i8_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_i8_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_i8_rvv_(src, depth, sizeof(nk_i8_t));
     }
     return nk_success_k;
 }
@@ -2707,10 +2776,9 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_c
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
         nk_u8_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth;) {
-            nk_size_t vector_length = __riscv_vsetvl_e8m8(depth - k);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e8m8(depth - k);
             __riscv_vse8_v_u8m8(dst + k, __riscv_vle8_v_u8m8(src + k, vector_length), vector_length);
-            k += vector_length;
         }
     }
 
@@ -2718,7 +2786,7 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_c
     nk_u32_t *norms = (nk_u32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_u8_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_u8_rvv_(src, depth, sizeof(nk_u8_t));
     }
     return nk_success_k;
 }
@@ -2797,16 +2865,20 @@ NUMKONG_API nk_status_t nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t colu
     }
 
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
-        nk_e4m3_t const *src = (nk_e4m3_t const *)((char const *)b + column * b_stride);
+        nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
         nk_f32_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth; ++k) nk_e4m3_to_f32_(&src[k], &dst[k]);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e8m1(depth - k);
+            vuint8m1_t raw_u8m1 = __riscv_vle8_v_u8m1(src + k, vector_length);
+            __riscv_vse32_v_f32m4(dst + k, nk_e4m3m1_to_f32m4_rvv_(raw_u8m1, vector_length), vector_length);
+        }
     }
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e4m3_t const *src = (nk_e4m3_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_e4m3_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_e4m3_rvv_(src, depth, sizeof(nk_e4m3_t));
     }
     return nk_success_k;
 }
@@ -2886,16 +2958,20 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t colu
     }
 
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
-        nk_e5m2_t const *src = (nk_e5m2_t const *)((char const *)b + column * b_stride);
+        nk_u8_t const *src = (nk_u8_t const *)((char const *)b + column * b_stride);
         nk_f32_t *dst = packed + column * depth_padded;
-        for (nk_size_t k = 0; k < depth; ++k) nk_e5m2_to_f32_(&src[k], &dst[k]);
+        for (nk_size_t k = 0, vector_length; k < depth; k += vector_length) {
+            vector_length = __riscv_vsetvl_e8m1(depth - k);
+            vuint8m1_t raw_u8m1 = __riscv_vle8_v_u8m1(src + k, vector_length);
+            __riscv_vse32_v_f32m4(dst + k, nk_e5m2m1_to_f32m4_rvv_(raw_u8m1, vector_length), vector_length);
+        }
     }
 
     // Append per-column norms after packed data
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e5m2_t const *src = (nk_e5m2_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_e5m2_(src, depth, nk_cap_rvv_k);
+        norms[column] = nk_dots_reduce_sumsq_e5m2_rvv_(src, depth, sizeof(nk_e5m2_t));
     }
     return nk_success_k;
 }

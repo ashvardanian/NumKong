@@ -90,15 +90,6 @@ typedef struct {
 
 nk_static_assert_(sizeof(nk_maxsim_vector_metadata_t) == 16, nk_maxsim_vector_metadata_must_be_16_bytes);
 
-/** Conversion function pointer type for element-to-f32 conversion. Each conversion reads one
- *  element from @c source and writes one f32 to @c destination. */
-typedef void (*nk_maxsim_to_f32_t)(void const *source, nk_f32_t *destination);
-
-/** Identity conversion for f32 sources — just a typed memcpy. */
-NUMKONG_INLINE void nk_f32_to_f32_(void const *source, nk_f32_t *destination) {
-    *destination = *(nk_f32_t const *)source;
-}
-
 /** Fills the packed buffer header, recording the packing @p capability, and returns the padded
  *  i8 depth. Consolidates header/offset computation duplicated in every pack function. */
 NUMKONG_INLINE nk_size_t nk_maxsim_packed_header_setup_(   //
@@ -136,52 +127,93 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_header_setup_(   //
     return depth_i8_padded;
 }
 
-/** Quantizes a single source vector to i8 and computes its metadata. It calls the conversion
- *  callback element by element, so it needs no scratch buffer and works for any depth. */
-NUMKONG_INLINE void nk_maxsim_quantize_vector_(                          //
-    void const *source_vector, nk_size_t element_bytes, nk_size_t depth, //
-    nk_size_t depth_i8_padded, nk_f32_t scale_limit,                     //
-    nk_maxsim_to_f32_t convert_to_f32,                                   //
-    nk_i8_t *destination_i8, nk_maxsim_vector_metadata_t *metadata) {
+/** Rounds @p value over @p scale to the nearest integer, ties away from zero, and clamps its
+ *  magnitude to @p limit. */
+NUMKONG_INLINE nk_i32_t nk_maxsim_quantize_f32_(nk_f32_t value, nk_f32_t scale, nk_f32_t limit) {
+    nk_f32_t const scaled = value / scale;
+    nk_i32_t const rounded = (nk_i32_t)(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
+    return rounded > (nk_i32_t)limit ? (nk_i32_t)limit : rounded < -(nk_i32_t)limit ? -(nk_i32_t)limit : rounded;
+}
 
-    char const *source_bytes = (char const *)source_vector;
+/** The scale that maps @p absmax onto @p limit, or one for an all-zero vector. */
+NUMKONG_INLINE nk_f32_t nk_maxsim_scale_f32_(nk_f32_t absmax, nk_f32_t limit) {
+    nk_f32_t const scale = absmax / limit;
+    return scale == 0.0f ? 1.0f : scale;
+}
 
-    // Pass 1: Find absmax, compute norm_squared
-    nk_f32_t absmax_f32 = 0.0f;
-    nk_f64_t norm_squared_f64 = 0.0;
-    for (nk_size_t dim_index = 0; dim_index < depth; dim_index++) {
-        nk_f32_t value_f32;
-        convert_to_f32(source_bytes + dim_index * element_bytes, &value_f32);
-        nk_f32_t abs_value = nk_f32_abs_(value_f32);
-        if (abs_value > absmax_f32) absmax_f32 = abs_value;
-        norm_squared_f64 += (nk_f64_t)value_f32 * value_f32;
+/** Fills @p metadata from a vector's @p scale, F64 sum of squares and sum of I8 codes. */
+NUMKONG_INLINE void nk_maxsim_vector_metadata_(nk_f32_t scale, nk_f64_t norm_squared, nk_i32_t sum,
+                                               nk_maxsim_vector_metadata_t *metadata) {
+    metadata->inverse_norm_f64 = norm_squared > 0.0 ? nk_f64_rsqrt_(norm_squared) : 0.0;
+    metadata->screen_weight_f32 = scale * (nk_f32_t)metadata->inverse_norm_f64;
+    metadata->sum_i8_i32 = sum;
+}
+
+/** Packs one contiguous BF16 vector of @p depth values: copies it into
+ *  @p original while measuring it, then quantizes the copy into @p quantized. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_bf16_serial_(nk_bf16_t const *source, nk_size_t depth, nk_bf16_t *original,
+                                                       nk_i8_t *quantized, nk_maxsim_vector_metadata_t *metadata) {
+    nk_f32_t absmax = 0, value;
+    nk_f64_t norm_squared = 0;
+    for (nk_size_t index = 0; index != depth; ++index) {
+        original[index] = source[index];
+        nk_bf16_to_f32_(original + index, &value);
+        if (nk_f32_abs_(value) > absmax) absmax = nk_f32_abs_(value);
+        norm_squared += (nk_f64_t)value * value;
     }
-
-    nk_f32_t scale_f32 = absmax_f32 / scale_limit;
-    if (scale_f32 == 0.0f) scale_f32 = 1.0f;
-
-    // Pass 2: Quantize to i8 and compute sum
-    nk_i32_t sum_quantized_i32 = 0;
-    for (nk_size_t dim_index = 0; dim_index < depth; dim_index++) {
-        nk_f32_t value_f32;
-        convert_to_f32(source_bytes + dim_index * element_bytes, &value_f32);
-        nk_f32_t scaled = value_f32 / scale_f32;
-        nk_i32_t quantized_value;
-        if (scaled >= 0.0f) quantized_value = (nk_i32_t)(scaled + 0.5f);
-        else quantized_value = (nk_i32_t)(scaled - 0.5f);
-        if (quantized_value > (nk_i32_t)scale_limit) quantized_value = (nk_i32_t)scale_limit;
-        if (quantized_value < -(nk_i32_t)scale_limit) quantized_value = -(nk_i32_t)scale_limit;
-
-        destination_i8[dim_index] = (nk_i8_t)quantized_value;
-        sum_quantized_i32 += quantized_value;
+    nk_f32_t const scale = nk_maxsim_scale_f32_(absmax, 127.0f);
+    nk_i32_t sum = 0;
+    for (nk_size_t index = 0; index != depth; ++index) {
+        nk_bf16_to_f32_(original + index, &value);
+        nk_i32_t const code = nk_maxsim_quantize_f32_(value, scale, 127.0f);
+        quantized[index] = (nk_i8_t)code;
+        sum += code;
     }
+    nk_maxsim_vector_metadata_(scale, norm_squared, sum, metadata);
+}
 
-    // Zero-pad remaining bytes
-    for (nk_size_t dim_index = depth; dim_index < depth_i8_padded; dim_index++) destination_i8[dim_index] = 0;
+/** Packs one contiguous F16 vector of @p depth values: copies it into
+ *  @p original while measuring it, then quantizes the copy into @p quantized. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_f16_serial_(nk_f16_t const *source, nk_size_t depth, nk_f16_t *original,
+                                                      nk_i8_t *quantized, nk_maxsim_vector_metadata_t *metadata) {
+    nk_f32_t absmax = 0, value;
+    nk_f64_t norm_squared = 0;
+    for (nk_size_t index = 0; index != depth; ++index) {
+        original[index] = source[index];
+        nk_f16_to_f32_(original + index, &value);
+        if (nk_f32_abs_(value) > absmax) absmax = nk_f32_abs_(value);
+        norm_squared += (nk_f64_t)value * value;
+    }
+    nk_f32_t const scale = nk_maxsim_scale_f32_(absmax, 127.0f);
+    nk_i32_t sum = 0;
+    for (nk_size_t index = 0; index != depth; ++index) {
+        nk_f16_to_f32_(original + index, &value);
+        nk_i32_t const code = nk_maxsim_quantize_f32_(value, scale, 127.0f);
+        quantized[index] = (nk_i8_t)code;
+        sum += code;
+    }
+    nk_maxsim_vector_metadata_(scale, norm_squared, sum, metadata);
+}
 
-    metadata->inverse_norm_f64 = norm_squared_f64 > 0.0 ? nk_f64_rsqrt_(norm_squared_f64) : 0.0;
-    metadata->screen_weight_f32 = scale_f32 * (nk_f32_t)metadata->inverse_norm_f64;
-    metadata->sum_i8_i32 = sum_quantized_i32;
+/** Packs one contiguous F32 vector of @p depth values: copies it into
+ *  @p original while measuring it, then quantizes the copy into @p quantized. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_f32_serial_(nk_f32_t const *source, nk_size_t depth, nk_f32_t *original,
+                                                      nk_i8_t *quantized, nk_maxsim_vector_metadata_t *metadata) {
+    nk_f32_t absmax = 0;
+    nk_f64_t norm_squared = 0;
+    for (nk_size_t index = 0; index != depth; ++index) {
+        nk_f32_t const value = original[index] = source[index];
+        if (nk_f32_abs_(value) > absmax) absmax = nk_f32_abs_(value);
+        norm_squared += (nk_f64_t)value * value;
+    }
+    nk_f32_t const scale = nk_maxsim_scale_f32_(absmax, 127.0f);
+    nk_i32_t sum = 0;
+    for (nk_size_t index = 0; index != depth; ++index) {
+        nk_i32_t const code = nk_maxsim_quantize_f32_(original[index], scale, 127.0f);
+        quantized[index] = (nk_i8_t)code;
+        sum += code;
+    }
+    nk_maxsim_vector_metadata_(scale, norm_squared, sum, metadata);
 }
 
 /** Region pointers extracted from two packed buffers. Eliminates ~15 lines of boilerplate per
@@ -451,16 +483,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_serial( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
-                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_bf16_serial_((nk_bf16_t const *)((char const *)vectors + vector_index * stride), depth,
+                                           (nk_bf16_t *)(originals + vector_index * original_stride),
+                                           quantized_i8 + vector_index * depth_i8_padded, metadata + vector_index);
     return nk_success_k;
 }
 
@@ -478,15 +504,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_serial( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f, nk_f32_to_f32_,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_f32_serial_((nk_f32_t const *)((char const *)vectors + vector_index * stride), depth,
+                                          (nk_f32_t *)(originals + vector_index * original_stride),
+                                          quantized_i8 + vector_index * depth_i8_padded, metadata + vector_index);
     return nk_success_k;
 }
 
@@ -517,16 +538,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_serial( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
-                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_f16_serial_((nk_f16_t const *)((char const *)vectors + vector_index * stride), depth,
+                                          (nk_f16_t *)(originals + vector_index * original_stride),
+                                          quantized_i8 + vector_index * depth_i8_padded, metadata + vector_index);
     return nk_success_k;
 }
 

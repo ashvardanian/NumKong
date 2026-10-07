@@ -214,14 +214,16 @@ NUMKONG_API nk_status_t nk_dot_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, n
 
 NUMKONG_INLINE void nk_load_e5m2x4_to_f32x4_v128_(void const *src, nk_b128_vec_t *dst) {
     nk_b32_vec_t raw;
-    nk_copy_bytes_(&raw, src, 4);
+    raw.u32 = (nk_u32_t)wasm_i32x4_extract_lane(wasm_v128_load32_zero(src), 0);
     *dst = nk_e5m2x4_to_f32x4_v128_(raw);
 }
 
 NUMKONG_INLINE void nk_partial_load_e5m2x4_to_f32x4_v128_(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
-    nk_b32_vec_t raw = {0};
-    nk_copy_bytes_(&raw, src, n * sizeof(nk_e5m2_t));
-    *dst = nk_e5m2x4_to_f32x4_v128_(raw);
+    nk_b128_vec_t raw_vec;
+    nk_partial_load_b8x16_serial_(src, &raw_vec, n);
+    nk_b32_vec_t codes_vec;
+    codes_vec.u32 = raw_vec.u32s[0];
+    *dst = nk_e5m2x4_to_f32x4_v128_(codes_vec);
 }
 
 typedef struct nk_dot_bf16x8_state_v128_t {

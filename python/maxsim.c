@@ -171,7 +171,9 @@ char const doc_maxsim_pack[] =                                                  
     "maxsim_pack(b, /, dtype=None) -> MaxSimPackedMatrix\n\n"                   //
     "Pack a 2D matrix for MaxSim late-interaction scoring.\n\n"                 //
     "Args:\n"                                                                   //
-    "    b (array_like): Source matrix with shape [vectors,depth].\n"           //
+    "    b (array_like): Source matrix with shape [vectors,depth] and\n"        //
+    "        contiguous rows. Packing fuses no transposition: transpose a\n"    //
+    "        depth-major matrix into a contiguous copy first.\n"                //
     "    dtype (str, optional): Packing dtype. Default: inferred from input.\n" //
     "        Supported values: 'bf16', 'f16', 'f32'.\n\n"                       //
     "Returns:\n"                                                                //

@@ -1507,7 +1507,7 @@ def euclideans_symmetric(
 
 # region Packed Matrix Operations
 
-# Pack a matrix for repeated dot-product matmul.
+# Pack a matrix with contiguous rows for repeated dot-product matmul; transpose `w.T` first.
 def dots_pack(
     b: _BufferType,
     /,

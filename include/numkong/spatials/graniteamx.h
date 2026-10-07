@@ -43,7 +43,8 @@ NUMKONG_INLINE void nk_angulars_packed_f16_graniteamx_finalize_(nk_f16_t const *
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
-        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_f16_(a + row * a_stride_elements, depth, nk_cap_graniteamx_k);
+        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_f16_skylake_(a + row * a_stride_elements, depth,
+                                                                   sizeof(nk_f16_t));
         nk_angulars_row_f32dots_sapphireamx_(c + row * c_stride_elements, b_norms, query_norm_sq, columns);
     }
 }
@@ -69,7 +70,8 @@ NUMKONG_INLINE void nk_euclideans_packed_f16_graniteamx_finalize_(nk_f16_t const
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
-        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_f16_(a + row * a_stride_elements, depth, nk_cap_graniteamx_k);
+        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_f16_skylake_(a + row * a_stride_elements, depth,
+                                                                   sizeof(nk_f16_t));
         nk_euclideans_row_f32dots_sapphireamx_(c + row * c_stride_elements, b_norms, query_norm_sq, columns);
     }
 }
@@ -98,15 +100,15 @@ NUMKONG_INLINE void nk_angulars_symmetric_f16_graniteamx_finalize_(nk_f16_t cons
                                                                    nk_size_t row_start, nk_size_t row_count) {
 
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
-        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_f16_(vectors + row * stride_elements, depth,
-                                                                               nk_cap_graniteamx_k);
+        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_f16_skylake_(vectors + row * stride_elements,
+                                                                                       depth, sizeof(nk_f16_t));
 
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
-            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_(vectors + col * stride_elements, depth,
-                                                                              nk_cap_graniteamx_k);
+            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_skylake_(vectors + col * stride_elements,
+                                                                                      depth, sizeof(nk_f16_t));
 
         for (nk_size_t row = row_start; row < row_start + row_count; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;
@@ -143,15 +145,15 @@ NUMKONG_INLINE void nk_euclideans_symmetric_f16_graniteamx_finalize_(nk_f16_t co
                                                                      nk_size_t row_start, nk_size_t row_count) {
 
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
-        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_f16_(vectors + row * stride_elements, depth,
-                                                                               nk_cap_graniteamx_k);
+        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_f16_skylake_(vectors + row * stride_elements,
+                                                                                       depth, sizeof(nk_f16_t));
 
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
-            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_(vectors + col * stride_elements, depth,
-                                                                              nk_cap_graniteamx_k);
+            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_f16_skylake_(vectors + col * stride_elements,
+                                                                                      depth, sizeof(nk_f16_t));
 
         for (nk_size_t row = row_start; row < row_start + row_count; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;
@@ -193,7 +195,8 @@ NUMKONG_INLINE void nk_angulars_packed_e5m2_graniteamx_finalize_(nk_e5m2_t const
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
-        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_e5m2_(a + row * a_stride_elements, depth, nk_cap_graniteamx_k);
+        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_e5m2_skylake_(a + row * a_stride_elements, depth,
+                                                                    sizeof(nk_e5m2_t));
         nk_angulars_row_f32dots_sapphireamx_(c + row * c_stride_elements, b_norms, query_norm_sq, columns);
     }
 }
@@ -220,7 +223,8 @@ NUMKONG_INLINE void nk_euclideans_packed_e5m2_graniteamx_finalize_(nk_e5m2_t con
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     nk_f32_t const *b_norms = (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
     for (nk_size_t row = 0; row < rows; row++) {
-        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_e5m2_(a + row * a_stride_elements, depth, nk_cap_graniteamx_k);
+        nk_f32_t query_norm_sq = nk_dots_reduce_sumsq_e5m2_skylake_(a + row * a_stride_elements, depth,
+                                                                    sizeof(nk_e5m2_t));
         nk_euclideans_row_f32dots_sapphireamx_(c + row * c_stride_elements, b_norms, query_norm_sq, columns);
     }
 }
@@ -250,15 +254,15 @@ NUMKONG_INLINE void nk_angulars_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t co
                                                                     nk_size_t row_start, nk_size_t row_count) {
 
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
-        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_(vectors + row * stride_elements, depth,
-                                                                                nk_cap_graniteamx_k);
+        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + row * stride_elements,
+                                                                                        depth, sizeof(nk_e5m2_t));
 
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
-            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_(vectors + col * stride_elements, depth,
-                                                                               nk_cap_graniteamx_k);
+            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + col * stride_elements,
+                                                                                       depth, sizeof(nk_e5m2_t));
 
         for (nk_size_t row = row_start; row < row_start + row_count; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;
@@ -296,15 +300,15 @@ NUMKONG_INLINE void nk_euclideans_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t 
                                                                       nk_size_t row_start, nk_size_t row_count) {
 
     for (nk_size_t row = row_start; row < row_start + row_count; row++)
-        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_(vectors + row * stride_elements, depth,
-                                                                                nk_cap_graniteamx_k);
+        result[row * result_stride_elements + row] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + row * stride_elements,
+                                                                                        depth, sizeof(nk_e5m2_t));
 
     nk_f32_t column_norms_cache[256];
     for (nk_size_t chunk_start = 0; chunk_start < vectors_count; chunk_start += 256) {
         nk_size_t chunk_end = chunk_start + 256 < vectors_count ? chunk_start + 256 : vectors_count;
         for (nk_size_t col = chunk_start; col < chunk_end; col++)
-            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_(vectors + col * stride_elements, depth,
-                                                                               nk_cap_graniteamx_k);
+            column_norms_cache[col - chunk_start] = nk_dots_reduce_sumsq_e5m2_skylake_(vectors + col * stride_elements,
+                                                                                       depth, sizeof(nk_e5m2_t));
 
         for (nk_size_t row = row_start; row < row_start + row_count; row++) {
             nk_f32_t *r_row = result + row * result_stride_elements;

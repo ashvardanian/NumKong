@@ -280,6 +280,148 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f16_icelake_(void const *query, void co
 
 #pragma endregion Coarse Dots
 
+#pragma region Packing
+
+/*  Pack helpers: pass 1 reads the source once, copies it into the original row and measures it;
+ *  pass 2 quantizes from that original row. Codes are summed with VPDPBUSD against ones and stored
+ *  in blocks of 64 that sit @p quantized_block_stride bytes apart, so AMX packs can write them
+ *  straight into tile rows. */
+
+/** Quantizes 16 F32 values by true division with @p scale_f32x16, rounding half away from zero and
+ *  clamping to ±127. */
+NUMKONG_INLINE __m512i nk_maxsim_quantize_f32x16_icelake_(__m512 values_f32x16, __m512 scale_f32x16) {
+    __m512 const scaled_f32x16 = _mm512_div_ps(values_f32x16, scale_f32x16);
+    __m512 const half_f32x16 = _mm512_or_ps(_mm512_and_ps(scaled_f32x16, _mm512_set1_ps(-0.0f)), _mm512_set1_ps(0.5f));
+    __m512i const rounded_i32x16 = _mm512_cvttps_epi32(_mm512_add_ps(scaled_f32x16, half_f32x16));
+    return _mm512_max_epi32(_mm512_min_epi32(rounded_i32x16, _mm512_set1_epi32(127)), _mm512_set1_epi32(-127));
+}
+
+/** Accumulates 16 F32 values into the running absolute maximum, skipping NaNs, and into an F64
+ *  sum of squares, each square exact in F64. */
+NUMKONG_INLINE void nk_maxsim_measure_f32x16_icelake_(__m512 values_f32x16, __m512 *absmax_f32x16,
+                                                      __m512d *sumsq_low_f64x8, __m512d *sumsq_high_f64x8) {
+    *absmax_f32x16 = _mm512_max_ps(_mm512_abs_ps(values_f32x16), *absmax_f32x16);
+    __m512d const low_f64x8 = _mm512_cvtps_pd(_mm512_castps512_ps256(values_f32x16));
+    __m512d const high_f64x8 = _mm512_cvtps_pd(_mm512_extractf32x8_ps(values_f32x16, 1));
+    *sumsq_low_f64x8 = _mm512_fmadd_pd(low_f64x8, low_f64x8, *sumsq_low_f64x8);
+    *sumsq_high_f64x8 = _mm512_fmadd_pd(high_f64x8, high_f64x8, *sumsq_high_f64x8);
+}
+
+/** Packs one BF16 vector into @p original and @p quantized, filling @p metadata. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_bf16_icelake_(nk_bf16_t const *source, nk_size_t depth, nk_bf16_t *original,
+                                                        nk_i8_t *quantized, nk_size_t quantized_block_stride,
+                                                        nk_maxsim_vector_metadata_t *metadata) {
+    __m512 absmax_f32x16 = _mm512_setzero_ps();
+    __m512d sumsq_first_f64x8 = _mm512_setzero_pd(), sumsq_second_f64x8 = _mm512_setzero_pd();
+    __m512d sumsq_third_f64x8 = _mm512_setzero_pd(), sumsq_fourth_f64x8 = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < depth; index += 32) {
+        nk_size_t const chunk = depth - index < 32 ? depth - index : 32;
+        nk_b512_vec_t raw_vec;
+        nk_partial_load_b16x32_skylake_(source + index, &raw_vec, chunk);
+        nk_partial_store_b16x32_skylake_(&raw_vec, original + index, chunk);
+        nk_maxsim_measure_f32x16_icelake_(nk_bf16x16_to_f32x16_skylake_(raw_vec.ymms[0]), &absmax_f32x16,
+                                          &sumsq_first_f64x8, &sumsq_second_f64x8);
+        nk_maxsim_measure_f32x16_icelake_(nk_bf16x16_to_f32x16_skylake_(raw_vec.ymms[1]), &absmax_f32x16,
+                                          &sumsq_third_f64x8, &sumsq_fourth_f64x8);
+    }
+    nk_f64_t const norm_squared = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(
+        _mm512_add_pd(sumsq_first_f64x8, sumsq_second_f64x8), _mm512_add_pd(sumsq_third_f64x8, sumsq_fourth_f64x8)));
+    nk_f32_t const scale = nk_maxsim_scale_f32_(nk_reduce_max_f32x16_skylake_(absmax_f32x16), 127.0f);
+
+    // Original rows span multiples of 32 values, zero past the depth, so whole loads stay inside
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale);
+    __m256i const ones_u8x32 = _mm256_set1_epi8(1);
+    __m256i sum_i32x8 = _mm256_setzero_si256();
+    for (nk_size_t index = 0; index < depth; index += 32) {
+        __m512i const original_bf16x32 = _mm512_loadu_si512(original + index);
+        __m128i const low_i8x16 = _mm512_cvtepi32_epi8(nk_maxsim_quantize_f32x16_icelake_(
+            nk_bf16x16_to_f32x16_skylake_(_mm512_castsi512_si256(original_bf16x32)), scale_f32x16));
+        __m128i const high_i8x16 = _mm512_cvtepi32_epi8(nk_maxsim_quantize_f32x16_icelake_(
+            nk_bf16x16_to_f32x16_skylake_(_mm512_extracti64x4_epi64(original_bf16x32, 1)), scale_f32x16));
+        __m256i const codes_i8x32 = _mm256_inserti128_si256(_mm256_castsi128_si256(low_i8x16), high_i8x16, 1);
+        nk_size_t const codes = depth - index < 32 ? depth - index : 32;
+        _mm256_mask_storeu_epi8(quantized + index / 64 * quantized_block_stride + index % 64,
+                                (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)codes), codes_i8x32);
+        sum_i32x8 = _mm256_dpbusd_epi32(sum_i32x8, ones_u8x32, codes_i8x32);
+    }
+    nk_maxsim_vector_metadata_(scale, norm_squared, nk_reduce_add_i32x8_haswell_(sum_i32x8), metadata);
+}
+
+/** Packs one F16 vector into @p original and @p quantized, filling @p metadata. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_f16_icelake_(nk_f16_t const *source, nk_size_t depth, nk_f16_t *original,
+                                                       nk_i8_t *quantized, nk_size_t quantized_block_stride,
+                                                       nk_maxsim_vector_metadata_t *metadata) {
+    __m512 absmax_f32x16 = _mm512_setzero_ps();
+    __m512d sumsq_first_f64x8 = _mm512_setzero_pd(), sumsq_second_f64x8 = _mm512_setzero_pd();
+    __m512d sumsq_third_f64x8 = _mm512_setzero_pd(), sumsq_fourth_f64x8 = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < depth; index += 32) {
+        nk_size_t const chunk = depth - index < 32 ? depth - index : 32;
+        nk_b512_vec_t raw_vec;
+        nk_partial_load_b16x32_skylake_(source + index, &raw_vec, chunk);
+        nk_partial_store_b16x32_skylake_(&raw_vec, original + index, chunk);
+        nk_maxsim_measure_f32x16_icelake_(_mm512_cvtph_ps(raw_vec.ymms[0]), &absmax_f32x16, &sumsq_first_f64x8,
+                                          &sumsq_second_f64x8);
+        nk_maxsim_measure_f32x16_icelake_(_mm512_cvtph_ps(raw_vec.ymms[1]), &absmax_f32x16, &sumsq_third_f64x8,
+                                          &sumsq_fourth_f64x8);
+    }
+    nk_f64_t const norm_squared = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(
+        _mm512_add_pd(sumsq_first_f64x8, sumsq_second_f64x8), _mm512_add_pd(sumsq_third_f64x8, sumsq_fourth_f64x8)));
+    nk_f32_t const scale = nk_maxsim_scale_f32_(nk_reduce_max_f32x16_skylake_(absmax_f32x16), 127.0f);
+
+    // Original rows span multiples of 32 values, zero past the depth, so whole loads stay inside
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale);
+    __m256i const ones_u8x32 = _mm256_set1_epi8(1);
+    __m256i sum_i32x8 = _mm256_setzero_si256();
+    for (nk_size_t index = 0; index < depth; index += 32) {
+        __m512i const original_f16x32 = _mm512_loadu_si512(original + index);
+        __m128i const low_i8x16 = _mm512_cvtepi32_epi8(
+            nk_maxsim_quantize_f32x16_icelake_(_mm512_cvtph_ps(_mm512_castsi512_si256(original_f16x32)), scale_f32x16));
+        __m128i const high_i8x16 = _mm512_cvtepi32_epi8(nk_maxsim_quantize_f32x16_icelake_(
+            _mm512_cvtph_ps(_mm512_extracti64x4_epi64(original_f16x32, 1)), scale_f32x16));
+        __m256i const codes_i8x32 = _mm256_inserti128_si256(_mm256_castsi128_si256(low_i8x16), high_i8x16, 1);
+        nk_size_t const codes = depth - index < 32 ? depth - index : 32;
+        _mm256_mask_storeu_epi8(quantized + index / 64 * quantized_block_stride + index % 64,
+                                (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)codes), codes_i8x32);
+        sum_i32x8 = _mm256_dpbusd_epi32(sum_i32x8, ones_u8x32, codes_i8x32);
+    }
+    nk_maxsim_vector_metadata_(scale, norm_squared, nk_reduce_add_i32x8_haswell_(sum_i32x8), metadata);
+}
+
+/** Packs one F32 vector into @p original and @p quantized, filling @p metadata. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_f32_icelake_(nk_f32_t const *source, nk_size_t depth, nk_f32_t *original,
+                                                       nk_i8_t *quantized, nk_size_t quantized_block_stride,
+                                                       nk_maxsim_vector_metadata_t *metadata) {
+    __m512 absmax_f32x16 = _mm512_setzero_ps();
+    __m512d sumsq_low_f64x8 = _mm512_setzero_pd(), sumsq_high_f64x8 = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < depth; index += 16) {
+        nk_size_t const chunk = depth - index < 16 ? depth - index : 16;
+        nk_b512_vec_t raw_vec;
+        nk_partial_load_b32x16_skylake_(source + index, &raw_vec, chunk);
+        nk_partial_store_b32x16_skylake_(&raw_vec, original + index, chunk);
+        nk_maxsim_measure_f32x16_icelake_(raw_vec.zmm_ps, &absmax_f32x16, &sumsq_low_f64x8, &sumsq_high_f64x8);
+    }
+    nk_f64_t const norm_squared = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_low_f64x8, sumsq_high_f64x8));
+    nk_f32_t const scale = nk_maxsim_scale_f32_(nk_reduce_max_f32x16_skylake_(absmax_f32x16), 127.0f);
+
+    // Original rows span multiples of 16 values, zero past the depth, so whole loads stay inside
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale);
+    __m128i const ones_u8x16 = _mm_set1_epi8(1);
+    __m128i sum_i32x4 = _mm_setzero_si128();
+    for (nk_size_t index = 0; index < depth; index += 16) {
+        __m128i const codes_i8x16 = _mm512_cvtepi32_epi8(
+            nk_maxsim_quantize_f32x16_icelake_(_mm512_loadu_ps(original + index), scale_f32x16));
+        nk_size_t const codes = depth - index < 16 ? depth - index : 16;
+        _mm_mask_storeu_epi8(quantized + index / 64 * quantized_block_stride + index % 64,
+                             (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)codes), codes_i8x16);
+        sum_i32x4 = _mm_dpbusd_epi32(sum_i32x4, ones_u8x16, codes_i8x16);
+    }
+    sum_i32x4 = _mm_add_epi32(sum_i32x4, _mm_shuffle_epi32(sum_i32x4, _MM_SHUFFLE(1, 0, 3, 2)));
+    sum_i32x4 = _mm_add_epi32(sum_i32x4, _mm_shuffle_epi32(sum_i32x4, _MM_SHUFFLE(2, 3, 0, 1)));
+    nk_maxsim_vector_metadata_(scale, norm_squared, _mm_cvtsi128_si32(sum_i32x4), metadata);
+}
+
+#pragma endregion Packing
+
 #if NUMKONG_TARGET_ICELAKE
 
 #pragma region F32 Floats
@@ -311,15 +453,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_icelake( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f, nk_f32_to_f32_,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_f32_icelake_((nk_f32_t const *)((char const *)vectors + vector_index * stride), depth,
+                                           (nk_f32_t *)(originals + vector_index * original_stride),
+                                           quantized_i8 + vector_index * depth_i8_padded, 64, metadata + vector_index);
     return nk_success_k;
 }
 
@@ -354,16 +491,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_icelake( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
-                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_f16_icelake_((nk_f16_t const *)((char const *)vectors + vector_index * stride), depth,
+                                           (nk_f16_t *)(originals + vector_index * original_stride),
+                                           quantized_i8 + vector_index * depth_i8_padded, 64, metadata + vector_index);
     return nk_success_k;
 }
 

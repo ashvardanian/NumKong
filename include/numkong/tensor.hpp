@@ -2546,7 +2546,7 @@ status_t elementwise_into_(tensor_view<value_type_, max_rank_> input, tensor_spa
         }
         return status_t::success_k;
     }
-    if (!can_apply_rank1_data_kernel_(input) || !can_apply_rank1_data_kernel_(output)) return status_t::misaligned_k;
+    if (input.byte_data() == nullptr || output.byte_data() == nullptr) return status_t::misaligned_k;
     return leaf(input, output);
 }
 
@@ -2709,16 +2709,23 @@ status_t fill(tensor_span<value_type_, max_rank_> output, value_type_ value) noe
 }
 
 /** Copy @p input element-by-element into @p output. Recursive traversal collapses contiguous tail
- *  dims into one memcpy per leaf; strided outer dims still recurse. Returns
- *  @c unexpected_dimensions_k on a shape mismatch and @c misaligned_k on an unsupported layout. */
+ *  dims into one memcpy per leaf, and a strided last dim, as in a transposed view, copies value by
+ *  value. Returns @c unexpected_dimensions_k on a shape mismatch and @c misaligned_k on a layout
+ *  it does not support. */
 template <typename value_type_, std::size_t max_rank_>
 status_t copy(tensor_view<value_type_, max_rank_> input, tensor_span<value_type_, max_rank_> output) noexcept {
     return elementwise_into_<value_type_, max_rank_>(
         input, output,
         [](tensor_view<value_type_, max_rank_> input_leaf, tensor_span<value_type_, max_rank_> output_leaf) {
-            auto byte_count = dimensions_to_values_<value_type_>(input_leaf.extent(0)) * sizeof(value_type_);
-            std::memcpy(static_cast<void *>(output_leaf.byte_data()), static_cast<void const *>(input_leaf.byte_data()),
-                        byte_count);
+            if (input_leaf.is_contiguous() && output_leaf.is_contiguous()) {
+                auto byte_count = dimensions_to_values_<value_type_>(input_leaf.extent(0)) * sizeof(value_type_);
+                std::memcpy(static_cast<void *>(output_leaf.byte_data()),
+                            static_cast<void const *>(input_leaf.byte_data()), byte_count);
+                return status_t::success_k;
+            }
+            for (std::ptrdiff_t index = 0; index != static_cast<std::ptrdiff_t>(input_leaf.extent(0)); ++index)
+                *reinterpret_cast<value_type_ *>(output_leaf.byte_data() + index * output_leaf.stride_bytes(0)) =
+                    *reinterpret_cast<value_type_ const *>(input_leaf.byte_data() + index * input_leaf.stride_bytes(0));
             return status_t::success_k;
         });
 }

@@ -2798,7 +2798,8 @@ check_kernel_documented_at_declaration() {
 # Rejects a SIMD register variable whose name omits its element type and width in ISA headers, because the
 # name is the only type annotation a kernel reader sees. The grammar is `<role>_<dtype>x<lanes>` for
 # fixed-width ISAs, `<role>_<dtype>x` for SVE and SME, `<role>_<dtype>m<lmul>` for RVV, with masks per ISA.
-# `*_vec`, `*_tail`, `*_tile`, `state`, and lines tagged `// nk-nolint: naming` are exempt.
+# `*_vec`, `*_tail`, `*_tile`, `state`, and lines tagged `// nk-nolint: naming` are exempt. A name followed
+# by another name or `*` is the next parameter's type, which ends the scan of a parameter list.
 check_register_names_carry_dtype_and_width() {
     local register_grammar exempt_line_numbers misnamed
     case "${staged_path##*/}" in
@@ -2831,7 +2832,7 @@ check_register_names_carry_dtype_and_width() {
                 sub(/^[[:space:]]*(const[[:space:]]+)?/, "", text)
                 name = text; sub(/[^A-Za-z0-9_].*/, "", name)
                 rest = substr(text, length(name) + 1)
-                if (rest ~ /^[[:space:]]*\(/) return
+                if (rest ~ /^[[:space:]]*\(/ || name != "" && rest ~ /^[[:space:]]*[*A-Za-z_]/) return
                 if (name != "" && !name_exempt(name) && !(is_mask ? mask_name_valid(name) : vector_name_valid(name)))
                     printf "line %d: %s %s\n", FNR, type, name
                 depth = 0
@@ -2918,6 +2919,26 @@ check_cuda_headers_stay_c() {
     [ -z "$cpp_constructs" ] || reject_with_reason "$cpp_constructs" \
         "$staged_path adds C++, but include/numkong .cuh tiers are C with \`extern \"C\"\` linkage;" \
         "            write C, and launch with cudaLaunchKernel and an explicit dim3 instead of <<< >>>:"
+}
+
+# Rejects an inline swizzle XOR, a vector pointer cast or a dereferenced word cast in include/numkong `.cuh`
+# headers outside the helpers that own them, because one copied formula drifts from its siblings unseen.
+check_addressing_uses_helpers() {
+    local inline_addressing
+    inline_addressing=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
+        added_list="$staged_added_line_numbers_list" awk '
+            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+            /^NUMKONG_DEVICE[^(]*[[:space:]]nk_(swizzled_[a-z0-9_]*offset|load_b[0-9]+|store_b[0-9]+)_[a-z0-9_]*\(/ { helper = !/}[[:space:]]*$/; next }
+            helper { if (/^}/) helper = 0; next }
+            !(FNR in added) { next }
+            /\^[[:space:]]*\(\(?[A-Za-z_][A-Za-z0-9_.]*([[:space:]]*>>[[:space:]]*[0-9]+[[:space:]]*\))?[[:space:]]*&[[:space:]]*[137]u?[[:space:]]*\)/ ||
+                /\([[:space:]]*(u?int|float)[24]([[:space:]]+const)?[[:space:]]*\*[[:space:]]*\)/ ||
+                /\*[[:space:]]*\([[:space:]]*(nk_[uif](16|32|64)_t|unsigned (short|int))([[:space:]]+const)?[[:space:]]*\*[[:space:]]*\)/ {
+                printf "line %d: %s\n", FNR, $0
+            }' || true)
+    [ -z "$inline_addressing" ] || reject_with_reason "$inline_addressing" \
+        "$staged_path addresses GPU memory by hand; place staged chunks with nk_swizzled_offset_ and its siblings," \
+        "            and load and store through nk_load_b128_, nk_store_b128_ and their siblings:"
 }
 
 # Rejects a `<<< >>>` launch in a c/ unit, because it drops the launch status that every library launch reports.
@@ -3071,7 +3092,10 @@ run_project_checks() {
     include/numkong/*/*.h | include/numkong/*/*.cuh) check_backend_includes_no_dispatch_umbrella ;;
     esac
     case "$staged_path" in
-    include/numkong/*.cuh | include/numkong/*/*.cuh) check_cuda_headers_stay_c ;;
+    include/numkong/*.cuh | include/numkong/*/*.cuh)
+        check_cuda_headers_stay_c
+        check_addressing_uses_helpers
+        ;;
     c/*.cu | c/*.hip) check_launches_report_status ;;
     CMakeLists.txt) check_cmake_internal_variables_uppercase ;;
     python/*.c | python/*.h) check_cpython_format_shortcuts_absent ;;

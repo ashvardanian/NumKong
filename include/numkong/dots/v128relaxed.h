@@ -16,6 +16,7 @@
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/dot/v128relaxed.h"
+#include "numkong/dots/v128.h" // `nk_dots_reduce_sumsq_i8_v128_`
 #include "numkong/dots/serial.h"
 
 #if defined(__cplusplus)
@@ -32,7 +33,7 @@ nk_define_cross_pack_size_(dots, i8, v128relaxed, i8, i8, /*norm_value_type=*/u3
 nk_define_cross_packed_shape_(dots, i8, v128relaxed)
 nk_define_cross_pack_(dots, i8, v128relaxed, i8, i8, nk_b128_vec_t, nk_load_b128_v128_, nk_partial_load_b8x16_serial_,
                       nk_store_b128_v128_, nk_partial_store_b8x16_serial_,
-                      /*simd_width=*/16, /*norm_value_type=*/u32, nk_dots_reduce_sumsq_i8_,
+                      /*simd_width=*/16, /*norm_value_type=*/u32, nk_dots_reduce_sumsq_i8_v128_,
                       /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_symmetric_(dots, i8, v128relaxed, i8, i32, nk_b128_vec_t, nk_dot_i8x16_state_v128relaxed_t,
                            nk_b128_vec_t, nk_dot_i8x16_init_v128relaxed, nk_cross_unscaled_, nk_load_b128_v128_,
@@ -55,7 +56,8 @@ nk_define_cross_compensated_pack_size_(dots, u8, v128relaxed, u8, u8,
 nk_define_cross_compensated_pack_(dots, u8, v128relaxed, u8, u8, nk_b128_vec_t, nk_load_b128_v128_,
                                   nk_partial_load_b8x16_serial_, nk_store_b128_v128_, nk_partial_store_b8x16_serial_,
                                   /*simd_width=*/16, /*sum_value_type=*/u32,
-                                  /*norm_value_type=*/u32, nk_dots_reduce_moments_u8_, /*depth_simd_dimensions=*/16,
+                                  /*norm_value_type=*/u32, nk_dots_reduce_moments_u8_v128_,
+                                  /*depth_simd_dimensions=*/16,
                                   /*dimensions_per_value=*/1)
 nk_define_cross_compensated_symmetric_(dots, u8, v128relaxed, u8, u32,
                                        /*sum_value_type=*/u32, /*norm_value_type=*/u32, nk_b128_vec_t,

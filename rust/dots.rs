@@ -775,7 +775,8 @@ pub trait Dots: StorageElement + private::Sealed {
     /// `packed` must point to a buffer produced by `dots_pack`.
     unsafe fn dots_packed_shape(packed: *const u8) -> Result<(usize, usize), Error>;
 
-    /// Packs the B matrix into an optimized backend-specific layout.
+    /// Packs the B matrix into an optimized backend-specific layout. Packing fuses no
+    /// transposition, so a transposed B is transposed in a separate pass first.
     ///
     /// # Safety
     /// - `b` must point to valid memory for `columns * depth` elements

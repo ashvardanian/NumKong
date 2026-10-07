@@ -725,8 +725,9 @@ char const doc_dots_pack[] =                                                    
     "dots_pack(b, /, dtype=None, *, out=None, stream=None) -> PackedMatrix\n\n"             //
     "Pack a 2D matrix for repeated dot-product style cross operations.\n\n"                 //
     "Args:\n"                                                                               //
-    "    b (array_like): Source matrix with shape [columns,depth], or a CUDA or ROCm\n"     //
-    "        Tensor from from_dlpack() to pack on that GPU.\n"                              //
+    "    b (array_like): Source matrix with shape [columns,depth] and contiguous rows,\n"   //
+    "        or a CUDA or ROCm Tensor from from_dlpack() to pack on that GPU. Packing\n"    //
+    "        fuses no transposition: transpose w.T into a contiguous copy first.\n"         //
     "    dtype (str, optional): Packing dtype. Default: inferred from input.\n"             //
     "        Supported values: 'bf16', 'f16', 'f32', 'f64', 'i8', 'u8',\n"                  //
     "        'e4m3', 'e5m2', 'e3m2', 'e2m3', 'e2m1', 'i4', 'u4', 'u1'.\n"                   //

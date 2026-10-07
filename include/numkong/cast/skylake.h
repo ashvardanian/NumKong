@@ -172,6 +172,12 @@ NUMKONG_INLINE void nk_partial_store_b64x8_skylake_(nk_b512_vec_t const *src, vo
     _mm512_mask_storeu_epi64(dst, mask_m8, src->zmm);
 }
 
+/** Stores @p count of at most 16 16-bit values from a 256-bit vector with an AVX-512BW mask. */
+NUMKONG_INLINE void nk_partial_store_b16x16_skylake_(nk_b256_vec_t const *source, void *destination, nk_size_t count) {
+    __mmask16 const mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)count);
+    _mm256_mask_storeu_epi16(destination, mask_m16, source->ymm);
+}
+
 #pragma endregion Type Punned Loads and Stores
 
 #pragma region Vectorized Conversions

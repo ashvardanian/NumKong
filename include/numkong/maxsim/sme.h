@@ -767,6 +767,108 @@ __arm_new("za") static void nk_maxsim_packed_f32_streaming_( //
     *result = total_angular_distance_f64 + total_compensation_f64;
 }
 
+/** Divides @p values_f32x by @p scale_f32x, biases by ±0.5 along the sign, truncates and clamps
+ *  to ±127, as @c nk_maxsim_quantize_f32_ does lane by lane. */
+NUMKONG_INLINE svint32_t nk_maxsim_quantize_f32x_sme_(svfloat32_t values_f32x,
+                                                      svfloat32_t scale_f32x) NUMKONG_STREAMING_ {
+    svbool_t const predicate_all_b32x = svptrue_b32();
+    svfloat32_t const scaled_f32x = svdiv_f32_x(predicate_all_b32x, values_f32x, scale_f32x);
+    svfloat32_t const bias_f32x = svsel_f32(svcmpge_n_f32(predicate_all_b32x, scaled_f32x, 0.0f), svdup_f32(0.5f),
+                                            svdup_f32(-0.5f));
+    svint32_t const codes_i32x = svcvt_s32_f32_x(predicate_all_b32x,
+                                                 svadd_f32_x(predicate_all_b32x, scaled_f32x, bias_f32x));
+    return svmax_n_s32_x(predicate_all_b32x, svmin_n_s32_x(predicate_all_b32x, codes_i32x, 127), -127);
+}
+
+/**
+ *  @brief Packs F32 vectors into SMOPA quads of I8 codes and F32 originals, leaving each vector's
+ *      F64 sum of squares in @p sumsqs and its abs-max scale in @p scales.
+ *
+ *  Per tile of vectors, the first pass walks the depth in batches through ZA0.S: it loads vector
+ *  rows, stores them as the originals, writes them horizontally and reads depth rows vertically,
+ *  taking the abs-maxes and the sums of squares in order, one lane per vector, as the serial packs
+ *  do. The second pass quantizes the originals rows, writes the code rows horizontally and stores
+ *  the quads it reads back vertically.
+ */
+__arm_new("za") static void nk_maxsim_pack_f32_streaming_( //
+    nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t vector_stride, nk_i8_t *tiles,
+    nk_f64_t *sumsqs, nk_f32_t *scales, char *originals, nk_size_t original_stride) NUMKONG_STREAMING_ {
+    nk_size_t const tile_dimension = svcntw(), vector_elements = svcntb();
+    nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, 4);
+    nk_size_t const original_values = original_stride / sizeof(nk_f32_t);
+    svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b32x = svptrue_b32();
+    svbool_t const predicate_all_b64x = svptrue_b64();
+    for (nk_size_t column_start = 0; column_start < columns; column_start += tile_dimension) {
+        nk_size_t const tile_columns = nk_min_of_two(tile_dimension, columns - column_start);
+        char const *source = (char const *)vectors + column_start * vector_stride;
+        char *tile_originals = originals + column_start * original_stride;
+        svbool_t const column_predicate_b32x = svwhilelt_b32_u64(0u, tile_columns);
+        svfloat32_t absmax_f32x = svdup_f32(0);
+        svfloat64_t sumsq_even_f64x = svdup_f64(0), sumsq_odd_f64x = svdup_f64(0);
+        // Batches span the whole padded originals rows, so their zero tails get written too
+        for (nk_size_t batch_start = 0; batch_start < original_values; batch_start += tile_dimension) {
+            nk_size_t const batch_steps = batch_start < depth ? nk_min_of_two(tile_dimension, depth - batch_start) : 0;
+            svbool_t const row_predicate_b32x = svwhilelt_b32_u64(batch_start, original_values);
+            for (nk_size_t column = 0; column < tile_columns; column++) {
+                svfloat32_t const row_f32x = svld1_f32(
+                    svwhilelt_b32_u64(batch_start, depth),
+                    (nk_f32_t const *)(source + column * vector_stride) + batch_start);
+                svst1_f32(row_predicate_b32x, (nk_f32_t *)(tile_originals + column * original_stride) + batch_start,
+                          row_f32x);
+                svwrite_hor_za32_f32_m(0, column, predicate_all_b32x, row_f32x);
+            }
+            for (nk_size_t step = 0; step < batch_steps; step++) {
+                svfloat32_t const values_f32x = svread_ver_za32_f32_m(svdup_f32(0), column_predicate_b32x, 0, step);
+                absmax_f32x = svmaxnm_f32_x(predicate_all_b32x, absmax_f32x,
+                                            svabs_f32_x(predicate_all_b32x, values_f32x));
+                svfloat64_t const even_f64x = svcvt_f64_f32_x(predicate_all_b64x, values_f32x);
+                svfloat64_t const odd_f64x = svcvtlt_f64_f32_x(predicate_all_b64x, values_f32x);
+                sumsq_even_f64x = svmla_f64_x(predicate_all_b64x, sumsq_even_f64x, even_f64x, even_f64x);
+                sumsq_odd_f64x = svmla_f64_x(predicate_all_b64x, sumsq_odd_f64x, odd_f64x, odd_f64x);
+            }
+        }
+        svfloat32_t scale_f32x = svdiv_n_f32_x(predicate_all_b32x, absmax_f32x, 127.0f);
+        scale_f32x = svsel_f32(svcmpeq_n_f32(predicate_all_b32x, scale_f32x, 0.0f), svdup_f32(1.0f), scale_f32x);
+        svst1_f32(column_predicate_b32x, scales + column_start, scale_f32x);
+        // Even lanes widened the even vectors, so zipping restores the vector order
+        svst1_f64(svwhilelt_b64_u64(0u, tile_columns), sumsqs + column_start,
+                  svzip1_f64(sumsq_even_f64x, sumsq_odd_f64x));
+        svst1_f64(svwhilelt_b64_u64(svcntd(), tile_columns), sumsqs + column_start + svcntd(),
+                  svzip2_f64(sumsq_even_f64x, sumsq_odd_f64x));
+
+        nk_i8_t *packed = tiles + column_start / tile_dimension * depth_step_count * vector_elements;
+        for (nk_size_t step = 0; step < depth_step_count; step++) {
+            nk_size_t const slice = step % tile_dimension;
+            if (slice == 0)
+                for (nk_size_t column = 0; column < tile_columns; column++) {
+                    nk_f32_t const *original = (nk_f32_t const *)(tile_originals + column * original_stride) + 4 * step;
+                    svfloat32_t const column_scale_f32x = svdup_lane_f32(scale_f32x, (nk_u32_t)column);
+                    svint32_t const first_i32x = nk_maxsim_quantize_f32x_sme_(
+                        svld1_f32(svwhilelt_b32_u64(4 * step, depth), original), column_scale_f32x);
+                    svint32_t const second_i32x = nk_maxsim_quantize_f32x_sme_(
+                        svld1_f32(svwhilelt_b32_u64(4 * step + tile_dimension, depth), original + tile_dimension),
+                        column_scale_f32x);
+                    svint32_t const third_i32x = nk_maxsim_quantize_f32x_sme_(
+                        svld1_f32(svwhilelt_b32_u64(4 * step + 2 * tile_dimension, depth),
+                                  original + 2 * tile_dimension),
+                        column_scale_f32x);
+                    svint32_t const fourth_i32x = nk_maxsim_quantize_f32x_sme_(
+                        svld1_f32(svwhilelt_b32_u64(4 * step + 3 * tile_dimension, depth),
+                                  original + 3 * tile_dimension),
+                        column_scale_f32x);
+                    svint8_t const codes_i8x = svuzp1_s8(
+                        svreinterpret_s8_s16(
+                            svuzp1_s16(svreinterpret_s16_s32(first_i32x), svreinterpret_s16_s32(second_i32x))),
+                        svreinterpret_s8_s16(
+                            svuzp1_s16(svreinterpret_s16_s32(third_i32x), svreinterpret_s16_s32(fourth_i32x))));
+                    svwrite_hor_za32_s32_m(0, column, predicate_all_b32x, svreinterpret_s32_s8(codes_i8x));
+                }
+            svst1_s8(predicate_all_b8x, packed + step * vector_elements,
+                     svreinterpret_s8_s32(svread_ver_za32_s32_m(svdup_s32(0), column_predicate_b32x, 0, slice)));
+        }
+    }
+}
+
 #if NUMKONG_TARGET_SME
 
 NUMKONG_API nk_status_t nk_maxsim_packed_f16_sme( //
@@ -833,9 +935,6 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme( //
     nk_bf16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
     void *stream) { //
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
-
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
     nk_dots_pack_bf16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
@@ -861,9 +960,6 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme( //
     nk_f16_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
     void *stream) { //
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const blob_bytes = nk_dots_pack_size_b16_sme_(columns, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
-
     // Delegate tile interleaving and squared norms computation to dots pack.
     // Both headers are 64 bytes with identical layout for the first 6 fields.
     nk_dots_pack_f16_tiles_sme_(vectors, columns, depth, stride, packed, 0, columns);
@@ -904,9 +1000,6 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
     nk_f32_t const *vectors, nk_size_t columns, nk_size_t depth, nk_size_t stride, void *packed,
     void *stream) { //
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t const blob_bytes = nk_maxsim_pack_bytes_f32_sme_(columns, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
-
     nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
     nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512
     nk_size_t const vector_elements = nk_sme_cntb_(); // 64 for SVL=512
@@ -941,52 +1034,16 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
     nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + screen_weights_offset);
     char *originals = (char *)packed + originals_offset;
 
-    // Zero-initialize tile data (partial vectors stay zero-padded)
-    for (nk_size_t i = 0; i < tiles_size; i++) tiles[i] = 0;
+    nk_sme_start_streaming_();
+    nk_maxsim_pack_f32_streaming_(vectors, columns, depth, stride, tiles, inverse_norms, screen_weights, originals,
+                                  original_stride);
+    nk_sme_stop_streaming_();
 
-    // For each vector: quantize metadata, quantize+interleave into tiles, copy originals
+    // The streaming pass left the sums of squares and the scales in place
     for (nk_size_t vector_index = 0; vector_index < columns; vector_index++) {
-        nk_f32_t const *source = (nk_f32_t const *)((char const *)vectors + vector_index * stride);
-
-        // Pass 1: Compute absmax and norm_sq simultaneously
-        nk_f32_t absmax = 0.0f;
-        nk_f64_t norm_sq = 0.0;
-        for (nk_size_t dim = 0; dim < depth; dim++) {
-            nk_f32_t val = source[dim];
-            nk_f32_t abs_val = nk_f32_abs_(val);
-            if (abs_val > absmax) absmax = abs_val;
-            norm_sq += (nk_f64_t)val * val;
-        }
-        inverse_norms[vector_index] = norm_sq > 0.0 ? nk_f64_rsqrt_refined_neon_(norm_sq) : 0.0;
-
-        nk_f32_t scale = absmax / 127.0f;
-        if (scale == 0.0f) scale = 1.0f;
-        screen_weights[vector_index] = scale * (nk_f32_t)inverse_norms[vector_index];
-
-        // Pass 2: Quantize and scatter into tile-interleaved positions
-        nk_size_t const column_tile = vector_index / tile_dimension;
-        nk_size_t const column_in_tile = vector_index % tile_dimension;
-
-        for (nk_size_t dim = 0; dim < depth; dim++) {
-            nk_size_t const depth_step = dim / expansion;
-            nk_size_t const sub_element = dim % expansion;
-            nk_size_t const vec_index = column_tile * depth_step_count + depth_step;
-            nk_size_t const offset = vec_index * vector_elements + expansion * column_in_tile + sub_element;
-
-            nk_f32_t scaled = source[dim] / scale;
-            nk_i32_t quantized;
-            if (scaled >= 0.0f) quantized = (nk_i32_t)(scaled + 0.5f);
-            else quantized = (nk_i32_t)(scaled - 0.5f);
-            if (quantized > 127) quantized = 127;
-            if (quantized < -127) quantized = -127;
-
-            tiles[offset] = (nk_i8_t)quantized;
-        }
-
-        // Pass 3: Copy originals (64B-aligned stride, zero-pad tail)
-        char *dest_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(dest_original, source, depth * sizeof(nk_f32_t));
-        for (nk_size_t byte = depth * sizeof(nk_f32_t); byte < original_stride; byte++) dest_original[byte] = 0;
+        nk_f64_t const sumsq = inverse_norms[vector_index];
+        inverse_norms[vector_index] = sumsq > 0.0 ? nk_f64_rsqrt_refined_neon_(sumsq) : 0.0;
+        screen_weights[vector_index] *= (nk_f32_t)inverse_norms[vector_index];
     }
     return nk_success_k;
 }

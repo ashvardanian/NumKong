@@ -294,6 +294,180 @@ NUMKONG_INLINE void nk_maxsim_coarse_dots_haswell_(       //
     }
 }
 
+/*  Pack helpers: pass 1 reads the source once, copies it into the original row and measures it;
+ *  pass 2 quantizes from that original row. Codes are summed with VPSADBW on biased bytes, and
+ *  @p scale_limit maps the absolute maximum onto the largest code. */
+
+/** Quantizes 8 F32 values by true division with @p scale_f32x8, rounding half away from zero and
+ *  clamping magnitudes to @p limit_i32x8. */
+NUMKONG_INLINE __m256i nk_maxsim_quantize_f32x8_haswell_(__m256 values_f32x8, __m256 scale_f32x8, __m256i limit_i32x8) {
+    __m256 const scaled_f32x8 = _mm256_div_ps(values_f32x8, scale_f32x8);
+    __m256 const half_f32x8 = _mm256_or_ps(_mm256_and_ps(scaled_f32x8, _mm256_set1_ps(-0.0f)), _mm256_set1_ps(0.5f));
+    __m256i const rounded_i32x8 = _mm256_cvttps_epi32(_mm256_add_ps(scaled_f32x8, half_f32x8));
+    return _mm256_max_epi32(_mm256_min_epi32(rounded_i32x8, limit_i32x8),
+                            _mm256_sub_epi32(_mm256_setzero_si256(), limit_i32x8));
+}
+
+/** Accumulates 8 F32 values into the running absolute maximum, skipping NaNs, and into an F64
+ *  sum of squares, each square exact in F64. */
+NUMKONG_INLINE void nk_maxsim_measure_f32x8_haswell_(__m256 values_f32x8, __m256 *absmax_f32x8,
+                                                     __m256d *sumsq_low_f64x4, __m256d *sumsq_high_f64x4) {
+    __m256 const magnitudes_f32x8 = _mm256_andnot_ps(_mm256_set1_ps(-0.0f), values_f32x8);
+    *absmax_f32x8 = _mm256_max_ps(magnitudes_f32x8, *absmax_f32x8);
+    __m256d const low_f64x4 = _mm256_cvtps_pd(_mm256_castps256_ps128(values_f32x8));
+    __m256d const high_f64x4 = _mm256_cvtps_pd(_mm256_extractf128_ps(values_f32x8, 1));
+    *sumsq_low_f64x4 = _mm256_fmadd_pd(low_f64x4, low_f64x4, *sumsq_low_f64x4);
+    *sumsq_high_f64x4 = _mm256_fmadd_pd(high_f64x4, high_f64x4, *sumsq_high_f64x4);
+}
+
+/** Narrows four vectors of I32 codes, in order, to 32 I8 codes. */
+NUMKONG_INLINE __m256i nk_maxsim_narrow_i32x8x4_haswell_(__m256i first_i32x8, __m256i second_i32x8, __m256i third_i32x8,
+                                                         __m256i fourth_i32x8) {
+    // Packing spreads each vector's dwords across both 128-bit halves, which the permute undoes
+    __m256i const codes_i8x32 = _mm256_packs_epi16(_mm256_packs_epi32(first_i32x8, second_i32x8),
+                                                   _mm256_packs_epi32(third_i32x8, fourth_i32x8));
+    return _mm256_permutevar8x32_epi32(codes_i8x32, _mm256_setr_epi32(0, 4, 1, 5, 2, 6, 3, 7));
+}
+
+/** Packs one BF16 vector into @p original and @p quantized, filling @p metadata. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_bf16_haswell_(nk_bf16_t const *source, nk_size_t depth, nk_f32_t scale_limit,
+                                                        nk_bf16_t *original, nk_i8_t *quantized,
+                                                        nk_maxsim_vector_metadata_t *metadata) {
+    __m256 absmax_f32x8 = _mm256_setzero_ps();
+    __m256d sumsq_first_f64x4 = _mm256_setzero_pd(), sumsq_second_f64x4 = _mm256_setzero_pd();
+    __m256d sumsq_third_f64x4 = _mm256_setzero_pd(), sumsq_fourth_f64x4 = _mm256_setzero_pd();
+    for (nk_size_t index = 0; index < depth; index += 16) {
+        nk_size_t const chunk = depth - index < 16 ? depth - index : 16;
+        nk_b256_vec_t raw_vec;
+        nk_partial_load_b16x16_haswell_(source + index, &raw_vec, chunk);
+        nk_partial_store_b16x16_haswell_(&raw_vec, original + index, chunk);
+        nk_maxsim_measure_f32x8_haswell_(nk_bf16x8_to_f32x8_haswell_(raw_vec.xmms[0]), &absmax_f32x8,
+                                         &sumsq_first_f64x4, &sumsq_second_f64x4);
+        nk_maxsim_measure_f32x8_haswell_(nk_bf16x8_to_f32x8_haswell_(raw_vec.xmms[1]), &absmax_f32x8,
+                                         &sumsq_third_f64x4, &sumsq_fourth_f64x4);
+    }
+    nk_f64_t const norm_squared = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(
+        _mm256_add_pd(sumsq_first_f64x4, sumsq_second_f64x4), _mm256_add_pd(sumsq_third_f64x4, sumsq_fourth_f64x4)));
+    nk_f32_t const scale = nk_maxsim_scale_f32_(nk_reduce_max_f32x8_haswell_(absmax_f32x8), scale_limit);
+
+    // Original rows span multiples of 32 values, zero past the depth, so whole loads stay inside
+    __m256 const scale_f32x8 = _mm256_set1_ps(scale);
+    __m256i const limit_i32x8 = _mm256_set1_epi32((int)scale_limit);
+    __m256i const bias_u8x32 = _mm256_set1_epi8((char)0x80);
+    __m256i sum_u64x4 = _mm256_setzero_si256();
+    for (nk_size_t index = 0; index < depth; index += 32) {
+        __m256i const first_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            nk_bf16x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)(original + index))), scale_f32x8,
+            limit_i32x8);
+        __m256i const second_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            nk_bf16x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)(original + index + 8))), scale_f32x8,
+            limit_i32x8);
+        __m256i const third_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            nk_bf16x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)(original + index + 16))), scale_f32x8,
+            limit_i32x8);
+        __m256i const fourth_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            nk_bf16x8_to_f32x8_haswell_(_mm_loadu_si128((__m128i const *)(original + index + 24))), scale_f32x8,
+            limit_i32x8);
+        nk_b256_vec_t codes_vec;
+        codes_vec.ymm = nk_maxsim_narrow_i32x8x4_haswell_(first_i32x8, second_i32x8, third_i32x8, fourth_i32x8);
+        nk_partial_store_b8x32_haswell_(&codes_vec, quantized + index, depth - index < 32 ? depth - index : 32);
+        sum_u64x4 = _mm256_add_epi64(
+            sum_u64x4, _mm256_sad_epu8(_mm256_xor_si256(codes_vec.ymm, bias_u8x32), _mm256_setzero_si256()));
+    }
+    // Every lane summed carries the 128 bias, the zero codes past the depth included
+    nk_i64_t const lanes = (nk_i64_t)nk_size_round_up_to_multiple_(depth, 32);
+    nk_maxsim_vector_metadata_(scale, norm_squared, (nk_i32_t)(nk_reduce_add_i64x4_haswell_(sum_u64x4) - 128 * lanes),
+                               metadata);
+}
+
+/** Packs one F16 vector into @p original and @p quantized, filling @p metadata. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_f16_haswell_(nk_f16_t const *source, nk_size_t depth, nk_f32_t scale_limit,
+                                                       nk_f16_t *original, nk_i8_t *quantized,
+                                                       nk_maxsim_vector_metadata_t *metadata) {
+    __m256 absmax_f32x8 = _mm256_setzero_ps();
+    __m256d sumsq_first_f64x4 = _mm256_setzero_pd(), sumsq_second_f64x4 = _mm256_setzero_pd();
+    __m256d sumsq_third_f64x4 = _mm256_setzero_pd(), sumsq_fourth_f64x4 = _mm256_setzero_pd();
+    for (nk_size_t index = 0; index < depth; index += 16) {
+        nk_size_t const chunk = depth - index < 16 ? depth - index : 16;
+        nk_b256_vec_t raw_vec;
+        nk_partial_load_b16x16_haswell_(source + index, &raw_vec, chunk);
+        nk_partial_store_b16x16_haswell_(&raw_vec, original + index, chunk);
+        nk_maxsim_measure_f32x8_haswell_(_mm256_cvtph_ps(raw_vec.xmms[0]), &absmax_f32x8, &sumsq_first_f64x4,
+                                         &sumsq_second_f64x4);
+        nk_maxsim_measure_f32x8_haswell_(_mm256_cvtph_ps(raw_vec.xmms[1]), &absmax_f32x8, &sumsq_third_f64x4,
+                                         &sumsq_fourth_f64x4);
+    }
+    nk_f64_t const norm_squared = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(
+        _mm256_add_pd(sumsq_first_f64x4, sumsq_second_f64x4), _mm256_add_pd(sumsq_third_f64x4, sumsq_fourth_f64x4)));
+    nk_f32_t const scale = nk_maxsim_scale_f32_(nk_reduce_max_f32x8_haswell_(absmax_f32x8), scale_limit);
+
+    // Original rows span multiples of 32 values, zero past the depth, so whole loads stay inside
+    __m256 const scale_f32x8 = _mm256_set1_ps(scale);
+    __m256i const limit_i32x8 = _mm256_set1_epi32((int)scale_limit);
+    __m256i const bias_u8x32 = _mm256_set1_epi8((char)0x80);
+    __m256i sum_u64x4 = _mm256_setzero_si256();
+    for (nk_size_t index = 0; index < depth; index += 32) {
+        __m256i const first_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)(original + index))), scale_f32x8, limit_i32x8);
+        __m256i const second_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)(original + index + 8))), scale_f32x8, limit_i32x8);
+        __m256i const third_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)(original + index + 16))), scale_f32x8, limit_i32x8);
+        __m256i const fourth_i32x8 = nk_maxsim_quantize_f32x8_haswell_(
+            _mm256_cvtph_ps(_mm_loadu_si128((__m128i const *)(original + index + 24))), scale_f32x8, limit_i32x8);
+        nk_b256_vec_t codes_vec;
+        codes_vec.ymm = nk_maxsim_narrow_i32x8x4_haswell_(first_i32x8, second_i32x8, third_i32x8, fourth_i32x8);
+        nk_partial_store_b8x32_haswell_(&codes_vec, quantized + index, depth - index < 32 ? depth - index : 32);
+        sum_u64x4 = _mm256_add_epi64(
+            sum_u64x4, _mm256_sad_epu8(_mm256_xor_si256(codes_vec.ymm, bias_u8x32), _mm256_setzero_si256()));
+    }
+    // Every lane summed carries the 128 bias, the zero codes past the depth included
+    nk_i64_t const lanes = (nk_i64_t)nk_size_round_up_to_multiple_(depth, 32);
+    nk_maxsim_vector_metadata_(scale, norm_squared, (nk_i32_t)(nk_reduce_add_i64x4_haswell_(sum_u64x4) - 128 * lanes),
+                               metadata);
+}
+
+/** Packs one F32 vector into @p original and @p quantized, filling @p metadata. */
+NUMKONG_INLINE void nk_maxsim_pack_vector_f32_haswell_(nk_f32_t const *source, nk_size_t depth, nk_f32_t scale_limit,
+                                                       nk_f32_t *original, nk_i8_t *quantized,
+                                                       nk_maxsim_vector_metadata_t *metadata) {
+    __m256 absmax_f32x8 = _mm256_setzero_ps();
+    __m256d sumsq_low_f64x4 = _mm256_setzero_pd(), sumsq_high_f64x4 = _mm256_setzero_pd();
+    for (nk_size_t index = 0; index < depth; index += 8) {
+        nk_size_t const chunk = depth - index < 8 ? depth - index : 8;
+        nk_b256_vec_t raw_vec;
+        nk_partial_load_b32x8_haswell_(source + index, &raw_vec, chunk);
+        nk_partial_store_b32x8_haswell_(&raw_vec, original + index, chunk);
+        nk_maxsim_measure_f32x8_haswell_(raw_vec.ymm_ps, &absmax_f32x8, &sumsq_low_f64x4, &sumsq_high_f64x4);
+    }
+    nk_f64_t const norm_squared = nk_reduce_add_f64x4_haswell_(_mm256_add_pd(sumsq_low_f64x4, sumsq_high_f64x4));
+    nk_f32_t const scale = nk_maxsim_scale_f32_(nk_reduce_max_f32x8_haswell_(absmax_f32x8), scale_limit);
+
+    // Original rows span multiples of 16 values, zero past the depth, so whole loads stay inside
+    __m256 const scale_f32x8 = _mm256_set1_ps(scale);
+    __m256i const limit_i32x8 = _mm256_set1_epi32((int)scale_limit);
+    __m128i const bias_u8x16 = _mm_set1_epi8((char)0x80);
+    __m128i sum_u64x2 = _mm_setzero_si128();
+    for (nk_size_t index = 0; index < depth; index += 16) {
+        __m256i const low_i32x8 = nk_maxsim_quantize_f32x8_haswell_(_mm256_loadu_ps(original + index), scale_f32x8,
+                                                                    limit_i32x8);
+        __m256i const high_i32x8 = nk_maxsim_quantize_f32x8_haswell_(_mm256_loadu_ps(original + index + 8), scale_f32x8,
+                                                                     limit_i32x8);
+        // Packing interleaves the 128-bit halves, which the permute puts back in order
+        __m256i const codes_i16x16 = _mm256_permute4x64_epi64(_mm256_packs_epi32(low_i32x8, high_i32x8), 0xD8);
+        nk_b128_vec_t codes_vec;
+        codes_vec.xmm = _mm_packs_epi16(_mm256_castsi256_si128(codes_i16x16),
+                                        _mm256_extracti128_si256(codes_i16x16, 1));
+        nk_partial_store_b8x16_haswell_(&codes_vec, quantized + index, depth - index < 16 ? depth - index : 16);
+        sum_u64x2 = _mm_add_epi64(sum_u64x2,
+                                  _mm_sad_epu8(_mm_xor_si128(codes_vec.xmm, bias_u8x16), _mm_setzero_si128()));
+    }
+    // Every lane summed carries the 128 bias, the zero codes past the depth included
+    nk_i64_t const lanes = (nk_i64_t)nk_size_round_up_to_multiple_(depth, 16);
+    nk_i64_t const biased_sum = (nk_i64_t)_mm_cvtsi128_si64(sum_u64x2) + (nk_i64_t)_mm_extract_epi64(sum_u64x2, 1);
+    nk_maxsim_vector_metadata_(scale, norm_squared, (nk_i32_t)(biased_sum - 128 * lanes), metadata);
+}
+
 NUMKONG_INLINE nk_f64_t nk_maxsim_refine_bf16_haswell_(void const *query, void const *document, nk_size_t depth) {
     nk_f32_t dot;
     nk_dot_bf16_through_f32_haswell_((nk_bf16_t const *)query, (nk_bf16_t const *)document, depth, &dot);
@@ -367,16 +541,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_haswell( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f,
-                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_bf16_haswell_((nk_bf16_t const *)((char const *)vectors + vector_index * stride), depth,
+                                            79.0f, (nk_bf16_t *)(originals + vector_index * original_stride),
+                                            quantized_i8 + vector_index * depth_i8_padded, metadata + vector_index);
     return nk_success_k;
 }
 
@@ -394,15 +562,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_haswell( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f, nk_f32_to_f32_,
-                                   &quantized_i8[vector_index * depth_i8_padded], &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_f32_haswell_((nk_f32_t const *)((char const *)vectors + vector_index * stride), depth,
+                                           79.0f, (nk_f32_t *)(originals + vector_index * original_stride),
+                                           quantized_i8 + vector_index * depth_i8_padded, metadata + vector_index);
     return nk_success_k;
 }
 
@@ -420,16 +583,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_haswell( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 79.0f,
-                                   (nk_maxsim_to_f32_t)nk_f16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_f16_haswell_((nk_f16_t const *)((char const *)vectors + vector_index * stride), depth,
+                                           79.0f, (nk_f16_t *)(originals + vector_index * original_stride),
+                                           quantized_i8 + vector_index * depth_i8_padded, metadata + vector_index);
     return nk_success_k;
 }
 

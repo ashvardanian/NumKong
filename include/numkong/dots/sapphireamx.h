@@ -79,7 +79,8 @@
 #if NUMKONG_ARCH_X8664_SAPPHIREAMX_
 
 #include "numkong/cast/icelake.h" // For FP8 ↔ BF16 conversions
-#include "numkong/dots/serial.h"  // `nk_dots_reduce_sumsq_bf16_`
+#include "numkong/dots/serial.h"  // `nk_dots_reduce_sumsq_e2m1_`
+#include "numkong/dots/skylake.h" // `nk_dots_reduce_sumsq_bf16_skylake_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -852,6 +853,26 @@ NUMKONG_INLINE void nk_dots_pack_i8_transposed_sapphireamx_( //
     _mm512_store_si512(&b_tile->data[15][0][0], out15_i32x16);
 
     nk_compiler_barrier_sapphireamx_();
+}
+
+/** Copies @p count 16-bit values into @p destination, 32 at a time with masked loads and stores. */
+NUMKONG_INLINE void nk_dots_copy_row_b16_sapphireamx_(void *destination, void const *source, nk_size_t count) {
+    for (nk_size_t index = 0; index < count; index += 32) {
+        nk_size_t const chunk = count - index < 32 ? count - index : 32;
+        nk_b512_vec_t chunk_vec;
+        nk_partial_load_b16x32_skylake_((nk_u16_t const *)source + index, &chunk_vec, chunk);
+        nk_partial_store_b16x32_skylake_(&chunk_vec, (nk_u16_t *)destination + index, chunk);
+    }
+}
+
+/** Copies @p count 8-bit values into @p destination, 64 at a time with masked loads and stores. */
+NUMKONG_INLINE void nk_dots_copy_row_b8_sapphireamx_(void *destination, void const *source, nk_size_t count) {
+    for (nk_size_t index = 0; index < count; index += 64) {
+        nk_size_t const chunk = count - index < 64 ? count - index : 64;
+        nk_b512_vec_t chunk_vec;
+        nk_partial_load_b8x64_skylake_((nk_u8_t const *)source + index, &chunk_vec, chunk);
+        nk_partial_store_b8x64_skylake_(&chunk_vec, (nk_u8_t *)destination + index, chunk);
+    }
 }
 
 #pragma region F16 Floats
@@ -2191,14 +2212,14 @@ NUMKONG_INLINE __m512i nk_mxfp8e5m2_widen_bf16_sapphireamx_(nk_dots_bf16_rows_sa
 
 NUMKONG_INLINE nk_f32_t nk_e4m3_sumsq_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
                                                    nk_size_t depth) {
-    return nk_dots_reduce_sumsq_e4m3_((nk_e4m3_t const *)(rows->values + row * rows->stride), depth,
-                                      nk_cap_sapphireamx_k);
+    return nk_dots_reduce_sumsq_e4m3_skylake_((nk_e4m3_t const *)(rows->values + row * rows->stride), depth,
+                                              sizeof(nk_e4m3_t));
 }
 
 NUMKONG_INLINE nk_f32_t nk_e5m2_sumsq_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
                                                    nk_size_t depth) {
-    return nk_dots_reduce_sumsq_e5m2_((nk_e5m2_t const *)(rows->values + row * rows->stride), depth,
-                                      nk_cap_sapphireamx_k);
+    return nk_dots_reduce_sumsq_e5m2_skylake_((nk_e5m2_t const *)(rows->values + row * rows->stride), depth,
+                                              sizeof(nk_e5m2_t));
 }
 
 /** Squared norm of a block-scaled row of the BF16 values the GEMM multiplies, summed in F32. */
@@ -3686,14 +3707,10 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_sapphireamx(           //
     }
 
     nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
-    if (column_remainder_count > 0 && remainder_start_row >= columns_begin && remainder_start_row < columns_end) {
-        for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
-            for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
-                column_edge_ptr[row_idx * depth + column_idx] =
-                    b[(remainder_start_row + row_idx) * b_stride_elements + column_idx];
-            }
-        }
-    }
+    if (column_remainder_count > 0 && remainder_start_row >= columns_begin && remainder_start_row < columns_end)
+        for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++)
+            nk_dots_copy_row_b16_sapphireamx_(column_edge_ptr + row_idx * depth,
+                                              b + (remainder_start_row + row_idx) * b_stride_elements, depth);
 
     // Compute and store per-column norms for angular/euclidean distance — one per column, so each
     // window computes the norms of the columns it owns.
@@ -3702,7 +3719,7 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_sapphireamx(           //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_bf16_(b + col * b_stride_elements, depth, nk_cap_sapphireamx_k);
+        norms[col] = nk_dots_reduce_sumsq_bf16_skylake_(b + col * b_stride_elements, depth, sizeof(nk_bf16_t));
     return nk_success_k;
 }
 
@@ -3821,12 +3838,9 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_sapphireamx(           //
     if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
         column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
-        for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
-            for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
-                column_edge_ptr[row_idx * depth + column_idx] =
-                    b[(remainder_start_row + row_idx) * b_stride + column_idx];
-            }
-        }
+        for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++)
+            nk_dots_copy_row_b8_sapphireamx_(column_edge_ptr + row_idx * depth,
+                                             b + (remainder_start_row + row_idx) * b_stride, depth);
     }
 
     // Compute and store per-column norms for angular/euclidean distance
@@ -3835,7 +3849,7 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_sapphireamx(           //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_u32_t *norms = (nk_u32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_i8_(b + col * b_stride, depth, nk_cap_sapphireamx_k);
+        norms[col] = nk_dots_reduce_sumsq_i8_skylake_(b + col * b_stride, depth, sizeof(nk_i8_t));
     return nk_success_k;
 }
 
@@ -3948,12 +3962,9 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_sapphireamx(           //
     if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
         column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
-        for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
-            for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
-                column_edge_ptr[row_idx * depth + column_idx] =
-                    b[(remainder_start_row + row_idx) * b_stride + column_idx];
-            }
-        }
+        for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++)
+            nk_dots_copy_row_b8_sapphireamx_(column_edge_ptr + row_idx * depth,
+                                             b + (remainder_start_row + row_idx) * b_stride, depth);
     }
 
     // Compute and store per-column norms for angular/euclidean distance
@@ -3962,7 +3973,7 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_sapphireamx(           //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_u32_t *norms = (nk_u32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_u8_(b + col * b_stride, depth, nk_cap_sapphireamx_k);
+        norms[col] = nk_dots_reduce_sumsq_u8_skylake_(b + col * b_stride, depth, sizeof(nk_u8_t));
     return nk_success_k;
 }
 
@@ -4409,21 +4420,18 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_sapphireamx(           //
         }
     }
 
-    // Pack column-remainder rows (convert E2M3 to I8) using scalar LUT
-    static nk_u8_t const lut_magnitude[32] = {
-        0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,  28,  30,  //
-        32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, //
-    };
+    // Pack column-remainder rows, converting E2M3 to I8 64 values at a time
     if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
         column_tiles_count * 16 < columns_end) {
         nk_size_t const remainder_start_row = column_tiles_count * tmm_rows;
         for (nk_size_t row_idx = 0; row_idx < column_remainder_count; row_idx++) {
-            for (nk_size_t column_idx = 0; column_idx < depth; column_idx++) {
-                nk_u8_t raw = b[(remainder_start_row + row_idx) * b_stride + column_idx];
-                nk_u8_t magnitude = raw & 0x1F;
-                nk_i8_t val = (nk_i8_t)lut_magnitude[magnitude];
-                if (raw & 0x20) val = -val;
-                column_edge_ptr[row_idx * depth + column_idx] = val;
+            nk_e2m3_t const *source_row = b + (remainder_start_row + row_idx) * b_stride;
+            for (nk_size_t column_idx = 0; column_idx < depth; column_idx += 64) {
+                nk_size_t const columns = depth - column_idx < 64 ? depth - column_idx : 64;
+                nk_b512_vec_t codes_vec;
+                nk_partial_load_b8x64_skylake_(source_row + column_idx, &codes_vec, columns);
+                codes_vec.zmm = nk_e2m3x64_to_i8x64_skylake_(codes_vec.zmm);
+                nk_partial_store_b8x64_skylake_(&codes_vec, column_edge_ptr + row_idx * depth + column_idx, columns);
             }
         }
     }
@@ -4434,7 +4442,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_sapphireamx(           //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_e2m3_(b + col * b_stride, depth, nk_cap_sapphireamx_k);
+        norms[col] = nk_dots_reduce_sumsq_e2m3_skylake_(b + col * b_stride, depth, sizeof(nk_e2m3_t));
     return nk_success_k;
 }
 
@@ -4551,7 +4559,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_sapphireamx(             //
     // Compute and store per-column norms for angular/euclidean distance
     for (nk_size_t col = columns_begin; col < columns_end; col++)
         norms[col] = nk_dots_reduce_sumsq_e2m1_((nk_e2m1x2_t const *)((char const *)b + col * b_stride), depth,
-                                                nk_cap_sapphireamx_k);
+                                                sizeof(nk_e2m1x2_t));
     return nk_success_k;
 }
 
@@ -4670,7 +4678,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e3m2_sapphireamx(           //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_e3m2_(b + col * b_stride, depth, nk_cap_sapphireamx_k);
+        norms[col] = nk_dots_reduce_sumsq_e3m2_skylake_(b + col * b_stride, depth, sizeof(nk_e3m2_t));
     return nk_success_k;
 }
 

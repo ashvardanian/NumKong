@@ -47,6 +47,21 @@ NUMKONG_INLINE nk_b128_vec_t nk_bf16x4_to_f32x4_v128_(nk_b64_vec_t bf16_vec) {
     return result;
 }
 
+/** F16 → F32 via Giesen's magic multiply (× 2^112). Shift the 15-bit magnitude left by 13, multiply
+ *  by 2^112 to rebias, normalizing subnormals too. Exponent 31 lands at 143 and an OR of the F32
+ *  exponent field turns it into infinity or NaN, keeping the payload. */
+NUMKONG_INLINE nk_b128_vec_t nk_f16x4_to_f32x4_v128_(nk_b64_vec_t f16_vec) {
+    v128_t raw_u32x4 = wasm_u32x4_extend_low_u16x8(wasm_i64x2_splat(f16_vec.u64));
+    v128_t sign_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x8000)), 16);
+    v128_t shifted_u32x4 = wasm_i32x4_shl(wasm_v128_and(raw_u32x4, wasm_i32x4_splat(0x7FFF)), 13);
+    v128_t rebiased_f32x4 = wasm_f32x4_mul((v128_t)shifted_u32x4, (v128_t)wasm_i32x4_splat(0x77800000)); // 2^112
+    v128_t is_infnan_u32x4 = wasm_u32x4_ge(shifted_u32x4, wasm_i32x4_splat(0x0F800000));
+    v128_t result_u32x4 = wasm_v128_or(rebiased_f32x4, wasm_v128_and(is_infnan_u32x4, wasm_i32x4_splat(0x7F800000)));
+    nk_b128_vec_t result_vec;
+    result_vec.v128 = wasm_v128_or(result_u32x4, sign_u32x4);
+    return result_vec;
+}
+
 /** E5M2 → F32 via Giesen's magic multiply (× 2^112). Same exponent encoding as F16 (5-bit,
  *  bias=15). Shift 7-bit magnitude left by 21, multiply by 2^112 to rebias. Inf and NaN get fixed
  *  up for exp = 31, where the unsigned magnitude exceeds 123. */

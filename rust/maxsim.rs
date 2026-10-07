@@ -174,7 +174,8 @@ pub trait MaxSim: StorageElement + Clone {
     /// `packed` must point to a buffer produced by `maxsim_pack`.
     unsafe fn maxsim_packed_shape(packed: *const u8) -> Result<(usize, usize), Error>;
 
-    /// Pack vectors into backend-specific quantized format.
+    /// Pack vectors into backend-specific quantized format. Packing fuses no transposition, so
+    /// depth-major vectors are transposed in a separate pass first.
     ///
     /// # Safety
     /// - `data` must point to `vectors` rows of `depth` elements, byte stride `stride`

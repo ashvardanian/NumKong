@@ -92,17 +92,17 @@
  *
  *  All strides are in bytes.
  *
- *  To compute standard A × B (where B is k × n), pass Bᵀ to the packing function:
+ *  Packs read B row by row and never fuse a transposition. A B stored as depth rows of columns
+ *  values is transposed in a separate pass first, for example by copying a transposed
+ *  @c nk::tensor_view into a row-major one:
  *
  *  @code{.c}
  *  // Standard matmul: C rows-by-columns from A rows-by-depth times B depth-by-columns
- *  // B is stored row-major as depth rows of columns elements
- *  // Treat it as Bᵀ: columns rows of depth elements with stride = sizeof(element)
  *  nk_capability_t capabilities = nk_cap_serial_k;
  *  nk_cpu_capabilities_enabled(&capabilities);
- *  nk_dots_pack_bf16_best(b, columns, depth, sizeof(nk_bf16_t), b_packed, 0, columns, capabilities, NULL);
+ *  nk_dots_pack_bf16_best(b_transposed, columns, depth, depth * sizeof(nk_bf16_t), b_packed, 0, columns,
+ *                         capabilities, NULL);
  *  nk_dots_packed_bf16_best(a, b_packed, c, rows, columns, depth, a_stride, c_stride, capabilities, NULL);
- *  // Result: C = A × (Bᵀ)ᵀ = A × B
  *  @endcode
  *
  *  @section two_phase_api Two-Phase API for Static Weights
@@ -354,7 +354,8 @@ NUMKONG_API nk_status_t nk_dots_packed_shape_u1_best(void const *b_packed, nk_si
 
 /**
  *  @brief Packs the second multiplier (B) matrix into a backend-specific layout.
- *  @param[in] b The input B matrix in row-major order.
+ *  @param[in] b The input B matrix in row-major order. Packing fuses no transposition, so a
+ *      transposed B is transposed in a separate pass first.
  *  @param[in] columns The number of rows in B (output columns).
  *  @param[in] depth Columns in B, counting dimensions, a multiple of the values per byte.
  *  @param[in] b_stride The row stride in bytes for B.

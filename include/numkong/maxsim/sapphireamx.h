@@ -51,7 +51,7 @@
 #include "numkong/dots/sapphireamx.h" // AMX tile types, configure, load, transpose
 #include "numkong/dot/skylake.h"      // `nk_dot_f32_through_f64_skylake_`, `nk_dot_f16_through_f32_skylake_`
 #include "numkong/maxsim/serial.h"    // `nk_maxsim_screen_error_`, `nk_maxsim_screen_candidates_`
-#include "numkong/cast/serial.h"      // `nk_f16_to_f32_`, `nk_bf16_to_f32_`
+#include "numkong/maxsim/icelake.h"   // `nk_maxsim_pack_vector_f32_icelake_`
 #include "numkong/spatial/haswell.h"  // `nk_rsqrt_f32x4_haswell_`
 
 #if defined(__cplusplus)
@@ -202,6 +202,15 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_bf16_sapphireamx_(nk_size_t vect
 
 #pragma endregion BF16 Floats
 
+/** Zeroes the @p bytes of a pack at @p packed with AVX-512 masked stores. */
+NUMKONG_INLINE void nk_maxsim_zero_sapphireamx_(void *packed, nk_size_t bytes) {
+    for (nk_size_t offset = 0; offset < bytes; offset += 64) {
+        nk_size_t const chunk = bytes - offset < 64 ? bytes - offset : 64;
+        _mm512_mask_storeu_epi8((char *)packed + offset, (__mmask64)_bzhi_u64(~(nk_u64_t)0, (unsigned int)chunk),
+                                _mm512_setzero_si512());
+    }
+}
+
 #if NUMKONG_TARGET_SAPPHIREAMX
 
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
@@ -222,8 +231,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_sapphireamx(void const *packe
 NUMKONG_API nk_status_t nk_maxsim_pack_f32_sapphireamx( //
     nk_f32_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t blob_bytes = nk_maxsim_packed_bytes_f32_sapphireamx_(vector_count, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
+    nk_maxsim_zero_sapphireamx_(packed, nk_maxsim_packed_bytes_f32_sapphireamx_(vector_count, depth));
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
@@ -256,52 +264,16 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_sapphireamx( //
     nk_f64_t *inverse_norms = (nk_f64_t *)((char *)packed + header->norms_offset);
     nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + header->screen_weights_offset);
 
-    // Zero all A-side tiles (aligned stores — A-side offset is 64B-aligned)
-    {
-        __m512i zero_i32x16 = _mm512_setzero_si512();
-        for (nk_size_t byte_offset = 0; byte_offset < a_side_total_bytes; byte_offset += 64)
-            _mm512_store_si512((void *)(a_side_base + byte_offset), zero_i32x16);
-    }
-
-    // Quantize vectors and scatter into A-side tiles, copy originals, compute inverse norms
+    // Copy originals and quantize into A-side tile rows, whose 64-code blocks sit one tile apart
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        nk_f32_t const *source_vector = (nk_f32_t const *)((char const *)vectors + vector_index * stride);
-
-        // Pass 1: find absmax and norm_squared
-        nk_f32_t absmax_f32 = 0.0f;
-        nk_f64_t norm_squared_f64 = 0.0;
-        for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
-            nk_f32_t element_f32 = source_vector[dimension_index];
-            nk_f32_t abs_element_f32 = nk_f32_abs_(element_f32);
-            if (abs_element_f32 > absmax_f32) absmax_f32 = abs_element_f32;
-            norm_squared_f64 += (nk_f64_t)element_f32 * element_f32;
-        }
-
-        // Pass 2: quantize to i8 [-127,127] and scatter into A-side tile positions
-        nk_f32_t inverse_absmax_f32 = (absmax_f32 > 0.0f) ? (1.0f / absmax_f32) : 0.0f;
-        nk_size_t column_tile_index = vector_index / 16;
-        nk_size_t row_in_tile = vector_index % 16;
-
-        for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
-            nk_f32_t element_f32 = source_vector[dimension_index];
-            nk_f32_t scaled_f32 = element_f32 * inverse_absmax_f32 * 127.0f;
-            nk_i8_t quantized_i8 = (nk_i8_t)(scaled_f32 + (element_f32 > 0.0f ? 0.5f : -0.5f));
-
-            nk_size_t depth_tile_index = dimension_index / 64;
-            nk_size_t column_in_tile = dimension_index % 64;
-            nk_size_t tile_flat_index = column_tile_index * depth_tile_count + depth_tile_index;
-            a_side_base[tile_flat_index * 1024 + row_in_tile * 64 + column_in_tile] = quantized_i8;
-        }
-
-        // Store inverse norm and screening weight
-        inverse_norms[vector_index] = norm_squared_f64 > 0.0 ? nk_f64_rsqrt_(norm_squared_f64) : 0.0;
-        screen_weights[vector_index] = absmax_f32 / 127.0f * (nk_f32_t)inverse_norms[vector_index];
-
-        // Copy original vector with 64B-aligned stride
-        char *destination_original = originals_base + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, (char const *)source_vector, depth * sizeof(nk_f32_t));
-        for (nk_size_t byte_index = depth * sizeof(nk_f32_t); byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
+        nk_maxsim_vector_metadata_t vector_metadata;
+        nk_maxsim_pack_vector_f32_icelake_(
+            (nk_f32_t const *)((char const *)vectors + vector_index * stride), depth,
+            (nk_f32_t *)(originals_base + vector_index * original_stride),
+            a_side_base + (vector_index / 16) * depth_tile_count * 1024 + (vector_index % 16) * 64, 1024,
+            &vector_metadata);
+        inverse_norms[vector_index] = vector_metadata.inverse_norm_f64;
+        screen_weights[vector_index] = vector_metadata.screen_weight_f32;
     }
 
     // Transpose each A-side tile to B-side (both are 64B-aligned via header padding)
@@ -494,8 +466,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_sapphireamx(void const *packe
 NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
     nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t blob_bytes = nk_maxsim_packed_bytes_f16_sapphireamx_(vector_count, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
+    nk_maxsim_zero_sapphireamx_(packed, nk_maxsim_packed_bytes_f16_sapphireamx_(vector_count, depth));
 
     nk_size_t column_tile_count = nk_size_divide_round_up_(vector_count, 16);
     nk_size_t depth_tile_count = nk_size_divide_round_up_(depth, 64);
@@ -528,55 +499,16 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sapphireamx( //
     nk_f64_t *inverse_norms = (nk_f64_t *)((char *)packed + header->norms_offset);
     nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + header->screen_weights_offset);
 
-    // Zero all A-side tiles (aligned stores — A-side offset is 64B-aligned)
-    {
-        __m512i zero_i32x16 = _mm512_setzero_si512();
-        for (nk_size_t byte_offset = 0; byte_offset < a_side_total_bytes; byte_offset += 64)
-            _mm512_store_si512((void *)(a_side_base + byte_offset), zero_i32x16);
-    }
-
-    // Quantize vectors and scatter into A-side tiles, copy originals, compute inverse norms
-    nk_size_t const stride_elements = stride / sizeof(nk_f16_t);
+    // Copy originals and quantize into A-side tile rows, whose 64-code blocks sit one tile apart
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        nk_f16_t const *source_vector = vectors + vector_index * stride_elements;
-
-        // Pass 1: find absmax and norm_squared (convert f16 → f32)
-        nk_f32_t absmax_f32 = 0.0f;
-        nk_f64_t norm_squared_f64 = 0.0;
-        for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
-            nk_f32_t element_f32;
-            nk_f16_to_f32_(&source_vector[dimension_index], &element_f32);
-            nk_f32_t abs_element_f32 = nk_f32_abs_(element_f32);
-            if (abs_element_f32 > absmax_f32) absmax_f32 = abs_element_f32;
-            norm_squared_f64 += (nk_f64_t)element_f32 * element_f32;
-        }
-
-        // Pass 2: quantize to i8 [-127,127] and scatter into A-side tile positions
-        nk_f32_t inverse_absmax_f32 = (absmax_f32 > 0.0f) ? (1.0f / absmax_f32) : 0.0f;
-        nk_size_t column_tile_index = vector_index / 16;
-        nk_size_t row_in_tile = vector_index % 16;
-
-        for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
-            nk_f32_t element_f32;
-            nk_f16_to_f32_(&source_vector[dimension_index], &element_f32);
-            nk_f32_t scaled_f32 = element_f32 * inverse_absmax_f32 * 127.0f;
-            nk_i8_t quantized_i8 = (nk_i8_t)(scaled_f32 + (element_f32 > 0.0f ? 0.5f : -0.5f));
-
-            nk_size_t depth_tile_index = dimension_index / 64;
-            nk_size_t column_in_tile = dimension_index % 64;
-            nk_size_t tile_flat_index = column_tile_index * depth_tile_count + depth_tile_index;
-            a_side_base[tile_flat_index * 1024 + row_in_tile * 64 + column_in_tile] = quantized_i8;
-        }
-
-        // Store inverse norm and screening weight
-        inverse_norms[vector_index] = norm_squared_f64 > 0.0 ? nk_f64_rsqrt_(norm_squared_f64) : 0.0;
-        screen_weights[vector_index] = absmax_f32 / 127.0f * (nk_f32_t)inverse_norms[vector_index];
-
-        // Copy original f16 vector with 64B-aligned stride
-        char *destination_original = originals_base + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, (char const *)source_vector, depth * sizeof(nk_f16_t));
-        for (nk_size_t byte_index = depth * sizeof(nk_f16_t); byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
+        nk_maxsim_vector_metadata_t vector_metadata;
+        nk_maxsim_pack_vector_f16_icelake_(
+            (nk_f16_t const *)((char const *)vectors + vector_index * stride), depth,
+            (nk_f16_t *)(originals_base + vector_index * original_stride),
+            a_side_base + (vector_index / 16) * depth_tile_count * 1024 + (vector_index % 16) * 64, 1024,
+            &vector_metadata);
+        inverse_norms[vector_index] = vector_metadata.inverse_norm_f64;
+        screen_weights[vector_index] = vector_metadata.screen_weight_f32;
     }
 
     // Transpose each A-side tile to B-side (both are 64B-aligned via header padding)
@@ -621,8 +553,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_sapphireamx(void const *pack
 NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sapphireamx( //
     nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, void *packed, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_size_t blob_bytes = nk_maxsim_packed_bytes_bf16_sapphireamx_(vector_count, depth);
-    for (nk_size_t byte_index = 0; byte_index < blob_bytes; byte_index++) ((char *)packed)[byte_index] = 0;
+    nk_maxsim_zero_sapphireamx_(packed, nk_maxsim_packed_bytes_bf16_sapphireamx_(vector_count, depth));
 
     nk_size_t const tile_bytes = 1024;
     nk_size_t const stride_elements = stride / sizeof(nk_bf16_t);
@@ -669,25 +600,31 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sapphireamx( //
             nk_dots_bf16_load_a_sapphireamx_(&a_tile, vectors + row_start * stride_elements + depth_start,
                                              stride_elements, valid_rows, valid_columns);
 
-            // Store A-side tile to packed buffer
-            nk_copy_bytes_(a_side_base + tile_flat_index * tile_bytes, &a_tile, tile_bytes);
-
-            // Transpose to B-side tile (pair-interleaved) and store
+            // Transpose to the pair-interleaved B-side tile, then store both 64-byte aligned tiles
             nk_dots_bf16_b32x16_sapphireamx_t b_tile;
             nk_dots_pack_bf16_transposed_sapphireamx_(&a_tile, &b_tile);
-            nk_copy_bytes_(b_side_base + tile_flat_index * tile_bytes, &b_tile, tile_bytes);
+            for (nk_size_t row = 0; row < 16; row++) {
+                _mm512_store_si512(a_side_base + tile_flat_index * tile_bytes + row * 64,
+                                   _mm512_load_si512(a_tile.data[row]));
+                _mm512_store_si512(b_side_base + tile_flat_index * tile_bytes + row * 64,
+                                   _mm512_load_si512(b_tile.data[row]));
+            }
         }
     }
 
-    // Compute inverse norms for each vector
+    // Norms read each vector back from its A-side tile rows
     for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        nk_bf16_t const *source_vector = vectors + vector_index * stride_elements;
-        nk_f32_t norm_squared_f32 = 0.0f;
-        for (nk_size_t dimension_index = 0; dimension_index < depth; dimension_index++) {
-            nk_f32_t element_f32;
-            nk_bf16_to_f32_(&source_vector[dimension_index], &element_f32);
-            norm_squared_f32 += element_f32 * element_f32;
+        char const *vector_tiles = a_side_base + (vector_index / 16) * depth_tile_count * tile_bytes +
+                                   (vector_index % 16) * 64;
+        __m512 norm_squared_f32x16 = _mm512_setzero_ps();
+        for (nk_size_t depth_tile_index = 0; depth_tile_index < depth_tile_count; depth_tile_index++) {
+            __m512i const values_bf16x32 = _mm512_load_si512(vector_tiles + depth_tile_index * tile_bytes);
+            __m512 const low_f32x16 = nk_bf16x16_to_f32x16_skylake_(_mm512_castsi512_si256(values_bf16x32));
+            __m512 const high_f32x16 = nk_bf16x16_to_f32x16_skylake_(_mm512_extracti64x4_epi64(values_bf16x32, 1));
+            norm_squared_f32x16 = _mm512_fmadd_ps(low_f32x16, low_f32x16, norm_squared_f32x16);
+            norm_squared_f32x16 = _mm512_fmadd_ps(high_f32x16, high_f32x16, norm_squared_f32x16);
         }
+        nk_f32_t const norm_squared_f32 = nk_reduce_add_f32x16_skylake_(norm_squared_f32x16);
         inverse_norms[vector_index] = (norm_squared_f32 > 0.0f)
                                           ? _mm_cvtss_f32(nk_rsqrt_f32x4_haswell_(_mm_set_ss(norm_squared_f32)))
                                           : 0.0f;

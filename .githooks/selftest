@@ -2419,12 +2419,13 @@ typedef struct probe_t {
 } probe_t;
 FIXTURE
 
-assert_accepts "named vector members and initializer commas" include/numkong/probe/skylake.h <<'FIXTURE'
+assert_accepts "named vector members, parameter lists and initializer commas" include/numkong/probe/skylake.h <<'FIXTURE'
 typedef struct probe_t {
     __m512 low_f32x16, high_f32x16;
     nk_b512_vec_t input_vec, output_vec;
 } probe_t;
-NUMKONG_INLINE void probe(nk_b512_vec_t a, nk_b512_vec_t b) {
+NUMKONG_INLINE void probe(nk_b512_vec_t a, nk_b512_vec_t b, __m512 *maximum_f32x16, __m512 scale_f32x16,
+                          nk_b512_vec_t *destination, nk_size_t count) {
     __m512 sum_f32x16 = _mm512_add_ps(a.zmm_ps, b.zmm_ps), zero_f32x16 = _mm512_setzero_ps();
 }
 FIXTURE
@@ -2518,6 +2519,29 @@ FIXTURE
 assert_accepts "C in a CUDA tier, and prose naming templates" include/numkong/probe.cuh <<'FIXTURE'
 /* No template <typename> or std:: here, and no nullptr either. */
 extern "C" void nk_probe_cuda(void);
+FIXTURE
+
+assert_rejects "inline swizzle in a CUDA tier" "addresses GPU memory by hand" include/numkong/probe.cuh <<'FIXTURE'
+NUMKONG_DEVICE unsigned nk_probe_(unsigned row, unsigned chunk) { return row * 128 + ((chunk ^ (row & 7)) << 4); }
+FIXTURE
+
+assert_rejects "vector cast in a CUDA tier" "addresses GPU memory by hand" include/numkong/probe.cuh <<'FIXTURE'
+NUMKONG_DEVICE uint4 nk_probe_(unsigned char const *row) { return ((uint4 const *)row)[1]; }
+FIXTURE
+
+assert_rejects "dereferenced word cast in a CUDA tier" "addresses GPU memory by hand" include/numkong/probe.cuh <<'FIXTURE'
+NUMKONG_DEVICE nk_u32_t nk_probe_(unsigned char const *row) { return *(nk_u32_t const *)(row + 4); }
+FIXTURE
+
+assert_accepts "addressing helpers, their bodies, and prose naming the casts" include/numkong/probe.cuh <<'FIXTURE'
+/* Never *(uint4 *)row or chunk ^ (row & 7) by hand. */
+NUMKONG_DEVICE uint4 nk_load_b128_(void const *address) { return *(uint4 const *)address; }
+NUMKONG_DEVICE unsigned nk_swizzled_offset_(unsigned row, unsigned byte, unsigned swizzle_bytes) {
+    return row * swizzle_bytes + (((byte >> 4) ^ (row & 7)) << 4);
+}
+NUMKONG_DEVICE uint4 nk_probe_(unsigned char const *stage, nk_u32_t const *words) {
+    return nk_load_b128_(stage + nk_swizzled_offset_(words[0], 16, 128));
+}
 FIXTURE
 
 assert_rejects "chevron launch in a library unit" "launches with <<< >>>" c/target/probe.cu <<'FIXTURE'

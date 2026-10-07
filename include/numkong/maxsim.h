@@ -105,7 +105,8 @@ NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_best(void const *packed, nk_s
 
 /**
  *  @brief Packs vectors into a backend-specific layout for maxsim computation.
- *  @param[in] vectors The input vectors in row-major order.
+ *  @param[in] vectors The input vectors in row-major order. Packing fuses no transposition, so
+ *      depth-major vectors are transposed in a separate pass first.
  *  @param[in] vector_count The number of vectors.
  *  @param[in] depth The number of dimensions per vector.
  *  @param[in] stride The row stride in bytes for the input vectors.

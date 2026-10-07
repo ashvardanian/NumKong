@@ -275,145 +275,123 @@ NUMKONG_INLINE nk_u8_t const *nk_cross_packed_scales_(void const *b_packed, nk_s
 #define nk_cross_scaled_(load_fn, row, scales, offset, ...)   load_fn(row, scales, offset, __VA_ARGS__)
 
 /*  Norm helpers that @c nk_define_cross_pack_ uses to append per-column norms to packed buffers.
- *  Each computes the norm, sum-of-squares or popcount, of a contiguous row with the serial
- *  reduction, which every packing capability shares. */
-NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_(nk_f64_t const *data, nk_size_t count, nk_capability_t capability) {
+ *  Each computes the norm, sum-of-squares or popcount, of a row whose values sit @p stride bytes
+ *  apart with the serial reduction, which every packing capability shares. */
+NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_(nk_f64_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f64_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_f64_strided_(data, count, sizeof(nk_f64_t), &sum, &sumsq);
+    nk_reduce_moments_f64_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_(nk_f32_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_(nk_f32_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f64_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_f32_strided_(data, count, sizeof(nk_f32_t), &sum, &sumsq);
+    nk_reduce_moments_f32_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_(nk_f16_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_(nk_f16_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_f16_strided_(data, count, sizeof(nk_f16_t), &sum, &sumsq);
+    nk_reduce_moments_f16_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_(nk_bf16_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_(nk_bf16_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_bf16_strided_(data, count, sizeof(nk_bf16_t), &sum, &sumsq);
+    nk_reduce_moments_bf16_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_(nk_e4m3_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_e4m3_strided_(data, count, sizeof(nk_e4m3_t), &sum, &sumsq);
+    nk_reduce_moments_e4m3_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_(nk_e5m2_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_e5m2_strided_(data, count, sizeof(nk_e5m2_t), &sum, &sumsq);
+    nk_reduce_moments_e5m2_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_(nk_e2m3_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_e2m3_strided_(data, count, sizeof(nk_e2m3_t), &sum, &sumsq);
+    nk_reduce_moments_e2m3_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_(nk_e2m1x2_t const *data, nk_size_t count,
-                                                   nk_capability_t capability) {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_e2m1_strided_(data, count, sizeof(nk_e2m1x2_t), &sum, &sumsq);
+    nk_reduce_moments_e2m1_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_(nk_e3m2_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_e3m2_strided_(data, count, sizeof(nk_e3m2_t), &sum, &sumsq);
+    nk_reduce_moments_e3m2_strided_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
-NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_(nk_i8_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_(nk_i8_t const *data, nk_size_t count, nk_size_t stride) {
     nk_i64_t sum;
     nk_u64_t sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_i8_strided_(data, count, sizeof(nk_i8_t), &sum, &sumsq);
+    nk_reduce_moments_i8_strided_(data, count, stride, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_(nk_u8_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_(nk_u8_t const *data, nk_size_t count, nk_size_t stride) {
     nk_u64_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_u8_strided_(data, count, sizeof(nk_u8_t), &sum, &sumsq);
+    nk_reduce_moments_u8_strided_(data, count, stride, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_(nk_i4x2_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_i64_t sum;
     nk_u64_t sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_i4_strided_(data, count, sizeof(nk_i4x2_t), &sum, &sumsq);
+    nk_reduce_moments_i4_strided_(data, count, stride, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_(nk_u4x2_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_u64_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_u4_strided_(data, count, sizeof(nk_u4x2_t), &sum, &sumsq);
+    nk_reduce_moments_u4_strided_(data, count, stride, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
-NUMKONG_INLINE nk_u32_t nk_dots_reduce_sum_u1_(nk_u1x8_t const *data, nk_size_t count_bits,
-                                               nk_capability_t capability) {
+NUMKONG_INLINE nk_u32_t nk_dots_reduce_sum_u1_(nk_u1x8_t const *data, nk_size_t count_bits, nk_size_t stride) {
     nk_u64_t sum, sumsq;
-    nk_unused_(capability);
-    nk_reduce_moments_u1_strided_(data, count_bits, sizeof(nk_u1x8_t), &sum, &sumsq);
+    nk_reduce_moments_u1_strided_(data, count_bits, stride, &sum, &sumsq);
     return (nk_u32_t)sum;
 }
 
 /*  Combined moment trampolines for compensated GEMM, each computing a sum and a norm, the sum of
- *  squares, in a single @c nk_reduce_moments_*_best call for @c nk_define_cross_compensated_pack_
- *  to store both in the packed buffer. */
-NUMKONG_INLINE void nk_dots_reduce_moments_i8_(nk_i8_t const *data, nk_size_t count, nk_i32_t *sum, nk_u32_t *norm,
-                                               nk_capability_t capability) {
+ *  squares, of a row whose values sit @p stride bytes apart, in a single @c nk_reduce_moments_*
+ *  call for @c nk_define_cross_compensated_pack_ to store both in the packed buffer. */
+NUMKONG_INLINE void nk_dots_reduce_moments_i8_(nk_i8_t const *data, nk_size_t count, nk_size_t stride, nk_i32_t *sum,
+                                               nk_u32_t *norm) {
     nk_i64_t s;
     nk_u64_t sq;
-    nk_unused_(capability);
-    nk_reduce_moments_i8_strided_(data, count, sizeof(nk_i8_t), &s, &sq);
+    nk_reduce_moments_i8_strided_(data, count, stride, &s, &sq);
     *sum = (nk_i32_t)s;
     *norm = (nk_u32_t)sq;
 }
-NUMKONG_INLINE void nk_dots_reduce_moments_u8_(nk_u8_t const *data, nk_size_t count, nk_u32_t *sum, nk_u32_t *norm,
-                                               nk_capability_t capability) {
+NUMKONG_INLINE void nk_dots_reduce_moments_u8_(nk_u8_t const *data, nk_size_t count, nk_size_t stride, nk_u32_t *sum,
+                                               nk_u32_t *norm) {
     nk_u64_t s, sq;
-    nk_unused_(capability);
-    nk_reduce_moments_u8_strided_(data, count, sizeof(nk_u8_t), &s, &sq);
+    nk_reduce_moments_u8_strided_(data, count, stride, &s, &sq);
     *sum = (nk_u32_t)s;
     *norm = (nk_u32_t)sq;
 }
-NUMKONG_INLINE void nk_dots_reduce_moments_i4_(nk_i4x2_t const *data, nk_size_t count, nk_i32_t *sum, nk_u32_t *norm,
-                                               nk_capability_t capability) {
+NUMKONG_INLINE void nk_dots_reduce_moments_i4_(nk_i4x2_t const *data, nk_size_t count, nk_size_t stride, nk_i32_t *sum,
+                                               nk_u32_t *norm) {
     nk_i64_t s;
     nk_u64_t sq;
-    nk_unused_(capability);
-    nk_reduce_moments_i4_strided_(data, count, sizeof(nk_i4x2_t), &s, &sq);
+    nk_reduce_moments_i4_strided_(data, count, stride, &s, &sq);
     *sum = (nk_i32_t)s;
     *norm = (nk_u32_t)sq;
 }
 
 /*  A-row sum helpers for compensated GEMM finalization. i8/u8: no A-side correction needed, stubs
  *  return 0. i4: needs A-side sum for correction term. */
-NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i8_stub_(nk_i8_t const *d, nk_size_t c, nk_capability_t capability) {
+NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i8_stub_(nk_i8_t const *d, nk_size_t c) {
     nk_unused_(d);
     nk_unused_(c);
-    nk_unused_(capability);
     return 0;
 }
-NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_u8_stub_(nk_u8_t const *d, nk_size_t c, nk_capability_t capability) {
+NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_u8_stub_(nk_u8_t const *d, nk_size_t c) {
     nk_unused_(d);
     nk_unused_(c);
-    nk_unused_(capability);
     return 0;
 }
-NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t count, nk_capability_t capability) {
+NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t count) {
     nk_i64_t sum;
     nk_u64_t sumsq;
-    nk_unused_(capability);
     nk_reduce_moments_i4_strided_(data, count, sizeof(nk_i4x2_t), &sum, &sumsq);
     return (nk_i32_t)sum;
 }
@@ -560,7 +538,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
             nk_##input_value_type##_t const *source_row =                                                             \
                 (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride);                       \
             if (!nk_block_scaled_format_of_dtype(nk_##input_type_name##_k).block_size) {                              \
-                norms[column_index] = compute_norm_fn(source_row, depth, nk_cap_##isa_suffix##_k);                    \
+                norms[column_index] = compute_norm_fn(source_row, depth, sizeof(nk_##input_value_type##_t));          \
                 continue;                                                                                             \
             }                                                                                                         \
             nk_u8_t const *source_scales = blocks ? b_unpacked.scales + column_index * b_unpacked.scales_stride       \
@@ -657,8 +635,8 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
         for (nk_size_t column_index = columns_begin; column_index < columns_end; ++column_index) {                    \
             nk_##input_value_type##_t const *source_row =                                                             \
                 (nk_##input_value_type##_t const *)((char const *)b + column_index * b_stride);                       \
-            compute_moments_fn(source_row, depth, &col_sums[column_index], &norms[column_index],                      \
-                               nk_cap_##isa_suffix##_k);                                                              \
+            compute_moments_fn(source_row, depth, sizeof(nk_##input_value_type##_t), &col_sums[column_index],         \
+                               &norms[column_index]);                                                                 \
         }                                                                                                             \
         return nk_success_k;                                                                                          \
     }
@@ -1551,10 +1529,10 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 3) * a_stride);         \
                         /* Precompute A row sums (no-op for i8/u8, real for i4) */                                     \
                         nk_##sum_value_type##_t a_sums[4];                                                             \
-                        a_sums[0] = compute_a_sum_fn(a_row_ptr_0, depth, nk_cap_##isa_suffix##_k);                     \
-                        a_sums[1] = compute_a_sum_fn(a_row_ptr_1, depth, nk_cap_##isa_suffix##_k);                     \
-                        a_sums[2] = compute_a_sum_fn(a_row_ptr_2, depth, nk_cap_##isa_suffix##_k);                     \
-                        a_sums[3] = compute_a_sum_fn(a_row_ptr_3, depth, nk_cap_##isa_suffix##_k);                     \
+                        a_sums[0] = compute_a_sum_fn(a_row_ptr_0, depth);                                              \
+                        a_sums[1] = compute_a_sum_fn(a_row_ptr_1, depth);                                              \
+                        a_sums[2] = compute_a_sum_fn(a_row_ptr_2, depth);                                              \
+                        a_sums[3] = compute_a_sum_fn(a_row_ptr_3, depth);                                              \
                         vec_type av0, av1, av2, av3, bv0, bv1, bv2, bv3;                                               \
                         for (nk_size_t di = 0; di < aligned_depth; di += depth_step_values) {                          \
                             load_a_vec_fn(a_row_ptr_0 + di, &av0);                                                     \
@@ -1644,7 +1622,7 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                             init_accumulator_fn(&s6), init_accumulator_fn(&s7);                                        \
                         nk_##input_value_type##_t const *a_row =                                                       \
                             (nk_##input_value_type##_t const *)((char const *)a_matrix + ri * a_stride);               \
-                        nk_##sum_value_type##_t a_sum_val = compute_a_sum_fn(a_row, depth, nk_cap_##isa_suffix##_k);   \
+                        nk_##sum_value_type##_t a_sum_val = compute_a_sum_fn(a_row, depth);                            \
                         vec_type av;                                                                                   \
                         vec_type bv0, bv1, bv2, bv3, bv4, bv5, bv6, bv7;                                               \
                         for (nk_size_t di = 0; di < aligned_depth; di += depth_step_values) {                          \
@@ -1763,10 +1741,10 @@ NUMKONG_INLINE nk_i32_t nk_dots_reduce_sum_i4_(nk_i4x2_t const *data, nk_size_t 
                                 ? (nk_##input_value_type##_t const *)((char const *)a_matrix + (tr + 3) * a_stride)    \
                                 : arp0;                                                                                \
                         nk_##sum_value_type##_t a_sums[4];                                                             \
-                        a_sums[0] = compute_a_sum_fn(arp0, depth, nk_cap_##isa_suffix##_k);                            \
-                        a_sums[1] = (tile_row_count > 1) ? compute_a_sum_fn(arp1, depth, nk_cap_##isa_suffix##_k) : 0; \
-                        a_sums[2] = (tile_row_count > 2) ? compute_a_sum_fn(arp2, depth, nk_cap_##isa_suffix##_k) : 0; \
-                        a_sums[3] = (tile_row_count > 3) ? compute_a_sum_fn(arp3, depth, nk_cap_##isa_suffix##_k) : 0; \
+                        a_sums[0] = compute_a_sum_fn(arp0, depth);                                                     \
+                        a_sums[1] = (tile_row_count > 1) ? compute_a_sum_fn(arp1, depth) : 0;                          \
+                        a_sums[2] = (tile_row_count > 2) ? compute_a_sum_fn(arp2, depth) : 0;                          \
+                        a_sums[3] = (tile_row_count > 3) ? compute_a_sum_fn(arp3, depth) : 0;                          \
                         vec_type av0, av1, av2, av3, bv0, bv1, bv2, bv3;                                               \
                         for (nk_size_t k = 0; k < aligned_depth; k += depth_step_values) {                             \
                             load_a_vec_fn(arp0 + k, &av0);                                                             \
@@ -3375,7 +3353,7 @@ nk_define_cross_packed_(dots, u1, serial, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot
                nk_##input_type_name##_k, row,                                                                  \
                depth ? (operand).scales + (row_index) * (operand).scales_stride : (operand).scales,            \
                nk_cross_tensor_scale_((operand).tensor_scale), depth)                                          \
-         : compute_norm_fn(row, depth, nk_cap_##isa_suffix##_k))
+         : compute_norm_fn(row, depth, sizeof(*(row))))
 
 #define nk_define_cross_normalized_packed_(metric_name, input_type_name, isa_suffix, input_value_type,              \
                                            packed_value_type, dot_result_type, norm_value_type, final_result_type,  \

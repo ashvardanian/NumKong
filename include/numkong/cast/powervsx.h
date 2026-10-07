@@ -55,11 +55,12 @@
  *  vec_mergeh    vmrghh        Interleave high halves, zero-extend via merge with zero
  *  @endverbatim
  *
- *  Partial-length load:
+ *  Partial-length loads and stores:
  *
  *  @verbatim
  *  Intrinsic     Instruction   Notes
  *  vec_xl_len    lxvl          Load up to 16 bytes with runtime length, POWER9
+ *  vec_xst_len   stxvl         Store up to 16 bytes with runtime length, POWER9
  *  @endverbatim
  *
  *  Load/store:
@@ -157,7 +158,7 @@ NUMKONG_INLINE void nk_partial_load_b32x4_powervsx_(void const *source, nk_b128_
 
 /** Partial load for 32-bit elements (n elements, max 2) into 64-bit vector. */
 NUMKONG_INLINE void nk_partial_load_b32x2_powervsx_(void const *source, nk_b64_vec_t *destination, nk_size_t n) {
-    nk_copy_bytes_(destination, source, n * 4);
+    destination->u64 = vec_extract((nk_vu64x2_t)vec_xl_len((nk_u8_t *)source, n * 4), 0);
 }
 
 /** Partial load for 16-bit elements (n elements, max 8) into 128-bit vector. */
@@ -185,9 +186,24 @@ NUMKONG_INLINE void nk_partial_store_b64x4_powervsx_(nk_b256_vec_t const *source
     vec_xst_len(source->vu8x16s[1], (nk_u8_t *)destination + 16, second_half);
 }
 
+/** Partial store for 64-bit elements (n elements, max 2) from 128-bit vector. */
+NUMKONG_INLINE void nk_partial_store_b64x2_powervsx_(nk_b128_vec_t const *source, void *destination, nk_size_t n) {
+    vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n * 8);
+}
+
 /** Partial store for 32-bit elements (n elements, max 4) from 128-bit vector. */
 NUMKONG_INLINE void nk_partial_store_b32x4_powervsx_(nk_b128_vec_t const *source, void *destination, nk_size_t n) {
     vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n * 4);
+}
+
+/** Partial store for 16-bit elements (n elements, max 8) from 128-bit vector. */
+NUMKONG_INLINE void nk_partial_store_b16x8_powervsx_(nk_b128_vec_t const *source, void *destination, nk_size_t n) {
+    vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n * 2);
+}
+
+/** Partial store for 8-bit elements (n elements, max 16) from 128-bit vector. */
+NUMKONG_INLINE void nk_partial_store_b8x16_powervsx_(nk_b128_vec_t const *source, void *destination, nk_size_t n) {
+    vec_xst_len(source->vu8x16, (nk_u8_t *)destination, n);
 }
 
 /** Convert f32x4 → bf16 packed in u16x8 with RNE rounding (Power VSX). Round-to-nearest-even: add

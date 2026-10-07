@@ -350,7 +350,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(            //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_f16_(b + col * b_stride_elements, depth, nk_cap_graniteamx_k);
+        norms[col] = nk_dots_reduce_sumsq_f16_skylake_(b + col * b_stride_elements, depth, sizeof(nk_f16_t));
     return nk_success_k;
 }
 
@@ -925,7 +925,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(            //
     if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_e5m2_(b + col * b_stride_elements, depth, nk_cap_graniteamx_k);
+        norms[col] = nk_dots_reduce_sumsq_e5m2_skylake_(b + col * b_stride_elements, depth, sizeof(nk_e5m2_t));
     return nk_success_k;
 }
 

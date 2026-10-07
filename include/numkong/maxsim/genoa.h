@@ -70,16 +70,10 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_genoa( //
     char *originals = (char *)packed + header->offset_original_data;
     nk_size_t const original_stride = header->original_stride;
 
-    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++) {
-        char const *source_row = (char const *)vectors + vector_index * stride;
-        nk_maxsim_quantize_vector_(source_row, element_bytes, depth, depth_i8_padded, 127.0f,
-                                   (nk_maxsim_to_f32_t)nk_bf16_to_f32_, &quantized_i8[vector_index * depth_i8_padded],
-                                   &metadata[vector_index]);
-        char *destination_original = originals + vector_index * original_stride;
-        nk_copy_bytes_(destination_original, source_row, depth * element_bytes);
-        for (nk_size_t byte_index = depth * element_bytes; byte_index < original_stride; byte_index++)
-            destination_original[byte_index] = 0;
-    }
+    for (nk_size_t vector_index = 0; vector_index < vector_count; vector_index++)
+        nk_maxsim_pack_vector_bf16_icelake_((nk_bf16_t const *)((char const *)vectors + vector_index * stride), depth,
+                                            (nk_bf16_t *)(originals + vector_index * original_stride),
+                                            quantized_i8 + vector_index * depth_i8_padded, 64, metadata + vector_index);
     return nk_success_k;
 }
 
