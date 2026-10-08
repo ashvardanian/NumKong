@@ -10,15 +10,16 @@
 #define NUMKONG_PROBABILITY_NEON_H
 
 #if NUMKONG_ARCH_ARM64_
+#if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_partial_load_b16x4_serial_`, `nk_partial_load_b32x4_serial_`
+#include "numkong/cast/serial.h"        // `nk_partial_load_b16x4_serial_`, `nk_partial_load_b32x4_serial_`
+#include "numkong/probability/serial.h" // `NUMKONG_F32_DIVISION_EPSILON`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-#if NUMKONG_ARCH_ARM64_NEON_
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+simd"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -54,6 +55,7 @@ NUMKONG_INLINE float32x4_t nk_log2_f32x4_neon_(float32x4_t x) {
 }
 
 #if NUMKONG_TARGET_NEON
+
 NUMKONG_API nk_status_t nk_kld_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f64_t *result,
                                         void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -244,11 +246,11 @@ nk_jsd_f16_neon_cycle:
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NUMKONG_ARCH_ARM64_NEON_
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
+#endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_PROBABILITY_NEON_H

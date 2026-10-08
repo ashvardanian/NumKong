@@ -40,9 +40,10 @@ extern "C" {
 #pragma GCC target("avx2", "avx512f", "avx512vl", "avx512bw", "avx512vpopcntdq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
+#if NUMKONG_TARGET_ICELAKE
+
 #pragma region Binary Sets
 
-#if NUMKONG_TARGET_ICELAKE
 NUMKONG_API nk_status_t nk_hamming_u1_icelake(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
                                               void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -301,9 +302,10 @@ NUMKONG_API nk_status_t nk_jaccard_u16_icelake(nk_u16_t const *a, nk_u16_t const
     *result = (n != 0) ? 1.0f - (nk_f32_t)matches / (nk_f32_t)n : 0.0f;
     return nk_success_k;
 }
-#endif // NUMKONG_TARGET_ICELAKE
 
 #pragma endregion Integer Sets
+
+#endif // NUMKONG_TARGET_ICELAKE
 
 #pragma region Distances from Dot Products
 

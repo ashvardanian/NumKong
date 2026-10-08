@@ -12,6 +12,7 @@
 #ifndef NUMKONG_DOTS_ADA_CUH
 #define NUMKONG_DOTS_ADA_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_ADA_
 
 #include "numkong/cast/ada.cuh" // `nk_f32x2_to_e4m3x2_ada_`, `nk_e4m3x2_to_f16x2_ada_`
@@ -40,4 +41,5 @@ NUMKONG_DEVICE unsigned char nk_load_f6_to_f8_ada_(unsigned char code) {
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_ADA_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_DOTS_ADA_CUH

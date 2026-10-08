@@ -16,6 +16,7 @@
 #ifndef NUMKONG_ATTENTION_BLACKWELLRTX_CUH
 #define NUMKONG_ATTENTION_BLACKWELLRTX_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_TARGET_BLACKWELLRTX
 
 #include "numkong/attention/ampere.cuh"
@@ -52,4 +53,5 @@ nk_define_attention_packed_cuda_(e4m3, blackwellrtx, ampere, nk_attention_launch
 #endif
 
 #endif // NUMKONG_TARGET_BLACKWELLRTX
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_BLACKWELLRTX_CUH

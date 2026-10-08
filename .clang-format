@@ -97,8 +97,6 @@ StatementMacros:
   - nk_define_sparse_dot_
   - nk_define_each_scale_
   - nk_define_each_sum_
-  - nk_define_cross_block_scaled_
-  - nk_define_cross_block_scaled_normalized_
   - nk_define_each_blend_
   - nk_define_each_fma_
   - nk_define_each_swiglu_
@@ -133,6 +131,10 @@ StatementMacros:
   - nk_define_cross_compensated_symmetric_
   - nk_define_cross_normalized_packed_
   - nk_define_cross_normalized_symmetric_
+  - nk_define_cross_scaled_exact_
+  - nk_define_cross_scaled_serial_
+  - nk_define_cross_scaled_packed_
+  - nk_define_cross_scaled_symmetric_
   - nk_define_cross_pack_size_simt_
   - nk_define_cross_packed_shape_cuda_
   - nk_define_cross_pack_rows_cuda_
@@ -155,6 +157,7 @@ StatementMacros:
   - nk_define_each_scale_cuda_
   - nk_define_each_blend_cuda_
   - nk_define_each_fma_cuda_
+  - nk_define_each_elementwise_kernel_simt_
   - nk_define_attention_pack_size_simt_
   - nk_define_attention_packed_shape_cuda_
   - nk_define_attention_packed_shape_rocm_
@@ -172,6 +175,8 @@ StatementMacros:
   - nk_define_attention_rope_
   - nk_define_reduce_moments_cuda_
   - nk_define_reduce_minmax_cuda_
+  - nk_define_reduce_moments_rocm_
+  - nk_define_reduce_minmax_rocm_
 
 # Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:

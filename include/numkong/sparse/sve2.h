@@ -10,6 +10,7 @@
 #define NUMKONG_SPARSE_SVE2_H
 
 #if NUMKONG_ARCH_ARM64_
+#if NUMKONG_TARGET_SVE2
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h" // `nk_svaddv_f64_`
@@ -40,7 +41,6 @@ extern "C" {
  *
  *  > ARM's Scalable Vector Extensions: A Critical Look at SVE2 For Integer Workloads
  *    https://gist.github.com/zingaburga/805669eb891c820bd220418ee3f0d6bd */
-#if NUMKONG_TARGET_SVE2
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=armv8.2-a+sve+sve2"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -509,11 +509,11 @@ NUMKONG_API nk_status_t nk_sparse_dot_u16bf16_sve2(         //
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NUMKONG_TARGET_SVE2
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
+#endif // NUMKONG_TARGET_SVE2
 #endif // NUMKONG_ARCH_ARM64_
 #endif // NUMKONG_SPARSE_SVE2_H

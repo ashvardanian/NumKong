@@ -202,6 +202,28 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_bf16_sapphireamx_(nk_size_t vect
 
 #pragma endregion BF16 Floats
 
+/** Zero, or NaN when any of @p count F64 @p inverse_norms is NaN, like @c nk_maxsim_nan_poison_. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_nan_poison_f64_sapphireamx_(nk_f64_t const *inverse_norms, nk_size_t count) {
+    __m512d poison_f64x8 = _mm512_setzero_pd();
+    for (nk_size_t index = 0; index < count; index += 8) {
+        __mmask8 const valid_m8 = count - index < 8 ? (__mmask8)((1u << (count - index)) - 1) : (__mmask8)0xFF;
+        poison_f64x8 = _mm512_fmadd_pd(_mm512_maskz_loadu_pd(valid_m8, inverse_norms + index), _mm512_setzero_pd(),
+                                       poison_f64x8);
+    }
+    return _mm512_reduce_add_pd(poison_f64x8);
+}
+
+/** Zero, or NaN when any of @p count F32 @p inverse_norms is NaN, like @c nk_maxsim_nan_poison_. */
+NUMKONG_INLINE nk_f32_t nk_maxsim_nan_poison_f32_sapphireamx_(nk_f32_t const *inverse_norms, nk_size_t count) {
+    __m512 poison_f32x16 = _mm512_setzero_ps();
+    for (nk_size_t index = 0; index < count; index += 16) {
+        __mmask16 const valid_m16 = count - index < 16 ? (__mmask16)((1u << (count - index)) - 1) : (__mmask16)0xFFFF;
+        poison_f32x16 = _mm512_fmadd_ps(_mm512_maskz_loadu_ps(valid_m16, inverse_norms + index), _mm512_setzero_ps(),
+                                        poison_f32x16);
+    }
+    return _mm512_reduce_add_ps(poison_f32x16);
+}
+
 /** Zeroes the @p bytes of a pack at @p packed with AVX-512 masked stores. */
 NUMKONG_INLINE void nk_maxsim_zero_sapphireamx_(void *packed, nk_size_t bytes) {
     for (nk_size_t offset = 0; offset < bytes; offset += 64) {
@@ -212,7 +234,6 @@ NUMKONG_INLINE void nk_maxsim_zero_sapphireamx_(void *packed, nk_size_t bytes) {
 }
 
 #if NUMKONG_TARGET_SAPPHIREAMX
-
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_sapphireamx(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
     *bytes = nk_maxsim_packed_bytes_f32_sapphireamx_(vector_count, depth);
     return nk_success_k;
@@ -331,6 +352,10 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
     nk_f32_t const *document_screen_weights = (nk_f32_t const *)((char const *)document_packed +
                                                                  document_header->screen_weights_offset);
     nk_f32_t const residue = 0.5f * nk_f32_sqrt_((nk_f32_t)depth);
+    // The screen cannot rank NaN scores, so NaN vectors answer before it
+    nk_f64_t const poison = nk_maxsim_nan_poison_f64_sapphireamx_(query_inverse_norms, query_count) +
+                            nk_maxsim_nan_poison_f64_sapphireamx_(document_inverse_norms, document_count);
+    if (poison != 0) return poison;
 
     nk_amx_tile_configure_sapphireamx_();
 
@@ -416,10 +441,13 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
                                                                                lower_bounds[query_in_tile], candidates);
                 for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
                     nk_size_t const document_index = group_start + candidates[candidate_index];
-                    nk_f64_t const cosine = refine_dot(query_originals + query_index * query_original_stride,
-                                                       document_originals + document_index * document_original_stride,
-                                                       depth) *
-                                            query_inverse_norms[query_index] * document_inverse_norms[document_index];
+                    nk_f64_t cosine = refine_dot(query_originals + query_index * query_original_stride,
+                                                 document_originals + document_index * document_original_stride,
+                                                 depth) *
+                                      query_inverse_norms[query_index] * document_inverse_norms[document_index];
+                    // Two zero vectors are 0 apart, as in `spatials.h`
+                    if (query_inverse_norms[query_index] == 0 && document_inverse_norms[document_index] == 0)
+                        cosine = 1;
                     if (cosine > best_cosines[query_in_tile]) best_cosines[query_in_tile] = cosine;
                 }
             }
@@ -625,9 +653,11 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sapphireamx( //
             norm_squared_f32x16 = _mm512_fmadd_ps(high_f32x16, high_f32x16, norm_squared_f32x16);
         }
         nk_f32_t const norm_squared_f32 = nk_reduce_add_f32x16_skylake_(norm_squared_f32x16);
-        inverse_norms[vector_index] = (norm_squared_f32 > 0.0f)
+        // A NaN sum of squares keeps a NaN inverse norm, which marks the vector
+        inverse_norms[vector_index] = norm_squared_f32 > 0.0f
                                           ? _mm_cvtss_f32(nk_rsqrt_f32x4_haswell_(_mm_set_ss(norm_squared_f32)))
-                                          : 0.0f;
+                                      : norm_squared_f32 == 0.0f ? 0.0f
+                                                                 : norm_squared_f32;
     }
     return nk_success_k;
 }
@@ -665,7 +695,18 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx( //
     __m512i const row_stride_indices_i32x16 = _mm512_setr_epi32(0, 16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192,
                                                                 208, 224, 240);
 
+    // NaN vectors make the whole sum NaN, which the running maximum would drop
+    nk_f32_t const poison = nk_maxsim_nan_poison_f32_sapphireamx_(query_inverse_norms, query_count) +
+                            nk_maxsim_nan_poison_f32_sapphireamx_(document_inverse_norms, document_count);
+    if (poison != 0) {
+        *result = poison;
+        return nk_success_k;
+    }
+
     nk_f64_t total_angular_distance_f64 = 0.0;
+    nk_size_t zero_documents = 0;
+    for (nk_size_t document_index = 0; document_index < document_count; document_index++)
+        zero_documents += document_inverse_norms[document_index] == 0;
 
     for (nk_size_t query_tile_index = 0; query_tile_index < query_column_tile_count; query_tile_index++) {
         nk_size_t query_row_start = query_tile_index * 16;
@@ -770,7 +811,11 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx( //
         // angular = max(1 - cosine, 0), masked to valid queries only
         __m512 angular_distance_f32x16 = _mm512_max_ps(_mm512_sub_ps(_mm512_set1_ps(1.0f), cosine_f32x16),
                                                        _mm512_setzero_ps());
-        angular_distance_f32x16 = _mm512_maskz_mov_ps(valid_query_m16, angular_distance_f32x16);
+        // Two zero vectors are 0 apart, as in `spatials.h`
+        __mmask16 const zero_query_m16 = _mm512_mask_cmp_ps_mask(valid_query_m16, query_inverse_norms_f32x16,
+                                                                 _mm512_setzero_ps(), _CMP_EQ_OQ);
+        angular_distance_f32x16 = _mm512_maskz_mov_ps(valid_query_m16 & ~(zero_documents ? zero_query_m16 : 0),
+                                                      angular_distance_f32x16);
 
         total_angular_distance_f64 += (nk_f64_t)_mm512_reduce_add_ps(angular_distance_f32x16);
     }
@@ -778,7 +823,6 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sapphireamx( //
     *result = (nk_f32_t)total_angular_distance_f64;
     return nk_success_k;
 }
-
 #endif // NUMKONG_TARGET_SAPPHIREAMX
 
 #if defined(__clang__)

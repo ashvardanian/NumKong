@@ -279,12 +279,6 @@ void nk_cross_scaled_tile_apple9_(device uchar const *a, device uchar const *b, 
         float value = nk_cross_scaled_dot_metal_(sums[row_step][column_step][part], tensor_product);
         if (metric_ != nk_cross_dot_metal_k) {
             float const a_norm = norms[0][row - first_row], b_norm = norms[1][column - first_column];
-            if (metric_ == nk_cross_angular_metal_k && (as_type<uint>(value) & 0x7fffffff) &&
-                (((as_type<uint>(a_norm) & 0x7fffffff) == 0) || ((as_type<uint>(b_norm) & 0x7fffffff) == 0)))
-                value = nk_cross_scaled_zero_norm_dot_metal_<dtype_, block_size_, scale_>(
-                    a + row * arguments.a_stride, b + column * arguments.b_stride,
-                    a_scales + row * arguments.a_scales_stride, b_scales + column * arguments.b_scales_stride,
-                    arguments.depth, tensor_product);
             value = arguments.upper_triangle && row == column
                         ? 0.0f
                         : nk_cross_distance_metal_<metric_>(value, a_norm, b_norm);

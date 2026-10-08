@@ -194,6 +194,34 @@ void bench_cross_arm64(environment_t const &env) {
                                          nk_euclideans_symmetric_e5m2_neonfhm);
         run_euclideans_symmetric<e4m3_k>(env, "euclideans_symmetric_e4m3_neonfhm",
                                          nk_euclideans_symmetric_e4m3_neonfhm);
+        run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_neonfhm", nk_dots_pack_size_mxfp8e4m3_neonfhm,
+                                        nk_dots_pack_mxfp8e4m3_neonfhm, nk_dots_packed_mxfp8e4m3_neonfhm);
+        run_dots_symmetric<nk_mxfp8e4m3_k>(env, "dots_symmetric_mxfp8e4m3_neonfhm",
+                                           nk_dots_symmetric_mxfp8e4m3_neonfhm);
+        run_angulars_packed<nk_mxfp8e4m3_k>(env, "angulars_packed_mxfp8e4m3_neonfhm",
+                                            nk_dots_pack_size_mxfp8e4m3_neonfhm, nk_dots_pack_mxfp8e4m3_neonfhm,
+                                            nk_angulars_packed_mxfp8e4m3_neonfhm);
+        run_angulars_symmetric<nk_mxfp8e4m3_k>(env, "angulars_symmetric_mxfp8e4m3_neonfhm",
+                                               nk_angulars_symmetric_mxfp8e4m3_neonfhm);
+        run_euclideans_packed<nk_mxfp8e4m3_k>(env, "euclideans_packed_mxfp8e4m3_neonfhm",
+                                              nk_dots_pack_size_mxfp8e4m3_neonfhm, nk_dots_pack_mxfp8e4m3_neonfhm,
+                                              nk_euclideans_packed_mxfp8e4m3_neonfhm);
+        run_euclideans_symmetric<nk_mxfp8e4m3_k>(env, "euclideans_symmetric_mxfp8e4m3_neonfhm",
+                                                 nk_euclideans_symmetric_mxfp8e4m3_neonfhm);
+        run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_neonfhm", nk_dots_pack_size_mxfp8e5m2_neonfhm,
+                                        nk_dots_pack_mxfp8e5m2_neonfhm, nk_dots_packed_mxfp8e5m2_neonfhm);
+        run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_neonfhm",
+                                           nk_dots_symmetric_mxfp8e5m2_neonfhm);
+        run_angulars_packed<nk_mxfp8e5m2_k>(env, "angulars_packed_mxfp8e5m2_neonfhm",
+                                            nk_dots_pack_size_mxfp8e5m2_neonfhm, nk_dots_pack_mxfp8e5m2_neonfhm,
+                                            nk_angulars_packed_mxfp8e5m2_neonfhm);
+        run_angulars_symmetric<nk_mxfp8e5m2_k>(env, "angulars_symmetric_mxfp8e5m2_neonfhm",
+                                               nk_angulars_symmetric_mxfp8e5m2_neonfhm);
+        run_euclideans_packed<nk_mxfp8e5m2_k>(env, "euclideans_packed_mxfp8e5m2_neonfhm",
+                                              nk_dots_pack_size_mxfp8e5m2_neonfhm, nk_dots_pack_mxfp8e5m2_neonfhm,
+                                              nk_euclideans_packed_mxfp8e5m2_neonfhm);
+        run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_neonfhm",
+                                                 nk_euclideans_symmetric_mxfp8e5m2_neonfhm);
 
         run_attention<e4m3_k>(env, "attention_packed_e4m3_neonfhm", nk_attention_pack_size_e4m3_neonfhm,
                               nk_attention_pack_e4m3_neonfhm, nk_attention_packed_e4m3_neonfhm);
@@ -293,6 +321,42 @@ void bench_cross_arm64(environment_t const &env) {
                                          nk_euclideans_symmetric_e2m3_neonsdot);
         run_euclideans_symmetric<e2m1_k>(env, "euclideans_symmetric_e2m1_neonsdot",
                                          nk_euclideans_symmetric_e2m1_neonsdot);
+        run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_neonsdot", nk_dots_pack_size_nvfp4_neonsdot,
+                                    nk_dots_pack_nvfp4_neonsdot, nk_dots_packed_nvfp4_neonsdot);
+        run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_neonsdot", nk_dots_symmetric_nvfp4_neonsdot);
+        run_angulars_packed<nk_nvfp4_k>(env, "angulars_packed_nvfp4_neonsdot", nk_dots_pack_size_nvfp4_neonsdot,
+                                        nk_dots_pack_nvfp4_neonsdot, nk_angulars_packed_nvfp4_neonsdot);
+        run_angulars_symmetric<nk_nvfp4_k>(env, "angulars_symmetric_nvfp4_neonsdot",
+                                           nk_angulars_symmetric_nvfp4_neonsdot);
+        run_euclideans_packed<nk_nvfp4_k>(env, "euclideans_packed_nvfp4_neonsdot", nk_dots_pack_size_nvfp4_neonsdot,
+                                          nk_dots_pack_nvfp4_neonsdot, nk_euclideans_packed_nvfp4_neonsdot);
+        run_euclideans_symmetric<nk_nvfp4_k>(env, "euclideans_symmetric_nvfp4_neonsdot",
+                                             nk_euclideans_symmetric_nvfp4_neonsdot);
+        run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_neonsdot", nk_dots_pack_size_mxfp4_neonsdot,
+                                    nk_dots_pack_mxfp4_neonsdot, nk_dots_packed_mxfp4_neonsdot);
+        run_dots_symmetric<nk_mxfp4_k>(env, "dots_symmetric_mxfp4_neonsdot", nk_dots_symmetric_mxfp4_neonsdot);
+        run_angulars_packed<nk_mxfp4_k>(env, "angulars_packed_mxfp4_neonsdot", nk_dots_pack_size_mxfp4_neonsdot,
+                                        nk_dots_pack_mxfp4_neonsdot, nk_angulars_packed_mxfp4_neonsdot);
+        run_angulars_symmetric<nk_mxfp4_k>(env, "angulars_symmetric_mxfp4_neonsdot",
+                                           nk_angulars_symmetric_mxfp4_neonsdot);
+        run_euclideans_packed<nk_mxfp4_k>(env, "euclideans_packed_mxfp4_neonsdot", nk_dots_pack_size_mxfp4_neonsdot,
+                                          nk_dots_pack_mxfp4_neonsdot, nk_euclideans_packed_mxfp4_neonsdot);
+        run_euclideans_symmetric<nk_mxfp4_k>(env, "euclideans_symmetric_mxfp4_neonsdot",
+                                             nk_euclideans_symmetric_mxfp4_neonsdot);
+        run_dots_packed<nk_mxfp6e2m3_k>(env, "dots_packed_mxfp6e2m3_neonsdot", nk_dots_pack_size_mxfp6e2m3_neonsdot,
+                                        nk_dots_pack_mxfp6e2m3_neonsdot, nk_dots_packed_mxfp6e2m3_neonsdot);
+        run_dots_symmetric<nk_mxfp6e2m3_k>(env, "dots_symmetric_mxfp6e2m3_neonsdot",
+                                           nk_dots_symmetric_mxfp6e2m3_neonsdot);
+        run_angulars_packed<nk_mxfp6e2m3_k>(env, "angulars_packed_mxfp6e2m3_neonsdot",
+                                            nk_dots_pack_size_mxfp6e2m3_neonsdot, nk_dots_pack_mxfp6e2m3_neonsdot,
+                                            nk_angulars_packed_mxfp6e2m3_neonsdot);
+        run_angulars_symmetric<nk_mxfp6e2m3_k>(env, "angulars_symmetric_mxfp6e2m3_neonsdot",
+                                               nk_angulars_symmetric_mxfp6e2m3_neonsdot);
+        run_euclideans_packed<nk_mxfp6e2m3_k>(env, "euclideans_packed_mxfp6e2m3_neonsdot",
+                                              nk_dots_pack_size_mxfp6e2m3_neonsdot, nk_dots_pack_mxfp6e2m3_neonsdot,
+                                              nk_euclideans_packed_mxfp6e2m3_neonsdot);
+        run_euclideans_symmetric<nk_mxfp6e2m3_k>(env, "euclideans_symmetric_mxfp6e2m3_neonsdot",
+                                                 nk_euclideans_symmetric_mxfp6e2m3_neonsdot);
 
         run_attention<i8_k>(env, "attention_packed_i8_neonsdot", nk_attention_pack_size_i8_neonsdot,
                             nk_attention_pack_i8_neonsdot, nk_attention_packed_i8_neonsdot);
@@ -467,6 +531,68 @@ void bench_cross_arm64(environment_t const &env) {
         run_euclideans_symmetric<i4_k>(env, "euclideans_symmetric_i4_sme", nk_euclideans_symmetric_i4_sme);
         run_euclideans_symmetric<u8_k>(env, "euclideans_symmetric_u8_sme", nk_euclideans_symmetric_u8_sme);
         run_euclideans_symmetric<u4_k>(env, "euclideans_symmetric_u4_sme", nk_euclideans_symmetric_u4_sme);
+        run_dots_packed<nk_nvfp4_k>(env, "dots_packed_nvfp4_sme", nk_dots_pack_size_nvfp4_sme, nk_dots_pack_nvfp4_sme,
+                                    nk_dots_packed_nvfp4_sme);
+        run_dots_symmetric<nk_nvfp4_k>(env, "dots_symmetric_nvfp4_sme", nk_dots_symmetric_nvfp4_sme);
+        run_angulars_packed<nk_nvfp4_k>(env, "angulars_packed_nvfp4_sme", nk_dots_pack_size_nvfp4_sme,
+                                        nk_dots_pack_nvfp4_sme, nk_angulars_packed_nvfp4_sme);
+        run_angulars_symmetric<nk_nvfp4_k>(env, "angulars_symmetric_nvfp4_sme", nk_angulars_symmetric_nvfp4_sme);
+        run_euclideans_packed<nk_nvfp4_k>(env, "euclideans_packed_nvfp4_sme", nk_dots_pack_size_nvfp4_sme,
+                                          nk_dots_pack_nvfp4_sme, nk_euclideans_packed_nvfp4_sme);
+        run_euclideans_symmetric<nk_nvfp4_k>(env, "euclideans_symmetric_nvfp4_sme", nk_euclideans_symmetric_nvfp4_sme);
+        run_dots_packed<nk_mxfp4_k>(env, "dots_packed_mxfp4_sme", nk_dots_pack_size_mxfp4_sme, nk_dots_pack_mxfp4_sme,
+                                    nk_dots_packed_mxfp4_sme);
+        run_dots_symmetric<nk_mxfp4_k>(env, "dots_symmetric_mxfp4_sme", nk_dots_symmetric_mxfp4_sme);
+        run_angulars_packed<nk_mxfp4_k>(env, "angulars_packed_mxfp4_sme", nk_dots_pack_size_mxfp4_sme,
+                                        nk_dots_pack_mxfp4_sme, nk_angulars_packed_mxfp4_sme);
+        run_angulars_symmetric<nk_mxfp4_k>(env, "angulars_symmetric_mxfp4_sme", nk_angulars_symmetric_mxfp4_sme);
+        run_euclideans_packed<nk_mxfp4_k>(env, "euclideans_packed_mxfp4_sme", nk_dots_pack_size_mxfp4_sme,
+                                          nk_dots_pack_mxfp4_sme, nk_euclideans_packed_mxfp4_sme);
+        run_euclideans_symmetric<nk_mxfp4_k>(env, "euclideans_symmetric_mxfp4_sme", nk_euclideans_symmetric_mxfp4_sme);
+        run_dots_packed<nk_mxfp6e2m3_k>(env, "dots_packed_mxfp6e2m3_sme", nk_dots_pack_size_mxfp6e2m3_sme,
+                                        nk_dots_pack_mxfp6e2m3_sme, nk_dots_packed_mxfp6e2m3_sme);
+        run_dots_symmetric<nk_mxfp6e2m3_k>(env, "dots_symmetric_mxfp6e2m3_sme", nk_dots_symmetric_mxfp6e2m3_sme);
+        run_angulars_packed<nk_mxfp6e2m3_k>(env, "angulars_packed_mxfp6e2m3_sme", nk_dots_pack_size_mxfp6e2m3_sme,
+                                            nk_dots_pack_mxfp6e2m3_sme, nk_angulars_packed_mxfp6e2m3_sme);
+        run_angulars_symmetric<nk_mxfp6e2m3_k>(env, "angulars_symmetric_mxfp6e2m3_sme",
+                                               nk_angulars_symmetric_mxfp6e2m3_sme);
+        run_euclideans_packed<nk_mxfp6e2m3_k>(env, "euclideans_packed_mxfp6e2m3_sme", nk_dots_pack_size_mxfp6e2m3_sme,
+                                              nk_dots_pack_mxfp6e2m3_sme, nk_euclideans_packed_mxfp6e2m3_sme);
+        run_euclideans_symmetric<nk_mxfp6e2m3_k>(env, "euclideans_symmetric_mxfp6e2m3_sme",
+                                                 nk_euclideans_symmetric_mxfp6e2m3_sme);
+        run_dots_packed<nk_mxfp6e3m2_k>(env, "dots_packed_mxfp6e3m2_sme", nk_dots_pack_size_mxfp6e3m2_sme,
+                                        nk_dots_pack_mxfp6e3m2_sme, nk_dots_packed_mxfp6e3m2_sme);
+        run_dots_symmetric<nk_mxfp6e3m2_k>(env, "dots_symmetric_mxfp6e3m2_sme", nk_dots_symmetric_mxfp6e3m2_sme);
+        run_angulars_packed<nk_mxfp6e3m2_k>(env, "angulars_packed_mxfp6e3m2_sme", nk_dots_pack_size_mxfp6e3m2_sme,
+                                            nk_dots_pack_mxfp6e3m2_sme, nk_angulars_packed_mxfp6e3m2_sme);
+        run_angulars_symmetric<nk_mxfp6e3m2_k>(env, "angulars_symmetric_mxfp6e3m2_sme",
+                                               nk_angulars_symmetric_mxfp6e3m2_sme);
+        run_euclideans_packed<nk_mxfp6e3m2_k>(env, "euclideans_packed_mxfp6e3m2_sme", nk_dots_pack_size_mxfp6e3m2_sme,
+                                              nk_dots_pack_mxfp6e3m2_sme, nk_euclideans_packed_mxfp6e3m2_sme);
+        run_euclideans_symmetric<nk_mxfp6e3m2_k>(env, "euclideans_symmetric_mxfp6e3m2_sme",
+                                                 nk_euclideans_symmetric_mxfp6e3m2_sme);
+        run_dots_packed<nk_mxfp8e4m3_k>(env, "dots_packed_mxfp8e4m3_sme", nk_dots_pack_size_mxfp8e4m3_sme,
+                                        nk_dots_pack_mxfp8e4m3_sme, nk_dots_packed_mxfp8e4m3_sme);
+        run_dots_symmetric<nk_mxfp8e4m3_k>(env, "dots_symmetric_mxfp8e4m3_sme", nk_dots_symmetric_mxfp8e4m3_sme);
+        run_angulars_packed<nk_mxfp8e4m3_k>(env, "angulars_packed_mxfp8e4m3_sme", nk_dots_pack_size_mxfp8e4m3_sme,
+                                            nk_dots_pack_mxfp8e4m3_sme, nk_angulars_packed_mxfp8e4m3_sme);
+        run_angulars_symmetric<nk_mxfp8e4m3_k>(env, "angulars_symmetric_mxfp8e4m3_sme",
+                                               nk_angulars_symmetric_mxfp8e4m3_sme);
+        run_euclideans_packed<nk_mxfp8e4m3_k>(env, "euclideans_packed_mxfp8e4m3_sme", nk_dots_pack_size_mxfp8e4m3_sme,
+                                              nk_dots_pack_mxfp8e4m3_sme, nk_euclideans_packed_mxfp8e4m3_sme);
+        run_euclideans_symmetric<nk_mxfp8e4m3_k>(env, "euclideans_symmetric_mxfp8e4m3_sme",
+                                                 nk_euclideans_symmetric_mxfp8e4m3_sme);
+        run_dots_packed<nk_mxfp8e5m2_k>(env, "dots_packed_mxfp8e5m2_sme", nk_dots_pack_size_mxfp8e5m2_sme,
+                                        nk_dots_pack_mxfp8e5m2_sme, nk_dots_packed_mxfp8e5m2_sme);
+        run_dots_symmetric<nk_mxfp8e5m2_k>(env, "dots_symmetric_mxfp8e5m2_sme", nk_dots_symmetric_mxfp8e5m2_sme);
+        run_angulars_packed<nk_mxfp8e5m2_k>(env, "angulars_packed_mxfp8e5m2_sme", nk_dots_pack_size_mxfp8e5m2_sme,
+                                            nk_dots_pack_mxfp8e5m2_sme, nk_angulars_packed_mxfp8e5m2_sme);
+        run_angulars_symmetric<nk_mxfp8e5m2_k>(env, "angulars_symmetric_mxfp8e5m2_sme",
+                                               nk_angulars_symmetric_mxfp8e5m2_sme);
+        run_euclideans_packed<nk_mxfp8e5m2_k>(env, "euclideans_packed_mxfp8e5m2_sme", nk_dots_pack_size_mxfp8e5m2_sme,
+                                              nk_dots_pack_mxfp8e5m2_sme, nk_euclideans_packed_mxfp8e5m2_sme);
+        run_euclideans_symmetric<nk_mxfp8e5m2_k>(env, "euclideans_symmetric_mxfp8e5m2_sme",
+                                                 nk_euclideans_symmetric_mxfp8e5m2_sme);
     }
 #endif // NUMKONG_TARGET_SME
 

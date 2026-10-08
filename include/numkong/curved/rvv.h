@@ -10,7 +10,6 @@
  *  - f32 inputs use f32 SIMD accumulation with vfredusum ordered reduction
  *  - f64 inputs use f64 SIMD accumulation with vfredusum ordered reduction
  *  - f16/bf16 inputs are converted to f32 via cast helpers, then accumulated in f32
- *  - Complex bilinear forms delegate to serial implementations
  */
 #ifndef NUMKONG_CURVED_RVV_H
 #define NUMKONG_CURVED_RVV_H
@@ -22,7 +21,6 @@
 #include "numkong/curved/serial.h"
 #include "numkong/cast/rvv.h"
 
-#if NUMKONG_TARGET_RVV
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
 #elif defined(__GNUC__)
@@ -33,6 +31,8 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+#if NUMKONG_TARGET_RVV
 
 NUMKONG_API nk_status_t nk_bilinear_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
                                             nk_f64_t *result, void *stream) {
@@ -104,9 +104,8 @@ NUMKONG_API nk_status_t nk_bilinear_f16_rvv(nk_f16_t const *a, nk_f16_t const *b
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
-        // Convert a[i] from f16 to f32
-        nk_f32_t a_i;
-        nk_f16_to_f32_(a + i, &a_i);
+        nk_f32_t a_i = __riscv_vfmv_f_s_f32m2_f32(
+            nk_f16m1_to_f32m2_rvv_(__riscv_vle16_v_u16m1((nk_u16_t const *)(a + i), 1), 1));
 
         vfloat32m2_t inner_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
         nk_f16_t const *c_row = c + i * n;
@@ -135,9 +134,8 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
-        // Convert a[i] from bf16 to f32
-        nk_f32_t a_i;
-        nk_bf16_to_f32_(a + i, &a_i);
+        nk_f32_t a_i = __riscv_vfmv_f_s_f32m2_f32(
+            nk_bf16m1_to_f32m2_rvv_(__riscv_vle16_v_u16m1((nk_u16_t const *)(a + i), 1), 1));
 
         vfloat32m2_t inner_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
         nk_bf16_t const *c_row = c + i * n;
@@ -242,10 +240,9 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_rvv(nk_f16_t const *a, nk_f16_t const
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
-        nk_f32_t a_i, b_i;
-        nk_f16_to_f32_(a + i, &a_i);
-        nk_f16_to_f32_(b + i, &b_i);
-        nk_f32_t diff_i = a_i - b_i;
+        nk_f32_t diff_i = __riscv_vfmv_f_s_f32m2_f32(
+            __riscv_vfsub_vv_f32m2(nk_f16m1_to_f32m2_rvv_(__riscv_vle16_v_u16m1((nk_u16_t const *)(a + i), 1), 1),
+                                   nk_f16m1_to_f32m2_rvv_(__riscv_vle16_v_u16m1((nk_u16_t const *)(b + i), 1), 1), 1));
 
         vfloat32m2_t inner_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
         nk_f16_t const *c_row = c + i * n;
@@ -279,10 +276,9 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t co
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m2();
     vfloat32m1_t sum_f32m1 = __riscv_vfmv_v_f_f32m1(0.0f, 1);
     for (nk_size_t i = 0; i < n; ++i) {
-        nk_f32_t a_i, b_i;
-        nk_bf16_to_f32_(a + i, &a_i);
-        nk_bf16_to_f32_(b + i, &b_i);
-        nk_f32_t diff_i = a_i - b_i;
+        nk_f32_t diff_i = __riscv_vfmv_f_s_f32m2_f32(
+            __riscv_vfsub_vv_f32m2(nk_bf16m1_to_f32m2_rvv_(__riscv_vle16_v_u16m1((nk_u16_t const *)(a + i), 1), 1),
+                                   nk_bf16m1_to_f32m2_rvv_(__riscv_vle16_v_u16m1((nk_u16_t const *)(b + i), 1), 1), 1));
 
         vfloat32m2_t inner_f32m2 = __riscv_vfmv_v_f_f32m2(0.0f, max_vector_length);
         nk_bf16_t const *c_row = c + i * n;
@@ -310,6 +306,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t co
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_RVV
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
@@ -319,7 +317,6 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_rvv(nk_bf16_t const *a, nk_bf16_t co
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NUMKONG_TARGET_RVV
 
 #endif // NUMKONG_ARCH_RISCV64_RVV_
 #endif // NUMKONG_ARCH_RISCV64_

@@ -168,10 +168,12 @@ status_t angular(in_type_ const *a, in_type_ const *b, std::size_t d, result_typ
         aa = fma(a[i], a[i], aa);
         bb = fma(b[i], b[i], bb);
     }
-    // Angular distance = 1 - cosine_similarity, clamped to [0, 2]
-    result_type_ cos_sim = ab / (aa.sqrt() * bb.sqrt());
-    result_type_ distance = result_type_(1) - cos_sim;
-    *r = distance > result_type_(0) ? distance : result_type_(0);
+    result_type_ const zero(0), one(1);
+    result_type_ distance = one - ab / (aa.sqrt() * bb.sqrt());
+    // Two zero norms give 0, one zero norm or a zero dot 1, and NaN stays, as in `spatial.h`
+    if (aa == zero && bb == zero) distance = zero;
+    else if (ab == zero || aa == zero || bb == zero) distance = one;
+    *r = distance < zero ? zero : distance;
     return status_t::success_k;
 }
 

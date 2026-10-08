@@ -303,7 +303,7 @@ NUMKONG_DEVICE nk_f32_t nk_f32_exp2_rocm_(nk_f32_t exponent) { return exp2f(expo
 #pragma endregion Device Primitives
 
 /*  The library defines these once, in `c/target/rocm.hip`; header-only builds define them here. */
-#if NUMKONG_HEADER_ONLY && NUMKONG_TARGET_ROCM
+#if NUMKONG_HEADER_ONLY
 
 NUMKONG_API nk_status_t nk_allocator_init_unified_rocm(nk_allocator_t *allocator) {
     return nk_allocator_init_unified_rocm_(allocator);
@@ -335,7 +335,7 @@ NUMKONG_API nk_status_t nk_memory_free_unified_rocm(void *pointer, nk_size_t byt
 }
 NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream) { return nk_stream_synchronize_rocm_(stream); }
 
-#endif // NUMKONG_HEADER_ONLY && NUMKONG_TARGET_ROCM
+#endif // NUMKONG_HEADER_ONLY
 
 #if defined(__cplusplus)
 } // extern "C"

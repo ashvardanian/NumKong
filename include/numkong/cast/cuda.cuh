@@ -15,10 +15,10 @@
 #ifndef NUMKONG_CAST_CUDA_CUH
 #define NUMKONG_CAST_CUDA_CUH
 
+#if NUMKONG_ARCH_CUDA_
+
 #include "numkong/cuda.cuh"
 #include "numkong/cast/simt.cuh"
-
-#if NUMKONG_ARCH_CUDA_
 
 #if defined(__cplusplus)
 extern "C" {

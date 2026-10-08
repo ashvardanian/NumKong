@@ -13,6 +13,7 @@
 #ifndef NUMKONG_ATTENTION_ADA_CUH
 #define NUMKONG_ATTENTION_ADA_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_ADA_
 
 #include "numkong/cast/ada.cuh" // `nk_f32x2_to_e4m3x2_ada_`, `nk_e4m3x2_to_f16x2_ada_`
@@ -43,4 +44,5 @@ NUMKONG_DEVICE void nk_attention_weights_e4m3_ada_(nk_f32_t const probabilities[
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_ADA_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_ADA_CUH

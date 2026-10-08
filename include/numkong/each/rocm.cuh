@@ -11,10 +11,10 @@
 #ifndef NUMKONG_EACH_ROCM_CUH
 #define NUMKONG_EACH_ROCM_CUH
 
+#if NUMKONG_ARCH_ROCM_
+
 #include "numkong/rocm.cuh"
 #include "numkong/each/simt.cuh"
-
-#if NUMKONG_ARCH_ROCM_
 
 #if defined(__cplusplus)
 extern "C" {

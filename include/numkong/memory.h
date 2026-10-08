@@ -32,7 +32,7 @@ NUMKONG_API nk_status_t nk_allocator_init_pinned_best(nk_allocator_t *allocator,
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_serial(nk_allocator_t *allocator);
 
-#if NUMKONG_TARGET_CUDA
+#if NUMKONG_ARCH_CUDA_
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_cuda(nk_allocator_t *allocator);
 /** @copydoc nk_allocator_init_device_best */
@@ -41,7 +41,7 @@ NUMKONG_API nk_status_t nk_allocator_init_device_cuda(nk_allocator_t *allocator)
 NUMKONG_API nk_status_t nk_allocator_init_pinned_cuda(nk_allocator_t *allocator);
 #endif
 
-#if NUMKONG_TARGET_ROCM
+#if NUMKONG_ARCH_ROCM_
 /** @copydoc nk_allocator_init_unified_best */
 NUMKONG_API nk_status_t nk_allocator_init_unified_rocm(nk_allocator_t *allocator);
 /** @copydoc nk_allocator_init_device_best */
@@ -90,14 +90,14 @@ NUMKONG_API nk_status_t nk_memory_allocate_unified_serial(nk_size_t bytes, void 
 /** @copydoc nk_memory_free_unified_best */
 NUMKONG_API nk_status_t nk_memory_free_unified_serial(void *pointer, nk_size_t bytes, void *stream);
 
-#if NUMKONG_TARGET_CUDA
+#if NUMKONG_ARCH_CUDA_
 /** @copydoc nk_memory_allocate_unified_best */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer, void *stream);
 /** @copydoc nk_memory_free_unified_best */
 NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t bytes, void *stream);
 #endif
 
-#if NUMKONG_TARGET_ROCM
+#if NUMKONG_ARCH_ROCM_
 /** @copydoc nk_memory_allocate_unified_best */
 NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer, void *stream);
 /** @copydoc nk_memory_free_unified_best */

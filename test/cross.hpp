@@ -94,17 +94,27 @@ constexpr comparison_family_t attention_family(attention_weights_t weights) noex
                                                          : comparison_family_t::bounded_k;
 }
 
+/** The angular distance of a reference @p dot and squared norms by the rule of `spatials.h`: 0 for
+ *  two zero norms, 1 for one zero norm or a zero dot, else 1 − dot / s with s = ‖a‖ ‖b‖.
+ *  A positive dot takes it in F118 as (s² − dot²) / (s² + dot · s), which cancels nothing, so
+ *  integer inputs get it exact up to its final rounding. */
+template <typename reference_type_>
+reference_type_ angular_from_dot(reference_type_ dot, reference_type_ a_sumsq, reference_type_ b_sumsq) {
+    reference_type_ const zero(0), one(1);
+    if (a_sumsq == zero && b_sumsq == zero) return zero;
+    if (dot == zero || a_sumsq == zero || b_sumsq == zero) return one;
+    f118_t const dot_f118(dot), product = f118_t(a_sumsq) * f118_t(b_sumsq), root = product.sqrt();
+    if (dot_f118 > f118_t(0)) return reference_type_((product - dot_f118 * dot_f118) / (product + dot_f118 * root));
+    return reference_type_(f118_t(1) - dot_f118 / root);
+}
+
 /** The @p kind_ distance of two vectors from their @p dot and squared norms @p first and @p second:
- *  1 − dot / √(‖a‖² · ‖b‖²) for angular, √max(0, ‖a‖² + ‖b‖² − 2 · dot) for euclidean. */
+ *  @c angular_from_dot for angular, √max(0, ‖a‖² + ‖b‖² − 2 · dot) for euclidean. */
 template <nk_kernel_kind_t kind_, typename reference_type_>
 reference_type_ spatial_distance(reference_type_ dot, reference_type_ first, reference_type_ second) {
-    reference_type_ const zero(0);
-    if constexpr (kind_ == nk_kernel_angular_k) {
-        reference_type_ const product = first * second;
-        return product > zero ? reference_type_(1) - dot * product.rsqrt() : zero;
-    }
+    if constexpr (kind_ == nk_kernel_angular_k) return angular_from_dot(dot, first, second);
     else {
-        reference_type_ const squared = first + second - reference_type_(2) * dot;
+        reference_type_ const zero(0), squared = first + second - reference_type_(2) * dot;
         return squared > zero ? squared.sqrt() : zero;
     }
 }
@@ -636,10 +646,11 @@ struct operand_scales {
     }
 };
 
-/** Scales for @p rows rows of @p depth dimensions whose codes lie @p stride bytes apart. */
+/** Scales for @p rows rows of @p depth dimensions whose codes lie @p stride bytes apart, UE8M0 ones
+ *  within @p exponent_limit binades of two to the power of @p exponent_center. */
 template <typename scalar_type_, typename backend_type_>
 auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t rows, std::size_t depth,
-                   std::size_t stride, float tensor_scale) {
+                   std::size_t stride, float tensor_scale, int exponent_limit = 3, int exponent_center = 0) {
     using operand_t = operand_scales<scalar_type_, backend_type_>;
     using scale_t = typename operand_t::scale_t;
     operand_t operand;
@@ -648,7 +659,9 @@ auto random_scales(backend_type_ &backend, std::mt19937 &generator, std::size_t 
                           scale_stride = stride / operand_t::format.block_bytes;
         operand.scale_stride = scale_stride;
         operand.blocks = operand_t::blocks_t::zeros({rows, scale_stride}, allocator_of<scale_t>(backend)).value;
-        std::uniform_int_distribution<int> exponents(-3, 3), finite_scales(1, 126);
+        std::uniform_int_distribution<int> exponents(exponent_center - exponent_limit,
+                                                     exponent_center + exponent_limit),
+            finite_scales(1, 126);
         for (std::size_t row = 0; row != rows; ++row)
             for (std::size_t block = 0; block != blocks; ++block) {
                 if constexpr (operand_t::format.scale_dtype == nk_ue4m3_k)
@@ -688,6 +701,12 @@ enum class dots_operands_t {
 
     /** F64 halves cancelling to ~2⁻³³ of Σ|a · b|, which plain F64 accumulation visibly misses. */
     ill_conditioned_k,
+
+    /** Drawn from the configured distribution, with UE8M0 scales of A near 2¹⁰⁰ and of B near
+     *  2⁻¹⁰⁰, so each operand leaves F32 range while products stay near one, and a first row
+     *  spanning every finite exponent, so its outputs take the exact path; NVFP4 tensor scales
+     *  near 2⁻⁷⁰ instead, whose product is an F32 subnormal. */
+    wide_scales_k,
 };
 
 /** One case: C shaped @b [rows,columns] equals A shaped @b [rows,depth] times B transposed,
@@ -726,9 +745,12 @@ std::vector<dots_packed_case_t> dots_packed_cases(settings_t const &settings) {
         {257, 129, 300, tight, random},
         {257, 129, 300, padded, random},
         {33, 100, 4096, tight, random},
+        {48, 100, 1536, tight, random},
     };
     if constexpr (std::is_same_v<scalar_type_, f64_t>)
         cases.push_back({32, 48, 300, tight, dots_operands_t::ill_conditioned_k});
+    if constexpr (nk_block_scaled_format_of_dtype(scalar_type_::dtype()).block_size != 0)
+        cases.push_back({48, 100, 1536, tight, dots_operands_t::wide_scales_k});
     return cases;
 }
 
@@ -780,6 +802,68 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
     using reference_t = bounded_reference_for<scalar_type_, result_t>;
 
     error_stats_t stats(nk_dot_error_bound(scalar_type_::dtype()));
+    if constexpr (scalar_type_::dtype() == nk_nvfp4_k) {
+        auto codes = make_vector<scalar_t>(backend, 1);
+        auto tensor = make_vector<f32_t>(backend, 1);
+        tensor[0] = f32_t(std::numeric_limits<float>::infinity());
+        nk_nvfp4_cref_t const operand {codes.raw_values_data(), nullptr, tensor.raw_values_data()};
+        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 65, 0));
+        auto result = make_vector<result_t>(backend, 33 * 65);
+        nk_status_t status = backend.call(pack_fn, &operand, 65, 0, 0, packed.raw_values_data(), 0, 65);
+        if (status == nk_success_k)
+            status = backend.call(dots_fn, &operand, packed.raw_values_data(), result.raw_values_data(), 33, 65, 0, 0,
+                                  65 * sizeof(result_t));
+        if (!expect_completed(stats, backend, status)) return stats;
+        for (std::size_t i = 0; i < result.size(); ++i)
+            stats.expect(std::isnan(static_cast<float>(result[i])), "empty NVFP4 dot loses infinite tensor scale");
+    }
+    if constexpr (scalar_type_::dtype() == nk_mxfp4_k) {
+        auto codes = make_vector<scalar_t>(backend, format.block_size);
+        std::memset(codes.raw_values_data(), 0x11, codes.size_bytes());
+        auto scales = make_vector<ue8m0_t>(backend, 2);
+        reinterpret_cast<nk_u8_t *>(scales.raw_values_data())[1] = 253;
+        nk_mxfp4_cref_t const a {codes.raw_values_data(), scales.raw_values_data()};
+        nk_mxfp4_cref_t const b {codes.raw_values_data(), scales.raw_values_data() + 1};
+        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, format.block_size));
+        auto result = make_vector<result_t>(backend, 1);
+        nk_status_t status = backend.call(pack_fn, &b, 1, format.block_size, format.block_bytes,
+                                          packed.raw_values_data(), 0, 1);
+        if (status == nk_success_k)
+            status = backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1,
+                                  format.block_size, format.block_bytes, sizeof(result_t));
+        if (!expect_completed(stats, backend, status)) return stats;
+        stats.expect(static_cast<float>(result[0]) == 0, "MXFP4 zero scale decodes as a nonzero exponent");
+    }
+    if constexpr (format.block_size != 0) {
+        using scale_t = typename nk::type_for<format.scale_dtype>::type;
+        std::size_t const depth = 2 * format.block_size, columns = 3, row_bytes = 2 * format.block_bytes;
+        auto codes = make_vector<scalar_t>(backend, 4 * row_bytes / sizeof(scalar_t));
+        std::memset(codes.raw_values_data(), 0x22, codes.size_bytes());
+        auto scales = make_vector<scale_t>(backend, 8);
+        auto tensor = make_vector<f32_t>(backend, 1);
+        tensor[0] = f32_t(1.0f);
+        nk_u8_t *raw_scales = reinterpret_cast<nk_u8_t *>(scales.raw_values_data());
+        for (std::size_t index = 0; index < 8; ++index)
+            raw_scales[index] = format.scale_dtype == nk_ue8m0_k ? 127 : 0x38;
+        raw_scales[0] = format.scale_dtype == nk_ue8m0_k ? 255 : 127;
+        typename cref_of_<scalar_type_>::type a {}, b {};
+        a.elements = reinterpret_cast<decltype(a.elements)>(codes.raw_values_data());
+        b.elements = reinterpret_cast<decltype(b.elements)>(reinterpret_cast<char *>(codes.raw_values_data()) +
+                                                            row_bytes);
+        a.scales = reinterpret_cast<decltype(a.scales)>(raw_scales);
+        b.scales = reinterpret_cast<decltype(b.scales)>(raw_scales + 2);
+        if constexpr (format.tensor_scale_dtype == nk_f32_k)
+            a.tensor_scale = tensor.raw_values_data(), b.tensor_scale = tensor.raw_values_data();
+        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, columns, depth));
+        auto result = make_vector<result_t>(backend, columns);
+        nk_status_t status = backend.call(pack_fn, &b, columns, depth, row_bytes, packed.raw_values_data(), 0, columns);
+        if (status == nk_success_k)
+            status = backend.call(dots_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, columns, depth,
+                                  row_bytes, columns * sizeof(result_t));
+        if (!expect_completed(stats, backend, status)) return stats;
+        for (std::size_t column = 0; column < columns; ++column)
+            stats.expect(std::isnan(static_cast<float>(result[column])), "a NaN block scale does not reach the dot");
+    }
     std::mt19937 generator(settings.seed.value);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
@@ -817,8 +901,16 @@ error_stats_t test_dots_packed(settings_t const &settings, backend_type_ backend
                 }
             fill_padding_canary(a, rows, row_bytes, a_stride), fill_padding_canary(b, columns, row_bytes, b_stride);
             fill_canary(c);
-            auto const a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, a_stride, 1.5f),
-                       b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, b_stride, 0.75f);
+            bool const wide = test_case.operands == dots_operands_t::wide_scales_k;
+            int const exponent_limit = wide ? 20 : 3, exponent_center = wide ? 100 : 0;
+            auto a_scales = random_scales<scalar_type_>(backend, generator, rows, depth, a_stride,
+                                                        wide ? 0x1.4p-70f : 1.5f, exponent_limit, exponent_center),
+                 b_scales = random_scales<scalar_type_>(backend, generator, columns, depth, b_stride,
+                                                        wide ? 0x1.bp-70f : 0.75f, exponent_limit, -exponent_center);
+            if constexpr (format.scale_dtype == nk_ue8m0_k)
+                if (wide && depth >= 2 * format.block_size)
+                    a_scales.blocks.data()[0] = ue8m0_t::from_raw(1),
+                    a_scales.blocks.data()[1] = ue8m0_t::from_raw(254);
 
             nk_status_t status = backend.call(pack_fn, b_scales.operand(b.raw_values_data()), columns, depth, b_stride,
                                               b_packed.raw_values_data(), 0, columns);
@@ -999,7 +1091,8 @@ error_stats_t test_dots_symmetric(settings_t const &settings, backend_type_ back
             auto c = make_vector<result_t>(backend, count * c_stride / sizeof(result_t));
             fill_random(settings, generator, a);
             fill_padding_canary(a, count, row_bytes, stride), fill_canary(c);
-            auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 1.5f);
+            // An NVFP4 tensor scale whose square is an F32 subnormal, never rounded on the way
+            auto const scales = random_scales<scalar_type_>(backend, generator, count, depth, stride, 0x1.4p-66f);
 
             if (!expect_completed(stats, backend,
                                   backend.call(symmetric_fn, scales.operand(a.raw_values_data()), count, depth, stride,
@@ -1275,6 +1368,105 @@ error_stats_t test_jaccards_symmetric(settings_t const &settings, kernels_types_
 
 #pragma region Spatial Distances
 
+/** Launches @p launch, a @p kind_ kernel shaped as for @c expect_angular_edges, over rows x, y and
+ *  x again of an integer @p scalar_type_: x repeats the type's widest value and y moves one element
+ *  a step toward zero, at the first depth from 1024 up where ‖x‖² passes 2²³, so norms and dots no
+ *  longer survive a cast to F32. Equal rows must be exactly 0 apart, and x and y within four F32
+ *  ulps of their exact angular distance, or one ulp of their exact euclidean one, both relative. */
+template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename launch_type_>
+void expect_near_parallel_integers(error_stats_t &stats, backend_type_ &backend, launch_type_ launch) {
+    constexpr bool angular_ = kind_ == nk_kernel_angulars_packed_k || kind_ == nk_kernel_angulars_symmetric_k;
+    constexpr bool symmetric_ = kind_ == nk_kernel_angulars_symmetric_k || kind_ == nk_kernel_euclideans_symmetric_k;
+    using result_t = std::conditional_t<angular_, typename scalar_type_::angular_result_t,
+                                        typename scalar_type_::euclidean_result_t>;
+    constexpr nk_dtype_t dtype = scalar_type_::dtype();
+    constexpr double widest = dtype == nk_i8_k ? -128 : dtype == nk_u8_k ? 255 : dtype == nk_i4_k ? -8 : 15;
+    constexpr std::size_t rows = 3;
+    std::size_t depth = 1024;
+    while (widest * widest * static_cast<double>(depth) <= 0x1p23) depth *= 2;
+    std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_type_>();
+    std::size_t const stride = backend.row_stride(depth / dimensions_per_value * sizeof(scalar_type_));
+    std::size_t const stride_values = stride / sizeof(scalar_type_);
+
+    std::vector<double> values(rows * depth, widest);
+    values[depth + depth / 3] -= widest > 0 ? 1 : -1;
+    auto codes = make_vector<scalar_type_>(backend, rows * stride_values * dimensions_per_value);
+    for (std::size_t row = 0; row != rows; ++row)
+        stats.expect(nk_cast_serial(values.data() + row * depth, nk_f64_k,
+                                    codes.raw_values_data() + row * stride_values, dtype, depth, nullptr));
+    auto results = make_vector<result_t>(backend, rows * rows);
+    nk_status_t const status = launch(codes.raw_values_data(), rows, depth, stride, results.raw_values_data(),
+                                      rows * sizeof(result_t));
+    stats.expect(status);
+    if (status != nk_success_k) return;
+
+    auto const exact_dot = [&](std::size_t first, std::size_t second) {
+        std::int64_t dot = 0;
+        for (std::size_t i = 0; i != depth; ++i)
+            dot += static_cast<std::int64_t>(values[first * depth + i] * values[second * depth + i]);
+        return dot;
+    };
+    for (std::size_t i = 0; i != rows; ++i)
+        for (std::size_t j = symmetric_ ? i + 1 : 0; j != rows; ++j) {
+            double const distance = static_cast<double>(results[i * rows + j]);
+            std::int64_t const dot = exact_dot(i, j), a_sumsq = exact_dot(i, i), b_sumsq = exact_dot(j, j);
+            if (dot == a_sumsq && dot == b_sumsq) {
+                stats.expect(distance == 0, "equal integer vectors are not exactly 0 apart");
+                continue;
+            }
+            double expected;
+            if constexpr (angular_)
+                expected = static_cast<double>(angular_from_dot(f118_t(dot), f118_t(a_sumsq), f118_t(b_sumsq)));
+            else expected = std::sqrt(static_cast<double>(a_sumsq + b_sumsq - 2 * dot));
+            stats.expect(std::fabs(distance - expected) <= std::ldexp(expected, angular_ ? -21 : -23),
+                         "integer vectors one step apart miss their exact distance");
+        }
+}
+
+/** Launches angular distances through @p launch, a @p kind_ kernel, over two zero rows, a row of
+ *  ones, and, for dtypes that hold NaN, a row with a NaN element or a NaN first block scale. Checks
+ *  the angles of `spatials.h`: 0 between the zero rows, 1 from a zero row to the ones, and NaN with
+ *  the NaN row. @p launch takes the operand, its rows, depth and stride, and the output and its
+ *  stride, and returns once the output is readable. */
+template <typename scalar_type_, nk_kernel_kind_t kind_, typename backend_type_, typename launch_type_>
+void expect_angular_edges(error_stats_t &stats, backend_type_ &backend, std::mt19937 &generator, launch_type_ launch) {
+    constexpr bool symmetric_ = kind_ == nk_kernel_angulars_symmetric_k;
+    constexpr nk_block_scaled_format_t format = nk_block_scaled_format_of_dtype(scalar_type_::dtype());
+    using scalar_t = typename nk::type_for<format.element_dtype>::type;
+    using result_t = typename scalar_type_::angular_result_t;
+    constexpr std::size_t rows = format.block_size || nk::nan_capable_dtype<scalar_t> ? 4 : 3;
+    std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
+    std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
+    std::size_t const depth = nk::divide_round_up(64, depth_multiple) * depth_multiple;
+    std::size_t const stride = backend.row_stride(nk::divide_round_up(depth, dimensions_per_value) * sizeof(scalar_t));
+    std::size_t const stride_values = stride / sizeof(scalar_t);
+
+    auto codes = make_vector<scalar_t>(backend, rows * stride_values * dimensions_per_value);
+    std::vector<double> values(depth, 1.0);
+    for (std::size_t row = 2; row != rows; ++row) {
+        if (row == 3 && !format.block_size) values[0] = std::numeric_limits<double>::quiet_NaN();
+        stats.expect(nk_cast_serial(values.data(), nk_f64_k, codes.raw_values_data() + row * stride_values,
+                                    scalar_t::dtype(), depth, nullptr));
+    }
+    auto scales = random_scales<scalar_type_>(backend, generator, rows, depth, stride, 1.0f);
+    if constexpr (format.block_size != 0)
+        scales.blocks.data()[3 * scales.scale_stride] = decltype(scales)::scale_t::from_raw(
+            format.scale_dtype == nk_ue4m3_k ? 0x7F : 0xFF);
+    auto results = make_vector<result_t>(backend, rows * rows);
+    nk_status_t const status = launch(scales.operand(codes.raw_values_data()), rows, depth, stride,
+                                      results.raw_values_data(), rows * sizeof(result_t));
+    stats.expect(status);
+    if (status != nk_success_k) return;
+
+    for (std::size_t i = 0; i != rows; ++i)
+        for (std::size_t j = symmetric_ ? i + 1 : 0; j != rows; ++j) {
+            double const angle = static_cast<double>(results[i * rows + j]);
+            if (i == 3 || j == 3) stats.expect(std::isnan(angle), "a NaN input gives no NaN angle");
+            else if (i < 2 && j < 2) stats.expect(angle == 0, "two zero vectors are not 0 apart");
+            else if (i < 2 || j < 2) stats.expect(angle == 1, "a zero vector is not 1 from a nonzero one");
+        }
+}
+
 /** Batched angular or euclidean distances, as @p kind_ picks, with B packed in two column windows.
  *  Row 0 of A is zero for euclidean, so row 0 of C reads every packed norm back as √‖b‖². */
 template <typename scalar_type_, typename backend_type_, nk_kernel_kind_t kind_, typename pack_size_kernel_type_,
@@ -1291,7 +1483,43 @@ error_stats_t test_spatials_packed(settings_t const &settings, pack_size_kernel_
     backend_type_ backend = make_backend<backend_type_>(settings);
     error_stats_t stats(angular ? nk_angular_error_bound(scalar_type_::dtype())
                                 : nk_euclidean_error_bound(scalar_type_::dtype()));
+    if constexpr (angular && scalar_type_::dtype() == nk_mxfp8e5m2_k) {
+        auto codes = make_vector<scalar_t>(backend, 64);
+        auto *raw = reinterpret_cast<nk_u8_t *>(codes.raw_values_data());
+        std::memset(raw, 0x3c, 32);
+        std::memset(raw + 33, 0x04, 15);
+        std::memset(raw + 49, 0x84, 15);
+        raw[32] = 0x7b, raw[48] = 0xfb;
+        auto scales = make_vector<ue8m0_t>(backend, 2);
+        auto *scale_codes = reinterpret_cast<nk_u8_t *>(scales.raw_values_data());
+        scale_codes[0] = 253, scale_codes[1] = 1;
+        nk_mxfp8e5m2_cref_t const a {codes.raw_values_data(), scales.raw_values_data()};
+        nk_mxfp8e5m2_cref_t const b {codes.raw_values_data() + 32, scales.raw_values_data() + 1};
+        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, 1, 32));
+        auto result = make_vector<result_t>(backend, 1);
+        nk_status_t status = backend.call(pack_fn, &b, 1, 32, 32, packed.raw_values_data(), 0, 1);
+        if (status == nk_success_k)
+            status = backend.call(spatials_fn, &a, packed.raw_values_data(), result.raw_values_data(), 1, 1, 32, 32,
+                                  sizeof(result_t));
+        if (!expect_completed(stats, backend, status)) return stats;
+        stats.expect(static_cast<float>(result[0]) == 1,
+                     "orthogonal block-scaled vectors whose norms pass F32 range are not 1 apart");
+    }
     std::mt19937 generator(settings.seed.value);
+    constexpr nk_kernel_kind_t packed_kind = angular ? nk_kernel_angulars_packed_k : nk_kernel_euclideans_packed_k;
+    auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
+                            std::size_t c_stride) {
+        auto packed = make_vector<char>(backend, pack_size_bytes(stats, packed_size_fn, rows, depth));
+        nk_status_t status = backend.call(pack_fn, operand, rows, depth, stride, packed.raw_values_data(), 0, rows);
+        if (status == nk_success_k)
+            status = backend.call(spatials_fn, operand, packed.raw_values_data(), c, rows, rows, depth, stride,
+                                  c_stride);
+        nk_status_t const synchronization_status = backend.synchronize();
+        return status != nk_success_k ? status : synchronization_status;
+    };
+    if constexpr (angular) expect_angular_edges<scalar_type_, packed_kind>(stats, backend, generator, launch);
+    if constexpr (nk::is_integral_dtype<scalar_type_>())
+        expect_near_parallel_integers<scalar_type_, packed_kind>(stats, backend, launch);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
 
@@ -1370,6 +1598,17 @@ error_stats_t test_spatials_symmetric(settings_t const &settings, symmetric_kern
     error_stats_t stats(angular ? nk_angular_error_bound(scalar_type_::dtype())
                                 : nk_euclidean_error_bound(scalar_type_::dtype()));
     std::mt19937 generator(settings.seed.value);
+    constexpr nk_kernel_kind_t symmetric_kind = angular ? nk_kernel_angulars_symmetric_k
+                                                        : nk_kernel_euclideans_symmetric_k;
+    auto const launch = [&](auto operand, std::size_t rows, std::size_t depth, std::size_t stride, auto c,
+                            std::size_t c_stride) {
+        nk_status_t const status = backend.call(symmetric_fn, operand, rows, depth, stride, c, c_stride, 0, rows);
+        nk_status_t const synchronization_status = backend.synchronize();
+        return status != nk_success_k ? status : synchronization_status;
+    };
+    if constexpr (angular) expect_angular_edges<scalar_type_, symmetric_kind>(stats, backend, generator, launch);
+    if constexpr (nk::is_integral_dtype<scalar_type_>())
+        expect_near_parallel_integers<scalar_type_, symmetric_kind>(stats, backend, launch);
     std::size_t const dimensions_per_value = nk::dimensions_per_value<scalar_t>();
     std::size_t const depth_multiple = std::max<std::size_t>(format.block_size, dimensions_per_value);
 

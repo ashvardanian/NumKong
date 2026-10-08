@@ -17,6 +17,7 @@
 #ifndef NUMKONG_SPATIALS_AMPERE_CUH
 #define NUMKONG_SPATIALS_AMPERE_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_AMPERE_
 
 #include "numkong/dots/ampere.cuh"
@@ -171,4 +172,5 @@ nk_define_cross_cuda_(euclidean, u4, ampere, ampere, u4x2, u4x2, f32, /*depth_si
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_SPATIALS_AMPERE_CUH

@@ -31,6 +31,11 @@
  *  For f32 dot products, we upcast to f64 for accumulation to preserve precision and avoid
  *  catastrophic cancellation in large-magnitude sums.
  *
+ *  Block-scaled updates flush one exact integer or F32 block partial per block in F32.
+ *  MX scales rebase to each row's and column's largest exponent less 31, so every scale product
+ *  stays a normal F32 while a row and a column span 156 binades together.
+ *  The epilogue applies both bases once.
+ *
  *  @section dot_neon_stateful Stateful Streaming Logic
  *
  *  To build memory-optimal tiled algorithms, this file defines following structures and
@@ -137,62 +142,222 @@ NUMKONG_INLINE void nk_dot2_f64x2_neon_(float64x2_t *sum_f64x2, float64x2_t *com
     *compensation_f64x2 = vaddq_f64(*compensation_f64x2, vaddq_f64(sum_error_f64x2, product_error_f64x2));
 }
 
-/** Scaled partial sums stay in vector lanes until the output tile is finalized. */
-typedef struct nk_dot_scaled_state_neon_t {
-    float64x2_t sum_f64x2;
-} nk_dot_scaled_state_neon_t;
+#pragma region Block Scaled Floats
 
-NUMKONG_INLINE void nk_dot_scaled_init_neon(nk_dot_scaled_state_neon_t *state) { state->sum_f64x2 = vdupq_n_f64(0); }
+/** Block partials summed in F32 lanes, relative to their row and column bases until the end. */
+typedef struct nk_dot_scaled_f32_state_neon_t {
+    float32x4_t sum_f32x4;
+} nk_dot_scaled_f32_state_neon_t;
 
-NUMKONG_INLINE void nk_dot_scaled_finalize_neon(                                          //
-    nk_dot_scaled_state_neon_t const *state_a, nk_dot_scaled_state_neon_t const *state_b, //
-    nk_dot_scaled_state_neon_t const *state_c, nk_dot_scaled_state_neon_t const *state_d, //
-    nk_size_t total_dimensions, nk_b128_vec_t *result) {
-    nk_unused_(total_dimensions);
-    float64x2_t const sums_ab_f64x2 = vpaddq_f64(state_a->sum_f64x2, state_b->sum_f64x2);
-    float64x2_t const sums_cd_f64x2 = vpaddq_f64(state_c->sum_f64x2, state_d->sum_f64x2);
-    result->f32x4 = vcombine_f32(vcvt_f32_f64(sums_ab_f64x2), vcvt_f32_f64(sums_cd_f64x2));
+/** Starts a sum at @p seed, the raw partial an earlier depth chunk stored. */
+NUMKONG_INLINE void nk_dot_scaled_f32_init_neon(nk_dot_scaled_f32_state_neon_t *state, nk_f32_t seed) {
+    state->sum_f32x4 = vsetq_lane_f32(seed, vdupq_n_f32(0), 0);
 }
 
-typedef struct nk_dot_scaled_i8x16_operand_neon_t {
-    int8x16_t values_i8x16;
-    nk_f64_t scale;
-} nk_dot_scaled_i8x16_operand_neon_t;
+/** Four sums with their lanes added. */
+NUMKONG_INLINE void nk_dot_scaled_f32_finalize_neon(nk_dot_scaled_f32_state_neon_t const *state_a,
+                                                    nk_dot_scaled_f32_state_neon_t const *state_b,
+                                                    nk_dot_scaled_f32_state_neon_t const *state_c,
+                                                    nk_dot_scaled_f32_state_neon_t const *state_d,
+                                                    nk_b128_vec_t *result) {
+    result->f32x4 = vpaddq_f32(vpaddq_f32(state_a->sum_f32x4, state_b->sum_f32x4),
+                               vpaddq_f32(state_c->sum_f32x4, state_d->sum_f32x4));
+}
 
-typedef struct nk_dot_scaled_i8x32_operand_neon_t {
-    int8x16_t values_i8x16[2];
-    nk_f64_t scale;
-} nk_dot_scaled_i8x32_operand_neon_t;
+/** Multiplies lane i of @p values by @p mantissa and by two to the power of @p exponent plus
+ *  @p lane_exponents[i] in three power-of-two steps, so only subnormal results round twice. */
+NUMKONG_INLINE void nk_f32x4_scale_neon_(nk_b128_vec_t *values, nk_f32_t mantissa, nk_i32_t exponent,
+                                         nk_i32_t const *lane_exponents) {
+    int32x4_t exponents_i32x4 = vaddq_s32(vld1q_s32(lane_exponents), vdupq_n_s32(exponent));
+    exponents_i32x4 = vmaxq_s32(vminq_s32(exponents_i32x4, vdupq_n_s32(381)), vdupq_n_s32(-378));
+    float32x4_t values_f32x4 = vmulq_n_f32(values->f32x4, mantissa);
+    for (int step = 0; step != 3; ++step) {
+        int32x4_t const part_i32x4 = vmaxq_s32(vminq_s32(exponents_i32x4, vdupq_n_s32(127)), vdupq_n_s32(-126));
+        int32x4_t const bits_i32x4 = vshlq_n_s32(vaddq_s32(part_i32x4, vdupq_n_s32(127)), 23);
+        values_f32x4 = vmulq_f32(values_f32x4, vreinterpretq_f32_s32(bits_i32x4));
+        exponents_i32x4 = vsubq_s32(exponents_i32x4, part_i32x4);
+    }
+    values->f32x4 = values_f32x4;
+}
 
+/** Lane i is two to the power of lane i of @p exponents_i32x4, each in [−126, 127]. */
+NUMKONG_INLINE float32x4_t nk_f32x4_powers_of_two_neon_(int32x4_t exponents_i32x4) {
+    return vreinterpretq_f32_s32(vshlq_n_s32(vaddq_s32(exponents_i32x4, vdupq_n_s32(127)), 23));
+}
+
+/** Squared norms as mantissas times four to the power of @p halves_i32x4, clamped to [−63, 63]:
+ *  normal norms take mantissas in [1, 4), and zeros, NaNs and infinities stay themselves. */
+NUMKONG_INLINE float32x4_t nk_f32x4_split_squares_neon_(float32x4_t squares_f32x4, int32x4_t *halves_i32x4) {
+    uint32x4_t const biased_u32x4 = vandq_u32(vshrq_n_u32(vreinterpretq_u32_f32(squares_f32x4), 23), vdupq_n_u32(0xFF));
+    int32x4_t const exponents_i32x4 = vshrq_n_s32(vsubq_s32(vreinterpretq_s32_u32(biased_u32x4), vdupq_n_s32(127)), 1);
+    *halves_i32x4 = vmaxq_s32(vminq_s32(exponents_i32x4, vdupq_n_s32(63)), vdupq_n_s32(-63));
+    return vmulq_f32(squares_f32x4, nk_f32x4_powers_of_two_neon_(vmulq_n_s32(*halves_i32x4, -2)));
+}
+
+/*  Finishers of four relative sums, for rebased kernels and the SME epilogue alike: lane i's dot is
+ *  values[i] · mantissa · 2^(row_exponent + column_exponents[i]), and its squared norms are
+ *  row_norm · 4^row_exponent and column_norms[i] · 4^column_exponents[i]. */
+
+/** Dot products; the norms go unused. */
+NUMKONG_INLINE void nk_dot_f32x4_from_relative_neon_(nk_b128_vec_t *values, nk_f32_t mantissa, nk_i32_t row_exponent,
+                                                     nk_i32_t const *column_exponents, nk_f32_t row_norm,
+                                                     nk_f32_t const *column_norms) {
+    nk_unused_(row_norm), nk_unused_(column_norms);
+    nk_f32x4_scale_neon_(values, mantissa, row_exponent, column_exponents);
+}
+
+/** Angular distances, where the exponents cancel: 0 for two zero vectors, else 1 for a zero dot,
+ *  else max(0, 1 − cosine); NaNs propagate. */
+NUMKONG_INLINE void nk_angular_f32x4_from_relative_neon_(nk_b128_vec_t *values, nk_f32_t mantissa,
+                                                         nk_i32_t row_exponent, nk_i32_t const *column_exponents,
+                                                         nk_f32_t row_norm, nk_f32_t const *column_norms) {
+    nk_unused_(row_exponent), nk_unused_(column_exponents);
+    int32x4_t row_halves_i32x4, column_halves_i32x4;
+    float32x4_t const row_norms_f32x4 = vdupq_n_f32(row_norm), column_norms_f32x4 = vld1q_f32(column_norms);
+    float32x4_t const row_mantissas_f32x4 = nk_f32x4_split_squares_neon_(row_norms_f32x4, &row_halves_i32x4);
+    float32x4_t const column_mantissas_f32x4 = nk_f32x4_split_squares_neon_(column_norms_f32x4, &column_halves_i32x4);
+    float32x4_t const dots_f32x4 = vmulq_n_f32(values->f32x4, mantissa);
+    // Over both halves the dot is the cosine times the root of the mantissas' product, at most 4
+    float32x4_t const scaled_f32x4 = vmulq_f32(
+        dots_f32x4, nk_f32x4_powers_of_two_neon_(vnegq_s32(vaddq_s32(row_halves_i32x4, column_halves_i32x4))));
+    float32x4_t const cosines_f32x4 = vdivq_f32(scaled_f32x4,
+                                                vsqrtq_f32(vmulq_f32(row_mantissas_f32x4, column_mantissas_f32x4)));
+    float32x4_t angular_f32x4 = vmaxq_f32(vsubq_f32(vdupq_n_f32(1), cosines_f32x4), vdupq_n_f32(0));
+    angular_f32x4 = vbslq_f32(vceqzq_f32(dots_f32x4), vdupq_n_f32(1), angular_f32x4);
+    uint32x4_t const empty_u32x4 = vandq_u32(vceqzq_f32(row_norms_f32x4), vceqzq_f32(column_norms_f32x4));
+    values->f32x4 = vbslq_f32(empty_u32x4, vdupq_n_f32(0), angular_f32x4);
+}
+
+/** Euclidean distances from dots over the leading squared norm's even power of two, clamped
+ *  at zero, with the root scaled back by half that power and rounded once. A NaN in any
+ *  operand gives NaN. */
+NUMKONG_INLINE void nk_euclidean_f32x4_from_relative_neon_(nk_b128_vec_t *values, nk_f32_t mantissa,
+                                                           nk_i32_t row_exponent, nk_i32_t const *column_exponents,
+                                                           nk_f32_t row_norm, nk_f32_t const *column_norms) {
+    int32x4_t row_halves_i32x4, column_halves_i32x4;
+    float32x4_t const row_norms_f32x4 = vdupq_n_f32(row_norm), column_norms_f32x4 = vld1q_f32(column_norms);
+    float32x4_t const row_mantissas_f32x4 = nk_f32x4_split_squares_neon_(row_norms_f32x4, &row_halves_i32x4);
+    float32x4_t const column_mantissas_f32x4 = nk_f32x4_split_squares_neon_(column_norms_f32x4, &column_halves_i32x4);
+    // Squared norms are their mantissas times 2^powers, even powers, and zero norms never lead
+    int32x4_t const lowest_i32x4 = vdupq_n_s32(-126), floor_i32x4 = vdupq_n_s32(-(1 << 20));
+    int32x4_t const row_powers_i32x4 = vbslq_s32(
+        vceqzq_f32(row_norms_f32x4), floor_i32x4,
+        vshlq_n_s32(vaddq_s32(vdupq_n_s32(row_exponent), row_halves_i32x4), 1));
+    int32x4_t const column_powers_i32x4 = vbslq_s32(
+        vceqzq_f32(column_norms_f32x4), floor_i32x4,
+        vshlq_n_s32(vaddq_s32(vld1q_s32(column_exponents), column_halves_i32x4), 1));
+    int32x4_t const top_i32x4 = vmaxq_s32(row_powers_i32x4, column_powers_i32x4);
+    // Each term over 2^top is at most 8, so shifts clamped at 2^-126 only drop negligible bits
+    float32x4_t const row_terms_f32x4 = vmulq_f32(
+        row_mantissas_f32x4,
+        nk_f32x4_powers_of_two_neon_(vmaxq_s32(vsubq_s32(row_powers_i32x4, top_i32x4), lowest_i32x4)));
+    float32x4_t const column_terms_f32x4 = vmulq_f32(
+        column_mantissas_f32x4,
+        nk_f32x4_powers_of_two_neon_(vmaxq_s32(vsubq_s32(column_powers_i32x4, top_i32x4), lowest_i32x4)));
+    int32x4_t const mean_powers_i32x4 = vshrq_n_s32(vaddq_s32(row_powers_i32x4, column_powers_i32x4), 1);
+    float32x4_t dot_terms_f32x4 = vmulq_n_f32(values->f32x4, 2 * mantissa);
+    dot_terms_f32x4 = vmulq_f32(
+        dot_terms_f32x4, nk_f32x4_powers_of_two_neon_(vnegq_s32(vaddq_s32(row_halves_i32x4, column_halves_i32x4))));
+    dot_terms_f32x4 = vmulq_f32(dot_terms_f32x4, nk_f32x4_powers_of_two_neon_(
+                                                     vmaxq_s32(vsubq_s32(mean_powers_i32x4, top_i32x4), lowest_i32x4)));
+    float32x4_t const squares_f32x4 = vmaxq_f32(
+        vsubq_f32(vaddq_f32(row_terms_f32x4, column_terms_f32x4), dot_terms_f32x4), vdupq_n_f32(0));
+    // Nonzero roots lie in 2^-75 … 4, so two powers of two reach every finite result
+    int32x4_t const halves_i32x4 = vmaxq_s32(vminq_s32(vshrq_n_s32(top_i32x4, 1), vdupq_n_s32(254)), vdupq_n_s32(-252));
+    int32x4_t const first_i32x4 = vmaxq_s32(vminq_s32(halves_i32x4, vdupq_n_s32(127)), lowest_i32x4);
+    float32x4_t const roots_f32x4 = vmulq_f32(vsqrtq_f32(squares_f32x4), nk_f32x4_powers_of_two_neon_(first_i32x4));
+    values->f32x4 = vmulq_f32(roots_f32x4, nk_f32x4_powers_of_two_neon_(vsubq_s32(halves_i32x4, first_i32x4)));
+}
+
+/** 64 i8-lifted elements, SDOT lane j of every register summing a 16-element group of one block,
+ *  and their four F32 lane scales: one per NVFP4 block, or each MX block scale twice. */
+typedef struct nk_dot_scaled_i8x64_operand_neon_t {
+    int8x16_t values_i8x16[4];
+    float32x4_t scales_f32x4;
+} nk_dot_scaled_i8x64_operand_neon_t;
+
+/** One MX block of 32 E3M2 elements times sixteen, with its F32 scale in every lane. */
 typedef struct nk_dot_scaled_i16x32_operand_neon_t {
     int16x8_t values_i16x8[4];
-    nk_f64_t scale;
+    float32x4_t scales_f32x4;
 } nk_dot_scaled_i16x32_operand_neon_t;
 
+/** One MX block of 32 FP8 elements widened to F16, with its F32 scale in every lane. */
 typedef struct nk_dot_scaled_f16x32_operand_neon_t {
     float16x8_t values_f16x8[4];
-    nk_f64_t scale;
+    float32x4_t scales_f32x4;
 } nk_dot_scaled_f16x32_operand_neon_t;
 
-/** Doubled E2M1 values fit in signed bytes, including the signed-zero code. */
-NUMKONG_INLINE int8x16_t nk_e2m1x16_to_i8x16_neon_(uint8x8_t packed_u8x8) {
-    uint8x16_t codes_u8x16 = vcombine_u8(vshr_n_u8(packed_u8x8, 4), vand_u8(packed_u8x8, vdup_n_u8(15)));
-    uint8x16_t exponent_u8x16 = vandq_u8(vshrq_n_u8(codes_u8x16, 1), vdupq_n_u8(3));
-    uint8x16_t mantissa_u8x16 = vorrq_u8(vandq_u8(codes_u8x16, vdupq_n_u8(1)),
-                                         vandq_u8(vcgtq_u8(exponent_u8x16, vdupq_n_u8(0)), vdupq_n_u8(2)));
-    int8x16_t values_i8x16 = vreinterpretq_s8_u8(
-        vshlq_u8(mantissa_u8x16, vreinterpretq_s8_u8(vqsubq_u8(exponent_u8x16, vdupq_n_u8(1)))));
-    return vbslq_s8(vtstq_u8(codes_u8x16, vdupq_n_u8(8)), vnegq_s8(values_i8x16), values_i8x16);
+/** Doubled E2M1 values of 16 code bytes as signed bytes: the low nibbles, odd elements, in one
+ *  register and the high nibbles, even elements, in the other. */
+NUMKONG_INLINE void nk_e2m1x32_to_i8x16x2_neon_(uint8x16_t codes_u8x16, int8x16_t *low_i8x16, int8x16_t *high_i8x16) {
+    static nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
+    int8x16_t const lut_i8x16 = vld1q_s8(lut_data);
+    *low_i8x16 = vqtbl1q_s8(lut_i8x16, vandq_u8(codes_u8x16, vdupq_n_u8(0x0F)));
+    *high_i8x16 = vqtbl1q_s8(lut_i8x16, vshrq_n_u8(codes_u8x16, 4));
 }
 
-/** E2M3 values multiplied by eight fit in signed bytes. */
+/** E2M3 values times eight as signed bytes, sign included, through one 64-entry table. */
 NUMKONG_INLINE int8x16_t nk_e2m3x16_to_i8x16_neon_(uint8x16_t codes_u8x16) {
-    uint8x16_t exponent_u8x16 = vandq_u8(vshrq_n_u8(codes_u8x16, 3), vdupq_n_u8(3));
-    uint8x16_t mantissa_u8x16 = vorrq_u8(vandq_u8(codes_u8x16, vdupq_n_u8(7)),
-                                         vandq_u8(vcgtq_u8(exponent_u8x16, vdupq_n_u8(0)), vdupq_n_u8(8)));
-    int8x16_t values_i8x16 = vreinterpretq_s8_u8(
-        vshlq_u8(mantissa_u8x16, vreinterpretq_s8_u8(vqsubq_u8(exponent_u8x16, vdupq_n_u8(1)))));
-    return vbslq_s8(vtstq_u8(codes_u8x16, vdupq_n_u8(32)), vnegq_s8(values_i8x16), values_i8x16);
+    static nk_i8_t const lut_data[64] = {
+        0,   1,   2,   3,   4,   5,   6,   7,   8,   9,   10,  11,  12,  13,  14,  15,  //
+        16,  18,  20,  22,  24,  26,  28,  30,  32,  36,  40,  44,  48,  52,  56,  60,  //
+        0,   -1,  -2,  -3,  -4,  -5,  -6,  -7,  -8,  -9,  -10, -11, -12, -13, -14, -15, //
+        -16, -18, -20, -22, -24, -26, -28, -30, -32, -36, -40, -44, -48, -52, -56, -60};
+    return vqtbl4q_s8(vld1q_s8_x4(lut_data), vandq_u8(codes_u8x16, vdupq_n_u8(0x3F)));
+}
+
+/** 32 E2M1 code bytes, 64 elements, as doubled bytes in lane order: word w of every register holds
+ *  four elements of 16-element group w, which lies inside one NVFP4 or MXFP4 block. */
+NUMKONG_INLINE void nk_e2m1x64_to_i8x64_neon_(void const *codes, nk_b512_vec_t *dst) {
+    nk_u8_t const *source = (nk_u8_t const *)codes;
+    int8x16_t low_first_i8x16, high_first_i8x16, low_second_i8x16, high_second_i8x16;
+    nk_e2m1x32_to_i8x16x2_neon_(vld1q_u8(source), &low_first_i8x16, &high_first_i8x16);
+    nk_e2m1x32_to_i8x16x2_neon_(vld1q_u8(source + 16), &low_second_i8x16, &high_second_i8x16);
+    uint32x4_t const low_first_u32x4 = vreinterpretq_u32_s8(low_first_i8x16);
+    uint32x4_t const low_second_u32x4 = vreinterpretq_u32_s8(low_second_i8x16);
+    uint32x4_t const high_first_u32x4 = vreinterpretq_u32_s8(high_first_i8x16);
+    uint32x4_t const high_second_u32x4 = vreinterpretq_u32_s8(high_second_i8x16);
+    dst->u8x16s[0] = vreinterpretq_u8_u32(vuzp1q_u32(low_first_u32x4, low_second_u32x4));
+    dst->u8x16s[1] = vreinterpretq_u8_u32(vuzp2q_u32(low_first_u32x4, low_second_u32x4));
+    dst->u8x16s[2] = vreinterpretq_u8_u32(vuzp1q_u32(high_first_u32x4, high_second_u32x4));
+    dst->u8x16s[3] = vreinterpretq_u8_u32(vuzp2q_u32(high_first_u32x4, high_second_u32x4));
+}
+
+/** The first @p n code bytes of a 64-element E2M1 step, zero-padded. */
+NUMKONG_INLINE void nk_partial_e2m1x64_to_i8x64_neon_(void const *codes, nk_b512_vec_t *dst, nk_size_t n) {
+    nk_b256_vec_t codes_vec;
+    nk_partial_load_b8x32_serial_(codes, &codes_vec, n);
+    nk_e2m1x64_to_i8x64_neon_(&codes_vec, dst);
+}
+
+/** 64 E2M3 codes as bytes times eight in lane order: lanes 0 and 1 of every register hold the first
+ *  MX block, lanes 2 and 3 the second. */
+NUMKONG_INLINE void nk_e2m3x64_to_i8x64_neon_(void const *codes, nk_b512_vec_t *dst) {
+    nk_u8_t const *source = (nk_u8_t const *)codes;
+    uint32x4_t const first_u32x4 = vreinterpretq_u32_s8(nk_e2m3x16_to_i8x16_neon_(vld1q_u8(source)));
+    uint32x4_t const second_u32x4 = vreinterpretq_u32_s8(nk_e2m3x16_to_i8x16_neon_(vld1q_u8(source + 16)));
+    uint32x4_t const third_u32x4 = vreinterpretq_u32_s8(nk_e2m3x16_to_i8x16_neon_(vld1q_u8(source + 32)));
+    uint32x4_t const fourth_u32x4 = vreinterpretq_u32_s8(nk_e2m3x16_to_i8x16_neon_(vld1q_u8(source + 48)));
+    dst->u8x16s[0] = vreinterpretq_u8_u32(vuzp1q_u32(first_u32x4, third_u32x4));
+    dst->u8x16s[1] = vreinterpretq_u8_u32(vuzp2q_u32(first_u32x4, third_u32x4));
+    dst->u8x16s[2] = vreinterpretq_u8_u32(vuzp1q_u32(second_u32x4, fourth_u32x4));
+    dst->u8x16s[3] = vreinterpretq_u8_u32(vuzp2q_u32(second_u32x4, fourth_u32x4));
+}
+
+/** The first @p n codes of a 64-element E2M3 step, zero-padded. */
+NUMKONG_INLINE void nk_partial_e2m3x64_to_i8x64_neon_(void const *codes, nk_b512_vec_t *dst, nk_size_t n) {
+    nk_b512_vec_t codes_vec;
+    for (nk_size_t index = 0; index != 64; ++index) codes_vec.u8s[index] = 0;
+    nk_copy_bytes_(codes_vec.u8s, codes, n);
+    nk_e2m3x64_to_i8x64_neon_(&codes_vec, dst);
+}
+
+/** Stores 64 lane-ordered bytes. A tail step stores all 64 too: packs zero a row's padding first,
+ *  and every row spans whole 64-element steps. */
+NUMKONG_INLINE void nk_partial_store_i8x64_neon_(nk_b512_vec_t const *src, void *dst, nk_size_t n) {
+    nk_unused_(n);
+    nk_store_b512_neon_(src, dst);
 }
 
 /** E3M2 values multiplied by sixteen fit in signed halfwords. */
@@ -206,157 +371,115 @@ NUMKONG_INLINE int16x8_t nk_e3m2x8_to_i16x8_neon_(uint8x8_t codes_u8x8) {
     return vbslq_s16(vtstq_u16(codes_u16x8, vdupq_n_u16(32)), vnegq_s16(values_i16x8), values_i16x8);
 }
 
-NUMKONG_INLINE void nk_load_nvfp4x1_to_i8x16_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                   nk_dot_scaled_i8x16_operand_neon_t *dst) {
-    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
-    dst->values_i8x16 = nk_e2m1x16_to_i8x16_neon_(vld1_u8(src));
-    dst->scale = 0.5 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 8], nk_ue4m3_k);
+/*  Loaders of one depth step of a pack or panel, @p offset in dims: lifted values and their F32
+ *  scales, one per 16 elements for the lane layout and one per block otherwise. */
+
+NUMKONG_INLINE void nk_load_scaled_i8x64_neon_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                               nk_dot_scaled_i8x64_operand_neon_t *dst) {
+    nk_i8_t const *source = (nk_i8_t const *)values + offset;
+    dst->values_i8x16[0] = vld1q_s8(source), dst->values_i8x16[1] = vld1q_s8(source + 16);
+    dst->values_i8x16[2] = vld1q_s8(source + 32), dst->values_i8x16[3] = vld1q_s8(source + 48);
+    dst->scales_f32x4 = vld1q_f32((nk_f32_t const *)scales + offset / 16);
 }
 
-NUMKONG_INLINE void nk_partial_load_nvfp4x1_to_i8x16_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                           nk_dot_scaled_i8x16_operand_neon_t *dst, nk_size_t n) {
-    nk_assert_(n == 16);
-    nk_load_nvfp4x1_to_i8x16_neon_(codes, scales, offset, dst);
+NUMKONG_INLINE void nk_load_scaled_i16x32_neon_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                nk_dot_scaled_i16x32_operand_neon_t *dst) {
+    nk_i16_t const *source = (nk_i16_t const *)values + offset;
+    for (nk_size_t i = 0; i != 4; ++i) dst->values_i16x8[i] = vld1q_s16(source + i * 8);
+    dst->scales_f32x4 = vld1q_dup_f32((nk_f32_t const *)scales + offset / 32);
 }
 
-NUMKONG_INLINE void nk_load_mxfp4x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                   nk_dot_scaled_i8x32_operand_neon_t *dst) {
-    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
-    dst->values_i8x16[0] = nk_e2m1x16_to_i8x16_neon_(vld1_u8(src));
-    dst->values_i8x16[1] = nk_e2m1x16_to_i8x16_neon_(vld1_u8(src + 8));
-    dst->scale = 0.5 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 16], nk_ue8m0_k);
+NUMKONG_INLINE void nk_load_scaled_f16x32_neon_(void const *values, nk_u8_t const *scales, nk_size_t offset,
+                                                nk_dot_scaled_f16x32_operand_neon_t *dst) {
+    float16_t const *source = (float16_t const *)values + offset;
+    for (nk_size_t i = 0; i != 4; ++i) dst->values_f16x8[i] = vld1q_f16(source + i * 8);
+    dst->scales_f32x4 = vld1q_dup_f32((nk_f32_t const *)scales + offset / 32);
 }
 
-NUMKONG_INLINE void nk_partial_load_mxfp4x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                           nk_dot_scaled_i8x32_operand_neon_t *dst, nk_size_t n) {
-    nk_assert_(n == 32);
-    nk_load_mxfp4x1_to_i8x32_neon_(codes, scales, offset, dst);
+/** Pack-time decoders of 16 codes per call, for the formats that keep one block per depth step. */
+NUMKONG_INLINE void nk_load_e3m2x16_to_i16x16_neon_(void const *src, nk_b256_vec_t *dst) {
+    uint8x16_t const codes_u8x16 = vld1q_u8((nk_u8_t const *)src);
+    dst->i16x8s[0] = nk_e3m2x8_to_i16x8_neon_(vget_low_u8(codes_u8x16));
+    dst->i16x8s[1] = nk_e3m2x8_to_i16x8_neon_(vget_high_u8(codes_u8x16));
 }
 
-NUMKONG_INLINE void nk_load_mxfp6e2m3x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                       nk_dot_scaled_i8x32_operand_neon_t *dst) {
-    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
-    dst->values_i8x16[0] = nk_e2m3x16_to_i8x16_neon_(vld1q_u8(src));
-    dst->values_i8x16[1] = nk_e2m3x16_to_i8x16_neon_(vld1q_u8(src + 16));
-    dst->scale = 0.125 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
+NUMKONG_INLINE void nk_partial_load_e3m2x16_to_i16x16_neon_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+    nk_b128_vec_t codes_vec;
+    nk_partial_load_b8x16_serial_(src, &codes_vec, n);
+    dst->i16x8s[0] = nk_e3m2x8_to_i16x8_neon_(vget_low_u8(codes_vec.u8x16));
+    dst->i16x8s[1] = nk_e3m2x8_to_i16x8_neon_(vget_high_u8(codes_vec.u8x16));
 }
 
-NUMKONG_INLINE void nk_partial_load_mxfp6e2m3x1_to_i8x32_neon_(void const *codes, nk_u8_t const *scales,
-                                                               nk_size_t offset,
-                                                               nk_dot_scaled_i8x32_operand_neon_t *dst, nk_size_t n) {
-    nk_assert_(n == 32);
-    nk_load_mxfp6e2m3x1_to_i8x32_neon_(codes, scales, offset, dst);
+NUMKONG_INLINE void nk_load_e4m3x16_to_f16x16_neon_(void const *src, nk_b256_vec_t *dst) {
+    float16x8_t low_f16x8, high_f16x8;
+    nk_e4m3x16_to_f16x8x2_neon_(vld1q_u8((nk_u8_t const *)src), &low_f16x8, &high_f16x8);
+    dst->u16x8s[0] = vreinterpretq_u16_f16(low_f16x8), dst->u16x8s[1] = vreinterpretq_u16_f16(high_f16x8);
 }
 
-NUMKONG_INLINE void nk_load_mxfp6e3m2x1_to_i16x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                        nk_dot_scaled_i16x32_operand_neon_t *dst) {
-    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
-    for (nk_size_t i = 0; i != 4; ++i) dst->values_i16x8[i] = nk_e3m2x8_to_i16x8_neon_(vld1_u8(src + i * 8));
-    dst->scale = 0.0625 * (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
+NUMKONG_INLINE void nk_partial_load_e4m3x16_to_f16x16_neon_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+    nk_b128_vec_t codes_vec;
+    nk_partial_load_b8x16_serial_(src, &codes_vec, n);
+    nk_load_e4m3x16_to_f16x16_neon_(&codes_vec, dst);
 }
 
-NUMKONG_INLINE void nk_partial_load_mxfp6e3m2x1_to_i16x32_neon_(void const *codes, nk_u8_t const *scales,
-                                                                nk_size_t offset,
-                                                                nk_dot_scaled_i16x32_operand_neon_t *dst, nk_size_t n) {
-    nk_assert_(n == 32);
-    nk_load_mxfp6e3m2x1_to_i16x32_neon_(codes, scales, offset, dst);
+NUMKONG_INLINE void nk_load_e5m2x16_to_f16x16_neon_(void const *src, nk_b256_vec_t *dst) {
+    uint8x16_t const codes_u8x16 = vld1q_u8((nk_u8_t const *)src);
+    dst->u16x8s[0] = vreinterpretq_u16_f16(nk_e5m2x8_to_f16x8_neon_(vget_low_u8(codes_u8x16)));
+    dst->u16x8s[1] = vreinterpretq_u16_f16(nk_e5m2x8_to_f16x8_neon_(vget_high_u8(codes_u8x16)));
 }
 
-NUMKONG_INLINE void nk_load_mxfp8e4m3x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                        nk_dot_scaled_f16x32_operand_neon_t *dst) {
-    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
-    nk_e4m3x16_to_f16x8x2_neon_(vld1q_u8(src), &dst->values_f16x8[0], &dst->values_f16x8[1]);
-    nk_e4m3x16_to_f16x8x2_neon_(vld1q_u8(src + 16), &dst->values_f16x8[2], &dst->values_f16x8[3]);
-    dst->scale = (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
+NUMKONG_INLINE void nk_partial_load_e5m2x16_to_f16x16_neon_(void const *src, nk_b256_vec_t *dst, nk_size_t n) {
+    nk_b128_vec_t codes_vec;
+    nk_partial_load_b8x16_serial_(src, &codes_vec, n);
+    nk_load_e5m2x16_to_f16x16_neon_(&codes_vec, dst);
 }
 
-NUMKONG_INLINE void nk_partial_load_mxfp8e4m3x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales,
-                                                                nk_size_t offset,
-                                                                nk_dot_scaled_f16x32_operand_neon_t *dst, nk_size_t n) {
-    nk_assert_(n == 32);
-    nk_load_mxfp8e4m3x1_to_f16x32_neon_(codes, scales, offset, dst);
-}
-
-NUMKONG_INLINE void nk_load_mxfp8e5m2x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales, nk_size_t offset,
-                                                        nk_dot_scaled_f16x32_operand_neon_t *dst) {
-    nk_u8_t const *src = (nk_u8_t const *)codes + offset;
-    for (nk_size_t i = 0; i != 4; ++i) dst->values_f16x8[i] = nk_e5m2x8_to_f16x8_neon_(vld1_u8(src + i * 8));
-    dst->scale = (nk_f64_t)nk_block_scaled_decode_scale_serial_(scales[offset / 32], nk_ue8m0_k);
-}
-
-NUMKONG_INLINE void nk_partial_load_mxfp8e5m2x1_to_f16x32_neon_(void const *codes, nk_u8_t const *scales,
-                                                                nk_size_t offset,
-                                                                nk_dot_scaled_f16x32_operand_neon_t *dst, nk_size_t n) {
-    nk_assert_(n == 32);
-    nk_load_mxfp8e5m2x1_to_f16x32_neon_(codes, scales, offset, dst);
-}
-
-NUMKONG_INLINE float64x2_t nk_i32x4_sum_as_f64x2_neon_(int32x4_t sums_i32x4) {
-    int64x2_t sums_i64x2 = vpaddlq_s32(sums_i32x4);
-    return vcvtq_f64_s64(sums_i64x2);
-}
-
-NUMKONG_INLINE void nk_dot_scaled_i8x16_update_neon_(nk_dot_scaled_state_neon_t *state,
-                                                     nk_dot_scaled_i8x16_operand_neon_t a,
-                                                     nk_dot_scaled_i8x16_operand_neon_t b, nk_size_t depth_offset,
-                                                     nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    int32x4_t sums_i32x4 = vdupq_n_s32(0);
-    sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_s8(vget_low_s8(a.values_i8x16), vget_low_s8(b.values_i8x16)));
-    sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_high_s8(a.values_i8x16, b.values_i8x16));
-    float64x2_t const sums_f64x2 = nk_i32x4_sum_as_f64x2_neon_(sums_i32x4);
-    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
-}
-
-NUMKONG_INLINE void nk_dot_scaled_i8x32_update_neon_(nk_dot_scaled_state_neon_t *state,
-                                                     nk_dot_scaled_i8x32_operand_neon_t a,
-                                                     nk_dot_scaled_i8x32_operand_neon_t b, nk_size_t depth_offset,
-                                                     nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    int32x4_t sums_i32x4 = vdupq_n_s32(0);
-    for (nk_size_t i = 0; i != 2; ++i) {
-        sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_s8(vget_low_s8(a.values_i8x16[i]), vget_low_s8(b.values_i8x16[i])));
-        sums_i32x4 = vpadalq_s16(sums_i32x4, vmull_high_s8(a.values_i8x16[i], b.values_i8x16[i]));
+/** One 64-element step through 8 SMULL and SMLAL pairs into SADALP, the four lane partials SDOT
+ *  would give: lifted products reach 3600, so each pair fits a halfword.
+ *  One F32 flush per step applies the lane scales. */
+NUMKONG_INLINE void nk_dot_scaled_i8x64_update_neon(nk_dot_scaled_f32_state_neon_t *state,
+                                                    nk_dot_scaled_i8x64_operand_neon_t a,
+                                                    nk_dot_scaled_i8x64_operand_neon_t b) {
+    int32x4_t low_i32x4 = vdupq_n_s32(0), high_i32x4 = vdupq_n_s32(0);
+    for (nk_size_t i = 0; i != 4; i += 2) {
+        int16x8_t low_i16x8 = vmull_s8(vget_low_s8(a.values_i8x16[i]), vget_low_s8(b.values_i8x16[i]));
+        low_i16x8 = vmlal_s8(low_i16x8, vget_low_s8(a.values_i8x16[i + 1]), vget_low_s8(b.values_i8x16[i + 1]));
+        int16x8_t high_i16x8 = vmull_high_s8(a.values_i8x16[i], b.values_i8x16[i]);
+        high_i16x8 = vmlal_high_s8(high_i16x8, a.values_i8x16[i + 1], b.values_i8x16[i + 1]);
+        low_i32x4 = vpadalq_s16(low_i32x4, low_i16x8), high_i32x4 = vpadalq_s16(high_i32x4, high_i16x8);
     }
-    float64x2_t const sums_f64x2 = nk_i32x4_sum_as_f64x2_neon_(sums_i32x4);
-    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
+    state->sum_f32x4 = vfmaq_f32(state->sum_f32x4, vcvtq_f32_s32(vpaddq_s32(low_i32x4, high_i32x4)),
+                                 vmulq_f32(a.scales_f32x4, b.scales_f32x4));
 }
 
-NUMKONG_INLINE void nk_dot_scaled_i16x32_update_neon_(nk_dot_scaled_state_neon_t *state,
-                                                      nk_dot_scaled_i16x32_operand_neon_t a,
-                                                      nk_dot_scaled_i16x32_operand_neon_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
+/** One E3M2 block: lane sums of 8 products under 2^20.6 convert exactly, then one F32 flush. */
+NUMKONG_INLINE void nk_dot_scaled_i16x32_update_neon(nk_dot_scaled_f32_state_neon_t *state,
+                                                     nk_dot_scaled_i16x32_operand_neon_t a,
+                                                     nk_dot_scaled_i16x32_operand_neon_t b) {
     int32x4_t sums_i32x4 = vdupq_n_s32(0);
     for (nk_size_t i = 0; i != 4; ++i) {
         sums_i32x4 = vmlal_s16(sums_i32x4, vget_low_s16(a.values_i16x8[i]), vget_low_s16(b.values_i16x8[i]));
         sums_i32x4 = vmlal_high_s16(sums_i32x4, a.values_i16x8[i], b.values_i16x8[i]);
     }
-    float64x2_t const sums_f64x2 = nk_i32x4_sum_as_f64x2_neon_(sums_i32x4);
-    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
+    state->sum_f32x4 = vfmaq_f32(state->sum_f32x4, vcvtq_f32_s32(sums_i32x4),
+                                 vmulq_f32(a.scales_f32x4, b.scales_f32x4));
 }
 
-NUMKONG_INLINE void nk_dot_scaled_f16x32_update_neon_(nk_dot_scaled_state_neon_t *state,
-                                                      nk_dot_scaled_f16x32_operand_neon_t a,
-                                                      nk_dot_scaled_f16x32_operand_neon_t b, nk_size_t depth_offset,
-                                                      nk_size_t active_dimensions) {
-    nk_unused_(depth_offset);
-    nk_unused_(active_dimensions);
-    float64x2_t sums_f64x2 = vdupq_n_f64(0);
+/** One FP8 block widened to F32: products of E4M3 or E5M2 values are exact, the block sum rounds,
+ *  and one F32 flush applies the scales. */
+NUMKONG_INLINE void nk_dot_scaled_f16x32_update_neon(nk_dot_scaled_f32_state_neon_t *state,
+                                                     nk_dot_scaled_f16x32_operand_neon_t a,
+                                                     nk_dot_scaled_f16x32_operand_neon_t b) {
+    float32x4_t sums_f32x4 = vdupq_n_f32(0);
     for (nk_size_t i = 0; i != 4; ++i) {
-        float32x4_t low_f32x4 = vmulq_f32(vcvt_f32_f16(vget_low_f16(a.values_f16x8[i])),
-                                          vcvt_f32_f16(vget_low_f16(b.values_f16x8[i])));
-        float32x4_t high_f32x4 = vmulq_f32(vcvt_high_f32_f16(a.values_f16x8[i]), vcvt_high_f32_f16(b.values_f16x8[i]));
-        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_f64_f32(vget_low_f32(low_f32x4)));
-        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_high_f64_f32(low_f32x4));
-        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_f64_f32(vget_low_f32(high_f32x4)));
-        sums_f64x2 = vaddq_f64(sums_f64x2, vcvt_high_f64_f32(high_f32x4));
+        sums_f32x4 = vfmaq_f32(sums_f32x4, vcvt_f32_f16(vget_low_f16(a.values_f16x8[i])),
+                               vcvt_f32_f16(vget_low_f16(b.values_f16x8[i])));
+        sums_f32x4 = vfmaq_f32(sums_f32x4, vcvt_high_f32_f16(a.values_f16x8[i]), vcvt_high_f32_f16(b.values_f16x8[i]));
     }
-    state->sum_f64x2 = vaddq_f64(state->sum_f64x2, vmulq_n_f64(sums_f64x2, a.scale * b.scale));
+    state->sum_f32x4 = vfmaq_f32(state->sum_f32x4, sums_f32x4, vmulq_f32(a.scales_f32x4, b.scales_f32x4));
 }
+
+#pragma endregion Block Scaled Floats
 
 #pragma region F32 and F64 Floats
 

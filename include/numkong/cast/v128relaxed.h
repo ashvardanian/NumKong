@@ -8,6 +8,7 @@
 #ifndef NUMKONG_CAST_V128RELAXED_H
 #define NUMKONG_CAST_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
@@ -413,4 +414,5 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dt
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_CAST_V128RELAXED_H

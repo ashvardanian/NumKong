@@ -22,6 +22,7 @@
 #ifndef NUMKONG_ATTENTION_AMPERE_CUH
 #define NUMKONG_ATTENTION_AMPERE_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_AMPERE_
 
 #include "numkong/attention/cuda.cuh" // `nk_attention_schedule_next_cuda_`, `nk_attention_fallback_cuda_`
@@ -1273,4 +1274,5 @@ nk_define_attention_packed_cuda_(i8, ampere, ampere, nk_attention_launch_ampere_
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_AMPERE_CUH

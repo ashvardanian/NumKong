@@ -76,7 +76,7 @@ NUMKONG_INLINE void nk_f64_dot2_pair_(nk_f64_t *sum, nk_f64_t *compensation, nk_
 
 /** f32 bilinear: GEMV via FMOPA, widening f32 → f64 for exact accumulation. ZA0.D stages C and
  *  ZA1.D accumulates the GEMV. */
-__arm_new("za") static void nk_bilinear_f32_smef64_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_bilinear_f32_smef64_streaming_( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions,
     nk_f64_t *result) NUMKONG_STREAMING_ {
     svbool_t predicate_body_b64x = svptrue_b64();
@@ -128,7 +128,7 @@ NUMKONG_API nk_status_t nk_bilinear_f32_smef64( //
 
 /** f32 Mahalanobis: GEMV v = C × d via FMOPA, where d = a − b (exact in f64). ZA0.D = C staging,
  *  ZA1.D = GEMV accumulator. */
-__arm_new("za") static nk_f64_t nk_mahalanobis_f32_smef64_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f32_smef64_streaming_( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions) NUMKONG_STREAMING_ {
 
     svbool_t predicate_body_b64x = svptrue_b64();
@@ -368,7 +368,7 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_smef64( //
 
 /** f32c bilinear: complex GEMV via FMOPA (widening f32 → f64). ZA0.D = C staging, ZA1.D = v_real
  *  accumulator, ZA2.D = v_imag accumulator. */
-__arm_new("za") static void nk_bilinear_f32c_smef64_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_bilinear_f32c_smef64_streaming_( //
     nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_f32c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results) NUMKONG_STREAMING_ {
     svbool_t predicate_body_b64x = svptrue_b64();

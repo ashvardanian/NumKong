@@ -59,6 +59,9 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_pack_size_bf16_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_pack_size_bf16_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_pack_size_bf16_cdna4,
 #endif
@@ -76,8 +79,8 @@ static nk_capability_kernels_t const *nk_attention_pack_size_bf16_capabilities(v
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -273,6 +276,9 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_pack_size_i8_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_pack_size_i8_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_pack_size_i8_cdna4,
 #endif
@@ -290,8 +296,8 @@ static nk_capability_kernels_t const *nk_attention_pack_size_i8_capabilities(voi
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -358,6 +364,9 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_packed_shape_bf16_cdna4,
 #endif
@@ -375,8 +384,8 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_bf16_capabilitie
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -572,6 +581,9 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_packed_shape_i8_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_packed_shape_i8_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_packed_shape_i8_cdna4,
 #endif
@@ -589,8 +601,8 @@ static nk_capability_kernels_t const *nk_attention_packed_shape_i8_capabilities(
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -657,6 +669,9 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_pack_bf16_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_pack_bf16_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_pack_bf16_cdna4,
 #endif
@@ -674,8 +689,8 @@ static nk_capability_kernels_t const *nk_attention_pack_bf16_capabilities(void) 
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -888,6 +903,9 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_pack_i8_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_pack_i8_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_pack_i8_cdna4,
 #endif
@@ -905,8 +923,8 @@ static nk_capability_kernels_t const *nk_attention_pack_i8_capabilities(void) {
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -978,6 +996,9 @@ static nk_capability_kernels_t const *nk_attention_packed_bf16_capabilities(void
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_packed_bf16_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_packed_bf16_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_packed_bf16_cdna4,
 #endif
@@ -995,8 +1016,8 @@ static nk_capability_kernels_t const *nk_attention_packed_bf16_capabilities(void
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -1092,6 +1113,9 @@ static nk_capability_kernels_t const *nk_attention_packed_gradients_bf16_capabil
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_packed_gradients_bf16_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_packed_gradients_bf16_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_packed_gradients_bf16_cdna4,
 #endif
@@ -1105,8 +1129,8 @@ static nk_capability_kernels_t const *nk_attention_packed_gradients_bf16_capabil
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };
@@ -1278,6 +1302,9 @@ static nk_capability_kernels_t const *nk_attention_packed_i8_capabilities(void) 
 #if NUMKONG_TARGET_ROCM
         (nk_kernel_punned_t)&nk_attention_packed_i8_rocm,
 #endif
+#if NUMKONG_TARGET_CDNA3
+        (nk_kernel_punned_t)&nk_attention_packed_i8_cdna3,
+#endif
 #if NUMKONG_TARGET_CDNA4
         (nk_kernel_punned_t)&nk_attention_packed_i8_cdna4,
 #endif
@@ -1295,8 +1322,8 @@ static nk_capability_kernels_t const *nk_attention_packed_i8_capabilities(void) 
              nk_cap_hopper_k * NUMKONG_TARGET_HOPPER | nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL |
              nk_cap_blackwellultra_k * NUMKONG_TARGET_BLACKWELLULTRA,
          cuda},
-        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 |
-             nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
+        {nk_cap_rocm_k * NUMKONG_TARGET_ROCM | nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3 |
+             nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4 | nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5,
          rocm},
         {0, nk_no_kernels_},
     };

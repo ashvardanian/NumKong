@@ -438,8 +438,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  Compiling for LoongArch LASX, 256-bit SIMD, NUMKONG_TARGET_LOONGSONASX:
  *  LASX provides 32 × 256-bit vector registers, widening integer multiply-accumulate, and
- *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. Its units compile with
- *  `-mlasx`, as `lasxintrin.h` hides its contents without the flag. */
+ *  f32-to-f64 conversion via xvfcvtl_d_s / xvfcvth_d_s, but no widening FMA. Its kernels scope it
+ *  per function under GCC 15, while Clang's `lasxintrin.h` needs `-mlasx` across the unit. */
 #if !defined(NUMKONG_TARGET_LOONGSONASX) || (NUMKONG_TARGET_LOONGSONASX && !NUMKONG_ARCH_LOONGARCH64_)
 #if defined(__loongarch_asx)
 #define NUMKONG_TARGET_LOONGSONASX 1
@@ -452,8 +452,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 /*  Compiling for Power VSX, 128-bit SIMD, POWER9+ baseline, NUMKONG_TARGET_POWERVSX:
  *  VSX provides 64 × 128-bit registers, FMA via vec_madd, vec_msum for multiply-sum, hardware f16
  *  conversion via vec_extract_fp32_from_shorth/l, length-limited loads via vec_xl_len, per-byte
- *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. Its units compile
- *  with `-mcpu=power9`, as `altivec.h` hides the POWER9 API without the flag. */
+ *  popcount via vec_popcnt, and vec_cmpne. Requires POWER9, ISA 3.0, or newer. Its kernels scope it
+ *  per function under GCC 15, while Clang's `altivec.h` needs `-mcpu=power9` across the unit. */
 #if !defined(NUMKONG_TARGET_POWERVSX) || (NUMKONG_TARGET_POWERVSX && !NUMKONG_ARCH_PPC64_)
 #if defined(__VSX__) && defined(__POWER9_VECTOR__)
 #define NUMKONG_TARGET_POWERVSX 1
@@ -627,7 +627,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
  *  - _MSC_VER >= 1920, VS 2019+: AVX-512 base plus AVX-VNNI, matching Skylake, Icelake, and Alder
  *  - _MSC_VER >= 1944, VS 2022 17.14+: BF16, FP16, VP2INTERSECT, VNNI-INT8, AMX, matching Sierra */
 #if !defined(NUMKONG_TARGET_HASWELL) || (NUMKONG_TARGET_HASWELL && !NUMKONG_ARCH_X8664_)
-#if (defined(__AVX2__) && defined(__FMA__) && defined(__F16C__)) || (defined(_MSC_VER) && _MSC_VER >= 1900)
+#if (defined(__AVX2__) && defined(__FMA__) && defined(__F16C__)) || \
+    (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1900)
 #define NUMKONG_TARGET_HASWELL 1
 #else
 #undef NUMKONG_TARGET_HASWELL
@@ -654,7 +655,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #if !defined(NUMKONG_TARGET_SKYLAKE) || (NUMKONG_TARGET_SKYLAKE && !NUMKONG_ARCH_X8664_)
 #if (defined(__AVX512F__) && defined(__AVX512CD__) && defined(__AVX512VL__) && defined(__AVX512DQ__) && \
      defined(__AVX512BW__)) ||                                                                          \
-    (defined(_MSC_VER) && _MSC_VER >= 1920)
+    (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1920)
 #define NUMKONG_TARGET_SKYLAKE 1
 #else
 #undef NUMKONG_TARGET_SKYLAKE
@@ -665,7 +666,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #if !defined(NUMKONG_TARGET_ICELAKE) || (NUMKONG_TARGET_ICELAKE && !NUMKONG_ARCH_X8664_)
 #if (defined(__AVX512VNNI__) && defined(__AVX512IFMA__) && defined(__AVX512BITALG__) && defined(__AVX512VBMI__) && \
      defined(__AVX512VBMI2__) && defined(__AVX512VPOPCNTDQ__)) ||                                                  \
-    (defined(_MSC_VER) && _MSC_VER >= 1920)
+    (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1920)
 #define NUMKONG_TARGET_ICELAKE 1
 #else
 #undef NUMKONG_TARGET_ICELAKE
@@ -674,7 +675,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_ICELAKE) || ...
 
 #if !defined(NUMKONG_TARGET_GENOA) || (NUMKONG_TARGET_GENOA && !NUMKONG_ARCH_X8664_)
-#if defined(__AVX512BF16__) || (defined(_MSC_VER) && _MSC_VER >= 1944)
+#if defined(__AVX512BF16__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944)
 #define NUMKONG_TARGET_GENOA 1
 #else
 #undef NUMKONG_TARGET_GENOA
@@ -698,7 +699,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_DIAMOND) || ...
 
 #if !defined(NUMKONG_TARGET_SAPPHIRE) || (NUMKONG_TARGET_SAPPHIRE && !NUMKONG_ARCH_X8664_)
-#if defined(__AVX512FP16__) || (defined(_MSC_VER) && _MSC_VER >= 1944)
+#if defined(__AVX512FP16__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944)
 #define NUMKONG_TARGET_SAPPHIRE 1
 #else
 #undef NUMKONG_TARGET_SAPPHIRE
@@ -707,7 +708,8 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_SAPPHIRE) || ...
 
 #if !defined(NUMKONG_TARGET_SAPPHIREAMX) || (NUMKONG_TARGET_SAPPHIREAMX && !NUMKONG_ARCH_X8664_)
-#if (defined(__AMX_TILE__) && defined(__AMX_BF16__) && defined(__AMX_INT8__)) || (defined(_MSC_VER) && _MSC_VER >= 1944)
+#if (defined(__AMX_TILE__) && defined(__AMX_BF16__) && defined(__AMX_INT8__)) || \
+    (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944)
 #define NUMKONG_TARGET_SAPPHIREAMX 1
 #else
 #undef NUMKONG_TARGET_SAPPHIREAMX
@@ -716,7 +718,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_SAPPHIREAMX) || ...
 
 #if !defined(NUMKONG_TARGET_GRANITEAMX) || (NUMKONG_TARGET_GRANITEAMX && !NUMKONG_ARCH_X8664_)
-#if (defined(__AMX_TILE__) && defined(__AMX_FP16__)) || (defined(_MSC_VER) && _MSC_VER >= 1944)
+#if (defined(__AMX_TILE__) && defined(__AMX_FP16__)) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944)
 #define NUMKONG_TARGET_GRANITEAMX 1
 #else
 #undef NUMKONG_TARGET_GRANITEAMX
@@ -735,7 +737,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_DIAMONDAMX) || ...
 
 #if !defined(NUMKONG_TARGET_TURIN) || (NUMKONG_TARGET_TURIN && !NUMKONG_ARCH_X8664_)
-#if defined(__AVX512VP2INTERSECT__) || (defined(_MSC_VER) && _MSC_VER >= 1944)
+#if defined(__AVX512VP2INTERSECT__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944)
 #define NUMKONG_TARGET_TURIN 1
 #else
 #undef NUMKONG_TARGET_TURIN
@@ -744,7 +746,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_TURIN) || ...
 
 #if !defined(NUMKONG_TARGET_ALDER) || (NUMKONG_TARGET_ALDER && !NUMKONG_ARCH_X8664_)
-#if defined(__AVXVNNI__) || (defined(_MSC_VER) && _MSC_VER >= 1920)
+#if defined(__AVXVNNI__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1920)
 #define NUMKONG_TARGET_ALDER 1
 #else
 #undef NUMKONG_TARGET_ALDER
@@ -753,7 +755,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #endif // !defined(NUMKONG_TARGET_ALDER) || ...
 
 #if !defined(NUMKONG_TARGET_SIERRA) || (NUMKONG_TARGET_SIERRA && !NUMKONG_ARCH_X8664_)
-#if defined(__AVXVNNIINT8__) || (defined(_MSC_VER) && _MSC_VER >= 1944)
+#if defined(__AVXVNNIINT8__) || (defined(_MSC_VER) && defined(_M_X64) && _MSC_VER >= 1944)
 #define NUMKONG_TARGET_SIERRA 1
 #else
 #undef NUMKONG_TARGET_SIERRA
@@ -909,12 +911,29 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #if NUMKONG_ARCH_RISCV64_RVV_
 #include <riscv_vector.h>
 #endif
-#if defined(__loongarch_asx)
+/*  The LASX and POWER9 intrinsics headers open in the same target region as their kernels.
+ *  GCC 15 defines @c __loongarch_asx and @c __POWER9_VECTOR__ there, while Clang defines them
+ *  only under `-mlasx` or `-mcpu=power9`. */
+#if NUMKONG_TARGET_LOONGSONASX
+#if !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC target("lasx")
+#endif
 #include <lsxintrin.h>  // `__m128i` for LSX SIMD
 #include <lasxintrin.h> // `__m256i` for LASX SIMD
+#if !defined(__clang__)
+#pragma GCC pop_options
 #endif
-#if defined(__POWER9_VECTOR__)
+#endif
+#if NUMKONG_TARGET_POWERVSX
+#if !defined(__clang__)
+#pragma GCC push_options
+#pragma GCC target("power9-vector")
+#endif
 #include <altivec.h>
+#if !defined(__clang__)
+#pragma GCC pop_options
+#endif
 #endif
 #if NUMKONG_ARCH_WASM_V128_
 #include <wasm_simd128.h>
@@ -968,9 +987,9 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 #define NUMKONG_STREAMABLE_
 #endif
 #if NUMKONG_ARCH_ARM64_ && NUMKONG_ARCH_ARM64_SME_ && defined(__GNUC__) && !defined(__clang__)
-#define NUMKONG_OUTLINED_ __attribute__((noinline)) static
+#define NUMKONG_OUTLINED_ NUMKONG_MAYBE_UNUSED_ __attribute__((noinline)) static
 #else
-#define NUMKONG_OUTLINED_ static
+#define NUMKONG_OUTLINED_ NUMKONG_MAYBE_UNUSED_ static
 #endif
 
 /** @c NUMKONG_DEVICE marks helpers that kernels call, forced inline on the device. CUDA and
@@ -998,7 +1017,7 @@ NUMKONG_MAYBE_UNUSED_ NUMKONG_C_INLINE_ void nk_assert_failure_(char const *cond
 
 /*  AltiVec defines @c bool, @c vector, and @c pixel as macros, which conflict with C++. We use
  *  @c __vector directly in our code, so undef the problematic macros. */
-#if defined(__POWER9_VECTOR__)
+#if NUMKONG_TARGET_POWERVSX
 #ifdef __cplusplus
 #undef bool
 #undef vector
@@ -1014,7 +1033,7 @@ typedef __vector signed int nk_vi32x4_t;
 typedef __vector signed long long nk_vi64x2_t;
 typedef __vector float nk_vf32x4_t;
 typedef __vector double nk_vf64x2_t;
-#endif // defined(__POWER9_VECTOR__)
+#endif // NUMKONG_TARGET_POWERVSX
 
 /** Copy 16 bits (2 bytes) from source to destination */
 #if defined(__GNUC__) || defined(__clang__)
@@ -1050,7 +1069,7 @@ typedef __vector double nk_vf64x2_t;
 extern "C" {
 #endif
 
-/** Packed 8-bit bit-vector (8 booleans in one byte), LSB = dimension 0. Used for Hamming
+/** Packed 8-bit bit-vector (8 booleans in one byte), MSB = dimension 0. Used for Hamming
  *  distance and Jaccard similarity via popcount. Dimension count must be a multiple of 8, the
  *  values per byte. */
 typedef unsigned char nk_u1x8_t;
@@ -1619,37 +1638,37 @@ NUMKONG_CONSTEXPR int nk_same_literal_(char const *name, nk_size_t length, char 
 }
 
 /** `{nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8}` — NVIDIA NVFP4 (Blackwell-native). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_nvfp4(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_nvfp4(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue4m3_k, nk_f32_k, 16, 8};
     return format;
 }
 
 /** `{nk_e2m1_k, nk_ue8m0_k, unknown, 32, 16}` — OCP MXFP4. */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp4(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp4(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m1_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 16};
     return format;
 }
 
 /** `{nk_e2m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E2M3 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e2m3(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e2m3(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e2m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
 /** `{nk_e3m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP6 (E3M2 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e3m2(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp6e3m2(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e3m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
 /** `{nk_e4m3_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E4M3 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e4m3(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e4m3(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e4m3_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
 
 /** `{nk_e5m2_k, nk_ue8m0_k, unknown, 32, 32}` — OCP MXFP8 (E5M2 variant). */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e5m2(void) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxfp8e5m2(void) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {nk_e5m2_k, nk_ue8m0_k, nk_dtype_unknown_k, 32, 32};
     return format;
 }
@@ -1661,14 +1680,14 @@ NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_mxint8(void) {
 }
 
 /** `{element_dtype, unknown, unknown, 0, 0}` — plain scalar buffer of @p element_dtype. */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_plain(nk_dtype_t element_dtype) NUMKONG_STREAMABLE_ {
     nk_block_scaled_format_t format = {element_dtype, nk_dtype_unknown_k, nk_dtype_unknown_k, 0, 0};
     return format;
 }
 
 /** Build a block-scaled format descriptor from a composite @p dtype enum value. Returns
  *  `nk_plain(dtype)` when @p dtype is not a composite. */
-NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype) {
+NUMKONG_CONSTEXPR nk_block_scaled_format_t nk_block_scaled_format_of_dtype(nk_dtype_t dtype) NUMKONG_STREAMABLE_ {
     switch (dtype) {
     case nk_nvfp4_k: return nk_nvfp4();
     case nk_mxfp4_k: return nk_mxfp4();
@@ -2198,8 +2217,6 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b64_vec_t {
     int16x4_t i16x4;
     int32x2_t i32x2;
     float32x2_t f32x2;
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_
     float16x4_t f16x4;
 #endif
     nk_u8_t u8s[8];
@@ -2217,7 +2234,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b64_vec_t {
 
 /** Small 16-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || defined(__loongarch_asx)
+#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_TARGET_LOONGSONASX
     __m128i xmm;
     __m128d xmm_pd;
     __m128 xmm_ps;
@@ -2235,14 +2252,10 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
     int32x4_t i32x4;
     int64x2_t i64x2;
     float32x4_t f32x4;
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_ && NUMKONG_ARCH_ARM64_ // double-precision NEON requires AArch64
     float64x2_t f64x2;
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_
     float16x8_t f16x8;
 #endif
-#if defined(__POWER9_VECTOR__)
+#if NUMKONG_TARGET_POWERVSX
     nk_vu8x16_t vu8x16;
     nk_vu16x8_t vu16x8;
     nk_vu32x4_t vu32x4;
@@ -2275,7 +2288,7 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b128_vec_t {
 
 /** Small 32-byte memory slice viewable as different types. */
 typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
-#if NUMKONG_ARCH_X8664_HASWELL_ || defined(__loongarch_asx)
+#if NUMKONG_ARCH_X8664_HASWELL_ || NUMKONG_TARGET_LOONGSONASX
     __m256i ymm;
     __m256d ymm_pd;
     __m256 ymm_ps;
@@ -2294,11 +2307,9 @@ typedef union NUMKONG_MAY_ALIAS_ nk_b256_vec_t {
     int32x4_t i32x4s[2];
     int64x2_t i64x2s[2];
     float32x4_t f32x4s[2];
-#endif
-#if NUMKONG_ARCH_ARM64_NEON_ && NUMKONG_ARCH_ARM64_ // double-precision NEON requires AArch64
     float64x2_t f64x2s[2];
 #endif
-#if defined(__POWER9_VECTOR__)
+#if NUMKONG_TARGET_POWERVSX
     nk_vu8x16_t vu8x16s[2];
     nk_vu16x8_t vu16x8s[2];
     nk_vu32x4_t vu32x4s[2];

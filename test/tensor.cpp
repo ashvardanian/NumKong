@@ -1190,6 +1190,7 @@ error_stats_t test_view_overloads(settings_t const &) {
     nk::f32_t a_data[8] {}, c_data[64] {};
     std::array<nk::f32_t, 8> b_array {};
     std::vector<nk::f32_t> b_vector(8);
+    std::vector<float> b_raw(8);
     auto a_view = nk::vector_view<nk::f32_t>(a_data, 8u);
     auto c_view = nk::vector_view<nk::f32_t>(c_data, 64u);
 
@@ -1200,6 +1201,12 @@ error_stats_t test_view_overloads(settings_t const &) {
     stats.expect(nk::succeeded(euclidean_status) && euclidean == nk::f32_t(0), "euclidean of zero vectors");
     auto [sqeuclidean, sqeuclidean_status] = nk::sqeuclidean<nk::f32_t>(std::span<nk::f32_t const>(b_vector), a_view);
     stats.expect(nk::succeeded(sqeuclidean_status) && sqeuclidean == nk::f32_t(0), "sqeuclidean of zero vectors");
+    auto [raw_dot, raw_dot_status] = nk::dot<nk::f32_t>(a_view, b_raw);
+    stats.expect(nk::succeeded(raw_dot_status) && raw_dot == nk::f32_t(0), "dot of raw storage");
+    float raw_rows[16] {};
+    double raw_products[16] {};
+    stats.expect(nk::dots_symmetric<nk::f32_t>(nk::matrix_view<float>(raw_rows, 4u, 4u),
+                                               nk::matrix_span<double>(raw_products, 4u, 4u)));
     stats.expect(nk::angular<nk::f32_t>(a_view, b_array).status);
     stats.expect(nk::bilinear<nk::f32_t>(a_view, b_array, c_view).status);
     stats.expect(nk::mahalanobis<nk::f32_t>(a_view, b_vector, c_data).status);
@@ -1365,7 +1372,7 @@ error_stats_t test_format_scalars(settings_t const &) {
     stats.expect(std::format("{:x}", uref) == "a", "u4 sub_byte_ref hex format");
     stats.expect(std::format("{:b}", uref) == "1010", "u4 sub_byte_ref binary format");
 
-    nk_u1x8_t packed_b = 0x05;
+    nk_u1x8_t packed_b = 0xA0;
     nk::sub_byte_ref<nk::u1x8_t> bref(&packed_b, 0);
     stats.expect(std::format("{}", bref) == "1", "u1 sub_byte_ref format");
     return stats;

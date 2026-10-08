@@ -87,7 +87,7 @@ NUMKONG_INLINE nk_u32_t nk_dots_reduce_sum_u1_streaming_(nk_u1x8_t const *data, 
 /** Packs U1 rows of a contiguous depth into tiles of 32-bit words, word-major across 16 rows, and
  *  their popcounts: a batch of 16 words of every row goes into ZA0.S horizontally and leaves it
  *  vertically. Packs every row tile whose first row lies from @p rows_begin up to @p rows_end. */
-__arm_new("za") static void nk_dots_pack_u1_smebi32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_dots_pack_u1_smebi32_streaming_( //
     nk_u1x8_t const *b, nk_size_t row_count, nk_size_t depth_bits, nk_size_t b_row_stride, nk_u32_t *tiles,
     nk_u32_t *norms, nk_size_t rows_begin, nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw();
@@ -198,7 +198,7 @@ NUMKONG_API nk_status_t nk_dots_pack_u1_smebi32(nk_u1x8_t const *b, nk_size_t ro
  *  dot(a, b) = popcount(a AND b) = (pop_a + pop_b - depth_bits + matching) / 2
  *  @endverbatim
  */
-__arm_new("za") static void nk_dots_packed_u1_smebi32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_dots_packed_u1_smebi32_streaming_( //
     nk_u1x8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t row_count_a, nk_size_t row_count_b,
     nk_size_t depth_bits, nk_size_t a_stride, nk_size_t c_stride) NUMKONG_STREAMING_ {
 
@@ -377,7 +377,7 @@ NUMKONG_API nk_status_t nk_dots_packed_u1_smebi32( //
 
 /** Symmetric u1 dot-product using ZA0 time-sharing and a 3-tile fast path. Same ZA transpose
  *  pattern as hammings_symmetric, but with dot extraction. */
-__arm_new("za") static void nk_dots_symmetric_u1_smebi32_streaming_( //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_dots_symmetric_u1_smebi32_streaming_( //
     nk_u1x8_t const *vectors, nk_size_t vectors_count, nk_size_t depth_bits, nk_size_t stride, nk_u32_t *result,
     nk_size_t result_stride, nk_size_t row_start, nk_size_t row_count) NUMKONG_STREAMING_ {
 

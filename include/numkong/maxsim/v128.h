@@ -17,6 +17,7 @@
 #ifndef NUMKONG_MAXSIM_V128_H
 #define NUMKONG_MAXSIM_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
@@ -217,4 +218,5 @@ NUMKONG_INLINE void nk_maxsim_pack_f16_v128_( //
 #endif
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_MAXSIM_V128_H

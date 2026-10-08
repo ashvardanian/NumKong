@@ -1,9 +1,13 @@
-# Power ppc64le GNU toolchain for NumKong, driving GCC.
+# Power ppc64le GNU toolchain for NumKong, driving GCC 15.
+#
+# GCC 15 is the floor: its `#pragma GCC target("power9-vector")` opens the POWER9 half of `altivec.h` inside the POWER9
+# kernels' region, so they compile beside the `power8` floor like every other capability. Clang never opens it
+# without `-mcpu=power9`, so it leaves POWER9 off.
 #
 # Two toolchain layouts are supported, selected by whether `PPC_TOOLCHAIN_PATH` is given.
 #
 #   Distribution cross packages, the default and what CI uses:
-#     sudo apt install gcc-powerpc64le-linux-gnu g++-powerpc64le-linux-gnu libc6-dev-ppc64el-cross qemu-user
+#     sudo apt install gcc-15-powerpc64le-linux-gnu g++-15-powerpc64le-linux-gnu libc6-dev-ppc64el-cross qemu-user
 #     cmake -B build_ppc -D CMAKE_TOOLCHAIN_FILE=cmake/toolchain-ppc64le-gnu.cmake
 #
 #   A self-contained toolchain carrying its own rootfs:
@@ -13,14 +17,14 @@
 # Optional inputs:
 #   -D PPC_TOOLCHAIN_PATH=/opt/powerpc64le             # selects the self-contained layout
 #   -D PPC_TRIPLE=powerpc64le-linux-gnu                # binary prefix and multiarch directory
-#   -D PPC_COMPILER_SUFFIX=-14                         # selects `powerpc64le-linux-gnu-gcc-14`
+#   -D PPC_COMPILER_SUFFIX=-15                         # selects `powerpc64le-linux-gnu-gcc-15`, the default
 #   -D PPC_SYSROOT=/opt/powerpc64le/sysroot
 #   -D PPC_QEMU_LD_PREFIX=/usr/powerpc64le-linux-gnu
 #   -D PPC_QEMU_CPU=power10
 #
 # Testing with QEMU:
 #   Tests will automatically run under QEMU via CMAKE_CROSSCOMPILING_EMULATOR, on `power10` by
-#   default, which runs the POWER9 kit, or on the POWER8 baseline with `-D PPC_QEMU_CPU=power8`.
+#   default, which runs the POWER9 kernels, or on the POWER8 baseline with `-D PPC_QEMU_CPU=power8`.
 
 set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR ppc64le)
@@ -43,16 +47,14 @@ endif ()
 set(PPC_TRIPLE "${PPC_TRIPLE}" CACHE STRING "Power target triple, used as the compiler prefix")
 set(ENV{PPC_TRIPLE} "${PPC_TRIPLE}")
 
-# Debian versions its cross compilers as `<triple>-gcc-14` and only provides an unsuffixed
-# `<triple>-gcc` when the unversioned metapackage is installed, which CI does not install.
-if (NOT DEFINED PPC_COMPILER_SUFFIX)
-    if (DEFINED ENV{PPC_COMPILER_SUFFIX})
-        set(PPC_COMPILER_SUFFIX "$ENV{PPC_COMPILER_SUFFIX}")
-    else ()
-        set(PPC_COMPILER_SUFFIX "")
-    endif ()
+# Ubuntu and Debian version their cross compilers as `<triple>-gcc-15`, and an unsuffixed `<triple>-gcc` is whatever
+# the unversioned metapackage points at, so the suffix pins GCC 15; pass an empty one for an unsuffixed GCC 15.
+if (DEFINED ENV{PPC_COMPILER_SUFFIX})
+    set(PPC_COMPILER_SUFFIX_DEFAULT_ "$ENV{PPC_COMPILER_SUFFIX}")
+else ()
+    set(PPC_COMPILER_SUFFIX_DEFAULT_ "-15")
 endif ()
-set(PPC_COMPILER_SUFFIX "${PPC_COMPILER_SUFFIX}" CACHE STRING "Version suffix on the cross compiler, e.g. `-14`")
+set(PPC_COMPILER_SUFFIX "${PPC_COMPILER_SUFFIX_DEFAULT_}" CACHE STRING "Version suffix on the cross compiler")
 set(ENV{PPC_COMPILER_SUFFIX} "${PPC_COMPILER_SUFFIX}")
 
 # Only a self-contained rootfs is a sysroot. Distribution cross packages install into the build
@@ -113,7 +115,7 @@ set(CMAKE_C_COMPILER "${_NUMKONG_PPC_PREFIX}gcc${PPC_COMPILER_SUFFIX}")
 set(CMAKE_CXX_COMPILER "${_NUMKONG_PPC_PREFIX}g++${PPC_COMPILER_SUFFIX}")
 
 # No `-mcpu` here: `CMakeLists.txt` pins the dispatch floor with `add_compile_options(-mcpu=power8)`,
-# which lands after `CMAKE_C_FLAGS` and wins, and gives `-mcpu=power9` to the POWER9 unit alone.
+# which lands after `CMAKE_C_FLAGS` and wins.
 # Raising the floor here would SIGILL on POWER8.
 
 if (DEFINED PPC_SYSROOT)

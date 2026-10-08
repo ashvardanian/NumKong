@@ -373,7 +373,7 @@ export function jensenshannon(a: Float64Array | Float32Array | Uint16Array | Ten
  *  Quantizes a numeric vector into a bit-packed binary representation.
  *
  *  Converts each element to a single bit, 1 for positive values and 0 for non-positive ones, with
- *  element 0 in the least significant bit of byte 0, matching {@link BinaryArray} and the C
+ *  element 0 in the most significant bit of byte 0, matching {@link BinaryArray} and the C
  *  `nk_u1x8_t`. This is the required format for {@link hamming} and {@link jaccard} distance
  *  functions. Dimension count must be a multiple of 8, the dimensions per byte.
  *
@@ -384,8 +384,8 @@ export function jensenshannon(a: Float64Array | Float32Array | Uint16Array | Ten
  *  ```ts
  *  const vec = new Float32Array([1.5, -2.3, 0.0, 3.1, -1.0, 2.0, 0.5, -0.5]);
  *  const binary = toBinary(vec);
- *  // Result: Uint8Array([0b01101001]) = [0x69]
- *  //   bits 0..7: [1, 0, 0, 1, 0, 1, 1, 0] for elements [+, -, 0, +, -, +, +, -]
+ *  // Result: Uint8Array([0b10010110]) = [0x96]
+ *  //   bits 7..0: [1, 0, 0, 1, 0, 1, 1, 0] for elements [+, -, 0, +, -, +, +, -]
  *
  *  // Use with Hamming distance
  *  const a = toBinary(new Float32Array([1, 2, 3, 4, 5, 6, 7, 8]));
@@ -398,7 +398,7 @@ export const toBinary = (vector: Float32Array | Float64Array | Int8Array): Uint8
 
   for (let i = 0; i < vector.length; i++) {
     if (vector[i] > 0) {
-      packedVector[i >>> 3] |= 1 << (i & 7);
+      packedVector[i >>> 3] |= 0x80 >>> (i & 7);
     }
   }
 

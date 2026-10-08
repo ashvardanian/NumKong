@@ -10,6 +10,7 @@
 #ifndef NUMKONG_SCALAR_V128RELAXED_H
 #define NUMKONG_SCALAR_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
@@ -40,4 +41,5 @@ NUMKONG_API nk_f64_t nk_f64_fma_v128relaxed(nk_f64_t a, nk_f64_t b, nk_f64_t c) 
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SCALAR_V128RELAXED_H

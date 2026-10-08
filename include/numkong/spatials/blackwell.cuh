@@ -16,7 +16,8 @@
 #ifndef NUMKONG_SPATIALS_BLACKWELL_CUH
 #define NUMKONG_SPATIALS_BLACKWELL_CUH
 
-#if NUMKONG_TARGET_BLACKWELL
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_CUDA_BLACKWELL_
 
 #include "numkong/dots/blackwell.cuh"
 #include "numkong/spatials/ampere.cuh"
@@ -25,6 +26,7 @@
 extern "C" {
 #endif
 
+#if NUMKONG_TARGET_BLACKWELL
 #pragma region BF16
 
 nk_define_cross_tma_blackwell_(angular, bf16, blackwell, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
@@ -200,10 +202,12 @@ nk_define_cross_tma_blackwell_(euclidean, mxfp8e5m2, blackwell, e5m2, e5m2, f32,
                                /*norm_scale=*/1.0f)
 
 #pragma endregion Block Scaled Floats
+#endif // NUMKONG_TARGET_BLACKWELL
 
 #if defined(__cplusplus)
 } // extern "C"
 #endif
 
-#endif // NUMKONG_TARGET_BLACKWELL
+#endif // NUMKONG_ARCH_CUDA_BLACKWELL_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_SPATIALS_BLACKWELL_CUH

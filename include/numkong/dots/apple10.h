@@ -16,6 +16,7 @@
 #ifndef NUMKONG_DOTS_APPLE10_H
 #define NUMKONG_DOTS_APPLE10_H
 
+#if NUMKONG_ARCH_METAL_
 #if NUMKONG_TARGET_APPLE10
 #include "numkong/dots/metal.h" // `nk_cross_encode_metal_`, `nk_define_cross_metal_`
 
@@ -83,4 +84,5 @@ nk_define_cross_metal_(nvfp4, apple10, e2m1x2, f32, f32, 64, 2)
 } // extern "C"
 #endif
 #endif // NUMKONG_TARGET_APPLE10
+#endif // NUMKONG_ARCH_METAL_
 #endif // NUMKONG_DOTS_APPLE10_H

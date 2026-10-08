@@ -16,9 +16,9 @@
 #ifndef NUMKONG_SPATIALS_CUDA_CUH
 #define NUMKONG_SPATIALS_CUDA_CUH
 
-#include "numkong/dots/cuda.cuh"
-
 #if NUMKONG_ARCH_CUDA_
+
+#include "numkong/dots/cuda.cuh"
 
 #if defined(__cplusplus)
 extern "C" {
@@ -52,14 +52,22 @@ nk_define_cross_cuda_(angular, i4, cuda, b32_cuda, i4x2, i4x2, f32, 32, 2, nk_i4
 nk_define_cross_cuda_(euclidean, i4, cuda, b32_cuda, i4x2, i4x2, f32, 32, 2, nk_i4_k, nk_cross_accumulation_i4x4_k)
 nk_define_cross_cuda_(angular, u4, cuda, b32_cuda, u4x2, u4x2, f32, 32, 2, nk_u4_k, nk_cross_accumulation_u4x4_k)
 nk_define_cross_cuda_(euclidean, u4, cuda, b32_cuda, u4x2, u4x2, f32, 32, 2, nk_u4_k, nk_cross_accumulation_u4x4_k)
-nk_define_cross_cuda_(angular, nvfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_nvfp4_k)
-nk_define_cross_cuda_(euclidean, nvfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_nvfp4_k)
-nk_define_cross_cuda_(angular, mxfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_mxfp4_k)
-nk_define_cross_cuda_(euclidean, mxfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_mxfp4_k)
-nk_define_cross_cuda_(angular, mxfp8e4m3, cuda, scaled_cuda, e4m3, e4m3, f32, 16, 1, nk_mxfp8e4m3_k)
-nk_define_cross_cuda_(euclidean, mxfp8e4m3, cuda, scaled_cuda, e4m3, e4m3, f32, 16, 1, nk_mxfp8e4m3_k)
-nk_define_cross_cuda_(angular, mxfp8e5m2, cuda, scaled_cuda, e5m2, e5m2, f32, 16, 1, nk_mxfp8e5m2_k)
-nk_define_cross_cuda_(euclidean, mxfp8e5m2, cuda, scaled_cuda, e5m2, e5m2, f32, 16, 1, nk_mxfp8e5m2_k)
+nk_define_cross_cuda_(angular, nvfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_load_f32_,
+                      nk_ue4m3_split_simt_, 16)
+nk_define_cross_cuda_(euclidean, nvfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_load_f32_,
+                      nk_ue4m3_split_simt_, 16)
+nk_define_cross_cuda_(angular, mxfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_load_f32_,
+                      nk_ue8m0_split_simt_, 32)
+nk_define_cross_cuda_(euclidean, mxfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_load_f32_,
+                      nk_ue8m0_split_simt_, 32)
+nk_define_cross_cuda_(angular, mxfp8e4m3, cuda, scaled_cuda, e4m3, e4m3, f32, 16, 1, nk_e4m3_load_f32_,
+                      nk_ue8m0_split_simt_, 32)
+nk_define_cross_cuda_(euclidean, mxfp8e4m3, cuda, scaled_cuda, e4m3, e4m3, f32, 16, 1, nk_e4m3_load_f32_,
+                      nk_ue8m0_split_simt_, 32)
+nk_define_cross_cuda_(angular, mxfp8e5m2, cuda, scaled_cuda, e5m2, e5m2, f32, 16, 1, nk_e5m2_load_f32_,
+                      nk_ue8m0_split_simt_, 32)
+nk_define_cross_cuda_(euclidean, mxfp8e5m2, cuda, scaled_cuda, e5m2, e5m2, f32, 16, 1, nk_e5m2_load_f32_,
+                      nk_ue8m0_split_simt_, 32)
 #endif // NUMKONG_TARGET_CUDA
 
 #if defined(__cplusplus)

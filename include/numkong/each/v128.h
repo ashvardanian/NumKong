@@ -14,6 +14,7 @@
 #ifndef NUMKONG_EACH_V128_H
 #define NUMKONG_EACH_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
@@ -41,15 +42,6 @@ NUMKONG_INLINE void nk_each_add_f32_v128_(nk_f32_t const *a, nk_f32_t const *b, 
     for (; i < n; ++i) result[i] = a[i] + b[i];
 }
 
-#if NUMKONG_TARGET_V128
-NUMKONG_API nk_status_t nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
-                                             void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_each_add_f32_v128_(a, b, n, result);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_V128
-
 #pragma endregion F32 Floats
 #pragma region BF16 Floats
 
@@ -75,15 +67,6 @@ NUMKONG_INLINE void nk_each_add_bf16_v128_(nk_bf16_t const *a, nk_bf16_t const *
         nk_f32_to_bf16_(&sum, result + i);
     }
 }
-
-#if NUMKONG_TARGET_V128
-NUMKONG_API nk_status_t nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
-                                              void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_each_add_bf16_v128_(a, b, n, result);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_V128
 
 #pragma endregion BF16 Floats
 #pragma region I32 Integers
@@ -139,15 +122,6 @@ NUMKONG_INLINE void nk_each_add_i8_v128_(nk_i8_t const *a, nk_i8_t const *b, nk_
     }
 }
 
-#if NUMKONG_TARGET_V128
-NUMKONG_API nk_status_t nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
-                                            void *stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_each_add_i8_v128_(a, b, n, result);
-    return nk_success_k;
-}
-#endif // NUMKONG_TARGET_V128
-
 #pragma endregion I8 Integers
 #pragma region U8 Integers
 
@@ -165,7 +139,30 @@ NUMKONG_INLINE void nk_each_add_u8_v128_(nk_u8_t const *a, nk_u8_t const *b, nk_
     }
 }
 
+#pragma endregion U8 Integers
+
 #if NUMKONG_TARGET_V128
+NUMKONG_API nk_status_t nk_each_sum_f32_v128(nk_f32_t const *a, nk_f32_t const *b, nk_size_t n, nk_f32_t *result,
+                                             void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_each_add_f32_v128_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_sum_bf16_v128(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n, nk_bf16_t *result,
+                                              void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_each_add_bf16_v128_(a, b, n, result);
+    return nk_success_k;
+}
+
+NUMKONG_API nk_status_t nk_each_sum_i8_v128(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_i8_t *result,
+                                            void *stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    nk_each_add_i8_v128_(a, b, n, result);
+    return nk_success_k;
+}
+
 NUMKONG_API nk_status_t nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, nk_size_t n, nk_u8_t *result,
                                             void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -173,8 +170,6 @@ NUMKONG_API nk_status_t nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, 
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_V128
-
-#pragma endregion U8 Integers
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -185,4 +180,5 @@ NUMKONG_API nk_status_t nk_each_sum_u8_v128(nk_u8_t const *a, nk_u8_t const *b, 
 #endif
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_EACH_V128_H

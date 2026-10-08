@@ -70,10 +70,10 @@ test("Distance from itself", () => {
   assertAlmostEqual(numkong.jaccard(u8s, u8s), 0.0, 0.01);
 });
 
-test("toBinary packs element 0 into the least significant bit", () => {
+test("toBinary packs element 0 into the most significant bit", () => {
   const signs = new Float32Array([1.5, -2.3, 0.0, 3.1, -1.0, 2.0, 0.5, -0.5, 1.0, -1.0, -1.0, -1.0, -1.0, -1.0, -1.0, 1.0]);
   const packed = numkong.toBinary(signs);
-  assert.deepStrictEqual(Array.from(packed), [0x69, 0x81]);
+  assert.deepStrictEqual(Array.from(packed), [0x96, 0x81]);
 
   const bits = new numkong.BinaryArray(signs.length);
   signs.forEach((value, index) => bits.setBit(index, value > 0 ? 1 : 0));

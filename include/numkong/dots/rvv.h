@@ -145,6 +145,31 @@ NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_rvv_(nk_u8_t const *data, nk_siz
     return (nk_u32_t)sumsq;
 }
 
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_rvv_(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_unused_(stride);
+    nk_u8_t const *bytes = (nk_u8_t const *)data;
+    nk_size_t const max_vector_length = __riscv_vsetvlmax_e8m1();
+    vuint32m4_t quadrupled_sumsq_u32m4 = __riscv_vmv_v_x_u32m4(0, max_vector_length);
+    for (nk_size_t pass = 0; pass < 2; ++pass) {
+        nk_size_t remaining = pass == 0 ? nk_size_divide_round_up_(count, 2) : count / 2;
+        nk_u8_t const *cursor = bytes;
+        for (nk_size_t vector_length; remaining > 0; remaining -= vector_length, cursor += vector_length) {
+            vector_length = __riscv_vsetvl_e8m1(remaining);
+            vuint8m1_t raw_u8m1 = __riscv_vle8_v_u8m1(cursor, vector_length);
+            vuint8m1_t nibble_u8m1 = pass == 0 ? __riscv_vsrl_vx_u8m1(raw_u8m1, 4, vector_length)
+                                               : __riscv_vand_vx_u8m1(raw_u8m1, 0x0F, vector_length);
+            vint8m1_t doubled_i8m1 = __riscv_vluxei8_v_i8m1(nk_e2m1_doubled_lut_rvv_, nibble_u8m1, vector_length);
+            vuint16m2_t squares_u16m2 = __riscv_vreinterpret_v_i16m2_u16m2(
+                __riscv_vwmul_vv_i16m2(doubled_i8m1, doubled_i8m1, vector_length));
+            quadrupled_sumsq_u32m4 = __riscv_vwaddu_wv_u32m4_tu(quadrupled_sumsq_u32m4, quadrupled_sumsq_u32m4,
+                                                                squares_u16m2, vector_length);
+        }
+    }
+    nk_u32_t quadrupled_sumsq = __riscv_vmv_x_s_u32m1_u32(
+        __riscv_vredsum_vs_u32m4_u32m1(quadrupled_sumsq_u32m4, __riscv_vmv_v_x_u32m1(0, 1), max_vector_length));
+    return (nk_f32_t)quadrupled_sumsq * 0.25f;
+}
+
 #pragma region F32 Floats
 
 /**
@@ -1984,8 +2009,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f32_rvv(nk_f32_t const *b, nk_size_t column
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2076,8 +2100,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f64_rvv(nk_f64_t const *b, nk_size_t column
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2168,8 +2191,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_rvv(nk_e2m3_t const *b, nk_size_t colu
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2268,8 +2290,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t co
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2312,7 +2333,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_rvv(nk_e2m1x2_t const *b, nk_size_t co
     nk_f32_t *norms = (nk_f32_t *)(packed + total);
     for (nk_size_t column = columns_begin; column < columns_end; ++column) {
         nk_e2m1x2_t const *src = (nk_e2m1x2_t const *)((char const *)b + column * b_stride);
-        norms[column] = nk_dots_reduce_sumsq_e2m1_(src, depth, sizeof(nk_e2m1x2_t));
+        norms[column] = nk_dots_reduce_sumsq_e2m1_rvv_(src, depth, sizeof(nk_e2m1x2_t));
     }
     return nk_success_k;
 }
@@ -2370,8 +2391,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e3m2_rvv(nk_e3m2_t const *b, nk_size_t colu
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2472,8 +2492,7 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_rvv(nk_bf16_t const *b, nk_size_t colu
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2566,8 +2585,7 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_rvv(nk_f16_t const *b, nk_size_t column
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2660,8 +2678,7 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_rvv(nk_i8_t const *b, nk_size_t column_c
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2752,8 +2769,7 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_rvv(nk_u8_t const *b, nk_size_t column_c
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2843,8 +2859,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e4m3_rvv(nk_e4m3_t const *b, nk_size_t colu
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;
@@ -2936,8 +2951,7 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_rvv(nk_e5m2_t const *b, nk_size_t colu
 
     nk_cross_packed_buffer_header_t *header = (nk_cross_packed_buffer_header_t *)b_packed;
     if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+        __riscv_vse8_v_u8m4((nk_u8_t *)header, __riscv_vmv_v_x_u8m4(0, sizeof(*header)), sizeof(*header));
         header->tensor_scale = 1;
         header->column_count = (nk_u32_t)column_count;
         header->depth_dimensions = (nk_u32_t)depth;

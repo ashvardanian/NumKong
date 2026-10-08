@@ -525,6 +525,7 @@ NUMKONG_INLINE float64x2_t nk_atan2_f64x2_neon_(float64x2_t const ys_inputs, flo
 }
 
 #if NUMKONG_TARGET_NEON
+
 NUMKONG_API nk_status_t nk_trig_sin_f32_neon(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
@@ -638,6 +639,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f64_neon(nk_f64_t const *ins, nk_size_t n, 
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_NEON
 
 #if defined(__clang__)

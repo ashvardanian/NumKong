@@ -13,8 +13,8 @@ namespace ashvardanian::numkong::test {
 
 #if NUMKONG_ARCH_CUDA_
 
-/** Packed angular distance against serial where the B column holds the E4M3 NaN code 0x7F, whose
- *  norm must stay NaN rather than decode to 480. */
+/** Packed angular distance against serial where the B column holds the E4M3 NaN code 0x7F, which
+ *  must give NaN as serial does rather than decode to 480. */
 template <auto packed_size_fn_, auto pack_fn_, auto angulars_fn_>
 static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &settings) {
     using bytes_t = nk::vector<char, cuda_backend_t::allocator<char>>;
@@ -43,7 +43,7 @@ static error_stats_t test_angulars_packed_nan_e4m3(settings_t const &settings) {
     stats.expect(nk_dots_pack_e4m3_serial(b_codes, 1, depth, depth, serial_packed.raw_values_data(), 0, 1, nullptr));
     stats.expect(nk_angulars_packed_e4m3_serial(a_codes, serial_packed.raw_values_data(), &serial, 1, 1, depth, depth,
                                                 sizeof(nk_f32_t), nullptr));
-    stats.expect(*gpu == serial, "a NaN code in B packed to a finite column norm");
+    stats.expect(std::isnan(*gpu) && std::isnan(serial), "a NaN code in B gives no NaN angle");
     return stats;
 }
 

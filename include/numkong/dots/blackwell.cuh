@@ -25,6 +25,7 @@
 #ifndef NUMKONG_DOTS_BLACKWELL_CUH
 #define NUMKONG_DOTS_BLACKWELL_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_BLACKWELL_
 
 #include <cuda.h> // `CUtensorMap`, `cuTensorMapEncodeTiled`
@@ -76,7 +77,7 @@ typedef struct {
     nk_u64_t measured[2];
     nk_u64_t collected[2];
     nk_u32_t tensor_memory;
-    nk_f32_t column_norms[nk_cross_columns_blackwell_k];
+    nk_u32_t column_norms[nk_cross_columns_blackwell_k];
     nk_u32_t column_byte_sums[nk_cross_columns_blackwell_k];
 } nk_cross_control_blackwell_t;
 
@@ -703,6 +704,19 @@ NUMKONG_DEVICE void nk_cross_stage_scaled_row_blackwell_(nk_block_scaled_format_
     *real_sum += slab_sum;
 }
 
+/** Zeros the codes of every block of staged 128-byte row @p tile_row of @p operand whose UE8M0
+ *  scale is 0x00, which the tensor cores read as 2⁻¹²⁷ and the serial backends as zero. */
+NUMKONG_DEVICE void nk_cross_zero_unscaled_blocks_blackwell_(nk_block_scaled_format_t format, unsigned char *operand,
+                                                             unsigned tile_row, unsigned char const *scales,
+                                                             nk_size_t blocks) {
+    uint4 *const chunks = (uint4 *)(operand + tile_row * nk_cross_slab_bytes_blackwell_k);
+    unsigned const block_chunks = (unsigned)format.block_bytes / 16;
+    for (unsigned block = 0; block < blocks; ++block)
+        if (scales[block] == 0)
+            for (unsigned chunk = block * block_chunks; chunk != (block + 1) * block_chunks; ++chunk)
+                chunks[chunk ^ (tile_row & 7)] = make_uint4(0, 0, 0, 0);
+}
+
 /** The tile row a stage or epilogue thread owns. Warp w reaches lanes from 32 · (w mod 4) on, so
  *  warps 2 to 9 put thread t on lane t mod 128: stage warp w and epilogue warp w + 4 share rows. */
 NUMKONG_DEVICE unsigned nk_cross_drain_row_blackwell_(void) { return threadIdx.x % 128; }
@@ -918,13 +932,13 @@ NUMKONG_DEVICE void nk_cross_multiply_blackwell_(nk_cross_kernel_blackwell_t con
     }
 }
 
-/** Copies this thread's lane of the slab's block scales into the stage's scale slot and adds its
- *  rows' scaled squares for a metric. */
+/** Copies this thread's lane of the slab's block scales into the stage's scale slot, zeros its
+ *  rows' blocks of zero UE8M0 scales, and adds its rows' scaled squares for a metric. */
 NUMKONG_DEVICE void nk_cross_prepare_scales_blackwell_(nk_cross_kernel_blackwell_t const *kernel,
                                                        nk_cross_schedule_blackwell_t const *schedule,
-                                                       nk_cross_tile_arguments_t const *shape,
-                                                       unsigned char const *stage, nk_u32_t scale_slot, nk_size_t slab,
-                                                       nk_size_t first_row, nk_size_t first_column,
+                                                       nk_cross_tile_arguments_t const *shape, unsigned char *stage,
+                                                       nk_u32_t scale_slot, nk_size_t slab, nk_size_t first_row,
+                                                       nk_size_t first_column,
                                                        nk_cross_statistics_blackwell_t *statistics) {
     unsigned const tile_row = nk_cross_drain_row_blackwell_();
     nk_size_t const row = first_row + tile_row, column = first_column + tile_row;
@@ -934,6 +948,14 @@ NUMKONG_DEVICE void nk_cross_prepare_scales_blackwell_(nk_cross_kernel_blackwell
     nk_tmem_fence_after_blackwell_();
     nk_cross_stage_scales_blackwell_(shape, first_row, first_column, slab, schedule->scale_bytes, schedule->blocks,
                                      scale_slot);
+    if (schedule->format.scale_dtype == nk_ue8m0_k && row < shape->row_end)
+        nk_cross_zero_unscaled_blocks_blackwell_(schedule->format, stage, tile_row,
+                                                 shape->a_scales + row * shape->a_scales_stride + scales_offset,
+                                                 slab_blocks);
+    if (schedule->format.scale_dtype == nk_ue8m0_k && column < shape->column_count)
+        nk_cross_zero_unscaled_blocks_blackwell_(schedule->format, stage + nk_cross_a_bytes_blackwell_k, tile_row,
+                                                 shape->b_scales + column * shape->b_scales_stride + scales_offset,
+                                                 slab_blocks);
     if (squares && row < shape->row_end)
         nk_cross_stage_scaled_row_blackwell_(schedule->format, stage, tile_row,
                                              shape->a_scales + row * shape->a_scales_stride + scales_offset,
@@ -1003,12 +1025,13 @@ NUMKONG_DEVICE void nk_cross_fold_integer_sums_blackwell_(nk_u32_t bits[32], nk_
 }
 
 /** Turns 32 drained sums of @p row from @p first_column into output bits: F32 dots times
- *  @p dot_scale, integer dots restored from the U8 offset, or the metric of either. */
+ *  @p dot_scale, integer dots restored from the U8 offset, or the metric of either from the bits
+ *  of both norms, F32 for floating types and exact U32 for integers. */
 NUMKONG_DEVICE void nk_cross_finish_sums_blackwell_(nk_cross_kernel_blackwell_t const *kernel,
                                                     nk_cross_schedule_blackwell_t const *schedule,
                                                     nk_cross_control_blackwell_t const *control, nk_u32_t bits[32],
                                                     nk_size_t row, nk_size_t first_column, unsigned tile_column,
-                                                    nk_f32_t dot_scale, nk_f32_t row_norm, nk_u32_t row_byte_sum) {
+                                                    nk_f32_t dot_scale, nk_u32_t row_norm, nk_u32_t row_byte_sum) {
     int const integer = schedule->staging == nk_cross_staging_expand_k;
     // Padding codes widen to −128 in both rows, which the byte sums never count.
     nk_u32_t const offset_correction = 16384u * (nk_u32_t)(schedule->slabs * schedule->box_bytes);
@@ -1016,17 +1039,21 @@ NUMKONG_DEVICE void nk_cross_finish_sums_blackwell_(nk_cross_kernel_blackwell_t 
     for (unsigned offset = 0; offset < 32; ++offset) {
         if (schedule->offsets)
             bits[offset] += 128u * (row_byte_sum + control->column_byte_sums[tile_column + offset]) - offset_correction;
-        nk_f32_t const dot = !integer                              ? __uint_as_float(bits[offset]) * dot_scale
-                             : kernel->norm == nk_cross_norm_u32_k ? (nk_f32_t)bits[offset]
-                                                                   : (nk_f32_t)(nk_i32_t)bits[offset];
-        nk_f32_t const column_norm = control->column_norms[tile_column + offset];
+        nk_f32_t const dot = __uint_as_float(bits[offset]) * dot_scale;
+        nk_u32_t const column_norm = control->column_norms[tile_column + offset];
         if (kernel->metric == nk_cross_metric_dot_k) {
             if (!integer) bits[offset] = __float_as_uint(dot);
         }
         else if (kernel->triangle == nk_cross_triangle_upper_k && first_column + offset == row) bits[offset] = 0;
+        else if (integer)
+            bits[offset] = __float_as_uint(
+                nk_cross_integer_metric_(kernel->metric, kernel->norm, bits[offset], row_norm, column_norm));
         else if (kernel->metric == nk_cross_metric_angular_k)
-            bits[offset] = __float_as_uint(nk_f32_angular_(dot, row_norm, column_norm));
-        else bits[offset] = __float_as_uint(nk_f32_euclidean_(dot, row_norm, column_norm));
+            bits[offset] = __float_as_uint(
+                nk_f32_angular_(dot, __uint_as_float(row_norm), __uint_as_float(column_norm)));
+        else
+            bits[offset] = __float_as_uint(
+                nk_f32_euclidean_(dot, __uint_as_float(row_norm), __uint_as_float(column_norm)));
     }
 }
 
@@ -1080,7 +1107,7 @@ NUMKONG_DEVICE void nk_cross_drain_accumulator_blackwell_(
     nk_cross_kernel_blackwell_t const *kernel, nk_cross_schedule_blackwell_t const *schedule,
     nk_cross_control_blackwell_t const *control, nk_cross_tile_arguments_blackwell_t const *arguments,
     unsigned char *boxes, nk_u32_t *stores, nk_u32_t lanes, nk_u32_t accumulator, nk_size_t chunk, nk_size_t first_row,
-    nk_size_t first_column, nk_f32_t row_norm, nk_u32_t row_byte_sum) {
+    nk_size_t first_column, nk_u32_t row_norm, nk_u32_t row_byte_sum) {
     nk_cross_tile_arguments_t const *const shape = &arguments->tile;
     unsigned const tile_row = nk_cross_drain_row_blackwell_();
     nk_size_t const row = first_row + tile_row, warp_first_row = first_row + tile_row / 32 * 32;
@@ -1158,22 +1185,22 @@ NUMKONG_DEVICE void nk_cross_stage_blackwell_(nk_cross_kernel_blackwell_t const 
         nk_f32_t const column_tensor_scale = kernel->triangle == nk_cross_triangle_upper_k && shape->b_tensor_scale
                                                  ? *shape->b_tensor_scale
                                                  : 1;
-        nk_fui32_t const row_bits = nk_cross_norm_finalize_(kernel->norm, statistics.row_integer_norm,
-                                                            statistics.row_real_norm, kernel->norm_scale);
-        nk_fui32_t column_bits = {0};
+        nk_fui32_t row_norm = nk_cross_norm_finalize_(kernel->norm, statistics.row_integer_norm,
+                                                      statistics.row_real_norm, kernel->norm_scale);
+        nk_fui32_t column_norm = {0};
         if (kernel->triangle == nk_cross_triangle_upper_k)
-            column_bits = nk_cross_norm_finalize_(kernel->norm, statistics.column_integer_norm,
+            column_norm = nk_cross_norm_finalize_(kernel->norm, statistics.column_integer_norm,
                                                   statistics.column_real_norm, kernel->norm_scale);
         else if (kernel->metric != nk_cross_metric_dot_k && column < shape->column_count)
-            column_bits.u = ((nk_u32_t const *)shape->b_norms)[column];
-        nk_f32_t const row_norm = nk_cross_norm_to_f32_(row_bits, kernel->norm) * a_tensor_scale * a_tensor_scale;
-        nk_f32_t const column_norm = nk_cross_norm_to_f32_(column_bits, kernel->norm) * column_tensor_scale *
-                                     column_tensor_scale;
+            column_norm.u = ((nk_u32_t const *)shape->b_norms)[column];
+        // Integer norms stay raw U32 bits, so the epilogue forms exact integer distances.
+        if (kernel->norm == nk_cross_norm_f32_k)
+            row_norm.f = row_norm.f * a_tensor_scale * a_tensor_scale,
+            column_norm.f = column_norm.f * column_tensor_scale * column_tensor_scale;
         nk_mbarrier_wait_blackwell_(nk_shared_address_ampere_(&control->collected[slot]), slot_phase ^ 1);
         nk_tmem_fence_after_blackwell_();
-        nk_tmem_store_x4_blackwell_(lanes + nk_cross_statistics_column_blackwell_k + 4 * slot,
-                                    __float_as_uint(row_norm), statistics.row_byte_sum, __float_as_uint(column_norm),
-                                    statistics.column_byte_sum);
+        nk_tmem_store_x4_blackwell_(lanes + nk_cross_statistics_column_blackwell_k + 4 * slot, row_norm.u,
+                                    statistics.row_byte_sum, column_norm.u, statistics.column_byte_sum);
         nk_tmem_wait_store_blackwell_();
         nk_tmem_fence_before_blackwell_();
         __syncwarp();
@@ -1214,7 +1241,7 @@ NUMKONG_DEVICE void nk_cross_drain_blackwell_(nk_cross_kernel_blackwell_t const 
                     nk_mbarrier_arrive_blackwell_(nk_shared_address_ampere_(&control->collected[slot]));
                 // The first barrier retires the previous tile's reads, the second publishes these.
                 nk_barrier_sync_blackwell_(1, 128);
-                control->column_norms[tile_row] = __uint_as_float(statistics[2]);
+                control->column_norms[tile_row] = statistics[2];
                 control->column_byte_sums[tile_row] = statistics[3];
                 nk_barrier_sync_blackwell_(1, 128);
             }
@@ -1223,7 +1250,7 @@ NUMKONG_DEVICE void nk_cross_drain_blackwell_(nk_cross_kernel_blackwell_t const 
             nk_tmem_fence_after_blackwell_();
             nk_cross_drain_accumulator_blackwell_(kernel, schedule, control, arguments, boxes, &stores, lanes,
                                                   buffer * schedule->tile_columns, chunk, first_row, first_column,
-                                                  __uint_as_float(statistics[0]), statistics[1]);
+                                                  statistics[0], statistics[1]);
             nk_tmem_fence_before_blackwell_();
             __syncwarp();
             if ((threadIdx.x & 31) != 0) continue;
@@ -1353,12 +1380,31 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_pairs_blackwell_(void const *kernel, 
     return status == cudaSuccess ? nk_success_k : nk_device_code_mismatch_k;
 }
 
+/** Writes every output of an empty depth, which the tensor maps cannot describe: dots of nothing
+ *  times both tensor scales, so an infinite one gives NaN, and zero distances between zero
+ *  vectors, over the upper triangle alone for @p upper. Every Blackwell output takes 32 bits. */
+static __global__ void nk_cross_empty_blackwell_kernel_(nk_cross_tile_arguments_t arguments, nk_cross_metric_t metric,
+                                                        int upper) {
+    nk_f32_t const a_tensor_scale = arguments.a_tensor_scale ? *arguments.a_tensor_scale : 1;
+    nk_f32_t const b_tensor_scale = arguments.b_tensor_scale ? *arguments.b_tensor_scale : 1;
+    nk_f32_t const value = metric == nk_cross_metric_dot_k ? 0.0f * a_tensor_scale * b_tensor_scale : 0.0f;
+    nk_size_t const outputs = (arguments.row_end - arguments.row_start) * arguments.column_count;
+    for (nk_size_t index = blockIdx.x * (nk_size_t)blockDim.x + threadIdx.x; index < outputs;
+         index += gridDim.x * (nk_size_t)blockDim.x) {
+        nk_size_t const row = arguments.row_start + index / arguments.column_count;
+        nk_size_t const column = index % arguments.column_count;
+        if (upper && column < row) continue;
+        ((nk_f32_t *)((unsigned char *)arguments.c + row * arguments.c_stride))[column] = value;
+    }
+}
+
 /** Validates the contract, describes A's @p a_rows rows and B's @p column_count rows, and launches
  *  as many blocks of @p kernel as stay resident, each walking output tiles with a stride of the
  *  grid, in pairs for a @p dtype and @p metric that @c nk_cross_paired_blackwell_ pairs. @p b_norms
- *  is the packed column norms a @c packed metric reads, or null. A block-scaled @p dtype needs its
- *  block to divide @p depth and scales on both operands. Codes need 16-byte rows for the tensor
- *  maps, while scales may sit at any byte, as dense rows of them do. */
+ *  is the packed column norms a @c packed metric reads, or null for @c symmetric. A block-scaled
+ *  @p dtype needs its block to divide @p depth and, past an empty depth, scales on both operands.
+ *  Codes need 16-byte rows for the tensor maps, while scales may sit at any byte, as dense rows
+ *  of scales do. */
 NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cross_operand_t const *a, nk_size_t a_rows,
                                                       nk_cross_operand_t const *b, void const *b_norms, void *c,
                                                       nk_size_t result_bytes, nk_size_t row_start, nk_size_t row_end,
@@ -1369,12 +1415,22 @@ NUMKONG_INLINE nk_status_t nk_cross_launch_blackwell_(void const *kernel, nk_cro
     nk_size_t const block_size = nk_block_scaled_format_of_dtype(dtype).block_size;
     unsigned const raw_bytes = nk_cross_raw_bytes_blackwell_(dtype);
     unsigned const box_bytes = raw_bytes ? raw_bytes : nk_cross_slab_bytes_blackwell_k;
-    if (block_size && (depth % block_size || !a->scales || !b->scales)) return nk_unexpected_dimensions_k;
+    if (block_size && (depth % block_size || (depth && (!a->scales || !b->scales)))) return nk_unexpected_dimensions_k;
     if ((((nk_size_t)a->elements) | a_stride | ((nk_size_t)b->elements) | b_stride) & 15 ||
         (((nk_size_t)c) | c_stride) & (result_bytes - 1))
         return nk_misaligned_k;
     if (row_end <= row_start || column_count == 0) return nk_success_k;
     nk_cross_tile_arguments_blackwell_t arguments;
+    if (depth == 0) {
+        nk_cross_tile_arguments_t empty = {0};
+        empty.c = c, empty.row_start = row_start, empty.row_end = row_end, empty.column_count = column_count;
+        empty.c_stride = c_stride, empty.a_tensor_scale = a->tensor_scale, empty.b_tensor_scale = b->tensor_scale;
+        int upper = b_norms == NUMKONG_NULL;
+        void *empty_arguments[3] = {&empty, &metric, &upper};
+        nk_size_t const blocks = nk_size_divide_round_up_((row_end - row_start) * column_count, 256);
+        return nk_launch_cuda_((void const *)nk_cross_empty_blackwell_kernel_, blocks < 1024 ? blocks : 1024, 256,
+                               empty_arguments, 0, stream);
+    }
     if (!nk_cross_map_blackwell_(&arguments.a_map, a->elements, a_rows, depth_bytes, a_stride, box_bytes,
                                  nk_cross_rows_blackwell_k) ||
         !nk_cross_map_blackwell_(&arguments.b_map, b->elements, column_count, depth_bytes, b_stride, box_bytes,
@@ -1719,4 +1775,5 @@ nk_define_cross_tma_blackwell_(dot, mxfp8e5m2, blackwell, e5m2, e5m2, f32, /*dep
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_BLACKWELL_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_DOTS_BLACKWELL_CUH

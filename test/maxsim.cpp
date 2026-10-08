@@ -42,6 +42,8 @@ error_stats_t test_maxsim_packed(settings_t const &settings,
          steady_clock_t::now() < deadline;) {
         fill_random(settings, generator, queries);
         fill_random(settings, generator, documents);
+        // A zero query beside a zero document scores 0, as two zero vectors do in `spatials.h`
+        std::memset(queries.raw_values_data(), 0, stride), std::memset(documents.raw_values_data(), 0, stride);
 
         // Pack and compute with kernel under test
         stats.expect(

@@ -23,7 +23,7 @@
  *  - Arm: SME, and per-feature NEON capabilities (BFDOT for BF16, FHM for E4M3, SDOT for I8)
  *  - NVIDIA: the CUDA baseline on every device, Ampere @c mma.sync from compute capability 8.0,
  *    Hopper @c wgmma, and native E4M3 on datacenter Blackwell and Blackwell RTX
- *  - AMD: the ROCm baseline on every device, CDNA4 and CDNA5 matrix cores
+ *  - AMD: the ROCm baseline on every device, CDNA3, CDNA4 and CDNA5 matrix cores
  *  - portable serial fallback
  *
  *  @section attention_usage Usage and Benefits
@@ -1656,6 +1656,62 @@ NUMKONG_API nk_status_t nk_attention_packed_i8_rocm(nk_i8_t const *queries, void
                                                     void *stream);
 #endif // NUMKONG_TARGET_ROCM
 
+/*  AMD Instinct MI300 backends, gfx942, through its matrix cores. */
+#if NUMKONG_TARGET_CDNA3
+/** @copydoc nk_attention_pack_size_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_bf16_cdna3(nk_size_t key_value_head_count, nk_size_t depth,
+                                                          nk_size_t token_count, nk_size_t segment_count,
+                                                          nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_bf16_cdna3(void const *key_value_packed, nk_size_t *heads,
+                                                             nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_bf16_best */
+NUMKONG_API nk_status_t nk_attention_pack_bf16_cdna3(nk_bf16_t const *keys, nk_bf16_t const *values,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                     nk_size_t segment_count, nk_size_t key_stride,
+                                                     nk_size_t value_stride, void *key_value_packed,
+                                                     nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_bf16_cdna3(nk_bf16_t const *queries, void const *key_value_packed,
+                                                       nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                       nk_size_t key_value_head_count, nk_size_t depth,
+                                                       nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                       nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                       nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                       void *stream);
+/** @copydoc nk_attention_packed_gradients_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_gradients_bf16_cdna3(
+    nk_bf16_t const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
+    nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
+    nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
+    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
+    nk_size_t task_begin, nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_pack_size_i8_best */
+NUMKONG_API nk_status_t nk_attention_pack_size_i8_cdna3(nk_size_t key_value_head_count, nk_size_t depth,
+                                                        nk_size_t token_count, nk_size_t segment_count,
+                                                        nk_size_t *bytes);
+/** @copydoc nk_attention_packed_shape_i8_best */
+NUMKONG_API nk_status_t nk_attention_packed_shape_i8_cdna3(void const *key_value_packed, nk_size_t *heads,
+                                                           nk_size_t *depth, nk_size_t *segments, void *stream);
+/** @copydoc nk_attention_pack_i8_best */
+NUMKONG_API nk_status_t nk_attention_pack_i8_cdna3(nk_i8_t const *keys, nk_i8_t const *values,
+                                                   nk_size_t key_value_head_count, nk_size_t depth,
+                                                   nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,
+                                                   nk_size_t segment_count, nk_size_t key_stride,
+                                                   nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin,
+                                                   nk_size_t task_end, void *stream);
+/** @copydoc nk_attention_packed_bf16_best */
+NUMKONG_API nk_status_t nk_attention_packed_i8_cdna3(nk_i8_t const *queries, void const *key_value_packed,
+                                                     nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
+                                                     nk_size_t key_value_head_count, nk_size_t depth,
+                                                     nk_u32_t const *query_offsets, nk_size_t query_stride,
+                                                     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,
+                                                     nk_size_t keys_after, nk_size_t task_begin, nk_size_t task_end,
+                                                     void *stream);
+#endif // NUMKONG_TARGET_CDNA3
+
 /*  AMD Instinct MI350 backends, gfx950, through its matrix cores. */
 #if NUMKONG_TARGET_CDNA4
 /** @copydoc nk_attention_pack_size_bf16_best */
@@ -1866,6 +1922,7 @@ NUMKONG_API nk_status_t nk_attention_find_kernel(nk_kernel_kind_t kind, nk_dtype
 #include "numkong/attention/blackwell.cuh"
 #include "numkong/attention/blackwellrtx.cuh"
 #include "numkong/attention/blackwellultra.cuh"
+#include "numkong/attention/cdna3.cuh"
 #include "numkong/attention/cdna4.cuh"
 #include "numkong/attention/cdna5.cuh"
 

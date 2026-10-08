@@ -13,6 +13,7 @@
 #if NUMKONG_ARCH_X8664_SKYLAKE_
 
 #include "numkong/types.h"
+#include "numkong/probability/serial.h" // `NUMKONG_F32_DIVISION_EPSILON`
 #include "numkong/spatial/skylake.h"
 
 #if defined(__cplusplus)

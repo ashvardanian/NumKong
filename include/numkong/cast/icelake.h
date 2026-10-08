@@ -593,26 +593,41 @@ NUMKONG_INLINE void nk_cast_elementwise_icelake_(void const *from, nk_dtype_t fr
                 _mm_storeu_si128((__m128i *)to_ptr, nk_f32x32_to_e2m1x32_icelake_(low_f32x16, high_f32x16));
             }
         }
-        // Tail (< 32): serial keeps packed-nibble writes byte-identical to the reference.
+        // Encoding packs whole nibble pairs, as the serial codec; an odd last value is dropped.
         nk_size_t tail = n % 32;
-        if (tail) nk_cast_elementwise_(from_ptr, from_type, tail, to_ptr, to_type);
+        if (tail) {
+            __mmask32 tail_m32 = _bzhi_u32(0xFFFFFFFF, (unsigned int)tail);
+            __mmask16 low_m16 = (__mmask16)tail_m32, high_m16 = (__mmask16)(tail_m32 >> 16);
+            __mmask16 bytes_m16 = (__mmask16)_bzhi_u32(0xFFFF,
+                                                       (unsigned int)((from_type == nk_e2m1_k ? tail + 1 : tail) / 2));
+            __m512 low_f32x16, high_f32x16;
+            if (from_type == nk_e2m1_k) {
+                nk_e2m1x32_to_f32x32_icelake_(_mm_maskz_loadu_epi8(bytes_m16, from_ptr), &low_f32x16, &high_f32x16);
+                _mm512_mask_storeu_ps((float *)to_ptr, low_m16, low_f32x16);
+                _mm512_mask_storeu_ps((float *)to_ptr + 16, high_m16, high_f32x16);
+            }
+            else {
+                low_f32x16 = _mm512_maskz_loadu_ps(low_m16, (float const *)from_ptr);
+                high_f32x16 = _mm512_maskz_loadu_ps(high_m16, (float const *)from_ptr + 16);
+                _mm_mask_storeu_epi8(to_ptr, bytes_m16, nk_f32x32_to_e2m1x32_icelake_(low_f32x16, high_f32x16));
+            }
+        }
     }
 
     // Group 5: E2M3 / E3M2 (FP6) → f32 via the BF16 LUT decode widened to f32 (one VPERMW per 32).
     else if (to_type == nk_f32_k && (from_type == nk_e2m3_k || from_type == nk_e3m2_k)) {
         nk_u8_t const *from_ptr = (nk_u8_t const *)from;
         nk_f32_t *to_ptr = (nk_f32_t *)to;
-        nk_size_t i = 0;
-        for (; i + 32 <= n; i += 32, from_ptr += 32, to_ptr += 32) {
-            __m256i in_i8x32 = _mm256_loadu_si256((__m256i const *)from_ptr);
+        for (nk_size_t i = 0; i < n; i += 32, from_ptr += 32, to_ptr += 32) {
+            nk_size_t remaining = n - i;
+            __mmask32 mask_m32 = remaining >= 32 ? 0xFFFFFFFF : _bzhi_u32(0xFFFFFFFF, (unsigned int)remaining);
+            __m256i in_i8x32 = _mm256_maskz_loadu_epi8(mask_m32, from_ptr);
             __m512 low_f32x16, high_f32x16;
             if (from_type == nk_e2m3_k) nk_e2m3x32_to_f32x32_icelake_(in_i8x32, &low_f32x16, &high_f32x16);
             else nk_e3m2x32_to_f32x32_icelake_(in_i8x32, &low_f32x16, &high_f32x16);
-            _mm512_storeu_ps(to_ptr, low_f32x16);
-            _mm512_storeu_ps(to_ptr + 16, high_f32x16);
+            _mm512_mask_storeu_ps(to_ptr, (__mmask16)mask_m32, low_f32x16);
+            _mm512_mask_storeu_ps(to_ptr + 16, (__mmask16)(mask_m32 >> 16), high_f32x16);
         }
-        nk_size_t tail = n - i;
-        if (tail) nk_cast_elementwise_skylake_(from_ptr, from_type, tail, to_ptr, to_type);
     }
 
     // Default: delegate to Skylake for all other conversions (FP8/integer codecs, f32→FP6, etc.)
@@ -713,23 +728,25 @@ NUMKONG_INLINE void nk_cast_block_scaled_icelake_(void const *from, nk_u8_t cons
                                            to_tensor_scale_f32;
                 nk_f32_t reciprocal = effective_scale > 0 ? (1.0f / effective_scale) : 0.0f;
                 __m512 reciprocal_bcast_f32x16 = _mm512_set1_ps(reciprocal);
+                // Saturate to element_max: finite inputs must not overflow to +/-inf.
+                // NaN stays NaN, as the second operand of min and max.
+                __m512 element_max_f32x16 = _mm512_set1_ps(element_max);
+                __m512 element_min_f32x16 = _mm512_set1_ps(-element_max);
                 nk_f32_t encoded_scratch[32];
-                __m512 v_low_f32x16 = _mm512_maskz_loadu_ps(valid >= 16 ? 0xFFFF : (1u << valid) - 1u, scratch + b);
-                _mm512_mask_storeu_ps(encoded_scratch, valid >= 16 ? 0xFFFF : (1u << valid) - 1u,
-                                      _mm512_mul_ps(v_low_f32x16, reciprocal_bcast_f32x16));
+                __mmask16 low_m16 = valid >= 16 ? 0xFFFF : (1u << valid) - 1u;
+                __m512 v_low_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(low_m16, scratch + b),
+                                                    reciprocal_bcast_f32x16);
+                v_low_f32x16 = _mm512_max_ps(element_min_f32x16, _mm512_min_ps(element_max_f32x16, v_low_f32x16));
+                _mm512_mask_storeu_ps(encoded_scratch, low_m16, v_low_f32x16);
                 if (valid > 16) {
-                    __m512 v_high_f32x16 = _mm512_maskz_loadu_ps((1u << (valid - 16)) - 1u, scratch + b + 16);
-                    _mm512_mask_storeu_ps(encoded_scratch + 16, (1u << (valid - 16)) - 1u,
-                                          _mm512_mul_ps(v_high_f32x16, reciprocal_bcast_f32x16));
+                    __mmask16 high_m16 = (1u << (valid - 16)) - 1u;
+                    __m512 v_high_f32x16 = _mm512_mul_ps(_mm512_maskz_loadu_ps(high_m16, scratch + b + 16),
+                                                         reciprocal_bcast_f32x16);
+                    v_high_f32x16 = _mm512_max_ps(element_min_f32x16, _mm512_min_ps(element_max_f32x16, v_high_f32x16));
+                    _mm512_mask_storeu_ps(encoded_scratch + 16, high_m16, v_high_f32x16);
                 }
                 void *dst = (nk_u8_t *)to + ((chunk_start + b) * to_bits_per_element / NUMKONG_BITS_PER_BYTE);
                 // Write only valid elements: dst is sized for `count` (bytes), not whole blocks.
-                /* Saturate to element_max: finite inputs must not overflow to +/-inf (E5M2 has inf; OCP SAT). */
-                for (nk_size_t saturate_index = 0; saturate_index < valid; ++saturate_index) {
-                    if (encoded_scratch[saturate_index] > element_max) encoded_scratch[saturate_index] = element_max;
-                    else if (encoded_scratch[saturate_index] < -element_max)
-                        encoded_scratch[saturate_index] = -element_max;
-                }
                 nk_cast_elementwise_icelake_(encoded_scratch, nk_f32_k, valid, dst, to_format->element_dtype);
             }
         }

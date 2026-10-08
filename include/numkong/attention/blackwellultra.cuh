@@ -14,6 +14,7 @@
 #ifndef NUMKONG_ATTENTION_BLACKWELLULTRA_CUH
 #define NUMKONG_ATTENTION_BLACKWELLULTRA_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_TARGET_BLACKWELLULTRA
 
 #include "numkong/attention/blackwell.cuh" // `nk_define_attention_tma_blackwell_`
@@ -125,4 +126,5 @@ nk_define_attention_tma_blackwell_(i8, blackwellultra, i8, nk_attention_integer_
 #endif
 
 #endif // NUMKONG_TARGET_BLACKWELLULTRA
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_BLACKWELLULTRA_CUH

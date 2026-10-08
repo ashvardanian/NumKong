@@ -32,6 +32,7 @@
 #ifndef NUMKONG_ATTENTION_V128RELAXED_H
 #define NUMKONG_ATTENTION_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include <wasm_simd128.h>
@@ -603,4 +604,5 @@ NUMKONG_API nk_status_t nk_attention_packed_i8_v128relaxed(                     
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_ATTENTION_V128RELAXED_H

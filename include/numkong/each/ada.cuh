@@ -15,10 +15,11 @@
 #ifndef NUMKONG_EACH_ADA_CUH
 #define NUMKONG_EACH_ADA_CUH
 
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_CUDA_ADA_
+
 #include "numkong/each/cuda.cuh" // `nk_define_each_sum_cuda_`, `nk_define_each_rmsnorm_cuda_`
 #include "numkong/cast/ada.cuh"  // `nk_e4m3_to_f32_ada_`, `nk_f32_to_e4m3_ada_`, `nk_f32_to_e5m2_ada_`
-
-#if NUMKONG_ARCH_CUDA_ADA_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -40,4 +41,5 @@ nk_define_each_rmsnorm_cuda_(rmscast, f32, e5m2, ada, nk_assign_from_to_, nk_f32
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_ADA_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_EACH_ADA_CUH

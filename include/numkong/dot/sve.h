@@ -102,6 +102,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64_sve_(svbool_t predicate_b64x, svfl
 }
 
 #if NUMKONG_TARGET_SVE
+
 NUMKONG_API nk_status_t nk_dot_f32_sve(nk_f32_t const *a_scalars, nk_f32_t const *b_scalars, nk_size_t count_scalars,
                                        nk_f64_t *result, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -417,6 +418,7 @@ NUMKONG_API nk_status_t nk_vdot_f64c_sve(nk_f64c_t const *a_pairs, nk_f64c_t con
     results->imag = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_imag_f64x, comp_imag_f64x);
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_SVE
 
 #if defined(__clang__)

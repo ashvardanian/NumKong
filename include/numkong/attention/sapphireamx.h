@@ -167,10 +167,9 @@ NUMKONG_INLINE void nk_attention_gather_bf16_sapphireamx_(nk_dots_bf16_a16x32_sa
 NUMKONG_INLINE void nk_attention_gather_e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *tile, void const *source,
                                                           nk_size_t source_stride, nk_size_t valid_positions,
                                                           nk_size_t valid_columns) {
-    nk_dots_bf16_rows_sapphireamx_t const rows = {
-        (nk_u8_t const *)source,   source_stride, NUMKONG_NULL, 0, nk_e4m3_widen_bf16_sapphireamx_,
-        nk_e4m3_sumsq_sapphireamx_};
-    nk_dots_through_bf16_load_a_sapphireamx_(tile, rows, 0, 0, valid_positions, valid_columns);
+    nk_dots_bf16_rows_sapphireamx_t const rows = nk_dots_rows_e4m3_sapphireamx_((nk_e4m3_t const *)source,
+                                                                                source_stride);
+    nk_dots_through_bf16_load_a_sapphireamx_(tile, &rows, NUMKONG_NULL, 0, 0, valid_positions, valid_columns);
 }
 
 /** Loads two V rows of 16 channels as BF16 for pair-interleaving; dead rows/channels zero. */

@@ -1328,12 +1328,12 @@ NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities,
 /** @copydoc nk_stream_synchronize_best */
 NUMKONG_API nk_status_t nk_stream_synchronize_serial(void *stream);
 
-#if NUMKONG_TARGET_CUDA
+#if NUMKONG_ARCH_CUDA_
 /** @copydoc nk_stream_synchronize_best */
 NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream);
 #endif
 
-#if NUMKONG_TARGET_ROCM
+#if NUMKONG_ARCH_ROCM_
 /** @copydoc nk_stream_synchronize_best */
 NUMKONG_API nk_status_t nk_stream_synchronize_rocm(void *stream);
 #endif
@@ -1512,7 +1512,7 @@ NUMKONG_API nk_status_t nk_find_kernel_punned(nk_kernel_kind_t kind, nk_dtype_t 
 #if NUMKONG_HEADER_ONLY
 
 /*  Compiled for CUDA or ROCm, the producers come from `cuda.cuh` or `rocm.cuh`, included below. */
-#if !NUMKONG_TARGET_CUDA
+#if !NUMKONG_ARCH_CUDA_
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
     *count = 0;
     return nk_missing_gpu_k;
@@ -1531,7 +1531,7 @@ NUMKONG_API nk_status_t nk_cuda_stream_free(void *stream) {
     nk_unused_(stream);
     return nk_missing_gpu_k;
 }
-#endif // !NUMKONG_TARGET_CUDA
+#endif // !NUMKONG_ARCH_CUDA_
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_cuda_capabilities_compiled_();
     return nk_success_k;
@@ -1541,7 +1541,7 @@ NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capab
     *capabilities &= nk_cuda_capabilities_compiled_();
     return status;
 }
-#if !NUMKONG_TARGET_ROCM
+#if !NUMKONG_ARCH_ROCM_
 NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
     *count = 0;
     return nk_missing_gpu_k;
@@ -1560,7 +1560,7 @@ NUMKONG_API nk_status_t nk_rocm_stream_free(void *stream) {
     nk_unused_(stream);
     return nk_missing_gpu_k;
 }
-#endif // !NUMKONG_TARGET_ROCM
+#endif // !NUMKONG_ARCH_ROCM_
 NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities) {
     *capabilities = nk_rocm_capabilities_compiled_();
     return nk_success_k;

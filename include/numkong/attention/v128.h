@@ -15,6 +15,7 @@
 #ifndef NUMKONG_ATTENTION_V128_H
 #define NUMKONG_ATTENTION_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include <wasm_simd128.h>
@@ -116,4 +117,5 @@ NUMKONG_INLINE void nk_attention_pack_v128_(                               //
 #endif
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_ATTENTION_V128_H

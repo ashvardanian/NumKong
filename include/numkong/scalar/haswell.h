@@ -30,13 +30,14 @@
 extern "C" {
 #endif
 
-#if NUMKONG_TARGET_HASWELL
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("avx2,f16c,fma,bmi,bmi2"))), apply_to = function)
 #elif defined(__GNUC__)
 #pragma GCC push_options
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2")
 #endif
+
+#if NUMKONG_TARGET_HASWELL
 
 NUMKONG_API nk_f32_t nk_f32_sqrt_haswell(nk_f32_t x) { return _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(x))); }
 NUMKONG_API nk_f64_t nk_f64_sqrt_haswell(nk_f64_t x) { return _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(x))); }
@@ -117,12 +118,13 @@ NUMKONG_API nk_i64_t nk_i64_saturating_mul_haswell(nk_i64_t a, nk_i64_t b) {
     return sign ? -(nk_i64_t)low : (nk_i64_t)low;
 }
 
+#endif // NUMKONG_TARGET_HASWELL
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -69,6 +69,7 @@
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x8_serial_`
 #include "numkong/cast/neon.h"   // `nk_e4m3x8_to_f16x8_neon_`
 #include "numkong/dot/serial.h"  // `nk_dot_f16c_`, `nk_vdot_f16c_`
+#include "numkong/dot/neon.h"    // `nk_dot_scaled_f16x32_operand_neon_t`, `nk_load_packed_mxfp8x1_neon_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -360,6 +361,23 @@ NUMKONG_INLINE void nk_dot_e5m2x16_finalize_neonfhm(                            
     float32x4_t cd_f32x4 = vpaddq_f32(state_c->sum_f32x4, state_d->sum_f32x4);
     result->f32x4 = vpaddq_f32(ab_f32x4, cd_f32x4);
 }
+
+#pragma region Block Scaled Floats
+
+/** One MXFP8 block: FMLAL products of E4M3 or E5M2 values are exact, the block sum rounds in F32,
+ *  and one F32 flush applies the scales. */
+NUMKONG_INLINE void nk_dot_scaled_f16x32_update_neonfhm(nk_dot_scaled_f32_state_neon_t *state,
+                                                        nk_dot_scaled_f16x32_operand_neon_t a,
+                                                        nk_dot_scaled_f16x32_operand_neon_t b) {
+    float32x4_t sums_f32x4 = vdupq_n_f32(0);
+    for (nk_size_t i = 0; i != 4; ++i) {
+        sums_f32x4 = vfmlalq_low_f16(sums_f32x4, a.values_f16x8[i], b.values_f16x8[i]);
+        sums_f32x4 = vfmlalq_high_f16(sums_f32x4, a.values_f16x8[i], b.values_f16x8[i]);
+    }
+    state->sum_f32x4 = vfmaq_f32(state->sum_f32x4, sums_f32x4, vmulq_f32(a.scales_f32x4, b.scales_f32x4));
+}
+
+#pragma endregion Block Scaled Floats
 
 #if defined(__clang__)
 #pragma clang attribute pop

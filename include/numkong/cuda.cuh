@@ -315,7 +315,7 @@ NUMKONG_DEVICE nk_f32_t nk_f32_exp2_cuda_(nk_f32_t exponent) {
 #pragma endregion Device Primitives
 
 /*  The library defines these once, in `c/target/cuda.cu`; header-only builds define them here. */
-#if NUMKONG_HEADER_ONLY && NUMKONG_TARGET_CUDA
+#if NUMKONG_HEADER_ONLY
 
 NUMKONG_API nk_status_t nk_allocator_init_unified_cuda(nk_allocator_t *allocator) {
     return nk_allocator_init_unified_cuda_(allocator);
@@ -347,7 +347,7 @@ NUMKONG_API nk_status_t nk_memory_free_unified_cuda(void *pointer, nk_size_t byt
 }
 NUMKONG_API nk_status_t nk_stream_synchronize_cuda(void *stream) { return nk_stream_synchronize_cuda_(stream); }
 
-#endif // NUMKONG_HEADER_ONLY && NUMKONG_TARGET_CUDA
+#endif // NUMKONG_HEADER_ONLY
 
 #if defined(__cplusplus)
 } // extern "C"

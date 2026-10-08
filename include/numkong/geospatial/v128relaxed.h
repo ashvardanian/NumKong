@@ -31,6 +31,7 @@
 #ifndef NUMKONG_GEOSPATIAL_V128RELAXED_H
 #define NUMKONG_GEOSPATIAL_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
@@ -656,4 +657,5 @@ NUMKONG_API nk_status_t nk_vincenty_f32_v128relaxed( //
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_GEOSPATIAL_V128RELAXED_H

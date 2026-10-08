@@ -45,39 +45,40 @@ extern "C" {
 
 /* F32 GEMM: depth_simd_dimensions=4 (4 f32s = 16 bytes = VSX register width, f64 accumulation) */
 nk_define_cross_pack_size_(dots, f32, powervsx, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/2,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, f32, powervsx)
 nk_define_cross_pack_(dots, f32, powervsx, f32, f32, nk_b128_vec_t, nk_load_b128_powervsx_,
                       nk_partial_load_b32x4_powervsx_, nk_store_b128_powervsx_, nk_partial_store_b32x4_powervsx_,
                       /*simd_width=*/4, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f32_,
-                      /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f32, powervsx, f32, f64, nk_b64_vec_t, nk_dot_f32x2_state_powervsx_t, nk_b256_vec_t,
-                           nk_dot_f32x2_init_powervsx, nk_cross_unscaled_, nk_load_b64_powervsx_,
-                           nk_partial_load_b32x2_powervsx_, nk_dot_f32x2_update_powervsx,
-                           nk_dot_f32x2_finalize_powervsx, nk_store_b256_powervsx_, nk_partial_store_b64x4_powervsx_,
+                           nk_dot_f32x2_init_powervsx, nk_load_b64_powervsx_, nk_partial_load_b32x2_powervsx_,
+                           nk_dot_f32x2_update_powervsx, nk_dot_f32x2_finalize_powervsx, nk_store_b256_powervsx_,
+                           nk_partial_store_b64x4_powervsx_,
                            /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f32, powervsx, f32, f32, f64, nk_b64_vec_t, nk_dot_f32x2_state_powervsx_t, nk_b256_vec_t,
-                        nk_dot_f32x2_init_powervsx, nk_cross_unscaled_, nk_load_b64_powervsx_,
-                        nk_partial_load_b32x2_powervsx_, nk_load_b64_powervsx_, nk_partial_load_b32x2_powervsx_,
-                        nk_dot_f32x2_update_powervsx, nk_dot_f32x2_finalize_powervsx, nk_store_b256_powervsx_,
-                        nk_partial_store_b64x4_powervsx_,
+                        nk_dot_f32x2_init_powervsx, nk_load_b64_powervsx_, nk_partial_load_b32x2_powervsx_,
+                        nk_load_b64_powervsx_, nk_partial_load_b32x2_powervsx_, nk_dot_f32x2_update_powervsx,
+                        nk_dot_f32x2_finalize_powervsx, nk_store_b256_powervsx_, nk_partial_store_b64x4_powervsx_,
                         /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 
 /* U1 GEMM: depth_simd_dimensions=128 (128 bits = 16 bytes = VSX register width) */
 nk_define_cross_pack_size_(dots, u1, powervsx, u1x8, u1x8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/128,
-                           /*dimensions_per_value=*/8)
+                           /*dimensions_per_value=*/8, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, u1, powervsx)
 nk_define_cross_pack_(dots, u1, powervsx, u1x8, u1x8, nk_b128_vec_t, nk_load_b128_powervsx_,
                       nk_partial_load_b8x16_powervsx_, nk_store_b128_powervsx_, nk_partial_store_b8x16_powervsx_,
                       /*simd_width=*/16, /*norm_value_type=*/u32, nk_dots_reduce_sum_u1_,
-                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8)
+                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, u1, powervsx, u1x8, u32, nk_b128_vec_t, nk_dot_u1x128_state_powervsx_t, nk_b128_vec_t,
-                           nk_dot_u1x128_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
-                           nk_partial_load_b1x128_powervsx_, nk_dot_u1x128_update_powervsx,
-                           nk_dot_u1x128_finalize_powervsx, nk_store_b128_powervsx_, nk_partial_store_b32x4_powervsx_,
+                           nk_dot_u1x128_init_powervsx, nk_load_b128_powervsx_, nk_partial_load_b1x128_powervsx_,
+                           nk_dot_u1x128_update_powervsx, nk_dot_u1x128_finalize_powervsx, nk_store_b128_powervsx_,
+                           nk_partial_store_b32x4_powervsx_,
                            /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8)
 nk_define_cross_packed_(dots, u1, powervsx, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot_u1x128_state_powervsx_t,
-                        nk_b128_vec_t, nk_dot_u1x128_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
+                        nk_b128_vec_t, nk_dot_u1x128_init_powervsx, nk_load_b128_powervsx_,
                         nk_partial_load_b1x128_powervsx_, nk_load_b128_powervsx_, nk_partial_load_b1x128_powervsx_,
                         nk_dot_u1x128_update_powervsx, nk_dot_u1x128_finalize_powervsx, nk_store_b128_powervsx_,
                         nk_partial_store_b32x4_powervsx_,
@@ -85,19 +86,20 @@ nk_define_cross_packed_(dots, u1, powervsx, u1x8, u1x8, u32, nk_b128_vec_t, nk_d
 
 /* BF16 GEMM: depth_simd_dimensions=8 (8 bf16s = 16 bytes = VSX register width) */
 nk_define_cross_pack_size_(dots, bf16, powervsx, bf16, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, bf16, powervsx)
 nk_define_cross_pack_(dots, bf16, powervsx, bf16, bf16, nk_b128_vec_t, nk_load_b128_powervsx_,
                       nk_partial_load_b16x8_powervsx_, nk_store_b128_powervsx_, nk_partial_store_b16x8_powervsx_,
                       /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_,
-                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, bf16, powervsx, bf16, f32, nk_b128_vec_t, nk_dot_bf16x8_state_powervsx_t,
-                           nk_b128_vec_t, nk_dot_bf16x8_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
+                           nk_b128_vec_t, nk_dot_bf16x8_init_powervsx, nk_load_b128_powervsx_,
                            nk_partial_load_b16x8_powervsx_, nk_dot_bf16x8_update_powervsx,
                            nk_dot_bf16x8_finalize_powervsx, nk_store_b128_powervsx_, nk_partial_store_b32x4_powervsx_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, bf16, powervsx, bf16, bf16, f32, nk_b128_vec_t, nk_dot_bf16x8_state_powervsx_t,
-                        nk_b128_vec_t, nk_dot_bf16x8_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
+                        nk_b128_vec_t, nk_dot_bf16x8_init_powervsx, nk_load_b128_powervsx_,
                         nk_partial_load_b16x8_powervsx_, nk_load_b128_powervsx_, nk_partial_load_b16x8_powervsx_,
                         nk_dot_bf16x8_update_powervsx, nk_dot_bf16x8_finalize_powervsx, nk_store_b128_powervsx_,
                         nk_partial_store_b32x4_powervsx_,
@@ -105,22 +107,22 @@ nk_define_cross_packed_(dots, bf16, powervsx, bf16, bf16, f32, nk_b128_vec_t, nk
 
 /* F16 GEMM: depth_simd_dimensions=8 (8 f16s = 16 bytes = VSX register width) */
 nk_define_cross_pack_size_(dots, f16, powervsx, f16, f16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, f16, powervsx)
 nk_define_cross_pack_(dots, f16, powervsx, f16, f16, nk_b128_vec_t, nk_load_b128_powervsx_,
                       nk_partial_load_b16x8_powervsx_, nk_store_b128_powervsx_, nk_partial_store_b16x8_powervsx_,
                       /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_,
-                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f16, powervsx, f16, f32, nk_b128_vec_t, nk_dot_f16x8_state_powervsx_t, nk_b128_vec_t,
-                           nk_dot_f16x8_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
-                           nk_partial_load_b16x8_powervsx_, nk_dot_f16x8_update_powervsx,
-                           nk_dot_f16x8_finalize_powervsx, nk_store_b128_powervsx_, nk_partial_store_b32x4_powervsx_,
+                           nk_dot_f16x8_init_powervsx, nk_load_b128_powervsx_, nk_partial_load_b16x8_powervsx_,
+                           nk_dot_f16x8_update_powervsx, nk_dot_f16x8_finalize_powervsx, nk_store_b128_powervsx_,
+                           nk_partial_store_b32x4_powervsx_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f16, powervsx, f16, f16, f32, nk_b128_vec_t, nk_dot_f16x8_state_powervsx_t, nk_b128_vec_t,
-                        nk_dot_f16x8_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
-                        nk_partial_load_b16x8_powervsx_, nk_load_b128_powervsx_, nk_partial_load_b16x8_powervsx_,
-                        nk_dot_f16x8_update_powervsx, nk_dot_f16x8_finalize_powervsx, nk_store_b128_powervsx_,
-                        nk_partial_store_b32x4_powervsx_,
+                        nk_dot_f16x8_init_powervsx, nk_load_b128_powervsx_, nk_partial_load_b16x8_powervsx_,
+                        nk_load_b128_powervsx_, nk_partial_load_b16x8_powervsx_, nk_dot_f16x8_update_powervsx,
+                        nk_dot_f16x8_finalize_powervsx, nk_store_b128_powervsx_, nk_partial_store_b32x4_powervsx_,
                         /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 
 /* I8 GEMM: depth_simd_dimensions=16, compensated (algebraic bias, column sums precomputed) */
@@ -155,42 +157,42 @@ nk_define_cross_compensated_packed_(dots, i8, powervsx, i8, i8, i32,
 
 /* U8 GEMM: depth_simd_dimensions=16 (16 u8s = 16 bytes = VSX register width) */
 nk_define_cross_pack_size_(dots, u8, powervsx, u8, u8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/16,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, u8, powervsx)
 nk_define_cross_pack_(dots, u8, powervsx, u8, u8, nk_b128_vec_t, nk_load_b128_powervsx_,
                       nk_partial_load_b8x16_powervsx_, nk_store_b128_powervsx_, nk_partial_store_b8x16_powervsx_,
                       /*simd_width=*/16, /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u8_,
-                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, u8, powervsx, u8, u32, nk_b128_vec_t, nk_dot_u8x16_state_powervsx_t, nk_b128_vec_t,
-                           nk_dot_u8x16_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
-                           nk_partial_load_b8x16_powervsx_, nk_dot_u8x16_update_powervsx,
-                           nk_dot_u8x16_finalize_powervsx, nk_store_b128_powervsx_, nk_partial_store_b32x4_powervsx_,
+                           nk_dot_u8x16_init_powervsx, nk_load_b128_powervsx_, nk_partial_load_b8x16_powervsx_,
+                           nk_dot_u8x16_update_powervsx, nk_dot_u8x16_finalize_powervsx, nk_store_b128_powervsx_,
+                           nk_partial_store_b32x4_powervsx_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, u8, powervsx, u8, u8, u32, nk_b128_vec_t, nk_dot_u8x16_state_powervsx_t, nk_b128_vec_t,
-                        nk_dot_u8x16_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
-                        nk_partial_load_b8x16_powervsx_, nk_load_b128_powervsx_, nk_partial_load_b8x16_powervsx_,
-                        nk_dot_u8x16_update_powervsx, nk_dot_u8x16_finalize_powervsx, nk_store_b128_powervsx_,
-                        nk_partial_store_b32x4_powervsx_,
+                        nk_dot_u8x16_init_powervsx, nk_load_b128_powervsx_, nk_partial_load_b8x16_powervsx_,
+                        nk_load_b128_powervsx_, nk_partial_load_b8x16_powervsx_, nk_dot_u8x16_update_powervsx,
+                        nk_dot_u8x16_finalize_powervsx, nk_store_b128_powervsx_, nk_partial_store_b32x4_powervsx_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* F64 GEMM: depth_simd_dimensions=2 (2 f64s = 16 bytes = VSX register width) */
 nk_define_cross_pack_size_(dots, f64, powervsx, f64, f64, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/2,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, f64, powervsx)
 nk_define_cross_pack_(dots, f64, powervsx, f64, f64, nk_b128_vec_t, nk_load_b128_powervsx_,
                       nk_partial_load_b64x2_powervsx_, nk_store_b128_powervsx_, nk_partial_store_b64x2_powervsx_,
                       /*simd_width=*/2, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f64_,
-                      /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f64, powervsx, f64, f64, nk_b128_vec_t, nk_dot_f64x2_state_powervsx_t, nk_b256_vec_t,
-                           nk_dot_f64x2_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
-                           nk_partial_load_b64x2_powervsx_, nk_dot_f64x2_update_powervsx,
-                           nk_dot_f64x2_finalize_powervsx, nk_store_b256_powervsx_, nk_partial_store_b64x4_powervsx_,
+                           nk_dot_f64x2_init_powervsx, nk_load_b128_powervsx_, nk_partial_load_b64x2_powervsx_,
+                           nk_dot_f64x2_update_powervsx, nk_dot_f64x2_finalize_powervsx, nk_store_b256_powervsx_,
+                           nk_partial_store_b64x4_powervsx_,
                            /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f64, powervsx, f64, f64, f64, nk_b128_vec_t, nk_dot_f64x2_state_powervsx_t, nk_b256_vec_t,
-                        nk_dot_f64x2_init_powervsx, nk_cross_unscaled_, nk_load_b128_powervsx_,
-                        nk_partial_load_b64x2_powervsx_, nk_load_b128_powervsx_, nk_partial_load_b64x2_powervsx_,
-                        nk_dot_f64x2_update_powervsx, nk_dot_f64x2_finalize_powervsx, nk_store_b256_powervsx_,
-                        nk_partial_store_b64x4_powervsx_,
+                        nk_dot_f64x2_init_powervsx, nk_load_b128_powervsx_, nk_partial_load_b64x2_powervsx_,
+                        nk_load_b128_powervsx_, nk_partial_load_b64x2_powervsx_, nk_dot_f64x2_update_powervsx,
+                        nk_dot_f64x2_finalize_powervsx, nk_store_b256_powervsx_, nk_partial_store_b64x4_powervsx_,
                         /*depth_simd_dimensions=*/2, /*dimensions_per_value=*/1)
 
 #if defined(__clang__)

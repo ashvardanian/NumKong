@@ -56,8 +56,11 @@
  *  l2(a, b)      = √(‖a‖² + ‖b‖² − 2a·b)
  *  @endverbatim
  *
- *  The angular distance is clamped to ≥ 0, with a 0 result when both norms are zero and a 1 result
- *  when a · b is zero. L2 clamps its square-root argument at 0 to avoid negatives from rounding.
+ *  The angular @c from_dot finalizers follow one rule on every capability: NaN when a · b is
+ *  NaN, 0 when both norms are zero, 1 when either norm or a · b is exactly zero, and otherwise
+ *  1 − a · b · rsqrt(‖a‖²) · rsqrt(‖b‖²) clamped to ≥ 0, where an infinite norm has a
+ *  reciprocal square root of 0. The L2 ones clamp their square-root argument at 0 to avoid
+ *  negatives from rounding, and keep NaN.
  *
  *  @code{.c}
  *  nk_b128_vec_t query_block, target_blocks[4];
@@ -1387,6 +1390,8 @@ NUMKONG_INLINE nk_dtype_t nk_euclidean_output_dtype(nk_dtype_t dtype) {
     case nk_e2m1_k: return nk_f32_k;
     case nk_nvfp4_k:
     case nk_mxfp4_k:
+    case nk_mxfp6e2m3_k:
+    case nk_mxfp6e3m2_k:
     case nk_mxfp8e4m3_k:
     case nk_mxfp8e5m2_k: return nk_f32_k;
     case nk_e3m2_k: return nk_f32_k;
@@ -1430,6 +1435,8 @@ NUMKONG_INLINE nk_dtype_t nk_angular_output_dtype(nk_dtype_t dtype) {
     case nk_e2m1_k: return nk_f32_k;
     case nk_nvfp4_k:
     case nk_mxfp4_k:
+    case nk_mxfp6e2m3_k:
+    case nk_mxfp6e3m2_k:
     case nk_mxfp8e4m3_k:
     case nk_mxfp8e5m2_k: return nk_f32_k;
     case nk_e3m2_k: return nk_f32_k;

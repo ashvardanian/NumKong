@@ -61,18 +61,24 @@ NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_ssve_(nk_f64_t const *data, nk_
 NUMKONG_INLINE svfloat64_t nk_angulars_from_dot_f64x_ssvef64_(svbool_t predicate_b64x, svfloat64_t dots_f64x,
                                                               svfloat64_t query_norm_sq_f64x,
                                                               svfloat64_t target_norms_sq_f64x) NUMKONG_STREAMING_ {
-    // Separate square roots avoid overflowing the product of two finite-but-large norms.
-    svbool_t positive_norms_b64x = svand_b_z(predicate_b64x, svcmpgt_n_f64(predicate_b64x, query_norm_sq_f64x, 0.0),
-                                             svcmpgt_n_f64(predicate_b64x, target_norms_sq_f64x, 0.0));
-    svfloat64_t query_sqrt_f64x = svsqrt_f64_x(positive_norms_b64x, query_norm_sq_f64x);
-    svfloat64_t target_sqrt_f64x = svsqrt_f64_x(positive_norms_b64x, target_norms_sq_f64x);
-    svfloat64_t denom_f64x = svmul_f64_x(positive_norms_b64x, query_sqrt_f64x, target_sqrt_f64x);
-    svfloat64_t safe_denom_f64x = svsel_f64(positive_norms_b64x, denom_f64x, svdup_n_f64(1.0));
-    svfloat64_t normalized_f64x = svdiv_f64_x(predicate_b64x, dots_f64x, safe_denom_f64x);
-    svfloat64_t angular_f64x = svsub_f64_x(predicate_b64x, svdup_n_f64(1.0), normalized_f64x);
-    angular_f64x = svsel_f64(
-        positive_norms_b64x, angular_f64x,
-        svsel_f64(svcmpeq_n_f64(predicate_b64x, dots_f64x, 0.0), svdup_n_f64(0.0), svdup_n_f64(1.0)));
+    // Separate reciprocal square roots avoid overflowing the product of two large norms.
+    svfloat64_t one_f64x = svdup_n_f64(1.0);
+    svfloat64_t query_rsqrt_f64x = svdiv_f64_x(predicate_b64x, one_f64x,
+                                               svsqrt_f64_x(predicate_b64x, query_norm_sq_f64x));
+    svfloat64_t target_rsqrt_f64x = svdiv_f64_x(predicate_b64x, one_f64x,
+                                                svsqrt_f64_x(predicate_b64x, target_norms_sq_f64x));
+    svfloat64_t scaled_f64x = svmul_f64_x(predicate_b64x, svmul_f64_x(predicate_b64x, dots_f64x, query_rsqrt_f64x),
+                                          target_rsqrt_f64x);
+    svfloat64_t angular_f64x = svsub_f64_x(predicate_b64x, one_f64x, scaled_f64x);
+    svbool_t query_zero_b64x = svcmpeq_n_f64(predicate_b64x, query_norm_sq_f64x, 0.0);
+    svbool_t target_zero_b64x = svcmpeq_n_f64(predicate_b64x, target_norms_sq_f64x, 0.0);
+    svbool_t one_b64x = svorr_b_z(predicate_b64x, svorr_b_z(predicate_b64x, query_zero_b64x, target_zero_b64x),
+                                  svcmpeq_n_f64(predicate_b64x, dots_f64x, 0.0));
+    angular_f64x = svsel_f64(one_b64x, one_f64x, angular_f64x);
+    angular_f64x = svsel_f64(svand_b_z(predicate_b64x, query_zero_b64x, target_zero_b64x), svdup_n_f64(0.0),
+                             angular_f64x);
+    angular_f64x = svsel_f64(svcmpuo_f64(predicate_b64x, dots_f64x, dots_f64x), dots_f64x, angular_f64x);
+    // `svmax` is FMAX, which keeps a NaN
     return svmax_f64_x(predicate_b64x, angular_f64x, svdup_n_f64(0.0));
 }
 

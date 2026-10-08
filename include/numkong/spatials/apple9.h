@@ -9,6 +9,7 @@
 #ifndef NUMKONG_SPATIALS_APPLE9_H
 #define NUMKONG_SPATIALS_APPLE9_H
 
+#if NUMKONG_ARCH_METAL_
 #if NUMKONG_TARGET_APPLE9
 #include "numkong/dots/apple9.h"
 #include "numkong/spatials/metal.h"
@@ -48,4 +49,5 @@ nk_define_spatials_metal_(euclidean, nvfp4, apple9, e2m1x2, 32, 2, NUMKONG_METAL
 } // extern "C"
 #endif
 #endif // NUMKONG_TARGET_APPLE9
+#endif // NUMKONG_ARCH_METAL_
 #endif // NUMKONG_SPATIALS_APPLE9_H

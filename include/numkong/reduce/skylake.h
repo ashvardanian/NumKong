@@ -546,10 +546,11 @@ NUMKONG_INLINE void nk_reduce_moments_f32_skylake_gather_(       //
                                                 _mm512_set1_epi32(stride_elements));
     __m512d sum_f64x8 = _mm512_setzero_pd();
     __m512d sumsq_f64x8 = _mm512_setzero_pd();
-    nk_size_t index = 0;
-    for (; index + 16 <= count; index += 16) {
-        __m512 gathered_f32x16 = _mm512_i32gather_ps(indices_i32x16, data_ptr + index * stride_elements,
-                                                     sizeof(nk_f32_t));
+    for (nk_size_t index = 0; index < count; index += 16) {
+        nk_size_t remaining = count - index;
+        __mmask16 mask_m16 = remaining < 16 ? (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)remaining) : 0xFFFF;
+        __m512 gathered_f32x16 = _mm512_mask_i32gather_ps(_mm512_setzero_ps(), mask_m16, indices_i32x16,
+                                                          data_ptr + index * stride_elements, sizeof(nk_f32_t));
         __m256 low_f32x8 = _mm512_castps512_ps256(gathered_f32x16);
         __m256 high_f32x8 = _mm512_extractf32x8_ps(gathered_f32x16, 1);
         __m512d low_f64x8 = _mm512_cvtps_pd(low_f32x8);
@@ -559,14 +560,8 @@ NUMKONG_INLINE void nk_reduce_moments_f32_skylake_gather_(       //
         sumsq_f64x8 = _mm512_fmadd_pd(low_f64x8, low_f64x8, sumsq_f64x8);
         sumsq_f64x8 = _mm512_fmadd_pd(high_f64x8, high_f64x8, sumsq_f64x8);
     }
-    nk_f64_t sum = nk_reduce_add_f64x8_skylake_(sum_f64x8);
-    nk_f64_t sumsq = nk_reduce_add_f64x8_skylake_(sumsq_f64x8);
-    unsigned char const *ptr = (unsigned char const *)(data_ptr + index * stride_elements);
-    for (; index < count; ++index, ptr += stride) {
-        nk_f64_t value = (nk_f64_t)(*(nk_f32_t const *)ptr);
-        sum += value, sumsq += value * value;
-    }
-    *sum_ptr = sum, *sumsq_ptr = sumsq;
+    *sum_ptr = nk_reduce_add_f64x8_skylake_(sum_f64x8);
+    *sumsq_ptr = nk_reduce_add_f64x8_skylake_(sumsq_f64x8);
 }
 
 NUMKONG_INLINE void nk_reduce_moments_f32_skylake_strided_(               //
@@ -817,9 +812,11 @@ NUMKONG_INLINE void nk_reduce_moments_f64_skylake_gather_(       //
     __m512d sum_comp_f64x8 = _mm512_setzero_pd();
     __m512d sumsq_f64x8 = _mm512_setzero_pd();
     __m512d sumsq_comp_f64x8 = _mm512_setzero_pd();
-    nk_size_t index = 0;
-    for (; index + 8 <= count; index += 8) {
-        __m512d value_f64x8 = _mm512_i32gather_pd(indices_i32x8, data_ptr + index * stride_elements, sizeof(nk_f64_t));
+    for (nk_size_t index = 0; index < count; index += 8) {
+        nk_size_t remaining = count - index;
+        __mmask8 mask_m8 = remaining < 8 ? (__mmask8)_bzhi_u32(0xFF, (unsigned int)remaining) : 0xFF;
+        __m512d value_f64x8 = _mm512_mask_i32gather_pd(_mm512_setzero_pd(), mask_m8, indices_i32x8,
+                                                       data_ptr + index * stride_elements, sizeof(nk_f64_t));
         // Knuth 2-SUM for sum
         __m512d tentative_f64x8 = _mm512_add_pd(sum_f64x8, value_f64x8);
         __m512d round_f64x8 = _mm512_sub_pd(tentative_f64x8, sum_f64x8);
@@ -837,14 +834,8 @@ NUMKONG_INLINE void nk_reduce_moments_f64_skylake_gather_(       //
         sumsq_comp_f64x8 = _mm512_add_pd(sumsq_comp_f64x8, corr_sq_f64x8);
         sumsq_f64x8 = tentative_sq_f64x8;
     }
-    nk_f64_t sum = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
-    nk_f64_t sumsq = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
-    unsigned char const *ptr = (unsigned char const *)(data_ptr + index * stride_elements);
-    for (; index < count; ++index, ptr += stride) {
-        nk_f64_t value = *(nk_f64_t const *)ptr;
-        sum += value, sumsq += value * value;
-    }
-    *sum_ptr = sum, *sumsq_ptr = sumsq;
+    *sum_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sum_f64x8, sum_comp_f64x8));
+    *sumsq_ptr = nk_reduce_add_f64x8_skylake_(_mm512_add_pd(sumsq_f64x8, sumsq_comp_f64x8));
 }
 
 NUMKONG_INLINE void nk_reduce_moments_i8_skylake_contiguous_( //
@@ -869,6 +860,17 @@ NUMKONG_INLINE void nk_reduce_moments_i8_skylake_contiguous_( //
         sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, _mm512_madd_epi16(low_i16x32, low_i16x32));
         sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
     }
+    if (index < count) {
+        __mmask64 tail_m64 = _bzhi_u64(~0ULL, (unsigned int)(count - index));
+        __m512i data_i8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + index);
+        __m512i unsigned_i8x64 = _mm512_maskz_mov_epi8(tail_m64, _mm512_xor_si512(data_i8x64, bias_i8x64));
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(unsigned_i8x64, zero_i8x64));
+        __m512i low_i16x32 = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(data_i8x64));
+        __m512i high_i16x32 = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(data_i8x64, 1));
+        sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, _mm512_madd_epi16(low_i16x32, low_i16x32));
+        sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
+        index = count;
+    }
     // Flush i32 → i64 once
     sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, sumsq_high_i32x16);
     __m512i sumsq_i64x8 = _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sumsq_low_i32x16));
@@ -876,10 +878,6 @@ NUMKONG_INLINE void nk_reduce_moments_i8_skylake_contiguous_( //
     nk_i64_t sum = (nk_i64_t)nk_reduce_add_u64x8_skylake_(sum_u64x8);
     sum -= (nk_i64_t)128 * (nk_i64_t)index;
     nk_u64_t sumsq = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sumsq_i64x8);
-    for (; index < count; ++index) {
-        nk_i64_t value = (nk_i64_t)data_ptr[index];
-        sum += value, sumsq += (nk_u64_t)(value * value);
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -907,18 +905,24 @@ NUMKONG_INLINE void nk_reduce_moments_i8_skylake_strided_(               //
         sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
         vector_element_count += elements_per_vector;
     }
+    if (index_scalars < total_scalars) {
+        __mmask64 tail_m64 = stride_mask_m64 & _bzhi_u64(~0ULL, (unsigned int)(total_scalars - index_scalars));
+        __m512i data_i8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + index_scalars);
+        __m512i tail_bias_i8x64 = _mm512_maskz_mov_epi8(tail_m64, _mm512_set1_epi8((char)0x80));
+        __m512i unsigned_i8x64 = _mm512_xor_si512(data_i8x64, tail_bias_i8x64);
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(unsigned_i8x64, zero_i8x64));
+        __m512i low_i16x32 = _mm512_cvtepi8_epi16(_mm512_castsi512_si256(data_i8x64));
+        __m512i high_i16x32 = _mm512_cvtepi8_epi16(_mm512_extracti64x4_epi64(data_i8x64, 1));
+        sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, _mm512_madd_epi16(low_i16x32, low_i16x32));
+        sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
+        vector_element_count += (nk_size_t)_mm_popcnt_u64(tail_m64);
+    }
     sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, sumsq_high_i32x16);
     __m512i sumsq_i64x8 = _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sumsq_low_i32x16));
     sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(sumsq_low_i32x16, 1)));
     nk_i64_t sum = (nk_i64_t)nk_reduce_add_u64x8_skylake_(sum_u64x8);
     sum -= (nk_i64_t)128 * (nk_i64_t)vector_element_count;
     nk_u64_t sumsq = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sumsq_i64x8);
-    nk_i8_t const *ptr = data_ptr + index_scalars;
-    nk_size_t remaining = count - index_scalars / stride_elements;
-    for (nk_size_t i = 0; i < remaining; ++i, ptr += stride_elements) {
-        nk_i64_t value = (nk_i64_t)*ptr;
-        sum += value, sumsq += (nk_u64_t)(value * value);
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -1005,16 +1009,21 @@ NUMKONG_INLINE void nk_reduce_moments_u8_skylake_contiguous_( //
         sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, _mm512_madd_epi16(low_i16x32, low_i16x32));
         sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
     }
+    if (index < count) {
+        __mmask64 tail_m64 = _bzhi_u64(~0ULL, (unsigned int)(count - index));
+        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + index);
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(data_u8x64, zero_u8x64));
+        __m512i low_i16x32 = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(data_u8x64));
+        __m512i high_i16x32 = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(data_u8x64, 1));
+        sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, _mm512_madd_epi16(low_i16x32, low_i16x32));
+        sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
+    }
     // Flush i32 → u64 once
     sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, sumsq_high_i32x16);
     __m512i sumsq_u64x8 = _mm512_cvtepu32_epi64(_mm512_castsi512_si256(sumsq_low_i32x16));
     sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_cvtepu32_epi64(_mm512_extracti64x4_epi64(sumsq_low_i32x16, 1)));
     nk_u64_t sum = nk_reduce_add_u64x8_skylake_(sum_u64x8);
     nk_u64_t sumsq = nk_reduce_add_u64x8_skylake_(sumsq_u64x8);
-    for (; index < count; ++index) {
-        nk_u64_t value = (nk_u64_t)data_ptr[index];
-        sum += value, sumsq += value * value;
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -1037,17 +1046,20 @@ NUMKONG_INLINE void nk_reduce_moments_u8_skylake_strided_(               //
         sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, _mm512_madd_epi16(low_i16x32, low_i16x32));
         sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
     }
+    if (index_scalars < total_scalars) {
+        __mmask64 tail_m64 = stride_mask_m64 & _bzhi_u64(~0ULL, (unsigned int)(total_scalars - index_scalars));
+        __m512i data_u8x64 = _mm512_maskz_loadu_epi8(tail_m64, data_ptr + index_scalars);
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_sad_epu8(data_u8x64, zero_u8x64));
+        __m512i low_i16x32 = _mm512_cvtepu8_epi16(_mm512_castsi512_si256(data_u8x64));
+        __m512i high_i16x32 = _mm512_cvtepu8_epi16(_mm512_extracti64x4_epi64(data_u8x64, 1));
+        sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, _mm512_madd_epi16(low_i16x32, low_i16x32));
+        sumsq_high_i32x16 = _mm512_add_epi32(sumsq_high_i32x16, _mm512_madd_epi16(high_i16x32, high_i16x32));
+    }
     sumsq_low_i32x16 = _mm512_add_epi32(sumsq_low_i32x16, sumsq_high_i32x16);
     __m512i sumsq_u64x8 = _mm512_cvtepu32_epi64(_mm512_castsi512_si256(sumsq_low_i32x16));
     sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_cvtepu32_epi64(_mm512_extracti64x4_epi64(sumsq_low_i32x16, 1)));
     nk_u64_t sum = nk_reduce_add_u64x8_skylake_(sum_u64x8);
     nk_u64_t sumsq = nk_reduce_add_u64x8_skylake_(sumsq_u64x8);
-    nk_u8_t const *ptr = data_ptr + index_scalars;
-    nk_size_t remaining = count - index_scalars / stride_elements;
-    for (nk_size_t i = 0; i < remaining; ++i, ptr += stride_elements) {
-        nk_u64_t value = (nk_u64_t)*ptr;
-        sum += value, sumsq += value * value;
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -1132,15 +1144,19 @@ NUMKONG_INLINE void nk_reduce_moments_i16_skylake_contiguous_( //
         sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sq_i32x16)));
         sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(sq_i32x16, 1)));
     }
+    if (index < count) {
+        __mmask32 tail_m32 = (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)(count - index));
+        __m512i data_i16x32 = _mm512_maskz_loadu_epi16(tail_m32, data_ptr + index);
+        sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(data_i16x32, ones_i16x32));
+        __m512i sq_i32x16 = _mm512_madd_epi16(data_i16x32, data_i16x32);
+        sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sq_i32x16)));
+        sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(sq_i32x16, 1)));
+    }
     __m512i sum_i64x8 = _mm512_add_epi64(                                 //
         _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sum_i32x16)),        //
         _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(sum_i32x16, 1))); //
     nk_i64_t sum = nk_reduce_add_i64x8_skylake_(sum_i64x8);
     nk_u64_t sumsq = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sumsq_i64x8);
-    for (; index < count; ++index) {
-        nk_i64_t value = (nk_i64_t)data_ptr[index];
-        sum += value, sumsq += (nk_u64_t)(value * value);
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -1161,17 +1177,20 @@ NUMKONG_INLINE void nk_reduce_moments_i16_skylake_strided_(               //
         sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sq_i32x16)));
         sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(sq_i32x16, 1)));
     }
+    if (index_scalars < total_scalars) {
+        __mmask32 tail_m32 = stride_mask_m32 &
+                             (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)(total_scalars - index_scalars));
+        __m512i data_i16x32 = _mm512_maskz_loadu_epi16(tail_m32, data_ptr + index_scalars);
+        sum_i32x16 = _mm512_add_epi32(sum_i32x16, _mm512_madd_epi16(data_i16x32, ones_i16x32));
+        __m512i sq_i32x16 = _mm512_madd_epi16(data_i16x32, data_i16x32);
+        sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sq_i32x16)));
+        sumsq_i64x8 = _mm512_add_epi64(sumsq_i64x8, _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(sq_i32x16, 1)));
+    }
     __m512i sum_i64x8 = _mm512_add_epi64(                                 //
         _mm512_cvtepi32_epi64(_mm512_castsi512_si256(sum_i32x16)),        //
         _mm512_cvtepi32_epi64(_mm512_extracti64x4_epi64(sum_i32x16, 1))); //
     nk_i64_t sum = nk_reduce_add_i64x8_skylake_(sum_i64x8);
     nk_u64_t sumsq = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sumsq_i64x8);
-    nk_i16_t const *ptr = data_ptr + index_scalars;
-    nk_size_t remaining = count - index_scalars / stride_elements;
-    for (nk_size_t i = 0; i < remaining; ++i, ptr += stride_elements) {
-        nk_i64_t value = (nk_i64_t)*ptr;
-        sum += value, sumsq += (nk_u64_t)(value * value);
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 
@@ -1299,14 +1318,25 @@ NUMKONG_INLINE void nk_reduce_moments_u16_skylake_strided_(               //
         sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_unpacklo_epi32(high_sq_u32x16, zero_u32x16));
         sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_unpackhi_epi32(high_sq_u32x16, zero_u32x16));
     }
+    if (index_scalars < total_scalars) {
+        __mmask32 tail_m32 = stride_mask_m32 &
+                             (__mmask32)_bzhi_u32(0xFFFFFFFF, (unsigned int)(total_scalars - index_scalars));
+        __m512i data_u16x32 = _mm512_maskz_loadu_epi16(tail_m32, data_ptr + index_scalars);
+        __m512i low_u32x16 = _mm512_unpacklo_epi16(data_u16x32, zero_u32x16);
+        __m512i high_u32x16 = _mm512_unpackhi_epi16(data_u16x32, zero_u32x16);
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_unpacklo_epi32(low_u32x16, zero_u32x16));
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_unpackhi_epi32(low_u32x16, zero_u32x16));
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_unpacklo_epi32(high_u32x16, zero_u32x16));
+        sum_u64x8 = _mm512_add_epi64(sum_u64x8, _mm512_unpackhi_epi32(high_u32x16, zero_u32x16));
+        __m512i low_sq_u32x16 = _mm512_mullo_epi32(low_u32x16, low_u32x16);
+        __m512i high_sq_u32x16 = _mm512_mullo_epi32(high_u32x16, high_u32x16);
+        sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_unpacklo_epi32(low_sq_u32x16, zero_u32x16));
+        sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_unpackhi_epi32(low_sq_u32x16, zero_u32x16));
+        sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_unpacklo_epi32(high_sq_u32x16, zero_u32x16));
+        sumsq_u64x8 = _mm512_add_epi64(sumsq_u64x8, _mm512_unpackhi_epi32(high_sq_u32x16, zero_u32x16));
+    }
     nk_u64_t sum = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sum_u64x8);
     nk_u64_t sumsq = (nk_u64_t)nk_reduce_add_i64x8_skylake_(sumsq_u64x8);
-    nk_u16_t const *ptr = data_ptr + index_scalars;
-    nk_size_t remaining = count - index_scalars / stride_elements;
-    for (nk_size_t i = 0; i < remaining; ++i, ptr += stride_elements) {
-        nk_u64_t value = (nk_u64_t)*ptr;
-        sum += value, sumsq += value * value;
-    }
     *sum_ptr = sum, *sumsq_ptr = sumsq;
 }
 

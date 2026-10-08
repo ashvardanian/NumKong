@@ -17,6 +17,7 @@
 #ifndef NUMKONG_DOTS_BLACKWELLRTX_CUH
 #define NUMKONG_DOTS_BLACKWELLRTX_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_TARGET_BLACKWELLRTX
 
 #include "numkong/dots/ampere.cuh"
@@ -181,4 +182,5 @@ nk_define_cross_cuda_(dot, e2m1, blackwellrtx, ampere, e2m1x2, e2m1x2, f32, /*de
 #endif
 
 #endif // NUMKONG_TARGET_BLACKWELLRTX
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_DOTS_BLACKWELLRTX_CUH

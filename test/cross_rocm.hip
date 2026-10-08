@@ -8,6 +8,7 @@
  *  CDNA3, CDNA4 and CDNA5.
  */
 #include "cross_device.hpp"
+#include "reduce.hpp" // `test_reduce_moments`, `test_reduce_minmax`
 
 namespace ashvardanian::numkong::test {
 
@@ -215,8 +216,57 @@ void test_cross_rocm(error_stats_section_t &check) {
     check("attention_packed_i8_rocm", test_attention_packed<i8_t, rocm_backend_t, attention_weights_t::bits_8_k>,
           nk_attention_pack_size_i8_rocm, nk_attention_pack_i8_rocm, nk_attention_packed_i8_rocm);
 
+    check.section("Reductions ROCm", nk_cap_rocm_k);
+    check("reduce_moments_f32_rocm", test_reduce_moments<f32_t, rocm_backend_t>, nk_reduce_moments_f32_rocm);
+    check("reduce_moments_f64_rocm", test_reduce_moments<f64_t, rocm_backend_t>, nk_reduce_moments_f64_rocm);
+    check("reduce_moments_i8_rocm", test_reduce_moments<i8_t, rocm_backend_t>, nk_reduce_moments_i8_rocm);
+    check("reduce_moments_u8_rocm", test_reduce_moments<u8_t, rocm_backend_t>, nk_reduce_moments_u8_rocm);
+    check("reduce_moments_i16_rocm", test_reduce_moments<i16_t, rocm_backend_t>, nk_reduce_moments_i16_rocm);
+    check("reduce_moments_u16_rocm", test_reduce_moments<u16_t, rocm_backend_t>, nk_reduce_moments_u16_rocm);
+    check("reduce_moments_i32_rocm", test_reduce_moments<i32_t, rocm_backend_t>, nk_reduce_moments_i32_rocm);
+    check("reduce_moments_u32_rocm", test_reduce_moments<u32_t, rocm_backend_t>, nk_reduce_moments_u32_rocm);
+    check("reduce_moments_i64_rocm", test_reduce_moments<i64_t, rocm_backend_t>, nk_reduce_moments_i64_rocm);
+    check("reduce_moments_u64_rocm", test_reduce_moments<u64_t, rocm_backend_t>, nk_reduce_moments_u64_rocm);
+    check("reduce_moments_f16_rocm", test_reduce_moments<f16_t, rocm_backend_t>, nk_reduce_moments_f16_rocm);
+    check("reduce_moments_bf16_rocm", test_reduce_moments<bf16_t, rocm_backend_t>, nk_reduce_moments_bf16_rocm);
+    check("reduce_moments_e4m3_rocm", test_reduce_moments<e4m3_t, rocm_backend_t>, nk_reduce_moments_e4m3_rocm);
+    check("reduce_moments_e5m2_rocm", test_reduce_moments<e5m2_t, rocm_backend_t>, nk_reduce_moments_e5m2_rocm);
+    check("reduce_moments_e2m3_rocm", test_reduce_moments<e2m3_t, rocm_backend_t>, nk_reduce_moments_e2m3_rocm);
+    check("reduce_moments_e3m2_rocm", test_reduce_moments<e3m2_t, rocm_backend_t>, nk_reduce_moments_e3m2_rocm);
+    check("reduce_moments_e2m1_rocm", test_reduce_moments<e2m1x2_t, rocm_backend_t>, nk_reduce_moments_e2m1_rocm);
+    check("reduce_moments_i4_rocm", test_reduce_moments<i4x2_t, rocm_backend_t>, nk_reduce_moments_i4_rocm);
+    check("reduce_moments_u4_rocm", test_reduce_moments<u4x2_t, rocm_backend_t>, nk_reduce_moments_u4_rocm);
+    check("reduce_moments_u1_rocm", test_reduce_moments<u1x8_t, rocm_backend_t>, nk_reduce_moments_u1_rocm);
+    check("reduce_minmax_f32_rocm", test_reduce_minmax<f32_t, rocm_backend_t>, nk_reduce_minmax_f32_rocm);
+    check("reduce_minmax_f64_rocm", test_reduce_minmax<f64_t, rocm_backend_t>, nk_reduce_minmax_f64_rocm);
+    check("reduce_minmax_i8_rocm", test_reduce_minmax<i8_t, rocm_backend_t>, nk_reduce_minmax_i8_rocm);
+    check("reduce_minmax_u8_rocm", test_reduce_minmax<u8_t, rocm_backend_t>, nk_reduce_minmax_u8_rocm);
+    check("reduce_minmax_i16_rocm", test_reduce_minmax<i16_t, rocm_backend_t>, nk_reduce_minmax_i16_rocm);
+    check("reduce_minmax_u16_rocm", test_reduce_minmax<u16_t, rocm_backend_t>, nk_reduce_minmax_u16_rocm);
+    check("reduce_minmax_i32_rocm", test_reduce_minmax<i32_t, rocm_backend_t>, nk_reduce_minmax_i32_rocm);
+    check("reduce_minmax_u32_rocm", test_reduce_minmax<u32_t, rocm_backend_t>, nk_reduce_minmax_u32_rocm);
+    check("reduce_minmax_i64_rocm", test_reduce_minmax<i64_t, rocm_backend_t>, nk_reduce_minmax_i64_rocm);
+    check("reduce_minmax_u64_rocm", test_reduce_minmax<u64_t, rocm_backend_t>, nk_reduce_minmax_u64_rocm);
+    check("reduce_minmax_f16_rocm", test_reduce_minmax<f16_t, rocm_backend_t>, nk_reduce_minmax_f16_rocm);
+    check("reduce_minmax_bf16_rocm", test_reduce_minmax<bf16_t, rocm_backend_t>, nk_reduce_minmax_bf16_rocm);
+    check("reduce_minmax_e4m3_rocm", test_reduce_minmax<e4m3_t, rocm_backend_t>, nk_reduce_minmax_e4m3_rocm);
+    check("reduce_minmax_e5m2_rocm", test_reduce_minmax<e5m2_t, rocm_backend_t>, nk_reduce_minmax_e5m2_rocm);
+    check("reduce_minmax_e2m3_rocm", test_reduce_minmax<e2m3_t, rocm_backend_t>, nk_reduce_minmax_e2m3_rocm);
+    check("reduce_minmax_e3m2_rocm", test_reduce_minmax<e3m2_t, rocm_backend_t>, nk_reduce_minmax_e3m2_rocm);
+    check("reduce_minmax_i4_rocm", test_reduce_minmax<i4x2_t, rocm_backend_t>, nk_reduce_minmax_i4_rocm);
+    check("reduce_minmax_u4_rocm", test_reduce_minmax<u4x2_t, rocm_backend_t>, nk_reduce_minmax_u4_rocm);
+    check("reduce_minmax_u1_rocm", test_reduce_minmax<u1x8_t, rocm_backend_t>, nk_reduce_minmax_u1_rocm);
+
 #if NUMKONG_TARGET_CDNA3
     check.section("Cross CDNA3", nk_cap_cdna3_k);
+    check("dots_packed_bf16_cdna3", test_dots_packed<bf16_t, rocm_backend_t>, nk_dots_pack_size_bf16_cdna3,
+          nk_dots_pack_bf16_cdna3, nk_dots_packed_bf16_cdna3);
+    check("dots_pack_bf16_cdna3", test_dots_pack_layout<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna3,
+                                                        nk_dots_packed_shape_bf16_cdna3, nk_dots_pack_bf16_cdna3>);
+    check("dots_contract_bf16_cdna3",
+          test_dots_launch_contract<bf16_t, rocm_backend_t, nk_dots_pack_size_bf16_cdna3, nk_dots_packed_bf16_cdna3,
+                                    nk_dots_symmetric_bf16_cdna3>);
+    check("dots_symmetric_bf16_cdna3", test_dots_symmetric<bf16_t, rocm_backend_t>, nk_dots_symmetric_bf16_cdna3);
     check("dots_packed_f16_cdna3", test_dots_packed<f16_t, rocm_backend_t>, nk_dots_pack_size_f16_cdna3,
           nk_dots_pack_f16_cdna3, nk_dots_packed_f16_cdna3);
     check("dots_pack_f16_cdna3", test_dots_pack_layout<f16_t, rocm_backend_t, nk_dots_pack_size_f16_cdna3,
@@ -278,6 +328,28 @@ void test_cross_rocm(error_stats_section_t &check) {
     check("dots_contract_i4_cdna3", test_dots_launch_contract<i4x2_t, rocm_backend_t, nk_dots_pack_size_i4_cdna3,
                                                               nk_dots_packed_i4_cdna3, nk_dots_symmetric_i4_cdna3>);
     check("dots_symmetric_i4_cdna3", test_dots_symmetric<i4x2_t, rocm_backend_t>, nk_dots_symmetric_i4_cdna3);
+    check("dots_packed_u8_cdna3", test_dots_packed<u8_t, rocm_backend_t>, nk_dots_pack_size_u8_cdna3,
+          nk_dots_pack_u8_cdna3, nk_dots_packed_u8_cdna3);
+    check("dots_pack_u8_cdna3", test_dots_pack_layout<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna3,
+                                                      nk_dots_packed_shape_u8_cdna3, nk_dots_pack_u8_cdna3>);
+    check("dots_contract_u8_cdna3", test_dots_launch_contract<u8_t, rocm_backend_t, nk_dots_pack_size_u8_cdna3,
+                                                              nk_dots_packed_u8_cdna3, nk_dots_symmetric_u8_cdna3>);
+    check("dots_symmetric_u8_cdna3", test_dots_symmetric<u8_t, rocm_backend_t>, nk_dots_symmetric_u8_cdna3);
+    check("dots_packed_u4_cdna3", test_dots_packed<u4x2_t, rocm_backend_t>, nk_dots_pack_size_u4_cdna3,
+          nk_dots_pack_u4_cdna3, nk_dots_packed_u4_cdna3);
+    check("dots_pack_u4_cdna3", test_dots_pack_layout<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna3,
+                                                      nk_dots_packed_shape_u4_cdna3, nk_dots_pack_u4_cdna3>);
+    check("dots_contract_u4_cdna3", test_dots_launch_contract<u4x2_t, rocm_backend_t, nk_dots_pack_size_u4_cdna3,
+                                                              nk_dots_packed_u4_cdna3, nk_dots_symmetric_u4_cdna3>);
+    check("dots_symmetric_u4_cdna3", test_dots_symmetric<u4x2_t, rocm_backend_t>, nk_dots_symmetric_u4_cdna3);
+    check("angulars_packed_bf16_cdna3", test_angulars_packed<bf16_t, rocm_backend_t>, nk_dots_pack_size_bf16_cdna3,
+          nk_dots_pack_bf16_cdna3, nk_angulars_packed_bf16_cdna3);
+    check("angulars_symmetric_bf16_cdna3", test_angulars_symmetric<bf16_t, rocm_backend_t>,
+          nk_angulars_symmetric_bf16_cdna3);
+    check("euclideans_packed_bf16_cdna3", test_euclideans_packed<bf16_t, rocm_backend_t>, nk_dots_pack_size_bf16_cdna3,
+          nk_dots_pack_bf16_cdna3, nk_euclideans_packed_bf16_cdna3);
+    check("euclideans_symmetric_bf16_cdna3", test_euclideans_symmetric<bf16_t, rocm_backend_t>,
+          nk_euclideans_symmetric_bf16_cdna3);
     check("angulars_packed_f16_cdna3", test_angulars_packed<f16_t, rocm_backend_t>, nk_dots_pack_size_f16_cdna3,
           nk_dots_pack_f16_cdna3, nk_angulars_packed_f16_cdna3);
     check("angulars_symmetric_f16_cdna3", test_angulars_symmetric<f16_t, rocm_backend_t>,
@@ -341,6 +413,27 @@ void test_cross_rocm(error_stats_section_t &check) {
           nk_dots_pack_i4_cdna3, nk_euclideans_packed_i4_cdna3);
     check("euclideans_symmetric_i4_cdna3", test_euclideans_symmetric<i4x2_t, rocm_backend_t>,
           nk_euclideans_symmetric_i4_cdna3);
+    check("angulars_packed_u8_cdna3", test_angulars_packed<u8_t, rocm_backend_t>, nk_dots_pack_size_u8_cdna3,
+          nk_dots_pack_u8_cdna3, nk_angulars_packed_u8_cdna3);
+    check("angulars_symmetric_u8_cdna3", test_angulars_symmetric<u8_t, rocm_backend_t>, nk_angulars_symmetric_u8_cdna3);
+    check("euclideans_packed_u8_cdna3", test_euclideans_packed<u8_t, rocm_backend_t>, nk_dots_pack_size_u8_cdna3,
+          nk_dots_pack_u8_cdna3, nk_euclideans_packed_u8_cdna3);
+    check("euclideans_symmetric_u8_cdna3", test_euclideans_symmetric<u8_t, rocm_backend_t>,
+          nk_euclideans_symmetric_u8_cdna3);
+    check("angulars_packed_u4_cdna3", test_angulars_packed<u4x2_t, rocm_backend_t>, nk_dots_pack_size_u4_cdna3,
+          nk_dots_pack_u4_cdna3, nk_angulars_packed_u4_cdna3);
+    check("angulars_symmetric_u4_cdna3", test_angulars_symmetric<u4x2_t, rocm_backend_t>,
+          nk_angulars_symmetric_u4_cdna3);
+    check("euclideans_packed_u4_cdna3", test_euclideans_packed<u4x2_t, rocm_backend_t>, nk_dots_pack_size_u4_cdna3,
+          nk_dots_pack_u4_cdna3, nk_euclideans_packed_u4_cdna3);
+    check("euclideans_symmetric_u4_cdna3", test_euclideans_symmetric<u4x2_t, rocm_backend_t>,
+          nk_euclideans_symmetric_u4_cdna3);
+    check("attention_packed_bf16_cdna3", test_attention_packed<bf16_t, rocm_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_bf16_cdna3, nk_attention_pack_bf16_cdna3, nk_attention_packed_bf16_cdna3);
+    check("attention_packed_gradients_bf16_cdna3", test_attention_packed_gradients<bf16_t, rocm_backend_t>,
+          nk_attention_pack_size_bf16_cdna3, nk_attention_pack_bf16_cdna3, nk_attention_packed_gradients_bf16_cdna3);
+    check("attention_packed_i8_cdna3", test_attention_packed<i8_t, rocm_backend_t, attention_weights_t::bits_8_k>,
+          nk_attention_pack_size_i8_cdna3, nk_attention_pack_i8_cdna3, nk_attention_packed_i8_cdna3);
 #endif // NUMKONG_TARGET_CDNA3
 
 #if NUMKONG_TARGET_CDNA4

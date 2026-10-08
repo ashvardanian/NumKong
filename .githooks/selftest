@@ -37,18 +37,45 @@ create_fixture_repository() {
     git -C "$fixture_directory" commit --quiet --allow-empty -m "Chore: Seed the fixture"
 }
 
-# Stages stdin at the path, behind the file header every C-family source carries.
+# The guards a capability header's shape opens, outermost first, for each capability fixtures use.
+capability_guards() { # capability_guards <relative-path>
+    local capability=${1##*/}
+    capability=${capability%.*}
+    local upper
+    upper=$(printf '%s' "$capability" | tr '[:lower:]' '[:upper:]')
+    case "$capability" in
+    serial) echo NUMKONG_TARGET_SERIAL ;;
+    simt) echo 'NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_' ;;
+    haswell | skylake) printf '%s\n' NUMKONG_ARCH_X8664_ "NUMKONG_ARCH_X8664_${upper}_" "NUMKONG_TARGET_$upper" ;;
+    neon | sme) printf '%s\n' NUMKONG_ARCH_ARM64_ "NUMKONG_ARCH_ARM64_${upper}_" "NUMKONG_TARGET_$upper" ;;
+    diamondamx) printf '%s\n' NUMKONG_ARCH_X8664_ "NUMKONG_TARGET_$upper" ;;
+    smef64 | sve2) printf '%s\n' NUMKONG_ARCH_ARM64_ "NUMKONG_TARGET_$upper" ;;
+    rvvhalf) printf '%s\n' NUMKONG_ARCH_RISCV64_ "NUMKONG_TARGET_$upper" ;;
+    esac
+}
+
+# Stages stdin at the path, behind the file header every C-family source carries. A capability
+# header opening no guard of its own gets its shape's, so only the guard fixtures test the guards.
 stage_fixture_with_header() { # stage_fixture_with_header <relative-path> <<< content
     create_fixture_repository
-    local fixture_path="$fixture_directory/$1"
+    local fixture_path="$fixture_directory/$1" content guards=""
     mkdir -p "$(dirname "$fixture_path")"
     case "$1" in
     *.h | *.hpp | *.c | *.cpp | *.cu | *.cuh | *.hip | *.metal)
+        content=$(cat)
+        case "$1" in
+        include/numkong/*/*.h | include/numkong/*/*.cuh)
+            printf '%s\n' "$content" | grep -qE '^#if NUMKONG_(ARCH|TARGET)_' || guards=$(capability_guards "$1")
+            ;;
+        esac
         {
             printf '/**\n *  @file %s\n *  @author Selftest\n *  @date January 1, 2026\n' "$1"
             printf ' *  @brief One staged fixture for one rule.\n *\n *  The case under test follows.\n */\n'
             printf '#pragma once\n\n'
-            cat
+            [ -z "$guards" ] || printf '%s\n' "$guards" | awk '{ print "#if " $0 } END { print "" }'
+            printf '%s\n' "$content"
+            [ -z "$guards" ] || printf '%s\n' "$guards" |
+                awk '{ guards[NR] = $0 } END { print ""; for (index_ = NR; index_ > 0; --index_) print "#endif // " guards[index_] }'
         } > "$fixture_path"
         ;;
     *.go)
@@ -493,6 +520,85 @@ assert_accepts "kernel calling a state helper" include/numkong/probe/haswell.h <
 NUMKONG_API int nk_probe_haswell(int value) {
     return nk_dot_f32x4_update_serial(value);
 }
+FIXTURE
+
+assert_rejects "kernel taking a runtime dtype" "runtime nk_dtype_t parameter" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE void nk_probe_haswell_(nk_size_t count,
+                                      nk_dtype_t dtype, nk_size_t stride) {
+    nk_probe_serial_(count, dtype, stride);
+}
+FIXTURE
+
+assert_accepts "constexpr helper taking a dtype, kernel with a dtype local" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_CONSTEXPR nk_size_t nk_probe_size_(nk_dtype_t dtype) { return dtype == nk_f32_k ? 4 : 2; }
+
+NUMKONG_INLINE void nk_probe_haswell_(nk_size_t count) {
+    nk_dtype_t dtype = nk_f32_k;
+    nk_probe_serial_(count, nk_probe_size_(dtype));
+}
+FIXTURE
+
+assert_rejects "typedef of a function pointer in a kernel" "stores a function pointer" include/numkong/probe/haswell.h <<'FIXTURE'
+typedef void (*nk_probe_load_haswell_t_)(void const *source, nk_size_t count);
+FIXTURE
+
+assert_rejects "function pointer field in a kernel struct" "stores a function pointer" include/numkong/probe/haswell.h <<'FIXTURE'
+typedef struct {
+    void (*load)(void const *source, nk_size_t count);
+} nk_probe_haswell_t_;
+FIXTURE
+
+assert_accepts "function pointer parameter in a kernel" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE void nk_probe_haswell_(void (*load)(void const *source), void const *source) { load(source); }
+FIXTURE
+
+assert_rejects "F64 in a block-scaled kernel" "uses F64 inside a block-scaled kernel" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE nk_f32_t nk_probe_scaled_haswell_(nk_f32_t value) {
+    nk_f64_t wide = value;
+    return (nk_f32_t)wide;
+}
+FIXTURE
+
+assert_accepts "F64 in an exact kernel, F32 in a block-scaled one" include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE nk_f64_t nk_probe_exact_haswell_(nk_f32_t value) {
+    nk_f64_t wide = value;
+    return wide;
+}
+
+NUMKONG_INLINE nk_f32_t nk_probe_scaled_haswell_(nk_f32_t value) {
+    nk_f32_t narrow = value;
+    return narrow;
+}
+FIXTURE
+
+stage_fixture_with_header include/numkong/probe/haswell.h <<'FIXTURE'
+NUMKONG_INLINE void nk_probe_haswell_(nk_dtype_t dtype, nk_size_t count) { nk_probe_serial_(dtype, count); }
+
+typedef void (*nk_probe_load_haswell_t_)(void const *source);
+
+NUMKONG_INLINE nk_f32_t nk_probe_scaled_haswell_(nk_f32_t value) {
+    nk_f64_t wide = value;
+    return (nk_f32_t)wide;
+}
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+awk '/^#endif \/\/ NUMKONG_TARGET_HASWELL$/ {
+        print "NUMKONG_INLINE nk_f32_t nk_probe_scaled_next_haswell_(nk_f32_t value) {\n    return value;\n}\n"
+    }
+    { print }' "$fixture_directory/include/numkong/probe/haswell.h" > "$fixture_directory/edited.h"
+mv "$fixture_directory/edited.h" "$fixture_directory/include/numkong/probe/haswell.h"
+git -C "$fixture_directory" add -- include/numkong/probe/haswell.h
+run_precommit
+expect_acceptance "legacy dtype, callback and F64 lines left unchanged"
+
+assert_rejects "unapproved code-generation macro" "nobody approved" include/numkong/probe/serial.h <<'FIXTURE'
+#define nk_define_probe_unapproved_(name) \
+    NUMKONG_API void nk_probe_##name##_serial(void) {}
+FIXTURE
+
+assert_accepts "approved code-generation macro" include/numkong/probe/serial.h <<'FIXTURE'
+#define nk_define_dot_(name) \
+    NUMKONG_API void nk_probe_##name##_serial(void) {}
 FIXTURE
 
 assert_rejects "shape with x" "spells a shape" include/numkong/probe.h <<'FIXTURE'
@@ -2023,6 +2129,10 @@ assert_rejects "discarding through a void cast" "casts a result to void" include
 static inline void probe(void) { (void)compute(); }
 FIXTURE
 
+assert_accepts "void parameter list before a streaming attribute" include/numkong/probe.h <<'FIXTURE'
+NUMKONG_INLINE int probe(void) NUMKONG_STREAMABLE_ { return 0; }
+FIXTURE
+
 assert_rejects "thread_local state" "declares a thread_local" include/numkong/probe.hpp <<'FIXTURE'
 static thread_local int probe_counter = 0;
 FIXTURE
@@ -2424,19 +2534,44 @@ typedef struct probe_t {
     __m512 low_f32x16, high_f32x16;
     nk_b512_vec_t input_vec, output_vec;
 } probe_t;
-NUMKONG_INLINE void probe(nk_b512_vec_t a, nk_b512_vec_t b, __m512 *maximum_f32x16, __m512 scale_f32x16,
+NUMKONG_INLINE void probe(nk_b512_vec_t a,
+                          nk_b512_vec_t b, __m512 *maximum_f32x16, __m512 scale_f32x16,
                           nk_b512_vec_t *destination, nk_size_t count) {
     __m512 sum_f32x16 = _mm512_add_ps(a.zmm_ps, b.zmm_ps), zero_f32x16 = _mm512_setzero_ps();
 }
+NUMKONG_INLINE void convert(__m512i input_i32x16, __m512 *low_f32x16, __m512 *high_f32x16) {
+    __m512 sum_f32x16 = (__m512)input_i32x16;
+}
+NUMKONG_INLINE void masked(__mmask16 columns_m16, __m256i *a_bf16x16,
+                          __m256i *b_bf16x16) {}
 FIXTURE
 
 for backend in skylake diamondamx sve2 smef64 rvvhalf; do
     assert_rejects "serial partial loader on $backend" "uses a serial partial loader in a predicated backend" "include/numkong/probe/$backend.h" <<'FIXTURE'
-NUMKONG_INLINE void probe(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
+NUMKONG_INLINE void probe(void const *src, void *dst, nk_size_t n) {
     nk_partial_load_b8x16_serial_(src, dst, n);
 }
 FIXTURE
 done
+
+assert_rejects "NEON finish in an SME header" "uses NEON in an SME backend" include/numkong/probe/sme.h <<'FIXTURE'
+NUMKONG_INLINE void probe(nk_f32_t const *dots, nk_f32_t norm, nk_f32_t const *norms, nk_f32_t *out) {
+    nk_angular_through_f32_from_dot_neon_(dots, norm, norms, out);
+}
+FIXTURE
+
+assert_rejects "NEON intrinsics in an SME header" "uses NEON in an SME backend" include/numkong/probe/smef64.h <<'FIXTURE'
+NUMKONG_INLINE nk_f64_t probe(nk_f64_t value) {
+    return vget_lane_f64(vsqrt_f64(vdup_n_f64(value)), 0);
+}
+FIXTURE
+
+assert_accepts "streaming SVE tuples in an SME header" include/numkong/probe/sme.h <<'FIXTURE'
+NUMKONG_INLINE svuint16x2_t probe(nk_u16_t const *data) NUMKONG_STREAMING_ {
+    svbool_t const predicate_b16x = svptrue_b16();
+    return svcreate2_u16(svld1_u16(predicate_b16x, data), svld1_u16(predicate_b16x, data + svcnth()));
+}
+FIXTURE
 
 for backend in neon haswell; do
     assert_accepts "serial byte tail without byte predication on $backend" "include/numkong/probe/$backend.h" <<'FIXTURE'
@@ -2451,6 +2586,21 @@ NUMKONG_INLINE void probe(void const *src, nk_b128_vec_t *dst, nk_size_t n) {
     nk_partial_load_b8x16_skylake_(src, dst, n);
 }
 FIXTURE
+
+stage_fixture_with_header include/numkong/probe/skylake.h <<'FIXTURE'
+NUMKONG_INLINE void probe(void) {
+    /*
+    Kept as prose.
+    */
+}
+FIXTURE
+git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
+sed 's/Kept as prose./nk_partial_load_b8x16_serial_(src, dst, n);/' \
+    "$fixture_directory/include/numkong/probe/skylake.h" > "$fixture_directory/edited.h"
+mv "$fixture_directory/edited.h" "$fixture_directory/include/numkong/probe/skylake.h"
+git -C "$fixture_directory" add -- include/numkong/probe/skylake.h
+run_precommit
+expect_acceptance "added code spelling inside an existing block comment"
 
 assert_rejects "Metal template parameter without private suffix" "exposes a template parameter name" include/numkong/probe.metal <<'FIXTURE'
 template <typename stage_t, uint dtype>
@@ -2471,37 +2621,177 @@ struct probe {
 };
 FIXTURE
 
-assert_rejects "repeated backend target guard" "repeats its backend target guard" include/numkong/probe/sme.h <<'FIXTURE'
-#if NUMKONG_TARGET_SME
-int first(void);
-#endif
-#if NUMKONG_TARGET_SME
-int second(void);
+assert_accepts "base capability guards" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#include "numkong/types.h"
+
+NUMKONG_INLINE int nk_probe_haswell_(int value) { return value; }
+
+#if NUMKONG_TARGET_HASWELL
+NUMKONG_API int nk_probe_haswell(int value) { return nk_probe_haswell_(value); }
+#endif // NUMKONG_TARGET_HASWELL
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "base capability without its closure" "breaks the guards of a base" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#include "numkong/types.h"
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "base kernel outside its target" "breaks the guards of a base" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+NUMKONG_API int nk_probe_haswell(int value) { return value; }
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_accepts "leaf capability guards" include/numkong/probe/powervsx.h <<'FIXTURE'
+#if NUMKONG_ARCH_PPC64_
+#if NUMKONG_TARGET_POWERVSX
+
+#include "numkong/types.h"
+
+NUMKONG_API int nk_probe_powervsx(int value) { return value; }
+
+#endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_
+FIXTURE
+
+assert_rejects "leaf capability under a closure" "breaks the guards of a leaf" include/numkong/probe/alder.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+NUMKONG_API int nk_probe_alder(int value) { return value; }
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_accepts "vendor floor guards" include/numkong/probe/cuda.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+
+#include "numkong/types.h"
+
+#if NUMKONG_TARGET_CUDA
+NUMKONG_API int nk_probe_cuda(int value) { return value; }
+#endif // NUMKONG_TARGET_CUDA
+
+#endif // NUMKONG_ARCH_CUDA_
+FIXTURE
+
+assert_accepts "codegen macro defined outside the target, stamped inside" include/numkong/probe/cuda.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+
+#define nk_define_dot_(name) \
+    NUMKONG_API int nk_probe_##name##_cuda(int value) { return value; }
+
+#if NUMKONG_TARGET_CUDA
+nk_define_dot_(f32)
+#endif // NUMKONG_TARGET_CUDA
+
+#endif // NUMKONG_ARCH_CUDA_
+FIXTURE
+
+assert_accepts "helper stamp in a base closure outside the target" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#define nk_define_dot_(name) \
+    NUMKONG_INLINE int nk_probe_##name##_haswell_(int value) { return value; }
+
+nk_define_dot_(f32)
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "kernel stamp in a base closure outside the target" "breaks the guards of a base" include/numkong/probe/haswell.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_ARCH_X8664_HASWELL_
+
+#define nk_define_dot_(name) \
+    NUMKONG_API int nk_probe_##name##_haswell(int value) { return value; }
+
+nk_define_dot_(f32)
+
+#endif // NUMKONG_ARCH_X8664_HASWELL_
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "capability under another architecture" "breaks the guards of a leaf" include/numkong/probe/neonsdot.h <<'FIXTURE'
+#if NUMKONG_ARCH_X8664_
+#if NUMKONG_TARGET_NEONSDOT
+NUMKONG_API int nk_probe_neonsdot(int value) { return value; }
+#endif // NUMKONG_TARGET_NEONSDOT
+#endif // NUMKONG_ARCH_X8664_
+FIXTURE
+
+assert_rejects "extra platform condition in a capability header" "breaks the guards of a leaf" include/numkong/probe/hopper.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_TARGET_HOPPER
+#if NUMKONG_TARGET_BLACKWELL
+NUMKONG_API int nk_probe_hopper(int value) { return value; }
+#endif // NUMKONG_TARGET_BLACKWELL
+#endif // NUMKONG_TARGET_HOPPER
+#endif // NUMKONG_ARCH_CUDA_
+FIXTURE
+
+assert_rejects "guard closed without its name" "breaks the guards of a floor" include/numkong/probe/rocm.cuh <<'FIXTURE'
+#if NUMKONG_ARCH_ROCM_
+#if NUMKONG_TARGET_ROCM
+NUMKONG_API int nk_probe_rocm(int value) { return value; }
+#endif // NUMKONG_TARGET_CUDA
 #endif
 FIXTURE
 
-assert_accepts "distinct backend target guards" include/numkong/probe/sme.h <<'FIXTURE'
-#if NUMKONG_TARGET_SME
-int first(void);
+assert_accepts "compiler workaround on an architecture in serial.h" include/numkong/probe/serial.h <<'FIXTURE'
+#if defined(__GNUC__) && !defined(__clang__) && NUMKONG_ARCH_ARM64_
+#pragma GCC push_options
+#pragma GCC target("arch=armv8-a")
 #endif
-#if NUMKONG_TARGET_SMEF64
-int second(void);
+
+#if NUMKONG_TARGET_SERIAL
+NUMKONG_API int nk_probe_serial(int value) { return value; }
+#endif // NUMKONG_TARGET_SERIAL
+FIXTURE
+
+assert_rejects "bare architecture test in serial.h" "breaks the guards of a serial" include/numkong/probe/serial.h <<'FIXTURE'
+#if NUMKONG_ARCH_ARM64_
+static int nk_probe_arm64_(int value) { return value; }
 #endif
 FIXTURE
 
-stage_fixture_with_header include/numkong/probe/sme.h <<'FIXTURE'
-#if NUMKONG_TARGET_SME
-int first(void);
-#endif
-#if NUMKONG_TARGET_SME
-int second(void);
+assert_rejects "runtime service under a vendor target" "guards a declaration by the wrong family" include/numkong/probe.h <<'FIXTURE'
+#if NUMKONG_TARGET_CUDA
+NUMKONG_API int nk_probe_stream_init_cuda(void **stream);
 #endif
 FIXTURE
-git -C "$fixture_directory" commit --quiet -m "Chore: Seed the fixture"
-printf '\nint third(void);\n' >> "$fixture_directory/include/numkong/probe/sme.h"
-git -C "$fixture_directory" add -- include/numkong/probe/sme.h
-run_precommit
-expect_acceptance "untouched legacy target guards"
+
+assert_rejects "kernel declaration under a vendor architecture" "guards a declaration by the wrong family" include/numkong/probe.h <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+NUMKONG_API int nk_probe_f32_hopper(int value);
+#endif
+FIXTURE
+
+assert_accepts "runtime services and kernels under their own families" include/numkong/probe.h <<'FIXTURE'
+#if NUMKONG_ARCH_CUDA_
+NUMKONG_API int nk_probe_stream_init_cuda(void **stream);
+#endif
+
+#if NUMKONG_TARGET_HOPPER
+NUMKONG_API int nk_probe_f32_hopper(int value);
+#endif
+FIXTURE
+
+assert_rejects "target closure" "spells a NUMKONG_TARGET_<NAME>_ closure" include/numkong/probe.h <<'FIXTURE'
+#if NUMKONG_TARGET_HASWELL_
+static int probe(void) { return 1; }
+#endif
+FIXTURE
 
 assert_rejects "dispatch umbrella in a backend" "includes a dispatch umbrella" include/numkong/probe/haswell.h <<'FIXTURE'
 #include "numkong/dot.h"
@@ -2521,29 +2811,6 @@ assert_accepts "C in a CUDA tier, and prose naming templates" include/numkong/pr
 extern "C" void nk_probe_cuda(void);
 FIXTURE
 
-assert_rejects "inline swizzle in a CUDA tier" "addresses GPU memory by hand" include/numkong/probe.cuh <<'FIXTURE'
-NUMKONG_DEVICE unsigned nk_probe_(unsigned row, unsigned chunk) { return row * 128 + ((chunk ^ (row & 7)) << 4); }
-FIXTURE
-
-assert_rejects "vector cast in a CUDA tier" "addresses GPU memory by hand" include/numkong/probe.cuh <<'FIXTURE'
-NUMKONG_DEVICE uint4 nk_probe_(unsigned char const *row) { return ((uint4 const *)row)[1]; }
-FIXTURE
-
-assert_rejects "dereferenced word cast in a CUDA tier" "addresses GPU memory by hand" include/numkong/probe.cuh <<'FIXTURE'
-NUMKONG_DEVICE nk_u32_t nk_probe_(unsigned char const *row) { return *(nk_u32_t const *)(row + 4); }
-FIXTURE
-
-assert_accepts "addressing helpers, their bodies, and prose naming the casts" include/numkong/probe.cuh <<'FIXTURE'
-/* Never *(uint4 *)row or chunk ^ (row & 7) by hand. */
-NUMKONG_DEVICE uint4 nk_load_b128_(void const *address) { return *(uint4 const *)address; }
-NUMKONG_DEVICE unsigned nk_swizzled_offset_(unsigned row, unsigned byte, unsigned swizzle_bytes) {
-    return row * swizzle_bytes + (((byte >> 4) ^ (row & 7)) << 4);
-}
-NUMKONG_DEVICE uint4 nk_probe_(unsigned char const *stage, nk_u32_t const *words) {
-    return nk_load_b128_(stage + nk_swizzled_offset_(words[0], 16, 128));
-}
-FIXTURE
-
 assert_rejects "chevron launch in a library unit" "launches with <<< >>>" c/target/probe.cu <<'FIXTURE'
 void probe(void) { nk_probe_simt_kernel_<<<1, 32>>>(); }
 FIXTURE
@@ -2553,7 +2820,7 @@ assert_accepts "launch API in a library unit, and prose naming chevrons" c/targe
 void probe(void) { cudaLaunchKernel(kernel, grid, block, arguments, 0, stream); }
 FIXTURE
 
-assert_rejects "vendor test in a host file" "tests the GPU compiler in host code" include/numkong/probe/cuda.cuh <<'FIXTURE'
+assert_rejects "vendor test in a host file" "tests the GPU compiler in host code" include/numkong/cuda.cuh <<'FIXTURE'
 #if NUMKONG_ARCH_CUDA_ && defined(__CUDACC__) && !defined(__HIP__)
 #if defined(__HIP__)
 void probe(void) { hipFree(0); }
@@ -2561,7 +2828,7 @@ void probe(void) { hipFree(0); }
 #endif
 FIXTURE
 
-assert_accepts "one top guard in a vendor file" include/numkong/probe/rocm.cuh <<'FIXTURE'
+assert_accepts "one top guard in a vendor file" include/numkong/rocm.cuh <<'FIXTURE'
 #if NUMKONG_ARCH_ROCM_ && defined(__HIP__)
 void probe(void) { hipFree(0); }
 #endif // NUMKONG_ARCH_ROCM_ && defined(__HIP__)
@@ -2604,6 +2871,12 @@ FIXTURE
 
 assert_rejects "fact tested with defined" "fact with defined; use #if" include/numkong/probe.h <<'FIXTURE'
 #if defined(NUMKONG_OS_LINUX_)
+static int probe(void) { return 1; }
+#endif
+FIXTURE
+
+assert_rejects "closure tested with ifdef" "fact with defined; use #if" include/numkong/probe.h <<'FIXTURE'
+#ifdef NUMKONG_ARCH_X8664_HASWELL_
 static int probe(void) { return 1; }
 #endif
 FIXTURE

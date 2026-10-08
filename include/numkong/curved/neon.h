@@ -32,7 +32,6 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_f16_to_f32_`
 
-#if NUMKONG_TARGET_NEON
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -43,6 +42,8 @@ extern "C" {
 #pragma GCC push_options
 #pragma GCC target("arch=armv8-a+simd")
 #endif
+
+#if NUMKONG_TARGET_NEON
 
 NUMKONG_API nk_status_t nk_bilinear_f32_neon(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t n,
                                              nk_f64_t *result, void *stream) {
@@ -328,6 +329,8 @@ NUMKONG_API nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_
     return nk_success_k;
 }
 
+#endif // NUMKONG_TARGET_NEON
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -337,7 +340,6 @@ NUMKONG_API nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_NEON
 
 #endif // NUMKONG_ARCH_ARM64_NEON_
 #endif // NUMKONG_ARCH_ARM64_

@@ -16,9 +16,10 @@
 #ifndef NUMKONG_CAST_ADA_CUH
 #define NUMKONG_CAST_ADA_CUH
 
-#include "numkong/cast/ampere.cuh" // `nk_cast_f32x8_to_bf16x8_ampere_`, `nk_cast_launch_cuda_`
-
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_ADA_
+
+#include "numkong/cast/ampere.cuh" // `nk_cast_f32x8_to_bf16x8_ampere_`, `nk_cast_launch_cuda_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -153,4 +154,5 @@ NUMKONG_API nk_status_t nk_cast_ada(void const *from, nk_dtype_t from_dtype, voi
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_ADA_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_CAST_ADA_CUH

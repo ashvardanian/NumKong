@@ -628,24 +628,11 @@ NUMKONG_API nk_status_t nk_rmsd_f64_skylake(nk_f64_t const *a, nk_f64_t const *b
         sum_squared_x_f64x8 = _mm512_fmadd_pd(delta_x_f64x8, delta_x_f64x8, sum_squared_x_f64x8);
         sum_squared_y_f64x8 = _mm512_fmadd_pd(delta_y_f64x8, delta_y_f64x8, sum_squared_y_f64x8);
         sum_squared_z_f64x8 = _mm512_fmadd_pd(delta_z_f64x8, delta_z_f64x8, sum_squared_z_f64x8);
-        i = n;
     }
 
-    nk_f64_t total_squared_x = nk_reduce_stable_f64x8_skylake_(sum_squared_x_f64x8), total_squared_x_compensation = 0.0;
-    nk_f64_t total_squared_y = nk_reduce_stable_f64x8_skylake_(sum_squared_y_f64x8), total_squared_y_compensation = 0.0;
-    nk_f64_t total_squared_z = nk_reduce_stable_f64x8_skylake_(sum_squared_z_f64x8), total_squared_z_compensation = 0.0;
-
-    for (; i < n; ++i) {
-        nk_f64_t ax = a[i * 3 + 0], ay = a[i * 3 + 1], az = a[i * 3 + 2];
-        nk_f64_t bx = b[i * 3 + 0], by = b[i * 3 + 1], bz = b[i * 3 + 2];
-        nk_f64_t delta_x = ax - bx, delta_y = ay - by, delta_z = az - bz;
-        nk_accumulate_square_f64_(&total_squared_x, &total_squared_x_compensation, delta_x);
-        nk_accumulate_square_f64_(&total_squared_y, &total_squared_y_compensation, delta_y);
-        nk_accumulate_square_f64_(&total_squared_z, &total_squared_z_compensation, delta_z);
-    }
-
-    total_squared_x += total_squared_x_compensation, total_squared_y += total_squared_y_compensation,
-        total_squared_z += total_squared_z_compensation;
+    nk_f64_t total_squared_x = nk_reduce_stable_f64x8_skylake_(sum_squared_x_f64x8);
+    nk_f64_t total_squared_y = nk_reduce_stable_f64x8_skylake_(sum_squared_y_f64x8);
+    nk_f64_t total_squared_z = nk_reduce_stable_f64x8_skylake_(sum_squared_z_f64x8);
     *result = _mm_cvtsd_f64(
         _mm_sqrt_pd(_mm_set_sd((total_squared_x + total_squared_y + total_squared_z) / (nk_f64_t)n)));
     return nk_success_k;
@@ -755,55 +742,25 @@ NUMKONG_API nk_status_t nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const 
         covariance_zx_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_x_f64x8, covariance_zx_f64x8),
         covariance_zy_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_y_f64x8, covariance_zy_f64x8),
         covariance_zz_f64x8 = _mm512_fmadd_pd(a_z_f64x8, b_z_f64x8, covariance_zz_f64x8);
-        i = n;
     }
 
     // Reduce centroids and covariance.
     nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
-    nk_f64_t sum_a_x = nk_reduce_stable_f64x8_skylake_(sum_a_x_f64x8), sum_a_x_compensation = 0.0;
-    nk_f64_t sum_a_y = nk_reduce_stable_f64x8_skylake_(sum_a_y_f64x8), sum_a_y_compensation = 0.0;
-    nk_f64_t sum_a_z = nk_reduce_stable_f64x8_skylake_(sum_a_z_f64x8), sum_a_z_compensation = 0.0;
-    nk_f64_t sum_b_x = nk_reduce_stable_f64x8_skylake_(sum_b_x_f64x8), sum_b_x_compensation = 0.0;
-    nk_f64_t sum_b_y = nk_reduce_stable_f64x8_skylake_(sum_b_y_f64x8), sum_b_y_compensation = 0.0;
-    nk_f64_t sum_b_z = nk_reduce_stable_f64x8_skylake_(sum_b_z_f64x8), sum_b_z_compensation = 0.0;
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(covariance_xx_f64x8), covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(covariance_xy_f64x8), covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(covariance_xz_f64x8), covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(covariance_yx_f64x8), covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(covariance_yy_f64x8), covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(covariance_yz_f64x8), covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(covariance_zx_f64x8), covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(covariance_zy_f64x8), covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(covariance_zz_f64x8), covariance_z_z_compensation = 0.0;
-
-    for (; i < n; ++i) {
-        nk_f64_t ax = a[i * 3 + 0] - a[0], ay = a[i * 3 + 1] - a[1], az = a[i * 3 + 2] - a[2];
-        nk_f64_t bx = b[i * 3 + 0] - b[0], by = b[i * 3 + 1] - b[1], bz = b[i * 3 + 2] - b[2];
-        nk_accumulate_sum_f64_(&sum_a_x, &sum_a_x_compensation, ax);
-        nk_accumulate_sum_f64_(&sum_a_y, &sum_a_y_compensation, ay);
-        nk_accumulate_sum_f64_(&sum_a_z, &sum_a_z_compensation, az);
-        nk_accumulate_sum_f64_(&sum_b_x, &sum_b_x_compensation, bx);
-        nk_accumulate_sum_f64_(&sum_b_y, &sum_b_y_compensation, by);
-        nk_accumulate_sum_f64_(&sum_b_z, &sum_b_z_compensation, bz);
-        nk_accumulate_product_f64_(&covariance_x_x, &covariance_x_x_compensation, ax, bx);
-        nk_accumulate_product_f64_(&covariance_x_y, &covariance_x_y_compensation, ax, by);
-        nk_accumulate_product_f64_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
-        nk_accumulate_product_f64_(&covariance_y_x, &covariance_y_x_compensation, ay, bx);
-        nk_accumulate_product_f64_(&covariance_y_y, &covariance_y_y_compensation, ay, by);
-        nk_accumulate_product_f64_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
-        nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx);
-        nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by);
-        nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
-    }
-
-    sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
-    sum_b_x += sum_b_x_compensation, sum_b_y += sum_b_y_compensation, sum_b_z += sum_b_z_compensation;
-    covariance_x_x += covariance_x_x_compensation, covariance_x_y += covariance_x_y_compensation,
-        covariance_x_z += covariance_x_z_compensation;
-    covariance_y_x += covariance_y_x_compensation, covariance_y_y += covariance_y_y_compensation,
-        covariance_y_z += covariance_y_z_compensation;
-    covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
-        covariance_z_z += covariance_z_z_compensation;
+    nk_f64_t sum_a_x = nk_reduce_stable_f64x8_skylake_(sum_a_x_f64x8);
+    nk_f64_t sum_a_y = nk_reduce_stable_f64x8_skylake_(sum_a_y_f64x8);
+    nk_f64_t sum_a_z = nk_reduce_stable_f64x8_skylake_(sum_a_z_f64x8);
+    nk_f64_t sum_b_x = nk_reduce_stable_f64x8_skylake_(sum_b_x_f64x8);
+    nk_f64_t sum_b_y = nk_reduce_stable_f64x8_skylake_(sum_b_y_f64x8);
+    nk_f64_t sum_b_z = nk_reduce_stable_f64x8_skylake_(sum_b_z_f64x8);
+    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(covariance_xx_f64x8);
+    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(covariance_xy_f64x8);
+    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(covariance_xz_f64x8);
+    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(covariance_yx_f64x8);
+    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(covariance_yy_f64x8);
+    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(covariance_yz_f64x8);
+    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(covariance_zx_f64x8);
+    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(covariance_zy_f64x8);
+    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(covariance_zz_f64x8);
 
     nk_f64_t centroid_a_x = a[0] + sum_a_x * inv_n, centroid_a_y = a[1] + sum_a_y * inv_n,
              centroid_a_z = a[2] + sum_a_z * inv_n;
@@ -1032,61 +989,26 @@ NUMKONG_API nk_status_t nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const
         norm_squared_a_f64x8 = _mm512_fmadd_pd(a_x_f64x8, a_x_f64x8, norm_squared_a_f64x8);
         norm_squared_a_f64x8 = _mm512_fmadd_pd(a_y_f64x8, a_y_f64x8, norm_squared_a_f64x8);
         norm_squared_a_f64x8 = _mm512_fmadd_pd(a_z_f64x8, a_z_f64x8, norm_squared_a_f64x8);
-        i = n;
     }
 
     // Reduce centroids, covariance, and variance.
     nk_f64_t inv_n = 1.0 / (nk_f64_t)n;
-    nk_f64_t sum_a_x = nk_reduce_stable_f64x8_skylake_(sum_a_x_f64x8), sum_a_x_compensation = 0.0;
-    nk_f64_t sum_a_y = nk_reduce_stable_f64x8_skylake_(sum_a_y_f64x8), sum_a_y_compensation = 0.0;
-    nk_f64_t sum_a_z = nk_reduce_stable_f64x8_skylake_(sum_a_z_f64x8), sum_a_z_compensation = 0.0;
-    nk_f64_t sum_b_x = nk_reduce_stable_f64x8_skylake_(sum_b_x_f64x8), sum_b_x_compensation = 0.0;
-    nk_f64_t sum_b_y = nk_reduce_stable_f64x8_skylake_(sum_b_y_f64x8), sum_b_y_compensation = 0.0;
-    nk_f64_t sum_b_z = nk_reduce_stable_f64x8_skylake_(sum_b_z_f64x8), sum_b_z_compensation = 0.0;
-    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(covariance_xx_f64x8), covariance_x_x_compensation = 0.0;
-    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(covariance_xy_f64x8), covariance_x_y_compensation = 0.0;
-    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(covariance_xz_f64x8), covariance_x_z_compensation = 0.0;
-    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(covariance_yx_f64x8), covariance_y_x_compensation = 0.0;
-    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(covariance_yy_f64x8), covariance_y_y_compensation = 0.0;
-    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(covariance_yz_f64x8), covariance_y_z_compensation = 0.0;
-    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(covariance_zx_f64x8), covariance_z_x_compensation = 0.0;
-    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(covariance_zy_f64x8), covariance_z_y_compensation = 0.0;
-    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(covariance_zz_f64x8), covariance_z_z_compensation = 0.0;
-    nk_f64_t norm_squared_a_sum = nk_reduce_stable_f64x8_skylake_(norm_squared_a_f64x8),
-             norm_squared_a_compensation = 0.0;
-
-    for (; i < n; ++i) {
-        nk_f64_t ax = a[i * 3 + 0] - a[0], ay = a[i * 3 + 1] - a[1], az = a[i * 3 + 2] - a[2];
-        nk_f64_t bx = b[i * 3 + 0] - b[0], by = b[i * 3 + 1] - b[1], bz = b[i * 3 + 2] - b[2];
-        nk_accumulate_sum_f64_(&sum_a_x, &sum_a_x_compensation, ax);
-        nk_accumulate_sum_f64_(&sum_a_y, &sum_a_y_compensation, ay);
-        nk_accumulate_sum_f64_(&sum_a_z, &sum_a_z_compensation, az);
-        nk_accumulate_sum_f64_(&sum_b_x, &sum_b_x_compensation, bx);
-        nk_accumulate_sum_f64_(&sum_b_y, &sum_b_y_compensation, by);
-        nk_accumulate_sum_f64_(&sum_b_z, &sum_b_z_compensation, bz);
-        nk_accumulate_product_f64_(&covariance_x_x, &covariance_x_x_compensation, ax, bx);
-        nk_accumulate_product_f64_(&covariance_x_y, &covariance_x_y_compensation, ax, by);
-        nk_accumulate_product_f64_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
-        nk_accumulate_product_f64_(&covariance_y_x, &covariance_y_x_compensation, ay, bx);
-        nk_accumulate_product_f64_(&covariance_y_y, &covariance_y_y_compensation, ay, by);
-        nk_accumulate_product_f64_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
-        nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx);
-        nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by);
-        nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
-        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ax);
-        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ay);
-        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
-    }
-
-    sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
-    sum_b_x += sum_b_x_compensation, sum_b_y += sum_b_y_compensation, sum_b_z += sum_b_z_compensation;
-    covariance_x_x += covariance_x_x_compensation, covariance_x_y += covariance_x_y_compensation,
-        covariance_x_z += covariance_x_z_compensation;
-    covariance_y_x += covariance_y_x_compensation, covariance_y_y += covariance_y_y_compensation,
-        covariance_y_z += covariance_y_z_compensation;
-    covariance_z_x += covariance_z_x_compensation, covariance_z_y += covariance_z_y_compensation,
-        covariance_z_z += covariance_z_z_compensation;
-    norm_squared_a_sum += norm_squared_a_compensation;
+    nk_f64_t sum_a_x = nk_reduce_stable_f64x8_skylake_(sum_a_x_f64x8);
+    nk_f64_t sum_a_y = nk_reduce_stable_f64x8_skylake_(sum_a_y_f64x8);
+    nk_f64_t sum_a_z = nk_reduce_stable_f64x8_skylake_(sum_a_z_f64x8);
+    nk_f64_t sum_b_x = nk_reduce_stable_f64x8_skylake_(sum_b_x_f64x8);
+    nk_f64_t sum_b_y = nk_reduce_stable_f64x8_skylake_(sum_b_y_f64x8);
+    nk_f64_t sum_b_z = nk_reduce_stable_f64x8_skylake_(sum_b_z_f64x8);
+    nk_f64_t covariance_x_x = nk_reduce_stable_f64x8_skylake_(covariance_xx_f64x8);
+    nk_f64_t covariance_x_y = nk_reduce_stable_f64x8_skylake_(covariance_xy_f64x8);
+    nk_f64_t covariance_x_z = nk_reduce_stable_f64x8_skylake_(covariance_xz_f64x8);
+    nk_f64_t covariance_y_x = nk_reduce_stable_f64x8_skylake_(covariance_yx_f64x8);
+    nk_f64_t covariance_y_y = nk_reduce_stable_f64x8_skylake_(covariance_yy_f64x8);
+    nk_f64_t covariance_y_z = nk_reduce_stable_f64x8_skylake_(covariance_yz_f64x8);
+    nk_f64_t covariance_z_x = nk_reduce_stable_f64x8_skylake_(covariance_zx_f64x8);
+    nk_f64_t covariance_z_y = nk_reduce_stable_f64x8_skylake_(covariance_zy_f64x8);
+    nk_f64_t covariance_z_z = nk_reduce_stable_f64x8_skylake_(covariance_zz_f64x8);
+    nk_f64_t norm_squared_a_sum = nk_reduce_stable_f64x8_skylake_(norm_squared_a_f64x8);
 
     nk_f64_t mean_a_x = sum_a_x * inv_n, mean_a_y = sum_a_y * inv_n, mean_a_z = sum_a_z * inv_n;
     nk_f64_t centroid_a_x = a[0] + mean_a_x, centroid_a_y = a[1] + mean_a_y, centroid_a_z = a[2] + mean_a_z;

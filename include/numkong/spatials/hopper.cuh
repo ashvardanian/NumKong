@@ -17,6 +17,7 @@
 #ifndef NUMKONG_SPATIALS_HOPPER_CUH
 #define NUMKONG_SPATIALS_HOPPER_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_TARGET_HOPPER
 
 #include "numkong/dots/hopper.cuh"
@@ -121,4 +122,5 @@ nk_define_cross_cuda_(euclidean, u4, hopper, hopper, u4x2, u4x2, f32, /*depth_si
 #endif
 
 #endif // NUMKONG_TARGET_HOPPER
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_SPATIALS_HOPPER_CUH

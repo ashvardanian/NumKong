@@ -13,6 +13,14 @@
 #include "numkong/cast/serial.h"   // `nk_f16_to_f32_`, `nk_bf16_to_f32_`, `nk_assign_from_to_`
 #include "numkong/scalar/serial.h" // `nk_f32_sqrt_`, `nk_f64_sqrt_`
 
+#if !defined(NUMKONG_F64_DIVISION_EPSILON)
+#define NUMKONG_F64_DIVISION_EPSILON (1e-15)
+#endif
+
+#if !defined(NUMKONG_F32_DIVISION_EPSILON)
+#define NUMKONG_F32_DIVISION_EPSILON (1e-7f)
+#endif
+
 #if defined(__cplusplus)
 extern "C" {
 #endif

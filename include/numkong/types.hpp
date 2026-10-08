@@ -5457,7 +5457,7 @@ struct sub_byte_ref<u1x8_t> {
     nk_u1x8_t bit_mask_;
 
     constexpr sub_byte_ref(nk_u1x8_t *data, std::size_t scalar_index) noexcept
-        : raw_ptr_(data + scalar_index / 8), bit_mask_(static_cast<nk_u1x8_t>(1u << (scalar_index & 7))) {}
+        : raw_ptr_(data + scalar_index / 8), bit_mask_(static_cast<nk_u1x8_t>(0x80u >> (scalar_index & 7))) {}
 
     constexpr bool get() const noexcept { return (*raw_ptr_ & bit_mask_) != 0; }
     constexpr operator bool() const noexcept { return get(); }
@@ -5691,7 +5691,7 @@ struct sub_byte_ref<mxint8_t> {
 /**
  *  @brief Packed 8-bit bit-vector, 8 booleans in one byte.
  *
- *  Layout: 8 bits packed into one byte, LSB = dimension 0.
+ *  Layout: 8 bits packed into one byte, MSB = dimension 0.
  *  Used for Hamming distance and Jaccard similarity via popcount.
  */
 struct u1x8_t {
@@ -5765,13 +5765,13 @@ struct u1x8_t {
     static constexpr u1x8_t finite_max() noexcept { return all_ones(); }
     static constexpr u1x8_t finite_min() noexcept { return u1x8_t {}; }
 
-    constexpr bool bit(unsigned i) const noexcept { return (raw_ >> i) & 1; }
+    constexpr bool bit(unsigned i) const noexcept { return (raw_ >> (7 - i)) & 1; }
     constexpr bool operator[](unsigned i) const & noexcept { return bit(i); }
     constexpr sub_byte_ref_t operator[](unsigned i) & noexcept { return {&raw_, i}; }
 
-    constexpr u1x8_t set_bit(unsigned i) const noexcept { return u1x8_t {static_cast<raw_t>(raw_ | (1 << i))}; }
-    constexpr u1x8_t clear_bit(unsigned i) const noexcept { return u1x8_t {static_cast<raw_t>(raw_ & ~(1 << i))}; }
-    constexpr u1x8_t toggle_bit(unsigned i) const noexcept { return u1x8_t {static_cast<raw_t>(raw_ ^ (1 << i))}; }
+    constexpr u1x8_t set_bit(unsigned i) const noexcept { return u1x8_t {static_cast<raw_t>(raw_ | (0x80 >> i))}; }
+    constexpr u1x8_t clear_bit(unsigned i) const noexcept { return u1x8_t {static_cast<raw_t>(raw_ & ~(0x80 >> i))}; }
+    constexpr u1x8_t toggle_bit(unsigned i) const noexcept { return u1x8_t {static_cast<raw_t>(raw_ ^ (0x80 >> i))}; }
 
     constexpr u1x8_t operator~() const noexcept { return u1x8_t {static_cast<raw_t>(~raw_)}; }
     constexpr u1x8_t operator&(u1x8_t o) const noexcept { return u1x8_t {static_cast<raw_t>(raw_ & o.raw_)}; }
@@ -6874,16 +6874,21 @@ constexpr bool operator>=(double a, f118_t b) noexcept { return f118_t(a) >= b; 
 
 #pragma region Concepts
 
-/** Anything that exposes one run of @p value_type_ through @c std::data and @c std::size. */
+/** Anything exposing @p value_type_ or its @c raw_t through @c std::data and @c std::size. */
 template <typename vector_type_, typename value_type_>
-concept vector_of = requires(vector_type_ const &vector) {
+concept vector_of = (requires(vector_type_ const &vector) {
     { std::data(vector) } -> std::convertible_to<value_type_ const *>;
+} || requires(vector_type_ const &vector) {
+    { std::data(vector) } -> std::convertible_to<typename value_type_::raw_t const *>;
+}) && requires(vector_type_ const &vector) {
     { std::size(vector) } -> std::convertible_to<std::size_t>;
 };
 template <typename vector_type_, typename value_type_>
-concept mutable_vector_of = vector_of<vector_type_, value_type_> && requires(vector_type_ &vector) {
+concept mutable_vector_of = vector_of<vector_type_, value_type_> && (requires(vector_type_ &vector) {
     { std::data(vector) } -> std::convertible_to<value_type_ *>;
-};
+} || requires(vector_type_ &vector) {
+    { std::data(vector) } -> std::convertible_to<typename value_type_::raw_t *>;
+});
 
 /** The storage values of @p vector as one contiguous span; views refuse through their values(). */
 template <typename value_type_, typename vector_type_>
@@ -6894,20 +6899,26 @@ constexpr expected<std::span<value_type_>> contiguous_values_(vector_type_ &&vec
     }
     else if constexpr (requires { vector.size_values(); })
         return {{std::data(vector), vector.size_values()}, status_t::success_k};
-    else return {{std::data(vector), std::size(vector)}, status_t::success_k};
+    else return {{reinterpret_cast<value_type_ *>(std::data(vector)), std::size(vector)}, status_t::success_k};
 }
 
 template <typename matrix_type_, typename element_type_>
-concept const_matrix_of = requires(matrix_type_ const &m) {
+concept const_matrix_of = (requires(matrix_type_ const &m) {
     { m.data() } -> std::convertible_to<element_type_ const *>;
+} || requires(matrix_type_ const &m) {
+    { m.data() } -> std::convertible_to<typename element_type_::raw_t const *>;
+}) && requires(matrix_type_ const &m) {
     { m.extent(0) } -> std::convertible_to<std::size_t>;
     { m.stride_bytes(0) } -> std::convertible_to<std::ptrdiff_t>;
     { m.rank() } -> std::convertible_to<std::size_t>;
 };
 
 template <typename matrix_type_, typename element_type_>
-concept mutable_matrix_of = requires(matrix_type_ &m) {
+concept mutable_matrix_of = (requires(matrix_type_ &m) {
     { m.data() } -> std::convertible_to<element_type_ *>;
+} || requires(matrix_type_ &m) {
+    { m.data() } -> std::convertible_to<typename element_type_::raw_t *>;
+}) && requires(matrix_type_ &m) {
     { m.extent(0) } -> std::convertible_to<std::size_t>;
     { m.stride_bytes(0) } -> std::convertible_to<std::ptrdiff_t>;
     { m.rank() } -> std::convertible_to<std::size_t>;

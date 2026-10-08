@@ -17,10 +17,10 @@
 #ifndef NUMKONG_EACH_CUDA_CUH
 #define NUMKONG_EACH_CUDA_CUH
 
+#if NUMKONG_ARCH_CUDA_
+
 #include "numkong/cuda.cuh"
 #include "numkong/each/simt.cuh"
-
-#if NUMKONG_ARCH_CUDA_
 
 #if defined(__cplusplus)
 extern "C" {

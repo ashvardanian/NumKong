@@ -77,6 +77,7 @@ NUMKONG_INLINE nk_u64_t nk_u64_mulhigh_neon_(nk_u64_t a, nk_u64_t b) {
 }
 
 #if NUMKONG_TARGET_NEON
+
 NUMKONG_API nk_f32_t nk_f32_sqrt_neon(nk_f32_t x) { return vget_lane_f32(vsqrt_f32(vdup_n_f32(x)), 0); }
 NUMKONG_API nk_f64_t nk_f64_sqrt_neon(nk_f64_t x) { return vget_lane_f64(vsqrt_f64(vdup_n_f64(x)), 0); }
 NUMKONG_API nk_f32_t nk_f32_rsqrt_neon(nk_f32_t x) { return nk_f32_rsqrt_refined_neon_(x); }
@@ -128,6 +129,7 @@ NUMKONG_API nk_i64_t nk_i64_saturating_mul_neon(nk_i64_t a, nk_i64_t b) {
         return sign ? (-9223372036854775807ll - 1ll) : 9223372036854775807ll;
     return sign ? -(nk_i64_t)low : (nk_i64_t)low;
 }
+
 #endif // NUMKONG_TARGET_NEON
 
 #if defined(__clang__)

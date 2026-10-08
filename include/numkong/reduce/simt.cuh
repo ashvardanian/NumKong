@@ -100,7 +100,7 @@ NUMKONG_DEVICE nk_u64_t nk_reduce_load_simt_(unsigned char const *address, unsig
 }
 
 /** Value @p index of @p dtype as the bits its min/max output stores: packed values unpacked, I4
- *  sign-extended, and U1 bits counted from the least significant, like the serial kernels. */
+ *  sign-extended, and U1 bits counted from the most significant, like the serial kernels. */
 NUMKONG_DEVICE nk_u64_t nk_reduce_raw_simt_(nk_dtype_t dtype, nk_reduce_arguments_t const *arguments, nk_size_t index) {
     unsigned char const *data = arguments->data;
     nk_size_t const stride = arguments->stride;
@@ -108,7 +108,7 @@ NUMKONG_DEVICE nk_u64_t nk_reduce_raw_simt_(nk_dtype_t dtype, nk_reduce_argument
     case nk_i4_k: return (nk_u8_t)nk_i4x2_get_(data[index / 2 * stride], (int)(index & 1));
     case nk_u4_k:
     case nk_e2m1_k: return nk_u4x2_get_(data[index / 2 * stride], (int)(index & 1));
-    case nk_u1_k: return (data[index / 8 * stride] >> (index % 8)) & 1u;
+    case nk_u1_k: return (data[index / 8 * stride] >> (7 - index % 8)) & 1u;
     default:
         return nk_reduce_load_simt_(data + index * stride, (unsigned)(nk_dtype_bits(dtype) / NUMKONG_BITS_PER_BYTE),
                                     arguments->aligned);

@@ -20,6 +20,7 @@
 #ifndef NUMKONG_ATTENTION_HOPPER_CUH
 #define NUMKONG_ATTENTION_HOPPER_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_TARGET_HOPPER
 
 #include "numkong/attention/ampere.cuh" // `nk_attention_weights_bf16_ampere_`, `nk_attention_wide_depth_ampere_k`
@@ -592,4 +593,5 @@ nk_define_attention_packed_cuda_(i8, hopper, hopper, nk_attention_launch_hopper_
 #endif
 
 #endif // NUMKONG_TARGET_HOPPER
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_ATTENTION_HOPPER_CUH

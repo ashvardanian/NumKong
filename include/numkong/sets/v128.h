@@ -9,12 +9,12 @@
 #ifndef NUMKONG_SETS_V128_H
 #define NUMKONG_SETS_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/set/v128.h" // `nk_hamming_u32x4_from_dot_v128_`, `nk_jaccard_f32x4_from_dot_v128_`
 #include "numkong/dots/v128.h"
 
-#if NUMKONG_TARGET_V128
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -22,6 +22,8 @@ extern "C" {
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
+
+#if NUMKONG_TARGET_V128
 
 nk_define_cross_normalized_packed_(hamming, u1, v128, u1x8, u1x8, u32, /*norm_value_type=*/u32, u32, nk_b128_vec_t,
                                    nk_dots_packed_u1_v128, nk_hamming_u32x4_from_dot_v128_, nk_dots_reduce_sum_u1_,
@@ -47,6 +49,8 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, v128, u1x8, u32, /*norm_value
                                       nk_store_b128_v128_, nk_partial_store_b32x4_serial_,
                                       /*dimensions_per_value=*/8)
 
+#endif // NUMKONG_TARGET_V128
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -54,7 +58,7 @@ nk_define_cross_normalized_symmetric_(jaccard, u1, v128, u1x8, u32, /*norm_value
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_V128
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SETS_V128_H

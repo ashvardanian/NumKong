@@ -675,6 +675,7 @@ NUMKONG_INLINE vfloat32m2_t nk_f32m2_atan_for_f16_rvv_(vfloat32m2_t inputs_f32m2
 }
 
 #if NUMKONG_TARGET_RVV
+
 NUMKONG_API nk_status_t nk_trig_sin_f32_rvv(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     for (nk_size_t vector_length; n > 0; n -= vector_length, ins += vector_length, outs += vector_length) {
@@ -779,6 +780,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f16_rvv(nk_f16_t const *ins, nk_size_t n, n
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)

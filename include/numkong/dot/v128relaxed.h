@@ -24,6 +24,7 @@
 #ifndef NUMKONG_DOT_V128RELAXED_H
 #define NUMKONG_DOT_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
@@ -1235,4 +1236,5 @@ NUMKONG_API nk_status_t nk_vdot_f64c_v128relaxed(nk_f64c_t const *a_pairs, nk_f6
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_DOT_V128RELAXED_H

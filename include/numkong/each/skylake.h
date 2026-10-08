@@ -1539,20 +1539,25 @@ NUMKONG_API nk_status_t nk_each_scale_f32c_skylake(nk_f32c_t const *a, nk_size_t
     __m512 beta_f32x16 = _mm512_set_ps(beta->imag, beta->real, beta->imag, beta->real, beta->imag, beta->real,
                                        beta->imag, beta->real, beta->imag, beta->real, beta->imag, beta->real,
                                        beta->imag, beta->real, beta->imag, beta->real);
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m512 a_f32x16 = _mm512_loadu_ps(a_f32 + 2 * i);
-        __m512 a_swapped_f32x16 = _mm512_permute_ps(a_f32x16, 0xB1);
-        __m512 temp_f32x16 = _mm512_mul_ps(alpha_imag_f32x16, a_swapped_f32x16);
-        __m512 y_f32x16 = _mm512_fmaddsub_ps(alpha_real_f32x16, a_f32x16, temp_f32x16);
-        y_f32x16 = _mm512_add_ps(y_f32x16, beta_f32x16);
-        _mm512_storeu_ps(result_f32 + 2 * i, y_f32x16);
+    __m512 a_f32x16;
+    __mmask16 mask_m16 = 0xFFFF;
+nk_each_scale_f32c_skylake_cycle:
+    if (n < 8) {
+        mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(2 * n));
+        a_f32x16 = _mm512_maskz_loadu_ps(mask_m16, a_f32);
+        n = 0;
     }
-    for (; i < n; i++) {
-        nk_f32_t a_real = a[i].real, a_imag = a[i].imag;
-        result[i].real = alpha->real * a_real - alpha->imag * a_imag + beta->real;
-        result[i].imag = alpha->real * a_imag + alpha->imag * a_real + beta->imag;
+    else {
+        a_f32x16 = _mm512_loadu_ps(a_f32);
+        a_f32 += 16, n -= 8;
     }
+    __m512 a_swapped_f32x16 = _mm512_permute_ps(a_f32x16, 0xB1);
+    __m512 temp_f32x16 = _mm512_mul_ps(alpha_imag_f32x16, a_swapped_f32x16);
+    __m512 y_f32x16 = _mm512_fmaddsub_ps(alpha_real_f32x16, a_f32x16, temp_f32x16);
+    y_f32x16 = _mm512_add_ps(y_f32x16, beta_f32x16);
+    _mm512_mask_storeu_ps(result_f32, mask_m16, y_f32x16);
+    result_f32 += 16;
+    if (n) goto nk_each_scale_f32c_skylake_cycle;
     return nk_success_k;
 }
 
@@ -1565,20 +1570,25 @@ NUMKONG_API nk_status_t nk_each_scale_f64c_skylake(nk_f64c_t const *a, nk_size_t
     __m512d alpha_imag_f64x8 = _mm512_set1_pd(alpha->imag);
     __m512d beta_f64x8 = _mm512_set_pd(beta->imag, beta->real, beta->imag, beta->real, beta->imag, beta->real,
                                        beta->imag, beta->real);
-    nk_size_t i = 0;
-    for (; i + 4 <= n; i += 4) {
-        __m512d a_f64x8 = _mm512_loadu_pd(a_f64 + 2 * i);
-        __m512d a_swapped_f64x8 = _mm512_permute_pd(a_f64x8, 0x55);
-        __m512d temp_f64x8 = _mm512_mul_pd(alpha_imag_f64x8, a_swapped_f64x8);
-        __m512d y_f64x8 = _mm512_fmaddsub_pd(alpha_real_f64x8, a_f64x8, temp_f64x8);
-        y_f64x8 = _mm512_add_pd(y_f64x8, beta_f64x8);
-        _mm512_storeu_pd(result_f64 + 2 * i, y_f64x8);
+    __m512d a_f64x8;
+    __mmask8 mask_m8 = 0xFF;
+nk_each_scale_f64c_skylake_cycle:
+    if (n < 4) {
+        mask_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(2 * n));
+        a_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_f64);
+        n = 0;
     }
-    for (; i < n; i++) {
-        nk_f64_t a_real = a[i].real, a_imag = a[i].imag;
-        result[i].real = alpha->real * a_real - alpha->imag * a_imag + beta->real;
-        result[i].imag = alpha->real * a_imag + alpha->imag * a_real + beta->imag;
+    else {
+        a_f64x8 = _mm512_loadu_pd(a_f64);
+        a_f64 += 8, n -= 4;
     }
+    __m512d a_swapped_f64x8 = _mm512_permute_pd(a_f64x8, 0x55);
+    __m512d temp_f64x8 = _mm512_mul_pd(alpha_imag_f64x8, a_swapped_f64x8);
+    __m512d y_f64x8 = _mm512_fmaddsub_pd(alpha_real_f64x8, a_f64x8, temp_f64x8);
+    y_f64x8 = _mm512_add_pd(y_f64x8, beta_f64x8);
+    _mm512_mask_storeu_pd(result_f64, mask_m8, y_f64x8);
+    result_f64 += 8;
+    if (n) goto nk_each_scale_f64c_skylake_cycle;
     return nk_success_k;
 }
 
@@ -1593,28 +1603,29 @@ NUMKONG_API nk_status_t nk_each_blend_f32c_skylake(nk_f32c_t const *a, nk_f32c_t
     __m512 alpha_imag_f32x16 = _mm512_set1_ps(alpha->imag);
     __m512 beta_real_f32x16 = _mm512_set1_ps(beta->real);
     __m512 beta_imag_f32x16 = _mm512_set1_ps(beta->imag);
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m512 a_f32x16 = _mm512_loadu_ps(a_f32 + 2 * i);
-        __m512 b_f32x16 = _mm512_loadu_ps(b_f32 + 2 * i);
-        __m512 a_swapped_f32x16 = _mm512_permute_ps(a_f32x16, 0xB1);
-        __m512 ta_f32x16 = _mm512_mul_ps(alpha_imag_f32x16, a_swapped_f32x16);
-        __m512 ya_f32x16 = _mm512_fmaddsub_ps(alpha_real_f32x16, a_f32x16, ta_f32x16);
-        __m512 b_swapped_f32x16 = _mm512_permute_ps(b_f32x16, 0xB1);
-        __m512 tb_f32x16 = _mm512_mul_ps(beta_imag_f32x16, b_swapped_f32x16);
-        __m512 yb_f32x16 = _mm512_fmaddsub_ps(beta_real_f32x16, b_f32x16, tb_f32x16);
-        _mm512_storeu_ps(result_f32 + 2 * i, _mm512_add_ps(ya_f32x16, yb_f32x16));
+    __m512 a_f32x16, b_f32x16;
+    __mmask16 mask_m16 = 0xFFFF;
+nk_each_blend_f32c_skylake_cycle:
+    if (n < 8) {
+        mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(2 * n));
+        a_f32x16 = _mm512_maskz_loadu_ps(mask_m16, a_f32);
+        b_f32x16 = _mm512_maskz_loadu_ps(mask_m16, b_f32);
+        n = 0;
     }
-    for (; i < n; i++) {
-        nk_f32_t a_real = a[i].real, a_imag = a[i].imag;
-        nk_f32_t b_real = b[i].real, b_imag = b[i].imag;
-        nk_f32_t ar = alpha->real * a_real - alpha->imag * a_imag;
-        nk_f32_t ai = alpha->real * a_imag + alpha->imag * a_real;
-        nk_f32_t br = beta->real * b_real - beta->imag * b_imag;
-        nk_f32_t bi = beta->real * b_imag + beta->imag * b_real;
-        result[i].real = ar + br;
-        result[i].imag = ai + bi;
+    else {
+        a_f32x16 = _mm512_loadu_ps(a_f32);
+        b_f32x16 = _mm512_loadu_ps(b_f32);
+        a_f32 += 16, b_f32 += 16, n -= 8;
     }
+    __m512 a_swapped_f32x16 = _mm512_permute_ps(a_f32x16, 0xB1);
+    __m512 ta_f32x16 = _mm512_mul_ps(alpha_imag_f32x16, a_swapped_f32x16);
+    __m512 ya_f32x16 = _mm512_fmaddsub_ps(alpha_real_f32x16, a_f32x16, ta_f32x16);
+    __m512 b_swapped_f32x16 = _mm512_permute_ps(b_f32x16, 0xB1);
+    __m512 tb_f32x16 = _mm512_mul_ps(beta_imag_f32x16, b_swapped_f32x16);
+    __m512 yb_f32x16 = _mm512_fmaddsub_ps(beta_real_f32x16, b_f32x16, tb_f32x16);
+    _mm512_mask_storeu_ps(result_f32, mask_m16, _mm512_add_ps(ya_f32x16, yb_f32x16));
+    result_f32 += 16;
+    if (n) goto nk_each_blend_f32c_skylake_cycle;
     return nk_success_k;
 }
 
@@ -1629,28 +1640,29 @@ NUMKONG_API nk_status_t nk_each_blend_f64c_skylake(nk_f64c_t const *a, nk_f64c_t
     __m512d alpha_imag_f64x8 = _mm512_set1_pd(alpha->imag);
     __m512d beta_real_f64x8 = _mm512_set1_pd(beta->real);
     __m512d beta_imag_f64x8 = _mm512_set1_pd(beta->imag);
-    nk_size_t i = 0;
-    for (; i + 4 <= n; i += 4) {
-        __m512d a_f64x8 = _mm512_loadu_pd(a_f64 + 2 * i);
-        __m512d b_f64x8 = _mm512_loadu_pd(b_f64 + 2 * i);
-        __m512d a_swapped_f64x8 = _mm512_permute_pd(a_f64x8, 0x55);
-        __m512d ta_f64x8 = _mm512_mul_pd(alpha_imag_f64x8, a_swapped_f64x8);
-        __m512d ya_f64x8 = _mm512_fmaddsub_pd(alpha_real_f64x8, a_f64x8, ta_f64x8);
-        __m512d b_swapped_f64x8 = _mm512_permute_pd(b_f64x8, 0x55);
-        __m512d tb_f64x8 = _mm512_mul_pd(beta_imag_f64x8, b_swapped_f64x8);
-        __m512d yb_f64x8 = _mm512_fmaddsub_pd(beta_real_f64x8, b_f64x8, tb_f64x8);
-        _mm512_storeu_pd(result_f64 + 2 * i, _mm512_add_pd(ya_f64x8, yb_f64x8));
+    __m512d a_f64x8, b_f64x8;
+    __mmask8 mask_m8 = 0xFF;
+nk_each_blend_f64c_skylake_cycle:
+    if (n < 4) {
+        mask_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(2 * n));
+        a_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_f64);
+        b_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_f64);
+        n = 0;
     }
-    for (; i < n; i++) {
-        nk_f64_t a_real = a[i].real, a_imag = a[i].imag;
-        nk_f64_t b_real = b[i].real, b_imag = b[i].imag;
-        nk_f64_t ar = alpha->real * a_real - alpha->imag * a_imag;
-        nk_f64_t ai = alpha->real * a_imag + alpha->imag * a_real;
-        nk_f64_t br = beta->real * b_real - beta->imag * b_imag;
-        nk_f64_t bi = beta->real * b_imag + beta->imag * b_real;
-        result[i].real = ar + br;
-        result[i].imag = ai + bi;
+    else {
+        a_f64x8 = _mm512_loadu_pd(a_f64);
+        b_f64x8 = _mm512_loadu_pd(b_f64);
+        a_f64 += 8, b_f64 += 8, n -= 4;
     }
+    __m512d a_swapped_f64x8 = _mm512_permute_pd(a_f64x8, 0x55);
+    __m512d ta_f64x8 = _mm512_mul_pd(alpha_imag_f64x8, a_swapped_f64x8);
+    __m512d ya_f64x8 = _mm512_fmaddsub_pd(alpha_real_f64x8, a_f64x8, ta_f64x8);
+    __m512d b_swapped_f64x8 = _mm512_permute_pd(b_f64x8, 0x55);
+    __m512d tb_f64x8 = _mm512_mul_pd(beta_imag_f64x8, b_swapped_f64x8);
+    __m512d yb_f64x8 = _mm512_fmaddsub_pd(beta_real_f64x8, b_f64x8, tb_f64x8);
+    _mm512_mask_storeu_pd(result_f64, mask_m8, _mm512_add_pd(ya_f64x8, yb_f64x8));
+    result_f64 += 8;
+    if (n) goto nk_each_blend_f64c_skylake_cycle;
     return nk_success_k;
 }
 
@@ -1666,37 +1678,36 @@ NUMKONG_API nk_status_t nk_each_fma_f32c_skylake(nk_f32c_t const *a, nk_f32c_t c
     __m512 alpha_imag_f32x16 = _mm512_set1_ps(alpha->imag);
     __m512 beta_real_f32x16 = _mm512_set1_ps(beta->real);
     __m512 beta_imag_f32x16 = _mm512_set1_ps(beta->imag);
-    nk_size_t i = 0;
-    for (; i + 8 <= n; i += 8) {
-        __m512 a_f32x16 = _mm512_loadu_ps(a_f32 + 2 * i);
-        __m512 b_f32x16 = _mm512_loadu_ps(b_f32 + 2 * i);
-        __m512 c_f32x16 = _mm512_loadu_ps(c_f32 + 2 * i);
-        __m512 b_swapped_f32x16 = _mm512_permute_ps(b_f32x16, 0xB1);
-        __m512 a_real_f32x16 = _mm512_moveldup_ps(a_f32x16);
-        __m512 a_imag_f32x16 = _mm512_movehdup_ps(a_f32x16);
-        __m512 tab_f32x16 = _mm512_mul_ps(a_imag_f32x16, b_swapped_f32x16);
-        __m512 ab_f32x16 = _mm512_fmaddsub_ps(a_real_f32x16, b_f32x16, tab_f32x16);
-        __m512 ab_swapped_f32x16 = _mm512_permute_ps(ab_f32x16, 0xB1);
-        __m512 taa_f32x16 = _mm512_mul_ps(alpha_imag_f32x16, ab_swapped_f32x16);
-        __m512 ya_f32x16 = _mm512_fmaddsub_ps(alpha_real_f32x16, ab_f32x16, taa_f32x16);
-        __m512 c_swapped_f32x16 = _mm512_permute_ps(c_f32x16, 0xB1);
-        __m512 tbc_f32x16 = _mm512_mul_ps(beta_imag_f32x16, c_swapped_f32x16);
-        __m512 yb_f32x16 = _mm512_fmaddsub_ps(beta_real_f32x16, c_f32x16, tbc_f32x16);
-        _mm512_storeu_ps(result_f32 + 2 * i, _mm512_add_ps(ya_f32x16, yb_f32x16));
+    __m512 a_f32x16, b_f32x16, c_f32x16;
+    __mmask16 mask_m16 = 0xFFFF;
+nk_each_fma_f32c_skylake_cycle:
+    if (n < 8) {
+        mask_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(2 * n));
+        a_f32x16 = _mm512_maskz_loadu_ps(mask_m16, a_f32);
+        b_f32x16 = _mm512_maskz_loadu_ps(mask_m16, b_f32);
+        c_f32x16 = _mm512_maskz_loadu_ps(mask_m16, c_f32);
+        n = 0;
     }
-    for (; i < n; i++) {
-        nk_f32_t a_real = a[i].real, a_imag = a[i].imag;
-        nk_f32_t b_real = b[i].real, b_imag = b[i].imag;
-        nk_f32_t c_real = c[i].real, c_imag = c[i].imag;
-        nk_f32_t ab_real = a_real * b_real - a_imag * b_imag;
-        nk_f32_t ab_imag = a_real * b_imag + a_imag * b_real;
-        nk_f32_t aab_real = alpha->real * ab_real - alpha->imag * ab_imag;
-        nk_f32_t aab_imag = alpha->real * ab_imag + alpha->imag * ab_real;
-        nk_f32_t bc_real = beta->real * c_real - beta->imag * c_imag;
-        nk_f32_t bc_imag = beta->real * c_imag + beta->imag * c_real;
-        result[i].real = aab_real + bc_real;
-        result[i].imag = aab_imag + bc_imag;
+    else {
+        a_f32x16 = _mm512_loadu_ps(a_f32);
+        b_f32x16 = _mm512_loadu_ps(b_f32);
+        c_f32x16 = _mm512_loadu_ps(c_f32);
+        a_f32 += 16, b_f32 += 16, c_f32 += 16, n -= 8;
     }
+    __m512 b_swapped_f32x16 = _mm512_permute_ps(b_f32x16, 0xB1);
+    __m512 a_real_f32x16 = _mm512_moveldup_ps(a_f32x16);
+    __m512 a_imag_f32x16 = _mm512_movehdup_ps(a_f32x16);
+    __m512 tab_f32x16 = _mm512_mul_ps(a_imag_f32x16, b_swapped_f32x16);
+    __m512 ab_f32x16 = _mm512_fmaddsub_ps(a_real_f32x16, b_f32x16, tab_f32x16);
+    __m512 ab_swapped_f32x16 = _mm512_permute_ps(ab_f32x16, 0xB1);
+    __m512 taa_f32x16 = _mm512_mul_ps(alpha_imag_f32x16, ab_swapped_f32x16);
+    __m512 ya_f32x16 = _mm512_fmaddsub_ps(alpha_real_f32x16, ab_f32x16, taa_f32x16);
+    __m512 c_swapped_f32x16 = _mm512_permute_ps(c_f32x16, 0xB1);
+    __m512 tbc_f32x16 = _mm512_mul_ps(beta_imag_f32x16, c_swapped_f32x16);
+    __m512 yb_f32x16 = _mm512_fmaddsub_ps(beta_real_f32x16, c_f32x16, tbc_f32x16);
+    _mm512_mask_storeu_ps(result_f32, mask_m16, _mm512_add_ps(ya_f32x16, yb_f32x16));
+    result_f32 += 16;
+    if (n) goto nk_each_fma_f32c_skylake_cycle;
     return nk_success_k;
 }
 
@@ -1712,37 +1723,36 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_skylake(nk_f64c_t const *a, nk_f64c_t c
     __m512d alpha_imag_f64x8 = _mm512_set1_pd(alpha->imag);
     __m512d beta_real_f64x8 = _mm512_set1_pd(beta->real);
     __m512d beta_imag_f64x8 = _mm512_set1_pd(beta->imag);
-    nk_size_t i = 0;
-    for (; i + 4 <= n; i += 4) {
-        __m512d a_f64x8 = _mm512_loadu_pd(a_f64 + 2 * i);
-        __m512d b_f64x8 = _mm512_loadu_pd(b_f64 + 2 * i);
-        __m512d c_f64x8 = _mm512_loadu_pd(c_f64 + 2 * i);
-        __m512d b_swapped_f64x8 = _mm512_permute_pd(b_f64x8, 0x55);
-        __m512d a_real_f64x8 = _mm512_unpacklo_pd(a_f64x8, a_f64x8);
-        __m512d a_imag_f64x8 = _mm512_unpackhi_pd(a_f64x8, a_f64x8);
-        __m512d tab_f64x8 = _mm512_mul_pd(a_imag_f64x8, b_swapped_f64x8);
-        __m512d ab_f64x8 = _mm512_fmaddsub_pd(a_real_f64x8, b_f64x8, tab_f64x8);
-        __m512d ab_swapped_f64x8 = _mm512_permute_pd(ab_f64x8, 0x55);
-        __m512d taa_f64x8 = _mm512_mul_pd(alpha_imag_f64x8, ab_swapped_f64x8);
-        __m512d ya_f64x8 = _mm512_fmaddsub_pd(alpha_real_f64x8, ab_f64x8, taa_f64x8);
-        __m512d c_swapped_f64x8 = _mm512_permute_pd(c_f64x8, 0x55);
-        __m512d tbc_f64x8 = _mm512_mul_pd(beta_imag_f64x8, c_swapped_f64x8);
-        __m512d yb_f64x8 = _mm512_fmaddsub_pd(beta_real_f64x8, c_f64x8, tbc_f64x8);
-        _mm512_storeu_pd(result_f64 + 2 * i, _mm512_add_pd(ya_f64x8, yb_f64x8));
+    __m512d a_f64x8, b_f64x8, c_f64x8;
+    __mmask8 mask_m8 = 0xFF;
+nk_each_fma_f64c_skylake_cycle:
+    if (n < 4) {
+        mask_m8 = (__mmask8)_bzhi_u32(0xFF, (unsigned int)(2 * n));
+        a_f64x8 = _mm512_maskz_loadu_pd(mask_m8, a_f64);
+        b_f64x8 = _mm512_maskz_loadu_pd(mask_m8, b_f64);
+        c_f64x8 = _mm512_maskz_loadu_pd(mask_m8, c_f64);
+        n = 0;
     }
-    for (; i < n; i++) {
-        nk_f64_t a_real = a[i].real, a_imag = a[i].imag;
-        nk_f64_t b_real = b[i].real, b_imag = b[i].imag;
-        nk_f64_t c_real = c[i].real, c_imag = c[i].imag;
-        nk_f64_t ab_real = a_real * b_real - a_imag * b_imag;
-        nk_f64_t ab_imag = a_real * b_imag + a_imag * b_real;
-        nk_f64_t aab_real = alpha->real * ab_real - alpha->imag * ab_imag;
-        nk_f64_t aab_imag = alpha->real * ab_imag + alpha->imag * ab_real;
-        nk_f64_t bc_real = beta->real * c_real - beta->imag * c_imag;
-        nk_f64_t bc_imag = beta->real * c_imag + beta->imag * c_real;
-        result[i].real = aab_real + bc_real;
-        result[i].imag = aab_imag + bc_imag;
+    else {
+        a_f64x8 = _mm512_loadu_pd(a_f64);
+        b_f64x8 = _mm512_loadu_pd(b_f64);
+        c_f64x8 = _mm512_loadu_pd(c_f64);
+        a_f64 += 8, b_f64 += 8, c_f64 += 8, n -= 4;
     }
+    __m512d b_swapped_f64x8 = _mm512_permute_pd(b_f64x8, 0x55);
+    __m512d a_real_f64x8 = _mm512_unpacklo_pd(a_f64x8, a_f64x8);
+    __m512d a_imag_f64x8 = _mm512_unpackhi_pd(a_f64x8, a_f64x8);
+    __m512d tab_f64x8 = _mm512_mul_pd(a_imag_f64x8, b_swapped_f64x8);
+    __m512d ab_f64x8 = _mm512_fmaddsub_pd(a_real_f64x8, b_f64x8, tab_f64x8);
+    __m512d ab_swapped_f64x8 = _mm512_permute_pd(ab_f64x8, 0x55);
+    __m512d taa_f64x8 = _mm512_mul_pd(alpha_imag_f64x8, ab_swapped_f64x8);
+    __m512d ya_f64x8 = _mm512_fmaddsub_pd(alpha_real_f64x8, ab_f64x8, taa_f64x8);
+    __m512d c_swapped_f64x8 = _mm512_permute_pd(c_f64x8, 0x55);
+    __m512d tbc_f64x8 = _mm512_mul_pd(beta_imag_f64x8, c_swapped_f64x8);
+    __m512d yb_f64x8 = _mm512_fmaddsub_pd(beta_real_f64x8, c_f64x8, tbc_f64x8);
+    _mm512_mask_storeu_pd(result_f64, mask_m8, _mm512_add_pd(ya_f64x8, yb_f64x8));
+    result_f64 += 8;
+    if (n) goto nk_each_fma_f64c_skylake_cycle;
     return nk_success_k;
 }
 

@@ -8,6 +8,7 @@
 #ifndef NUMKONG_CAST_V128_H
 #define NUMKONG_CAST_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
@@ -174,4 +175,5 @@ NUMKONG_INLINE nk_b32_vec_t nk_f32x4_to_u8x4_v128_(nk_b128_vec_t hub_vec) {
 #endif
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_CAST_V128_H

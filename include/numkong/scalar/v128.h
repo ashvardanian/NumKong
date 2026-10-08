@@ -9,11 +9,11 @@
 #ifndef NUMKONG_SCALAR_V128_H
 #define NUMKONG_SCALAR_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
 
-#if NUMKONG_TARGET_V128
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -21,6 +21,8 @@ extern "C" {
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
+
+#if NUMKONG_TARGET_V128
 
 NUMKONG_API nk_f32_t nk_f32_sqrt_v128(nk_f32_t x) {
     return wasm_f32x4_extract_lane(wasm_f32x4_sqrt(wasm_f32x4_splat(x)), 0);
@@ -37,6 +39,8 @@ NUMKONG_API nk_f64_t nk_f64_rsqrt_v128(nk_f64_t x) {
     return wasm_f64x2_extract_lane(wasm_f64x2_div(wasm_f64x2_splat(1.0), sqrt_f64x2), 0);
 }
 
+#endif // NUMKONG_TARGET_V128
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #endif
@@ -44,7 +48,7 @@ NUMKONG_API nk_f64_t nk_f64_rsqrt_v128(nk_f64_t x) {
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_V128
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SCALAR_V128_H

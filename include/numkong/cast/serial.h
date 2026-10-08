@@ -162,13 +162,13 @@ NUMKONG_INLINE void nk_partial_load_b32x4_serial_(void const *src, nk_b128_vec_t
 
 /** Type-agnostic partial store for 32-bit elements (4 elements max) from 128-bit vector. */
 NUMKONG_INLINE void nk_partial_store_b32x4_serial_(nk_b128_vec_t const *src, void *dst, nk_size_t n) {
-    nk_u32_t *d = (nk_u32_t *)dst;
+    nk_b32_vec_t *d = (nk_b32_vec_t *)dst;
     switch (n) {
     default:
-    case 4: d[3] = src->u32s[3]; // fallthrough
-    case 3: d[2] = src->u32s[2]; // fallthrough
-    case 2: d[1] = src->u32s[1]; // fallthrough
-    case 1: d[0] = src->u32s[0]; // fallthrough
+    case 4: d[3].u32 = src->u32s[3]; // fallthrough
+    case 3: d[2].u32 = src->u32s[2]; // fallthrough
+    case 2: d[1].u32 = src->u32s[1]; // fallthrough
+    case 1: d[0].u32 = src->u32s[0]; // fallthrough
     case 0: break;
     }
 }
@@ -564,7 +564,7 @@ NUMKONG_INLINE void nk_strided_load_b8x16_serial_(void const *src, nk_size_t str
 #pragma endregion Type Punned Loads and Stores
 
 /** Widens one F16 value to F32, exactly, keeping NaN payloads and subnormals. */
-NUMKONG_INLINE void nk_f16_to_f32_(nk_f16_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_f16_to_f32_(nk_f16_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
 #if NUMKONG_NATIVE_F16
     *dest = (nk_f32_t)(*src);
 #else
@@ -757,7 +757,7 @@ NUMKONG_INLINE void nk_f32_to_bf16_(nk_f32_t const *src, nk_bf16_t *dest) {
 }
 
 /** Widens one E4M3FN value to F32, exactly. */
-NUMKONG_CONSTEXPR void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) {
+NUMKONG_CONSTEXPR void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     nk_u8_t raw = *src;
     nk_u32_t sign = (nk_u32_t)(raw & 0x80) << 24;
     nk_u32_t exponent = (raw >> 3) & 0x0Fu;
@@ -786,6 +786,13 @@ NUMKONG_CONSTEXPR void nk_e4m3_to_f32_(nk_e4m3_t const *src, nk_f32_t *dest) {
     nk_u32_t f32_mantissa = mantissa << 20;
     conv.u = sign | f32_exponent | f32_mantissa;
     *dest = conv.f;
+}
+
+/** Element @p index of a row of E4M3FN codes, exactly in F32. */
+NUMKONG_INLINE nk_f32_t nk_e4m3_load_f32_serial_(nk_u8_t const *row, nk_size_t index) NUMKONG_STREAMABLE_ {
+    nk_f32_t value;
+    nk_e4m3_to_f32_((nk_e4m3_t const *)row + index, &value);
+    return value;
 }
 
 /** Narrows one F32 value to E4M3FN, rounding to nearest even and saturating at 448. */
@@ -958,7 +965,7 @@ NUMKONG_INLINE void nk_e4m3_to_f16_serial_(nk_e4m3_t const *src, nk_f16_t *dest)
  *  @see OCP 8-bit Floating Point Specification: https://www.opencompute.org/documents/ocp-8-bit-floating-point-specification-ofp8-revision-1-0-2023-12-01-pdf-1
  *  @see ONNX Float8 types: https://onnx.ai/onnx/technical/float8.html
  */
-NUMKONG_INLINE void nk_e5m2_to_f32_(nk_e5m2_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e5m2_to_f32_(nk_e5m2_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     static nk_u32_t const lut[128] = {
         0x00000000, 0x37800000, 0x38000000, 0x38400000, // exp=0  sub
         0x38800000, 0x38A00000, 0x38C00000, 0x38E00000, // exp=1
@@ -998,6 +1005,13 @@ NUMKONG_INLINE void nk_e5m2_to_f32_(nk_e5m2_t const *src, nk_f32_t *dest) {
     nk_fui32_t conv;
     conv.u = sign | lut[raw & 0x7F];
     *dest = conv.f;
+}
+
+/** Element @p index of a row of E5M2 codes, exactly in F32. */
+NUMKONG_INLINE nk_f32_t nk_e5m2_load_f32_serial_(nk_u8_t const *row, nk_size_t index) NUMKONG_STREAMABLE_ {
+    nk_f32_t value;
+    nk_e5m2_to_f32_((nk_e5m2_t const *)row + index, &value);
+    return value;
 }
 
 /** Narrows one F32 value to E5M2, rounding to nearest even and keeping infinities and NaNs. */
@@ -1086,7 +1100,7 @@ NUMKONG_CONSTEXPR void nk_f32_to_e5m2_(nk_f32_t const *src, nk_e5m2_t *dest) {
  *  @see OCP Microscaling Formats Specification: https://www.opencompute.org/documents/ocp-microscaling-formats-mx-v1-0-spec-final-pdf
  *  @see FP6-LLM: https://arxiv.org/abs/2401.14112
  */
-NUMKONG_INLINE void nk_e2m3_to_f32_(nk_e2m3_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e2m3_to_f32_(nk_e2m3_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3E000000, 0x3E800000, 0x3EC00000, 0x3F000000, 0x3F200000, 0x3F400000, 0x3F600000, // exp=0 sub
         0x3F800000, 0x3F900000, 0x3FA00000, 0x3FB00000, 0x3FC00000, 0x3FD00000, 0x3FE00000, 0x3FF00000, // exp=1
@@ -1098,6 +1112,13 @@ NUMKONG_INLINE void nk_e2m3_to_f32_(nk_e2m3_t const *src, nk_f32_t *dest) {
     nk_fui32_t conv;
     conv.u = sign | lut[raw & 0x1F];
     *dest = conv.f;
+}
+
+/** Element @p index of a row of E2M3FN codes, exactly in F32. */
+NUMKONG_INLINE nk_f32_t nk_e2m3_load_f32_serial_(nk_u8_t const *row, nk_size_t index) NUMKONG_STREAMABLE_ {
+    nk_f32_t value;
+    nk_e2m3_to_f32_((nk_e2m3_t const *)row + index, &value);
+    return value;
 }
 
 /** Narrows one F32 value to E2M3FN, rounding to nearest even and saturating at 7.5. */
@@ -1185,7 +1206,7 @@ NUMKONG_CONSTEXPR void nk_f32_to_e2m3_(nk_f32_t const *src, nk_e2m3_t *dest) {
  *  E3M2FN (FP6) format: 1 sign bit, 3 exponent bits (bias=3), 2 mantissa bits.
  *  Range: [-28, +28], no infinity or NaN (OCP Microscaling FN format).
  */
-NUMKONG_INLINE void nk_e3m2_to_f32_(nk_e3m2_t const *src, nk_f32_t *dest) {
+NUMKONG_INLINE void nk_e3m2_to_f32_(nk_e3m2_t const *src, nk_f32_t *dest) NUMKONG_STREAMABLE_ {
     static nk_u32_t const lut[32] = {
         0x00000000, 0x3D800000, 0x3E000000, 0x3E400000, // exp=0 sub
         0x3E800000, 0x3EA00000, 0x3EC00000, 0x3EE00000, // exp=1
@@ -1201,6 +1222,13 @@ NUMKONG_INLINE void nk_e3m2_to_f32_(nk_e3m2_t const *src, nk_f32_t *dest) {
     nk_fui32_t conv;
     conv.u = sign | lut[raw & 0x1F];
     *dest = conv.f;
+}
+
+/** Element @p index of a row of E3M2FN codes, exactly in F32. */
+NUMKONG_INLINE nk_f32_t nk_e3m2_load_f32_serial_(nk_u8_t const *row, nk_size_t index) NUMKONG_STREAMABLE_ {
+    nk_f32_t value;
+    nk_e3m2_to_f32_((nk_e3m2_t const *)row + index, &value);
+    return value;
 }
 
 /** Narrows one F32 value to E3M2FN, rounding to nearest even and saturating at 28. */
@@ -1315,9 +1343,14 @@ NUMKONG_INLINE void nk_e2m1_nibble_to_f32_serial_(nk_u8_t nibble, nk_f32_t *dest
 }
 
 /** Twice a single E2M1 nibble (low 4 bits) as an exact i8 in [-12, +12]. */
-NUMKONG_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) {
+NUMKONG_INLINE nk_i8_t nk_e2m1_nibble_to_i8x2_serial_(nk_u8_t nibble) NUMKONG_STREAMABLE_ {
     static nk_i8_t const doubled_values[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     return doubled_values[nibble & 0x0F];
+}
+
+/** Element @p index of a row of E2M1 nibble pairs, element 0 in the high nibble, exactly in F32. */
+NUMKONG_INLINE nk_f32_t nk_e2m1_load_f32_serial_(nk_u8_t const *row, nk_size_t index) NUMKONG_STREAMABLE_ {
+    return 0.5f * nk_e2m1_nibble_to_i8x2_serial_((nk_u8_t)(row[index / 2] >> (index & 1 ? 0 : 4)));
 }
 
 /** Convert a single f32 to an E2M1 nibble (returned in low 4 bits of @p nibble_out). RNE rounding,
@@ -1388,18 +1421,17 @@ NUMKONG_CONSTEXPR void nk_f32x2_to_e2m1x2_(nk_f32_t const *src, nk_e2m1x2_t *des
 NUMKONG_CONSTEXPR void nk_ue8m0_to_f32_(nk_ue8m0_t const *src, nk_f32_t *dest) {
     nk_u8_t raw = *src;
     nk_fui32_t conv;
-    if (raw == 0) {
-        *dest = 0.0f;
-        return;
-    }
-    if (raw == 0xFF) {
-        conv.u = 0x7FC00000u; // quiet NaN
-        *dest = conv.f;
-        return;
-    }
-    // Pow-of-2 is an f32 with biased exponent = raw and mantissa = 0
-    conv.u = (nk_u32_t)raw << 23;
+    conv.u = ((nk_u32_t)raw << 23) | ((nk_u32_t)(raw == 0xFF) << 22);
     *dest = conv.f;
+}
+
+/** One UE8M0 scale @p code as a mantissa and a power of two: one at 2^(code − 127), zero for 0x00
+ *  and a NaN for 0xFF, both at exponent zero. */
+NUMKONG_INLINE nk_f32_t nk_ue8m0_split_serial_(nk_u8_t code, nk_i32_t *exponent) NUMKONG_STREAMABLE_ {
+    nk_fui32_t mantissa;
+    mantissa.u = code == 0 ? 0 : code == 0xFF ? 0x7FC00000u : 0x3F800000u;
+    *exponent = code == 0 || code == 0xFF ? 0 : (nk_i32_t)code - 127;
+    return mantissa.f;
 }
 
 /** Encodes one F32 magnitude as the nearest UE8M0 power of two, saturating at 0xFE. */
@@ -1493,6 +1525,15 @@ NUMKONG_CONSTEXPR nk_u8_t nk_f32_block_amax_to_ue8m0_serial_(nk_f32_t amax, nk_f
 NUMKONG_CONSTEXPR void nk_ue4m3_to_f32_(nk_ue4m3_t const *src, nk_f32_t *dest) {
     nk_e4m3_t raw = (nk_e4m3_t)(*src & 0x7F);
     nk_e4m3_to_f32_(&raw, dest);
+}
+
+/** One UE4M3 scale @p code as its value at exponent zero, a NaN for 0x7F. */
+NUMKONG_INLINE nk_f32_t nk_ue4m3_split_serial_(nk_u8_t code, nk_i32_t *exponent) NUMKONG_STREAMABLE_ {
+    nk_e4m3_t const magnitude = (nk_e4m3_t)(code & 0x7F);
+    nk_f32_t value;
+    nk_e4m3_to_f32_(&magnitude, &value);
+    *exponent = 0;
+    return value;
 }
 
 /** Encodes the magnitude of one F32 value as UE4M3, rounding to nearest even, a NaN to 0x7F. */

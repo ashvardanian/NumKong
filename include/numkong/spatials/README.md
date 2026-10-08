@@ -51,6 +51,25 @@ def euclideans_packed(a: np.ndarray, b: np.ndarray) -> np.ndarray:
 | `i4`       | `f32`       | 4-bit signed integers, float output              |
 | `u4`       | `f32`       | 4-bit unsigned integers, float output            |
 
+## Guarantees
+
+Every capability applies one rule to degenerate inputs:
+
+- a NaN dot, from a NaN element or scale code, gives NaN for both metrics;
+- angular distance is 0 for two zero norms, 1 for one zero norm or an exactly zero dot, and otherwise max(0, 1 − dot · rsqrt(‖a‖²) · rsqrt(‖b‖²)), where an infinite norm's reciprocal root is 0;
+- Euclidean distance is √max(‖a‖² + ‖b‖² − 2 · dot, 0).
+
+A zero vector's dot is exactly zero everywhere, so its angle to any nonzero vector is exactly 1.
+Distances finish from the [dots](../dots/README.md#guarantees) and norms, so `nk_angular_error_bound` and `nk_euclidean_error_bound` hold over the same ranges:
+
+| Inputs                                | Distances in                  | Holds while        |
+| :------------------------------------ | :---------------------------- | :----------------- |
+| `f64`                                 | F64                           | ‖x‖² finite in F64 |
+| `f32`                                 | F64                           | inputs are finite  |
+| `f16`, `bf16`, `e4m3`, `e5m2`, `e3m2` | F32                           | ‖x‖² finite in F32 |
+| `e2m3`, `e2m1`, integers              | F32 after exact integer terms | sums fit 32 bits   |
+| `nvfp4`, `mxfp*`                      | F32 from rebased dots, norms  | inputs are finite  |
+
 ## Optimizations
 
 ### Distance-from-Dot Algebraic Reduction

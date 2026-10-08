@@ -92,6 +92,38 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_haswell_(nk_e2m3_t const *data
     return sumsq;
 }
 
+NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_haswell_(nk_e2m1x2_t const *data, nk_size_t count, nk_size_t stride) {
+    nk_unused_(stride);
+    // Quadrupled squares of the doubled magnitudes, indexed by the nibble without its sign bit.
+    __m256i squares_lut_u8x32 = _mm256_broadcastsi128_si256(_mm_setr_epi8(0, 1, 4, 9, 16, 36, 64, (char)144, //
+                                                                          0, 1, 4, 9, 16, 36, 64, (char)144));
+    __m256i mask_0f_u8x32 = _mm256_set1_epi8(0x0F);
+    __m256i zero_u8x32 = _mm256_setzero_si256();
+    __m256i squares_u64x4 = zero_u8x32;
+    nk_size_t bytes = nk_size_divide_round_up_(count, 2);
+    unsigned char const *ptr = (unsigned char const *)data;
+    while (bytes > 0) {
+        nk_b256_vec_t raw_vec;
+        nk_size_t chunk = bytes < 32 ? bytes : 32;
+        nk_partial_load_b8x32_haswell_(ptr, &raw_vec, chunk);
+        __m256i low_u8x32 = _mm256_and_si256(raw_vec.ymm, mask_0f_u8x32);
+        __m256i high_u8x32 = _mm256_and_si256(_mm256_srli_epi16(raw_vec.ymm, 4), mask_0f_u8x32);
+        // An odd count leaves the last low nibble outside the row.
+        if ((count & 1) && chunk == bytes) {
+            nk_b256_vec_t keep_vec;
+            keep_vec.ymm = mask_0f_u8x32;
+            keep_vec.u8s[chunk - 1] = 0;
+            low_u8x32 = _mm256_and_si256(low_u8x32, keep_vec.ymm);
+        }
+        squares_u64x4 = _mm256_add_epi64(
+            squares_u64x4, _mm256_sad_epu8(_mm256_shuffle_epi8(squares_lut_u8x32, low_u8x32), zero_u8x32));
+        squares_u64x4 = _mm256_add_epi64(
+            squares_u64x4, _mm256_sad_epu8(_mm256_shuffle_epi8(squares_lut_u8x32, high_u8x32), zero_u8x32));
+        ptr += chunk, bytes -= chunk;
+    }
+    return (nk_f32_t)(nk_u64_t)nk_reduce_add_i64x4_haswell_(squares_u64x4) * 0.25f;
+}
+
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_haswell_(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
@@ -152,85 +184,85 @@ NUMKONG_INLINE void nk_dots_reduce_moments_i4_haswell_(nk_i4x2_t const *data, nk
 /*  F32 GEMM: depth_simd_dimensions = 4, as 4 f32s span 16 bytes for f32 → f64 upcast
  *  accumulation. */
 nk_define_cross_pack_size_(dots, f32, haswell, f32, f32, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/4,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, f32, haswell)
 nk_define_cross_pack_(dots, f32, haswell, f32, f32, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b32x8_haswell_, nk_store_b256_haswell_, nk_partial_store_b32x8_haswell_,
                       /*simd_width=*/8, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f32_haswell_,
-                      /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f32, haswell, f32, f64, nk_b128_vec_t, nk_dot_f32x4_state_haswell_t, nk_b256_vec_t,
-                           nk_dot_f32x4_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                           nk_partial_load_b32x4_haswell_, nk_dot_f32x4_update_haswell, nk_dot_f32x4_finalize_haswell,
-                           nk_store_b256_haswell_, nk_partial_store_b64x4_haswell_,
+                           nk_dot_f32x4_init_haswell, nk_load_b128_haswell_, nk_partial_load_b32x4_haswell_,
+                           nk_dot_f32x4_update_haswell, nk_dot_f32x4_finalize_haswell, nk_store_b256_haswell_,
+                           nk_partial_store_b64x4_haswell_,
                            /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f32, haswell, f32, f32, f64, nk_b128_vec_t, nk_dot_f32x4_state_haswell_t, nk_b256_vec_t,
-                        nk_dot_f32x4_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                        nk_partial_load_b32x4_haswell_, nk_load_b128_haswell_, nk_partial_load_b32x4_haswell_,
-                        nk_dot_f32x4_update_haswell, nk_dot_f32x4_finalize_haswell, nk_store_b256_haswell_,
-                        nk_partial_store_b64x4_haswell_,
+                        nk_dot_f32x4_init_haswell, nk_load_b128_haswell_, nk_partial_load_b32x4_haswell_,
+                        nk_load_b128_haswell_, nk_partial_load_b32x4_haswell_, nk_dot_f32x4_update_haswell,
+                        nk_dot_f32x4_finalize_haswell, nk_store_b256_haswell_, nk_partial_store_b64x4_haswell_,
                         /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 
 /* F64 GEMM: depth_simd_dimensions=4 (4 f64s = 32 bytes = AVX2 register width) */
 nk_define_cross_pack_size_(dots, f64, haswell, f64, f64, /*norm_value_type=*/f64, /*depth_simd_dimensions=*/4,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, f64, haswell)
 nk_define_cross_pack_(dots, f64, haswell, f64, f64, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b64x4_haswell_, nk_store_b256_haswell_, nk_partial_store_b64x4_haswell_,
                       /*simd_width=*/4, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f64_haswell_,
                       /*depth_simd_dimensions=*/4,
-                      /*dimensions_per_value=*/1)
+                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f64, haswell, f64, f64, nk_b256_vec_t, nk_dot_f64x4_state_haswell_t, nk_b256_vec_t,
-                           nk_dot_f64x4_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
-                           nk_partial_load_b64x4_haswell_, nk_dot_f64x4_update_haswell, nk_dot_f64x4_finalize_haswell,
-                           nk_store_b256_haswell_, nk_partial_store_b64x4_haswell_,
+                           nk_dot_f64x4_init_haswell, nk_load_b256_haswell_, nk_partial_load_b64x4_haswell_,
+                           nk_dot_f64x4_update_haswell, nk_dot_f64x4_finalize_haswell, nk_store_b256_haswell_,
+                           nk_partial_store_b64x4_haswell_,
                            /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f64, haswell, f64, f64, f64, nk_b256_vec_t, nk_dot_f64x4_state_haswell_t, nk_b256_vec_t,
-                        nk_dot_f64x4_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
-                        nk_partial_load_b64x4_haswell_, nk_load_b256_haswell_, nk_partial_load_b64x4_haswell_,
-                        nk_dot_f64x4_update_haswell, nk_dot_f64x4_finalize_haswell, nk_store_b256_haswell_,
-                        nk_partial_store_b64x4_haswell_,
+                        nk_dot_f64x4_init_haswell, nk_load_b256_haswell_, nk_partial_load_b64x4_haswell_,
+                        nk_load_b256_haswell_, nk_partial_load_b64x4_haswell_, nk_dot_f64x4_update_haswell,
+                        nk_dot_f64x4_finalize_haswell, nk_store_b256_haswell_, nk_partial_store_b64x4_haswell_,
                         /*depth_simd_dimensions=*/4, /*dimensions_per_value=*/1)
 
 /*  F16 GEMM: depth_simd_dimensions = 8, as 8 f16s span a 16-byte, 128-bit input, upcast to 8 f32s
  *  in 256 bits. */
 nk_define_cross_pack_size_(dots, f16, haswell, f16, f32, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/8,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, f16, haswell)
 nk_define_cross_pack_(dots, f16, haswell, f16, f32, nk_b256_vec_t, nk_load_f16x8_to_f32x8_haswell_,
                       nk_partial_load_f16x8_to_f32x8_haswell_, nk_store_b256_haswell_, nk_partial_store_b32x8_haswell_,
                       /*simd_width=*/8, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_haswell_,
                       /*depth_simd_dimensions=*/8,
-                      /*dimensions_per_value=*/1)
+                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f16, haswell, f16, f32, nk_b256_vec_t, nk_dot_through_f32_state_haswell_t_,
-                           nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_cross_unscaled_,
-                           nk_load_f16x8_to_f32x8_haswell_, nk_partial_load_f16x8_to_f32x8_haswell_,
-                           nk_dot_through_f32_update_haswell_, nk_dot_through_f32_finalize_haswell_,
-                           nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_load_f16x8_to_f32x8_haswell_,
+                           nk_partial_load_f16x8_to_f32x8_haswell_, nk_dot_through_f32_update_haswell_,
+                           nk_dot_through_f32_finalize_haswell_, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, f16, haswell, f16, f32, f32, nk_b256_vec_t, nk_dot_through_f32_state_haswell_t_,
-                        nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_cross_unscaled_,
-                        nk_load_f16x8_to_f32x8_haswell_, nk_partial_load_f16x8_to_f32x8_haswell_, nk_load_b256_haswell_,
-                        nk_partial_load_b32x8_haswell_, nk_dot_through_f32_update_haswell_,
-                        nk_dot_through_f32_finalize_haswell_, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                        nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_load_f16x8_to_f32x8_haswell_,
+                        nk_partial_load_f16x8_to_f32x8_haswell_, nk_load_b256_haswell_, nk_partial_load_b32x8_haswell_,
+                        nk_dot_through_f32_update_haswell_, nk_dot_through_f32_finalize_haswell_,
+                        nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 
 /*  BF16 GEMM: depth_simd_dimensions = 8, as 8 bf16s span a 16-byte, 128-bit input, upcast to 8 f32s
  *  in 256 bits. */
 /* BF16 GEMM: depth_simd_dimensions=16, raw bf16 storage, unpack(zero, bf16) → f32 inline */
 nk_define_cross_pack_size_(dots, bf16, haswell, bf16, bf16, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/16,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, bf16, haswell)
 nk_define_cross_pack_(dots, bf16, haswell, bf16, bf16, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b16x16_haswell_, nk_store_b256_haswell_, nk_partial_store_b16x16_haswell_,
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_haswell_,
-                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, bf16, haswell, bf16, f32, nk_b256_vec_t, nk_dot_bf16x16_state_haswell_t, nk_b128_vec_t,
-                           nk_dot_bf16x16_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
-                           nk_partial_load_b16x16_haswell_, nk_dot_bf16x16_update_haswell,
-                           nk_dot_bf16x16_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_dot_bf16x16_init_haswell, nk_load_b256_haswell_, nk_partial_load_b16x16_haswell_,
+                           nk_dot_bf16x16_update_haswell, nk_dot_bf16x16_finalize_haswell, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, bf16, haswell, bf16, bf16, f32, nk_b256_vec_t, nk_dot_bf16x16_state_haswell_t,
-                        nk_b128_vec_t, nk_dot_bf16x16_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_b128_vec_t, nk_dot_bf16x16_init_haswell, nk_load_b256_haswell_,
                         nk_partial_load_b16x16_haswell_, nk_load_b256_haswell_, nk_partial_load_b16x16_haswell_,
                         nk_dot_bf16x16_update_haswell, nk_dot_bf16x16_finalize_haswell, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_haswell_,
@@ -238,20 +270,21 @@ nk_define_cross_packed_(dots, bf16, haswell, bf16, bf16, f32, nk_b256_vec_t, nk_
 
 /* E4M3 GEMM: depth_simd_dimensions=32 (byte-level batch; widen inside the update helper) */
 nk_define_cross_pack_size_(dots, e4m3, haswell, e4m3, f32, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e4m3, haswell)
 nk_define_cross_pack_(dots, e4m3, haswell, e4m3, f32, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b8x32_haswell_, nk_store_b256_haswell_, nk_partial_store_b8x32_haswell_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_haswell_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e4m3, haswell, e4m3, f32, nk_b256_vec_t, nk_dot_through_f32_state_haswell_t_,
-                           nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_cross_unscaled_, nk_load_b256_haswell_,
+                           nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_load_b256_haswell_,
                            nk_partial_load_b8x32_haswell_, nk_dot_e4m3x32_update_haswell_,
                            nk_dot_through_f32_finalize_haswell_, nk_store_b128_haswell_,
                            nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e4m3, haswell, e4m3, f32, f32, nk_b256_vec_t, nk_dot_through_f32_state_haswell_t_,
-                        nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_load_b256_haswell_,
                         nk_partial_load_b8x32_haswell_, nk_load_b256_haswell_, nk_partial_load_b8x32_haswell_,
                         nk_dot_e4m3x32_update_haswell_, nk_dot_through_f32_finalize_haswell_, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_haswell_,
@@ -259,20 +292,21 @@ nk_define_cross_packed_(dots, e4m3, haswell, e4m3, f32, f32, nk_b256_vec_t, nk_d
 
 /* E5M2 GEMM: depth_simd_dimensions=32 (byte-level batch; widen inside the update helper) */
 nk_define_cross_pack_size_(dots, e5m2, haswell, e5m2, f32, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e5m2, haswell)
 nk_define_cross_pack_(dots, e5m2, haswell, e5m2, f32, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b8x32_haswell_, nk_store_b256_haswell_, nk_partial_store_b8x32_haswell_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_haswell_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e5m2, haswell, e5m2, f32, nk_b256_vec_t, nk_dot_through_f32_state_haswell_t_,
-                           nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_cross_unscaled_, nk_load_b256_haswell_,
+                           nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_load_b256_haswell_,
                            nk_partial_load_b8x32_haswell_, nk_dot_e5m2x32_update_haswell_,
                            nk_dot_through_f32_finalize_haswell_, nk_store_b128_haswell_,
                            nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e5m2, haswell, e5m2, f32, f32, nk_b256_vec_t, nk_dot_through_f32_state_haswell_t_,
-                        nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_b128_vec_t, nk_dot_through_f32_init_haswell_, nk_load_b256_haswell_,
                         nk_partial_load_b8x32_haswell_, nk_load_b256_haswell_, nk_partial_load_b8x32_haswell_,
                         nk_dot_e5m2x32_update_haswell_, nk_dot_through_f32_finalize_haswell_, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_haswell_,
@@ -281,19 +315,20 @@ nk_define_cross_packed_(dots, e5m2, haswell, e5m2, f32, f32, nk_b256_vec_t, nk_d
 /*  E2M3 GEMM via the integer LUT path: depth_simd_dimensions = 32, as 32 e2m3s span the 32 bytes of
  *  an AVX2 register. */
 nk_define_cross_pack_size_(dots, e2m3, haswell, e2m3, e2m3, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e2m3, haswell)
 nk_define_cross_pack_(dots, e2m3, haswell, e2m3, e2m3, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b8x32_haswell_, nk_store_b256_haswell_, nk_partial_store_b8x32_haswell_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_haswell_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e2m3, haswell, e2m3, f32, nk_b256_vec_t, nk_dot_e2m3x32_state_haswell_t, nk_b128_vec_t,
-                           nk_dot_e2m3x32_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
-                           nk_partial_load_b8x32_haswell_, nk_dot_e2m3x32_update_haswell,
-                           nk_dot_e2m3x32_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_dot_e2m3x32_init_haswell, nk_load_b256_haswell_, nk_partial_load_b8x32_haswell_,
+                           nk_dot_e2m3x32_update_haswell, nk_dot_e2m3x32_finalize_haswell, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e2m3, haswell, e2m3, e2m3, f32, nk_b256_vec_t, nk_dot_e2m3x32_state_haswell_t,
-                        nk_b128_vec_t, nk_dot_e2m3x32_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_b128_vec_t, nk_dot_e2m3x32_init_haswell, nk_load_b256_haswell_,
                         nk_partial_load_b8x32_haswell_, nk_load_b256_haswell_, nk_partial_load_b8x32_haswell_,
                         nk_dot_e2m3x32_update_haswell, nk_dot_e2m3x32_finalize_haswell, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_haswell_,
@@ -302,39 +337,42 @@ nk_define_cross_packed_(dots, e2m3, haswell, e2m3, e2m3, f32, nk_b256_vec_t, nk_
 /*  E2M1 GEMM via the integer LUT path: depth_simd_dimensions = 64, as 64 nibbles span the 32 bytes
  *  of an AVX2 register. */
 nk_define_cross_pack_size_(dots, e2m1, haswell, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/64,
-                           /*dimensions_per_value=*/2)
+                           /*dimensions_per_value=*/2, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e2m1, haswell)
 nk_define_cross_pack_(dots, e2m1, haswell, e2m1x2, e2m1x2, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b8x32_haswell_, nk_store_b256_haswell_, nk_partial_store_b8x32_haswell_,
-                      /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_,
-                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
+                      /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_haswell_,
+                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e2m1, haswell, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_haswell_t,
-                           nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
+                           nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_load_b256_haswell_,
                            nk_partial_load_b4x64_serial_, nk_dot_e2m1x64_update_haswell,
                            nk_dot_e2m1x64_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, e2m1, haswell, e2m1x2, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_haswell_t,
-                        nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_b128_vec_t, nk_dot_e2m1x64_init_haswell, nk_load_b256_haswell_,
                         nk_partial_load_b4x64_serial_, nk_load_b256_haswell_, nk_partial_load_b4x64_serial_,
                         nk_dot_e2m1x64_update_haswell, nk_dot_e2m1x64_finalize_haswell, nk_store_b128_haswell_,
-                        nk_partial_store_b32x4_haswell_, /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2)
+                        nk_partial_store_b32x4_haswell_, /*depth_simd_dimensions=*/64,
+                        /*dimensions_per_value=*/2)
 
 /*  E3M2 GEMM via the integer LUT path: depth_simd_dimensions = 32, as 32 e3m2s span the 32 bytes of
  *  an AVX2 register. */
 nk_define_cross_pack_size_(dots, e3m2, haswell, e3m2, e3m2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, e3m2, haswell)
 nk_define_cross_pack_(dots, e3m2, haswell, e3m2, e3m2, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b8x32_haswell_, nk_store_b256_haswell_, nk_partial_store_b8x32_haswell_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e3m2_haswell_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e3m2, haswell, e3m2, f32, nk_b256_vec_t, nk_dot_e3m2x32_state_haswell_t, nk_b128_vec_t,
-                           nk_dot_e3m2x32_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
-                           nk_partial_load_b8x32_haswell_, nk_dot_e3m2x32_update_haswell,
-                           nk_dot_e3m2x32_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_dot_e3m2x32_init_haswell, nk_load_b256_haswell_, nk_partial_load_b8x32_haswell_,
+                           nk_dot_e3m2x32_update_haswell, nk_dot_e3m2x32_finalize_haswell, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, e3m2, haswell, e3m2, e3m2, f32, nk_b256_vec_t, nk_dot_e3m2x32_state_haswell_t,
-                        nk_b128_vec_t, nk_dot_e3m2x32_init_haswell, nk_cross_unscaled_, nk_load_b256_haswell_,
+                        nk_b128_vec_t, nk_dot_e3m2x32_init_haswell, nk_load_b256_haswell_,
                         nk_partial_load_b8x32_haswell_, nk_load_b256_haswell_, nk_partial_load_b8x32_haswell_,
                         nk_dot_e3m2x32_update_haswell, nk_dot_e3m2x32_finalize_haswell, nk_store_b128_haswell_,
                         nk_partial_store_b32x4_haswell_,
@@ -342,44 +380,42 @@ nk_define_cross_packed_(dots, e3m2, haswell, e3m2, e3m2, f32, nk_b256_vec_t, nk_
 
 /* I8 GEMM: depth_simd_dimensions=16 (16 i8s = 16 bytes = 128-bit input) */
 nk_define_cross_pack_size_(dots, i8, haswell, i8, i8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/16,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, i8, haswell)
 nk_define_cross_pack_(dots, i8, haswell, i8, i8, nk_b128_vec_t, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
                       nk_store_b128_haswell_, nk_partial_store_b8x16_haswell_,
                       /*simd_width=*/16,
                       /*norm_value_type=*/u32, nk_dots_reduce_sumsq_i8_haswell_, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1)
+                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, i8, haswell, i8, i32, nk_b128_vec_t, nk_dot_i8x16_state_haswell_t, nk_b128_vec_t,
-                           nk_dot_i8x16_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                           nk_partial_load_b8x16_haswell_, nk_dot_i8x16_update_haswell, nk_dot_i8x16_finalize_haswell,
-                           nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_dot_i8x16_init_haswell, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
+                           nk_dot_i8x16_update_haswell, nk_dot_i8x16_finalize_haswell, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, i8, haswell, i8, i8, i32, nk_b128_vec_t, nk_dot_i8x16_state_haswell_t, nk_b128_vec_t,
-                        nk_dot_i8x16_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                        nk_partial_load_b8x16_haswell_, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
-                        nk_dot_i8x16_update_haswell, nk_dot_i8x16_finalize_haswell, nk_store_b128_haswell_,
-                        nk_partial_store_b32x4_haswell_,
+                        nk_dot_i8x16_init_haswell, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
+                        nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_, nk_dot_i8x16_update_haswell,
+                        nk_dot_i8x16_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /* U8 GEMM: depth_simd_dimensions=16 (16 u8s = 16 bytes = 128-bit input) */
 nk_define_cross_pack_size_(dots, u8, haswell, u8, u8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/16,
-                           /*dimensions_per_value=*/1)
+                           /*dimensions_per_value=*/1, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, u8, haswell)
 nk_define_cross_pack_(dots, u8, haswell, u8, u8, nk_b128_vec_t, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
                       nk_store_b128_haswell_, nk_partial_store_b8x16_haswell_,
                       /*simd_width=*/16,
                       /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u8_haswell_, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1)
+                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, u8, haswell, u8, u32, nk_b128_vec_t, nk_dot_u8x16_state_haswell_t, nk_b128_vec_t,
-                           nk_dot_u8x16_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                           nk_partial_load_b8x16_haswell_, nk_dot_u8x16_update_haswell, nk_dot_u8x16_finalize_haswell,
-                           nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_dot_u8x16_init_haswell, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
+                           nk_dot_u8x16_update_haswell, nk_dot_u8x16_finalize_haswell, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 nk_define_cross_packed_(dots, u8, haswell, u8, u8, u32, nk_b128_vec_t, nk_dot_u8x16_state_haswell_t, nk_b128_vec_t,
-                        nk_dot_u8x16_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                        nk_partial_load_b8x16_haswell_, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
-                        nk_dot_u8x16_update_haswell, nk_dot_u8x16_finalize_haswell, nk_store_b128_haswell_,
-                        nk_partial_store_b32x4_haswell_,
+                        nk_dot_u8x16_init_haswell, nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_,
+                        nk_load_b128_haswell_, nk_partial_load_b8x16_haswell_, nk_dot_u8x16_update_haswell,
+                        nk_dot_u8x16_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
 
 /*  I4 GEMM: depth_simd_dimensions=32 — compensated (A+B sums precomputed)
@@ -417,45 +453,46 @@ nk_define_cross_compensated_packed_(dots, i4, haswell, i4x2, i4x2, i32,
 /*  U4 GEMM: depth_simd_dimensions=32 (32 nibbles = 16 bytes = 128-bit input)
  *  Note: dimensions_per_value=2 because 2 nibbles (u4 values) are packed per byte */
 nk_define_cross_pack_size_(dots, u4, haswell, u4x2, u4x2, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/32,
-                           /*dimensions_per_value=*/2)
+                           /*dimensions_per_value=*/2, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, u4, haswell)
 nk_define_cross_pack_(dots, u4, haswell, u4x2, u4x2, nk_b128_vec_t, nk_load_b128_haswell_,
                       nk_partial_load_b8x16_haswell_, nk_store_b128_haswell_, nk_partial_store_b8x16_haswell_,
                       /*simd_width=*/16, /*norm_value_type=*/u32, nk_dots_reduce_sumsq_u4_haswell_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, u4, haswell, u4x2, u32, nk_b128_vec_t, nk_dot_u4x32_state_haswell_t, nk_b128_vec_t,
-                           nk_dot_u4x32_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                           nk_partial_load_b4x32_serial_, nk_dot_u4x32_update_haswell, nk_dot_u4x32_finalize_haswell,
-                           nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_dot_u4x32_init_haswell, nk_load_b128_haswell_, nk_partial_load_b4x32_serial_,
+                           nk_dot_u4x32_update_haswell, nk_dot_u4x32_finalize_haswell, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_packed_(dots, u4, haswell, u4x2, u4x2, u32, nk_b128_vec_t, nk_dot_u4x32_state_haswell_t, nk_b128_vec_t,
-                        nk_dot_u4x32_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                        nk_partial_load_b4x32_serial_, nk_load_b128_haswell_, nk_partial_load_b4x32_serial_,
-                        nk_dot_u4x32_update_haswell, nk_dot_u4x32_finalize_haswell, nk_store_b128_haswell_,
-                        nk_partial_store_b32x4_haswell_,
+                        nk_dot_u4x32_init_haswell, nk_load_b128_haswell_, nk_partial_load_b4x32_serial_,
+                        nk_load_b128_haswell_, nk_partial_load_b4x32_serial_, nk_dot_u4x32_update_haswell,
+                        nk_dot_u4x32_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 
 /* U1 GEMM: depth_simd_dimensions=128 (128 bits = 16 bytes) */
 nk_define_cross_pack_size_(dots, u1, haswell, u1x8, u1x8, /*norm_value_type=*/u32, /*depth_simd_dimensions=*/128,
-                           /*dimensions_per_value=*/8)
+                           /*dimensions_per_value=*/8, /*scale_bytes=*/1)
 nk_define_cross_packed_shape_(dots, u1, haswell)
 nk_define_cross_pack_(dots, u1, haswell, u1x8, u1x8, nk_b128_vec_t, nk_load_b128_haswell_,
                       nk_partial_load_b8x16_haswell_, nk_store_b128_haswell_, nk_partial_store_b8x16_haswell_,
                       /*simd_width=*/16, /*norm_value_type=*/u32, nk_dots_reduce_sum_u1_haswell_,
-                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8)
+                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8, nk_cross_pack_scales_bytes_,
+                      /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, u1, haswell, u1x8, u32, nk_b128_vec_t, nk_dot_u1x128_state_haswell_t, nk_b128_vec_t,
-                           nk_dot_u1x128_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                           nk_partial_load_b1x128_serial_, nk_dot_u1x128_update_haswell, nk_dot_u1x128_finalize_haswell,
-                           nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
+                           nk_dot_u1x128_init_haswell, nk_load_b128_haswell_, nk_partial_load_b1x128_serial_,
+                           nk_dot_u1x128_update_haswell, nk_dot_u1x128_finalize_haswell, nk_store_b128_haswell_,
+                           nk_partial_store_b32x4_haswell_,
                            /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8)
 nk_define_cross_packed_(dots, u1, haswell, u1x8, u1x8, u32, nk_b128_vec_t, nk_dot_u1x128_state_haswell_t, nk_b128_vec_t,
-                        nk_dot_u1x128_init_haswell, nk_cross_unscaled_, nk_load_b128_haswell_,
-                        nk_partial_load_b1x128_serial_, nk_load_b128_haswell_, nk_partial_load_b1x128_serial_,
-                        nk_dot_u1x128_update_haswell, nk_dot_u1x128_finalize_haswell, nk_store_b128_haswell_,
-                        nk_partial_store_b32x4_haswell_,
+                        nk_dot_u1x128_init_haswell, nk_load_b128_haswell_, nk_partial_load_b1x128_serial_,
+                        nk_load_b128_haswell_, nk_partial_load_b1x128_serial_, nk_dot_u1x128_update_haswell,
+                        nk_dot_u1x128_finalize_haswell, nk_store_b128_haswell_, nk_partial_store_b32x4_haswell_,
                         /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/8)
 
 #endif // NUMKONG_TARGET_HASWELL
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)

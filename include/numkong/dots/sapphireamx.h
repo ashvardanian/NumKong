@@ -79,7 +79,7 @@
 #if NUMKONG_ARCH_X8664_SAPPHIREAMX_
 
 #include "numkong/cast/icelake.h" // For FP8 ↔ BF16 conversions
-#include "numkong/dots/serial.h"  // `nk_dots_reduce_sumsq_e2m1_`
+#include "numkong/dots/serial.h"  // `nk_cross_scaled_exact_wide_mxfp4_serial_`
 #include "numkong/dots/skylake.h" // `nk_dots_reduce_sumsq_bf16_skylake_`
 
 #if defined(__cplusplus)

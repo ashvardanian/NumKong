@@ -21,7 +21,6 @@
 extern "C" {
 #endif
 
-#if NUMKONG_TARGET_ICELAKE
 #if defined(__clang__)
 #pragma clang attribute push(                                                                                        \
     __attribute__((                                                                                                  \
@@ -33,6 +32,7 @@ extern "C" {
                    "avx512vpopcntdq", "f16c", "fma", "bmi", "bmi2")
 #endif
 
+#if NUMKONG_TARGET_ICELAKE
 nk_define_cross_normalized_packed_(angular, i8, icelake, i8, i8, i32, /*norm_value_type=*/u32, f32, nk_b128_vec_t,
                                    nk_dots_packed_i8_icelake, nk_angular_through_i32_from_dot_haswell_,
                                    nk_dots_reduce_sumsq_i8_icelake_, nk_load_b128_haswell_,
@@ -116,13 +116,13 @@ nk_define_cross_normalized_symmetric_(euclidean, u4, icelake, u4x2, u32, /*norm_
                                       nk_dots_reduce_sumsq_u4_skylake_, nk_load_b128_haswell_,
                                       nk_partial_load_b32x4_skylake_, nk_store_b128_haswell_,
                                       nk_partial_store_b32x4_skylake_, 2)
+#endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
 #pragma GCC pop_options
 #endif
-#endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__cplusplus)
 } // extern "C"

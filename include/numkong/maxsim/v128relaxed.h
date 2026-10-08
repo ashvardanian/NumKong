@@ -16,6 +16,7 @@
 #ifndef NUMKONG_MAXSIM_V128RELAXED_H
 #define NUMKONG_MAXSIM_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
@@ -192,4 +193,5 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_v128relaxed(nk_f16_t const *vectors, 
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_MAXSIM_V128RELAXED_H

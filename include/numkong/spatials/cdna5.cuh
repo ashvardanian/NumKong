@@ -14,6 +14,7 @@
 #ifndef NUMKONG_SPATIALS_CDNA5_CUH
 #define NUMKONG_SPATIALS_CDNA5_CUH
 
+#if NUMKONG_ARCH_ROCM_
 #if NUMKONG_TARGET_CDNA5
 
 #include "numkong/dots/cdna5.cuh"
@@ -132,10 +133,10 @@ nk_define_cross_rocm_(euclidean, i4, cdna5, cdna5, i4x2, i4x2, f32, /*depth_simd
 
 nk_define_cross_rocm_(angular, u8, cdna5, cdna5, u8, u8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_u8_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_cdna3_, /*norm_scale=*/1.0f)
 nk_define_cross_rocm_(euclidean, u8, cdna5, cdna5, u8, u8, f32, /*depth_simd_dimensions=*/16,
                       /*dimensions_per_value=*/1, nk_dots_u8_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_cdna3_, /*norm_scale=*/1.0f)
 
 #pragma endregion U8
 
@@ -143,10 +144,10 @@ nk_define_cross_rocm_(euclidean, u8, cdna5, cdna5, u8, u8, f32, /*depth_simd_dim
 
 nk_define_cross_rocm_(angular, u4, cdna5, cdna5, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_cdna3_, /*norm_scale=*/1.0f)
 nk_define_cross_rocm_(euclidean, u4, cdna5, cdna5, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
                       /*dimensions_per_value=*/2, nk_dots_u4_multiply_cdna5_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_cdna4_, /*norm_scale=*/1.0f)
+                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_cdna3_, /*norm_scale=*/1.0f)
 
 #pragma endregion U4
 
@@ -155,4 +156,5 @@ nk_define_cross_rocm_(euclidean, u4, cdna5, cdna5, u4x2, u4x2, f32, /*depth_simd
 #endif
 
 #endif // NUMKONG_TARGET_CDNA5
+#endif // NUMKONG_ARCH_ROCM_
 #endif // NUMKONG_SPATIALS_CDNA5_CUH

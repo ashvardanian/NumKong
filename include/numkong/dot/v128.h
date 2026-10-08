@@ -15,6 +15,7 @@
 #ifndef NUMKONG_DOT_V128_H
 #define NUMKONG_DOT_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
@@ -401,4 +402,5 @@ NUMKONG_INLINE void nk_dot_u1x128_finalize_v128(                                
 #endif
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_DOT_V128_H

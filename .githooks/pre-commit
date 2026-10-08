@@ -29,6 +29,10 @@ project_include_prefix="numkong"
 sibling_projects='stringzilla|usearch|forkunion|smashtable|simsimd|smallfield|stringtape'
 abbreviations_refused="hi lo bot acc accum tmp temp res bcast ext idx cnt buf len str val obj elem iter"
 rustfmt_command="cargo +nightly fmt"
+# The approved code-generation macro families are .clang-format's `StatementMacros`, from the staged copy so a
+# commit approving a family carries it, else from the copy beside this hook, as the selftest's fixtures have none.
+approved_codegen_macros=$({ git show :.clang-format 2>/dev/null || cat "$(dirname "$0")/../.clang-format"; } |
+    awk '/^StatementMacros:/ { listed = 1; next } /^[^ ]/ { listed = 0 } listed { sub(/^ *- */, ""); print }')
 
 # endregion Project Settings
 
@@ -90,9 +94,9 @@ paragraph_room_awk='
 '
 
 # Runs an awk program over the staged file with `added[line]` preloaded, so a structural check sees the
-# whole file as context and still reports only what this commit added.
-scan_staged_file_marking_added_lines() { # scan_staged_file_marking_added_lines <awk-program>
-    awk "$comment_structure_awk"'NR == FNR { added[$1 + 0]; next } '"$1" "$staged_lines_path" "$staged_text_path"
+# whole file as context and still reports only what this commit added; code checks use the comment-free copy.
+scan_staged_file_marking_added_lines() { # scan_staged_file_marking_added_lines <awk-program> [source]
+    awk "$comment_structure_awk"'FILENAME == ARGV[1] { added[$1 + 0]; next } '"$1" "$staged_lines_path" "${2:-$staged_text_path}"
 }
 
 # Blanks C-family comments to spaces, keeping every line and column in place, so a code check never fires
@@ -349,6 +353,91 @@ check_kernels_call_no_public_kernels() {
     [ -z "$calls" ] || reject_with_reason "$calls" \
         "$staged_path calls a public kernel from a kernel header;" \
         "            call the helper it is built on, or add one named for what it computes:"
+}
+
+# Rejects an added kernel signature with a runtime `nk_dtype_t` parameter, because a kernel takes typed
+# function arguments, generated per dtype by a macro; a `NUMKONG_CONSTEXPR` helper may fold the lookup.
+check_kernels_take_no_runtime_dtype() {
+    case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
+    local runtime_dtypes
+    runtime_dtypes=$(scan_staged_file_marking_added_lines '
+        !in_signature && /^[[:space:]]*(NUMKONG_INLINE|NUMKONG_OUTLINED_|NUMKONG_API|NUMKONG_DEVICE|__global__|static[[:space:]])/ {
+            in_signature = 1; touched = 0; constexpr = 0; typed_line = 0
+        }
+        in_signature {
+            if (FNR in added) touched = 1
+            if ($0 ~ /NUMKONG_CONSTEXPR/) constexpr = 1
+            if (!typed_line && $0 ~ /(^|[^A-Za-z0-9_])nk_dtype_t[[:space:]]+(const[[:space:]]+)?[A-Za-z_][A-Za-z0-9_]*[[:space:]]*[,)]/) {
+                typed_line = FNR; typed_text = $0
+            }
+            if ($0 ~ /[{;]/) {
+                if (touched && typed_line && !constexpr) printf "line %d: %s\n", typed_line, typed_text
+                in_signature = 0
+            }
+        }' "$staged_code_path")
+    [ -z "$runtime_dtypes" ] || reject_with_reason "$runtime_dtypes" \
+        "$staged_path gives a kernel a runtime nk_dtype_t parameter;" \
+        "            kernels take typed function arguments, generated per dtype by a macro:"
+}
+
+# Rejects an added function-pointer typedef or struct field in a kernel header, because a stored callback
+# defeats inlining; a function-pointer parameter stays allowed.
+check_kernels_store_no_function_pointers() {
+    case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
+    local stored
+    stored=$(scan_staged_file_marking_added_lines '
+        function names_function_pointer(text) { return text ~ /\(\*[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)[[:space:]]*\(/ }
+        struct_depth == 0 && (FNR in added) && /^[[:space:]]*typedef[^;]*\(\*/ && names_function_pointer($0) { print "line " FNR ": " $0; next }
+        struct_depth == 0 && /^[[:space:]]*(typedef[[:space:]]+)?(struct|union)([[:space:]]+[A-Za-z_][A-Za-z0-9_]*)?[[:space:]]*\{[[:space:]]*$/ { struct_depth = 1; next }
+        struct_depth > 0 {
+            code = $0
+            struct_depth += gsub(/\{/, "{", code) - gsub(/\}/, "}", code)
+            if (struct_depth <= 0) { struct_depth = 0; next }
+            if ((FNR in added) && names_function_pointer($0)) print "line " FNR ": " $0
+        }' "$staged_code_path")
+    [ -z "$stored" ] || reject_with_reason "$stored" \
+        "$staged_path stores a function pointer in a kernel header;" \
+        "            pass the function to a per-dtype macro or an always-inline body instead of storing it:"
+}
+
+# Rejects F64 in the body of a block-scaled kernel, because those kernels rebase into F32 and fall back to
+# the exact F32 path; a function is block-scaled when its name holds `scaled`, `nvfp4`, `mxfp`, `ue8m0` or
+# `ue4m3`, and a macro counts as one function.
+check_scaled_kernels_avoid_f64() {
+    case "$staged_path" in include/numkong/*/*.h | include/numkong/*/*.cuh) ;; *) return 0 ;; esac
+    local wide
+    wide=$(scan_staged_file_marking_added_lines '
+        /^#[[:space:]]*define[[:space:]]+[A-Za-z_]/ {
+            function_name = $0; sub(/^#[[:space:]]*define[[:space:]]+/, "", function_name); sub(/[^A-Za-z0-9_].*$/, "", function_name)
+            in_macro = 1
+        }
+        !in_macro && /^[^[:space:]#}\/]/ {
+            function_name = ""; header = $0; gsub(/__attribute__\(\([^)]*\)\)/, "", header)
+            if (match(header, /[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\(/)) {
+                function_name = substr(header, RSTART, RLENGTH); sub(/[^A-Za-z0-9_].*$/, "", function_name)
+            }
+        }
+        (FNR in added) && function_name ~ /(scaled|nvfp4|mxfp|ue8m0|ue4m3)/ &&
+            $0 ~ /(^|[^A-Za-z0-9_])(nk_f64_t|double|float64)([^A-Za-z0-9_]|$)|_f64([^A-Za-z0-9_]|$)/ { print "line " FNR ": " $0 }
+        in_macro && $0 !~ /\\[[:space:]]*$/ { in_macro = 0; function_name = "" }
+        /^\}/ { function_name = "" }' "$staged_code_path")
+    [ -z "$wide" ] || reject_with_reason "$wide" \
+        "$staged_path uses F64 inside a block-scaled kernel;" \
+        "            block-scaled kernels rebase into F32 and fall back to the exact F32 path, F64 belongs only in test oracles:"
+}
+
+# Rejects an added `#define nk_define_<name>(` missing from .clang-format's `StatementMacros`, because every new
+# code-generation macro family goes through review, and the list in the same commit is what shows it.
+check_codegen_macros_are_approved() {
+    case "$staged_path" in include/*) ;; *) return 0 ;; esac
+    local macro_name unapproved=""
+    for macro_name in $(printf '%s\n' "$staged_added_text" |
+        grep -oE '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+nk_define_[A-Za-z0-9_]+\(' | grep -oE 'nk_define_[A-Za-z0-9_]+'); do
+        case " $approved_codegen_macros " in *[[:space:]]"$macro_name"[[:space:]]*) ;; *) unapproved="$unapproved$macro_name"$'\n' ;; esac
+    done
+    [ -z "$unapproved" ] || reject_with_reason "$unapproved" \
+        "$staged_path defines a code-generation macro family nobody approved;" \
+        "            a new one needs Ash's approval, so list it in .clang-format's StatementMacros in the same commit:"
 }
 
 # Rejects a tensor shape spelled `[rows x cols]`, `[rows × cols]`, or backticked `rows × cols`, because a
@@ -1985,7 +2074,7 @@ check_abbreviations_spelled_out() {
                 if ((prose && token !~ /_/) || !(token in existing)) { print "    " token ": " substr($0, 2); break }
             }
         }' <(printf '%s\n' "$previous_text") \
-        <(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns) \
+        "$staged_code_path" \
         <(printf '%s\n' "$staged_added_text") || true)
     [ -z "$abbreviated" ] || reject_with_reason "$abbreviated" \
         "$staged_path abbreviates a word this project spells out; write \`high\`, \`low\`, \`accumulator\`, and so on:"
@@ -1994,12 +2083,7 @@ check_abbreviations_spelled_out() {
 # Template parameters are private names; public aliases belong inside the instantiated type.
 check_template_parameter_names() {
     local names
-    names=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        added_list="$staged_added_line_numbers_list" awk '
-        BEGIN {
-            count = split(ENVIRON["added_list"], lines, "\n")
-            for (index_ = 1; index_ <= count; ++index_) added[lines[index_] + 0] = 1
-        }
+    names=$(scan_staged_file_marking_added_lines '
         function check_parameter(    declaration, words, count, name) {
             declaration = parameter
             sub(/=.*/, "", declaration)
@@ -2029,7 +2113,7 @@ check_template_parameter_names() {
                 parameter = parameter character
             }
             if (depth) parameter = parameter " "
-        }' || true)
+        }' "$staged_code_path")
     [ -z "$names" ] || reject_with_reason "$names" \
         "$staged_path exposes a template parameter name; append an underscore and define public aliases inside:"
 }
@@ -2038,11 +2122,10 @@ check_template_parameter_names() {
 # restitches unpinned fragments into a staircase.
 check_split_string_literal_pinned() {
     local unpinned
-    unpinned=$(printf '%s\n' "$staged_file_text" | added_list="$staged_added_line_numbers_list" awk '
-        BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+    unpinned=$(scan_staged_file_marking_added_lines '
         (FNR in added) && ((FNR - 1) in added) && previous ~ /"[[:space:]]*$/ && previous !~ /\/\/[[:space:]]*$/ &&
             $0 ~ /^[[:space:]]*"/ { print FNR - 1 ": " previous }
-        { previous = $0 }' || true)
+        { previous = $0 }')
     [ -z "$unpinned" ] || reject_with_reason "$unpinned" \
         "$staged_path splits a string literal without a trailing \`//\` pin;" \
         "            end every fragment but the last with \`\" //\`:"
@@ -2067,9 +2150,7 @@ check_boolean_parameters() {
 # reads as hiding something.
 check_void_discards() {
     local casts
-    casts=$(printf '%s\n' "$staged_added_text" |
-        grep -vE "$added_comment_line_pattern" |
-        grep -E '\(void\)[[:space:]]*[A-Za-z_:(]' || true)
+    casts=$(grep -E '(^|[^A-Za-z0-9_])\(void\)[[:space:]]*[A-Za-z_:(]' "$staged_added_code_path" || true)
     [ -z "$casts" ] || reject_with_reason "$casts" \
         "$staged_path casts a result to void - bind it to a [[maybe_unused]] variable instead:"
 }
@@ -2155,9 +2236,8 @@ check_rust_macros_absent() {
 # `TRANSFORM` into an `OUTPUT_VARIABLE` defines a new list rather than mutating its source.
 check_cmake_variable_written_once() {
     local mutated
-    mutated=$(printf '%s\n' "$staged_file_text" | sed -E 's,#.*$,,' |
-        added_list="$staged_added_line_numbers_list" awk '
-        BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+    mutated=$(scan_staged_file_marking_added_lines '
+        { sub(/#.*/, "") }
         /^[[:space:]]*foreach[[:space:]]*\(/ { ++loops }
         /^[[:space:]]*endforeach[[:space:]]*\(/ { --loops }
         (FNR in added) && !(loops > 0 && /^[[:space:]]*list[[:space:]]*\([[:space:]]*APPEND[[:space:]]/) { print FNR ":" $0 }' |
@@ -2199,7 +2279,7 @@ check_harness_namespace_matches_directory() {
         fi
         ;;
     esac
-    foreign=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns | awk -v expected="$expected_namespace" '
+    foreign=$(awk -v expected="$expected_namespace" '
         continued { continued = ($0 ~ /\\$/); next }
         /^[[:space:]]*#/ { continued = ($0 ~ /\\$/); next }
         {
@@ -2215,7 +2295,7 @@ check_harness_namespace_matches_directory() {
             }
             depth += gsub(/\{/, "{", code) - gsub(/\}/, "}", code)
         }
-        END { if (!opened) print "no namespace at all" }' || true)
+        END { if (!opened) print "no namespace at all" }' "$staged_code_path")
     [ -z "$foreign" ] || reject_with_reason "$foreign" \
         "$staged_path opens a file-scope namespace other than \`$expected_namespace\`;" \
         "            wrap its contents in the namespace its directory names, and open no other:"
@@ -2674,6 +2754,10 @@ run_shared_checks() {
         check_region_label_plain
         check_regions_not_pragma_mark
         check_string_fragments_one_per_line
+        check_kernels_take_no_runtime_dtype
+        check_kernels_store_no_function_pointers
+        check_scaled_kernels_avoid_f64
+        check_codegen_macros_are_approved
         ;;
     esac
     case "$staged_path" in
@@ -2781,6 +2865,49 @@ run_tree_checks() {
 
 # region NumKong Rules
 
+# Every capability include/numkong/types.h detects, as `<capability> <ARCH> [<closure>]` lines: its
+# detection clause names the architecture, and a `NUMKONG_ARCH_<ARCH>_<CAPABILITY>_` closure marks a
+# base capability. Read from the staged copy, else the one beside this hook, as fixtures have none.
+capability_architectures=$({ git show :include/numkong/types.h 2>/dev/null || cat "$(dirname "$0")/../include/numkong/types.h"; } |
+    awk '
+        match($0, /NUMKONG_TARGET_[A-Z0-9]+ && !\(?NUMKONG_ARCH_[A-Z0-9]+_/) {
+            split(substr($0, RSTART + 15, RLENGTH - 16), names, / && !\(?NUMKONG_ARCH_/)
+            architecture[tolower(names[1])] = names[2]
+        }
+        match($0, /^#define NUMKONG_ARCH_[A-Z0-9]+_[A-Z0-9]+_[[:space:]]/) {
+            name = substr($0, 9, RLENGTH - 9)
+            split(name, parts, "_")
+            closure[tolower(parts[4])] = name
+        }
+        END { for (capability in architecture) print capability, architecture[capability], closure[capability] }')
+
+# The code-generation macros whose stamps define public kernels: a `#define nk_define_*(` body that
+# emits `NUMKONG_API` or `NUMKONG_PUBLIC`, or stamps a macro that does. Read once from the staged tree.
+kernel_codegen_macros=$(git grep --cached -n -A1 -E -e '^#[[:space:]]*define[[:space:]]+nk_define_[A-Za-z0-9_]*\(' \
+    -e '\\[[:space:]]*$' -- include/numkong 2> /dev/null | awk '
+    match($0, /[:-][0-9]+[:-]/) {
+        path = substr($0, 1, RSTART - 1); number = substr($0, RSTART + 1, RLENGTH - 2) + 0; text = substr($0, RSTART + RLENGTH)
+        if (match(text, /^#[[:space:]]*define[[:space:]]+nk_define_[A-Za-z0-9_]*\(/)) {
+            macro = substr(text, RSTART, RLENGTH - 1); sub(/^#[[:space:]]*define[[:space:]]+/, "", macro)
+            macro_path = path; text = substr(text, RSTART + RLENGTH)
+        } else if (!(continued && path == macro_path && number == last_number + 1)) { macro = ""; continued = 0; next }
+        last_number = number; continued = (text ~ /\\[[:space:]]*$/)
+        if (text ~ /(^|[^A-Za-z0-9_])NUMKONG_(API|PUBLIC)([^A-Za-z0-9_]|$)/) emits[macro] = 1
+        while (match(text, /nk_define_[A-Za-z0-9_]*\(/)) {
+            stamps[macro] = stamps[macro] " " substr(text, RSTART, RLENGTH - 1); text = substr(text, RSTART + RLENGTH)
+        }
+    }
+    END {
+        do {
+            changed = 0
+            for (macro in stamps) if (!(macro in emits)) {
+                count = split(stamps[macro], callees, " ")
+                for (index_ = 1; index_ <= count; ++index_) if (callees[index_] in emits) { emits[macro] = 1; changed = 1; break }
+            }
+        } while (changed)
+        for (macro in emits) print macro
+    }')
+
 # Rejects a docblock directly above a `NUMKONG_API` definition in include/numkong/<family>/ headers,
 # because a kernel is documented once, at its declaration in include/numkong/<family>.h.
 check_kernel_documented_at_declaration() {
@@ -2789,7 +2916,7 @@ check_kernel_documented_at_declaration() {
         /^NUMKONG_API / && (FNR in added) && ((FNR - 1) in added) && is_comment_closer(previous) {
             print "+" $0
         }
-        { previous = $0 }' || true)
+        { previous = $0 }')
     [ -z "$documented_definitions" ] || reject_with_reason "$documented_definitions" \
         "$staged_path documents a public kernel definition;" \
         "            move the docblock to its declaration in include/numkong/<family>.h and @copydoc it:"
@@ -2798,22 +2925,20 @@ check_kernel_documented_at_declaration() {
 # Rejects a SIMD register variable whose name omits its element type and width in ISA headers, because the
 # name is the only type annotation a kernel reader sees. The grammar is `<role>_<dtype>x<lanes>` for
 # fixed-width ISAs, `<role>_<dtype>x` for SVE and SME, `<role>_<dtype>m<lmul>` for RVV, with masks per ISA.
-# `*_vec`, `*_tail`, `*_tile`, `state`, and lines tagged `// nk-nolint: naming` are exempt. A name followed
-# by another name or `*` is the next parameter's type, which ends the scan of a parameter list.
+# `*_vec`, `*_tail`, `*_tile`, `state`, and lines tagged `// nk-nolint: naming` are exempt.
 check_register_names_carry_dtype_and_width() {
     local register_grammar exempt_line_numbers misnamed
     case "${staged_path##*/}" in
     haswell.h | skylake.h | icelake.h | genoa.h | sapphire.h | sapphireamx.h | graniteamx.h | alder.h | \
-        sierra.h | turin.h | v128.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) register_grammar="fixed" ;;
+        sierra.h | turin.h | diamond*.h | v128.h | v128relaxed.h | loongsonasx.h | powervsx.h | neon*.h) register_grammar="fixed" ;;
     sve*.h | sme*.h) register_grammar="sve" ;;
     rvv*.h) register_grammar="rvv" ;;
     *) return 0 ;;
     esac
     exempt_line_numbers=$(printf '%s\n' "$staged_file_text" | grep -n 'nk-nolint: naming' | cut -d: -f1)
-    misnamed=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        added_list="$staged_added_line_numbers_list" exempt_list="$exempt_line_numbers" awk -v isa="$register_grammar" '
+    misnamed=$(isa="$register_grammar" exempt_list="$exempt_line_numbers" scan_staged_file_marking_added_lines '
         BEGIN {
-            count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1
+            isa = ENVIRON["isa"]
             count = split(ENVIRON["exempt_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) exempt[numbers[index_] + 0] = 1
         }
         function vector_name_valid(name) {
@@ -2827,14 +2952,15 @@ check_register_names_carry_dtype_and_width() {
             if (isa == "rvv") return name ~ /_b(1|2|4|8|16|32|64)$/
         }
         function name_exempt(name) { return name ~ /(_vec|_tail|_tile)$/ || name == "state" }
-        function check_declarators(text, type, is_mask,    name, rest, character, depth, position) {
+        function check_declarators(text, type, is_mask, multiple,    name, rest, character, depth, position) {
             while (text != "") {
-                sub(/^[[:space:]]*(const[[:space:]]+)?/, "", text)
+                sub(/^[[:space:]]*(const[[:space:]]+)?[*[:space:]]*/, "", text)
                 name = text; sub(/[^A-Za-z0-9_].*/, "", name)
                 rest = substr(text, length(name) + 1)
-                if (rest ~ /^[[:space:]]*\(/ || name != "" && rest ~ /^[[:space:]]*[*A-Za-z_]/) return
+                if (rest ~ /^[[:space:]]*\(/) return
                 if (name != "" && !name_exempt(name) && !(is_mask ? mask_name_valid(name) : vector_name_valid(name)))
                     printf "line %d: %s %s\n", FNR, type, name
+                if (!multiple) return
                 depth = 0
                 for (position = 1; position <= length(rest); ++position) {
                     character = substr(rest, position, 1)
@@ -2846,6 +2972,12 @@ check_register_names_carry_dtype_and_width() {
                 text = substr(rest, position + 1)
             }
         }
+        function parentheses(text,    opened, closed) {
+            gsub(/"(\\.|[^"\\])*"/, "", text)
+            opened = gsub(/\(/, "", text); closed = gsub(/\)/, "", text)
+            return opened - closed
+        }
+        { previous_depth = parenthesis_depth; parenthesis_depth += parentheses($0) }
         (FNR in added) && !(FNR in exempt) {
             token_count = split($0, tokens, /[[:space:]]+/)
             for (token_index = 1; token_index <= token_count; ++token_index) {
@@ -2853,12 +2985,15 @@ check_register_names_carry_dtype_and_width() {
                 is_mask = (token ~ /^(__mmask[0-9]+|svbool_t|vbool[0-9]+_t)$/)
                 is_vector = (token ~ /^(__m(128|256|512)[id]?|__m512bh|v128_t|(float|int|uint|bfloat|poly)[0-9]+x[0-9]+(x[234])?_t|sv(float|int|uint|bfloat)[0-9]*_t|v(float|int|uint|bfloat)[0-9]+m[1248](x[234])?_t|nk_v[a-z0-9]+_t|nk_b(32|64|128|256|512)_vec_t)$/)
                 if (!is_mask && !is_vector) continue
-                prefix = substr($0, 1, index($0, token) - 1)
-                if (token ~ /^nk_b/ && prefix !~ /^[[:space:]]*((static|const)[[:space:]]+)*$/) continue
-                check_declarators(substr($0, index($0, token) + length(token)), token, is_mask)
+                match($0, "(^|[[:space:]])" token "([[:space:]]|$)")
+                position = RSTART + (substr($0, RSTART, 1) ~ /[[:space:]]/)
+                prefix = substr($0, 1, position - 1)
+                declaration = previous_depth + parentheses(prefix) == 0 && prefix ~ /^[[:space:]]*((static|const)[[:space:]]+)*$/
+                if (token ~ /^nk_b/ && !declaration) continue
+                check_declarators(substr($0, position + length(token)), token, is_mask, declaration)
                 break
             }
-        }' || true)
+        }' "$staged_code_path")
     [ -z "$misnamed" ] || reject_with_reason "$misnamed" \
         "$staged_path names a SIMD register against the $register_grammar convention," \
         "            <role>_<dtype>x<lanes>, _<dtype>x or _<dtype>m<lmul>, with masks per ISA;" \
@@ -2873,26 +3008,132 @@ check_predicated_loads_avoid_serial() {
         turin.h | diamond*.h) ;;
     *) return 0 ;;
     esac
-    serial_loads=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E 'nk_partial_load_[A-Za-z0-9_]+_serial_' || true)
+    serial_loads=$(grep -E 'nk_partial_load_[A-Za-z0-9_]+_serial_' "$staged_added_code_path" || true)
     [ -z "$serial_loads" ] || reject_with_reason "$serial_loads" \
         "$staged_path uses a serial partial loader in a predicated backend; use its masked or vector-length-controlled load:"
 }
 
-# Rejects new repetitions of the header's own target guard.
-check_backend_target_guard_unique() {
-    local target repeated
-    target=${staged_path##*/}
-    target=$(printf '%s' "${target%.*}" | tr '[:lower:]' '[:upper:]')
-    repeated=$(backend_target="NUMKONG_TARGET_$target" scan_staged_file_marking_added_lines '
-        $1 == "#if" && $2 == ENVIRON["backend_target"] && (NF == 2 || $3 ~ /^\/\//) {
-            ++count
-            if (FNR in added) lines = lines sprintf("line %d: %s\n", FNR, $0)
+# Rejects NEON helpers, intrinsics and vector types in an SME header, because NEON faults in streaming mode
+# and calling it between streaming sections costs a mode switch and another pass over the outputs.
+check_sme_kernels_avoid_neon() {
+    case "${staged_path##*/}" in sme*.h) ;; *) return 0 ;; esac
+    local neon
+    neon=$(grep -E '_neon_?\(|(^|[^A-Za-z0-9_])v[a-z0-9_]+_[suf](8|16|32|64)\(|(^|[^A-Za-z0-9_])(b?float|u?int|poly)(8|16|32|64)x[0-9]+(x[0-9]+)?_t|nk_b(64|128)_vec_t' \
+        "$staged_added_code_path" || true)
+    [ -z "$neon" ] || reject_with_reason "$neon" \
+        "$staged_path uses NEON in an SME backend;" \
+        "            streaming kernels stay in predicated SVE, including their tails and finishing passes:"
+}
+
+# Rejects a capability header whose platform guards break its shape, because they decide where
+# its helpers and kernels compile. Right after the include guard a base capability opens its
+# architecture and closure, a leaf its architecture and target, a vendor floor its vendor, and
+# simt.cuh both GPU vendors. Base and floor keep public kernels, stamps of kernel-emitting macros
+# included, in one `#if NUMKONG_TARGET_<CAPABILITY>`, serial.h in `#if NUMKONG_TARGET_SERIAL`, each
+# guard's #endif names it, and no other condition tests a platform but serial.h's compiler fixes.
+check_capability_guards_shaped() {
+    local capability upper architecture closure shape opening="" inner="" layout violations
+    capability=${staged_path##*/}
+    capability=${capability%.*}
+    upper=$(printf '%s' "$capability" | tr '[:lower:]' '[:upper:]')
+    case "$capability" in
+    serial) shape=serial inner=NUMKONG_TARGET_SERIAL ;;
+    simt) shape=simt opening="NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_" ;;
+    *)
+        read -r architecture closure <<< "$(printf '%s\n' "$capability_architectures" |
+            awk -v name="$capability" '$1 == name { print $2, $3 }')"
+        if [ -z "$architecture" ]; then
+            reject_with_reason "$staged_path" "$staged_path is named after no capability include/numkong/types.h detects:"
+            return
+        elif [ "$architecture" = "$upper" ]; then
+            shape=floor opening=NUMKONG_ARCH_${upper}_ inner=NUMKONG_TARGET_$upper
+        elif [ -n "$closure" ]; then
+            shape=base opening=NUMKONG_ARCH_${architecture}_$'\n'$closure inner=NUMKONG_TARGET_$upper
+        else
+            shape=leaf opening=NUMKONG_ARCH_${architecture}_$'\n'NUMKONG_TARGET_$upper
+        fi
+        ;;
+    esac
+    layout="opens #if ${opening//$'\n'/, then #if } right after its include guard"
+    [ -n "$opening" ] || layout="opens no guard"
+    [ -z "$inner" ] || layout="$layout, with its public kernels in #if $inner"
+    violations=$(shape=$shape opening=$opening inner=$inner raw_path=$staged_text_path \
+        kernel_macros=$kernel_codegen_macros awk '
+        BEGIN {
+            opening_count = split(ENVIRON["opening"], opening, "\n"); inner = ENVIRON["inner"]; shape = ENVIRON["shape"]
+            count = split(ENVIRON["kernel_macros"], names, "\n"); for (index_ = 1; index_ <= count; ++index_) kernel_macros[names[index_]]
         }
-        END { if (count > 1) printf "%s", lines }')
-    [ -z "$repeated" ] || reject_with_reason "$repeated" \
-        "$staged_path repeats its backend target guard;" \
-        "            group shared helpers before one public implementation block:"
+        function stamped_macro(text) { return match(text, /^nk_define_[A-Za-z0-9_]*\(/) ? substr(text, 1, RLENGTH - 1) : "" }
+        function condition(text) {
+            sub(/^[[:space:]]*#[[:space:]]*[a-z]+[[:space:]]*/, "", text); gsub(/[[:space:]]+/, " ", text); sub(/ $/, "", text)
+            return text
+        }
+        function report(problem) { printf "line %d: %s\n", line, problem }
+        {
+            line = FNR; text = $0
+            getline raw < ENVIRON["raw_path"]
+            while (text ~ /^[[:space:]]*#.*\\[[:space:]]*$/ && (getline continuation) > 0) {
+                getline continuation_raw < ENVIRON["raw_path"]
+                sub(/\\[[:space:]]*$/, " ", text); text = text continuation
+            }
+            if (text ~ /^[[:space:]]*$/) next
+            directive = ""
+            if (match(text, /^[[:space:]]*#[[:space:]]*[a-z]+/)) { directive = substr(text, RSTART, RLENGTH); gsub(/[[:space:]#]/, "", directive) }
+            platform = directive ~ /^(if|ifdef|ifndef|elif)$/ && text ~ /NUMKONG_(ARCH|TARGET)_/
+        }
+        stage == 0 && directive == "ifndef" && !platform { kind[++depth] = "include"; outer_depth = depth; stage = 1; next }
+        stage == 0 && directive == "pragma" && text ~ /once/ { stage = 2; next }
+        stage == 1 && directive == "define" { stage = 2; next }
+        { stage = 2 }
+        directive == "if" && opened < opening_count && depth == outer_depth + opened && condition(text) == opening[opened + 1] {
+            kind[++depth] = "open"; guard[depth] = opening[++opened]; ++open_alive
+            next
+        }
+        directive ~ /^if(def|ndef)?$/ {
+            guard[++depth] = condition(text); kind[depth] = "plain"
+            if (!platform) next
+            directly_inside = open_alive == opening_count &&
+                (opening_count ? kind[depth - 1] == "open" : kind[depth - 1] ~ /^(include)?$/)
+            if (directive == "if" && inner != "" && guard[depth] == inner && directly_inside) {
+                kind[depth] = "inner"; inner_open = 1
+                if (++inner_count > 1 && shape != "serial")
+                    report("repeats #if " inner "; group the helpers ahead of one block of kernels")
+                next
+            }
+            compiler_workaround = guard[depth] !~ /NUMKONG_TARGET_/ && guard[depth] ~ /defined\((__GNUC__|__clang__|_MSC_VER)\)/
+            if (shape == "serial" && compiler_workaround) next
+            report("tests " guard[depth] ", which its shape does not allow")
+            next
+        }
+        directive ~ /^el(if|se)$/ {
+            if (platform) report("tests " condition(text) ", which its shape does not allow")
+            else if (kind[depth] == "open" || kind[depth] == "inner") report("branches its guard " guard[depth] " with #" directive)
+            next
+        }
+        directive == "endif" {
+            if (kind[depth] == "open" || kind[depth] == "inner") {
+                comment = raw
+                if (!sub(/^[^\/]*\/\/[[:space:]]*/, "", comment)) comment = ""
+                gsub(/[[:space:]]+/, " ", comment); sub(/ $/, "", comment)
+                if (comment != guard[depth]) report("closes " guard[depth] " without naming it in a // comment")
+                if (kind[depth] == "open") --open_alive
+                else inner_open = 0
+            }
+            kind[depth--] = ""
+            next
+        }
+        open_alive < opening_count && !outside_reported {
+            report("sits outside its guards, which open right after the include guard and hold everything")
+            outside_reported = 1
+        }
+        inner != "" && !inner_open && (text ~ /^(NUMKONG_API|NUMKONG_PUBLIC)[[:space:]]/ || (stamped_macro(text) in kernel_macros)) {
+            report("defines a public kernel outside #if " inner)
+        }
+        END { if (opened < opening_count) { line = FNR; report("never opens #if " opening[opened + 1]) } }
+        ' "$staged_code_path")
+    [ -z "$violations" ] || reject_with_reason "$violations" \
+        "$staged_path breaks the guards of a $shape capability header, which $layout;" \
+        "            no other condition tests NUMKONG_ARCH_ or NUMKONG_TARGET_, and each guard's #endif names it:"
 }
 
 # Rejects a top-level `numkong/<name>.h` include other than `numkong/types.h` in a backend header, because
@@ -2910,12 +3151,10 @@ check_backend_includes_no_dispatch_umbrella() {
 # so the C dispatch units can link them; `extern "C"` is the one C++ spelling allowed.
 check_cuda_headers_stay_c() {
     local cpp_constructs
-    cpp_constructs=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns | grep -nE \
-        '(^|[^A-Za-z0-9_])(template[[:space:]]*<|class[[:space:]]+[A-Za-z_]|namespace[[:space:]]|auto[[:space:]]+[A-Za-z_*&]|nullptr|new[[:space:]]+[A-Za-z_]|delete[[:space:]]|std::|constexpr[[:space:]]|noexcept|public:|private:|protected:|operator[[:space:]]*[^(])|<<<' |
-        grep -vE 'extern[[:space:]]+"C"' |
-        added_list="$staged_added_line_numbers_list" awk -F: '
-            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
-            ($1 + 0) in added' || true)
+    cpp_constructs=$(scan_staged_file_marking_added_lines '
+        !(FNR in added) || /extern[[:space:]]+"C"/ { next }
+        /(^|[^A-Za-z0-9_])(template[[:space:]]*<|class[[:space:]]+[A-Za-z_]|namespace[[:space:]]|auto[[:space:]]+[A-Za-z_*&]|nullptr|new[[:space:]]+[A-Za-z_]|delete[[:space:]]|std::|constexpr[[:space:]]|noexcept|public:|private:|protected:|operator[[:space:]]*[^(])|<<</ { print FNR ":" $0 }
+        ' "$staged_code_path")
     [ -z "$cpp_constructs" ] || reject_with_reason "$cpp_constructs" \
         "$staged_path adds C++, but include/numkong .cuh tiers are C with \`extern \"C\"\` linkage;" \
         "            write C, and launch with cudaLaunchKernel and an explicit dim3 instead of <<< >>>:"
@@ -2924,7 +3163,7 @@ check_cuda_headers_stay_c() {
 # Rejects a `<<< >>>` launch in a c/ unit, because it drops the launch status that every library launch reports.
 check_launches_report_status() {
     local launches
-    launches=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns | grep -F '<<<' || true)
+    launches=$(grep -F '<<<' "$staged_added_code_path" || true)
     [ -z "$launches" ] || reject_with_reason "$launches" \
         "$staged_path launches with <<< >>>, which loses the launch status; call the vendor's launch API:"
 }
@@ -2934,14 +3173,39 @@ check_launches_report_status() {
 # the architecture macros from the compiler.
 check_vendor_tested_only_in_kernels() {
     local tests
-    tests=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        grep -nE '__CUDACC__|__HIP__|__HIP_DEVICE_COMPILE__' |
-        added_list="$staged_added_line_numbers_list" guarded="${staged_path##*/}" awk -F: '
-            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
-            !guard_seen && ENVIRON["guarded"] ~ /^(cuda|rocm)\.cuh$/ && $2 ~ /^#if / { guard_seen = 1; next }
-            ($1 + 0) in added' || true)
+    tests=$(guarded="${staged_path##*/}" scan_staged_file_marking_added_lines '
+        !/__CUDACC__|__HIP__|__HIP_DEVICE_COMPILE__/ { next }
+        !guard_seen && ENVIRON["guarded"] ~ /^(cuda|rocm)\.cuh$/ && /^#if / { guard_seen = 1; next }
+        FNR in added { print FNR ":" $0 }
+        ' "$staged_code_path")
     [ -z "$tests" ] || reject_with_reason "$tests" \
         "$staged_path tests the GPU compiler in host code; put the body in the vendor's cuda.cuh or rocm.cuh:"
+}
+
+# Rejects a runtime service guarded by a vendor's `NUMKONG_TARGET_` floor, or a GPU kernel declaration
+# guarded by its vendor's `NUMKONG_ARCH_`, because the runtime exists wherever its vendor compiles and a
+# kernel only where its capability does. A service names an allocator, memory, a stream, an event, a
+# device count or an enabled mask.
+check_runtime_guards_match_declarations() {
+    local gpu_capabilities misguarded
+    gpu_capabilities=$(printf '%s\n' "$capability_architectures" |
+        awk '$2 ~ /^(CUDA|ROCM|METAL)$/ { printf "%s%s", separator, $1; separator = "|" }')
+    misguarded=$(gpu_capabilities=$gpu_capabilities scan_staged_file_marking_added_lines '
+        /^[[:space:]]*#[[:space:]]*if/ { guard[++depth] = $0; guard_line[depth] = FNR; next }
+        /^[[:space:]]*#[[:space:]]*elif/ { guard[depth] = $0; guard_line[depth] = FNR; next }
+        /^[[:space:]]*#[[:space:]]*endif/ { --depth; next }
+        depth > 0 && match($0, /^(extern[[:space:]]+"C"[[:space:]]+)?(NUMKONG_[A-Z_]+|static|inline)[[:space:]][^(=;]*[^A-Za-z0-9_]nk_[a-z0-9_]+[[:space:]]*\(/) {
+            if (!((FNR in added) || (guard_line[depth] in added))) next
+            name = substr($0, RSTART, RLENGTH); sub(/[[:space:]]*\($/, "", name); sub(/.*[^a-z0-9_]/, "", name)
+            service = name ~ /allocator|memory_|stream_|event|count_devices|capabilities_enabled/
+            if (service && guard[depth] ~ /NUMKONG_TARGET_(CUDA|ROCM|METAL)([^A-Za-z0-9_]|$)/)
+                printf "line %d: service %s under %s\n", FNR, name, guard[depth]
+            else if (!service && name ~ "_(" ENVIRON["gpu_capabilities"] ")$" && guard[depth] ~ /NUMKONG_ARCH_(CUDA|ROCM|METAL)_/)
+                printf "line %d: kernel %s under %s\n", FNR, name, guard[depth]
+        }' "$staged_code_path")
+    [ -z "$misguarded" ] || reject_with_reason "$misguarded" \
+        "$staged_path guards a declaration by the wrong family; runtime services sit under NUMKONG_ARCH_<VENDOR>_," \
+        "            kernel declarations and dispatch entries under NUMKONG_TARGET_<CAPABILITY>:"
 }
 
 # Rejects lowercase `nk_` names defined by `set` in CMakeLists.txt, because its internal variables are
@@ -2959,8 +3223,7 @@ check_cmake_internal_variables_uppercase() {
 # stderr, so a passing run reads the same in every sibling.
 check_test_bodies_quiet() {
     local prints
-    prints=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -nE '\b(fmt::println|fmt::print|printf|puts)[[:space:]]*\(|\bstd::cout\b|\bfprintf[[:space:]]*\([[:space:]]*stdout\b' |
+    prints=$(grep -nE '\b(fmt::println|fmt::print|printf|puts)[[:space:]]*\(|\bstd::cout\b|\bfprintf[[:space:]]*\([[:space:]]*stdout\b' "$staged_added_code_path" |
         grep -vE '\([[:space:]]*stderr\b' || true)
     [ -z "$prints" ] || reject_with_reason "$prints" \
         "$staged_path prints to stdout from a test body; report failures to stderr and leave progress" \
@@ -2977,22 +3240,32 @@ check_retired_prefix_absent() {
         "$staged_path spells the retired NK_ prefix; write the full NUMKONG_:"
 }
 
-# Rejects a positive `defined(...)` or `#ifdef` of an architecture, OS or toolchain fact, because each is
-# always defined as 0 or 1 and `defined` is true on every platform; `!defined` and `#ifndef` guards pass.
+# Rejects a positive `defined(...)` or `#ifdef` of an architecture, OS or toolchain fact or of a
+# capability's `NUMKONG_ARCH_<ARCH>_<NAME>_` closure, because each is always defined as 0 or 1 and
+# `defined` is true on every platform; `!defined` and `#ifndef` guards pass.
 check_facts_tested_by_value() {
     local tested
-    tested=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E '(^|[^!A-Za-z0-9_])defined[[:space:]]*\(?[[:space:]]*NUMKONG_(ARCH|OS|HAS)_|#[[:space:]]*ifdef[[:space:]]+NUMKONG_(ARCH|OS|HAS)_' || true)
+    tested=$(grep -E '(^|[^!A-Za-z0-9_])defined[[:space:]]*\(?[[:space:]]*NUMKONG_(ARCH|OS|HAS)_|#[[:space:]]*ifdef[[:space:]]+NUMKONG_(ARCH|OS|HAS)_' "$staged_added_code_path" || true)
     [ -z "$tested" ] || reject_with_reason "$tested" \
-        "$staged_path tests an always-defined NUMKONG_ARCH_, _OS_ or _HAS_ fact with defined; use #if:"
+        "$staged_path tests an always-defined closure or NUMKONG_ARCH_, _OS_ or _HAS_ fact with defined; use #if:"
+}
+
+# Rejects a `NUMKONG_TARGET_<NAME>_` closure, because `NUMKONG_TARGET_<NAME>` alone is a capability's
+# switch, a base capability's helpers test its `NUMKONG_ARCH_<ARCH>_<NAME>_` closure, and a vendor
+# floor's its `NUMKONG_ARCH_<VENDOR>_`.
+check_target_closures_absent() {
+    local closures
+    closures=$(grep -nE 'NUMKONG_TARGET_[A-Z0-9]+_([^A-Za-z0-9_]|$)' "$staged_text_path" || true)
+    [ -z "$closures" ] || reject_with_reason "$closures" \
+        "$staged_path spells a NUMKONG_TARGET_<NAME>_ closure; test NUMKONG_ARCH_<ARCH>_<NAME>_ for a base capability's" \
+        "            helpers, NUMKONG_ARCH_<VENDOR>_ for a GPU vendor's, and NUMKONG_TARGET_<NAME> for kernels:"
 }
 
 # Rejects a function-like ALL_CAPS macro, because preprocessor codegen hides the very lines a reader greps for.
 # Every ALL_CAPS macro is object-like; the few that must take arguments, like `nk_static_assert_`, are snake_case_.
 check_all_caps_macros_object_like() {
     local generators
-    generators=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+[A-Z][A-Z0-9_]*\(' || true)
+    generators=$(grep -E '^\+[[:space:]]*#[[:space:]]*define[[:space:]]+[A-Z][A-Z0-9_]*\(' "$staged_added_code_path" || true)
     [ -z "$generators" ] || reject_with_reason "$generators" \
         "$staged_path defines a function-like ALL_CAPS macro; write a helper function or the expansion out," \
         "            or name a file-local generator snake_case_ and #undef it after use:"
@@ -3001,9 +3274,7 @@ check_all_caps_macros_object_like() {
 # Rejects expanded or constant-folded ceiling division and alignment rounding outside their helpers.
 check_ceiling_divisions_use_helpers() {
     local ceilings
-    ceilings=$(printf '%s\n' "$staged_file_text" | blank_c_comments_preserving_columns |
-        added_list="$staged_added_line_numbers_list" awk '
-            BEGIN { count = split(ENVIRON["added_list"], numbers, "\n"); for (index_ = 1; index_ <= count; ++index_) added[numbers[index_] + 0] = 1 }
+    ceilings=$(scan_staged_file_marking_added_lines '
             /^(NUMKONG_CONSTEXPR|constexpr)[^(]*[[:space:]](nk_[a-z0-9]+_)?divide_round_up_?\(/ { helper = !/}/; next }
             helper { if (/^}/) helper = 0; next }
             !(FNR in added) { next }
@@ -3026,7 +3297,7 @@ check_ceiling_divisions_use_helpers() {
                         break
                     }
                 }
-            }' || true)
+            }' "$staged_code_path")
     [ -z "$ceilings" ] || reject_with_reason "$ceilings" \
         "$staged_path hand-rolls a ceiling division or alignment rounding; use the divide_round_up or" \
         "            round_up_to_multiple helpers (nk_size_*_ in C, nk::* in C++ and Metal):"
@@ -3037,8 +3308,7 @@ check_ceiling_divisions_use_helpers() {
 # specifier is a crash rather than a compile error, and argument parsing skips the fast calling convention.
 check_cpython_format_shortcuts_absent() {
     local shortcuts
-    shortcuts=$(printf '%s\n' "$staged_added_text" | blank_c_comments_preserving_columns |
-        grep -E '\b(Py_BuildValue|PyArg_Parse[A-Za-z]*|PyArg_UnpackTuple|PyObject_CallFunction|PyObject_CallMethod)[[:space:]]*\(' || true)
+    shortcuts=$(grep -E '\b(Py_BuildValue|PyArg_Parse[A-Za-z]*|PyArg_UnpackTuple|PyObject_CallFunction|PyObject_CallMethod)[[:space:]]*\(' "$staged_added_code_path" || true)
     [ -z "$shortcuts" ] || reject_with_reason "$shortcuts" \
         "$staged_path calls a format-string shortcut of the CPython API; parse METH_FASTCALL arguments by hand," \
         "            build tuples with PyTuple_Pack and PyLong_From*, and call with PyObject_CallOneArg:"
@@ -3048,7 +3318,10 @@ check_cpython_format_shortcuts_absent() {
 run_project_checks() {
     case "$staged_path" in
     CHANGELOG*) ;;
-    *) check_retired_prefix_absent ;;
+    *)
+        check_retired_prefix_absent
+        check_target_closures_absent
+        ;;
     esac
     case "$staged_path" in
     *.c | *.h | *.cpp | *.hpp | *.cc | *.cu | *.cuh | *.metal)
@@ -3064,8 +3337,10 @@ run_project_checks() {
         check_kernel_documented_at_declaration
         check_register_names_carry_dtype_and_width
         check_predicated_loads_avoid_serial
-        check_backend_target_guard_unique
+        check_sme_kernels_avoid_neon
+        check_capability_guards_shaped
         ;;
+    include/numkong/*.h | include/numkong/*.cuh | c/*.c | c/dispatch/*.c) check_runtime_guards_match_declarations ;;
     esac
     case "$staged_path" in
     include/numkong/*/serial.h) ;;
@@ -3187,8 +3462,15 @@ load_path_files() {
     [ -s "$results_directory/$ordinal.added" ] || return 1
     [ -f "$staged_diff_path" ] || staged_diff_path=$results_directory/$ordinal.added
     staged_added_text=$(< "$results_directory/$ordinal.added")
-    staged_added_line_numbers_list=$(< "$staged_lines_path")
     staged_file_text=$(< "$staged_text_path")
+    case "$staged_path" in
+    *.c | *.h | *.hpp | *.cpp | *.cc | *.cu | *.cuh | *.hip | *.metal)
+        staged_code_path=$results_directory/$ordinal.code
+        staged_added_code_path=$results_directory/$ordinal.added-code
+        blank_c_comments_preserving_columns < "$staged_text_path" > "$staged_code_path"
+        scan_staged_file_marking_added_lines 'FNR in added { print "+" $0 }' "$staged_code_path" > "$staged_added_code_path"
+        ;;
+    esac
 }
 
 # `--all-lines <path>...` judges whole working-tree files as though every line outside a function body were

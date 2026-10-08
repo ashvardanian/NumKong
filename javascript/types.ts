@@ -703,7 +703,7 @@ export class E5M2Array extends Uint8Array {
 
 /** Bit-packed binary array, dtype u1.
  *
- *  - 1-bit per element, packed into bytes: 8 bits per byte, least significant bit first.
+ *  - 1-bit per element, packed into bytes: 8 bits per byte, most significant bit first.
  *  - Dimension count must be a multiple of 8, the values per byte.
  *  - Used for binary embeddings, hashing, and Hamming/Jaccard distances.
  *  - Common in semantic search with binary quantization, as in Cohere and Voyage embeddings. */
@@ -725,7 +725,7 @@ export class BinaryArray extends Uint8Array {
       throw new RangeError('Index out of bounds');
     }
     const byteIndex = index >>> 3;  // index / 8
-    const bitIndex = index & 7;     // index % 8
+    const bitIndex = 7 - (index & 7);
     return (this[byteIndex] >>> bitIndex) & 1;
   }
 
@@ -739,7 +739,7 @@ export class BinaryArray extends Uint8Array {
       throw new RangeError('Index out of bounds');
     }
     const byteIndex = index >>> 3;
-    const bitIndex = index & 7;
+    const bitIndex = 7 - (index & 7);
     if (value) {
       this[byteIndex] |= (1 << bitIndex);
     } else {

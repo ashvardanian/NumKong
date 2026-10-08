@@ -200,10 +200,10 @@ typedef enum {
     /** F64. */
     nk_cross_norm_f64_k,
 
-    /** Wrapping U32 sums read as I32. */
+    /** Wrapping U32 sums of a signed integer type, whose dots are I32. */
     nk_cross_norm_i32_k,
 
-    /** Wrapping U32 sums. */
+    /** Wrapping U32 sums of an unsigned integer type, whose dots are U32. */
     nk_cross_norm_u32_k,
 } nk_cross_norm_t;
 
@@ -492,50 +492,64 @@ NUMKONG_DEVICE nk_fui32_t nk_cross_norm_finalize_(nk_cross_norm_t norm, nk_u32_t
     return result;
 }
 
-/** A norm's 32 bits as F32, integers read signed or unsigned as @p norm says. */
-NUMKONG_DEVICE nk_f32_t nk_cross_norm_to_f32_(nk_fui32_t bits, nk_cross_norm_t norm) {
-    if (norm == nk_cross_norm_i32_k) return (nk_f32_t)bits.i;
-    if (norm == nk_cross_norm_u32_k) return (nk_f32_t)bits.u;
-    return bits.f;
-}
-
 #pragma endregion Norms
 
 #pragma region Metrics
 
-/** 1 − dot / (‖a‖ ‖b‖) clamped at 0; with a zero norm, 0 when the dot is 0 and 1 otherwise. */
+/** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of `spatials.h`: 0 for two zero norms, 1 for one
+ *  zero norm or a zero dot, and NaN for a NaN dot. */
 NUMKONG_DEVICE nk_f64_t nk_f64_angular_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
-    if (!(row_norm > 0 && column_norm > 0)) return dot == 0 ? 0.0 : 1.0;
-    nk_f64_t const unclipped = 1.0 - dot * (rsqrt(row_norm) * rsqrt(column_norm));
-    return unclipped > 0 ? unclipped : 0.0;
+    if (dot != dot) return dot;
+    if (row_norm == 0 && column_norm == 0) return 0.0;
+    if (dot == 0 || row_norm == 0 || column_norm == 0) return 1.0;
+    nk_f64_t const unclipped = 1.0 - dot * rsqrt(row_norm) * rsqrt(column_norm);
+    return unclipped < 0 ? 0.0 : unclipped;
 }
 
-/** √(‖a‖² + ‖b‖² − 2 · dot), with a negative radicand from rounding clamped to 0. */
+/** √(‖a‖² + ‖b‖² − 2 · dot), with a negative radicand from rounding clamped to 0 and NaN kept. */
 NUMKONG_DEVICE nk_f64_t nk_f64_euclidean_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
     nk_f64_t const squared = row_norm + column_norm - 2.0 * dot;
-    return squared > 0 ? sqrt(squared) : 0.0;
+    return squared < 0 ? 0.0 : sqrt(squared);
 }
 
-/** 1 − dot / (‖a‖ ‖b‖) clamped at 0; with a zero norm, 0 when the dot is 0 and 1 otherwise. */
+/** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of `spatials.h`: 0 for two zero norms, 1 for one
+ *  zero norm or a zero dot, and NaN for a NaN dot. */
 NUMKONG_DEVICE nk_f32_t nk_f32_angular_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
-    if (!(row_norm > 0 && column_norm > 0)) return dot == 0 ? 0.0f : 1.0f;
-    nk_f32_t const unclipped = 1.0f - dot * (rsqrtf(row_norm) * rsqrtf(column_norm));
-    return unclipped > 0 ? unclipped : 0.0f;
+    if (dot != dot) return dot;
+    if (row_norm == 0 && column_norm == 0) return 0.0f;
+    if (dot == 0 || row_norm == 0 || column_norm == 0) return 1.0f;
+    nk_f32_t const unclipped = 1.0f - dot * rsqrtf(row_norm) * rsqrtf(column_norm);
+    return unclipped < 0 ? 0.0f : unclipped;
 }
 
-/** √(‖a‖² + ‖b‖² − 2 · dot), with a negative radicand from rounding clamped to 0. */
+/** √(‖a‖² + ‖b‖² − 2 · dot), with a negative radicand from rounding clamped to 0 and NaN kept. */
 NUMKONG_DEVICE nk_f32_t nk_f32_euclidean_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
     nk_f32_t const squared = row_norm + column_norm - 2.0f * dot;
-    return squared > 0 ? sqrtf(squared) : 0.0f;
+    return squared < 0 ? 0.0f : sqrtf(squared);
 }
 
-/** A tensor-core dot product as F32, the way the serial metrics read it: F32 sums and scaled
- *  integer sums times @p output_scale, other integers signed unless their norms are unsigned. */
-NUMKONG_DEVICE nk_f32_t nk_cross_dot_to_f32_(nk_fui32_t sum, nk_cross_epilogue_t epilogue, nk_cross_norm_t norm,
-                                             nk_f32_t output_scale) {
-    if (epilogue == nk_cross_epilogue_f32_k) return sum.f * output_scale;
-    if (epilogue == nk_cross_epilogue_i32_to_f32_k) return (nk_f32_t)sum.i * output_scale;
-    return norm == nk_cross_norm_u32_k ? (nk_f32_t)sum.u : (nk_f32_t)sum.i;
+/** The angular or euclidean distance of an integer pair from its exact @p dot bits, I32 or U32 as
+ *  @p norm says, and wrapping U32 norms, as the serial backends finish it: ab − d² and a + b − 2d
+ *  stay exact in 64 bits, so equal rows are exactly 0 apart, and one F64 tail rounds into F32. */
+NUMKONG_DEVICE nk_f32_t nk_cross_integer_metric_(nk_cross_metric_t metric, nk_cross_norm_t norm, nk_u32_t dot_bits,
+                                                 nk_u32_t row_norm, nk_u32_t column_norm) {
+    nk_i64_t const dot = norm == nk_cross_norm_u32_k ? (nk_i64_t)dot_bits : (nk_i64_t)(nk_i32_t)dot_bits;
+    if (metric == nk_cross_metric_euclidean_k) {
+        nk_i64_t const distance_sq = (nk_i64_t)row_norm + column_norm - 2 * dot;
+        return distance_sq > 0 ? (nk_f32_t)sqrt((nk_f64_t)distance_sq) : 0.0f;
+    }
+    nk_u64_t const product = (nk_u64_t)row_norm * column_norm;
+    if (product == 0) return (row_norm | column_norm) != 0 ? 1.0f : 0.0f;
+    nk_f64_t const product_f64 = (nk_f64_t)product, root = sqrt(product_f64);
+    if (dot <= 0) return (nk_f32_t)(1.0 - (nk_f64_t)dot / root);
+    nk_u64_t const dot_sq = (nk_u64_t)dot * (nk_u64_t)dot;
+    return (nk_f32_t)((nk_f64_t)(product - dot_sq) / (product_f64 + (nk_f64_t)dot * root));
+}
+
+/** A tensor-core dot product of a floating type as F32: F32 sums, or integer sums of its scaled
+ *  codes, times @p output_scale. */
+NUMKONG_DEVICE nk_f32_t nk_cross_dot_to_f32_(nk_fui32_t sum, nk_cross_epilogue_t epilogue, nk_f32_t output_scale) {
+    return epilogue == nk_cross_epilogue_f32_k ? sum.f * output_scale : (nk_f32_t)sum.i * output_scale;
 }
 
 #pragma endregion Metrics
@@ -549,15 +563,16 @@ NUMKONG_DEVICE nk_f32_t nk_cross_dot_to_f32_(nk_fui32_t sum, nk_cross_epilogue_t
  *  folds and lane merges. */
 #pragma region Baseline Tile
 
-/** A B32 sum as F32: floats as they are, integers read signed or unsigned as serial backends do. */
-NUMKONG_DEVICE nk_f32_t nk_cross_b32_to_f32_(nk_cross_accumulation_t accumulation, nk_fui32_t sum) {
+/** How the B32 tile's sums and norms under @p accumulation read: F32, or signed or unsigned
+ *  integers as the serial backends read them. */
+NUMKONG_DEVICE nk_cross_norm_t nk_cross_b32_norm_(nk_cross_accumulation_t accumulation) {
     switch (accumulation) {
     case nk_cross_accumulation_f32_k:
-    case nk_cross_accumulation_f16x2_k: return sum.f;
+    case nk_cross_accumulation_f16x2_k: return nk_cross_norm_f32_k;
     case nk_cross_accumulation_i8x4_k:
     case nk_cross_accumulation_i4x4_k:
-    case nk_cross_accumulation_i4x8_k: return (nk_f32_t)sum.i;
-    default: return (nk_f32_t)sum.u;
+    case nk_cross_accumulation_i4x8_k: return nk_cross_norm_i32_k;
+    default: return nk_cross_norm_u32_k;
     }
 }
 
@@ -754,6 +769,7 @@ NUMKONG_DEVICE void nk_cross_store_tile_b32_simt_(
     nk_fui32_t norms[2][nk_cross_tile_simt_k]) {
     unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
     unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+    nk_cross_norm_t const norm = nk_cross_b32_norm_(accumulation);
 #pragma unroll
     for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
         unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
@@ -765,34 +781,224 @@ NUMKONG_DEVICE void nk_cross_store_tile_b32_simt_(
             unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
             nk_size_t const column = first_column + tile_column;
             if (column >= arguments->column_count || (triangle == nk_cross_triangle_upper_k && column < row)) continue;
-            if (metric == nk_cross_metric_dot_k) {
-                output[column] = sums[row_step][column_step];
-                continue;
-            }
-            nk_f32_t const dot = nk_cross_b32_to_f32_(accumulation, sums[row_step][column_step]);
-            nk_f32_t const row_norm = nk_cross_b32_to_f32_(accumulation, norms[0][tile_row]);
-            nk_f32_t const column_norm = nk_cross_b32_to_f32_(accumulation, norms[1][tile_column]);
-            if (triangle == nk_cross_triangle_upper_k && column == row) output[column].f = 0;
+            nk_fui32_t const sum = sums[row_step][column_step];
+            nk_fui32_t const row_norm = norms[0][tile_row], column_norm = norms[1][tile_column];
+            if (metric == nk_cross_metric_dot_k) output[column] = sum;
+            else if (triangle == nk_cross_triangle_upper_k && column == row) output[column].f = 0;
+            else if (norm != nk_cross_norm_f32_k)
+                output[column].f = nk_cross_integer_metric_(metric, norm, sum.u, row_norm.u, column_norm.u);
             else if (metric == nk_cross_metric_angular_k)
-                output[column].f = nk_f32_angular_(dot, row_norm, column_norm);
-            else output[column].f = nk_f32_euclidean_(dot, row_norm, column_norm);
+                output[column].f = nk_f32_angular_(sum.f, row_norm.f, column_norm.f);
+            else output[column].f = nk_f32_euclidean_(sum.f, row_norm.f, column_norm.f);
         }
     }
 }
 
-/** Decodes the scale of block @p block of row `first + threadIdx.x` times @p tensor_scale into
- *  @p scales, zero past @p rows, for the block-scaled tiles. */
-NUMKONG_DEVICE void nk_cross_stage_scale_simt_(nk_block_scaled_format_t format, unsigned char const *row_scales,
-                                               nk_size_t scales_stride, nk_f32_t tensor_scale, nk_size_t first,
-                                               nk_size_t rows, nk_size_t block, nk_f32_t *scales) {
-    nk_size_t const row = first + threadIdx.x;
-    scales[threadIdx.x] = row < rows ? nk_block_scaled_decode_scale_serial_(row_scales[row * scales_stride + block],
-                                                                            format.scale_dtype) *
-                                           tensor_scale
-                                     : 0;
+#pragma endregion Baseline Tile
+
+/*  The block-scaled tiles follow the serial backends' rebased F32: every row and column rebases its
+ *  scales to its largest exponent, relative block products stay normal F32, the epilogue applies
+ *  both bases and the tensor factor once, and outputs whose spreads leave the window take exact
+ *  wide sums. The scaling, splitting, wide-sum and metric helpers mirror `dots/serial.h`. */
+#pragma region Block Scales
+
+/** @p value times two to the power of @p exponent, for any exponent, rounding twice only when the
+ *  result is subnormal. */
+NUMKONG_DEVICE nk_f32_t nk_f32_scale_simt_(nk_f32_t value, nk_i32_t exponent) {
+    exponent = exponent < -378 ? -378 : exponent > 381 ? 381 : exponent;
+    for (; exponent > 127; exponent -= 127) value = __fmul_rn(value, __uint_as_float(254u << 23));
+    for (; exponent < -126; exponent += 126) value = __fmul_rn(value, __uint_as_float(1u << 23));
+    return __fmul_rn(value, __uint_as_float((nk_u32_t)(exponent + 127) << 23));
 }
 
-#pragma endregion Baseline Tile
+/** Splits @p value into a mantissa in [1, 2) and a power of two, subnormals included; zeros,
+ *  infinities and NaNs return themselves with a zero exponent. */
+NUMKONG_DEVICE nk_f32_t nk_f32_split_simt_(nk_f32_t value, nk_i32_t *exponent) {
+    nk_u32_t bits = __float_as_uint(value);
+    nk_u32_t const biased = (bits >> 23) & 0xFF;
+    *exponent = 0;
+    if (biased == 0xFF || (bits & 0x7FFFFFFFu) == 0) return value;
+    nk_i32_t shift = 0;
+    if (biased == 0) bits = __float_as_uint(__fmul_rn(value, 16777216.0f)), shift = 24;
+    *exponent = (nk_i32_t)((bits >> 23) & 0xFF) - 127 - shift;
+    return __uint_as_float((bits & 0x807FFFFFu) | 0x3F800000u);
+}
+
+/** The product of two F32 tensor scales as a mantissa product and a power of two. */
+NUMKONG_DEVICE nk_cross_tensor_factor_t nk_cross_tensor_factor_simt_(nk_f32_t first, nk_f32_t second) {
+    nk_cross_tensor_factor_t factor;
+    nk_i32_t first_exponent, second_exponent;
+    nk_f32_t const first_mantissa = nk_f32_split_simt_(first, &first_exponent);
+    factor.mantissa = __fmul_rn(first_mantissa, nk_f32_split_simt_(second, &second_exponent));
+    factor.exponent = first_exponent + second_exponent;
+    return factor;
+}
+
+NUMKONG_DEVICE void nk_cross_wide_add_simt_(nk_cross_wide_sum_t *state, nk_f32_t value, nk_i32_t exponent) {
+    if (value == 0) return;
+    if (state->sum == 0 || exponent > state->exponent)
+        state->sum = nk_f32_scale_simt_(state->sum, state->exponent - exponent), state->exponent = exponent;
+    else value = nk_f32_scale_simt_(value, exponent - state->exponent);
+    state->sum = __fadd_rn(state->sum, value);
+}
+
+/** @p value times a tensor @p factor, its mantissa into the sum and its power into the exponent. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_wide_times_simt_(nk_cross_wide_sum_t value,
+                                                             nk_cross_tensor_factor_t factor) {
+    value.sum = __fmul_rn(value.sum, factor.mantissa), value.exponent += factor.exponent;
+    return value;
+}
+
+/** One UE8M0 scale @p code as one at 2^(code − 127), zero for 0x00 and a NaN for 0xFF, both at
+ *  exponent zero. */
+NUMKONG_DEVICE nk_f32_t nk_ue8m0_split_simt_(unsigned code, nk_i32_t *exponent) {
+    *exponent = code == 0 || code == 0xFF ? 0 : (nk_i32_t)code - 127;
+    return __uint_as_float(code == 0 ? 0 : code == 0xFF ? 0x7FC00000u : 0x3F800000u);
+}
+
+/** One UE4M3 scale @p code as its value at exponent zero, a NaN for 0x7F. */
+NUMKONG_DEVICE nk_f32_t nk_ue4m3_split_simt_(unsigned code, nk_i32_t *exponent) {
+    unsigned char const magnitude = (unsigned char)(code & 0x7F);
+    nk_f32_t value;
+    nk_e4m3_to_f32_simt_(&magnitude, &value);
+    *exponent = 0;
+    return value;
+}
+
+/** The rebasing exponent of @p blocks scale codes, which @p split takes apart: their largest
+ *  exponent less the headroom, over the codes that are neither zero nor NaN, or zero for none;
+ *  @p spread receives the spread of their exponents. */
+NUMKONG_DEVICE nk_i32_t nk_cross_scaled_base_simt_(nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned char const *scales,
+                                                   nk_size_t blocks, nk_i32_t *spread) {
+    nk_i32_t low = 0x7FFFFFFF, high = -0x7FFFFFFF;
+    for (nk_size_t block = 0; block != blocks; ++block) {
+        nk_i32_t exponent;
+        nk_f32_t const mantissa = split(scales[block], &exponent);
+        if (mantissa == 0 || mantissa != mantissa) continue;
+        low = exponent < low ? exponent : low, high = exponent > high ? exponent : high;
+    }
+    *spread = low > high ? 0 : high - low;
+    return low > high ? 0 : high - nk_cross_scaled_headroom_k;
+}
+
+/** Scale code @p code relative to a row's @p base, exact while the row's spread fits the window. */
+NUMKONG_DEVICE nk_f32_t nk_cross_relative_scale_simt_(nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned code,
+                                                      nk_i32_t base) {
+    nk_i32_t exponent;
+    nk_f32_t const mantissa = split(code, &exponent);
+    return nk_f32_scale_simt_(mantissa, exponent - base);
+}
+
+/** Whether a row and a column spreading @p row_spread and @p column_spread binades leave the
+ *  rebased window: their products past its width, and @p normalized norms past twice the larger. */
+NUMKONG_DEVICE int nk_cross_scaled_exceeds_simt_(nk_i32_t row_spread, nk_i32_t column_spread, int normalized) {
+    nk_i32_t const larger = row_spread > column_spread ? row_spread : column_spread;
+    return (normalized ? 2 * larger : row_spread + column_spread) > nk_cross_scaled_spread_k;
+}
+
+/** The squared norm of a block-scaled row of codes relative to its @p base: each block's squares
+ *  summed in F32 times its relative scale squared. */
+NUMKONG_DEVICE nk_f32_t nk_cross_scaled_norm_simt_(nk_f32_t (*load)(unsigned char const *, nk_size_t),
+                                                   nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned block_size,
+                                                   unsigned char const *row, unsigned char const *scales,
+                                                   nk_size_t depth, nk_i32_t base) {
+    nk_f32_t sum = 0;
+    for (nk_size_t block = 0; block * block_size < depth; ++block) {
+        nk_f32_t block_sum = 0;
+        for (nk_size_t index = block * block_size; index != (block + 1) * block_size; ++index) {
+            nk_f32_t const value = load(row, index);
+            block_sum = __fmaf_rn(value, value, block_sum);
+        }
+        nk_f32_t const scale = nk_cross_relative_scale_simt_(split, scales[block], base);
+        sum = __fadd_rn(sum, __fmul_rn(block_sum, __fmul_rn(scale, scale)));
+    }
+    return sum;
+}
+
+/** The dot of an A row and a B row of codes as an unrounded wide sum of exact block sums, summing
+ *  both rows' squared norms the same way into @p a_sumsq and @p b_sumsq. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_exact_wide_simt_(
+    nk_f32_t (*load)(unsigned char const *, nk_size_t), nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned block_size,
+    unsigned char const *a_row, unsigned char const *a_scales, unsigned char const *b_row,
+    unsigned char const *b_scales, nk_size_t depth, nk_cross_wide_sum_t *a_sumsq, nk_cross_wide_sum_t *b_sumsq) {
+    nk_cross_wide_sum_t dot = {0, 0}, a_squares = {0, 0}, b_squares = {0, 0};
+    for (nk_size_t block = 0; block * block_size < depth; ++block) {
+        // TwoSum keeps what each sum of exact products sheds, so cancelling blocks give zero.
+        nk_f32_t sums[3] = {0, 0, 0}, errors[3] = {0, 0, 0};
+        for (nk_size_t index = block * block_size; index != (block + 1) * block_size; ++index) {
+            nk_f32_t const a_value = load(a_row, index), b_value = load(b_row, index);
+            nk_f32_t const products[3] = {__fmul_rn(a_value, b_value), __fmul_rn(a_value, a_value),
+                                          __fmul_rn(b_value, b_value)};
+            for (unsigned term = 0; term != 3; ++term) {
+                nk_f32_t const sum = __fadd_rn(sums[term], products[term]);
+                nk_f32_t const split_sum = __fsub_rn(sum, sums[term]);
+                errors[term] = __fadd_rn(errors[term], __fadd_rn(__fsub_rn(sums[term], __fsub_rn(sum, split_sum)),
+                                                                 __fsub_rn(products[term], split_sum)));
+                sums[term] = sum;
+            }
+        }
+        nk_i32_t a_exponent, b_exponent;
+        nk_f32_t const a_mantissa = split(a_scales[block], &a_exponent);
+        nk_f32_t const b_mantissa = split(b_scales[block], &b_exponent);
+        nk_cross_wide_add_simt_(&dot, __fmul_rn(__fadd_rn(sums[0], errors[0]), __fmul_rn(a_mantissa, b_mantissa)),
+                                a_exponent + b_exponent);
+        nk_cross_wide_add_simt_(&a_squares, __fmul_rn(__fadd_rn(sums[1], errors[1]), __fmul_rn(a_mantissa, a_mantissa)),
+                                2 * a_exponent);
+        nk_cross_wide_add_simt_(&b_squares, __fmul_rn(__fadd_rn(sums[2], errors[2]), __fmul_rn(b_mantissa, b_mantissa)),
+                                2 * b_exponent);
+    }
+    *a_sumsq = a_squares, *b_sumsq = b_squares;
+    return dot;
+}
+
+/** The angular distance of wide sums: 0 for two zero vectors, else 1 for a zero dot, else
+ *  max(0, 1 − cosine), the norms' product halved through an even exponent; NaNs propagate. */
+NUMKONG_DEVICE nk_f32_t nk_angular_f32_from_wide_simt_(nk_cross_wide_sum_t dot, nk_cross_wide_sum_t a_sumsq,
+                                                       nk_cross_wide_sum_t b_sumsq) {
+    if (a_sumsq.sum == 0 && b_sumsq.sum == 0) return 0;
+    if (dot.sum == 0) return 1;
+    nk_i32_t dot_exponent, a_exponent, b_exponent;
+    nk_f32_t const dot_mantissa = nk_f32_split_simt_(dot.sum, &dot_exponent);
+    nk_f32_t const a_mantissa = nk_f32_split_simt_(a_sumsq.sum, &a_exponent);
+    nk_f32_t norms_mantissa = __fmul_rn(a_mantissa, nk_f32_split_simt_(b_sumsq.sum, &b_exponent));
+    nk_i32_t norms_exponent = a_exponent + a_sumsq.exponent + b_exponent + b_sumsq.exponent;
+    if (norms_exponent & 1) norms_mantissa = __fmul_rn(norms_mantissa, 2.0f), norms_exponent -= 1;
+    nk_f32_t const cosine = nk_f32_scale_simt_(__fmul_rn(dot_mantissa, rsqrtf(norms_mantissa)),
+                                               dot_exponent + dot.exponent - norms_exponent / 2);
+    nk_f32_t const angular = 1 - cosine;
+    return angular < 0 ? 0 : angular;
+}
+
+/** The euclidean distance of wide sums: ‖a‖² + ‖b‖² − 2 · dot as a wide sum of split terms,
+ *  clamped at zero, its root taken through an even exponent; NaNs propagate. */
+NUMKONG_DEVICE nk_f32_t nk_euclidean_f32_from_wide_simt_(nk_cross_wide_sum_t dot, nk_cross_wide_sum_t a_sumsq,
+                                                         nk_cross_wide_sum_t b_sumsq) {
+    nk_cross_wide_sum_t squares = {0, 0};
+    nk_i32_t exponent;
+    nk_f32_t mantissa = nk_f32_split_simt_(a_sumsq.sum, &exponent);
+    nk_cross_wide_add_simt_(&squares, mantissa, exponent + a_sumsq.exponent);
+    mantissa = nk_f32_split_simt_(b_sumsq.sum, &exponent);
+    nk_cross_wide_add_simt_(&squares, mantissa, exponent + b_sumsq.exponent);
+    mantissa = nk_f32_split_simt_(dot.sum, &exponent);
+    nk_cross_wide_add_simt_(&squares, -mantissa, exponent + dot.exponent + 1);
+    if (squares.sum != squares.sum) return squares.sum;
+    if (squares.sum <= 0) return 0;
+    if (squares.exponent & 1) squares.sum = __fmul_rn(squares.sum, 2.0f), squares.exponent -= 1;
+    return nk_f32_scale_simt_(sqrtf(squares.sum), squares.exponent / 2);
+}
+
+/** The @p metric of one pair from its wide dot and wide squared norms, tensor factors applied,
+ *  rounding once. */
+NUMKONG_DEVICE nk_f32_t nk_cross_scaled_metric_simt_(nk_cross_metric_t metric, nk_cross_wide_sum_t dot,
+                                                     nk_cross_wide_sum_t a_sumsq, nk_cross_wide_sum_t b_sumsq) {
+    switch (metric) {
+    case nk_cross_metric_dot_k: return nk_f32_scale_simt_(dot.sum, dot.exponent);
+    case nk_cross_metric_angular_k: return nk_angular_f32_from_wide_simt_(dot, a_sumsq, b_sumsq);
+    default: return nk_euclidean_f32_from_wide_simt_(dot, a_sumsq, b_sumsq);
+    }
+}
+
+#pragma endregion Block Scales
 
 /*  Every tile, baseline or tensor, takes its own leading arguments, then the triangle, the metric
  *  and the launch arguments, so one generator per shape serves them all: the site passes the tile's

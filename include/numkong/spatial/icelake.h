@@ -501,7 +501,6 @@ nk_sqeuclidean_e3m2_icelake_cycle:
 }
 
 #if NUMKONG_TARGET_ICELAKE
-
 NUMKONG_API nk_status_t nk_sqeuclidean_i8_icelake(nk_i8_t const *a, nk_i8_t const *b, nk_size_t n, nk_u32_t *result,
                                                   void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -1156,7 +1155,6 @@ nk_angular_e3m2_icelake_cycle:
     *result = nk_angular_normalize_f32_haswell_(ab_f32, a_norm_sq_f32, b_norm_sq_f32);
     return nk_success_k;
 }
-
 #endif // NUMKONG_TARGET_ICELAKE
 
 #if defined(__clang__)

@@ -130,9 +130,10 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_header_setup_(   //
 /** Rounds @p value over @p scale to the nearest integer, ties away from zero, and clamps its
  *  magnitude to @p limit. */
 NUMKONG_INLINE nk_i32_t nk_maxsim_quantize_f32_(nk_f32_t value, nk_f32_t scale, nk_f32_t limit) {
-    nk_f32_t const scaled = value / scale;
-    nk_i32_t const rounded = (nk_i32_t)(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
-    return rounded > (nk_i32_t)limit ? (nk_i32_t)limit : rounded < -(nk_i32_t)limit ? -(nk_i32_t)limit : rounded;
+    nk_f32_t scaled = value / scale;
+    // A NaN fails both bounds and takes the lower one, as the SIMD conversions do
+    scaled = scaled > limit ? limit : scaled >= -limit ? scaled : -limit;
+    return (nk_i32_t)(scaled >= 0.0f ? scaled + 0.5f : scaled - 0.5f);
 }
 
 /** The scale that maps @p absmax onto @p limit, or one for an all-zero vector. */
@@ -141,10 +142,13 @@ NUMKONG_INLINE nk_f32_t nk_maxsim_scale_f32_(nk_f32_t absmax, nk_f32_t limit) {
     return scale == 0.0f ? 1.0f : scale;
 }
 
-/** Fills @p metadata from a vector's @p scale, F64 sum of squares and sum of I8 codes. */
+/** Fills @p metadata from a vector's @p scale, F64 sum of squares and sum of I8 codes; a NaN sum of
+ *  squares keeps a NaN inverse norm, which marks the vector for @c nk_maxsim_nan_poison_. */
 NUMKONG_INLINE void nk_maxsim_vector_metadata_(nk_f32_t scale, nk_f64_t norm_squared, nk_i32_t sum,
                                                nk_maxsim_vector_metadata_t *metadata) {
-    metadata->inverse_norm_f64 = norm_squared > 0.0 ? nk_f64_rsqrt_(norm_squared) : 0.0;
+    metadata->inverse_norm_f64 = norm_squared > 0.0    ? nk_f64_rsqrt_(norm_squared)
+                                 : norm_squared == 0.0 ? 0.0
+                                                       : norm_squared;
     metadata->screen_weight_f32 = scale * (nk_f32_t)metadata->inverse_norm_f64;
     metadata->sum_i8_i32 = sum;
 }
@@ -343,6 +347,14 @@ NUMKONG_INLINE nk_size_t nk_maxsim_screen_candidates_(                          
     return candidate_count;
 }
 
+/** Zero, or NaN when one of @p count vectors' @p metadata holds a NaN inverse norm: a NaN element
+ *  makes every angle of its vector NaN, and so every minimum it enters. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_nan_poison_(nk_maxsim_vector_metadata_t const *metadata, nk_size_t count) {
+    nk_f64_t poison = 0;
+    for (nk_size_t index = 0; index < count; index++) poison += metadata[index].inverse_norm_f64 * 0;
+    return poison;
+}
+
 /** Coarse kernel writing the i8 dots of @p query_count queries against @p document_count documents
  *  into @p dots, query-major. */
 typedef void (*nk_maxsim_coarse_dots_t)(nk_i8_t const *query_i8, nk_i8_t const *document_i8,
@@ -361,6 +373,10 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_angular_(                              
     nk_maxsim_refine_dot_t refine_dot) {
 
     nk_maxsim_packed_regions_t regions = nk_maxsim_extract_packed_regions_(query_packed, document_packed);
+    // The screen cannot rank NaN scores, so NaN vectors answer before it
+    nk_f64_t const poison = nk_maxsim_nan_poison_(regions.query_metadata, query_count) +
+                            nk_maxsim_nan_poison_(regions.document_metadata, document_count);
+    if (poison != 0) return poison;
     nk_size_t const weights_stride = sizeof(nk_maxsim_vector_metadata_t) / sizeof(nk_f32_t);
     nk_f32_t const residue = 0.5f * nk_f32_sqrt_((nk_f32_t)depth);
     nk_i32_t dots[32 * 128];
@@ -398,12 +414,15 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_angular_(                              
                                                                                lower_bounds[query_index], candidates);
                 for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
                     nk_size_t const document_index = document_start + candidates[candidate_index];
-                    nk_f64_t const cosine =
+                    nk_f64_t const query_inverse_norm = regions.query_metadata[query_global_index].inverse_norm_f64,
+                                   document_inverse_norm = regions.document_metadata[document_index].inverse_norm_f64;
+                    nk_f64_t cosine =
                         refine_dot(regions.query_originals + query_global_index * regions.query_original_stride,
                                    regions.document_originals + document_index * regions.document_original_stride,
                                    depth) *
-                        regions.query_metadata[query_global_index].inverse_norm_f64 *
-                        regions.document_metadata[document_index].inverse_norm_f64;
+                        query_inverse_norm * document_inverse_norm;
+                    // Two zero vectors are 0 apart, as in `spatials.h`
+                    if (query_inverse_norm == 0 && document_inverse_norm == 0) cosine = 1;
                     if (cosine > best_cosines[query_index]) best_cosines[query_index] = cosine;
                 }
             }

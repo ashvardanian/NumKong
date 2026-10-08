@@ -15,6 +15,7 @@
 #ifndef NUMKONG_DOTS_AMPERE_CUH
 #define NUMKONG_DOTS_AMPERE_CUH
 
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_AMPERE_
 
 #include "numkong/dots/cuda.cuh"
@@ -444,9 +445,8 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
                 nk_size_t const row = first_row + tile_row;
                 if (row >= arguments->row_end) continue;
                 unsigned char *output = (unsigned char *)arguments->c + row * arguments->c_stride;
-                nk_f32_t const row_norm = metric == nk_cross_metric_dot_k
-                                              ? 0.0f
-                                              : nk_cross_norm_to_f32_(norms[tile_row], norm);
+                nk_fui32_t row_norm;
+                row_norm.u = metric == nk_cross_metric_dot_k ? 0 : norms[tile_row].u;
 #pragma unroll
                 for (unsigned column_tile = 0; column_tile < 8; ++column_tile)
 #pragma unroll
@@ -468,12 +468,14 @@ NUMKONG_DEVICE void nk_cross_tile_ampere_(nk_cross_multiply_ampere_t multiply, n
                             ((nk_f32_t *)output)[column] = 0.0f;
                             continue;
                         }
-                        nk_f32_t const dot = nk_cross_dot_to_f32_(sum, epilogue, norm, output_scale);
-                        nk_f32_t const column_norm = nk_cross_norm_to_f32_(norms[nk_cross_tile_ampere_k + tile_column],
-                                                                           norm);
-                        ((nk_f32_t *)output)[column] = metric == nk_cross_metric_angular_k
-                                                           ? nk_f32_angular_(dot, row_norm, column_norm)
-                                                           : nk_f32_euclidean_(dot, row_norm, column_norm);
+                        nk_fui32_t const column_norm = norms[nk_cross_tile_ampere_k + tile_column];
+                        nk_f32_t const dot = nk_cross_dot_to_f32_(sum, epilogue, output_scale);
+                        if (norm != nk_cross_norm_f32_k)
+                            ((nk_f32_t *)output)[column] = nk_cross_integer_metric_(metric, norm, sum.u, row_norm.u,
+                                                                                    column_norm.u);
+                        else if (metric == nk_cross_metric_angular_k)
+                            ((nk_f32_t *)output)[column] = nk_f32_angular_(dot, row_norm.f, column_norm.f);
+                        else ((nk_f32_t *)output)[column] = nk_f32_euclidean_(dot, row_norm.f, column_norm.f);
                     }
             }
     }
@@ -732,4 +734,5 @@ nk_define_cross_cuda_(dot, u4, ampere, ampere, u4x2, u4x2, u32, /*depth_simd_dim
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_DOTS_AMPERE_CUH

@@ -16,9 +16,10 @@
 #ifndef NUMKONG_CAST_AMPERE_CUH
 #define NUMKONG_CAST_AMPERE_CUH
 
-#include "numkong/cast/cuda.cuh" // `nk_cast_launch_cuda_`, `nk_cast_vectors_simt_`
-
+#if NUMKONG_ARCH_CUDA_
 #if NUMKONG_ARCH_CUDA_AMPERE_
+
+#include "numkong/cast/cuda.cuh" // `nk_cast_launch_cuda_`, `nk_cast_vectors_simt_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -108,4 +109,5 @@ NUMKONG_API nk_status_t nk_cast_ampere(void const *from, nk_dtype_t from_dtype, 
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_CAST_AMPERE_CUH

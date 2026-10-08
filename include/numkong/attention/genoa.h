@@ -15,8 +15,8 @@
  *  Packed payload per segment: K planes then V planes, `[key_value_head][position][channel]` in
  *  BF16 with channels zero-padded to a multiple of 32 — @c vdpbf16ps consumes value pairs, so
  *  full-width loops need no masks. E4M3 widens to BF16 during packing and Q staging via the Ice
- *  Lake converters, exactly like `dots/genoa.h`. `depth > 256` routes to the width-agnostic serial
- *  capability from every entry point.
+ *  Lake converters, exactly like `dots/genoa.h`. Heads deeper than 256 channels narrow the query
+ *  and accumulate scores in 256-channel chunks; the output accumulates in place.
  */
 #ifndef NUMKONG_ATTENTION_GENOA_H
 #define NUMKONG_ATTENTION_GENOA_H
@@ -48,8 +48,8 @@ enum {
     /** KV panel width in positions; the F32 score row (2 KB) stays L1-resident. */
     nk_attention_panel_genoa_k_ = 512,
 
-    /** Widest head this backend handles in registers; larger heads route to the serial kernel. */
-    nk_attention_max_depth_genoa_k_ = 256,
+    /** Channels of the query row narrowed at once; deeper heads accumulate scores across chunks. */
+    nk_attention_depth_chunk_genoa_k_ = 256,
 };
 
 /** Converts @p count contiguous elements to BF16 at @p destination, zero-filling to @p padded. */
@@ -76,12 +76,10 @@ NUMKONG_INLINE void nk_attention_narrow_e4m3_genoa_(void const *source, nk_bf16_
     }
 }
 
-/** Bytes of a pack of BF16 planes, past the serial depths in F32. */
+/** Bytes of a pack of BF16 planes. */
 NUMKONG_INLINE nk_size_t nk_attention_pack_size_genoa_(nk_size_t key_value_head_count, nk_size_t depth,
                                                        nk_size_t token_count, nk_size_t segment_count) {
-    nk_size_t const unit_bytes = depth > nk_attention_max_depth_genoa_k_
-                                     ? depth * sizeof(nk_f32_t)
-                                     : nk_size_round_up_to_multiple_(depth, 32) * sizeof(nk_bf16_t);
+    nk_size_t const unit_bytes = nk_size_round_up_to_multiple_(depth, 32) * sizeof(nk_bf16_t);
     return nk_attention_pack_bound_(key_value_head_count, token_count, segment_count, 1, unit_bytes);
 }
 
@@ -162,14 +160,9 @@ NUMKONG_API nk_status_t nk_attention_pack_bf16_genoa(                           
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (depth > nk_attention_max_depth_genoa_k_)
-        nk_attention_pack_serial_(keys, values, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_,
-                                  key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                  key_stride, value_stride, key_value_packed, task_begin, task_end, nk_cap_genoa_k);
-    else
-        nk_attention_pack_genoa_(keys, values, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_,
-                                 key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                 key_stride, value_stride, key_value_packed, task_begin, task_end);
+    nk_attention_pack_genoa_(keys, values, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_head_count,
+                             depth, segment_offsets, segment_lengths, segment_count, key_stride, value_stride,
+                             key_value_packed, task_begin, task_end);
     return nk_success_k;
 }
 
@@ -178,14 +171,9 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_genoa(                           
     nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t task_begin, nk_size_t task_end, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (depth > nk_attention_max_depth_genoa_k_)
-        nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_,
-                                  key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                  key_stride, value_stride, key_value_packed, task_begin, task_end, nk_cap_genoa_k);
-    else
-        nk_attention_pack_genoa_(keys, values, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_,
-                                 key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                 key_stride, value_stride, key_value_packed, task_begin, task_end);
+    nk_attention_pack_genoa_(keys, values, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_head_count,
+                             depth, segment_offsets, segment_lengths, segment_count, key_stride, value_stride,
+                             key_value_packed, task_begin, task_end);
     return nk_success_k;
 }
 
@@ -216,8 +204,7 @@ NUMKONG_INLINE void nk_attention_packed_genoa_(                                 
     if (task_begin < grid_begin) task_begin = grid_begin;
     if (task_end > grid_end) task_end = grid_end;
 
-    nk_align_(64) nk_bf16_t query_row[nk_attention_max_depth_genoa_k_];
-    nk_align_(64) nk_f32_t output_row[nk_attention_max_depth_genoa_k_];
+    nk_align_(64) nk_bf16_t query_row[nk_attention_depth_chunk_genoa_k_];
     nk_align_(64) nk_f32_t scores[nk_attention_panel_genoa_k_];
     nk_size_t const depth_full = depth & ~(nk_size_t)15;
     __mmask16 const depth_tail_m16 = (__mmask16)((1u << (depth - depth_full)) - 1);
@@ -239,11 +226,14 @@ NUMKONG_INLINE void nk_attention_packed_genoa_(                                 
             nk_bf16_t const *values_plane = keys_plane + key_value_head_count * plane_values;
 
             for (nk_size_t row_idx = row_begin; row_idx < row_end; row_idx++) {
-                narrow(
-                    (char const *)queries + (query_first + row_idx) * query_stride + head_idx * depth * element_bytes,
-                    query_row, depth, depth_padded);
-                for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
-                    _mm512_store_ps(output_row + channel_idx, _mm512_setzero_ps());
+                char const *query_source = (char const *)queries + (query_first + row_idx) * query_stride +
+                                           head_idx * depth * element_bytes;
+                nk_size_t const token = query_first + row_idx;
+                nk_f32_t *output_row = output + token * output_stride_floats + head_idx * depth;
+                for (nk_size_t channel_idx = 0; channel_idx < depth; channel_idx += 16)
+                    _mm512_mask_storeu_ps(output_row + channel_idx,
+                                          channel_idx + 16 <= depth ? (__mmask16)0xFFFF : depth_tail_m16,
+                                          _mm512_setzero_ps());
                 nk_f32_t running_max2 = NUMKONG_F32_MIN, running_sum = 0;
                 nk_size_t key_begin, key_end;
                 nk_diagonal_band_row_range_(band, first_position + (nk_i64_t)row_idx, position_count, &key_begin,
@@ -255,38 +245,45 @@ NUMKONG_INLINE void nk_attention_packed_genoa_(                                 
                     // Scores: `vdpbf16ps` accumulation, four KV rows in flight.
 
                     nk_size_t position_idx = 0;
-                    for (; position_idx + 4 <= panel_length; position_idx += 4) {
-                        nk_bf16_t const *keys_row = keys_plane + (panel_start + position_idx) * depth_padded;
-                        __m512 accumulator0_f32x16 = _mm512_setzero_ps(), accumulator1_f32x16 = _mm512_setzero_ps();
-                        __m512 accumulator2_f32x16 = _mm512_setzero_ps(), accumulator3_f32x16 = _mm512_setzero_ps();
-                        for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 32) {
-                            __m512bh const query_bf16x32 = (__m512bh)_mm512_load_si512(query_row + channel_idx);
-                            accumulator0_f32x16 = _mm512_dpbf16_ps(
-                                accumulator0_f32x16, query_bf16x32,
-                                (__m512bh)_mm512_loadu_si512(keys_row + channel_idx));
-                            accumulator1_f32x16 = _mm512_dpbf16_ps(
-                                accumulator1_f32x16, query_bf16x32,
-                                (__m512bh)_mm512_loadu_si512(keys_row + depth_padded + channel_idx));
-                            accumulator2_f32x16 = _mm512_dpbf16_ps(
-                                accumulator2_f32x16, query_bf16x32,
-                                (__m512bh)_mm512_loadu_si512(keys_row + 2 * depth_padded + channel_idx));
-                            accumulator3_f32x16 = _mm512_dpbf16_ps(
-                                accumulator3_f32x16, query_bf16x32,
-                                (__m512bh)_mm512_loadu_si512(keys_row + 3 * depth_padded + channel_idx));
+                    for (; position_idx < panel_length; position_idx += 16)
+                        _mm512_store_ps(scores + position_idx, _mm512_setzero_ps());
+                    for (nk_size_t chunk_start = 0; chunk_start < depth_padded;
+                         chunk_start += nk_attention_depth_chunk_genoa_k_) {
+                        nk_size_t const chunk_padded = depth_padded - chunk_start < nk_attention_depth_chunk_genoa_k_
+                                                           ? depth_padded - chunk_start
+                                                           : nk_attention_depth_chunk_genoa_k_;
+                        narrow(query_source + chunk_start * element_bytes, query_row,
+                               depth - chunk_start < chunk_padded ? depth - chunk_start : chunk_padded, chunk_padded);
+                        for (position_idx = 0; position_idx < panel_length; position_idx += 4) {
+                            // Rows past the panel repeat the last live one; scores go unread.
+                            nk_size_t const live_last = panel_length - position_idx - 1;
+                            nk_bf16_t const *keys_row0 = keys_plane + (panel_start + position_idx) * depth_padded +
+                                                         chunk_start;
+                            nk_bf16_t const *keys_row1 = keys_row0 + (live_last < 1 ? live_last : 1) * depth_padded;
+                            nk_bf16_t const *keys_row2 = keys_row0 + (live_last < 2 ? live_last : 2) * depth_padded;
+                            nk_bf16_t const *keys_row3 = keys_row0 + (live_last < 3 ? live_last : 3) * depth_padded;
+                            __m512 accumulator0_f32x16 = _mm512_setzero_ps(), accumulator1_f32x16 = _mm512_setzero_ps();
+                            __m512 accumulator2_f32x16 = _mm512_setzero_ps(), accumulator3_f32x16 = _mm512_setzero_ps();
+                            for (nk_size_t channel_idx = 0; channel_idx < chunk_padded; channel_idx += 32) {
+                                __m512bh const query_bf16x32 = (__m512bh)_mm512_load_si512(query_row + channel_idx);
+                                accumulator0_f32x16 = _mm512_dpbf16_ps(
+                                    accumulator0_f32x16, query_bf16x32,
+                                    (__m512bh)_mm512_loadu_si512(keys_row0 + channel_idx));
+                                accumulator1_f32x16 = _mm512_dpbf16_ps(
+                                    accumulator1_f32x16, query_bf16x32,
+                                    (__m512bh)_mm512_loadu_si512(keys_row1 + channel_idx));
+                                accumulator2_f32x16 = _mm512_dpbf16_ps(
+                                    accumulator2_f32x16, query_bf16x32,
+                                    (__m512bh)_mm512_loadu_si512(keys_row2 + channel_idx));
+                                accumulator3_f32x16 = _mm512_dpbf16_ps(
+                                    accumulator3_f32x16, query_bf16x32,
+                                    (__m512bh)_mm512_loadu_si512(keys_row3 + channel_idx));
+                            }
+                            scores[position_idx + 0] += nk_reduce_add_f32x16_skylake_(accumulator0_f32x16);
+                            scores[position_idx + 1] += nk_reduce_add_f32x16_skylake_(accumulator1_f32x16);
+                            scores[position_idx + 2] += nk_reduce_add_f32x16_skylake_(accumulator2_f32x16);
+                            scores[position_idx + 3] += nk_reduce_add_f32x16_skylake_(accumulator3_f32x16);
                         }
-                        scores[position_idx + 0] = nk_reduce_add_f32x16_skylake_(accumulator0_f32x16);
-                        scores[position_idx + 1] = nk_reduce_add_f32x16_skylake_(accumulator1_f32x16);
-                        scores[position_idx + 2] = nk_reduce_add_f32x16_skylake_(accumulator2_f32x16);
-                        scores[position_idx + 3] = nk_reduce_add_f32x16_skylake_(accumulator3_f32x16);
-                    }
-                    for (; position_idx < panel_length; position_idx++) {
-                        nk_bf16_t const *keys_row = keys_plane + (panel_start + position_idx) * depth_padded;
-                        __m512 accumulator_f32x16 = _mm512_setzero_ps();
-                        for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 32)
-                            accumulator_f32x16 = _mm512_dpbf16_ps(accumulator_f32x16,
-                                                                  (__m512bh)_mm512_load_si512(query_row + channel_idx),
-                                                                  (__m512bh)_mm512_loadu_si512(keys_row + channel_idx));
-                        scores[position_idx] = nk_reduce_add_f32x16_skylake_(accumulator_f32x16);
                     }
 
                     nk_f32_t const correction = nk_attention_softmax_panel_skylake_(scores, panel_length, scale2,
@@ -295,32 +292,36 @@ NUMKONG_INLINE void nk_attention_packed_genoa_(                                 
                     // O = O · correction + Σ weight · widened V-row over the panel.
 
                     __m512 const correction_f32x16 = _mm512_set1_ps(correction);
-                    for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16)
-                        _mm512_store_ps(output_row + channel_idx,
-                                        _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), correction_f32x16));
+                    for (nk_size_t channel_idx = 0; channel_idx < depth; channel_idx += 16) {
+                        __mmask16 const channel_m16 = channel_idx + 16 <= depth ? (__mmask16)0xFFFF : depth_tail_m16;
+                        _mm512_mask_storeu_ps(
+                            output_row + channel_idx, channel_m16,
+                            _mm512_mul_ps(_mm512_maskz_loadu_ps(channel_m16, output_row + channel_idx),
+                                          correction_f32x16));
+                    }
                     for (position_idx = 0; position_idx < panel_length; position_idx++) {
                         __m512 const weight_f32x16 = _mm512_set1_ps(scores[position_idx]);
                         nk_bf16_t const *values_row = values_plane + (panel_start + position_idx) * depth_padded;
-                        for (nk_size_t channel_idx = 0; channel_idx < depth_padded; channel_idx += 16) {
+                        for (nk_size_t channel_idx = 0; channel_idx < depth; channel_idx += 16) {
+                            __mmask16 const channel_m16 = channel_idx + 16 <= depth ? (__mmask16)0xFFFF
+                                                                                    : depth_tail_m16;
                             __m512 const v_f32x16 = nk_bf16x16_to_f32x16_skylake_(
                                 _mm256_loadu_si256((__m256i const *)(values_row + channel_idx)));
-                            _mm512_store_ps(
-                                output_row + channel_idx,
-                                _mm512_fmadd_ps(weight_f32x16, v_f32x16, _mm512_load_ps(output_row + channel_idx)));
+                            _mm512_mask_storeu_ps(
+                                output_row + channel_idx, channel_m16,
+                                _mm512_fmadd_ps(weight_f32x16, v_f32x16,
+                                                _mm512_maskz_loadu_ps(channel_m16, output_row + channel_idx)));
                         }
                     }
                 }
 
                 __m512 const inverse_sum_f32x16 = _mm512_set1_ps(running_sum > 0 ? 1 / running_sum : 0);
-                nk_size_t const token = query_first + row_idx;
-                nk_f32_t *destination = output + token * output_stride_floats + head_idx * depth;
-                nk_size_t channel_idx = 0;
-                for (; channel_idx < depth_full; channel_idx += 16)
-                    _mm512_storeu_ps(destination + channel_idx,
-                                     _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), inverse_sum_f32x16));
-                if (channel_idx < depth)
-                    _mm512_mask_storeu_ps(destination + channel_idx, depth_tail_m16,
-                                          _mm512_mul_ps(_mm512_load_ps(output_row + channel_idx), inverse_sum_f32x16));
+                for (nk_size_t channel_idx = 0; channel_idx < depth; channel_idx += 16) {
+                    __mmask16 const channel_m16 = channel_idx + 16 <= depth ? (__mmask16)0xFFFF : depth_tail_m16;
+                    _mm512_mask_storeu_ps(output_row + channel_idx, channel_m16,
+                                          _mm512_mul_ps(_mm512_maskz_loadu_ps(channel_m16, output_row + channel_idx),
+                                                        inverse_sum_f32x16));
+                }
                 if (log_sum_exp)
                     log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_(running_max2, running_sum);
             }
@@ -337,14 +338,9 @@ NUMKONG_API nk_status_t nk_attention_packed_bf16_genoa(                         
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_genoa_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
-    if (depth > nk_attention_max_depth_genoa_k_)
-        nk_attention_serial_(queries, sizeof(nk_bf16_t), &nk_attention_load_bf16_serial_, key_value_packed, output,
-                             log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                             output_stride, scale, band, task_begin, task_end);
-    else
-        nk_attention_packed_genoa_(queries, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_packed,
-                                   output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
-                                   query_stride, output_stride, scale, band, task_begin, task_end);
+    nk_attention_packed_genoa_(queries, sizeof(nk_bf16_t), &nk_attention_narrow_bf16_genoa_, key_value_packed, output,
+                               log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
+                               output_stride, scale, band, task_begin, task_end);
     return nk_success_k;
 }
 
@@ -357,14 +353,9 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_genoa(                         
     nk_assert_(stream == NUMKONG_NULL);
     if (!nk_attention_packed_by_(key_value_packed, nk_cap_genoa_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
-    if (depth > nk_attention_max_depth_genoa_k_)
-        nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
-                             log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                             output_stride, scale, band, task_begin, task_end);
-    else
-        nk_attention_packed_genoa_(queries, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_packed,
-                                   output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
-                                   query_stride, output_stride, scale, band, task_begin, task_end);
+    nk_attention_packed_genoa_(queries, sizeof(nk_e4m3_t), &nk_attention_narrow_e4m3_genoa_, key_value_packed, output,
+                               log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
+                               output_stride, scale, band, task_begin, task_end);
     return nk_success_k;
 }
 

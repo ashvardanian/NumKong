@@ -12,11 +12,11 @@
 #ifndef NUMKONG_ATTENTION_CUDA_CUH
 #define NUMKONG_ATTENTION_CUDA_CUH
 
+#if NUMKONG_ARCH_CUDA_
+
 #include "numkong/cuda.cuh"
 #include "numkong/attention/simt.cuh"
 #include "numkong/cast/simt.cuh" // `nk_bf16_to_f32_simt_`, `nk_e4m3_to_f32_simt_`
-
-#if NUMKONG_ARCH_CUDA_
 
 #if defined(__cplusplus)
 extern "C" {

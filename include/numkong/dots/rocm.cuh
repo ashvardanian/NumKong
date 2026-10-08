@@ -17,10 +17,10 @@
 #ifndef NUMKONG_DOTS_ROCM_CUH
 #define NUMKONG_DOTS_ROCM_CUH
 
+#if NUMKONG_ARCH_ROCM_
+
 #include "numkong/rocm.cuh"
 #include "numkong/dots/simt.cuh"
-
-#if NUMKONG_ARCH_ROCM_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -436,8 +436,10 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_rocm_(void const *kernel, nk_cro
             header->depth_padded_values = (nk_u32_t)depth_values_padded;                                               \
             header->scales_stride = (nk_u32_t)scales_stride;                                                           \
             header->tensor_scale = tensor_scale;                                                                       \
+            header->norms_offset = (nk_u32_t)(sizeof(nk_cross_packed_buffer_header_t) +                                \
+                                              column_count * (row_bytes + scales_stride));                             \
             header->capability = capability;                                                                           \
-            for (unsigned reserved_index = 0; reserved_index < 9; ++reserved_index)                                    \
+            for (unsigned reserved_index = 0; reserved_index < 8; ++reserved_index)                                    \
                 header->reserved[reserved_index] = 0;                                                                  \
         }                                                                                                              \
         unsigned char *rows = b_packed + sizeof(nk_cross_packed_buffer_header_t);                                      \

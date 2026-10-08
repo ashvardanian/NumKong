@@ -543,6 +543,7 @@ NUMKONG_INLINE __m256d nk_atan2_f64x4_haswell_(__m256d const ys_inputs, __m256d 
 }
 
 #if NUMKONG_TARGET_HASWELL
+
 NUMKONG_API nk_status_t nk_trig_sin_f32_haswell(nk_f32_t const *ins, nk_size_t n, nk_f32_t *outs, void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t i = 0;
@@ -656,6 +657,7 @@ NUMKONG_API nk_status_t nk_trig_atan_f64_haswell(nk_f64_t const *ins, nk_size_t 
     }
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

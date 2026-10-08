@@ -112,7 +112,7 @@ NUMKONG_INLINE int nk_cross_span_metal_(nk_size_t count, nk_size_t stride, nk_si
 NUMKONG_INLINE nk_status_t nk_cross_packed_shape_metal_(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                         nk_capability_t capability, void *stream) {
     if ((nk_size_t)b_packed & 15) return nk_misaligned_k;
-    nk_status_t const status = nk_stream_synchronize_metal(stream);
+    nk_status_t const status = nk_stream_synchronize_metal_(stream);
     if (status != nk_success_k) return status;
     nk_metal_call_t call;
     nk_status_t entered = nk_metal_enter_(stream, &call);

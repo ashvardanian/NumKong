@@ -9,12 +9,12 @@
 #ifndef NUMKONG_SPATIALS_V128_H
 #define NUMKONG_SPATIALS_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/spatial/v128.h"
 #include "numkong/dots/v128.h"
 
-#if NUMKONG_TARGET_V128
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -23,6 +23,7 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("simd128"))), apply_to = function)
 #endif
 
+#if NUMKONG_TARGET_V128
 nk_define_cross_normalized_packed_(angular, bf16, v128, bf16, bf16, f32, /*norm_value_type=*/f32, f32, nk_b128_vec_t,
                                    nk_dots_packed_bf16_v128, nk_angular_through_f32_from_dot_v128_,
                                    nk_dots_reduce_sumsq_bf16_, nk_load_b128_v128_, nk_partial_load_b32x4_serial_,
@@ -73,6 +74,7 @@ nk_define_cross_normalized_symmetric_(euclidean, u8, v128, u8, u32, /*norm_value
                                       nk_dots_symmetric_u8_v128, nk_euclidean_through_u32_from_dot_v128_,
                                       nk_dots_reduce_sumsq_u8_v128_, nk_load_b128_v128_, nk_partial_load_b32x4_serial_,
                                       nk_store_b128_v128_, nk_partial_store_b32x4_serial_, 1)
+#endif // NUMKONG_TARGET_V128
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -81,7 +83,7 @@ nk_define_cross_normalized_symmetric_(euclidean, u8, v128, u8, u32, /*norm_value
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_V128
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SPATIALS_V128_H

@@ -84,6 +84,7 @@ NUMKONG_INLINE nk_f64_t nk_sparse_reduce_f64x4x2_haswell_(__m256d accumulator_lo
 }
 
 #if NUMKONG_TARGET_HASWELL
+
 NUMKONG_API nk_status_t nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t const *b, nk_f32_t const *a_weights,
                                                      nk_f32_t const *b_weights, nk_size_t a_length, nk_size_t b_length,
                                                      nk_f64_t *product, void *stream) {
@@ -222,6 +223,7 @@ NUMKONG_API nk_status_t nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t
     *product = vector_sum + tail_product;
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

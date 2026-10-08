@@ -44,23 +44,18 @@ extern "C" {
 #pragma region Type Punned Loads and Stores
 
 /** LSX and LASX share the same physical register file, so widening __m128i → __m256i and extracting
- *  __m256i → __m128i are no-ops on hardware. Empty inline asm with "f" constraints avoids the stack
- *  round-trip that union punning causes on GCC 14. The helpers are named after the x86 intrinsics
+ *  __m256i → __m128i need no data movement. Vector shuffles express both without the stack
+ *  round-trip of union punning, unlike an empty asm, whose untied output may land in another
+ *  register. The widened upper half is unspecified. The helpers are named after the x86 intrinsics
  *  _mm256_castsi128_si256, _mm256_castsi256_si128 and _mm256_castps256_ps128. */
 NUMKONG_INLINE __m256i nk_lasx_castsi128_si256_(__m128i low_i64x2) {
-    __m256i wide_i64x4;
-    __asm__("" : "=f"(wide_i64x4) : "f"(low_i64x2));
-    return wide_i64x4;
+    return __builtin_shufflevector(low_i64x2, low_i64x2, 0, 1, -1, -1);
 }
 NUMKONG_INLINE __m128i nk_lasx_castsi256_si128_(__m256i wide_i64x4) {
-    __m128i low_i64x2;
-    __asm__("" : "=f"(low_i64x2) : "f"(wide_i64x4));
-    return low_i64x2;
+    return __builtin_shufflevector(wide_i64x4, wide_i64x4, 0, 1);
 }
 NUMKONG_INLINE __m128 nk_lasx_castps256_ps128_(__m256 wide_f32x8) {
-    __m128 low_f32x4;
-    __asm__("" : "=f"(low_f32x4) : "f"(wide_f32x8));
-    return low_f32x4;
+    return __builtin_shufflevector(wide_f32x8, wide_f32x8, 0, 1, 2, 3);
 }
 
 /** Type-agnostic 256-bit full load (LASX). */
@@ -77,10 +72,9 @@ NUMKONG_INLINE void nk_store_b128_loongsonasx_(nk_b128_vec_t const *src, void *d
 
 /** Convert 8 × f16 → 8 × f32 via native LASX hardware conversion. */
 NUMKONG_INLINE __m256i nk_f16x8_to_f32x8_loongsonasx_(__m128i f16_i16x8) {
-    __m256i duped_f16x16 = __lasx_xvpermi_q(nk_lasx_castsi128_si256_(f16_i16x8), nk_lasx_castsi128_si256_(f16_i16x8),
-                                            0x00);
-    __m256i low_f32x8 = (__m256i)__lasx_xvfcvtl_s_h(duped_f16x16);
-    __m256i high_f32x8 = (__m256i)__lasx_xvfcvth_s_h(duped_f16x16);
+    __m256i f16_i16x16 = nk_lasx_castsi128_si256_(f16_i16x8);
+    __m256i low_f32x8 = (__m256i)__lasx_xvfcvtl_s_h(f16_i16x16);
+    __m256i high_f32x8 = (__m256i)__lasx_xvfcvth_s_h(f16_i16x16);
     return __lasx_xvpermi_q(high_f32x8, low_f32x8, 0x20);
 }
 

@@ -94,6 +94,14 @@ NUMKONG_INLINE svbool_t nk_attention_visible_sme_(svuint32_t key_begins_u32x, sv
                      svcmpgt_n_u32(predicate_all_b32x, key_ends_u32x, (uint32_t)position));
 }
 
+/** Interleaves the leading quarters of four rows of bytes into 32-bit quads, the SMOPA layout. */
+NUMKONG_INLINE svuint8_t nk_sme_interleave_quads_u8x_(svuint8_t first_u8x, svuint8_t second_u8x, svuint8_t third_u8x,
+                                                      svuint8_t fourth_u8x) NUMKONG_STREAMING_ {
+    svuint16_t first_pairs_u16x = svreinterpret_u16_u8(svzip1_u8(first_u8x, second_u8x));
+    svuint16_t second_pairs_u16x = svreinterpret_u16_u8(svzip1_u8(third_u8x, fourth_u8x));
+    return svreinterpret_u8_u16(svzip1_u16(first_pairs_u16x, second_pairs_u16x));
+}
+
 /** Widens E4M3 bytes to their exact BF16 representations: every E4M3 value (3-bit mantissa, ±448
  *  range) is exactly representable in BF16, so the F16 hop through the @c dots converter and the
  *  final narrowing round are lossless. */
@@ -125,7 +133,7 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_b16_sme_(nk_size_t key_value_hea
  *  position pair, so P × V runs as outer products over positions. Rows beyond the segment and
  *  channels beyond the head are zero-filled by the predicated loads and the ZA0 pre-zeroing.
  */
-__arm_new("za") static void nk_attention_pack_b16_sme_streaming_(                      //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_b16_sme_streaming_(           //
     void const *keys, void const *values, nk_size_t element_bytes,                     //
     nk_size_t key_value_head_count,                                                    //
     nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, //
@@ -253,7 +261,7 @@ __arm_new("za") static void nk_attention_pack_b16_sme_streaming_(               
  *  The channel-major accumulator transposes back to output rows through ZA0 once per block,
  *  with the 1 / Σweights normalization applied on the way in.
  */
-__arm_new("za") static void nk_attention_packed_b16_sme_streaming_(                                 //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_b16_sme_streaming_(                      //
     void const *queries, nk_size_t element_bytes, void const *key_value_packed, nk_f32_t *output,   //
     nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,   //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //
@@ -723,7 +731,7 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_b8_sme_(nk_size_t key_value_head
  *  `[channel_tile][position_quad]` through a two-level @c ZIP1, so P × V runs as USMOPA outer
  *  products over positions with the U8 probabilities.
  */
-__arm_new("za") static void nk_attention_pack_i8_sme_streaming_(                       //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_pack_i8_sme_streaming_(            //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count,        //
     nk_size_t depth, nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, //
     nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride,             //
@@ -821,7 +829,7 @@ __arm_new("za") static void nk_attention_pack_i8_sme_streaming_(                
  *  quad-interleaved U8 operands with three shift-ors per vector, and the P × V drain converts
  *  the exact I32 outer products to F32 before the correction FMA.
  */
-__arm_new("za") static void nk_attention_packed_i8_sme_streaming_(                                  //
+__arm_new("za") NUMKONG_OUTLINED_ void nk_attention_packed_i8_sme_streaming_(                       //
     nk_i8_t const *queries, void const *key_value_packed, nk_f32_t *output, nk_f32_t *log_sum_exp,  //
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth,                          //
     nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, //

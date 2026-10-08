@@ -12,6 +12,7 @@
 #ifndef NUMKONG_SET_V128_H
 #define NUMKONG_SET_V128_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_ARCH_WASM_V128_
 
 #include "numkong/types.h"
@@ -27,6 +28,7 @@ extern "C" {
 #endif
 
 #if NUMKONG_TARGET_V128
+
 #pragma region Binary Sets
 
 NUMKONG_API nk_status_t nk_hamming_u1_v128(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
@@ -194,6 +196,7 @@ NUMKONG_API nk_status_t nk_jaccard_u16_v128(nk_u16_t const *a, nk_u16_t const *b
 }
 
 #pragma endregion Integer Sets
+
 #endif // NUMKONG_TARGET_V128
 
 #pragma region Binary Sets from Dot
@@ -236,4 +239,5 @@ NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_v128_( //
 #endif
 
 #endif // NUMKONG_ARCH_WASM_V128_
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SET_V128_H

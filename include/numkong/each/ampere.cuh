@@ -15,10 +15,11 @@
 #ifndef NUMKONG_EACH_AMPERE_CUH
 #define NUMKONG_EACH_AMPERE_CUH
 
+#if NUMKONG_ARCH_CUDA_
+#if NUMKONG_ARCH_CUDA_AMPERE_
+
 #include "numkong/each/cuda.cuh"   // `nk_define_each_sum_cuda_`, `nk_define_each_rmsnorm_cuda_`
 #include "numkong/cast/ampere.cuh" // `nk_f32_to_bf16_ampere_`
-
-#if NUMKONG_ARCH_CUDA_AMPERE_
 
 #if defined(__cplusplus)
 extern "C" {
@@ -39,4 +40,5 @@ nk_define_each_rmsnorm_cuda_(rmscast, f32, bf16, ampere, nk_assign_from_to_, nk_
 #endif
 
 #endif // NUMKONG_ARCH_CUDA_AMPERE_
+#endif // NUMKONG_ARCH_CUDA_
 #endif // NUMKONG_EACH_AMPERE_CUH

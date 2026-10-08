@@ -36,9 +36,7 @@
 
 #include "numkong/types.h"      // `nk_u1x8_t`
 #include "numkong/reduce/sve.h" // `nk_svaddv_u8_`
-#include "numkong/set/neon.h"   // `nk_u1_xor_popcount_neon_`, `nk_u1_and_or_popcounts_neon_`
 
-#if NUMKONG_TARGET_SVE
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -50,21 +48,15 @@ extern "C" {
 #pragma GCC target("arch=armv8.2-a+sve")
 #endif
 
+#if NUMKONG_TARGET_SVE
+
 #pragma region Binary Sets
 
 NUMKONG_API nk_status_t nk_hamming_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b, nk_size_t n, nk_u32_t *result,
                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
-
-    // On very small register sizes, NEON is at least as fast as SVE.
     nk_size_t const words_per_register = svcntb();
-    if (words_per_register <= 32) {
-        *result = nk_u1_xor_popcount_neon_(a, b, n);
-        return nk_success_k;
-    }
-
-    // On larger register sizes, SVE is faster.
     nk_size_t i = 0, cycle = 0;
     nk_u32_t differences = 0;
     svuint8_t popcount_u8x = svdup_n_u8(0);
@@ -92,17 +84,7 @@ NUMKONG_API nk_status_t nk_jaccard_u1_sve(nk_u1x8_t const *a, nk_u1x8_t const *b
                                           void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t n_bytes = n / NUMKONG_BITS_PER_BYTE;
-
-    // On very small register sizes, NEON is at least as fast as SVE.
     nk_size_t const words_per_register = svcntb();
-    if (words_per_register <= 32) {
-        nk_u32_t intersection_count, union_count;
-        nk_u1_and_or_popcounts_neon_(a, b, n, &intersection_count, &union_count);
-        *result = (union_count != 0) ? 1.0f - (nk_f32_t)intersection_count / (nk_f32_t)union_count : 0.0f;
-        return nk_success_k;
-    }
-
-    // On larger register sizes, SVE is faster.
     nk_size_t i = 0, cycle = 0;
     nk_u32_t intersection_count = 0, union_count = 0;
     svuint8_t intersection_popcount_u8x = svdup_n_u8(0);
@@ -192,6 +174,8 @@ NUMKONG_API nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b,
 
 #pragma endregion Integer Sets
 
+#endif // NUMKONG_TARGET_SVE
+
 #if defined(__clang__)
 #pragma clang attribute pop
 #elif defined(__GNUC__)
@@ -201,7 +185,6 @@ NUMKONG_API nk_status_t nk_jaccard_u16_sve(nk_u16_t const *a, nk_u16_t const *b,
 #if defined(__cplusplus)
 } // extern "C"
 #endif
-#endif // NUMKONG_TARGET_SVE
 
 #endif // NUMKONG_ARCH_ARM64_SVE_
 #endif // NUMKONG_ARCH_ARM64_

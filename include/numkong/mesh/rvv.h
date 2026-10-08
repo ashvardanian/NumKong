@@ -682,6 +682,7 @@ NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f32_rvv_(nk_f32_t const *a, nk_f32_t 
 }
 
 #if NUMKONG_TARGET_RVV
+
 NUMKONG_API nk_status_t nk_rmsd_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, nk_size_t points_count,
                                         nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
                                         nk_f64_t *result, void *stream) {
@@ -1087,6 +1088,7 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const 
     nk_umeyama_bf16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_RVV
 
 #if defined(__cplusplus)

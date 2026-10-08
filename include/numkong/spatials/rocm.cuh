@@ -16,9 +16,9 @@
 #ifndef NUMKONG_SPATIALS_ROCM_CUH
 #define NUMKONG_SPATIALS_ROCM_CUH
 
-#include "numkong/dots/rocm.cuh"
-
 #if NUMKONG_ARCH_ROCM_
+
+#include "numkong/dots/rocm.cuh"
 
 #if defined(__cplusplus)
 extern "C" {

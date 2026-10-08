@@ -129,7 +129,8 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_best(nk_f16_t const *vectors, nk_size
 
 /**
  *  @brief Computes angular distance late-interaction on pre-packed vectors. Returns Σᵢ minⱼ
- *      angular(qᵢ, dⱼ) where angular = 1 - dot / sqrt(||q||² × ||d||²).
+ *      angular(qᵢ, dⱼ) where angular = 1 - dot / sqrt(||q||² × ||d||²), and 0 for two zero vectors.
+ *      A NaN element in any query or document makes its angles, their minima and so the result NaN.
  *
  *  @param[in] query_packed Packed query vectors (from nk_maxsim_pack_bf16_best).
  *  @param[in] document_packed Packed document vectors (from nk_maxsim_pack_bf16_best).

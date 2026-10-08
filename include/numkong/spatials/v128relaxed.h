@@ -9,6 +9,7 @@
 #ifndef NUMKONG_SPATIALS_V128RELAXED_H
 #define NUMKONG_SPATIALS_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/spatial/v128relaxed.h"
@@ -288,4 +289,5 @@ nk_define_cross_normalized_symmetric_(euclidean, f64, v128relaxed, f64, f64, /*n
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_SPATIALS_V128RELAXED_H

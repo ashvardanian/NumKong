@@ -13,8 +13,9 @@
 #if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
-#include "numkong/reduce/haswell.h" // `nk_reduce_add_f32x8_haswell_`, `nk_reduce_add_f64x4_haswell_`
-#include "numkong/cast/haswell.h"   // `nk_partial_load_f16x8_to_f32x8_haswell_`, `nk_partial_load_b64x4_haswell_`
+#include "numkong/reduce/haswell.h"     // `nk_reduce_add_f32x8_haswell_`, `nk_reduce_add_f64x4_haswell_`
+#include "numkong/cast/haswell.h"       // `nk_partial_load_f16x8_to_f32x8_haswell_`, `nk_partial_load_b64x4_haswell_`
+#include "numkong/probability/serial.h" // `NUMKONG_F32_DIVISION_EPSILON`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -99,6 +100,7 @@ NUMKONG_INLINE __m256d nk_log2_f64x4_haswell_(__m256d x) {
 }
 
 #if NUMKONG_TARGET_HASWELL
+
 NUMKONG_API nk_status_t nk_kld_f16_haswell(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *result,
                                            void *stream) {
     nk_assert_(stream == NUMKONG_NULL);
@@ -264,6 +266,7 @@ nk_jsd_f64_haswell_cycle:
     *result = sum > 0 ? _mm_cvtsd_f64(_mm_sqrt_pd(_mm_set_sd(sum))) : 0;
     return nk_success_k;
 }
+
 #endif // NUMKONG_TARGET_HASWELL
 
 #if defined(__clang__)

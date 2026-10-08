@@ -132,8 +132,6 @@ NUMKONG_API nk_status_t nk_angular_f32_sve(nk_f32_t const *a, nk_f32_t const *b,
     return nk_success_k;
 }
 
-#endif // NUMKONG_TARGET_SVE
-
 /** Sums the squared differences of @p n F64 pairs with Neumaier compensation. */
 NUMKONG_INLINE void nk_squared_distance_f64_sve_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     // Neumaier compensated summation for numerical stability
@@ -165,7 +163,6 @@ NUMKONG_INLINE void nk_squared_distance_f64_sve_(nk_f64_t const *a, nk_f64_t con
     *result = nk_dot_stable_sum_f64_sve_(predicate_all_b64x, sum_f64x, compensation_f64x);
 }
 
-#if NUMKONG_TARGET_SVE
 NUMKONG_API nk_status_t nk_sqeuclidean_f64_sve(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                                void *stream) {
     nk_assert_(stream == NUMKONG_NULL);

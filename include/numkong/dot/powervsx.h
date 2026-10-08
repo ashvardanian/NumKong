@@ -50,6 +50,7 @@
 #ifndef NUMKONG_DOT_POWERVSX_H
 #define NUMKONG_DOT_POWERVSX_H
 
+#if NUMKONG_ARCH_PPC64_
 #if NUMKONG_TARGET_POWERVSX
 
 #if defined(__cplusplus)
@@ -782,4 +783,5 @@ NUMKONG_INLINE void nk_dot_u1x128_finalize_powervsx(                            
 #endif
 
 #endif // NUMKONG_TARGET_POWERVSX
+#endif // NUMKONG_ARCH_PPC64_
 #endif // NUMKONG_DOT_POWERVSX_H

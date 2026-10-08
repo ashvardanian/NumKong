@@ -36,6 +36,7 @@
 #ifndef NUMKONG_TRIGONOMETRY_V128RELAXED_H
 #define NUMKONG_TRIGONOMETRY_V128RELAXED_H
 
+#if NUMKONG_ARCH_WASM_
 #if NUMKONG_TARGET_V128RELAXED
 
 #include "numkong/types.h"
@@ -690,4 +691,5 @@ NUMKONG_API nk_status_t nk_trig_atan_f64_v128relaxed(nk_f64_t const *ins, nk_siz
 #endif
 
 #endif // NUMKONG_TARGET_V128RELAXED
+#endif // NUMKONG_ARCH_WASM_
 #endif // NUMKONG_TRIGONOMETRY_V128RELAXED_H
