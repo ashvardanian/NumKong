@@ -94,7 +94,7 @@ extern "C" {
  *  the first SMSTART silently zeroed it. */
 
 /** Streaming SVL byte-element count (SVL/8) via SMSTART SM bracket. */
-NUMKONG_INLINE nk_size_t nk_sme_cntb_(void) {
+NUMKONG_INLINE nk_size_t nk_cntb_sme_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\tcntb %0\n\tsmstop sm"
                          : "=r"(r)
@@ -107,7 +107,7 @@ NUMKONG_INLINE nk_size_t nk_sme_cntb_(void) {
 }
 
 /** Streaming SVL half-element count (SVL/16) via SMSTART SM bracket. */
-NUMKONG_INLINE nk_size_t nk_sme_cnth_(void) {
+NUMKONG_INLINE nk_size_t nk_cnth_sme_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\tcnth %0\n\tsmstop sm"
                          : "=r"(r)
@@ -120,7 +120,7 @@ NUMKONG_INLINE nk_size_t nk_sme_cnth_(void) {
 }
 
 /** Streaming SVL word-element count (SVL/32) via SMSTART SM bracket. */
-NUMKONG_INLINE nk_size_t nk_sme_cntw_(void) {
+NUMKONG_INLINE nk_size_t nk_cntw_sme_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\tcntw %0\n\tsmstop sm"
                          : "=r"(r)
@@ -133,7 +133,7 @@ NUMKONG_INLINE nk_size_t nk_sme_cntw_(void) {
 }
 
 /** Streaming SVL double-element count (SVL/64) via SMSTART SM bracket. */
-NUMKONG_INLINE nk_size_t nk_sme_cntd_(void) {
+NUMKONG_INLINE nk_size_t nk_cntd_sme_(void) {
     nk_u64_t r;
     __asm__ __volatile__("smstart sm\n\tcntd %0\n\tsmstop sm"
                          : "=r"(r)
@@ -148,7 +148,7 @@ NUMKONG_INLINE nk_size_t nk_sme_cntd_(void) {
 /** Enter streaming SVE mode (PSTATE.SM = 1). Caller is responsible for smstop. The transition
  *  zeroes every Z and P register, so they are declared clobbered — otherwise values the compiler
  *  caches in the callee-saved V8-V15 are silently lost. */
-NUMKONG_INLINE void nk_sme_start_streaming_(void) {
+NUMKONG_INLINE void nk_start_sme_streaming_(void) {
     __asm__ __volatile__("smstart sm"
                          :
                          :
@@ -158,8 +158,8 @@ NUMKONG_INLINE void nk_sme_start_streaming_(void) {
                            "p9", "p10", "p11", "p12", "p13", "p14", "p15", "memory");
 }
 
-/** Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_sme_start_streaming_. */
-NUMKONG_INLINE void nk_sme_stop_streaming_(void) {
+/** Exit streaming SVE mode (PSTATE.SM = 0). Must pair with nk_start_sme_streaming_. */
+NUMKONG_INLINE void nk_stop_sme_streaming_(void) {
     __asm__ __volatile__("smstop sm"
                          :
                          :
@@ -328,14 +328,14 @@ enum {
 
 /** Clears the lanes of @p bound left of the diagonal on row @p row_index, for a tile starting at
  *  @p column_start. */
-NUMKONG_INLINE svbool_t nk_sme_diagonal_cut_b32x_(svbool_t bound, nk_size_t column_start,
+NUMKONG_INLINE svbool_t nk_diagonal_cut_b32x_sme_(svbool_t bound, nk_size_t column_start,
                                                   nk_size_t row_index) NUMKONG_STREAMING_ {
     return svbic_b_z(bound, bound, svwhilelt_b32_u64(column_start, row_index));
 }
 
 /** Clears the lanes of @p bound left of the diagonal on row @p row_index, for a tile starting at
  *  @p column_start. */
-NUMKONG_INLINE svbool_t nk_sme_diagonal_cut_b64x_(svbool_t bound, nk_size_t column_start,
+NUMKONG_INLINE svbool_t nk_diagonal_cut_b64x_sme_(svbool_t bound, nk_size_t column_start,
                                                   nk_size_t row_index) NUMKONG_STREAMING_ {
     return svbic_b_z(bound, bound, svwhilelt_b64_u64(column_start, row_index));
 }
@@ -345,27 +345,27 @@ NUMKONG_INLINE svbool_t nk_sme_diagonal_cut_b64x_(svbool_t bound, nk_size_t colu
 /** Up to 16 u16 entries of @p data as the vector pair @c svtbl2_u16 reads as entries 0 … 15 at
  *  every vector length: the first vector holds what fits and the second the rest, which only SVL
  *  128 needs. Indices past the entries read zero. */
-NUMKONG_INLINE svuint16x2_t nk_sme_table16_u16_(nk_u16_t const *data) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svuint16x2_t nk_table16_u16_sme_(nk_u16_t const *data) NUMKONG_STREAMING_ {
     nk_size_t const lanes = svcnth(), split = lanes < 16 ? lanes : 16;
     return svcreate2_u16(svld1_u16(svwhilelt_b16_u64(0, 16), data),
                          svld1_u16(svwhilelt_b16_u64(split, 16), data + split));
 }
 
 /** Up to 32 byte entries of @p data as the vector pair @c svtbl2_u8 reads as entries 0 … 31 at
- *  every vector length, like @c nk_sme_table16_u16_. */
-NUMKONG_INLINE svuint8x2_t nk_sme_table32_u8_(nk_u8_t const *data) NUMKONG_STREAMING_ {
+ *  every vector length, like @c nk_table16_u16_sme_. */
+NUMKONG_INLINE svuint8x2_t nk_table32_u8_sme_(nk_u8_t const *data) NUMKONG_STREAMING_ {
     nk_size_t const lanes = svcntb(), split = lanes < 32 ? lanes : 32;
     return svcreate2_u8(svld1_u8(svwhilelt_b8_u64(0, 32), data), svld1_u8(svwhilelt_b8_u64(split, 32), data + split));
 }
 
 /** E2M1 codes as F16 bits, for NVFP4. */
-static nk_align_(64) nk_u16_t const nk_sme_nvfp4_table_data_[16] = {0x0000, 0x3800, 0x3C00, 0x3E00, 0x4000, 0x4200,
+static nk_align_(64) nk_u16_t const nk_nvfp4_table_data_sme_[16] = {0x0000, 0x3800, 0x3C00, 0x3E00, 0x4000, 0x4200,
                                                                     0x4400, 0x4600, 0x8000, 0xB800, 0xBC00, 0xBE00,
                                                                     0xC000, 0xC200, 0xC400, 0xC600};
 
 /** E2M1 codes as BF16 bits with both zeros at +0, so a saturating exponent decrement keeps zeros
  *  at zero. */
-static nk_align_(64) nk_u16_t const nk_sme_mxfp4_table_data_[16] = {0x0000, 0x3F00, 0x3F80, 0x3FC0, 0x4000, 0x4040,
+static nk_align_(64) nk_u16_t const nk_mxfp4_table_data_sme_[16] = {0x0000, 0x3F00, 0x3F80, 0x3FC0, 0x4000, 0x4040,
                                                                     0x4080, 0x40C0, 0x0000, 0xBF00, 0xBF80, 0xBFC0,
                                                                     0xC000, 0xC040, 0xC080, 0xC0C0};
 
@@ -374,9 +374,9 @@ static nk_align_(64) nk_u16_t const nk_sme_mxfp4_table_data_[16] = {0x0000, 0x3F
  *  NaN magnitudes just below 128 first and the subnormals from zero after them. Indices past the
  *  table read zero, so no compare sits on the decode path; streaming integer instructions issue
  *  about once per cycle, which makes the instruction count the cost. */
-NUMKONG_INLINE svuint16_t nk_minifloat_magnitudes_ssve_(svuint16_t magnitude_u16x, nk_size_t shift, nk_u16_t base,
-                                                        nk_u16_t rotation,
-                                                        svuint16x2_t deltas_u16x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svuint16_t nk_minifloat_magnitudes_sme_streaming_(svuint16_t magnitude_u16x, nk_size_t shift,
+                                                                 nk_u16_t base, nk_u16_t rotation,
+                                                                 svuint16x2_t deltas_u16x) NUMKONG_STREAMING_ {
     svbool_t const all_b16x = svptrue_b16();
     svuint16_t const index_u16x = rotation
                                       ? svand_n_u16_x(all_b16x, svadd_n_u16_x(all_b16x, magnitude_u16x, rotation), 0x7F)
@@ -397,19 +397,20 @@ NUMKONG_INLINE svuint16_t nk_minifloat_magnitudes_ssve_(svuint16_t magnitude_u16
  *  @endverbatim
  *
  *  For normal values, the +0x2000 encodes the bias difference 15 − 7 = 8 and left-aligns the
- *  mantissa; @c nk_minifloat_magnitudes_ssve_ patches subnormals and NaN without compares.
+ *  mantissa; @c nk_minifloat_magnitudes_sme_streaming_ patches subnormals and NaN without compares.
  *
  *  @param[in] predicate_b16x Active-lane predicate.
  *  @param[in] bytes_u8x Pre-loaded e4m3 bytes from @c svld1_u8.
  *  @return @c svfloat16_t with converted values, zero for inactive lanes.
  */
-NUMKONG_INLINE svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat16_t nk_e4m3x_to_f16x_sme_streaming_(svbool_t predicate_b16x,
+                                                           svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
     static nk_align_(64)
         nk_u16_t const deltas_data[16] = {0x1E80, 0xE000, 0xF780, 0xFB00, 0xFC80, 0xFE00, 0xFE80, 0xFF00, 0xFF80};
     svbool_t const all_b16x = svptrue_b16();
     svuint16_t const codes_u16x = svunpklo_u16(bytes_u8x);
-    svuint16_t const bits_u16x = nk_minifloat_magnitudes_ssve_(svand_n_u16_x(all_b16x, codes_u16x, 0x7F), 7, 0x2000, 1,
-                                                               nk_sme_table16_u16_(deltas_data));
+    svuint16_t const bits_u16x = nk_minifloat_magnitudes_sme_streaming_(svand_n_u16_x(all_b16x, codes_u16x, 0x7F), 7,
+                                                                        0x2000, 1, nk_table16_u16_sme_(deltas_data));
     svuint16_t const signed_u16x = svbsl_n_u16(svlsl_n_u16_x(all_b16x, codes_u16x, 8), bits_u16x, 0x8000);
     return svreinterpret_f16_u16(svsel_u16(predicate_b16x, signed_u16x, svdup_n_u16(0)));
 }
@@ -429,7 +430,8 @@ NUMKONG_INLINE svfloat16_t nk_e4m3x_to_f16x_ssve_(svbool_t predicate_b16x, svuin
  *  @param[in] bytes_u8x Pre-loaded 64 bytes, an @c svuint8_t from @c svld1_u8.
  *  @return 32 F16 values as @c svfloat16_t, from the lower 32 bytes.
  */
-NUMKONG_INLINE svfloat16_t nk_e5m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat16_t nk_e5m2x_to_f16x_sme_streaming_(svbool_t predicate_b16x,
+                                                           svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
     // E5M2 and F16 share the same exponent bias (15), sign position, exponent width,
     // and mantissa field alignment. The conversion f16 = byte << 8 is exact for all
     // 256 values but NaN, whose codes first become the canonical quiet 0x7E.
@@ -452,13 +454,14 @@ NUMKONG_INLINE svfloat16_t nk_e5m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuin
  *  @param[in] raw_bytes_u8x Pre-loaded e2m3 bytes as @c svuint8_t.
  *  @return Signed i8 values as @c svint8_t.
  */
-NUMKONG_INLINE svint8_t nk_e2m3x_to_i8x_ssve_(svbool_t predicate_b8x, svuint8_t raw_bytes_u8x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svint8_t nk_e2m3x_to_i8x_sme_streaming_(svbool_t predicate_b8x,
+                                                       svuint8_t raw_bytes_u8x) NUMKONG_STREAMING_ {
     static nk_align_(64) nk_u8_t const lut_data[32] = {
         0,  2,  4,  6,  8,  10, 12, 14, 16, 18, 20, 22, 24, 26,  28,  30,  //
         32, 36, 40, 44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, //
     };
     svuint8_t magnitude_u8x = svand_n_u8_x(predicate_b8x, raw_bytes_u8x, 0x1F);
-    svuint8_t unsigned_value_u8x = svtbl2_u8(nk_sme_table32_u8_(lut_data), magnitude_u8x);
+    svuint8_t unsigned_value_u8x = svtbl2_u8(nk_table32_u8_sme_(lut_data), magnitude_u8x);
     svuint8_t sign_bits_u8x = svand_n_u8_x(predicate_b8x, raw_bytes_u8x, 0x20);
     svbool_t negate_mask_b8x = svcmpne_n_u8(predicate_b8x, sign_bits_u8x, 0);
     svint8_t positive_value_i8x = svreinterpret_s8_u8(unsigned_value_u8x);
@@ -468,7 +471,8 @@ NUMKONG_INLINE svint8_t nk_e2m3x_to_i8x_ssve_(svbool_t predicate_b8x, svuint8_t 
 
 /** Widens up to `svcntb()` E2M1 dimensions into doubled signed i8 lanes, zeroing lanes past
  *  @p dimensions. Even dimensions live in high nibbles. */
-NUMKONG_INLINE svint8_t nk_e2m1x_to_i8x_ssve_(nk_e2m1x2_t const *pairs, nk_size_t dimensions) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svint8_t nk_e2m1x_to_i8x_sme_streaming_(nk_e2m1x2_t const *pairs,
+                                                       nk_size_t dimensions) NUMKONG_STREAMING_ {
     static nk_align_(64) nk_i8_t const lut_data[16] = {0, 1, 2, 3, 4, 6, 8, 12, 0, -1, -2, -3, -4, -6, -8, -12};
     nk_size_t const vector_dimensions = svcntb();
     if (dimensions > vector_dimensions) dimensions = vector_dimensions;
@@ -494,12 +498,13 @@ NUMKONG_INLINE svint8_t nk_e2m1x_to_i8x_ssve_(nk_e2m1x2_t const *pairs, nk_size_
  *  @param[in] bytes_u8x Pre-loaded bytes, an @c svuint8_t from @c svld1_u8.
  *  @return F16 values as @c svfloat16_t, zero for inactive lanes.
  */
-NUMKONG_INLINE svfloat16_t nk_e3m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat16_t nk_e3m2x_to_f16x_sme_streaming_(svbool_t predicate_b16x,
+                                                           svuint8_t bytes_u8x) NUMKONG_STREAMING_ {
     static nk_align_(64) nk_u8_t const magnitude_high_lut[32] = {
         0x00, 0x2C, 0x30, 0x32, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F,
         0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F,
     };
-    svuint8_t const magnitude_high_u8x = svtbl2_u8(nk_sme_table32_u8_(magnitude_high_lut),
+    svuint8_t const magnitude_high_u8x = svtbl2_u8(nk_table32_u8_sme_(magnitude_high_lut),
                                                    svand_n_u8_x(svptrue_b8(), bytes_u8x, 0x1F));
     svuint16_t const bits_u16x = svreinterpret_u16_u8(svzip1_u8(svdup_n_u8(0), magnitude_high_u8x));
     svuint16_t const signed_u16x = svbsl_n_u16(svlsl_n_u16_x(predicate_b16x, svunpklo_u16(bytes_u8x), 10), bits_u16x,
@@ -508,105 +513,106 @@ NUMKONG_INLINE svfloat16_t nk_e3m2x_to_f16x_ssve_(svbool_t predicate_b16x, svuin
 }
 
 /** BF16 bits of mini-float codes, one per 16-bit lane, with @p magnitude_mask magnitudes and the
- *  sign in bit @p sign_bit, decoded by @c nk_minifloat_magnitudes_ssve_ from @p shift_bits,
- *  @p base, @p rotation and @p deltas_data. Every lane moves by @p shift, a multiple of 128 that
- *  scales by a power of two, except zero, Inf and NaN, whose @p fixed_entries corrections lead the
- *  table and so always sit in the first vector. Zero codes decode to zero, so lanes past a
- *  predicated load stay zero. */
-NUMKONG_INLINE svuint16_t nk_minifloat_to_bf16x_ssve_(svuint16_t codes_u16x, nk_u16_t magnitude_mask,
-                                                      nk_size_t sign_bit, nk_size_t shift_bits, nk_u16_t base,
-                                                      nk_u16_t rotation, nk_u16_t const *deltas_data,
-                                                      nk_size_t fixed_entries, nk_u16_t shift) NUMKONG_STREAMING_ {
+ *  sign in bit @p sign_bit, decoded by @c nk_minifloat_magnitudes_sme_streaming_ from
+ *  @p shift_bits, @p base, @p rotation and @p deltas_data. Every lane moves by @p shift, a multiple
+ *  of 128 that scales by a power of two, except zero, Inf and NaN, whose @p fixed_entries
+ *  corrections lead the table and so always sit in the first vector. Zero codes decode to zero, so
+ *  lanes past a predicated load stay zero. */
+NUMKONG_INLINE svuint16_t nk_minifloat_to_bf16x_sme_streaming_(svuint16_t codes_u16x, nk_u16_t magnitude_mask,
+                                                               nk_size_t sign_bit, nk_size_t shift_bits, nk_u16_t base,
+                                                               nk_u16_t rotation, nk_u16_t const *deltas_data,
+                                                               nk_size_t fixed_entries,
+                                                               nk_u16_t shift) NUMKONG_STREAMING_ {
     svbool_t const all_b16x = svptrue_b16();
-    svuint16x2_t const table_u16x = nk_sme_table16_u16_(deltas_data);
+    svuint16x2_t const table_u16x = nk_table16_u16_sme_(deltas_data);
     svuint16x2_t const deltas_u16x = svset2_u16(
         table_u16x, 0, svsub_n_u16_m(svwhilelt_b16_u64(0, fixed_entries), svget2_u16(table_u16x, 0), shift));
-    svuint16_t const bits_u16x = nk_minifloat_magnitudes_ssve_(svand_n_u16_x(all_b16x, codes_u16x, magnitude_mask),
-                                                               shift_bits, (nk_u16_t)(base + shift), rotation,
-                                                               deltas_u16x);
+    svuint16_t const bits_u16x = nk_minifloat_magnitudes_sme_streaming_(
+        svand_n_u16_x(all_b16x, codes_u16x, magnitude_mask), shift_bits, (nk_u16_t)(base + shift), rotation,
+        deltas_u16x);
     return svbsl_n_u16(svlsl_n_u16_x(all_b16x, codes_u16x, 15 - sign_bit), bits_u16x, 0x8000);
 }
 
 /** BF16 bits of E4M3 bytes, every finite nonzero lane moved by @p shift. Exact: E4M3 values have
  *  3-bit mantissas within BF16's range. */
-NUMKONG_INLINE svuint16_t nk_e4m3x_to_bf16x_ssve_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svuint16_t nk_e4m3x_to_bf16x_sme_streaming_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
     // NaN at magnitude 127, zero, then the seven subnormals
     static nk_align_(64)
         nk_u16_t const deltas_data[16] = {0x3BD0, 0xC400, 0xFEF0, 0xFF60, 0xFF90, 0xFFC0, 0xFFD0, 0xFFE0, 0xFFF0};
-    return nk_minifloat_to_bf16x_ssve_(codes_u16x, 0x7F, 7, 4, 0x3C00, 1, deltas_data, 2, shift);
+    return nk_minifloat_to_bf16x_sme_streaming_(codes_u16x, 0x7F, 7, 4, 0x3C00, 1, deltas_data, 2, shift);
 }
 
 /** BF16 bits of E5M2 bytes, Inf and NaN kept, every finite nonzero lane moved by @p shift. */
-NUMKONG_INLINE svuint16_t nk_e5m2x_to_bf16x_ssve_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svuint16_t nk_e5m2x_to_bf16x_sme_streaming_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
     // Inf and three NaNs at magnitudes 124 … 127, zero, then the three subnormals
     static nk_align_(64)
         nk_u16_t const deltas_data[16] = {0x3800, 0x3820, 0x3800, 0x37E0, 0xC800, 0xFF60, 0xFFC0, 0xFFE0};
-    return nk_minifloat_to_bf16x_ssve_(codes_u16x, 0x7F, 7, 5, 0x3800, 4, deltas_data, 5, shift);
+    return nk_minifloat_to_bf16x_sme_streaming_(codes_u16x, 0x7F, 7, 5, 0x3800, 4, deltas_data, 5, shift);
 }
 
 /** BF16 bits of E2M3 bytes, sign in bit 5, every nonzero lane moved by @p shift. */
-NUMKONG_INLINE svuint16_t nk_e2m3x_to_bf16x_ssve_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svuint16_t nk_e2m3x_to_bf16x_sme_streaming_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
     static nk_align_(64)
         nk_u16_t const deltas_data[16] = {0xC100, 0xFEF0, 0xFF60, 0xFF90, 0xFFC0, 0xFFD0, 0xFFE0, 0xFFF0};
-    return nk_minifloat_to_bf16x_ssve_(codes_u16x, 0x1F, 5, 4, 0x3F00, 0, deltas_data, 1, shift);
+    return nk_minifloat_to_bf16x_sme_streaming_(codes_u16x, 0x1F, 5, 4, 0x3F00, 0, deltas_data, 1, shift);
 }
 
 /** BF16 bits of E3M2 bytes, sign in bit 5, every nonzero lane moved by @p shift. */
-NUMKONG_INLINE svuint16_t nk_e3m2x_to_bf16x_ssve_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svuint16_t nk_e3m2x_to_bf16x_sme_streaming_(svuint16_t codes_u16x, nk_u16_t shift) NUMKONG_STREAMING_ {
     static nk_align_(64) nk_u16_t const deltas_data[16] = {0xC200, 0xFF60, 0xFFC0, 0xFFE0};
-    return nk_minifloat_to_bf16x_ssve_(codes_u16x, 0x1F, 5, 5, 0x3E00, 0, deltas_data, 1, shift);
+    return nk_minifloat_to_bf16x_sme_streaming_(codes_u16x, 0x1F, 5, 5, 0x3E00, 0, deltas_data, 1, shift);
 }
 
 /** BF16 bits of @p count E2M1 elements from dim @p first of one row of @p codes, moved by
  *  @p exponent_shift binades, never positive under largest-exponent rebasing: a saturating
  *  decrement that leaves the +0 entries alone. */
-NUMKONG_INLINE svuint16_t nk_sme_load_mx_e2m1_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
+NUMKONG_INLINE svuint16_t nk_load_mx_e2m1_sme_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
                                                nk_i32_t exponent_shift) NUMKONG_STREAMING_ {
     svbool_t const all_b8x = svptrue_b8();
     svuint8_t const pairs_u8x = svld1_u8(svwhilelt_b8_u64(0, count / 2), codes + first / 2);
     svuint8_t const nibbles_u8x = svzip1_u8(svlsr_n_u8_x(all_b8x, pairs_u8x, 4),
                                             svand_n_u8_x(all_b8x, pairs_u8x, 0x0F));
-    return svqsub_n_u16(svtbl2_u16(nk_sme_table16_u16_(nk_sme_mxfp4_table_data_), svunpklo_u16(nibbles_u8x)),
+    return svqsub_n_u16(svtbl2_u16(nk_table16_u16_sme_(nk_mxfp4_table_data_sme_), svunpklo_u16(nibbles_u8x)),
                         (nk_u16_t)(-exponent_shift * 128));
 }
 
 /** BF16 bits of @p count E2M3 bytes from dim @p first of @p codes, moved by @p exponent_shift. */
-NUMKONG_INLINE svuint16_t nk_sme_load_mx_e2m3_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
+NUMKONG_INLINE svuint16_t nk_load_mx_e2m3_sme_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
                                                nk_i32_t exponent_shift) NUMKONG_STREAMING_ {
-    return nk_e2m3x_to_bf16x_ssve_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
-                                   (nk_u16_t)(exponent_shift * 128));
+    return nk_e2m3x_to_bf16x_sme_streaming_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
+                                            (nk_u16_t)(exponent_shift * 128));
 }
 
 /** BF16 bits of @p count E3M2 bytes from dim @p first of @p codes, moved by @p exponent_shift. */
-NUMKONG_INLINE svuint16_t nk_sme_load_mx_e3m2_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
+NUMKONG_INLINE svuint16_t nk_load_mx_e3m2_sme_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
                                                nk_i32_t exponent_shift) NUMKONG_STREAMING_ {
-    return nk_e3m2x_to_bf16x_ssve_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
-                                   (nk_u16_t)(exponent_shift * 128));
+    return nk_e3m2x_to_bf16x_sme_streaming_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
+                                            (nk_u16_t)(exponent_shift * 128));
 }
 
 /** BF16 bits of @p count E4M3 bytes from dim @p first of @p codes, moved by @p exponent_shift. */
-NUMKONG_INLINE svuint16_t nk_sme_load_mx_e4m3_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
+NUMKONG_INLINE svuint16_t nk_load_mx_e4m3_sme_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
                                                nk_i32_t exponent_shift) NUMKONG_STREAMING_ {
-    return nk_e4m3x_to_bf16x_ssve_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
-                                   (nk_u16_t)(exponent_shift * 128));
+    return nk_e4m3x_to_bf16x_sme_streaming_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
+                                            (nk_u16_t)(exponent_shift * 128));
 }
 
 /** BF16 bits of @p count E5M2 bytes from dim @p first of @p codes, moved by @p exponent_shift. */
-NUMKONG_INLINE svuint16_t nk_sme_load_mx_e5m2_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
+NUMKONG_INLINE svuint16_t nk_load_mx_e5m2_sme_(nk_u8_t const *codes, nk_size_t first, nk_size_t count,
                                                nk_i32_t exponent_shift) NUMKONG_STREAMING_ {
-    return nk_e5m2x_to_bf16x_ssve_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
-                                   (nk_u16_t)(exponent_shift * 128));
+    return nk_e5m2x_to_bf16x_sme_streaming_(svld1ub_u16(svwhilelt_b16_u64(0, count), codes + first),
+                                            (nk_u16_t)(exponent_shift * 128));
 }
 
 /** The shift of an MX block with UE8M0 scale @p scale against the rebasing exponent @p base, none
  *  for @c nk_sme_unfolded_base_k. */
-NUMKONG_INLINE nk_i32_t nk_sme_mx_shift_(nk_u8_t scale, nk_i32_t base) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_i32_t nk_mx_shift_sme_(nk_u8_t scale, nk_i32_t base) NUMKONG_STREAMABLE_ {
     return base == nk_sme_unfolded_base_k ? 0 : (nk_i32_t)scale - 127 - base;
 }
 
 /** @p values_u16x of one MX block of @p count dims with UE8M0 scale @p scale: zeros for code 0
  *  and NaNs for 255, which no shift reaches. */
-NUMKONG_INLINE svuint16_t nk_sme_mx_block_(svuint16_t values_u16x, nk_u8_t scale, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svuint16_t nk_mx_block_sme_(svuint16_t values_u16x, nk_u8_t scale, nk_size_t count) NUMKONG_STREAMING_ {
     if (scale == 0) return svdup_n_u16(0);
     if (scale == 255) return svsel_u16(svwhilelt_b16_u64(0, count), svdup_n_u16(0x7FC0), svdup_n_u16(0));
     return values_u16x;
@@ -614,7 +620,7 @@ NUMKONG_INLINE svuint16_t nk_sme_mx_block_(svuint16_t values_u16x, nk_u8_t scale
 
 /** The rebasing exponent of @p blocks UE8M0 scales, their largest finite exponent or 0 when none
  *  is, with in @p wide whether they span more than @c nk_sme_exponent_spread_k binades. */
-NUMKONG_INLINE nk_i32_t nk_sme_mx_base_(nk_u8_t const *scales, nk_size_t blocks, int *wide) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_i32_t nk_mx_base_sme_(nk_u8_t const *scales, nk_size_t blocks, int *wide) NUMKONG_STREAMABLE_ {
     nk_i32_t low = 255, high = 0;
     for (nk_size_t block = 0; block < blocks; ++block) {
         nk_i32_t const code = scales[block];
@@ -626,15 +632,15 @@ NUMKONG_INLINE nk_i32_t nk_sme_mx_base_(nk_u8_t const *scales, nk_size_t blocks,
 }
 
 /** The rebasing exponents of @p rows MX rows of @p operand from @p row_first. */
-NUMKONG_INLINE void nk_sme_row_bases_(nk_cross_operand_t operand, nk_size_t row_first, nk_size_t rows, nk_size_t blocks,
+NUMKONG_INLINE void nk_row_bases_sme_(nk_cross_operand_t operand, nk_size_t row_first, nk_size_t rows, nk_size_t blocks,
                                       nk_i32_t *bases) NUMKONG_STREAMABLE_ {
     int wide;
     for (nk_size_t row = 0; row < rows; ++row)
-        bases[row] = nk_sme_mx_base_(operand.scales + (row_first + row) * operand.scales_stride, blocks, &wide);
+        bases[row] = nk_mx_base_sme_(operand.scales + (row_first + row) * operand.scales_stride, blocks, &wide);
 }
 
 /** UE4M3 codes as F16 bits, a NaN for 127, read by broadcast loads. */
-static nk_align_(64) nk_u16_t const nk_sme_ue4m3_table_data_[128] = {
+static nk_align_(64) nk_u16_t const nk_ue4m3_table_data_sme_[128] = {
     0x0000, 0x1800, 0x1C00, 0x1E00, 0x2000, 0x2100, 0x2200, 0x2300, 0x2400, 0x2480, 0x2500, 0x2580, 0x2600,
     0x2680, 0x2700, 0x2780, 0x2800, 0x2880, 0x2900, 0x2980, 0x2A00, 0x2A80, 0x2B00, 0x2B80, 0x2C00, 0x2C80,
     0x2D00, 0x2D80, 0x2E00, 0x2E80, 0x2F00, 0x2F80, 0x3000, 0x3080, 0x3100, 0x3180, 0x3200, 0x3280, 0x3300,
@@ -649,14 +655,14 @@ static nk_align_(64) nk_u16_t const nk_sme_ue4m3_table_data_[128] = {
 
 /** F16 products of @p count NVFP4 elements from dim @p first of one row, at most 32, and their
  *  UE4M3 block scales, exact; zero for lanes past @p count. */
-NUMKONG_INLINE svuint16_t nk_nvfp4x_to_f16x_ssve_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
-                                                  nk_size_t count) NUMKONG_STREAMING_ {
-    nk_u16_t const *scale_data = nk_sme_ue4m3_table_data_;
+NUMKONG_INLINE svuint16_t nk_nvfp4x_to_f16x_sme_streaming_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
+                                                           nk_size_t count) NUMKONG_STREAMING_ {
+    nk_u16_t const *scale_data = nk_ue4m3_table_data_sme_;
     svbool_t const predicate_b8x = svptrue_b8(), predicate_b16x = svptrue_b16();
     svuint8_t const pairs_u8x = svld1_u8(svwhilelt_b8_u64(0, count / 2), codes + first / 2);
     svuint8_t const nibbles_u8x = svzip1_u8(svlsr_n_u8_x(predicate_b8x, pairs_u8x, 4),
                                             svand_n_u8_x(predicate_b8x, pairs_u8x, 0x0F));
-    svuint16_t const values_u16x = svtbl2_u16(nk_sme_table16_u16_(nk_sme_nvfp4_table_data_), svunpklo_u16(nibbles_u8x));
+    svuint16_t const values_u16x = svtbl2_u16(nk_table16_u16_sme_(nk_nvfp4_table_data_sme_), svunpklo_u16(nibbles_u8x));
     nk_u8_t const *block_scales = scales + first / 16;
     svuint16_t const scales_u16x = svsel_u16(svwhilelt_b16_u64(0, 16), svdup_n_u16(scale_data[block_scales[0] & 0x7F]),
                                              svdup_n_u16(count > 16 ? scale_data[block_scales[1] & 0x7F] : 0));
@@ -669,81 +675,81 @@ NUMKONG_INLINE svuint16_t nk_nvfp4x_to_f16x_ssve_(nk_u8_t const *codes, nk_u8_t 
  *  blocks, decoded 32 dims at a time and spliced. */
 
 /** NVFP4 dims times their block scales as exact f16. */
-NUMKONG_INLINE svuint16_t nk_sme_decode_row_nvfp4_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
+NUMKONG_INLINE svuint16_t nk_decode_row_nvfp4_sme_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
                                                    nk_size_t count) NUMKONG_STREAMING_ {
     svuint16_t row_u16x = svdup_n_u16(0);
     for (nk_size_t piece = 0; piece < count; piece += 32)
         row_u16x = svsplice_u16(
             svwhilelt_b16_u64(0, piece), row_u16x,
-            nk_nvfp4x_to_f16x_ssve_(codes, scales, first + piece, count - piece < 32 ? count - piece : 32));
+            nk_nvfp4x_to_f16x_sme_streaming_(codes, scales, first + piece, count - piece < 32 ? count - piece : 32));
     return row_u16x;
 }
 
 /** MXFP4 dims as bf16 rebased by @p base. */
-NUMKONG_INLINE svuint16_t nk_sme_decode_row_mxfp4_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
+NUMKONG_INLINE svuint16_t nk_decode_row_mxfp4_sme_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
                                                    nk_size_t count, nk_i32_t base) NUMKONG_STREAMING_ {
     svuint16_t row_u16x = svdup_n_u16(0);
     for (nk_size_t piece = 0; piece < count; piece += 32) {
         nk_size_t const piece_count = count - piece < 32 ? count - piece : 32;
         nk_u8_t const scale = scales[(first + piece) / 32];
-        svuint16_t const piece_u16x = nk_sme_mx_block_(
-            nk_sme_load_mx_e2m1_(codes, first + piece, piece_count, nk_sme_mx_shift_(scale, base)), scale, piece_count);
+        svuint16_t const piece_u16x = nk_mx_block_sme_(
+            nk_load_mx_e2m1_sme_(codes, first + piece, piece_count, nk_mx_shift_sme_(scale, base)), scale, piece_count);
         row_u16x = svsplice_u16(svwhilelt_b16_u64(0, piece), row_u16x, piece_u16x);
     }
     return row_u16x;
 }
 
 /** MXFP6 E2M3 dims as bf16 rebased by @p base. */
-NUMKONG_INLINE svuint16_t nk_sme_decode_row_mxfp6e2m3_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
+NUMKONG_INLINE svuint16_t nk_decode_row_mxfp6e2m3_sme_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
                                                        nk_size_t count, nk_i32_t base) NUMKONG_STREAMING_ {
     svuint16_t row_u16x = svdup_n_u16(0);
     for (nk_size_t piece = 0; piece < count; piece += 32) {
         nk_size_t const piece_count = count - piece < 32 ? count - piece : 32;
         nk_u8_t const scale = scales[(first + piece) / 32];
-        svuint16_t const piece_u16x = nk_sme_mx_block_(
-            nk_sme_load_mx_e2m3_(codes, first + piece, piece_count, nk_sme_mx_shift_(scale, base)), scale, piece_count);
+        svuint16_t const piece_u16x = nk_mx_block_sme_(
+            nk_load_mx_e2m3_sme_(codes, first + piece, piece_count, nk_mx_shift_sme_(scale, base)), scale, piece_count);
         row_u16x = svsplice_u16(svwhilelt_b16_u64(0, piece), row_u16x, piece_u16x);
     }
     return row_u16x;
 }
 
 /** MXFP6 E3M2 dims as bf16 rebased by @p base. */
-NUMKONG_INLINE svuint16_t nk_sme_decode_row_mxfp6e3m2_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
+NUMKONG_INLINE svuint16_t nk_decode_row_mxfp6e3m2_sme_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
                                                        nk_size_t count, nk_i32_t base) NUMKONG_STREAMING_ {
     svuint16_t row_u16x = svdup_n_u16(0);
     for (nk_size_t piece = 0; piece < count; piece += 32) {
         nk_size_t const piece_count = count - piece < 32 ? count - piece : 32;
         nk_u8_t const scale = scales[(first + piece) / 32];
-        svuint16_t const piece_u16x = nk_sme_mx_block_(
-            nk_sme_load_mx_e3m2_(codes, first + piece, piece_count, nk_sme_mx_shift_(scale, base)), scale, piece_count);
+        svuint16_t const piece_u16x = nk_mx_block_sme_(
+            nk_load_mx_e3m2_sme_(codes, first + piece, piece_count, nk_mx_shift_sme_(scale, base)), scale, piece_count);
         row_u16x = svsplice_u16(svwhilelt_b16_u64(0, piece), row_u16x, piece_u16x);
     }
     return row_u16x;
 }
 
 /** MXFP8 E4M3 dims as bf16 rebased by @p base. */
-NUMKONG_INLINE svuint16_t nk_sme_decode_row_mxfp8e4m3_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
+NUMKONG_INLINE svuint16_t nk_decode_row_mxfp8e4m3_sme_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
                                                        nk_size_t count, nk_i32_t base) NUMKONG_STREAMING_ {
     svuint16_t row_u16x = svdup_n_u16(0);
     for (nk_size_t piece = 0; piece < count; piece += 32) {
         nk_size_t const piece_count = count - piece < 32 ? count - piece : 32;
         nk_u8_t const scale = scales[(first + piece) / 32];
-        svuint16_t const piece_u16x = nk_sme_mx_block_(
-            nk_sme_load_mx_e4m3_(codes, first + piece, piece_count, nk_sme_mx_shift_(scale, base)), scale, piece_count);
+        svuint16_t const piece_u16x = nk_mx_block_sme_(
+            nk_load_mx_e4m3_sme_(codes, first + piece, piece_count, nk_mx_shift_sme_(scale, base)), scale, piece_count);
         row_u16x = svsplice_u16(svwhilelt_b16_u64(0, piece), row_u16x, piece_u16x);
     }
     return row_u16x;
 }
 
 /** MXFP8 E5M2 dims as bf16 rebased by @p base. */
-NUMKONG_INLINE svuint16_t nk_sme_decode_row_mxfp8e5m2_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
+NUMKONG_INLINE svuint16_t nk_decode_row_mxfp8e5m2_sme_(nk_u8_t const *codes, nk_u8_t const *scales, nk_size_t first,
                                                        nk_size_t count, nk_i32_t base) NUMKONG_STREAMING_ {
     svuint16_t row_u16x = svdup_n_u16(0);
     for (nk_size_t piece = 0; piece < count; piece += 32) {
         nk_size_t const piece_count = count - piece < 32 ? count - piece : 32;
         nk_u8_t const scale = scales[(first + piece) / 32];
-        svuint16_t const piece_u16x = nk_sme_mx_block_(
-            nk_sme_load_mx_e5m2_(codes, first + piece, piece_count, nk_sme_mx_shift_(scale, base)), scale, piece_count);
+        svuint16_t const piece_u16x = nk_mx_block_sme_(
+            nk_load_mx_e5m2_sme_(codes, first + piece, piece_count, nk_mx_shift_sme_(scale, base)), scale, piece_count);
         row_u16x = svsplice_u16(svwhilelt_b16_u64(0, piece), row_u16x, piece_u16x);
     }
     return row_u16x;
@@ -755,7 +761,7 @@ NUMKONG_INLINE svuint16_t nk_sme_decode_row_mxfp8e5m2_(nk_u8_t const *codes, nk_
 
 /** Stores vertical slices [0, @p steps) of ZA0.S into @p panel from step @p step_first, one MOPA
  *  operand vector each: the transpose of the rows a stager wrote horizontally. */
-NUMKONG_INLINE void nk_sme_store_panel_steps_(void *panel, nk_size_t step_first, nk_size_t steps) NUMKONG_STREAMING_
+NUMKONG_INLINE void nk_store_panel_steps_sme_(void *panel, nk_size_t step_first, nk_size_t steps) NUMKONG_STREAMING_
     __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb();
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -768,7 +774,7 @@ NUMKONG_INLINE void nk_sme_store_panel_steps_(void *panel, nk_size_t step_first,
  *  transpose; rows past @p rows stay zero. MX rows rebase by @p bases, one per row. */
 
 /** Stages raw f16 or bf16 rows. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_b16_(nk_u16_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_b16_sme_(nk_u16_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                                nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
@@ -783,12 +789,12 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_b16_(nk_u16_t const *rows_data, nk_siz
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x,
                                    svreinterpret_u32_u16(svld1_u16(predicate_b16x, row_values)));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages E4M3 rows as f16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_e4m3_(nk_e4m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_e4m3_sme_(nk_e4m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                                 nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                 nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
@@ -799,15 +805,16 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_e4m3_(nk_e4m3_t const *rows_data, nk_s
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_u8_t const *row_bytes = (nk_u8_t const *)rows_data + (row_first + row) * row_stride + depth_first + dims;
-            svfloat16_t const row_f16x = nk_e4m3x_to_f16x_ssve_(predicate_b16x, svld1_u8(predicate_b8x, row_bytes));
+            svfloat16_t const row_f16x = nk_e4m3x_to_f16x_sme_streaming_(predicate_b16x,
+                                                                         svld1_u8(predicate_b8x, row_bytes));
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_f16(row_f16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages E5M2 rows as f16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_e5m2_(nk_e5m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_e5m2_sme_(nk_e5m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                                 nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                 nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
@@ -818,15 +825,16 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_e5m2_(nk_e5m2_t const *rows_data, nk_s
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_u8_t const *row_bytes = (nk_u8_t const *)rows_data + (row_first + row) * row_stride + depth_first + dims;
-            svfloat16_t const row_f16x = nk_e5m2x_to_f16x_ssve_(predicate_b16x, svld1_u8(predicate_b8x, row_bytes));
+            svfloat16_t const row_f16x = nk_e5m2x_to_f16x_sme_streaming_(predicate_b16x,
+                                                                         svld1_u8(predicate_b8x, row_bytes));
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_f16(row_f16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages E3M2 rows as f16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_e3m2_(nk_e3m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_e3m2_sme_(nk_e3m2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                                 nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                 nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
@@ -837,15 +845,16 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_e3m2_(nk_e3m2_t const *rows_data, nk_s
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_u8_t const *row_bytes = (nk_u8_t const *)rows_data + (row_first + row) * row_stride + depth_first + dims;
-            svfloat16_t const row_f16x = nk_e3m2x_to_f16x_ssve_(predicate_b16x, svld1_u8(predicate_b8x, row_bytes));
+            svfloat16_t const row_f16x = nk_e3m2x_to_f16x_sme_streaming_(predicate_b16x,
+                                                                         svld1_u8(predicate_b8x, row_bytes));
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_f16(row_f16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages NVFP4 rows times their block scales as f16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_nvfp4_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_nvfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
                                                  nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                  nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
@@ -855,17 +864,17 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_nvfp4_(nk_cross_operand_t operand, nk_
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_size_t const row_index = row_first + row;
-            svuint16_t const row_u16x = nk_sme_decode_row_nvfp4_(
+            svuint16_t const row_u16x = nk_decode_row_nvfp4_sme_(
                 (nk_u8_t const *)operand.elements + row_index * row_stride,
                 operand.scales + row_index * operand.scales_stride, depth_first + dims, count);
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_u16(row_u16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages MXFP4 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp4_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_mxfp4_sme_(nk_cross_operand_t operand, nk_size_t row_stride, nk_size_t row_first,
                                                  nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                  nk_i32_t const *bases, nk_u16_t *panel) NUMKONG_STREAMING_
     __arm_inout("za") {
@@ -876,17 +885,17 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp4_(nk_cross_operand_t operand, nk_
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_size_t const row_index = row_first + row;
-            svuint16_t const row_u16x = nk_sme_decode_row_mxfp4_(
+            svuint16_t const row_u16x = nk_decode_row_mxfp4_sme_(
                 (nk_u8_t const *)operand.elements + row_index * row_stride,
                 operand.scales + row_index * operand.scales_stride, depth_first + dims, count, bases[row]);
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_u16(row_u16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages MXFP6 E2M3 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp6e2m3_(nk_cross_operand_t operand, nk_size_t row_stride,
+NUMKONG_OUTLINED_ void nk_stage_panel_mxfp6e2m3_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
                                                      nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
                                                      nk_size_t depth, nk_i32_t const *bases,
                                                      nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -897,17 +906,17 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp6e2m3_(nk_cross_operand_t operand,
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_size_t const row_index = row_first + row;
-            svuint16_t const row_u16x = nk_sme_decode_row_mxfp6e2m3_(
+            svuint16_t const row_u16x = nk_decode_row_mxfp6e2m3_sme_(
                 (nk_u8_t const *)operand.elements + row_index * row_stride,
                 operand.scales + row_index * operand.scales_stride, depth_first + dims, count, bases[row]);
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_u16(row_u16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages MXFP6 E3M2 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp6e3m2_(nk_cross_operand_t operand, nk_size_t row_stride,
+NUMKONG_OUTLINED_ void nk_stage_panel_mxfp6e3m2_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
                                                      nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
                                                      nk_size_t depth, nk_i32_t const *bases,
                                                      nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -918,17 +927,17 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp6e3m2_(nk_cross_operand_t operand,
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_size_t const row_index = row_first + row;
-            svuint16_t const row_u16x = nk_sme_decode_row_mxfp6e3m2_(
+            svuint16_t const row_u16x = nk_decode_row_mxfp6e3m2_sme_(
                 (nk_u8_t const *)operand.elements + row_index * row_stride,
                 operand.scales + row_index * operand.scales_stride, depth_first + dims, count, bases[row]);
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_u16(row_u16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages MXFP8 E4M3 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp8e4m3_(nk_cross_operand_t operand, nk_size_t row_stride,
+NUMKONG_OUTLINED_ void nk_stage_panel_mxfp8e4m3_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
                                                      nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
                                                      nk_size_t depth, nk_i32_t const *bases,
                                                      nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -939,17 +948,17 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp8e4m3_(nk_cross_operand_t operand,
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_size_t const row_index = row_first + row;
-            svuint16_t const row_u16x = nk_sme_decode_row_mxfp8e4m3_(
+            svuint16_t const row_u16x = nk_decode_row_mxfp8e4m3_sme_(
                 (nk_u8_t const *)operand.elements + row_index * row_stride,
                 operand.scales + row_index * operand.scales_stride, depth_first + dims, count, bases[row]);
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_u16(row_u16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Stages MXFP8 E5M2 rows as rebased bf16. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp8e5m2_(nk_cross_operand_t operand, nk_size_t row_stride,
+NUMKONG_OUTLINED_ void nk_stage_panel_mxfp8e5m2_sme_(nk_cross_operand_t operand, nk_size_t row_stride,
                                                      nk_size_t row_first, nk_size_t rows, nk_size_t depth_first,
                                                      nk_size_t depth, nk_i32_t const *bases,
                                                      nk_u16_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -960,18 +969,18 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_mxfp8e5m2_(nk_cross_operand_t operand,
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_size_t const row_index = row_first + row;
-            svuint16_t const row_u16x = nk_sme_decode_row_mxfp8e5m2_(
+            svuint16_t const row_u16x = nk_decode_row_mxfp8e5m2_sme_(
                 (nk_u8_t const *)operand.elements + row_index * row_stride,
                 operand.scales + row_index * operand.scales_stride, depth_first + dims, count, bases[row]);
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_u16(row_u16x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
+        nk_store_panel_steps_sme_(panel, dims / 2, nk_size_divide_round_up_(count, 2));
     }
 }
 
 /** Steps of 4 dims an 8-bit panel spans over @p depth dims in words of @p dims_per_word: 4 for
  *  bytes, 8 for i4 and u4, which split each word into a low-nibble step and a high-nibble step. */
-NUMKONG_INLINE nk_size_t nk_sme_panel_steps_b8_(nk_size_t dims_per_word, nk_size_t depth) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_size_t nk_panel_steps_b8_sme_(nk_size_t dims_per_word, nk_size_t depth) NUMKONG_STREAMABLE_ {
     return nk_size_divide_round_up_(depth, dims_per_word) * (dims_per_word / 4);
 }
 
@@ -979,7 +988,7 @@ NUMKONG_INLINE nk_size_t nk_sme_panel_steps_b8_(nk_size_t dims_per_word, nk_size
  *  row i's four bytes of that step. */
 
 /** Stages raw i8 or u8 rows. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_b8_(void const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_b8_sme_(void const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                               nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb();
@@ -993,12 +1002,12 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_b8_(void const *rows_data, nk_size_t r
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x,
                                    svreinterpret_u32_u8(svld1_u8(predicate_b8x, row_bytes)));
         }
-        nk_sme_store_panel_steps_(panel, dims / 4, nk_size_divide_round_up_(count, 4));
+        nk_store_panel_steps_sme_(panel, dims / 4, nk_size_divide_round_up_(count, 4));
     }
 }
 
 /** Stages E2M3 rows as sixteen times their values in i8. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_e2m3_(nk_e2m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_e2m3_sme_(nk_e2m3_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                                 nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                 nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb();
@@ -1009,15 +1018,15 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_e2m3_(nk_e2m3_t const *rows_data, nk_s
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_u8_t const *row_bytes = (nk_u8_t const *)rows_data + (row_first + row) * row_stride + depth_first + dims;
-            svint8_t const row_i8x = nk_e2m3x_to_i8x_ssve_(predicate_b8x, svld1_u8(predicate_b8x, row_bytes));
+            svint8_t const row_i8x = nk_e2m3x_to_i8x_sme_streaming_(predicate_b8x, svld1_u8(predicate_b8x, row_bytes));
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_s8(row_i8x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 4, nk_size_divide_round_up_(count, 4));
+        nk_store_panel_steps_sme_(panel, dims / 4, nk_size_divide_round_up_(count, 4));
     }
 }
 
 /** Stages E2M1 rows as twice their values in i8. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_e2m1_(nk_e2m1x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_e2m1_sme_(nk_e2m1x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                                 nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                                 nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb();
@@ -1027,17 +1036,17 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_e2m1_(nk_e2m1x2_t const *rows_data, nk
         svzero_mask_za(nk_sme_zero_za32_tile_0_k);
         for (nk_size_t row = 0; row < rows; ++row) {
             nk_u8_t const *row_bytes = (nk_u8_t const *)rows_data + (row_first + row) * row_stride;
-            svint8_t const row_i8x = nk_e2m1x_to_i8x_ssve_((nk_e2m1x2_t const *)(row_bytes + (depth_first + dims) / 2),
-                                                           count);
+            svint8_t const row_i8x = nk_e2m1x_to_i8x_sme_streaming_(
+                (nk_e2m1x2_t const *)(row_bytes + (depth_first + dims) / 2), count);
             svwrite_hor_za32_u32_m(0, (uint32_t)row, predicate_all_b32x, svreinterpret_u32_s8(row_i8x));
         }
-        nk_sme_store_panel_steps_(panel, dims / 4, nk_size_divide_round_up_(count, 4));
+        nk_store_panel_steps_sme_(panel, dims / 4, nk_size_divide_round_up_(count, 4));
     }
 }
 
 /** Writes into ZA0.S rows of @p rows rows of nibble pairs from @p row_first, @p count dims from
  *  dim @p first, ready for a nibble stager to read 8-dim words vertically. */
-NUMKONG_INLINE void nk_sme_write_nibble_rows_(void const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_INLINE void nk_write_nibble_rows_sme_(void const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                               nk_size_t rows, nk_size_t first, nk_size_t count) NUMKONG_STREAMING_
     __arm_inout("za") {
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -1051,14 +1060,14 @@ NUMKONG_INLINE void nk_sme_write_nibble_rows_(void const *rows_data, nk_size_t r
 }
 
 /** Stages i4 rows as sign-extended nibble steps, each 8-dim word a low step and a high step. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_i4_(nk_i4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_i4_sme_(nk_i4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                               nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb(), batch_dims = 2 * vector_bytes;
     svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += batch_dims) {
         nk_size_t const count = depth - dims < batch_dims ? depth - dims : batch_dims;
-        nk_sme_write_nibble_rows_(rows_data, row_stride, row_first, rows, depth_first + dims, count);
+        nk_write_nibble_rows_sme_(rows_data, row_stride, row_first, rows, depth_first + dims, count);
         for (nk_size_t word = 0; word < nk_size_divide_round_up_(count, 8); ++word) {
             svint8_t const packed_i8x = svreinterpret_s8_u32(
                 svread_ver_za32_u32_m(svdup_n_u32(0), predicate_all_b32x, 0, (uint32_t)word));
@@ -1072,14 +1081,14 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_i4_(nk_i4x2_t const *rows_data, nk_siz
 }
 
 /** Stages u4 rows as zero-extended nibble steps, each 8-dim word a low step and a high step. */
-NUMKONG_OUTLINED_ void nk_sme_stage_panel_u4_(nk_u4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
+NUMKONG_OUTLINED_ void nk_stage_panel_u4_sme_(nk_u4x2_t const *rows_data, nk_size_t row_stride, nk_size_t row_first,
                                               nk_size_t rows, nk_size_t depth_first, nk_size_t depth,
                                               nk_u8_t *panel) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb(), batch_dims = 2 * vector_bytes;
     svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b32x = svptrue_b32();
     for (nk_size_t dims = 0; dims < depth; dims += batch_dims) {
         nk_size_t const count = depth - dims < batch_dims ? depth - dims : batch_dims;
-        nk_sme_write_nibble_rows_(rows_data, row_stride, row_first, rows, depth_first + dims, count);
+        nk_write_nibble_rows_sme_(rows_data, row_stride, row_first, rows, depth_first + dims, count);
         for (nk_size_t word = 0; word < nk_size_divide_round_up_(count, 8); ++word) {
             svuint8_t const packed_u8x = svreinterpret_u8_u32(
                 svread_ver_za32_u32_m(svdup_n_u32(0), predicate_all_b32x, 0, (uint32_t)word));
@@ -1096,7 +1105,7 @@ NUMKONG_OUTLINED_ void nk_sme_stage_panel_u4_(nk_u4x2_t const *rows_data, nk_siz
 
 /** Accumulates two f16 panels against two column tiles over @p steps: ZA0 = first × first,
  *  ZA1 = first × second, ZA2 = second × first, ZA3 = second × second. */
-NUMKONG_INLINE void nk_sme_mopa_2x2_f16_(nk_u16_t const *a_first, nk_u16_t const *a_second, nk_u16_t const *b_first,
+NUMKONG_INLINE void nk_mopa_2x2_f16_sme_(nk_u16_t const *a_first, nk_u16_t const *a_second, nk_u16_t const *b_first,
                                          nk_u16_t const *b_second, nk_size_t steps) NUMKONG_STREAMING_
     __arm_inout("za") {
     svbool_t const predicate_all_b16x = svptrue_b16();
@@ -1115,7 +1124,7 @@ NUMKONG_INLINE void nk_sme_mopa_2x2_f16_(nk_u16_t const *a_first, nk_u16_t const
 }
 
 /** Accumulates one f16 panel against four column tiles over @p steps into ZA0 to ZA3. */
-NUMKONG_INLINE void nk_sme_mopa_1x4_f16_(nk_u16_t const *a, nk_u16_t const *b_first, nk_u16_t const *b_second,
+NUMKONG_INLINE void nk_mopa_1x4_f16_sme_(nk_u16_t const *a, nk_u16_t const *b_first, nk_u16_t const *b_second,
                                          nk_u16_t const *b_third, nk_u16_t const *b_fourth,
                                          nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b16x = svptrue_b16();
@@ -1135,7 +1144,7 @@ NUMKONG_INLINE void nk_sme_mopa_1x4_f16_(nk_u16_t const *a, nk_u16_t const *b_fi
 }
 
 /** Accumulates one bf16 panel against four column tiles over @p steps into ZA0 to ZA3. */
-NUMKONG_INLINE void nk_sme_mopa_1x4_bf16_(nk_u16_t const *a, nk_u16_t const *b_first, nk_u16_t const *b_second,
+NUMKONG_INLINE void nk_mopa_1x4_bf16_sme_(nk_u16_t const *a, nk_u16_t const *b_first, nk_u16_t const *b_second,
                                           nk_u16_t const *b_third, nk_u16_t const *b_fourth,
                                           nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b16x = svptrue_b16();
@@ -1155,8 +1164,8 @@ NUMKONG_INLINE void nk_sme_mopa_1x4_bf16_(nk_u16_t const *a, nk_u16_t const *b_f
 }
 
 /** Accumulates two i8 panels against two column tiles over @p steps, in the 2×2 tile order of
- *  @c nk_sme_mopa_2x2_f16_. */
-NUMKONG_INLINE void nk_sme_mopa_2x2_i8_(nk_u8_t const *a_first, nk_u8_t const *a_second, nk_u8_t const *b_first,
+ *  @c nk_mopa_2x2_f16_sme_. */
+NUMKONG_INLINE void nk_mopa_2x2_i8_sme_(nk_u8_t const *a_first, nk_u8_t const *a_second, nk_u8_t const *b_first,
                                         nk_u8_t const *b_second, nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b8x = svptrue_b8();
     nk_size_t const vector_bytes = svcntb();
@@ -1174,8 +1183,8 @@ NUMKONG_INLINE void nk_sme_mopa_2x2_i8_(nk_u8_t const *a_first, nk_u8_t const *a
 }
 
 /** Accumulates two u8 panels against two column tiles over @p steps, in the 2×2 tile order of
- *  @c nk_sme_mopa_2x2_f16_. */
-NUMKONG_INLINE void nk_sme_mopa_2x2_u8_(nk_u8_t const *a_first, nk_u8_t const *a_second, nk_u8_t const *b_first,
+ *  @c nk_mopa_2x2_f16_sme_. */
+NUMKONG_INLINE void nk_mopa_2x2_u8_sme_(nk_u8_t const *a_first, nk_u8_t const *a_second, nk_u8_t const *b_first,
                                         nk_u8_t const *b_second, nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b8x = svptrue_b8();
     nk_size_t const vector_bytes = svcntb();
@@ -1193,7 +1202,7 @@ NUMKONG_INLINE void nk_sme_mopa_2x2_u8_(nk_u8_t const *a_first, nk_u8_t const *a
 }
 
 /** Accumulates one i8 panel against four column tiles over @p steps into ZA0 to ZA3. */
-NUMKONG_INLINE void nk_sme_mopa_1x4_i8_(nk_u8_t const *a, nk_u8_t const *b_first, nk_u8_t const *b_second,
+NUMKONG_INLINE void nk_mopa_1x4_i8_sme_(nk_u8_t const *a, nk_u8_t const *b_first, nk_u8_t const *b_second,
                                         nk_u8_t const *b_third, nk_u8_t const *b_fourth,
                                         nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b8x = svptrue_b8();
@@ -1213,7 +1222,7 @@ NUMKONG_INLINE void nk_sme_mopa_1x4_i8_(nk_u8_t const *a, nk_u8_t const *b_first
 }
 
 /** Accumulates one u8 panel against four column tiles over @p steps into ZA0 to ZA3. */
-NUMKONG_INLINE void nk_sme_mopa_1x4_u8_(nk_u8_t const *a, nk_u8_t const *b_first, nk_u8_t const *b_second,
+NUMKONG_INLINE void nk_mopa_1x4_u8_sme_(nk_u8_t const *a, nk_u8_t const *b_first, nk_u8_t const *b_second,
                                         nk_u8_t const *b_third, nk_u8_t const *b_fourth,
                                         nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b8x = svptrue_b8();
@@ -1231,7 +1240,7 @@ NUMKONG_INLINE void nk_sme_mopa_1x4_u8_(nk_u8_t const *a, nk_u8_t const *b_first
 }
 
 /** One NVFP4 B vector: byte codes through @p table_u16x, times the per-column block scales. */
-NUMKONG_INLINE svfloat16_t nk_sme_nvfp4_b_vector_(svuint16x2_t table_u16x, nk_u8_t const *codes,
+NUMKONG_INLINE svfloat16_t nk_nvfp4_b_vector_sme_(svuint16x2_t table_u16x, nk_u8_t const *codes,
                                                   svfloat16_t scales_f16x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b16x = svptrue_b16();
     return svmul_f16_x(predicate_all_b16x,
@@ -1241,7 +1250,7 @@ NUMKONG_INLINE svfloat16_t nk_sme_nvfp4_b_vector_(svuint16x2_t table_u16x, nk_u8
 
 /** One MXFP4 B vector: the byte codes mapped through @p table_u16x to BF16 bits, less the
  *  per-column block decrements, which saturate zero blocks to zero. */
-NUMKONG_INLINE svbfloat16_t nk_sme_mxfp4_b_vector_(svuint16x2_t table_u16x, nk_u8_t const *codes,
+NUMKONG_INLINE svbfloat16_t nk_mxfp4_b_vector_sme_(svuint16x2_t table_u16x, nk_u8_t const *codes,
                                                    svuint16_t decrements_u16x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b16x = svptrue_b16();
     return svreinterpret_bf16_u16(
@@ -1249,14 +1258,14 @@ NUMKONG_INLINE svbfloat16_t nk_sme_mxfp4_b_vector_(svuint16x2_t table_u16x, nk_u
 }
 
 /** Accumulates two f16 NVFP4 A panels against two NVFP4 column tiles of byte codes and per-block
- *  f16 scale vectors, eight steps per block, in the 2×2 tile order of @c nk_sme_mopa_2x2_f16_. */
-NUMKONG_INLINE void nk_sme_mopa_2x2_nvfp4_(nk_u16_t const *a_first, nk_u16_t const *a_second,
+ *  f16 scale vectors, eight steps per block, in the 2×2 tile order of @c nk_mopa_2x2_f16_sme_. */
+NUMKONG_INLINE void nk_mopa_2x2_nvfp4_sme_(nk_u16_t const *a_first, nk_u16_t const *a_second,
                                            nk_u8_t const *b_first_codes, nk_u8_t const *b_second_codes,
                                            nk_u16_t const *b_first_scales, nk_u16_t const *b_second_scales,
                                            nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b16x = svptrue_b16();
     nk_size_t const vector_elements = svcnth();
-    svuint16x2_t const table_u16x = nk_sme_table16_u16_(nk_sme_nvfp4_table_data_);
+    svuint16x2_t const table_u16x = nk_table16_u16_sme_(nk_nvfp4_table_data_sme_);
     for (nk_size_t block_first = 0; block_first < steps; block_first += 8) {
         nk_size_t const block_offset = block_first / 8 * vector_elements;
         svfloat16_t const first_scales_f16x = svld1_f16(predicate_all_b16x,
@@ -1268,9 +1277,9 @@ NUMKONG_INLINE void nk_sme_mopa_2x2_nvfp4_(nk_u16_t const *a_first, nk_u16_t con
             nk_size_t const offset = step * vector_elements;
             svfloat16_t const a_first_f16x = svld1_f16(predicate_all_b16x, (float16_t const *)a_first + offset);
             svfloat16_t const a_second_f16x = svld1_f16(predicate_all_b16x, (float16_t const *)a_second + offset);
-            svfloat16_t const b_first_f16x = nk_sme_nvfp4_b_vector_(table_u16x, b_first_codes + offset,
+            svfloat16_t const b_first_f16x = nk_nvfp4_b_vector_sme_(table_u16x, b_first_codes + offset,
                                                                     first_scales_f16x);
-            svfloat16_t const b_second_f16x = nk_sme_nvfp4_b_vector_(table_u16x, b_second_codes + offset,
+            svfloat16_t const b_second_f16x = nk_nvfp4_b_vector_sme_(table_u16x, b_second_codes + offset,
                                                                      second_scales_f16x);
             svmopa_za32_f16_m(0, predicate_all_b16x, predicate_all_b16x, a_first_f16x, b_first_f16x);
             svmopa_za32_f16_m(1, predicate_all_b16x, predicate_all_b16x, a_first_f16x, b_second_f16x);
@@ -1282,14 +1291,14 @@ NUMKONG_INLINE void nk_sme_mopa_2x2_nvfp4_(nk_u16_t const *a_first, nk_u16_t con
 
 /** Accumulates two rebased bf16 MXFP4 A panels against two MXFP4 column tiles of byte codes and
  *  per-block decrement vectors, sixteen steps per block, in the 2×2 tile order of
- *  @c nk_sme_mopa_2x2_f16_. */
-NUMKONG_INLINE void nk_sme_mopa_2x2_mxfp4_(nk_u16_t const *a_first, nk_u16_t const *a_second,
+ *  @c nk_mopa_2x2_f16_sme_. */
+NUMKONG_INLINE void nk_mopa_2x2_mxfp4_sme_(nk_u16_t const *a_first, nk_u16_t const *a_second,
                                            nk_u8_t const *b_first_codes, nk_u8_t const *b_second_codes,
                                            nk_u16_t const *b_first_decrements, nk_u16_t const *b_second_decrements,
                                            nk_size_t steps) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b16x = svptrue_b16();
     nk_size_t const vector_elements = svcnth();
-    svuint16x2_t const table_u16x = nk_sme_table16_u16_(nk_sme_mxfp4_table_data_);
+    svuint16x2_t const table_u16x = nk_table16_u16_sme_(nk_mxfp4_table_data_sme_);
     for (nk_size_t block_first = 0; block_first < steps; block_first += 16) {
         nk_size_t const block_offset = block_first / 16 * vector_elements;
         svuint16_t const first_decrements_u16x = svld1_u16(predicate_all_b16x, b_first_decrements + block_offset);
@@ -1299,9 +1308,9 @@ NUMKONG_INLINE void nk_sme_mopa_2x2_mxfp4_(nk_u16_t const *a_first, nk_u16_t con
             nk_size_t const offset = step * vector_elements;
             svbfloat16_t const a_first_bf16x = svld1_bf16(predicate_all_b16x, (bfloat16_t const *)a_first + offset);
             svbfloat16_t const a_second_bf16x = svld1_bf16(predicate_all_b16x, (bfloat16_t const *)a_second + offset);
-            svbfloat16_t const b_first_bf16x = nk_sme_mxfp4_b_vector_(table_u16x, b_first_codes + offset,
+            svbfloat16_t const b_first_bf16x = nk_mxfp4_b_vector_sme_(table_u16x, b_first_codes + offset,
                                                                       first_decrements_u16x);
-            svbfloat16_t const b_second_bf16x = nk_sme_mxfp4_b_vector_(table_u16x, b_second_codes + offset,
+            svbfloat16_t const b_second_bf16x = nk_mxfp4_b_vector_sme_(table_u16x, b_second_codes + offset,
                                                                        second_decrements_u16x);
             svmopa_za32_bf16_m(0, predicate_all_b16x, predicate_all_b16x, a_first_bf16x, b_first_bf16x);
             svmopa_za32_bf16_m(1, predicate_all_b16x, predicate_all_b16x, a_first_bf16x, b_second_bf16x);
@@ -1313,12 +1322,12 @@ NUMKONG_INLINE void nk_sme_mopa_2x2_mxfp4_(nk_u16_t const *a_first, nk_u16_t con
 
 /** Accumulates one f16 NVFP4 A panel against four NVFP4 column tiles into ZA0 to ZA3, for the final
  *  16-row strip. */
-NUMKONG_INLINE void nk_sme_mopa_1x4_nvfp4_(nk_u16_t const *a, nk_u8_t const *const *b_codes,
+NUMKONG_INLINE void nk_mopa_1x4_nvfp4_sme_(nk_u16_t const *a, nk_u8_t const *const *b_codes,
                                            nk_u16_t const *const *b_scales, nk_size_t steps) NUMKONG_STREAMING_
     __arm_inout("za") {
     svbool_t const predicate_all_b16x = svptrue_b16();
     nk_size_t const vector_elements = svcnth();
-    svuint16x2_t const table_u16x = nk_sme_table16_u16_(nk_sme_nvfp4_table_data_);
+    svuint16x2_t const table_u16x = nk_table16_u16_sme_(nk_nvfp4_table_data_sme_);
     for (nk_size_t block_first = 0; block_first < steps; block_first += 8) {
         nk_size_t const block_offset = block_first / 8 * vector_elements;
         svfloat16_t const first_scales_f16x = svld1_f16(predicate_all_b16x,
@@ -1334,25 +1343,25 @@ NUMKONG_INLINE void nk_sme_mopa_1x4_nvfp4_(nk_u16_t const *a, nk_u8_t const *con
             nk_size_t const offset = step * vector_elements;
             svfloat16_t const a_f16x = svld1_f16(predicate_all_b16x, (float16_t const *)a + offset);
             svmopa_za32_f16_m(0, predicate_all_b16x, predicate_all_b16x, a_f16x,
-                              nk_sme_nvfp4_b_vector_(table_u16x, b_codes[0] + offset, first_scales_f16x));
+                              nk_nvfp4_b_vector_sme_(table_u16x, b_codes[0] + offset, first_scales_f16x));
             svmopa_za32_f16_m(1, predicate_all_b16x, predicate_all_b16x, a_f16x,
-                              nk_sme_nvfp4_b_vector_(table_u16x, b_codes[1] + offset, second_scales_f16x));
+                              nk_nvfp4_b_vector_sme_(table_u16x, b_codes[1] + offset, second_scales_f16x));
             svmopa_za32_f16_m(2, predicate_all_b16x, predicate_all_b16x, a_f16x,
-                              nk_sme_nvfp4_b_vector_(table_u16x, b_codes[2] + offset, third_scales_f16x));
+                              nk_nvfp4_b_vector_sme_(table_u16x, b_codes[2] + offset, third_scales_f16x));
             svmopa_za32_f16_m(3, predicate_all_b16x, predicate_all_b16x, a_f16x,
-                              nk_sme_nvfp4_b_vector_(table_u16x, b_codes[3] + offset, fourth_scales_f16x));
+                              nk_nvfp4_b_vector_sme_(table_u16x, b_codes[3] + offset, fourth_scales_f16x));
         }
     }
 }
 
 /** Accumulates one rebased bf16 MXFP4 A panel against four MXFP4 column tiles into ZA0 to ZA3, for
  *  the final 16-row strip. */
-NUMKONG_INLINE void nk_sme_mopa_1x4_mxfp4_(nk_u16_t const *a, nk_u8_t const *const *b_codes,
+NUMKONG_INLINE void nk_mopa_1x4_mxfp4_sme_(nk_u16_t const *a, nk_u8_t const *const *b_codes,
                                            nk_u16_t const *const *b_decrements, nk_size_t steps) NUMKONG_STREAMING_
     __arm_inout("za") {
     svbool_t const predicate_all_b16x = svptrue_b16();
     nk_size_t const vector_elements = svcnth();
-    svuint16x2_t const table_u16x = nk_sme_table16_u16_(nk_sme_mxfp4_table_data_);
+    svuint16x2_t const table_u16x = nk_table16_u16_sme_(nk_mxfp4_table_data_sme_);
     for (nk_size_t block_first = 0; block_first < steps; block_first += 16) {
         nk_size_t const block_offset = block_first / 16 * vector_elements;
         svuint16_t const first_decrements_u16x = svld1_u16(predicate_all_b16x, b_decrements[0] + block_offset);
@@ -1364,13 +1373,13 @@ NUMKONG_INLINE void nk_sme_mopa_1x4_mxfp4_(nk_u16_t const *a, nk_u8_t const *con
             nk_size_t const offset = step * vector_elements;
             svbfloat16_t const a_bf16x = svld1_bf16(predicate_all_b16x, (bfloat16_t const *)a + offset);
             svmopa_za32_bf16_m(0, predicate_all_b16x, predicate_all_b16x, a_bf16x,
-                               nk_sme_mxfp4_b_vector_(table_u16x, b_codes[0] + offset, first_decrements_u16x));
+                               nk_mxfp4_b_vector_sme_(table_u16x, b_codes[0] + offset, first_decrements_u16x));
             svmopa_za32_bf16_m(1, predicate_all_b16x, predicate_all_b16x, a_bf16x,
-                               nk_sme_mxfp4_b_vector_(table_u16x, b_codes[1] + offset, second_decrements_u16x));
+                               nk_mxfp4_b_vector_sme_(table_u16x, b_codes[1] + offset, second_decrements_u16x));
             svmopa_za32_bf16_m(2, predicate_all_b16x, predicate_all_b16x, a_bf16x,
-                               nk_sme_mxfp4_b_vector_(table_u16x, b_codes[2] + offset, third_decrements_u16x));
+                               nk_mxfp4_b_vector_sme_(table_u16x, b_codes[2] + offset, third_decrements_u16x));
             svmopa_za32_bf16_m(3, predicate_all_b16x, predicate_all_b16x, a_bf16x,
-                               nk_sme_mxfp4_b_vector_(table_u16x, b_codes[3] + offset, fourth_decrements_u16x));
+                               nk_mxfp4_b_vector_sme_(table_u16x, b_codes[3] + offset, fourth_decrements_u16x));
         }
     }
 }
@@ -1380,7 +1389,7 @@ NUMKONG_INLINE void nk_sme_mopa_1x4_mxfp4_(nk_u16_t const *a, nk_u8_t const *con
 #pragma region Tile Sweeps
 
 /** Stores one horizontal slice of ZA tile @p tile, which must fold to a constant after inlining. */
-NUMKONG_INLINE void nk_sme_store_tile_row_(nk_size_t tile, nk_size_t row, svbool_t predicate_b32x,
+NUMKONG_INLINE void nk_store_tile_row_sme_(nk_size_t tile, nk_size_t row, svbool_t predicate_b32x,
                                            void *target) NUMKONG_STREAMING_ __arm_inout("za") {
     switch (tile) {
     case 0: svst1_hor_za32(0, (uint32_t)row, predicate_b32x, target); break;
@@ -1391,7 +1400,7 @@ NUMKONG_INLINE void nk_sme_store_tile_row_(nk_size_t tile, nk_size_t row, svbool
 }
 
 /** Loads a horizontal ZA slice of @p tile, zeroing inactive lanes; @p tile must be a constant. */
-NUMKONG_INLINE void nk_sme_load_tile_row_(nk_size_t tile, nk_size_t row, svbool_t predicate_b32x,
+NUMKONG_INLINE void nk_load_tile_row_sme_(nk_size_t tile, nk_size_t row, svbool_t predicate_b32x,
                                           void const *source) NUMKONG_STREAMING_ __arm_inout("za") {
     switch (tile) {
     case 0: svld1_hor_za32(0, (uint32_t)row, predicate_b32x, source); break;
@@ -1404,75 +1413,75 @@ NUMKONG_INLINE void nk_sme_load_tile_row_(nk_size_t tile, nk_size_t row, svbool_
 /** Loads into ZA tile @p tile the raw 32-bit partials an earlier chunk stored at rows from
  *  @p row_first and columns from @p column_first, lanes limited to @p columns and, when @p upper,
  *  to the diagonal on, so that this chunk accumulates on top of them without vector arithmetic. */
-NUMKONG_INLINE void nk_sme_load_tile_(nk_size_t tile, void const *c, nk_size_t c_stride, nk_size_t rows,
+NUMKONG_INLINE void nk_load_tile_sme_(nk_size_t tile, void const *c, nk_size_t c_stride, nk_size_t rows,
                                       nk_size_t row_first, nk_size_t column_first, nk_size_t columns,
                                       int upper) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const columns_b32x = svwhilelt_b32_u64(column_first, columns);
     for (nk_size_t row = 0; row < rows; ++row) {
-        svbool_t const load_b32x = upper ? nk_sme_diagonal_cut_b32x_(columns_b32x, column_first, row_first + row)
+        svbool_t const load_b32x = upper ? nk_diagonal_cut_b32x_sme_(columns_b32x, column_first, row_first + row)
                                          : columns_b32x;
-        nk_sme_load_tile_row_(tile, row, load_b32x,
+        nk_load_tile_row_sme_(tile, row, load_b32x,
                               (nk_u32_t const *)((char const *)c + (row_first + row) * c_stride) + column_first);
     }
 }
 
-/** Stores rows [0, @p rows) of ZA tile @p tile raw, as @c nk_sme_load_tile_ reads them back. */
-NUMKONG_INLINE void nk_sme_store_tile_(nk_size_t tile, void *c, nk_size_t c_stride, nk_size_t rows, nk_size_t row_first,
+/** Stores rows [0, @p rows) of ZA tile @p tile raw, as @c nk_load_tile_sme_ reads them back. */
+NUMKONG_INLINE void nk_store_tile_sme_(nk_size_t tile, void *c, nk_size_t c_stride, nk_size_t rows, nk_size_t row_first,
                                        nk_size_t column_first, nk_size_t columns, int upper) NUMKONG_STREAMING_
     __arm_inout("za") {
     svbool_t const columns_b32x = svwhilelt_b32_u64(column_first, columns);
     for (nk_size_t row = 0; row < rows; ++row) {
-        svbool_t const store_b32x = upper ? nk_sme_diagonal_cut_b32x_(columns_b32x, column_first, row_first + row)
+        svbool_t const store_b32x = upper ? nk_diagonal_cut_b32x_sme_(columns_b32x, column_first, row_first + row)
                                           : columns_b32x;
-        nk_sme_store_tile_row_(tile, row, store_b32x,
+        nk_store_tile_row_sme_(tile, row, store_b32x,
                                (nk_u32_t *)((char *)c + (row_first + row) * c_stride) + column_first);
     }
 }
 
 /** Loads the partials of the 2×2 group at @p column_first: ZA0 and ZA1 over @p first_rows rows from
  *  @p row_first, ZA2 and ZA3 over the @p second_rows after them. */
-NUMKONG_INLINE void nk_sme_load_tiles_2x2_(void const *c, nk_size_t c_stride, nk_size_t row_first, nk_size_t first_rows,
+NUMKONG_INLINE void nk_load_tiles_2x2_sme_(void const *c, nk_size_t c_stride, nk_size_t row_first, nk_size_t first_rows,
                                            nk_size_t second_rows, nk_size_t column_first,
                                            nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const second_column = column_first + svcntw();
-    nk_sme_load_tile_(0, c, c_stride, first_rows, row_first, column_first, columns, 0);
-    nk_sme_load_tile_(1, c, c_stride, first_rows, row_first, second_column, columns, 0);
-    nk_sme_load_tile_(2, c, c_stride, second_rows, row_first + first_rows, column_first, columns, 0);
-    nk_sme_load_tile_(3, c, c_stride, second_rows, row_first + first_rows, second_column, columns, 0);
+    nk_load_tile_sme_(0, c, c_stride, first_rows, row_first, column_first, columns, 0);
+    nk_load_tile_sme_(1, c, c_stride, first_rows, row_first, second_column, columns, 0);
+    nk_load_tile_sme_(2, c, c_stride, second_rows, row_first + first_rows, column_first, columns, 0);
+    nk_load_tile_sme_(3, c, c_stride, second_rows, row_first + first_rows, second_column, columns, 0);
 }
 
-/** Stores the 2×2 group @c nk_sme_load_tiles_2x2_ loads. */
-NUMKONG_INLINE void nk_sme_store_tiles_2x2_(void *c, nk_size_t c_stride, nk_size_t row_first, nk_size_t first_rows,
+/** Stores the 2×2 group @c nk_load_tiles_2x2_sme_ loads. */
+NUMKONG_INLINE void nk_store_tiles_2x2_sme_(void *c, nk_size_t c_stride, nk_size_t row_first, nk_size_t first_rows,
                                             nk_size_t second_rows, nk_size_t column_first,
                                             nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const second_column = column_first + svcntw();
-    nk_sme_store_tile_(0, c, c_stride, first_rows, row_first, column_first, columns, 0);
-    nk_sme_store_tile_(1, c, c_stride, first_rows, row_first, second_column, columns, 0);
-    nk_sme_store_tile_(2, c, c_stride, second_rows, row_first + first_rows, column_first, columns, 0);
-    nk_sme_store_tile_(3, c, c_stride, second_rows, row_first + first_rows, second_column, columns, 0);
+    nk_store_tile_sme_(0, c, c_stride, first_rows, row_first, column_first, columns, 0);
+    nk_store_tile_sme_(1, c, c_stride, first_rows, row_first, second_column, columns, 0);
+    nk_store_tile_sme_(2, c, c_stride, second_rows, row_first + first_rows, column_first, columns, 0);
+    nk_store_tile_sme_(3, c, c_stride, second_rows, row_first + first_rows, second_column, columns, 0);
 }
 
 /** Loads the partials of the 1×4 group of @p rows rows from @p row_first at @p column_first into
  *  ZA0 to ZA3; tiles past @p columns load nothing. */
-NUMKONG_INLINE void nk_sme_load_tiles_1x4_(void const *c, nk_size_t c_stride, nk_size_t rows, nk_size_t row_first,
+NUMKONG_INLINE void nk_load_tiles_1x4_sme_(void const *c, nk_size_t c_stride, nk_size_t rows, nk_size_t row_first,
                                            nk_size_t column_first, nk_size_t columns, int upper) NUMKONG_STREAMING_
     __arm_inout("za") {
     nk_size_t const tile_dimension = svcntw();
-    nk_sme_load_tile_(0, c, c_stride, rows, row_first, column_first, columns, upper);
-    nk_sme_load_tile_(1, c, c_stride, rows, row_first, column_first + tile_dimension, columns, upper);
-    nk_sme_load_tile_(2, c, c_stride, rows, row_first, column_first + 2 * tile_dimension, columns, upper);
-    nk_sme_load_tile_(3, c, c_stride, rows, row_first, column_first + 3 * tile_dimension, columns, upper);
+    nk_load_tile_sme_(0, c, c_stride, rows, row_first, column_first, columns, upper);
+    nk_load_tile_sme_(1, c, c_stride, rows, row_first, column_first + tile_dimension, columns, upper);
+    nk_load_tile_sme_(2, c, c_stride, rows, row_first, column_first + 2 * tile_dimension, columns, upper);
+    nk_load_tile_sme_(3, c, c_stride, rows, row_first, column_first + 3 * tile_dimension, columns, upper);
 }
 
-/** Stores the 1×4 group @c nk_sme_load_tiles_1x4_ loads. */
-NUMKONG_INLINE void nk_sme_store_tiles_1x4_(void *c, nk_size_t c_stride, nk_size_t rows, nk_size_t row_first,
+/** Stores the 1×4 group @c nk_load_tiles_1x4_sme_ loads. */
+NUMKONG_INLINE void nk_store_tiles_1x4_sme_(void *c, nk_size_t c_stride, nk_size_t rows, nk_size_t row_first,
                                             nk_size_t column_first, nk_size_t columns, int upper) NUMKONG_STREAMING_
     __arm_inout("za") {
     nk_size_t const tile_dimension = svcntw();
-    nk_sme_store_tile_(0, c, c_stride, rows, row_first, column_first, columns, upper);
-    nk_sme_store_tile_(1, c, c_stride, rows, row_first, column_first + tile_dimension, columns, upper);
-    nk_sme_store_tile_(2, c, c_stride, rows, row_first, column_first + 2 * tile_dimension, columns, upper);
-    nk_sme_store_tile_(3, c, c_stride, rows, row_first, column_first + 3 * tile_dimension, columns, upper);
+    nk_store_tile_sme_(0, c, c_stride, rows, row_first, column_first, columns, upper);
+    nk_store_tile_sme_(1, c, c_stride, rows, row_first, column_first + tile_dimension, columns, upper);
+    nk_store_tile_sme_(2, c, c_stride, rows, row_first, column_first + 2 * tile_dimension, columns, upper);
+    nk_store_tile_sme_(3, c, c_stride, rows, row_first, column_first + 3 * tile_dimension, columns, upper);
 }
 
 /*  Sweeps accumulate staged A panels against @p tiles column tiles of B, @p tile_stride elements
@@ -1483,7 +1492,7 @@ NUMKONG_INLINE void nk_sme_store_tiles_1x4_(void *c, nk_size_t c_stride, nk_size
  *  Groups past the last tile reuse its operands into tiles no store reaches. */
 
 /** Sweeps two f16 panels in 2×2 groups. */
-NUMKONG_INLINE void nk_sme_sweep_2x2_f16_(nk_u16_t const *first_panel, nk_u16_t const *second_panel,
+NUMKONG_INLINE void nk_sweep_2x2_f16_sme_(nk_u16_t const *first_panel, nk_u16_t const *second_panel,
                                           nk_size_t first_rows, nk_size_t second_rows, nk_size_t row_first,
                                           nk_u16_t const *b_tiles, nk_size_t tile_stride, nk_size_t tiles,
                                           nk_size_t steps, int first, void *c, nk_size_t c_stride,
@@ -1494,14 +1503,14 @@ NUMKONG_INLINE void nk_sme_sweep_2x2_f16_(nk_u16_t const *first_panel, nk_u16_t 
         nk_u16_t const *b_second = tile + 1 < tiles ? b_first + tile_stride : b_first;
         svzero_za();
         if (!first)
-            nk_sme_load_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
-        nk_sme_mopa_2x2_f16_(first_panel, second_panel, b_first, b_second, steps);
-        nk_sme_store_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+            nk_load_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+        nk_mopa_2x2_f16_sme_(first_panel, second_panel, b_first, b_second, steps);
+        nk_store_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
     }
 }
 
 /** Sweeps two i8 panels in 2×2 groups. */
-NUMKONG_INLINE void nk_sme_sweep_2x2_i8_(nk_u8_t const *first_panel, nk_u8_t const *second_panel, nk_size_t first_rows,
+NUMKONG_INLINE void nk_sweep_2x2_i8_sme_(nk_u8_t const *first_panel, nk_u8_t const *second_panel, nk_size_t first_rows,
                                          nk_size_t second_rows, nk_size_t row_first, nk_u8_t const *b_tiles,
                                          nk_size_t tile_stride, nk_size_t tiles, nk_size_t steps, int first, void *c,
                                          nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -1511,14 +1520,14 @@ NUMKONG_INLINE void nk_sme_sweep_2x2_i8_(nk_u8_t const *first_panel, nk_u8_t con
         nk_u8_t const *b_second = tile + 1 < tiles ? b_first + tile_stride : b_first;
         svzero_za();
         if (!first)
-            nk_sme_load_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
-        nk_sme_mopa_2x2_i8_(first_panel, second_panel, b_first, b_second, steps);
-        nk_sme_store_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+            nk_load_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+        nk_mopa_2x2_i8_sme_(first_panel, second_panel, b_first, b_second, steps);
+        nk_store_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
     }
 }
 
 /** Sweeps two u8 panels in 2×2 groups. */
-NUMKONG_INLINE void nk_sme_sweep_2x2_u8_(nk_u8_t const *first_panel, nk_u8_t const *second_panel, nk_size_t first_rows,
+NUMKONG_INLINE void nk_sweep_2x2_u8_sme_(nk_u8_t const *first_panel, nk_u8_t const *second_panel, nk_size_t first_rows,
                                          nk_size_t second_rows, nk_size_t row_first, nk_u8_t const *b_tiles,
                                          nk_size_t tile_stride, nk_size_t tiles, nk_size_t steps, int first, void *c,
                                          nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -1528,14 +1537,14 @@ NUMKONG_INLINE void nk_sme_sweep_2x2_u8_(nk_u8_t const *first_panel, nk_u8_t con
         nk_u8_t const *b_second = tile + 1 < tiles ? b_first + tile_stride : b_first;
         svzero_za();
         if (!first)
-            nk_sme_load_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
-        nk_sme_mopa_2x2_u8_(first_panel, second_panel, b_first, b_second, steps);
-        nk_sme_store_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+            nk_load_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+        nk_mopa_2x2_u8_sme_(first_panel, second_panel, b_first, b_second, steps);
+        nk_store_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
     }
 }
 
 /** Sweeps one f16 panel in 1×4 groups. */
-NUMKONG_INLINE void nk_sme_sweep_1x4_f16_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
+NUMKONG_INLINE void nk_sweep_1x4_f16_sme_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
                                           nk_u16_t const *b_tiles, nk_size_t tile_stride, nk_size_t tiles,
                                           nk_size_t column_first, nk_size_t steps, int first, int upper, void *c,
                                           nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -1545,16 +1554,16 @@ NUMKONG_INLINE void nk_sme_sweep_1x4_f16_(nk_u16_t const *panel, nk_size_t rows,
         if (upper && quad_first + 4 * tile_dimension <= row_first) continue;
         nk_u16_t const *b_quad = b_tiles + tile * tile_stride;
         svzero_za();
-        if (!first) nk_sme_load_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
-        nk_sme_mopa_1x4_f16_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
+        if (!first) nk_load_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_mopa_1x4_f16_sme_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
                              b_quad + (tile + 2 < tiles) * 2 * tile_stride,
                              b_quad + (tile + 3 < tiles) * 3 * tile_stride, steps);
-        nk_sme_store_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_store_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
     }
 }
 
 /** Sweeps one bf16 panel in 1×4 groups. */
-NUMKONG_INLINE void nk_sme_sweep_1x4_bf16_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
+NUMKONG_INLINE void nk_sweep_1x4_bf16_sme_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
                                            nk_u16_t const *b_tiles, nk_size_t tile_stride, nk_size_t tiles,
                                            nk_size_t column_first, nk_size_t steps, int first, int upper, void *c,
                                            nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -1564,16 +1573,16 @@ NUMKONG_INLINE void nk_sme_sweep_1x4_bf16_(nk_u16_t const *panel, nk_size_t rows
         if (upper && quad_first + 4 * tile_dimension <= row_first) continue;
         nk_u16_t const *b_quad = b_tiles + tile * tile_stride;
         svzero_za();
-        if (!first) nk_sme_load_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
-        nk_sme_mopa_1x4_bf16_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
+        if (!first) nk_load_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_mopa_1x4_bf16_sme_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
                               b_quad + (tile + 2 < tiles) * 2 * tile_stride,
                               b_quad + (tile + 3 < tiles) * 3 * tile_stride, steps);
-        nk_sme_store_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_store_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
     }
 }
 
 /** Sweeps one i8 panel in 1×4 groups. */
-NUMKONG_INLINE void nk_sme_sweep_1x4_i8_(nk_u8_t const *panel, nk_size_t rows, nk_size_t row_first,
+NUMKONG_INLINE void nk_sweep_1x4_i8_sme_(nk_u8_t const *panel, nk_size_t rows, nk_size_t row_first,
                                          nk_u8_t const *b_tiles, nk_size_t tile_stride, nk_size_t tiles,
                                          nk_size_t column_first, nk_size_t steps, int first, int upper, void *c,
                                          nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -1583,16 +1592,16 @@ NUMKONG_INLINE void nk_sme_sweep_1x4_i8_(nk_u8_t const *panel, nk_size_t rows, n
         if (upper && quad_first + 4 * tile_dimension <= row_first) continue;
         nk_u8_t const *b_quad = b_tiles + tile * tile_stride;
         svzero_za();
-        if (!first) nk_sme_load_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
-        nk_sme_mopa_1x4_i8_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
+        if (!first) nk_load_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_mopa_1x4_i8_sme_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
                             b_quad + (tile + 2 < tiles) * 2 * tile_stride,
                             b_quad + (tile + 3 < tiles) * 3 * tile_stride, steps);
-        nk_sme_store_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_store_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
     }
 }
 
 /** Sweeps one u8 panel in 1×4 groups. */
-NUMKONG_INLINE void nk_sme_sweep_1x4_u8_(nk_u8_t const *panel, nk_size_t rows, nk_size_t row_first,
+NUMKONG_INLINE void nk_sweep_1x4_u8_sme_(nk_u8_t const *panel, nk_size_t rows, nk_size_t row_first,
                                          nk_u8_t const *b_tiles, nk_size_t tile_stride, nk_size_t tiles,
                                          nk_size_t column_first, nk_size_t steps, int first, int upper, void *c,
                                          nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_ __arm_inout("za") {
@@ -1602,17 +1611,17 @@ NUMKONG_INLINE void nk_sme_sweep_1x4_u8_(nk_u8_t const *panel, nk_size_t rows, n
         if (upper && quad_first + 4 * tile_dimension <= row_first) continue;
         nk_u8_t const *b_quad = b_tiles + tile * tile_stride;
         svzero_za();
-        if (!first) nk_sme_load_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
-        nk_sme_mopa_1x4_u8_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
+        if (!first) nk_load_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_mopa_1x4_u8_sme_(panel, b_quad, b_quad + (tile + 1 < tiles) * tile_stride,
                             b_quad + (tile + 2 < tiles) * 2 * tile_stride,
                             b_quad + (tile + 3 < tiles) * 3 * tile_stride, steps);
-        nk_sme_store_tiles_1x4_(c, c_stride, rows, row_first, quad_first, columns, upper);
+        nk_store_tiles_1x4_sme_(c, c_stride, rows, row_first, quad_first, columns, upper);
     }
 }
 
 /** Sweeps two f16 NVFP4 panels in 2×2 groups against byte codes @p code_stride bytes apart and
  *  f16 block scale vectors @p factor_stride halfwords apart. */
-NUMKONG_INLINE void nk_sme_sweep_2x2_nvfp4_(nk_u16_t const *first_panel, nk_u16_t const *second_panel,
+NUMKONG_INLINE void nk_sweep_2x2_nvfp4_sme_(nk_u16_t const *first_panel, nk_u16_t const *second_panel,
                                             nk_size_t first_rows, nk_size_t second_rows, nk_size_t row_first,
                                             nk_u8_t const *b_codes, nk_size_t code_stride, nk_u16_t const *b_factors,
                                             nk_size_t factor_stride, nk_size_t tiles, nk_size_t steps, int first,
@@ -1623,16 +1632,16 @@ NUMKONG_INLINE void nk_sme_sweep_2x2_nvfp4_(nk_u16_t const *first_panel, nk_u16_
         nk_size_t const second_tile = tile + 1 < tiles ? tile + 1 : tile;
         svzero_za();
         if (!first)
-            nk_sme_load_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
-        nk_sme_mopa_2x2_nvfp4_(first_panel, second_panel, b_codes + tile * code_stride,
+            nk_load_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+        nk_mopa_2x2_nvfp4_sme_(first_panel, second_panel, b_codes + tile * code_stride,
                                b_codes + second_tile * code_stride, b_factors + tile * factor_stride,
                                b_factors + second_tile * factor_stride, steps);
-        nk_sme_store_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+        nk_store_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
     }
 }
 
 /** Sweeps two rebased bf16 MXFP4 panels in 2×2 groups against byte codes and decrement vectors. */
-NUMKONG_INLINE void nk_sme_sweep_2x2_mxfp4_(nk_u16_t const *first_panel, nk_u16_t const *second_panel,
+NUMKONG_INLINE void nk_sweep_2x2_mxfp4_sme_(nk_u16_t const *first_panel, nk_u16_t const *second_panel,
                                             nk_size_t first_rows, nk_size_t second_rows, nk_size_t row_first,
                                             nk_u8_t const *b_codes, nk_size_t code_stride, nk_u16_t const *b_factors,
                                             nk_size_t factor_stride, nk_size_t tiles, nk_size_t steps, int first,
@@ -1643,16 +1652,16 @@ NUMKONG_INLINE void nk_sme_sweep_2x2_mxfp4_(nk_u16_t const *first_panel, nk_u16_
         nk_size_t const second_tile = tile + 1 < tiles ? tile + 1 : tile;
         svzero_za();
         if (!first)
-            nk_sme_load_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
-        nk_sme_mopa_2x2_mxfp4_(first_panel, second_panel, b_codes + tile * code_stride,
+            nk_load_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+        nk_mopa_2x2_mxfp4_sme_(first_panel, second_panel, b_codes + tile * code_stride,
                                b_codes + second_tile * code_stride, b_factors + tile * factor_stride,
                                b_factors + second_tile * factor_stride, steps);
-        nk_sme_store_tiles_2x2_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
+        nk_store_tiles_2x2_sme_(c, c_stride, row_first, first_rows, second_rows, tile * tile_dimension, columns);
     }
 }
 
 /** Sweeps one f16 NVFP4 panel in 1×4 groups against byte codes and block scale vectors. */
-NUMKONG_INLINE void nk_sme_sweep_1x4_nvfp4_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
+NUMKONG_INLINE void nk_sweep_1x4_nvfp4_sme_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
                                             nk_u8_t const *b_codes, nk_size_t code_stride, nk_u16_t const *b_factors,
                                             nk_size_t factor_stride, nk_size_t tiles, nk_size_t steps, int first,
                                             void *c, nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_
@@ -1667,14 +1676,14 @@ NUMKONG_INLINE void nk_sme_sweep_1x4_nvfp4_(nk_u16_t const *panel, nk_size_t row
             quad_factors[index] = b_factors + quad_tile * factor_stride;
         }
         svzero_za();
-        if (!first) nk_sme_load_tiles_1x4_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
-        nk_sme_mopa_1x4_nvfp4_(panel, quad_codes, quad_factors, steps);
-        nk_sme_store_tiles_1x4_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
+        if (!first) nk_load_tiles_1x4_sme_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
+        nk_mopa_1x4_nvfp4_sme_(panel, quad_codes, quad_factors, steps);
+        nk_store_tiles_1x4_sme_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
     }
 }
 
 /** Sweeps one rebased bf16 MXFP4 panel in 1×4 groups against byte codes and decrement vectors. */
-NUMKONG_INLINE void nk_sme_sweep_1x4_mxfp4_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
+NUMKONG_INLINE void nk_sweep_1x4_mxfp4_sme_(nk_u16_t const *panel, nk_size_t rows, nk_size_t row_first,
                                             nk_u8_t const *b_codes, nk_size_t code_stride, nk_u16_t const *b_factors,
                                             nk_size_t factor_stride, nk_size_t tiles, nk_size_t steps, int first,
                                             void *c, nk_size_t c_stride, nk_size_t columns) NUMKONG_STREAMING_
@@ -1689,15 +1698,15 @@ NUMKONG_INLINE void nk_sme_sweep_1x4_mxfp4_(nk_u16_t const *panel, nk_size_t row
             quad_factors[index] = b_factors + quad_tile * factor_stride;
         }
         svzero_za();
-        if (!first) nk_sme_load_tiles_1x4_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
-        nk_sme_mopa_1x4_mxfp4_(panel, quad_codes, quad_factors, steps);
-        nk_sme_store_tiles_1x4_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
+        if (!first) nk_load_tiles_1x4_sme_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
+        nk_mopa_1x4_mxfp4_sme_(panel, quad_codes, quad_factors, steps);
+        nk_store_tiles_1x4_sme_(c, c_stride, rows, row_first, tile * tile_dimension, columns, 0);
     }
 }
 
 /** Converts in place the i32 sums of rows from @p row_first up to @p row_end to F32 times
  *  @p factor, over the first @p columns columns, or from each row's diagonal on when @p upper. */
-NUMKONG_INLINE void nk_sme_scale_rows_i32_(void *c, nk_size_t c_stride, nk_size_t row_first, nk_size_t row_end,
+NUMKONG_INLINE void nk_scale_rows_i32_sme_(void *c, nk_size_t c_stride, nk_size_t row_first, nk_size_t row_end,
                                            nk_size_t columns, int upper, nk_f32_t factor) NUMKONG_STREAMING_ {
     for (nk_size_t row = row_first; row < row_end; ++row) {
         nk_f32_t *row_values = (nk_f32_t *)((char *)c + row * c_stride);
@@ -1716,7 +1725,7 @@ NUMKONG_INLINE void nk_sme_scale_rows_i32_(void *c, nk_size_t c_stride, nk_size_
 
 /** Bytes of a pack of @p columns 16-bit columns @p depth deep, with their F32 squared norms. */
 NUMKONG_INLINE nk_size_t nk_dots_pack_size_b16_sme_(nk_size_t columns, nk_size_t depth) {
-    nk_size_t const tile_dimension = nk_sme_cntw_(), vector_elements = nk_sme_cnth_();
+    nk_size_t const tile_dimension = nk_cntw_sme_(), vector_elements = nk_cnth_sme_();
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, 2);
     return sizeof(nk_dots_sme_packed_header_t) + column_tile_count * depth_step_count * vector_elements * 2 +
@@ -1726,17 +1735,18 @@ NUMKONG_INLINE nk_size_t nk_dots_pack_size_b16_sme_(nk_size_t columns, nk_size_t
 /** Bytes of a pack of @p columns 8-bit columns @p depth deep in words of @p dims_per_word, with
  *  their squared norms; i4 and u4 keep a low-nibble and a high-nibble byte per 4-bit dim. */
 NUMKONG_INLINE nk_size_t nk_dots_pack_size_b8_sme_(nk_size_t dims_per_word, nk_size_t columns, nk_size_t depth) {
-    nk_size_t const tile_dimension = nk_sme_cntw_(), vector_bytes = nk_sme_cntb_();
+    nk_size_t const tile_dimension = nk_cntw_sme_(), vector_bytes = nk_cntb_sme_();
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     return sizeof(nk_dots_sme_packed_header_t) +
-           column_tile_count * nk_sme_panel_steps_b8_(dims_per_word, depth) * vector_bytes + columns * sizeof(nk_u32_t);
+           column_tile_count * nk_panel_steps_b8_sme_(dims_per_word, depth) * vector_bytes + columns * sizeof(nk_u32_t);
 }
 
 /** Writes the header of an SME pack once, from the window that packs column 0. */
-NUMKONG_INLINE void nk_dots_sme_header_(void *b_packed, nk_size_t columns, nk_size_t depth, nk_size_t depth_steps,
+NUMKONG_INLINE void nk_dots_header_sme_(void *b_packed, nk_size_t columns, nk_size_t depth, nk_size_t depth_steps,
                                         nk_size_t norms_offset, nk_f32_t tensor_scale, nk_size_t tile_dimension) {
     nk_dots_sme_packed_header_t *header = (nk_dots_sme_packed_header_t *)b_packed;
-    for (nk_size_t word = 0; word < sizeof(*header) / sizeof(nk_u32_t); ++word) ((nk_u32_t *)header)[word] = 0;
+    nk_u32_t *header_words = (nk_u32_t *)header;
+    for (nk_size_t word = 0; word < sizeof(*header) / sizeof(nk_u32_t); ++word) header_words[word] = 0;
     header->column_tile_count = (nk_u32_t)nk_size_divide_round_up_(columns, tile_dimension);
     header->depth_tile_count = (nk_u32_t)depth_steps;
     header->columns = (nk_u32_t)columns;
@@ -1750,7 +1760,7 @@ NUMKONG_INLINE void nk_dots_sme_header_(void *b_packed, nk_size_t columns, nk_si
 /** The column tiles from @p tile_begin up to @p tile_end that a pack window over columns from
  *  @p columns_begin up to @p columns_end owns, every tile it touches short of tiles an earlier
  *  window already started. */
-NUMKONG_INLINE void nk_dots_sme_window_tiles_(nk_size_t columns, nk_size_t columns_begin, nk_size_t columns_end,
+NUMKONG_INLINE void nk_dots_window_tiles_sme_(nk_size_t columns, nk_size_t columns_begin, nk_size_t columns_end,
                                               nk_size_t tile_dimension, nk_size_t *tile_begin, nk_size_t *tile_end) {
     nk_size_t const column_tiles = nk_size_divide_round_up_(columns, tile_dimension);
     *tile_begin = nk_size_divide_round_up_(columns_begin, tile_dimension);
@@ -1760,14 +1770,14 @@ NUMKONG_INLINE void nk_dots_sme_window_tiles_(nk_size_t columns, nk_size_t colum
 
 /** Writes the header of a dense SME pack of @p steps steps of @p step_bytes from the window that
  *  packs column 0, and returns the offset of its norms with the tiles the window owns. */
-NUMKONG_INLINE nk_size_t nk_dots_sme_pack_window_(void *b_packed, nk_size_t columns, nk_size_t depth, nk_size_t steps,
+NUMKONG_INLINE nk_size_t nk_dots_pack_window_sme_(void *b_packed, nk_size_t columns, nk_size_t depth, nk_size_t steps,
                                                   nk_size_t step_bytes, nk_size_t columns_begin, nk_size_t columns_end,
                                                   nk_size_t *tile_begin, nk_size_t *tile_end) {
-    nk_size_t const tile_dimension = nk_sme_cntw_();
+    nk_size_t const tile_dimension = nk_cntw_sme_();
     nk_size_t const norms_offset = sizeof(nk_dots_sme_packed_header_t) +
                                    nk_size_divide_round_up_(columns, tile_dimension) * steps * step_bytes;
-    if (columns_begin == 0) nk_dots_sme_header_(b_packed, columns, depth, steps, norms_offset, 1, tile_dimension);
-    nk_dots_sme_window_tiles_(columns, columns_begin, columns_end, tile_dimension, tile_begin, tile_end);
+    if (columns_begin == 0) nk_dots_header_sme_(b_packed, columns, depth, steps, norms_offset, 1, tile_dimension);
+    nk_dots_window_tiles_sme_(columns, columns_begin, columns_end, tile_dimension, tile_begin, tile_end);
     return norms_offset;
 }
 
@@ -1778,7 +1788,7 @@ NUMKONG_INLINE nk_size_t nk_dots_sme_pack_window_(void *b_packed, nk_size_t colu
 
 /** Adds the squares of the F16 pairs of @p packed_f16x, the first values into slice @p slice of
  *  ZA1.S and the second ones into ZA2.S. */
-NUMKONG_INLINE void nk_sme_pack_sumsq_f16x_(svfloat16_t packed_f16x, nk_size_t slice) NUMKONG_STREAMING_
+NUMKONG_INLINE void nk_pack_sumsq_f16x_sme_(svfloat16_t packed_f16x, nk_size_t slice) NUMKONG_STREAMING_
     __arm_inout("za") {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svfloat32_t first_f32x = svcvt_f32_f16_x(predicate_all_b32x, packed_f16x);
@@ -1792,7 +1802,7 @@ NUMKONG_INLINE void nk_sme_pack_sumsq_f16x_(svfloat16_t packed_f16x, nk_size_t s
 }
 
 /** Adds the BFDOT of each BF16 pair of @p packed_bf16x with itself into slice @p slice of ZA1.S. */
-NUMKONG_INLINE void nk_sme_pack_sumsq_bf16x_(svbfloat16_t packed_bf16x, nk_size_t slice) NUMKONG_STREAMING_
+NUMKONG_INLINE void nk_pack_sumsq_bf16x_sme_(svbfloat16_t packed_bf16x, nk_size_t slice) NUMKONG_STREAMING_
     __arm_inout("za") {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svfloat32_t sumsq_f32x = svread_ver_za32_f32_m(svdup_f32(0), predicate_all_b32x, 1, slice);
@@ -1800,14 +1810,14 @@ NUMKONG_INLINE void nk_sme_pack_sumsq_bf16x_(svbfloat16_t packed_bf16x, nk_size_
 }
 
 /** Adds the SDOT of each I8 quad of @p packed_i8x with itself into slice @p slice of ZA1.S. */
-NUMKONG_INLINE void nk_sme_pack_sumsq_i8x_(svint8_t packed_i8x, nk_size_t slice) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_INLINE void nk_pack_sumsq_i8x_sme_(svint8_t packed_i8x, nk_size_t slice) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svint32_t sumsq_i32x = svread_ver_za32_s32_m(svdup_s32(0), predicate_all_b32x, 1, slice);
     svwrite_ver_za32_s32_m(1, slice, predicate_all_b32x, svdot_s32(sumsq_i32x, packed_i8x, packed_i8x));
 }
 
 /** Adds the UDOT of each U8 quad of @p packed_u8x with itself into slice @p slice of ZA1.S. */
-NUMKONG_INLINE void nk_sme_pack_sumsq_u8x_(svuint8_t packed_u8x, nk_size_t slice) NUMKONG_STREAMING_ __arm_inout("za") {
+NUMKONG_INLINE void nk_pack_sumsq_u8x_sme_(svuint8_t packed_u8x, nk_size_t slice) NUMKONG_STREAMING_ __arm_inout("za") {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svuint32_t sumsq_u32x = svread_ver_za32_u32_m(svdup_u32(0), predicate_all_b32x, 1, slice);
     svwrite_ver_za32_u32_m(1, slice, predicate_all_b32x, svdot_u32(sumsq_u32x, packed_u8x, packed_u8x));
@@ -1815,13 +1825,13 @@ NUMKONG_INLINE void nk_sme_pack_sumsq_u8x_(svuint8_t packed_u8x, nk_size_t slice
 
 /** Writes the squared norms of the @p columns columns of one staged f16 tile of @p steps steps;
  *  the staged steps are still in L1, so the norms reread them rather than the source. */
-NUMKONG_INLINE void nk_sme_pack_norms_f16_(nk_u16_t const *tile_values, nk_size_t steps, nk_size_t columns,
+NUMKONG_INLINE void nk_pack_norms_f16_sme_(nk_u16_t const *tile_values, nk_size_t steps, nk_size_t columns,
                                            nk_f32_t *norms) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth();
     svbool_t const predicate_all_b16x = svptrue_b16(), predicate_all_b32x = svptrue_b32();
     svzero_mask_za(nk_sme_zero_za32_tiles_123_k);
     for (nk_size_t step = 0; step < steps; ++step)
-        nk_sme_pack_sumsq_f16x_(svld1_f16(predicate_all_b16x, (float16_t const *)tile_values + step * vector_elements),
+        nk_pack_sumsq_f16x_sme_(svld1_f16(predicate_all_b16x, (float16_t const *)tile_values + step * vector_elements),
                                 step % tile_dimension);
     for (nk_size_t column = 0; column < columns; ++column)
         norms[column] =
@@ -1830,13 +1840,13 @@ NUMKONG_INLINE void nk_sme_pack_norms_f16_(nk_u16_t const *tile_values, nk_size_
 }
 
 /** Writes the squared norms of the columns of one staged bf16 tile, like the f16 helper. */
-NUMKONG_INLINE void nk_sme_pack_norms_bf16_(nk_u16_t const *tile_values, nk_size_t steps, nk_size_t columns,
+NUMKONG_INLINE void nk_pack_norms_bf16_sme_(nk_u16_t const *tile_values, nk_size_t steps, nk_size_t columns,
                                             nk_f32_t *norms) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth();
     svbool_t const predicate_all_b16x = svptrue_b16(), predicate_all_b32x = svptrue_b32();
     svzero_mask_za(nk_sme_zero_za32_tiles_123_k);
     for (nk_size_t step = 0; step < steps; ++step)
-        nk_sme_pack_sumsq_bf16x_(
+        nk_pack_sumsq_bf16x_sme_(
             svld1_bf16(predicate_all_b16x, (bfloat16_t const *)tile_values + step * vector_elements),
             step % tile_dimension);
     for (nk_size_t column = 0; column < columns; ++column)
@@ -1845,13 +1855,13 @@ NUMKONG_INLINE void nk_sme_pack_norms_bf16_(nk_u16_t const *tile_values, nk_size
 }
 
 /** Writes the 32-bit squared norms of the columns of one staged i8 tile. */
-NUMKONG_INLINE void nk_sme_pack_norms_i8_(nk_u8_t const *tile_values, nk_size_t steps, nk_size_t columns,
+NUMKONG_INLINE void nk_pack_norms_i8_sme_(nk_u8_t const *tile_values, nk_size_t steps, nk_size_t columns,
                                           nk_u32_t *norms) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
     svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b32x = svptrue_b32();
     svzero_mask_za(nk_sme_zero_za32_tiles_123_k);
     for (nk_size_t step = 0; step < steps; ++step)
-        nk_sme_pack_sumsq_i8x_(svld1_s8(predicate_all_b8x, (nk_i8_t const *)tile_values + step * vector_bytes),
+        nk_pack_sumsq_i8x_sme_(svld1_s8(predicate_all_b8x, (nk_i8_t const *)tile_values + step * vector_bytes),
                                step % tile_dimension);
     for (nk_size_t column = 0; column < columns; ++column)
         norms[column] = (nk_u32_t)nk_svaddv_s32_(predicate_all_b32x,
@@ -1859,20 +1869,20 @@ NUMKONG_INLINE void nk_sme_pack_norms_i8_(nk_u8_t const *tile_values, nk_size_t 
 }
 
 /** Writes the 32-bit squared norms of the columns of one staged u8 tile. */
-NUMKONG_INLINE void nk_sme_pack_norms_u8_(nk_u8_t const *tile_values, nk_size_t steps, nk_size_t columns,
+NUMKONG_INLINE void nk_pack_norms_u8_sme_(nk_u8_t const *tile_values, nk_size_t steps, nk_size_t columns,
                                           nk_u32_t *norms) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const tile_dimension = svcntw(), vector_bytes = svcntb();
     svbool_t const predicate_all_b8x = svptrue_b8(), predicate_all_b32x = svptrue_b32();
     svzero_mask_za(nk_sme_zero_za32_tiles_123_k);
     for (nk_size_t step = 0; step < steps; ++step)
-        nk_sme_pack_sumsq_u8x_(svld1_u8(predicate_all_b8x, tile_values + step * vector_bytes), step % tile_dimension);
+        nk_pack_sumsq_u8x_sme_(svld1_u8(predicate_all_b8x, tile_values + step * vector_bytes), step % tile_dimension);
     for (nk_size_t column = 0; column < columns; ++column)
         norms[column] = (nk_u32_t)nk_svaddv_u32_(predicate_all_b32x,
                                                  svread_hor_za32_u32_m(svdup_u32(0), predicate_all_b32x, 1, column));
 }
 
 /** Turns @p columns 32-bit squared norms into F32 bits times @p factor in place. */
-NUMKONG_INLINE void nk_sme_pack_norms_scale_(nk_u32_t *norms, nk_size_t columns, nk_f32_t factor) NUMKONG_STREAMING_ {
+NUMKONG_INLINE void nk_pack_norms_scale_sme_(nk_u32_t *norms, nk_size_t columns, nk_f32_t factor) NUMKONG_STREAMING_ {
     svbool_t const predicate_b32x = svwhilelt_b32_u64(0, columns);
     svfloat32_t const norms_f32x = svcvt_f32_u32_x(predicate_b32x, svld1_u32(predicate_b32x, norms));
     svst1_f32(predicate_b32x, (nk_f32_t *)norms, svmul_n_f32_x(predicate_b32x, norms_f32x, factor));
@@ -1892,8 +1902,8 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u16_t *tile_values = tiles + tile * steps * svcnth();
-        nk_sme_stage_panel_b16_((nk_u16_t const *)b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_f16_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_b16_sme_((nk_u16_t const *)b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_f16_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -1908,8 +1918,8 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u16_t *tile_values = tiles + tile * steps * svcnth();
-        nk_sme_stage_panel_b16_((nk_u16_t const *)b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_bf16_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_b16_sme_((nk_u16_t const *)b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_bf16_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -1924,8 +1934,8 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u16_t *tile_values = tiles + tile * steps * svcnth();
-        nk_sme_stage_panel_e4m3_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_f16_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_e4m3_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_f16_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -1940,8 +1950,8 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u16_t *tile_values = tiles + tile * steps * svcnth();
-        nk_sme_stage_panel_e5m2_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_f16_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_e5m2_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_f16_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -1956,8 +1966,8 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u16_t *tile_values = tiles + tile * steps * svcnth();
-        nk_sme_stage_panel_e3m2_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_f16_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_e3m2_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_f16_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -1966,14 +1976,14 @@ __arm_new("za") NUMKONG_OUTLINED_
     void nk_dots_pack_i8_sme_streaming_(nk_i8_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
                                         nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
                                         nk_size_t tile_end) NUMKONG_STREAMING_ {
-    nk_size_t const tile_dimension = svcntw(), steps = nk_sme_panel_steps_b8_(4, depth);
+    nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u8_t *tile_values = tiles + tile * steps * svcntb();
-        nk_sme_stage_panel_b8_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_i8_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_b8_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_i8_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -1982,14 +1992,14 @@ __arm_new("za") NUMKONG_OUTLINED_
     void nk_dots_pack_u8_sme_streaming_(nk_u8_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
                                         nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
                                         nk_size_t tile_end) NUMKONG_STREAMING_ {
-    nk_size_t const tile_dimension = svcntw(), steps = nk_sme_panel_steps_b8_(4, depth);
+    nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u8_t *tile_values = tiles + tile * steps * svcntb();
-        nk_sme_stage_panel_b8_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_u8_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_b8_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_u8_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -1998,15 +2008,15 @@ __arm_new("za") NUMKONG_OUTLINED_
     void nk_dots_pack_e2m3_sme_streaming_(nk_e2m3_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
                                           nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
-    nk_size_t const tile_dimension = svcntw(), steps = nk_sme_panel_steps_b8_(4, depth);
+    nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u8_t *tile_values = tiles + tile * steps * svcntb();
-        nk_sme_stage_panel_e2m3_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_i8_(tile_values, steps, tile_columns, norms + column_first);
-        nk_sme_pack_norms_scale_(norms + column_first, tile_columns, 1.0f / 256);
+        nk_stage_panel_e2m3_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_i8_sme_(tile_values, steps, tile_columns, norms + column_first);
+        nk_pack_norms_scale_sme_(norms + column_first, tile_columns, 1.0f / 256);
     }
 }
 
@@ -2015,15 +2025,15 @@ __arm_new("za") NUMKONG_OUTLINED_
     void nk_dots_pack_e2m1_sme_streaming_(nk_e2m1x2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
                                           nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
                                           nk_size_t tile_end) NUMKONG_STREAMING_ {
-    nk_size_t const tile_dimension = svcntw(), steps = nk_sme_panel_steps_b8_(4, depth);
+    nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(4, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u8_t *tile_values = tiles + tile * steps * svcntb();
-        nk_sme_stage_panel_e2m1_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_i8_(tile_values, steps, tile_columns, norms + column_first);
-        nk_sme_pack_norms_scale_(norms + column_first, tile_columns, 0.25f);
+        nk_stage_panel_e2m1_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_i8_sme_(tile_values, steps, tile_columns, norms + column_first);
+        nk_pack_norms_scale_sme_(norms + column_first, tile_columns, 0.25f);
     }
 }
 
@@ -2032,14 +2042,14 @@ __arm_new("za") NUMKONG_OUTLINED_
     void nk_dots_pack_i4_sme_streaming_(nk_i4x2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
                                         nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
                                         nk_size_t tile_end) NUMKONG_STREAMING_ {
-    nk_size_t const tile_dimension = svcntw(), steps = nk_sme_panel_steps_b8_(8, depth);
+    nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(8, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u8_t *tile_values = tiles + tile * steps * svcntb();
-        nk_sme_stage_panel_i4_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_i8_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_i4_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_i8_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -2048,14 +2058,14 @@ __arm_new("za") NUMKONG_OUTLINED_
     void nk_dots_pack_u4_sme_streaming_(nk_u4x2_t const *b, nk_size_t b_stride, nk_size_t columns, nk_size_t depth,
                                         nk_u8_t *tiles, nk_u32_t *norms, nk_size_t tile_begin,
                                         nk_size_t tile_end) NUMKONG_STREAMING_ {
-    nk_size_t const tile_dimension = svcntw(), steps = nk_sme_panel_steps_b8_(8, depth);
+    nk_size_t const tile_dimension = svcntw(), steps = nk_panel_steps_b8_sme_(8, depth);
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_u8_t *tile_values = tiles + tile * steps * svcntb();
-        nk_sme_stage_panel_u4_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
-        nk_sme_pack_norms_u8_(tile_values, steps, tile_columns, norms + column_first);
+        nk_stage_panel_u4_sme_(b, b_stride, column_first, tile_columns, 0, depth, tile_values);
+        nk_pack_norms_u8_sme_(tile_values, steps, tile_columns, norms + column_first);
     }
 }
 
@@ -2064,14 +2074,14 @@ NUMKONG_INLINE void nk_dots_pack_f16_tiles_sme_(           //
     nk_f16_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth,
-                                                            nk_size_divide_round_up_(depth, 2), nk_sme_cntb_(),
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth,
+                                                            nk_size_divide_round_up_(depth, 2), nk_cntb_sme_(),
                                                             columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_f16_sme_streaming_(b, b_stride, columns, depth,
                                     (nk_u16_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t)),
                                     (nk_f32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
 }
 
 /** Packs BF16 @p b columns @p columns_begin to @p columns_end into SME tiles with squared norms. */
@@ -2079,14 +2089,14 @@ NUMKONG_INLINE void nk_dots_pack_bf16_tiles_sme_(           //
     nk_bf16_t const *b, nk_size_t columns, nk_size_t depth, //
     nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end) {
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth,
-                                                            nk_size_divide_round_up_(depth, 2), nk_sme_cntb_(),
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth,
+                                                            nk_size_divide_round_up_(depth, 2), nk_cntb_sme_(),
                                                             columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_bf16_sme_streaming_(b, b_stride, columns, depth,
                                      (nk_u16_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t)),
                                      (nk_f32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
 }
 
 /** Byte offsets of a block-scaled SME pack: header, values, FP4 block factors, relative norms and
@@ -2098,7 +2108,7 @@ typedef struct {
 /** The block-scaled pack layout of @p columns × @p depth in blocks of @p block_size at
  *  @p tile_dimension lanes: @p code_bits 4 keeps one byte per FP4 code and one factor vector per
  *  column tile and block, 8 keeps folded bf16 values. */
-NUMKONG_INLINE nk_dots_scaled_sme_layout_t nk_dots_scaled_sme_layout_(nk_size_t columns, nk_size_t depth,
+NUMKONG_INLINE nk_dots_scaled_sme_layout_t nk_dots_scaled_layout_sme_(nk_size_t columns, nk_size_t depth,
                                                                       nk_size_t tile_dimension, nk_size_t block_size,
                                                                       nk_size_t code_bits) NUMKONG_STREAMABLE_ {
     nk_size_t const column_tiles = nk_size_divide_round_up_(columns, tile_dimension),
@@ -2140,11 +2150,11 @@ typedef struct {
 } nk_dots_scaled_sme_columns_t;
 
 /** The columns of a block-scaled SME pack in blocks of @p block_size of @p code_bits codes. */
-NUMKONG_INLINE nk_dots_scaled_sme_columns_t nk_dots_scaled_sme_columns_(void const *b_packed, nk_size_t block_size,
+NUMKONG_INLINE nk_dots_scaled_sme_columns_t nk_dots_scaled_columns_sme_(void const *b_packed, nk_size_t block_size,
                                                                         nk_size_t code_bits) NUMKONG_STREAMABLE_ {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     nk_size_t const depth = header->depth;
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(
         header->columns, depth, header->svl_bytes / sizeof(nk_f32_t), block_size, code_bits);
     nk_u8_t const *pack = (nk_u8_t const *)b_packed;
     nk_dots_scaled_sme_columns_t columns;
@@ -2155,13 +2165,13 @@ NUMKONG_INLINE nk_dots_scaled_sme_columns_t nk_dots_scaled_sme_columns_(void con
     columns.raw.elements = pack + layout.codes, columns.raw.scales = pack + layout.scales;
     columns.raw.scales_stride = depth / block_size, columns.raw.tensor_scale = NUMKONG_NULL;
     columns.raw_stride = depth * code_bits / 8;
-    columns.mantissa = nk_f32_split_(header->tensor_scale, &tensor_exponent);
+    columns.mantissa = nk_split_f32_serial_(header->tensor_scale, &tensor_exponent);
     return columns;
 }
 
 /** Copies @p row_bytes bytes of rows from @p column_first up to @p column_end of @p source,
  *  @p source_stride apart, into the rows of @p target. */
-NUMKONG_INLINE void nk_sme_copy_rows_(nk_u8_t const *source, nk_size_t source_stride, nk_size_t row_bytes,
+NUMKONG_INLINE void nk_copy_rows_sme_(nk_u8_t const *source, nk_size_t source_stride, nk_size_t row_bytes,
                                       nk_size_t column_first, nk_size_t column_end,
                                       nk_u8_t *target) NUMKONG_STREAMING_ {
     nk_size_t const vector_bytes = svcntb();
@@ -2174,9 +2184,9 @@ NUMKONG_INLINE void nk_sme_copy_rows_(nk_u8_t const *source, nk_size_t source_st
 }
 
 /** A wide squared norm as a mantissa in [1, 4), or zero, or NaN, times 4 to the @p exponent. */
-NUMKONG_INLINE nk_f32_t nk_sme_wide_norm_(nk_cross_wide_sum_t sumsq, nk_i32_t *exponent) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_f32_t nk_wide_norm_sme_(nk_cross_wide_sum_t sumsq, nk_i32_t *exponent) NUMKONG_STREAMABLE_ {
     nk_i32_t split;
-    nk_f32_t mantissa = nk_f32_split_(sumsq.sum, &split);
+    nk_f32_t mantissa = nk_split_f32_serial_(sumsq.sum, &split);
     nk_i32_t power = sumsq.sum == 0 || sumsq.sum != sumsq.sum ? 0 : split + sumsq.exponent;
     if (power & 1) mantissa *= 2, power -= 1;
     *exponent = power / 2;
@@ -2184,7 +2194,7 @@ NUMKONG_INLINE nk_f32_t nk_sme_wide_norm_(nk_cross_wide_sum_t sumsq, nk_i32_t *e
 }
 
 /** Adds the squares of the BF16 pairs @p bits_u16x into the even and odd sums of @p sums_f32x2. */
-NUMKONG_INLINE svfloat32x2_t nk_sme_sumsq_bf16x_(svfloat32x2_t sums_f32x2, svuint16_t bits_u16x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat32x2_t nk_sumsq_bf16x_sme_(svfloat32x2_t sums_f32x2, svuint16_t bits_u16x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svuint32_t const words_u32x = svreinterpret_u32_u16(bits_u16x);
     svfloat32_t const even_f32x = svreinterpret_f32_u32(svlsl_n_u32_x(predicate_all_b32x, words_u32x, 16));
@@ -2194,7 +2204,7 @@ NUMKONG_INLINE svfloat32x2_t nk_sme_sumsq_bf16x_(svfloat32x2_t sums_f32x2, svuin
 }
 
 /** Adds the squares of the F16 pairs @p bits_u16x into the even and odd sums of @p sums_f32x2. */
-NUMKONG_INLINE svfloat32x2_t nk_sme_sumsq_f16x_(svfloat32x2_t sums_f32x2, svuint16_t bits_u16x) NUMKONG_STREAMING_ {
+NUMKONG_INLINE svfloat32x2_t nk_sumsq_f16x_sme_(svfloat32x2_t sums_f32x2, svuint16_t bits_u16x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     svfloat16_t const halves_f16x = svreinterpret_f16_u16(bits_u16x);
     svfloat32_t const even_f32x = svcvt_f32_f16_x(predicate_all_b32x, halves_f16x);
@@ -2204,7 +2214,7 @@ NUMKONG_INLINE svfloat32x2_t nk_sme_sumsq_f16x_(svfloat32x2_t sums_f32x2, svuint
 }
 
 /** The sum of the even and odd sums of @p sums_f32x2. */
-NUMKONG_INLINE nk_f32_t nk_sme_sumsq_reduce_(svfloat32x2_t sums_f32x2) NUMKONG_STREAMING_ {
+NUMKONG_INLINE nk_f32_t nk_sumsq_reduce_sme_(svfloat32x2_t sums_f32x2) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     return nk_svaddv_f32_(predicate_all_b32x,
                           svadd_f32_x(predicate_all_b32x, svget2_f32(sums_f32x2, 0), svget2_f32(sums_f32x2, 1)));
@@ -2221,14 +2231,14 @@ NUMKONG_INLINE nk_f32_t nk_dots_scaled_row_nvfp4_sme_(nk_cross_operand_t operand
                                                       nk_size_t depth, nk_i32_t *exponent) NUMKONG_STREAMING_ {
     nk_u8_t const *codes = (nk_u8_t const *)operand.elements + row * row_stride;
     nk_u8_t const *scales = operand.scales + row * operand.scales_stride;
-    nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(operand.tensor_scale), exponent);
+    nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(operand.tensor_scale), exponent);
     nk_size_t const vector_elements = svcnth();
     svfloat32x2_t sums_f32x2 = svcreate2_f32(svdup_n_f32(0), svdup_n_f32(0));
     for (nk_size_t first = 0; first < depth; first += vector_elements)
-        sums_f32x2 = nk_sme_sumsq_f16x_(
-            sums_f32x2, nk_sme_decode_row_nvfp4_(codes, scales, first,
+        sums_f32x2 = nk_sumsq_f16x_sme_(
+            sums_f32x2, nk_decode_row_nvfp4_sme_(codes, scales, first,
                                                  depth - first < vector_elements ? depth - first : vector_elements));
-    return nk_sme_sumsq_reduce_(sums_f32x2) * (mantissa * mantissa);
+    return nk_sumsq_reduce_sme_(sums_f32x2) * (mantissa * mantissa);
 }
 
 /** Relative squared norm of an MXFP4 row. */
@@ -2237,21 +2247,21 @@ NUMKONG_INLINE nk_f32_t nk_dots_scaled_row_mxfp4_sme_(nk_cross_operand_t operand
     nk_u8_t const *codes = (nk_u8_t const *)operand.elements + row * row_stride;
     nk_u8_t const *scales = operand.scales + row * operand.scales_stride;
     int wide;
-    nk_i32_t const base = nk_sme_mx_base_(scales, depth / 32, &wide);
+    nk_i32_t const base = nk_mx_base_sme_(scales, depth / 32, &wide);
     if (wide) {
         nk_cross_wide_sum_t sumsq, twin_sumsq;
         nk_cross_scaled_exact_wide_mxfp4_serial_(codes, scales, codes, scales, depth, &sumsq, &twin_sumsq);
-        return nk_sme_wide_norm_(sumsq, exponent);
+        return nk_wide_norm_sme_(sumsq, exponent);
     }
     nk_size_t const vector_elements = svcnth();
     svfloat32x2_t sums_f32x2 = svcreate2_f32(svdup_n_f32(0), svdup_n_f32(0));
     for (nk_size_t first = 0; first < depth; first += vector_elements)
-        sums_f32x2 = nk_sme_sumsq_bf16x_(
+        sums_f32x2 = nk_sumsq_bf16x_sme_(
             sums_f32x2,
-            nk_sme_decode_row_mxfp4_(codes, scales, first,
+            nk_decode_row_mxfp4_sme_(codes, scales, first,
                                      depth - first < vector_elements ? depth - first : vector_elements, base));
     *exponent = base;
-    return nk_sme_sumsq_reduce_(sums_f32x2);
+    return nk_sumsq_reduce_sme_(sums_f32x2);
 }
 
 /** Relative squared norm of an MXFP6 E2M3 row. */
@@ -2261,21 +2271,21 @@ NUMKONG_INLINE nk_f32_t nk_dots_scaled_row_mxfp6e2m3_sme_(nk_cross_operand_t ope
     nk_u8_t const *codes = (nk_u8_t const *)operand.elements + row * row_stride;
     nk_u8_t const *scales = operand.scales + row * operand.scales_stride;
     int wide;
-    nk_i32_t const base = nk_sme_mx_base_(scales, depth / 32, &wide);
+    nk_i32_t const base = nk_mx_base_sme_(scales, depth / 32, &wide);
     if (wide) {
         nk_cross_wide_sum_t sumsq, twin_sumsq;
         nk_cross_scaled_exact_wide_mxfp6e2m3_serial_(codes, scales, codes, scales, depth, &sumsq, &twin_sumsq);
-        return nk_sme_wide_norm_(sumsq, exponent);
+        return nk_wide_norm_sme_(sumsq, exponent);
     }
     nk_size_t const vector_elements = svcnth();
     svfloat32x2_t sums_f32x2 = svcreate2_f32(svdup_n_f32(0), svdup_n_f32(0));
     for (nk_size_t first = 0; first < depth; first += vector_elements)
-        sums_f32x2 = nk_sme_sumsq_bf16x_(
+        sums_f32x2 = nk_sumsq_bf16x_sme_(
             sums_f32x2,
-            nk_sme_decode_row_mxfp6e2m3_(codes, scales, first,
+            nk_decode_row_mxfp6e2m3_sme_(codes, scales, first,
                                          depth - first < vector_elements ? depth - first : vector_elements, base));
     *exponent = base;
-    return nk_sme_sumsq_reduce_(sums_f32x2);
+    return nk_sumsq_reduce_sme_(sums_f32x2);
 }
 
 /** Relative squared norm of an MXFP6 E3M2 row. */
@@ -2285,21 +2295,21 @@ NUMKONG_INLINE nk_f32_t nk_dots_scaled_row_mxfp6e3m2_sme_(nk_cross_operand_t ope
     nk_u8_t const *codes = (nk_u8_t const *)operand.elements + row * row_stride;
     nk_u8_t const *scales = operand.scales + row * operand.scales_stride;
     int wide;
-    nk_i32_t const base = nk_sme_mx_base_(scales, depth / 32, &wide);
+    nk_i32_t const base = nk_mx_base_sme_(scales, depth / 32, &wide);
     if (wide) {
         nk_cross_wide_sum_t sumsq, twin_sumsq;
         nk_cross_scaled_exact_wide_mxfp6e3m2_serial_(codes, scales, codes, scales, depth, &sumsq, &twin_sumsq);
-        return nk_sme_wide_norm_(sumsq, exponent);
+        return nk_wide_norm_sme_(sumsq, exponent);
     }
     nk_size_t const vector_elements = svcnth();
     svfloat32x2_t sums_f32x2 = svcreate2_f32(svdup_n_f32(0), svdup_n_f32(0));
     for (nk_size_t first = 0; first < depth; first += vector_elements)
-        sums_f32x2 = nk_sme_sumsq_bf16x_(
+        sums_f32x2 = nk_sumsq_bf16x_sme_(
             sums_f32x2,
-            nk_sme_decode_row_mxfp6e3m2_(codes, scales, first,
+            nk_decode_row_mxfp6e3m2_sme_(codes, scales, first,
                                          depth - first < vector_elements ? depth - first : vector_elements, base));
     *exponent = base;
-    return nk_sme_sumsq_reduce_(sums_f32x2);
+    return nk_sumsq_reduce_sme_(sums_f32x2);
 }
 
 /** Relative squared norm of an MXFP8 E4M3 row. */
@@ -2309,21 +2319,21 @@ NUMKONG_INLINE nk_f32_t nk_dots_scaled_row_mxfp8e4m3_sme_(nk_cross_operand_t ope
     nk_u8_t const *codes = (nk_u8_t const *)operand.elements + row * row_stride;
     nk_u8_t const *scales = operand.scales + row * operand.scales_stride;
     int wide;
-    nk_i32_t const base = nk_sme_mx_base_(scales, depth / 32, &wide);
+    nk_i32_t const base = nk_mx_base_sme_(scales, depth / 32, &wide);
     if (wide) {
         nk_cross_wide_sum_t sumsq, twin_sumsq;
         nk_cross_scaled_exact_wide_mxfp8e4m3_serial_(codes, scales, codes, scales, depth, &sumsq, &twin_sumsq);
-        return nk_sme_wide_norm_(sumsq, exponent);
+        return nk_wide_norm_sme_(sumsq, exponent);
     }
     nk_size_t const vector_elements = svcnth();
     svfloat32x2_t sums_f32x2 = svcreate2_f32(svdup_n_f32(0), svdup_n_f32(0));
     for (nk_size_t first = 0; first < depth; first += vector_elements)
-        sums_f32x2 = nk_sme_sumsq_bf16x_(
+        sums_f32x2 = nk_sumsq_bf16x_sme_(
             sums_f32x2,
-            nk_sme_decode_row_mxfp8e4m3_(codes, scales, first,
+            nk_decode_row_mxfp8e4m3_sme_(codes, scales, first,
                                          depth - first < vector_elements ? depth - first : vector_elements, base));
     *exponent = base;
-    return nk_sme_sumsq_reduce_(sums_f32x2);
+    return nk_sumsq_reduce_sme_(sums_f32x2);
 }
 
 /** Relative squared norm of an MXFP8 E5M2 row. */
@@ -2333,27 +2343,27 @@ NUMKONG_INLINE nk_f32_t nk_dots_scaled_row_mxfp8e5m2_sme_(nk_cross_operand_t ope
     nk_u8_t const *codes = (nk_u8_t const *)operand.elements + row * row_stride;
     nk_u8_t const *scales = operand.scales + row * operand.scales_stride;
     int wide;
-    nk_i32_t const base = nk_sme_mx_base_(scales, depth / 32, &wide);
+    nk_i32_t const base = nk_mx_base_sme_(scales, depth / 32, &wide);
     if (wide) {
         nk_cross_wide_sum_t sumsq, twin_sumsq;
         nk_cross_scaled_exact_wide_mxfp8e5m2_serial_(codes, scales, codes, scales, depth, &sumsq, &twin_sumsq);
-        return nk_sme_wide_norm_(sumsq, exponent);
+        return nk_wide_norm_sme_(sumsq, exponent);
     }
     nk_size_t const vector_elements = svcnth();
     svfloat32x2_t sums_f32x2 = svcreate2_f32(svdup_n_f32(0), svdup_n_f32(0));
     for (nk_size_t first = 0; first < depth; first += vector_elements)
-        sums_f32x2 = nk_sme_sumsq_bf16x_(
+        sums_f32x2 = nk_sumsq_bf16x_sme_(
             sums_f32x2,
-            nk_sme_decode_row_mxfp8e5m2_(codes, scales, first,
+            nk_decode_row_mxfp8e5m2_sme_(codes, scales, first,
                                          depth - first < vector_elements ? depth - first : vector_elements, base));
     *exponent = base;
-    return nk_sme_sumsq_reduce_(sums_f32x2);
+    return nk_sumsq_reduce_sme_(sums_f32x2);
 }
 
 /** Writes the FP4 codes of @p tile_columns columns of @p b from @p column_first into one column
  *  tile of byte panels, halfword i of step s holding column i's codes of dims 2s and 2s + 1,
  *  through the ZA0.H transpose; columns past @p tile_columns stay zero. */
-NUMKONG_INLINE void nk_sme_pack_fp4_codes_(nk_u8_t const *b, nk_size_t b_stride, nk_size_t column_first,
+NUMKONG_INLINE void nk_pack_fp4_codes_sme_(nk_u8_t const *b, nk_size_t b_stride, nk_size_t column_first,
                                            nk_size_t tile_columns, nk_size_t depth, nk_u8_t *codes) NUMKONG_STREAMING_
     __arm_inout("za") {
     nk_size_t const vector_bytes = svcntb(), vector_elements = svcnth();
@@ -2377,7 +2387,7 @@ NUMKONG_INLINE void nk_sme_pack_fp4_codes_(nk_u8_t const *b, nk_size_t b_stride,
 /** Writes the per-block factor vectors of one FP4 column tile from the @p factors_u16x the caller
  *  builds per column, through the ZA0.S transpose: both halfwords of word i of block b hold column
  *  i's factor. Columns past @p tile_columns stay zero. */
-NUMKONG_INLINE void nk_sme_store_factor_slices_(nk_size_t block_first, nk_size_t blocks,
+NUMKONG_INLINE void nk_store_factor_slices_sme_(nk_size_t block_first, nk_size_t blocks,
                                                 nk_u16_t *factors) NUMKONG_STREAMING_ __arm_inout("za") {
     nk_size_t const vector_elements = svcnth();
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -2392,7 +2402,7 @@ __arm_new("za") NUMKONG_OUTLINED_
                                            nk_u8_t *pack, nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 16;
     nk_size_t const steps = nk_size_divide_round_up_(depth, 2);
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 16, 4);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 16, 4);
     nk_f32_t *norms = (nk_f32_t *)(pack + layout.norms);
     nk_i32_t *exponents = (nk_i32_t *)(pack + layout.exponents);
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -2400,7 +2410,7 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
-        nk_sme_pack_fp4_codes_((nk_u8_t const *)b.elements, b_stride, column_first, tile_columns, depth,
+        nk_pack_fp4_codes_sme_((nk_u8_t const *)b.elements, b_stride, column_first, tile_columns, depth,
                                pack + layout.values + tile * steps * vector_elements);
         for (nk_size_t block_first = 0; block_first < blocks; block_first += tile_dimension) {
             nk_size_t const batch = blocks - block_first < tile_dimension ? blocks - block_first : tile_dimension;
@@ -2409,21 +2419,22 @@ __arm_new("za") NUMKONG_OUTLINED_
             for (nk_size_t column = 0; column < tile_columns; ++column) {
                 nk_u8_t const *scales = b.scales + (column_first + column) * b.scales_stride + block_first;
                 svuint8_t const codes_u8x = svand_n_u8_x(svptrue_b8(), svld1_u8(batch_b8x, scales), 0x7F);
-                svuint16_t const factors_u16x = svreinterpret_u16_f16(nk_e4m3x_to_f16x_ssve_(batch_b16x, codes_u8x));
+                svuint16_t const factors_u16x = svreinterpret_u16_f16(
+                    nk_e4m3x_to_f16x_sme_streaming_(batch_b16x, codes_u8x));
                 svwrite_hor_za32_u32_m(0, (uint32_t)column, predicate_all_b32x,
                                        svreinterpret_u32_u16(svzip1_u16(factors_u16x, factors_u16x)));
             }
-            nk_sme_store_factor_slices_(block_first, batch,
+            nk_store_factor_slices_sme_(block_first, batch,
                                         (nk_u16_t *)(pack + layout.factors) + tile * blocks * vector_elements);
         }
         nk_size_t const column_end = column_first + tile_columns;
         for (nk_size_t column = column_first; column < column_end; ++column)
             norms[column] = nk_dots_scaled_row_nvfp4_sme_(b, b_stride, column, depth, &exponents[column]);
-        nk_sme_copy_rows_((nk_u8_t const *)b.elements, b_stride, depth / 2, column_first, column_end,
+        nk_copy_rows_sme_((nk_u8_t const *)b.elements, b_stride, depth / 2, column_first, column_end,
                           pack + layout.codes);
-        nk_sme_copy_rows_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
-        for (nk_size_t column = column_first; column < column_end; ++column)
-            ((nk_i8_t *)(pack + layout.bases))[column] = 0;
+        nk_copy_rows_sme_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
+        nk_i8_t *column_bases = (nk_i8_t *)(pack + layout.bases);
+        for (nk_size_t column = column_first; column < column_end; ++column) column_bases[column] = 0;
     }
 }
 
@@ -2435,7 +2446,7 @@ __arm_new("za") NUMKONG_OUTLINED_
                                            nk_u8_t *pack, nk_size_t tile_begin, nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
     nk_size_t const steps = nk_size_divide_round_up_(depth, 2);
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 32, 4);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 4);
     nk_f32_t *norms = (nk_f32_t *)(pack + layout.norms);
     nk_i32_t *exponents = (nk_i32_t *)(pack + layout.exponents);
     nk_i8_t *bases = (nk_i8_t *)(pack + layout.bases);
@@ -2448,12 +2459,12 @@ __arm_new("za") NUMKONG_OUTLINED_
         for (nk_size_t column = column_first; column < column_end; ++column) {
             nk_u8_t const *scales = b.scales + column * b.scales_stride;
             int wide, nan_scale = 0;
-            nk_i32_t const base = nk_sme_mx_base_(scales, blocks, &wide);
+            nk_i32_t const base = nk_mx_base_sme_(scales, blocks, &wide);
             for (nk_size_t block = 0; block < blocks; ++block) nan_scale |= scales[block] == 255;
             bases[column] = (nk_i8_t)(wide || nan_scale ? -128 : base);
             norms[column] = nk_dots_scaled_row_mxfp4_sme_(b, b_stride, column, depth, &exponents[column]);
         }
-        nk_sme_pack_fp4_codes_((nk_u8_t const *)b.elements, b_stride, column_first, tile_columns, depth,
+        nk_pack_fp4_codes_sme_((nk_u8_t const *)b.elements, b_stride, column_first, tile_columns, depth,
                                pack + layout.values + tile * steps * vector_elements);
         for (nk_size_t block_first = 0; block_first < blocks; block_first += tile_dimension) {
             nk_size_t const batch = blocks - block_first < tile_dimension ? blocks - block_first : tile_dimension;
@@ -2472,22 +2483,22 @@ __arm_new("za") NUMKONG_OUTLINED_
                 svwrite_hor_za32_u32_m(0, (uint32_t)column, predicate_all_b32x,
                                        svreinterpret_u32_u16(svzip1_u16(factors_u16x, factors_u16x)));
             }
-            nk_sme_store_factor_slices_(block_first, batch,
+            nk_store_factor_slices_sme_(block_first, batch,
                                         (nk_u16_t *)(pack + layout.factors) + tile * blocks * vector_elements);
         }
-        nk_sme_copy_rows_((nk_u8_t const *)b.elements, b_stride, depth / 2, column_first, column_end,
+        nk_copy_rows_sme_((nk_u8_t const *)b.elements, b_stride, depth / 2, column_first, column_end,
                           pack + layout.codes);
-        nk_sme_copy_rows_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
+        nk_copy_rows_sme_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
     }
 }
 
 /** Fold exponents of one tile of MX columns from @p column_first: each column's largest block
  *  exponent, or none for columns past the fold, which @p bases_i8 marks −128. */
-NUMKONG_INLINE void nk_sme_pack_mx_bases_(nk_cross_operand_t b, nk_size_t column_first, nk_size_t tile_columns,
+NUMKONG_INLINE void nk_pack_mx_bases_sme_(nk_cross_operand_t b, nk_size_t column_first, nk_size_t tile_columns,
                                           nk_size_t blocks, nk_i8_t *bases_i8, nk_i32_t *bases) NUMKONG_STREAMABLE_ {
     for (nk_size_t column = 0; column < tile_columns; ++column) {
         int wide;
-        nk_i32_t const base = nk_sme_mx_base_(b.scales + (column_first + column) * b.scales_stride, blocks, &wide);
+        nk_i32_t const base = nk_mx_base_sme_(b.scales + (column_first + column) * b.scales_stride, blocks, &wide);
         bases_i8[column_first + column] = (nk_i8_t)(wide ? -128 : base);
         bases[column] = wide ? nk_sme_unfolded_base_k : base;
     }
@@ -2502,21 +2513,22 @@ __arm_new("za") NUMKONG_OUTLINED_
                                                nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
                                                nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 32, 8);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_size_t const column_end = column_first + tile_columns;
-        nk_sme_pack_mx_bases_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
-        nk_sme_stage_panel_mxfp6e2m3_(b, b_stride, column_first, tile_columns, 0, depth, bases,
+        nk_pack_mx_bases_sme_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
+        nk_stage_panel_mxfp6e2m3_sme_(b, b_stride, column_first, tile_columns, 0, depth, bases,
                                       (nk_u16_t *)(pack + layout.values) + tile * steps * svcnth());
+        nk_f32_t *column_norms = (nk_f32_t *)(pack + layout.norms);
         for (nk_size_t column = column_first; column < column_end; ++column)
-            ((nk_f32_t *)(pack + layout.norms))[column] = nk_dots_scaled_row_mxfp6e2m3_sme_(
-                b, b_stride, column, depth, (nk_i32_t *)(pack + layout.exponents) + column);
-        nk_sme_copy_rows_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
-        nk_sme_copy_rows_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
+            column_norms[column] = nk_dots_scaled_row_mxfp6e2m3_sme_(b, b_stride, column, depth,
+                                                                     (nk_i32_t *)(pack + layout.exponents) + column);
+        nk_copy_rows_sme_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
+        nk_copy_rows_sme_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
     }
 }
 
@@ -2526,21 +2538,22 @@ __arm_new("za") NUMKONG_OUTLINED_
                                                nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
                                                nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 32, 8);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_size_t const column_end = column_first + tile_columns;
-        nk_sme_pack_mx_bases_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
-        nk_sme_stage_panel_mxfp6e3m2_(b, b_stride, column_first, tile_columns, 0, depth, bases,
+        nk_pack_mx_bases_sme_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
+        nk_stage_panel_mxfp6e3m2_sme_(b, b_stride, column_first, tile_columns, 0, depth, bases,
                                       (nk_u16_t *)(pack + layout.values) + tile * steps * svcnth());
+        nk_f32_t *column_norms = (nk_f32_t *)(pack + layout.norms);
         for (nk_size_t column = column_first; column < column_end; ++column)
-            ((nk_f32_t *)(pack + layout.norms))[column] = nk_dots_scaled_row_mxfp6e3m2_sme_(
-                b, b_stride, column, depth, (nk_i32_t *)(pack + layout.exponents) + column);
-        nk_sme_copy_rows_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
-        nk_sme_copy_rows_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
+            column_norms[column] = nk_dots_scaled_row_mxfp6e3m2_sme_(b, b_stride, column, depth,
+                                                                     (nk_i32_t *)(pack + layout.exponents) + column);
+        nk_copy_rows_sme_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
+        nk_copy_rows_sme_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
     }
 }
 
@@ -2550,21 +2563,22 @@ __arm_new("za") NUMKONG_OUTLINED_
                                                nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
                                                nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 32, 8);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_size_t const column_end = column_first + tile_columns;
-        nk_sme_pack_mx_bases_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
-        nk_sme_stage_panel_mxfp8e4m3_(b, b_stride, column_first, tile_columns, 0, depth, bases,
+        nk_pack_mx_bases_sme_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
+        nk_stage_panel_mxfp8e4m3_sme_(b, b_stride, column_first, tile_columns, 0, depth, bases,
                                       (nk_u16_t *)(pack + layout.values) + tile * steps * svcnth());
+        nk_f32_t *column_norms = (nk_f32_t *)(pack + layout.norms);
         for (nk_size_t column = column_first; column < column_end; ++column)
-            ((nk_f32_t *)(pack + layout.norms))[column] = nk_dots_scaled_row_mxfp8e4m3_sme_(
-                b, b_stride, column, depth, (nk_i32_t *)(pack + layout.exponents) + column);
-        nk_sme_copy_rows_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
-        nk_sme_copy_rows_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
+            column_norms[column] = nk_dots_scaled_row_mxfp8e4m3_sme_(b, b_stride, column, depth,
+                                                                     (nk_i32_t *)(pack + layout.exponents) + column);
+        nk_copy_rows_sme_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
+        nk_copy_rows_sme_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
     }
 }
 
@@ -2574,21 +2588,22 @@ __arm_new("za") NUMKONG_OUTLINED_
                                                nk_size_t depth, nk_u8_t *pack, nk_size_t tile_begin,
                                                nk_size_t tile_end) NUMKONG_STREAMING_ {
     nk_size_t const tile_dimension = svcntw(), blocks = depth / 32, steps = nk_size_divide_round_up_(depth, 2);
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 32, 8);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 8);
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t tile = tile_begin; tile < tile_end; ++tile) {
         nk_size_t const column_first = tile * tile_dimension;
         nk_size_t const tile_columns = columns - column_first < tile_dimension ? columns - column_first
                                                                                : tile_dimension;
         nk_size_t const column_end = column_first + tile_columns;
-        nk_sme_pack_mx_bases_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
-        nk_sme_stage_panel_mxfp8e5m2_(b, b_stride, column_first, tile_columns, 0, depth, bases,
+        nk_pack_mx_bases_sme_(b, column_first, tile_columns, blocks, (nk_i8_t *)(pack + layout.bases), bases);
+        nk_stage_panel_mxfp8e5m2_sme_(b, b_stride, column_first, tile_columns, 0, depth, bases,
                                       (nk_u16_t *)(pack + layout.values) + tile * steps * svcnth());
+        nk_f32_t *column_norms = (nk_f32_t *)(pack + layout.norms);
         for (nk_size_t column = column_first; column < column_end; ++column)
-            ((nk_f32_t *)(pack + layout.norms))[column] = nk_dots_scaled_row_mxfp8e5m2_sme_(
-                b, b_stride, column, depth, (nk_i32_t *)(pack + layout.exponents) + column);
-        nk_sme_copy_rows_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
-        nk_sme_copy_rows_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
+            column_norms[column] = nk_dots_scaled_row_mxfp8e5m2_sme_(b, b_stride, column, depth,
+                                                                     (nk_i32_t *)(pack + layout.exponents) + column);
+        nk_copy_rows_sme_((nk_u8_t const *)b.elements, b_stride, depth, column_first, column_end, pack + layout.codes);
+        nk_copy_rows_sme_(b.scales, b.scales_stride, blocks, column_first, column_end, pack + layout.scales);
     }
 }
 
@@ -2597,11 +2612,11 @@ __arm_new("za") NUMKONG_OUTLINED_
 NUMKONG_INLINE void nk_dots_pack_scaled_window_sme_(nk_cross_operand_t b, nk_size_t columns, nk_size_t depth,
                                                     void *b_packed, nk_size_t norms_offset, nk_size_t columns_begin,
                                                     nk_size_t columns_end, nk_size_t *tile_begin, nk_size_t *tile_end) {
-    nk_size_t const tile_dimension = nk_sme_cntw_();
+    nk_size_t const tile_dimension = nk_cntw_sme_();
     if (columns_begin == 0)
-        nk_dots_sme_header_(b_packed, columns, depth, nk_size_divide_round_up_(depth, 2), norms_offset,
-                            nk_cross_tensor_scale_(b.tensor_scale), tile_dimension);
-    nk_dots_sme_window_tiles_(columns, columns_begin, columns_end, tile_dimension, tile_begin, tile_end);
+        nk_dots_header_sme_(b_packed, columns, depth, nk_size_divide_round_up_(depth, 2), norms_offset,
+                            nk_cross_tensor_scale_serial_(b.tensor_scale), tile_dimension);
+    nk_dots_window_tiles_sme_(columns, columns_begin, columns_end, tile_dimension, tile_begin, tile_end);
 }
 
 #pragma endregion Packs
@@ -2632,16 +2647,16 @@ __arm_new("za") NUMKONG_OUTLINED_
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
             nk_u16_t const *b_chunk = b_tiles + depth_first / 2 * vector_elements;
-            nk_sme_stage_panel_b16_((nk_u16_t const *)a, a_stride, row_first, first_rows, depth_first, chunk_depth,
+            nk_stage_panel_b16_sme_((nk_u16_t const *)a, a_stride, row_first, first_rows, depth_first, chunk_depth,
                                     panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_f16_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_f16_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                       depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_b16_((nk_u16_t const *)a, a_stride, row_first + first_rows, second_rows, depth_first,
+            nk_stage_panel_b16_sme_((nk_u16_t const *)a, a_stride, row_first + first_rows, second_rows, depth_first,
                                     chunk_depth, panels[1]);
-            nk_sme_sweep_2x2_f16_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_f16_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                   steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2662,9 +2677,9 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const block_rows = rows - row_first < tile_dimension ? rows - row_first : tile_dimension;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_sme_stage_panel_b16_((nk_u16_t const *)a, a_stride, row_first, block_rows, depth_first, chunk_depth,
+            nk_stage_panel_b16_sme_((nk_u16_t const *)a, a_stride, row_first, block_rows, depth_first, chunk_depth,
                                     panel);
-            nk_sme_sweep_1x4_bf16_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
+            nk_sweep_1x4_bf16_sme_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
                                    tile_stride, tiles, 0, nk_size_divide_round_up_(chunk_depth, 2), depth_first == 0, 0,
                                    c, c_stride, columns);
         }
@@ -2690,15 +2705,15 @@ __arm_new("za") NUMKONG_OUTLINED_
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
             nk_u16_t const *b_chunk = b_tiles + depth_first / 2 * vector_elements;
-            nk_sme_stage_panel_e4m3_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_e4m3_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_f16_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_f16_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                       depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_e4m3_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_e4m3_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                      panels[1]);
-            nk_sme_sweep_2x2_f16_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_f16_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                   steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2723,15 +2738,15 @@ __arm_new("za") NUMKONG_OUTLINED_
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
             nk_u16_t const *b_chunk = b_tiles + depth_first / 2 * vector_elements;
-            nk_sme_stage_panel_e5m2_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_e5m2_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_f16_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_f16_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                       depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_e5m2_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_e5m2_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                      panels[1]);
-            nk_sme_sweep_2x2_f16_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_f16_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                   steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2756,15 +2771,15 @@ __arm_new("za") NUMKONG_OUTLINED_
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
             nk_u16_t const *b_chunk = b_tiles + depth_first / 2 * vector_elements;
-            nk_sme_stage_panel_e3m2_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_e3m2_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_f16_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_f16_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                       depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_e3m2_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_e3m2_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                      panels[1]);
-            nk_sme_sweep_2x2_f16_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_f16_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                   steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2787,17 +2802,17 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const second_rows = remaining < tile_dimension ? remaining : tile_dimension;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             nk_u8_t const *b_chunk = b_tiles + depth_first / 4 * vector_bytes;
-            nk_sme_stage_panel_b8_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_b8_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_i8_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_i8_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                      depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_b8_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_b8_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                    panels[1]);
-            nk_sme_sweep_2x2_i8_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_i8_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                  steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2820,17 +2835,17 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const second_rows = remaining < tile_dimension ? remaining : tile_dimension;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             nk_u8_t const *b_chunk = b_tiles + depth_first / 4 * vector_bytes;
-            nk_sme_stage_panel_b8_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_b8_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_u8_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_u8_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                      depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_b8_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_b8_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                    panels[1]);
-            nk_sme_sweep_2x2_u8_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_u8_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                  steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2853,20 +2868,20 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const second_rows = remaining < tile_dimension ? remaining : tile_dimension;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             nk_u8_t const *b_chunk = b_tiles + depth_first / 4 * vector_bytes;
-            nk_sme_stage_panel_e2m3_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_e2m3_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_i8_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_i8_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                      depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_e2m3_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_e2m3_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                      panels[1]);
-            nk_sme_sweep_2x2_i8_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_i8_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                  steps, depth_first == 0, c, c_stride, columns);
         }
-        nk_sme_scale_rows_i32_(c, c_stride, row_first, row_first + first_rows + second_rows, columns, 0, 1.0f / 256);
+        nk_scale_rows_i32_sme_(c, c_stride, row_first, row_first + first_rows + second_rows, columns, 0, 1.0f / 256);
     }
 }
 
@@ -2887,20 +2902,20 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const second_rows = remaining < tile_dimension ? remaining : tile_dimension;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             nk_u8_t const *b_chunk = b_tiles + depth_first / 4 * vector_bytes;
-            nk_sme_stage_panel_e2m1_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_e2m1_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_i8_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_i8_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                      depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_e2m1_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_e2m1_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                      panels[1]);
-            nk_sme_sweep_2x2_i8_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_i8_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                  steps, depth_first == 0, c, c_stride, columns);
         }
-        nk_sme_scale_rows_i32_(c, c_stride, row_first, row_first + first_rows + second_rows, columns, 0, 0.25f);
+        nk_scale_rows_i32_sme_(c, c_stride, row_first, row_first + first_rows + second_rows, columns, 0, 0.25f);
     }
 }
 
@@ -2921,17 +2936,17 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const second_rows = remaining < tile_dimension ? remaining : tile_dimension;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(8, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(8, chunk_depth);
             nk_u8_t const *b_chunk = b_tiles + depth_first / 4 * vector_bytes;
-            nk_sme_stage_panel_i4_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_i4_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_i8_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_i8_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                      depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_i4_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_i4_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                    panels[1]);
-            nk_sme_sweep_2x2_i8_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_i8_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                  steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2954,17 +2969,17 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const second_rows = remaining < tile_dimension ? remaining : tile_dimension;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(8, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(8, chunk_depth);
             nk_u8_t const *b_chunk = b_tiles + depth_first / 4 * vector_bytes;
-            nk_sme_stage_panel_u4_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_u4_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_u8_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
+                nk_sweep_1x4_u8_sme_(panels[0], first_rows, row_first, b_chunk, tile_stride, tiles, 0, steps,
                                      depth_first == 0, 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_u4_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_u4_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                    panels[1]);
-            nk_sme_sweep_2x2_u8_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
+            nk_sweep_2x2_u8_sme_(panels[0], panels[1], first_rows, second_rows, row_first, b_chunk, tile_stride, tiles,
                                  steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -2980,7 +2995,7 @@ __arm_new("za") NUMKONG_OUTLINED_
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 16;
     nk_size_t const code_stride = header->depth_tile_count * vector_elements, factor_stride = blocks * vector_elements;
     nk_size_t const tiles = header->column_tile_count, chunk_dims = nk_sme_panel_bytes_k / svcntb() * 2;
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 16, 4);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 16, 4);
     nk_u8_t const *b_codes = (nk_u8_t const *)b_packed + layout.values;
     nk_u16_t const *b_factors = (nk_u16_t const *)((nk_u8_t const *)b_packed + layout.factors);
     nk_align_(64) nk_u16_t panels[2][nk_sme_panel_bytes_k / sizeof(nk_u16_t)];
@@ -2993,15 +3008,15 @@ __arm_new("za") NUMKONG_OUTLINED_
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
             nk_u8_t const *codes = b_codes + depth_first / 2 * vector_elements;
             nk_u16_t const *factors = b_factors + depth_first / 16 * vector_elements;
-            nk_sme_stage_panel_nvfp4_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
+            nk_stage_panel_nvfp4_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_nvfp4_(panels[0], first_rows, row_first, codes, code_stride, factors, factor_stride,
+                nk_sweep_1x4_nvfp4_sme_(panels[0], first_rows, row_first, codes, code_stride, factors, factor_stride,
                                         tiles, steps, depth_first == 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_nvfp4_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_nvfp4_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                       panels[1]);
-            nk_sme_sweep_2x2_nvfp4_(panels[0], panels[1], first_rows, second_rows, row_first, codes, code_stride,
+            nk_sweep_2x2_nvfp4_sme_(panels[0], panels[1], first_rows, second_rows, row_first, codes, code_stride,
                                     factors, factor_stride, tiles, steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -3017,7 +3032,7 @@ __arm_new("za") NUMKONG_OUTLINED_
     nk_size_t const tile_dimension = svcntw(), vector_elements = svcnth(), blocks = depth / 32;
     nk_size_t const code_stride = header->depth_tile_count * vector_elements, factor_stride = blocks * vector_elements;
     nk_size_t const tiles = header->column_tile_count, chunk_dims = nk_sme_panel_bytes_k / svcntb() * 2;
-    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_sme_layout_(columns, depth, tile_dimension, 32, 4);
+    nk_dots_scaled_sme_layout_t const layout = nk_dots_scaled_layout_sme_(columns, depth, tile_dimension, 32, 4);
     nk_u8_t const *b_codes = (nk_u8_t const *)b_packed + layout.values;
     nk_u16_t const *b_factors = (nk_u16_t const *)((nk_u8_t const *)b_packed + layout.factors);
     nk_align_(64) nk_u16_t panels[2][nk_sme_panel_bytes_k / sizeof(nk_u16_t)];
@@ -3026,23 +3041,23 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const first_rows = rows - row_first < tile_dimension ? rows - row_first : tile_dimension;
         nk_size_t const remaining = rows - row_first - first_rows;
         nk_size_t const second_rows = remaining < tile_dimension ? remaining : tile_dimension;
-        nk_sme_row_bases_(a, row_first, first_rows, blocks, bases[0]);
-        nk_sme_row_bases_(a, row_first + first_rows, second_rows, blocks, bases[1]);
+        nk_row_bases_sme_(a, row_first, first_rows, blocks, bases[0]);
+        nk_row_bases_sme_(a, row_first + first_rows, second_rows, blocks, bases[1]);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
             nk_u8_t const *codes = b_codes + depth_first / 2 * vector_elements;
             nk_u16_t const *factors = b_factors + depth_first / 32 * vector_elements;
-            nk_sme_stage_panel_mxfp4_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, bases[0],
+            nk_stage_panel_mxfp4_sme_(a, a_stride, row_first, first_rows, depth_first, chunk_depth, bases[0],
                                       panels[0]);
             if (!second_rows) {
-                nk_sme_sweep_1x4_mxfp4_(panels[0], first_rows, row_first, codes, code_stride, factors, factor_stride,
+                nk_sweep_1x4_mxfp4_sme_(panels[0], first_rows, row_first, codes, code_stride, factors, factor_stride,
                                         tiles, steps, depth_first == 0, c, c_stride, columns);
                 continue;
             }
-            nk_sme_stage_panel_mxfp4_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
+            nk_stage_panel_mxfp4_sme_(a, a_stride, row_first + first_rows, second_rows, depth_first, chunk_depth,
                                       bases[1], panels[1]);
-            nk_sme_sweep_2x2_mxfp4_(panels[0], panels[1], first_rows, second_rows, row_first, codes, code_stride,
+            nk_sweep_2x2_mxfp4_sme_(panels[0], panels[1], first_rows, second_rows, row_first, codes, code_stride,
                                     factors, factor_stride, tiles, steps, depth_first == 0, c, c_stride, columns);
         }
     }
@@ -3065,11 +3080,11 @@ __arm_new("za") NUMKONG_OUTLINED_
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t row_first = 0; row_first < rows; row_first += tile_dimension) {
         nk_size_t const block_rows = rows - row_first < tile_dimension ? rows - row_first : tile_dimension;
-        nk_sme_row_bases_(a, row_first, block_rows, blocks, bases);
+        nk_row_bases_sme_(a, row_first, block_rows, blocks, bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_sme_stage_panel_mxfp6e2m3_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
-            nk_sme_sweep_1x4_bf16_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
+            nk_stage_panel_mxfp6e2m3_sme_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
+            nk_sweep_1x4_bf16_sme_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
                                    tile_stride, tiles, 0, nk_size_divide_round_up_(chunk_depth, 2), depth_first == 0, 0,
                                    c, c_stride, columns);
         }
@@ -3090,11 +3105,11 @@ __arm_new("za") NUMKONG_OUTLINED_
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t row_first = 0; row_first < rows; row_first += tile_dimension) {
         nk_size_t const block_rows = rows - row_first < tile_dimension ? rows - row_first : tile_dimension;
-        nk_sme_row_bases_(a, row_first, block_rows, blocks, bases);
+        nk_row_bases_sme_(a, row_first, block_rows, blocks, bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_sme_stage_panel_mxfp6e3m2_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
-            nk_sme_sweep_1x4_bf16_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
+            nk_stage_panel_mxfp6e3m2_sme_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
+            nk_sweep_1x4_bf16_sme_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
                                    tile_stride, tiles, 0, nk_size_divide_round_up_(chunk_depth, 2), depth_first == 0, 0,
                                    c, c_stride, columns);
         }
@@ -3115,11 +3130,11 @@ __arm_new("za") NUMKONG_OUTLINED_
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t row_first = 0; row_first < rows; row_first += tile_dimension) {
         nk_size_t const block_rows = rows - row_first < tile_dimension ? rows - row_first : tile_dimension;
-        nk_sme_row_bases_(a, row_first, block_rows, blocks, bases);
+        nk_row_bases_sme_(a, row_first, block_rows, blocks, bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_sme_stage_panel_mxfp8e4m3_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
-            nk_sme_sweep_1x4_bf16_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
+            nk_stage_panel_mxfp8e4m3_sme_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
+            nk_sweep_1x4_bf16_sme_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
                                    tile_stride, tiles, 0, nk_size_divide_round_up_(chunk_depth, 2), depth_first == 0, 0,
                                    c, c_stride, columns);
         }
@@ -3140,11 +3155,11 @@ __arm_new("za") NUMKONG_OUTLINED_
     nk_i32_t bases[nk_sme_max_tile_k];
     for (nk_size_t row_first = 0; row_first < rows; row_first += tile_dimension) {
         nk_size_t const block_rows = rows - row_first < tile_dimension ? rows - row_first : tile_dimension;
-        nk_sme_row_bases_(a, row_first, block_rows, blocks, bases);
+        nk_row_bases_sme_(a, row_first, block_rows, blocks, bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_sme_stage_panel_mxfp8e5m2_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
-            nk_sme_sweep_1x4_bf16_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
+            nk_stage_panel_mxfp8e5m2_sme_(a, a_stride, row_first, block_rows, depth_first, chunk_depth, bases, panel);
+            nk_sweep_1x4_bf16_sme_(panel, block_rows, row_first, b_tiles + depth_first / 2 * vector_elements,
                                    tile_stride, tiles, 0, nk_size_divide_round_up_(chunk_depth, 2), depth_first == 0, 0,
                                    c, c_stride, columns);
         }
@@ -3185,14 +3200,14 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_b16_((nk_u16_t const *)vectors, stride, window_first + tile_first, tile_columns,
+                nk_stage_panel_b16_sme_((nk_u16_t const *)vectors, stride, window_first + tile_first, tile_columns,
                                         depth_first, chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_b16_((nk_u16_t const *)vectors, stride, row_first, rows, depth_first, chunk_depth,
+                nk_stage_panel_b16_sme_((nk_u16_t const *)vectors, stride, row_first, rows, depth_first, chunk_depth,
                                         row_panel);
-                nk_sme_sweep_1x4_f16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
+                nk_sweep_1x4_f16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
                                       steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3224,14 +3239,14 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_b16_((nk_u16_t const *)vectors, stride, window_first + tile_first, tile_columns,
+                nk_stage_panel_b16_sme_((nk_u16_t const *)vectors, stride, window_first + tile_first, tile_columns,
                                         depth_first, chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_b16_((nk_u16_t const *)vectors, stride, row_first, rows, depth_first, chunk_depth,
+                nk_stage_panel_b16_sme_((nk_u16_t const *)vectors, stride, row_first, rows, depth_first, chunk_depth,
                                         row_panel);
-                nk_sme_sweep_1x4_bf16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
+                nk_sweep_1x4_bf16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
                                        window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3263,13 +3278,13 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_e4m3_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_e4m3_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                          chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_e4m3_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_f16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
+                nk_stage_panel_e4m3_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_f16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
                                       steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3301,13 +3316,13 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_e5m2_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_e5m2_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                          chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_e5m2_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_f16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
+                nk_stage_panel_e5m2_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_f16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
                                       steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3339,13 +3354,13 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_e3m2_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_e3m2_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                          chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_e3m2_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_f16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
+                nk_stage_panel_e3m2_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_f16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
                                       steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3377,13 +3392,13 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_nvfp4_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_nvfp4_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                           chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_nvfp4_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_f16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
+                nk_stage_panel_nvfp4_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_f16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles, window_first,
                                       steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3408,7 +3423,7 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const window_columns = window_remaining < window_width ? window_remaining : window_width;
         nk_size_t const window_tiles = nk_size_divide_round_up_(window_columns, tile_dimension);
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
-        nk_sme_row_bases_(vectors, window_first, window_columns, blocks, column_bases);
+        nk_row_bases_sme_(vectors, window_first, window_columns, blocks, column_bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
@@ -3417,15 +3432,15 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_mxfp4_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_mxfp4_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                           chunk_depth, column_bases + tile_first, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_row_bases_(vectors, row_first, rows, blocks, row_bases);
-                nk_sme_stage_panel_mxfp4_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
+                nk_row_bases_sme_(vectors, row_first, rows, blocks, row_bases);
+                nk_stage_panel_mxfp4_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
                                           row_panel);
-                nk_sme_sweep_1x4_bf16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
+                nk_sweep_1x4_bf16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
                                        window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3451,7 +3466,7 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const window_columns = window_remaining < window_width ? window_remaining : window_width;
         nk_size_t const window_tiles = nk_size_divide_round_up_(window_columns, tile_dimension);
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
-        nk_sme_row_bases_(vectors, window_first, window_columns, blocks, column_bases);
+        nk_row_bases_sme_(vectors, window_first, window_columns, blocks, column_bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
@@ -3460,15 +3475,15 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_mxfp6e2m3_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_mxfp6e2m3_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                               chunk_depth, column_bases + tile_first, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_row_bases_(vectors, row_first, rows, blocks, row_bases);
-                nk_sme_stage_panel_mxfp6e2m3_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
+                nk_row_bases_sme_(vectors, row_first, rows, blocks, row_bases);
+                nk_stage_panel_mxfp6e2m3_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
                                               row_panel);
-                nk_sme_sweep_1x4_bf16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
+                nk_sweep_1x4_bf16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
                                        window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3494,7 +3509,7 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const window_columns = window_remaining < window_width ? window_remaining : window_width;
         nk_size_t const window_tiles = nk_size_divide_round_up_(window_columns, tile_dimension);
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
-        nk_sme_row_bases_(vectors, window_first, window_columns, blocks, column_bases);
+        nk_row_bases_sme_(vectors, window_first, window_columns, blocks, column_bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
@@ -3503,15 +3518,15 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_mxfp6e3m2_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_mxfp6e3m2_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                               chunk_depth, column_bases + tile_first, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_row_bases_(vectors, row_first, rows, blocks, row_bases);
-                nk_sme_stage_panel_mxfp6e3m2_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
+                nk_row_bases_sme_(vectors, row_first, rows, blocks, row_bases);
+                nk_stage_panel_mxfp6e3m2_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
                                               row_panel);
-                nk_sme_sweep_1x4_bf16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
+                nk_sweep_1x4_bf16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
                                        window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3537,7 +3552,7 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const window_columns = window_remaining < window_width ? window_remaining : window_width;
         nk_size_t const window_tiles = nk_size_divide_round_up_(window_columns, tile_dimension);
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
-        nk_sme_row_bases_(vectors, window_first, window_columns, blocks, column_bases);
+        nk_row_bases_sme_(vectors, window_first, window_columns, blocks, column_bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
@@ -3546,15 +3561,15 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_mxfp8e4m3_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_mxfp8e4m3_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                               chunk_depth, column_bases + tile_first, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_row_bases_(vectors, row_first, rows, blocks, row_bases);
-                nk_sme_stage_panel_mxfp8e4m3_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
+                nk_row_bases_sme_(vectors, row_first, rows, blocks, row_bases);
+                nk_stage_panel_mxfp8e4m3_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
                                               row_panel);
-                nk_sme_sweep_1x4_bf16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
+                nk_sweep_1x4_bf16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
                                        window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3580,7 +3595,7 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const window_columns = window_remaining < window_width ? window_remaining : window_width;
         nk_size_t const window_tiles = nk_size_divide_round_up_(window_columns, tile_dimension);
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
-        nk_sme_row_bases_(vectors, window_first, window_columns, blocks, column_bases);
+        nk_row_bases_sme_(vectors, window_first, window_columns, blocks, column_bases);
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
             nk_size_t const steps = nk_size_divide_round_up_(chunk_depth, 2);
@@ -3589,15 +3604,15 @@ __arm_new("za") NUMKONG_OUTLINED_
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_mxfp8e5m2_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_mxfp8e5m2_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                               chunk_depth, column_bases + tile_first, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_row_bases_(vectors, row_first, rows, blocks, row_bases);
-                nk_sme_stage_panel_mxfp8e5m2_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
+                nk_row_bases_sme_(vectors, row_first, rows, blocks, row_bases);
+                nk_stage_panel_mxfp8e5m2_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_bases,
                                               row_panel);
-                nk_sme_sweep_1x4_bf16_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
+                nk_sweep_1x4_bf16_sme_(row_panel, rows, row_first, window[0], panel_elements, window_tiles,
                                        window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3622,19 +3637,19 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             for (nk_size_t tile = 0; tile < window_tiles; ++tile) {
                 nk_size_t const tile_first = tile * tile_dimension;
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_b8_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_b8_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                        chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_b8_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_i8_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
+                nk_stage_panel_b8_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_i8_sme_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
                                      window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3659,19 +3674,19 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             for (nk_size_t tile = 0; tile < window_tiles; ++tile) {
                 nk_size_t const tile_first = tile * tile_dimension;
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_b8_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_b8_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                        chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_b8_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_u8_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
+                nk_stage_panel_b8_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_u8_sme_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
                                      window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3696,24 +3711,24 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             for (nk_size_t tile = 0; tile < window_tiles; ++tile) {
                 nk_size_t const tile_first = tile * tile_dimension;
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_e2m3_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_e2m3_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                          chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_e2m3_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_i8_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
+                nk_stage_panel_e2m3_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_i8_sme_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
                                      window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
     }
-    nk_sme_scale_rows_i32_(result, result_stride, rows_begin, rows_end, vector_count, 1, 1.0f / 256);
+    nk_scale_rows_i32_sme_(result, result_stride, rows_begin, rows_end, vector_count, 1, 1.0f / 256);
 }
 
 /** The upper triangle of V × Vᵀ for e2m1 vectors as doubled i8, converted to F32 at the end. */
@@ -3734,24 +3749,24 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(4, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(4, chunk_depth);
             for (nk_size_t tile = 0; tile < window_tiles; ++tile) {
                 nk_size_t const tile_first = tile * tile_dimension;
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_e2m1_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_e2m1_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                          chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_e2m1_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_i8_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
+                nk_stage_panel_e2m1_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_i8_sme_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
                                      window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
     }
-    nk_sme_scale_rows_i32_(result, result_stride, rows_begin, rows_end, vector_count, 1, 0.25f);
+    nk_scale_rows_i32_sme_(result, result_stride, rows_begin, rows_end, vector_count, 1, 0.25f);
 }
 
 /** The upper triangle of V × Vᵀ for i4 vectors as sign-extended nibble steps. */
@@ -3772,19 +3787,19 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(8, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(8, chunk_depth);
             for (nk_size_t tile = 0; tile < window_tiles; ++tile) {
                 nk_size_t const tile_first = tile * tile_dimension;
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_i4_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_i4_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                        chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_i4_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_i8_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
+                nk_stage_panel_i4_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_i8_sme_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
                                      window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3809,19 +3824,19 @@ __arm_new("za") NUMKONG_OUTLINED_
         nk_size_t const row_limit = rows_end < window_first + window_columns ? rows_end : window_first + window_columns;
         for (nk_size_t depth_first = 0; depth_first == 0 || depth_first < depth; depth_first += chunk_dims) {
             nk_size_t const chunk_depth = depth - depth_first < chunk_dims ? depth - depth_first : chunk_dims;
-            nk_size_t const steps = nk_sme_panel_steps_b8_(8, chunk_depth);
+            nk_size_t const steps = nk_panel_steps_b8_sme_(8, chunk_depth);
             for (nk_size_t tile = 0; tile < window_tiles; ++tile) {
                 nk_size_t const tile_first = tile * tile_dimension;
                 nk_size_t const tile_columns = window_columns - tile_first < tile_dimension
                                                    ? window_columns - tile_first
                                                    : tile_dimension;
-                nk_sme_stage_panel_u4_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
+                nk_stage_panel_u4_sme_(vectors, stride, window_first + tile_first, tile_columns, depth_first,
                                        chunk_depth, window[tile]);
             }
             for (nk_size_t row_first = rows_begin; row_first < row_limit; row_first += tile_dimension) {
                 nk_size_t const rows = rows_end - row_first < tile_dimension ? rows_end - row_first : tile_dimension;
-                nk_sme_stage_panel_u4_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
-                nk_sme_sweep_1x4_u8_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
+                nk_stage_panel_u4_sme_(vectors, stride, row_first, rows, depth_first, chunk_depth, row_panel);
+                nk_sweep_1x4_u8_sme_(row_panel, rows, row_first, window[0], nk_sme_window_panel_bytes_k, window_tiles,
                                      window_first, steps, depth_first == 0, 1, result, result_stride, vector_count);
             }
         }
@@ -3854,7 +3869,7 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp4_sme_(nk_cross_operand_t a, nk_siz
         nk_u8_t const *a_codes = (nk_u8_t const *)a.elements + row * a_stride;
         nk_u8_t const *a_scales = a.scales + row * a.scales_stride;
         int wide_row;
-        nk_i32_t row_exponent = nk_sme_mx_base_(a_scales, blocks, &wide_row);
+        nk_i32_t row_exponent = nk_mx_base_sme_(a_scales, blocks, &wide_row);
         if (!wide_row && !wide_columns) continue;
         nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
         for (nk_size_t column = upper && row > column_first ? row : column_first; column < column_end; ++column) {
@@ -3863,9 +3878,9 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp4_sme_(nk_cross_operand_t a, nk_siz
             nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp4_serial_(
                 a_codes, a_scales, (nk_u8_t const *)b.elements + column * b_stride, b.scales + column * b.scales_stride,
                 depth, &a_sumsq, &b_sumsq);
-            if (wide_row) nk_sme_wide_norm_(a_sumsq, &row_exponent);
-            c_row[column] = nk_f32_scale_(dot.sum,
-                                          dot.exponent - row_exponent - column_exponents[column - column_first]);
+            if (wide_row) nk_wide_norm_sme_(a_sumsq, &row_exponent);
+            c_row[column] = nk_scale_f32_serial_(dot.sum,
+                                                 dot.exponent - row_exponent - column_exponents[column - column_first]);
         }
     }
 }
@@ -3885,7 +3900,7 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp6e2m3_sme_(nk_cross_operand_t a, nk
         nk_u8_t const *a_codes = (nk_u8_t const *)a.elements + row * a_stride;
         nk_u8_t const *a_scales = a.scales + row * a.scales_stride;
         int wide_row;
-        nk_i32_t row_exponent = nk_sme_mx_base_(a_scales, blocks, &wide_row);
+        nk_i32_t row_exponent = nk_mx_base_sme_(a_scales, blocks, &wide_row);
         if (!wide_row && !wide_columns) continue;
         nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
         for (nk_size_t column = upper && row > column_first ? row : column_first; column < column_end; ++column) {
@@ -3894,9 +3909,9 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp6e2m3_sme_(nk_cross_operand_t a, nk
             nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp6e2m3_serial_(
                 a_codes, a_scales, (nk_u8_t const *)b.elements + column * b_stride, b.scales + column * b.scales_stride,
                 depth, &a_sumsq, &b_sumsq);
-            if (wide_row) nk_sme_wide_norm_(a_sumsq, &row_exponent);
-            c_row[column] = nk_f32_scale_(dot.sum,
-                                          dot.exponent - row_exponent - column_exponents[column - column_first]);
+            if (wide_row) nk_wide_norm_sme_(a_sumsq, &row_exponent);
+            c_row[column] = nk_scale_f32_serial_(dot.sum,
+                                                 dot.exponent - row_exponent - column_exponents[column - column_first]);
         }
     }
 }
@@ -3916,7 +3931,7 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp6e3m2_sme_(nk_cross_operand_t a, nk
         nk_u8_t const *a_codes = (nk_u8_t const *)a.elements + row * a_stride;
         nk_u8_t const *a_scales = a.scales + row * a.scales_stride;
         int wide_row;
-        nk_i32_t row_exponent = nk_sme_mx_base_(a_scales, blocks, &wide_row);
+        nk_i32_t row_exponent = nk_mx_base_sme_(a_scales, blocks, &wide_row);
         if (!wide_row && !wide_columns) continue;
         nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
         for (nk_size_t column = upper && row > column_first ? row : column_first; column < column_end; ++column) {
@@ -3925,9 +3940,9 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp6e3m2_sme_(nk_cross_operand_t a, nk
             nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp6e3m2_serial_(
                 a_codes, a_scales, (nk_u8_t const *)b.elements + column * b_stride, b.scales + column * b.scales_stride,
                 depth, &a_sumsq, &b_sumsq);
-            if (wide_row) nk_sme_wide_norm_(a_sumsq, &row_exponent);
-            c_row[column] = nk_f32_scale_(dot.sum,
-                                          dot.exponent - row_exponent - column_exponents[column - column_first]);
+            if (wide_row) nk_wide_norm_sme_(a_sumsq, &row_exponent);
+            c_row[column] = nk_scale_f32_serial_(dot.sum,
+                                                 dot.exponent - row_exponent - column_exponents[column - column_first]);
         }
     }
 }
@@ -3947,7 +3962,7 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp8e4m3_sme_(nk_cross_operand_t a, nk
         nk_u8_t const *a_codes = (nk_u8_t const *)a.elements + row * a_stride;
         nk_u8_t const *a_scales = a.scales + row * a.scales_stride;
         int wide_row;
-        nk_i32_t row_exponent = nk_sme_mx_base_(a_scales, blocks, &wide_row);
+        nk_i32_t row_exponent = nk_mx_base_sme_(a_scales, blocks, &wide_row);
         if (!wide_row && !wide_columns) continue;
         nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
         for (nk_size_t column = upper && row > column_first ? row : column_first; column < column_end; ++column) {
@@ -3956,9 +3971,9 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp8e4m3_sme_(nk_cross_operand_t a, nk
             nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e4m3_serial_(
                 a_codes, a_scales, (nk_u8_t const *)b.elements + column * b_stride, b.scales + column * b.scales_stride,
                 depth, &a_sumsq, &b_sumsq);
-            if (wide_row) nk_sme_wide_norm_(a_sumsq, &row_exponent);
-            c_row[column] = nk_f32_scale_(dot.sum,
-                                          dot.exponent - row_exponent - column_exponents[column - column_first]);
+            if (wide_row) nk_wide_norm_sme_(a_sumsq, &row_exponent);
+            c_row[column] = nk_scale_f32_serial_(dot.sum,
+                                                 dot.exponent - row_exponent - column_exponents[column - column_first]);
         }
     }
 }
@@ -3978,7 +3993,7 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp8e5m2_sme_(nk_cross_operand_t a, nk
         nk_u8_t const *a_codes = (nk_u8_t const *)a.elements + row * a_stride;
         nk_u8_t const *a_scales = a.scales + row * a.scales_stride;
         int wide_row;
-        nk_i32_t row_exponent = nk_sme_mx_base_(a_scales, blocks, &wide_row);
+        nk_i32_t row_exponent = nk_mx_base_sme_(a_scales, blocks, &wide_row);
         if (!wide_row && !wide_columns) continue;
         nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
         for (nk_size_t column = upper && row > column_first ? row : column_first; column < column_end; ++column) {
@@ -3987,18 +4002,18 @@ NUMKONG_INLINE void nk_dots_scaled_exact_mxfp8e5m2_sme_(nk_cross_operand_t a, nk
             nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e5m2_serial_(
                 a_codes, a_scales, (nk_u8_t const *)b.elements + column * b_stride, b.scales + column * b.scales_stride,
                 depth, &a_sumsq, &b_sumsq);
-            if (wide_row) nk_sme_wide_norm_(a_sumsq, &row_exponent);
-            c_row[column] = nk_f32_scale_(dot.sum,
-                                          dot.exponent - row_exponent - column_exponents[column - column_first]);
+            if (wide_row) nk_wide_norm_sme_(a_sumsq, &row_exponent);
+            c_row[column] = nk_scale_f32_serial_(dot.sum,
+                                                 dot.exponent - row_exponent - column_exponents[column - column_first]);
         }
     }
 }
 
 /** Finishes @p count relative dots of one row in place: times @p mantissa and two to the power of
  *  @p row_exponent plus each column's E in @p column_exponents, rounding once. */
-NUMKONG_INLINE void nk_dots_from_relative_ssve_(nk_f32_t *dots, nk_size_t count, nk_f32_t mantissa,
-                                                nk_i32_t row_exponent,
-                                                nk_i32_t const *column_exponents) NUMKONG_STREAMING_ {
+NUMKONG_INLINE void nk_dots_from_relative_sme_streaming_(nk_f32_t *dots, nk_size_t count, nk_f32_t mantissa,
+                                                         nk_i32_t row_exponent,
+                                                         nk_i32_t const *column_exponents) NUMKONG_STREAMING_ {
     for (nk_size_t column = 0; column < count; column += svcntw()) {
         svbool_t const predicate_b32x = svwhilelt_b32_u64(column, count);
         svfloat32_t const dots_f32x = svmul_n_f32_x(predicate_b32x, svld1_f32(predicate_b32x, dots + column), mantissa);
@@ -4013,113 +4028,124 @@ NUMKONG_INLINE void nk_dots_from_relative_ssve_(nk_f32_t *dots, nk_size_t count,
  *  columns at a time. Rows the fold covers take their largest block exponent without a norm. */
 
 /** Finishes packed NVFP4 dots: times both tensor scales. */
-NUMKONG_OUTLINED_ void nk_dots_packed_nvfp4_sme_finalize_ssve_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                               void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                               nk_size_t columns, nk_size_t depth,
-                                                               nk_size_t c_stride) NUMKONG_STREAMING_ {
-    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_sme_columns_(b_packed, 16, 4);
+NUMKONG_OUTLINED_ void nk_dots_packed_finalize_nvfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                    void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                    nk_size_t columns, nk_size_t depth,
+                                                                    nk_size_t c_stride) NUMKONG_STREAMING_ {
+    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 16, 4);
     nk_i32_t exponent;
-    nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(a.tensor_scale), &exponent) * b.mantissa;
+    nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(a.tensor_scale), &exponent) *
+                              b.mantissa;
     nk_unused_(a_stride), nk_unused_(depth);
     for (nk_size_t row = 0; row < rows; ++row)
-        nk_dots_from_relative_ssve_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, exponent, b.exponents);
+        nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, mantissa, exponent,
+                                             b.exponents);
 }
 
 /** Finishes symmetric NVFP4 dots: times the tensor scale squared. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_nvfp4_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t count,
-                                                                  nk_f32_t *result, nk_size_t result_stride,
-                                                                  nk_size_t rows_begin,
-                                                                  nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_nvfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t count,
+                                                                       nk_f32_t *result, nk_size_t result_stride,
+                                                                       nk_size_t rows_begin,
+                                                                       nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_i32_t exponent;
-    nk_f32_t const mantissa = nk_f32_split_(nk_cross_tensor_scale_(vectors.tensor_scale), &exponent);
+    nk_f32_t const mantissa = nk_split_f32_serial_(nk_cross_tensor_scale_serial_(vectors.tensor_scale), &exponent);
     nk_i32_t exponents[nk_sme_finish_columns_k];
     for (nk_size_t column = 0; column < nk_sme_finish_columns_k; ++column) exponents[column] = exponent;
     for (nk_size_t row = rows_begin; row < rows_end; ++row) {
         nk_f32_t *result_row = (nk_f32_t *)((char *)result + row * result_stride);
         for (nk_size_t chunk = row; chunk < count; chunk += nk_sme_finish_columns_k)
-            nk_dots_from_relative_ssve_(
+            nk_dots_from_relative_sme_streaming_(
                 result_row + chunk, count - chunk < nk_sme_finish_columns_k ? count - chunk : nk_sme_finish_columns_k,
                 mantissa * mantissa, exponent, exponents);
     }
 }
 
 /** Finishes packed MXFP4 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_mxfp4_sme_finalize_ssve_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                               void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                               nk_size_t columns, nk_size_t depth,
-                                                               nk_size_t c_stride) NUMKONG_STREAMING_ {
-    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_sme_columns_(b_packed, 32, 4);
+NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp4_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                    void const *b_packed, nk_f32_t *c, nk_size_t rows,
+                                                                    nk_size_t columns, nk_size_t depth,
+                                                                    nk_size_t c_stride) NUMKONG_STREAMING_ {
+    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 4);
     nk_dots_scaled_exact_mxfp4_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                     depth, c, c_stride);
     for (nk_size_t row = 0; row < rows; ++row) {
         int wide;
-        nk_i32_t exponent = nk_sme_mx_base_(a.scales + row * a.scales_stride, depth / 32, &wide);
+        nk_i32_t exponent = nk_mx_base_sme_(a.scales + row * a.scales_stride, depth / 32, &wide);
         if (wide) nk_dots_scaled_row_mxfp4_sme_(a, a_stride, row, depth, &exponent);
-        nk_dots_from_relative_ssve_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent, b.exponents);
+        nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent,
+                                             b.exponents);
     }
 }
 
 /** Finishes packed MXFP6 E2M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_mxfp6e2m3_sme_finalize_ssve_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                   void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                                   nk_size_t columns, nk_size_t depth,
-                                                                   nk_size_t c_stride) NUMKONG_STREAMING_ {
-    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_sme_columns_(b_packed, 32, 8);
+NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                        void const *b_packed, nk_f32_t *c,
+                                                                        nk_size_t rows, nk_size_t columns,
+                                                                        nk_size_t depth,
+                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp6e2m3_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
     for (nk_size_t row = 0; row < rows; ++row) {
         int wide;
-        nk_i32_t exponent = nk_sme_mx_base_(a.scales + row * a.scales_stride, depth / 32, &wide);
+        nk_i32_t exponent = nk_mx_base_sme_(a.scales + row * a.scales_stride, depth / 32, &wide);
         if (wide) nk_dots_scaled_row_mxfp6e2m3_sme_(a, a_stride, row, depth, &exponent);
-        nk_dots_from_relative_ssve_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent, b.exponents);
+        nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent,
+                                             b.exponents);
     }
 }
 
 /** Finishes packed MXFP6 E3M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_mxfp6e3m2_sme_finalize_ssve_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                   void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                                   nk_size_t columns, nk_size_t depth,
-                                                                   nk_size_t c_stride) NUMKONG_STREAMING_ {
-    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_sme_columns_(b_packed, 32, 8);
+NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                        void const *b_packed, nk_f32_t *c,
+                                                                        nk_size_t rows, nk_size_t columns,
+                                                                        nk_size_t depth,
+                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp6e3m2_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
     for (nk_size_t row = 0; row < rows; ++row) {
         int wide;
-        nk_i32_t exponent = nk_sme_mx_base_(a.scales + row * a.scales_stride, depth / 32, &wide);
+        nk_i32_t exponent = nk_mx_base_sme_(a.scales + row * a.scales_stride, depth / 32, &wide);
         if (wide) nk_dots_scaled_row_mxfp6e3m2_sme_(a, a_stride, row, depth, &exponent);
-        nk_dots_from_relative_ssve_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent, b.exponents);
+        nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent,
+                                             b.exponents);
     }
 }
 
 /** Finishes packed MXFP8 E4M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_mxfp8e4m3_sme_finalize_ssve_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                   void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                                   nk_size_t columns, nk_size_t depth,
-                                                                   nk_size_t c_stride) NUMKONG_STREAMING_ {
-    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_sme_columns_(b_packed, 32, 8);
+NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                        void const *b_packed, nk_f32_t *c,
+                                                                        nk_size_t rows, nk_size_t columns,
+                                                                        nk_size_t depth,
+                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp8e4m3_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
     for (nk_size_t row = 0; row < rows; ++row) {
         int wide;
-        nk_i32_t exponent = nk_sme_mx_base_(a.scales + row * a.scales_stride, depth / 32, &wide);
+        nk_i32_t exponent = nk_mx_base_sme_(a.scales + row * a.scales_stride, depth / 32, &wide);
         if (wide) nk_dots_scaled_row_mxfp8e4m3_sme_(a, a_stride, row, depth, &exponent);
-        nk_dots_from_relative_ssve_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent, b.exponents);
+        nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent,
+                                             b.exponents);
     }
 }
 
 /** Finishes packed MXFP8 E5M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_packed_mxfp8e5m2_sme_finalize_ssve_(nk_cross_operand_t a, nk_size_t a_stride,
-                                                                   void const *b_packed, nk_f32_t *c, nk_size_t rows,
-                                                                   nk_size_t columns, nk_size_t depth,
-                                                                   nk_size_t c_stride) NUMKONG_STREAMING_ {
-    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_sme_columns_(b_packed, 32, 8);
+NUMKONG_OUTLINED_ void nk_dots_packed_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t a, nk_size_t a_stride,
+                                                                        void const *b_packed, nk_f32_t *c,
+                                                                        nk_size_t rows, nk_size_t columns,
+                                                                        nk_size_t depth,
+                                                                        nk_size_t c_stride) NUMKONG_STREAMING_ {
+    nk_dots_scaled_sme_columns_t const b = nk_dots_scaled_columns_sme_(b_packed, 32, 8);
     nk_dots_scaled_exact_mxfp8e5m2_sme_(a, a_stride, 0, rows, b.raw, b.raw_stride, 0, columns, b.bases, b.exponents, 0,
                                         depth, c, c_stride);
     for (nk_size_t row = 0; row < rows; ++row) {
         int wide;
-        nk_i32_t exponent = nk_sme_mx_base_(a.scales + row * a.scales_stride, depth / 32, &wide);
+        nk_i32_t exponent = nk_mx_base_sme_(a.scales + row * a.scales_stride, depth / 32, &wide);
         if (wide) nk_dots_scaled_row_mxfp8e5m2_sme_(a, a_stride, row, depth, &exponent);
-        nk_dots_from_relative_ssve_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent, b.exponents);
+        nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)c + row * c_stride), columns, 1, exponent,
+                                             b.exponents);
     }
 }
 
@@ -4127,10 +4153,11 @@ NUMKONG_OUTLINED_ void nk_dots_packed_mxfp8e5m2_sme_finalize_ssve_(nk_cross_oper
  *  and wide marks, the exact pass over the chunk, then each row's dots in the chunk. */
 
 /** Finishes symmetric MXFP4 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp4_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                  nk_size_t count, nk_size_t depth, nk_f32_t *result,
-                                                                  nk_size_t result_stride, nk_size_t rows_begin,
-                                                                  nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp4_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                       nk_size_t count, nk_size_t depth,
+                                                                       nk_f32_t *result, nk_size_t result_stride,
+                                                                       nk_size_t rows_begin,
+                                                                       nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4138,7 +4165,7 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp4_sme_finalize_ssve_(nk_cross_opera
         nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
-            exponents[column - chunk] = nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
+            exponents[column - chunk] = nk_mx_base_sme_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
             bases[column - chunk] = (nk_i8_t)(wide ? -128 : 0);
             if (wide) nk_dots_scaled_row_mxfp4_sme_(vectors, stride, column, depth, &exponents[column - chunk]);
         }
@@ -4147,20 +4174,20 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp4_sme_finalize_ssve_(nk_cross_opera
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             int wide;
-            nk_i32_t row_exponent = nk_sme_mx_base_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
+            nk_i32_t row_exponent = nk_mx_base_sme_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
             if (wide) nk_dots_scaled_row_mxfp4_sme_(vectors, stride, row, depth, &row_exponent);
-            nk_dots_from_relative_ssve_((nk_f32_t *)((char *)result + row * result_stride) + first, chunk_end - first,
-                                        1, row_exponent, exponents + (first - chunk));
+            nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
+                                                 chunk_end - first, 1, row_exponent, exponents + (first - chunk));
         }
     }
 }
 
 /** Finishes symmetric MXFP6 E2M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp6e2m3_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                      nk_size_t count, nk_size_t depth,
-                                                                      nk_f32_t *result, nk_size_t result_stride,
-                                                                      nk_size_t rows_begin,
-                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp6e2m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                           nk_size_t count, nk_size_t depth,
+                                                                           nk_f32_t *result, nk_size_t result_stride,
+                                                                           nk_size_t rows_begin,
+                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4168,7 +4195,7 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp6e2m3_sme_finalize_ssve_(nk_cross_o
         nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
-            exponents[column - chunk] = nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
+            exponents[column - chunk] = nk_mx_base_sme_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
             bases[column - chunk] = (nk_i8_t)(wide ? -128 : 0);
             if (wide) nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, column, depth, &exponents[column - chunk]);
         }
@@ -4177,20 +4204,20 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp6e2m3_sme_finalize_ssve_(nk_cross_o
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             int wide;
-            nk_i32_t row_exponent = nk_sme_mx_base_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
+            nk_i32_t row_exponent = nk_mx_base_sme_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
             if (wide) nk_dots_scaled_row_mxfp6e2m3_sme_(vectors, stride, row, depth, &row_exponent);
-            nk_dots_from_relative_ssve_((nk_f32_t *)((char *)result + row * result_stride) + first, chunk_end - first,
-                                        1, row_exponent, exponents + (first - chunk));
+            nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
+                                                 chunk_end - first, 1, row_exponent, exponents + (first - chunk));
         }
     }
 }
 
 /** Finishes symmetric MXFP6 E3M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp6e3m2_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                      nk_size_t count, nk_size_t depth,
-                                                                      nk_f32_t *result, nk_size_t result_stride,
-                                                                      nk_size_t rows_begin,
-                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp6e3m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                           nk_size_t count, nk_size_t depth,
+                                                                           nk_f32_t *result, nk_size_t result_stride,
+                                                                           nk_size_t rows_begin,
+                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4198,7 +4225,7 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp6e3m2_sme_finalize_ssve_(nk_cross_o
         nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
-            exponents[column - chunk] = nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
+            exponents[column - chunk] = nk_mx_base_sme_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
             bases[column - chunk] = (nk_i8_t)(wide ? -128 : 0);
             if (wide) nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, column, depth, &exponents[column - chunk]);
         }
@@ -4207,20 +4234,20 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp6e3m2_sme_finalize_ssve_(nk_cross_o
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             int wide;
-            nk_i32_t row_exponent = nk_sme_mx_base_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
+            nk_i32_t row_exponent = nk_mx_base_sme_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
             if (wide) nk_dots_scaled_row_mxfp6e3m2_sme_(vectors, stride, row, depth, &row_exponent);
-            nk_dots_from_relative_ssve_((nk_f32_t *)((char *)result + row * result_stride) + first, chunk_end - first,
-                                        1, row_exponent, exponents + (first - chunk));
+            nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
+                                                 chunk_end - first, 1, row_exponent, exponents + (first - chunk));
         }
     }
 }
 
 /** Finishes symmetric MXFP8 E4M3 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp8e4m3_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                      nk_size_t count, nk_size_t depth,
-                                                                      nk_f32_t *result, nk_size_t result_stride,
-                                                                      nk_size_t rows_begin,
-                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp8e4m3_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                           nk_size_t count, nk_size_t depth,
+                                                                           nk_f32_t *result, nk_size_t result_stride,
+                                                                           nk_size_t rows_begin,
+                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4228,7 +4255,7 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp8e4m3_sme_finalize_ssve_(nk_cross_o
         nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
-            exponents[column - chunk] = nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
+            exponents[column - chunk] = nk_mx_base_sme_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
             bases[column - chunk] = (nk_i8_t)(wide ? -128 : 0);
             if (wide) nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, column, depth, &exponents[column - chunk]);
         }
@@ -4237,20 +4264,20 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp8e4m3_sme_finalize_ssve_(nk_cross_o
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             int wide;
-            nk_i32_t row_exponent = nk_sme_mx_base_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
+            nk_i32_t row_exponent = nk_mx_base_sme_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
             if (wide) nk_dots_scaled_row_mxfp8e4m3_sme_(vectors, stride, row, depth, &row_exponent);
-            nk_dots_from_relative_ssve_((nk_f32_t *)((char *)result + row * result_stride) + first, chunk_end - first,
-                                        1, row_exponent, exponents + (first - chunk));
+            nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
+                                                 chunk_end - first, 1, row_exponent, exponents + (first - chunk));
         }
     }
 }
 
 /** Finishes symmetric MXFP8 E5M2 dots. */
-NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp8e5m2_sme_finalize_ssve_(nk_cross_operand_t vectors, nk_size_t stride,
-                                                                      nk_size_t count, nk_size_t depth,
-                                                                      nk_f32_t *result, nk_size_t result_stride,
-                                                                      nk_size_t rows_begin,
-                                                                      nk_size_t rows_end) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_dots_symmetric_finalize_mxfp8e5m2_sme_streaming_(nk_cross_operand_t vectors, nk_size_t stride,
+                                                                           nk_size_t count, nk_size_t depth,
+                                                                           nk_f32_t *result, nk_size_t result_stride,
+                                                                           nk_size_t rows_begin,
+                                                                           nk_size_t rows_end) NUMKONG_STREAMING_ {
     nk_size_t const blocks = depth / 32;
     nk_i8_t bases[nk_sme_finish_columns_k];
     nk_i32_t exponents[nk_sme_finish_columns_k];
@@ -4258,7 +4285,7 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp8e5m2_sme_finalize_ssve_(nk_cross_o
         nk_size_t const chunk_end = count - chunk < nk_sme_finish_columns_k ? count : chunk + nk_sme_finish_columns_k;
         for (nk_size_t column = chunk; column < chunk_end; ++column) {
             int wide;
-            exponents[column - chunk] = nk_sme_mx_base_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
+            exponents[column - chunk] = nk_mx_base_sme_(vectors.scales + column * vectors.scales_stride, blocks, &wide);
             bases[column - chunk] = (nk_i8_t)(wide ? -128 : 0);
             if (wide) nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, column, depth, &exponents[column - chunk]);
         }
@@ -4267,10 +4294,10 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp8e5m2_sme_finalize_ssve_(nk_cross_o
         for (nk_size_t row = rows_begin; row < rows_end && row < chunk_end; ++row) {
             nk_size_t const first = row > chunk ? row : chunk;
             int wide;
-            nk_i32_t row_exponent = nk_sme_mx_base_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
+            nk_i32_t row_exponent = nk_mx_base_sme_(vectors.scales + row * vectors.scales_stride, blocks, &wide);
             if (wide) nk_dots_scaled_row_mxfp8e5m2_sme_(vectors, stride, row, depth, &row_exponent);
-            nk_dots_from_relative_ssve_((nk_f32_t *)((char *)result + row * result_stride) + first, chunk_end - first,
-                                        1, row_exponent, exponents + (first - chunk));
+            nk_dots_from_relative_sme_streaming_((nk_f32_t *)((char *)result + row * result_stride) + first,
+                                                 chunk_end - first, 1, row_exponent, exponents + (first - chunk));
         }
     }
 }
@@ -4280,13 +4307,13 @@ NUMKONG_OUTLINED_ void nk_dots_symmetric_mxfp8e5m2_sme_finalize_ssve_(nk_cross_o
 #if NUMKONG_TARGET_SME
 
 /** Rejects packs another capability produced. */
-NUMKONG_INLINE nk_status_t nk_dots_sme_check_(void const *b_packed) {
+NUMKONG_INLINE nk_status_t nk_dots_check_sme_(void const *b_packed) {
     return ((nk_dots_sme_packed_header_t const *)b_packed)->capability == nk_cap_sme_k ? nk_success_k
                                                                                        : nk_pack_mismatch_k;
 }
 
 /** Reads back the columns and depth an SME pack was made for. */
-NUMKONG_INLINE nk_status_t nk_dots_sme_shape_(void const *b_packed, nk_size_t *columns, nk_size_t *depth) {
+NUMKONG_INLINE nk_status_t nk_dots_shape_sme_(void const *b_packed, nk_size_t *columns, nk_size_t *depth) {
     nk_dots_sme_packed_header_t const *header = (nk_dots_sme_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sme_k) return nk_pack_mismatch_k;
     *columns = header->columns;
@@ -4303,7 +4330,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_f16_sme(nk_size_t columns, nk_size_t d
 NUMKONG_API nk_status_t nk_dots_packed_shape_f16_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                      nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_f16_sme(nk_f16_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride,
                                              void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
@@ -4316,10 +4343,10 @@ NUMKONG_API nk_status_t nk_dots_packed_f16_sme(nk_f16_t const *a, void const *b_
                                                nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_f16_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_f16_sme(nk_f16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4327,10 +4354,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_f16_sme(nk_f16_t const *vectors, nk_si
                                                   nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_f16_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                          rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4341,7 +4368,7 @@ NUMKONG_API nk_status_t nk_dots_pack_size_bf16_sme(nk_size_t columns, nk_size_t 
 NUMKONG_API nk_status_t nk_dots_packed_shape_bf16_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_bf16_sme(nk_bf16_t const *b, nk_size_t columns, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
@@ -4354,10 +4381,10 @@ NUMKONG_API nk_status_t nk_dots_packed_bf16_sme(nk_bf16_t const *a, void const *
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                 nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_bf16_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_bf16_sme(nk_bf16_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4365,10 +4392,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_bf16_sme(nk_bf16_t const *vectors, nk_
                                                    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_bf16_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                           rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4383,31 +4410,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_i8_sme(nk_size_t columns, nk_size_t de
 NUMKONG_API nk_status_t nk_dots_packed_shape_i8_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_i8_sme(nk_i8_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride,
                                             void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth, nk_sme_panel_steps_b8_(4, depth),
-                                                            nk_sme_cntb_(), columns_begin, columns_end, &tile_begin,
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth, nk_panel_steps_b8_sme_(4, depth),
+                                                            nk_cntb_sme_(), columns_begin, columns_end, &tile_begin,
                                                             &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_i8_sme_streaming_(b, b_stride, columns, depth,
                                    (nk_u8_t *)b_packed + sizeof(nk_dots_sme_packed_header_t),
                                    (nk_u32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_i8_sme(nk_i8_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows,
                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                               nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_i8_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_i8_sme(nk_i8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4415,10 +4442,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_i8_sme(nk_i8_t const *vectors, nk_size
                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_i8_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                         rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4433,31 +4460,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e4m3_sme(nk_size_t columns, nk_size_t 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e4m3_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_e4m3_sme(nk_e4m3_t const *b, nk_size_t columns, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                               nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth,
-                                                            nk_size_divide_round_up_(depth, 2), nk_sme_cntb_(),
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth,
+                                                            nk_size_divide_round_up_(depth, 2), nk_cntb_sme_(),
                                                             columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_e4m3_sme_streaming_(b, b_stride, columns, depth,
                                      (nk_u16_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t)),
                                      (nk_f32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_e4m3_sme(nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                 nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_e4m3_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_sme(nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4465,10 +4492,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_sme(nk_e4m3_t const *vectors, nk_
                                                    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_e4m3_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                           rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4483,31 +4510,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_sme(nk_size_t columns, nk_size_t 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e5m2_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_e5m2_sme(nk_e5m2_t const *b, nk_size_t columns, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                               nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth,
-                                                            nk_size_divide_round_up_(depth, 2), nk_sme_cntb_(),
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth,
+                                                            nk_size_divide_round_up_(depth, 2), nk_cntb_sme_(),
                                                             columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_e5m2_sme_streaming_(b, b_stride, columns, depth,
                                      (nk_u16_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t)),
                                      (nk_f32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_e5m2_sme(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                 nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_e5m2_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sme(nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4515,10 +4542,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sme(nk_e5m2_t const *vectors, nk_
                                                    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_e5m2_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                           rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4533,31 +4560,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e2m3_sme(nk_size_t columns, nk_size_t 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e2m3_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_e2m3_sme(nk_e2m3_t const *b, nk_size_t columns, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                               nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth, nk_sme_panel_steps_b8_(4, depth),
-                                                            nk_sme_cntb_(), columns_begin, columns_end, &tile_begin,
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth, nk_panel_steps_b8_sme_(4, depth),
+                                                            nk_cntb_sme_(), columns_begin, columns_end, &tile_begin,
                                                             &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_e2m3_sme_streaming_(b, b_stride, columns, depth,
                                      (nk_u8_t *)b_packed + sizeof(nk_dots_sme_packed_header_t),
                                      (nk_u32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_e2m3_sme(nk_e2m3_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                 nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_e2m3_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_e2m3_sme(nk_e2m3_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4565,10 +4592,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e2m3_sme(nk_e2m3_t const *vectors, nk_
                                                    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_e2m3_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                           rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4583,41 +4610,41 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e2m1_sme(nk_size_t columns, nk_size_t 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e2m1_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_e2m1_sme(nk_e2m1x2_t const *b, nk_size_t columns, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                               nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth, nk_sme_panel_steps_b8_(4, depth),
-                                                            nk_sme_cntb_(), columns_begin, columns_end, &tile_begin,
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth, nk_panel_steps_b8_sme_(4, depth),
+                                                            nk_cntb_sme_(), columns_begin, columns_end, &tile_begin,
                                                             &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_e2m1_sme_streaming_(b, b_stride, columns, depth,
                                      (nk_u8_t *)b_packed + sizeof(nk_dots_sme_packed_header_t),
                                      (nk_u32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_e2m1_sme(nk_e2m1x2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                 nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_e2m1_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_e2m1_sme(nk_e2m1x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
                                                    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,
                                                    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_e2m1_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                           rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4632,31 +4659,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_e3m2_sme(nk_size_t columns, nk_size_t 
 NUMKONG_API nk_status_t nk_dots_packed_shape_e3m2_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                       nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_e3m2_sme(nk_e3m2_t const *b, nk_size_t columns, nk_size_t depth,
                                               nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                               nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth,
-                                                            nk_size_divide_round_up_(depth, 2), nk_sme_cntb_(),
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth,
+                                                            nk_size_divide_round_up_(depth, 2), nk_cntb_sme_(),
                                                             columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_e3m2_sme_streaming_(b, b_stride, columns, depth,
                                      (nk_u16_t *)((char *)b_packed + sizeof(nk_dots_sme_packed_header_t)),
                                      (nk_f32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_e3m2_sme(nk_e3m2_t const *a, void const *b_packed, nk_f32_t *c, nk_size_t rows,
                                                 nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                 nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_e3m2_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_e3m2_sme(nk_e3m2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4664,10 +4691,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e3m2_sme(nk_e3m2_t const *vectors, nk_
                                                    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_e3m2_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                           rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4682,31 +4709,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_u8_sme(nk_size_t columns, nk_size_t de
 NUMKONG_API nk_status_t nk_dots_packed_shape_u8_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_u8_sme(nk_u8_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride,
                                             void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth, nk_sme_panel_steps_b8_(4, depth),
-                                                            nk_sme_cntb_(), columns_begin, columns_end, &tile_begin,
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth, nk_panel_steps_b8_sme_(4, depth),
+                                                            nk_cntb_sme_(), columns_begin, columns_end, &tile_begin,
                                                             &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_u8_sme_streaming_(b, b_stride, columns, depth,
                                    (nk_u8_t *)b_packed + sizeof(nk_dots_sme_packed_header_t),
                                    (nk_u32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_u8_sme(nk_u8_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows,
                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                               nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_u8_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_u8_sme(nk_u8_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4714,10 +4741,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_u8_sme(nk_u8_t const *vectors, nk_size
                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= depth * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_u8_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                         rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4735,31 +4762,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_u4_sme(nk_size_t columns, nk_size_t de
 NUMKONG_API nk_status_t nk_dots_packed_shape_u4_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_u4_sme(nk_u4x2_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride,
                                             void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth, nk_sme_panel_steps_b8_(8, depth),
-                                                            nk_sme_cntb_(), columns_begin, columns_end, &tile_begin,
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth, nk_panel_steps_b8_sme_(8, depth),
+                                                            nk_cntb_sme_(), columns_begin, columns_end, &tile_begin,
                                                             &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_u4_sme_streaming_(b, b_stride, columns, depth,
                                    (nk_u8_t *)b_packed + sizeof(nk_dots_sme_packed_header_t),
                                    (nk_u32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_u4_sme(nk_u4x2_t const *a, void const *b_packed, nk_u32_t *c, nk_size_t rows,
                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                               nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_u4_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_u4_sme(nk_u4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4767,10 +4794,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_u4_sme(nk_u4x2_t const *vectors, nk_si
                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_u4_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                         rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4785,31 +4812,31 @@ NUMKONG_API nk_status_t nk_dots_pack_size_i4_sme(nk_size_t columns, nk_size_t de
 NUMKONG_API nk_status_t nk_dots_packed_shape_i4_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_i4_sme(nk_i4x2_t const *b, nk_size_t columns, nk_size_t depth, nk_size_t b_stride,
                                             void *b_packed, nk_size_t columns_begin, nk_size_t columns_end,
                                             nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t tile_begin, tile_end;
-    nk_size_t const norms_offset = nk_dots_sme_pack_window_(b_packed, columns, depth, nk_sme_panel_steps_b8_(8, depth),
-                                                            nk_sme_cntb_(), columns_begin, columns_end, &tile_begin,
+    nk_size_t const norms_offset = nk_dots_pack_window_sme_(b_packed, columns, depth, nk_panel_steps_b8_sme_(8, depth),
+                                                            nk_cntb_sme_(), columns_begin, columns_end, &tile_begin,
                                                             &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_i4_sme_streaming_(b, b_stride, columns, depth,
                                    (nk_u8_t *)b_packed + sizeof(nk_dots_sme_packed_header_t),
                                    (nk_u32_t *)((char *)b_packed + norms_offset), tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_i4_sme(nk_i4x2_t const *a, void const *b_packed, nk_i32_t *c, nk_size_t rows,
                                               nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                               nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(b_packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_start_sme_streaming_();
     nk_dots_packed_i4_sme_streaming_(a, a_stride, b_packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_i4_sme(nk_i4x2_t const *vectors, nk_size_t vector_count, nk_size_t depth,
@@ -4817,10 +4844,10 @@ NUMKONG_API nk_status_t nk_dots_symmetric_i4_sme(nk_i4x2_t const *vectors, nk_si
                                                  nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_assert_(stride % sizeof(*vectors) == 0 && stride >= nk_size_divide_round_up_(depth, 2) * sizeof(*vectors));
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_symmetric_i4_sme_streaming_(vectors, stride, vector_count, depth, result, result_stride, rows_begin,
                                         rows_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -4829,38 +4856,38 @@ NUMKONG_API nk_status_t nk_dots_symmetric_i4_sme(nk_i4x2_t const *vectors, nk_si
 #pragma region Block Scaled Formats
 
 NUMKONG_API nk_status_t nk_dots_pack_size_nvfp4_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 16, 4).total;
+    *bytes = nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 16, 4).total;
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_shape_nvfp4_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_nvfp4_sme(nk_nvfp4_cref_t const *b, nk_size_t columns, nk_size_t depth,
                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                                nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL && depth % 16 == 0);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_nvfp4_k, b, b_stride);
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_nvfp4_k, b, b_stride);
     nk_size_t tile_begin, tile_end;
     nk_dots_pack_scaled_window_sme_(operand, columns, depth, b_packed,
-                                    nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 16, 4).norms,
+                                    nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 16, 4).norms,
                                     columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_nvfp4_sme_streaming_(operand, b_stride, columns, depth, (nk_u8_t *)b_packed, tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_nvfp4_sme(nk_nvfp4_cref_t const *a, void const *packed, nk_f32_t *c,
                                                  nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                  nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_nvfp4_k, a, a_stride);
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_nvfp4_k, a, a_stride);
+    nk_start_sme_streaming_();
     nk_dots_packed_nvfp4_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_dots_packed_nvfp4_sme_finalize_ssve_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_dots_packed_finalize_nvfp4_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_nvfp4_sme(nk_nvfp4_cref_t const *vectors, nk_size_t vector_count,
@@ -4869,48 +4896,48 @@ NUMKONG_API nk_status_t nk_dots_symmetric_nvfp4_sme(nk_nvfp4_cref_t const *vecto
                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     rows_end = nk_min_of_two(rows_end, vector_count);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_nvfp4_k, vectors, stride);
-    nk_sme_start_streaming_();
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_nvfp4_k, vectors, stride);
+    nk_start_sme_streaming_();
     nk_dots_symmetric_nvfp4_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
                                            rows_end);
-    nk_dots_symmetric_nvfp4_sme_finalize_ssve_(operand, vector_count, result, result_stride, rows_begin, rows_end);
-    nk_sme_stop_streaming_();
+    nk_dots_symmetric_finalize_nvfp4_sme_streaming_(operand, vector_count, result, result_stride, rows_begin, rows_end);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp4_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 4).total;
+    *bytes = nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 4).total;
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp4_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_mxfp4_sme(nk_mxfp4_cref_t const *b, nk_size_t columns, nk_size_t depth,
                                                nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                                nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL && depth % 32 == 0);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp4_k, b, b_stride);
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp4_k, b, b_stride);
     nk_size_t tile_begin, tile_end;
     nk_dots_pack_scaled_window_sme_(operand, columns, depth, b_packed,
-                                    nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 4).norms,
+                                    nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 4).norms,
                                     columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_mxfp4_sme_streaming_(operand, b_stride, columns, depth, (nk_u8_t *)b_packed, tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_mxfp4_sme(nk_mxfp4_cref_t const *a, void const *packed, nk_f32_t *c,
                                                  nk_size_t rows, nk_size_t columns, nk_size_t depth, nk_size_t a_stride,
                                                  nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp4_k, a, a_stride);
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp4_k, a, a_stride);
+    nk_start_sme_streaming_();
     nk_dots_packed_mxfp4_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_dots_packed_mxfp4_sme_finalize_ssve_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_dots_packed_finalize_mxfp4_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp4_sme(nk_mxfp4_cref_t const *vectors, nk_size_t vector_count,
@@ -4919,49 +4946,49 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp4_sme(nk_mxfp4_cref_t const *vecto
                                                     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     rows_end = nk_min_of_two(rows_end, vector_count);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp4_k, vectors, stride);
-    nk_sme_start_streaming_();
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp4_k, vectors, stride);
+    nk_start_sme_streaming_();
     nk_dots_symmetric_mxfp4_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
                                            rows_end);
-    nk_dots_symmetric_mxfp4_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
-                                               rows_end);
-    nk_sme_stop_streaming_();
+    nk_dots_symmetric_finalize_mxfp4_sme_streaming_(operand, stride, vector_count, depth, result, result_stride,
+                                                    rows_begin, rows_end);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp6e2m3_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).total;
+    *bytes = nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).total;
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp6e2m3_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *b, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                                    nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL && depth % 32 == 0);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e2m3_k, b, b_stride);
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp6e2m3_k, b, b_stride);
     nk_size_t tile_begin, tile_end;
     nk_dots_pack_scaled_window_sme_(operand, columns, depth, b_packed,
-                                    nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).norms,
+                                    nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).norms,
                                     columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_mxfp6e2m3_sme_streaming_(operand, b_stride, columns, depth, (nk_u8_t *)b_packed, tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *a, void const *packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e2m3_k, a, a_stride);
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp6e2m3_k, a, a_stride);
+    nk_start_sme_streaming_();
     nk_dots_packed_mxfp6e2m3_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_dots_packed_mxfp6e2m3_sme_finalize_ssve_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_dots_packed_finalize_mxfp6e2m3_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t const *vectors, nk_size_t vector_count,
@@ -4970,49 +4997,49 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp6e2m3_sme(nk_mxfp6e2m3_cref_t cons
                                                         nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     rows_end = nk_min_of_two(rows_end, vector_count);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e2m3_k, vectors, stride);
-    nk_sme_start_streaming_();
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp6e2m3_k, vectors, stride);
+    nk_start_sme_streaming_();
     nk_dots_symmetric_mxfp6e2m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
                                                rows_end);
-    nk_dots_symmetric_mxfp6e2m3_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
-                                                   rows_begin, rows_end);
-    nk_sme_stop_streaming_();
+    nk_dots_symmetric_finalize_mxfp6e2m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride,
+                                                        rows_begin, rows_end);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp6e3m2_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).total;
+    *bytes = nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).total;
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp6e3m2_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *b, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                                    nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL && depth % 32 == 0);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e3m2_k, b, b_stride);
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp6e3m2_k, b, b_stride);
     nk_size_t tile_begin, tile_end;
     nk_dots_pack_scaled_window_sme_(operand, columns, depth, b_packed,
-                                    nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).norms,
+                                    nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).norms,
                                     columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_mxfp6e3m2_sme_streaming_(operand, b_stride, columns, depth, (nk_u8_t *)b_packed, tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *a, void const *packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e3m2_k, a, a_stride);
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp6e3m2_k, a, a_stride);
+    nk_start_sme_streaming_();
     nk_dots_packed_mxfp6e3m2_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_dots_packed_mxfp6e3m2_sme_finalize_ssve_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_dots_packed_finalize_mxfp6e3m2_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t const *vectors, nk_size_t vector_count,
@@ -5021,49 +5048,49 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp6e3m2_sme(nk_mxfp6e3m2_cref_t cons
                                                         nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     rows_end = nk_min_of_two(rows_end, vector_count);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp6e3m2_k, vectors, stride);
-    nk_sme_start_streaming_();
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp6e3m2_k, vectors, stride);
+    nk_start_sme_streaming_();
     nk_dots_symmetric_mxfp6e3m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
                                                rows_end);
-    nk_dots_symmetric_mxfp6e3m2_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
-                                                   rows_begin, rows_end);
-    nk_sme_stop_streaming_();
+    nk_dots_symmetric_finalize_mxfp6e3m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride,
+                                                        rows_begin, rows_end);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e4m3_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).total;
+    *bytes = nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).total;
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e4m3_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *b, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                                    nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL && depth % 32 == 0);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e4m3_k, b, b_stride);
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp8e4m3_k, b, b_stride);
     nk_size_t tile_begin, tile_end;
     nk_dots_pack_scaled_window_sme_(operand, columns, depth, b_packed,
-                                    nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).norms,
+                                    nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).norms,
                                     columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_mxfp8e4m3_sme_streaming_(operand, b_stride, columns, depth, (nk_u8_t *)b_packed, tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *a, void const *packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e4m3_k, a, a_stride);
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp8e4m3_k, a, a_stride);
+    nk_start_sme_streaming_();
     nk_dots_packed_mxfp8e4m3_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_dots_packed_mxfp8e4m3_sme_finalize_ssve_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_dots_packed_finalize_mxfp8e4m3_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t const *vectors, nk_size_t vector_count,
@@ -5072,49 +5099,49 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e4m3_sme(nk_mxfp8e4m3_cref_t cons
                                                         nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     rows_end = nk_min_of_two(rows_end, vector_count);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e4m3_k, vectors, stride);
-    nk_sme_start_streaming_();
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp8e4m3_k, vectors, stride);
+    nk_start_sme_streaming_();
     nk_dots_symmetric_mxfp8e4m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
                                                rows_end);
-    nk_dots_symmetric_mxfp8e4m3_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
-                                                   rows_begin, rows_end);
-    nk_sme_stop_streaming_();
+    nk_dots_symmetric_finalize_mxfp8e4m3_sme_streaming_(operand, stride, vector_count, depth, result, result_stride,
+                                                        rows_begin, rows_end);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e5m2_sme(nk_size_t columns, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).total;
+    *bytes = nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).total;
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_shape_mxfp8e5m2_sme(void const *b_packed, nk_size_t *columns, nk_size_t *depth,
                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    return nk_dots_sme_shape_(b_packed, columns, depth);
+    return nk_dots_shape_sme_(b_packed, columns, depth);
 }
 NUMKONG_API nk_status_t nk_dots_pack_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *b, nk_size_t columns, nk_size_t depth,
                                                    nk_size_t b_stride, void *b_packed, nk_size_t columns_begin,
                                                    nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL && depth % 32 == 0);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e5m2_k, b, b_stride);
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp8e5m2_k, b, b_stride);
     nk_size_t tile_begin, tile_end;
     nk_dots_pack_scaled_window_sme_(operand, columns, depth, b_packed,
-                                    nk_dots_scaled_sme_layout_(columns, depth, nk_sme_cntw_(), 32, 8).norms,
+                                    nk_dots_scaled_layout_sme_(columns, depth, nk_cntw_sme_(), 32, 8).norms,
                                     columns_begin, columns_end, &tile_begin, &tile_end);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_dots_pack_mxfp8e5m2_sme_streaming_(operand, b_stride, columns, depth, (nk_u8_t *)b_packed, tile_begin, tile_end);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_packed_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *a, void const *packed, nk_f32_t *c,
                                                      nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                      nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (nk_dots_sme_check_(packed) != nk_success_k) return nk_pack_mismatch_k;
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e5m2_k, a, a_stride);
-    nk_sme_start_streaming_();
+    if (nk_dots_check_sme_(packed) != nk_success_k) return nk_pack_mismatch_k;
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp8e5m2_k, a, a_stride);
+    nk_start_sme_streaming_();
     nk_dots_packed_mxfp8e5m2_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_dots_packed_mxfp8e5m2_sme_finalize_ssve_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
-    nk_sme_stop_streaming_();
+    nk_dots_packed_finalize_mxfp8e5m2_sme_streaming_(operand, a_stride, packed, c, rows, columns, depth, c_stride);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t const *vectors, nk_size_t vector_count,
@@ -5123,13 +5150,13 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e5m2_sme(nk_mxfp8e5m2_cref_t cons
                                                         nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     rows_end = nk_min_of_two(rows_end, vector_count);
-    nk_cross_operand_t const operand = nk_cross_operand_(nk_mxfp8e5m2_k, vectors, stride);
-    nk_sme_start_streaming_();
+    nk_cross_operand_t const operand = nk_cross_operand_serial_(nk_mxfp8e5m2_k, vectors, stride);
+    nk_start_sme_streaming_();
     nk_dots_symmetric_mxfp8e5m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride, rows_begin,
                                                rows_end);
-    nk_dots_symmetric_mxfp8e5m2_sme_finalize_ssve_(operand, stride, vector_count, depth, result, result_stride,
-                                                   rows_begin, rows_end);
-    nk_sme_stop_streaming_();
+    nk_dots_symmetric_finalize_mxfp8e5m2_sme_streaming_(operand, stride, vector_count, depth, result, result_stride,
+                                                        rows_begin, rows_end);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 

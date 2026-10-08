@@ -1062,9 +1062,11 @@ NUMKONG_API nk_status_t nk_dot_i4_v128relaxed(nk_i4x2_t const *a, nk_i4x2_t cons
 
     // Scalar tail: use signed helpers directly (no bias/correction needed)
     nk_i64_t tail_dot = 0;
+    nk_i4x2_t const *a_pairs = (nk_i4x2_t const *)a_bytes;
+    nk_i4x2_t const *b_pairs = (nk_i4x2_t const *)b_bytes;
     for (; i < n_bytes; i++) {
-        nk_i4x2_t ai = ((nk_i4x2_t const *)a_bytes)[i];
-        nk_i4x2_t bi = ((nk_i4x2_t const *)b_bytes)[i];
+        nk_i4x2_t ai = a_pairs[i];
+        nk_i4x2_t bi = b_pairs[i];
         tail_dot += (nk_i32_t)nk_i4x2_low_(ai) * (nk_i32_t)nk_i4x2_low_(bi) +
                     (nk_i32_t)nk_i4x2_high_(ai) * (nk_i32_t)nk_i4x2_high_(bi);
     }

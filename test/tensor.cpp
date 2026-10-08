@@ -1515,7 +1515,7 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
     constexpr std::size_t tokens = 10, heads = 4, key_value_heads = 2, depth = 32;
     constexpr nk_f32_t scale = 0.125f;
     nk_u32_t const offsets[] = {0, 4, 10}, lengths[] = {4, 6};
-    nk::vector_view<nk_u32_t> const segment_offsets(offsets, 3u), segment_lengths(lengths, 2u);
+    nk::vector_view<nk_u32_t> const key_offsets(offsets, 3u), key_lengths(lengths, 2u);
 
     auto keys = nk::tensor<value_type_>::zeros({tokens, key_value_heads, depth});
     auto values = nk::tensor<value_type_>::zeros({tokens, key_value_heads, depth});
@@ -1528,13 +1528,16 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
     nk::fill_uniform(generator, values.value.data(), values.value.numel());
     nk::fill_uniform(generator, queries.value.data(), queries.value.numel());
 
-    auto packed = nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), segment_offsets,
-                                                          segment_lengths);
+    auto packed = nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), key_offsets,
+                                                          key_lengths);
     stats.expect(packed.status);
     if (!packed) return stats;
     stats.expect(packed.value.key_value_head_count() == key_value_heads && packed.value.depth() == depth &&
                      packed.value.segment_count() == 2,
                  "packed attention shape mismatch");
+    stats.expect(packed.value.key_offsets().size() == 3 && packed.value.key_offsets()[1] == offsets[1] &&
+                     packed.value.key_lengths().size() == 2 && packed.value.key_lengths()[1] == lengths[1],
+                 "packed attention must report the slots it was packed with");
 
     auto packed_bytes = nk::attention_pack_size<value_type_>(key_value_heads, depth, tokens, 2);
     stats.expect(packed_bytes.status);
@@ -1576,10 +1579,23 @@ error_stats_t test_tensor_attention_for_type(settings_t const &settings) {
     stats.expect(narrow && nk::attention_packed<value_type_>(queries.value.view(), packed.value, narrow.value.span(),
                                                              scale) == nk::status_t::unexpected_dimensions_k,
                  "mismatched output shape must be rejected");
-    stats.expect(nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), segment_lengths,
-                                                         segment_lengths)
+    stats.expect(
+        nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), key_lengths, key_lengths)
+                .status == nk::status_t::unexpected_dimensions_k,
+        "key offsets must hold one more entry than lengths");
+
+    // Slots wider than their keys, as a decode cache with spare capacity has
+    nk_u32_t const slot_offsets[] = {0, 6, 10}, slot_lengths[] = {4, 4}, overfull_lengths[] = {4, 5};
+    nk::vector_view<nk_u32_t> const slot_offsets_view(slot_offsets, 3u), slot_lengths_view(slot_lengths, 2u);
+    auto spare = nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), slot_offsets_view,
+                                                         slot_lengths_view);
+    stats.expect(spare.status);
+    stats.expect(spare && spare.value.key_offsets()[1] == 6 && spare.value.key_lengths()[0] == 4,
+                 "spare slot capacity must survive the pack");
+    stats.expect(nk::packed_attention<value_type_>::make(keys.value.view(), values.value.view(), slot_offsets_view,
+                                                         nk::vector_view<nk_u32_t>(overfull_lengths, 2u))
                          .status == nk::status_t::unexpected_dimensions_k,
-                 "segment offsets must hold one more entry than lengths");
+                 "keys must fit their slot");
     return stats;
 }
 

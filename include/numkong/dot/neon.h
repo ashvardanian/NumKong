@@ -97,7 +97,7 @@
 #if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/cast/neon.h"  // `nk_e4m3x8_to_f16x8_neon_`
-#include "numkong/dot/serial.h" // `nk_dot_f16c_`, `nk_vdot_f16c_`
+#include "numkong/dot/serial.h" // `nk_dot_f16c_serial_`, `nk_vdot_f16c_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -129,7 +129,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x2_neon_(float64x2_t sum_f64x2, flo
     return tentative_sum + (lower_error + upper_error + rounding_error);
 }
 
-/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_: TwoProd through FMA, then TwoSum. */
+/** Dot2 step, sum += a × b, mirroring @c nk_dot2_f64_serial_: TwoProd through FMA, then TwoSum. */
 NUMKONG_INLINE void nk_dot2_f64x2_neon_(float64x2_t *sum_f64x2, float64x2_t *compensation_f64x2, float64x2_t a_f64x2,
                                         float64x2_t b_f64x2) {
     float64x2_t product_f64x2 = vmulq_f64(a_f64x2, b_f64x2);
@@ -1253,7 +1253,7 @@ NUMKONG_API nk_status_t nk_dot_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t con
         count_pairs -= 4, a_pairs += 4, b_pairs += 4;
     }
     nk_f32c_t tail_result;
-    nk_dot_f16c_(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_dot_f16c_serial_(a_pairs, b_pairs, count_pairs, &tail_result);
     result->real = tail_result.real + vaddvq_f32(sum_real_f32x4);
     result->imag = tail_result.imag + vaddvq_f32(sum_imag_f32x4);
     return nk_success_k;
@@ -1278,7 +1278,7 @@ NUMKONG_API nk_status_t nk_vdot_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_t co
         count_pairs -= 4, a_pairs += 4, b_pairs += 4;
     }
     nk_f32c_t tail_result;
-    nk_vdot_f16c_(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_vdot_f16c_serial_(a_pairs, b_pairs, count_pairs, &tail_result);
     result->real = tail_result.real + vaddvq_f32(sum_real_f32x4);
     result->imag = tail_result.imag + vaddvq_f32(sum_imag_f32x4);
     return nk_success_k;

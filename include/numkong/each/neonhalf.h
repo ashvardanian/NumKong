@@ -52,7 +52,10 @@ NUMKONG_API nk_status_t nk_each_sum_f16_neonhalf(nk_f16_t const *a, nk_f16_t con
     }
 
     // The tail:
-    for (; i < n; ++i) ((float16_t *)result)[i] = ((float16_t const *)a)[i] + ((float16_t const *)b)[i];
+    float16_t const *a_values = (float16_t const *)a;
+    float16_t const *b_values = (float16_t const *)b;
+    float16_t *result_values = (float16_t *)result;
+    for (; i < n; ++i) result_values[i] = a_values[i] + b_values[i];
     return nk_success_k;
 }
 

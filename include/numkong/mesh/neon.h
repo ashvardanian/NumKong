@@ -77,8 +77,8 @@ NUMKONG_INLINE nk_f64_t nk_reduce_stable_f64x2_neon_(float64x2_t values_f64x2) {
     nk_b128_vec_t values;
     values.f64x2 = values_f64x2;
     nk_f64_t sum = 0.0, compensation = 0.0;
-    nk_accumulate_sum_f64_(&sum, &compensation, values.f64s[0]);
-    nk_accumulate_sum_f64_(&sum, &compensation, values.f64s[1]);
+    nk_accumulate_sum_f64_serial_(&sum, &compensation, values.f64s[0]);
+    nk_accumulate_sum_f64_serial_(&sum, &compensation, values.f64s[1]);
     return sum + compensation;
 }
 
@@ -137,9 +137,12 @@ NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f64_neon_(nk_f64_t const *a, nk_f64_t
                  az = a[i * 3 + 2] - centroid_a[2];
         nk_f64_t bx = b[i * 3 + 0] - centroid_b[0], by = b[i * 3 + 1] - centroid_b[1],
                  bz = b[i * 3 + 2] - centroid_b[2];
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, r[0] * ax + r[1] * ay + r[2] * az - bx);
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, r[3] * ax + r[4] * ay + r[5] * az - by);
-        nk_accumulate_square_f64_(&sum_squared, &sum_squared_compensation, r[6] * ax + r[7] * ay + r[8] * az - bz);
+        nk_accumulate_square_f64_serial_(&sum_squared, &sum_squared_compensation,
+                                         r[0] * ax + r[1] * ay + r[2] * az - bx);
+        nk_accumulate_square_f64_serial_(&sum_squared, &sum_squared_compensation,
+                                         r[3] * ax + r[4] * ay + r[5] * az - by);
+        nk_accumulate_square_f64_serial_(&sum_squared, &sum_squared_compensation,
+                                         r[6] * ax + r[7] * ay + r[8] * az - bz);
     }
     return sum_squared + sum_squared_compensation;
 }
@@ -181,10 +184,10 @@ NUMKONG_INLINE void nk_centered_moments_f32_neon_(nk_f32_t const *a, nk_f32_t co
     for (; i < n; ++i) {
         nk_f64_t a_point[3], b_point[3];
         for (int j = 0; j != 3; ++j) a_point[j] = a[i * 3 + j] - pivot_a[j], b_point[j] = b[i * 3 + j] - pivot_b[j];
-        nk_centered_moments_update_f64_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a);
+        nk_centered_moments_update_f64_serial_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a);
     }
-    nk_centered_moments_finalize_f64_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, centroid_a,
-                                      centroid_b, cross_covariance, centered_norm_squared_a);
+    nk_centered_moments_finalize_f64_serial_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, centroid_a,
+                                             centroid_b, cross_covariance, centered_norm_squared_a);
 }
 
 /** Σ‖s · R · (aᵢ − ā) − (bᵢ − b̄)‖² of f32 clouds in f64, from residuals like the f64 variant. */
@@ -223,7 +226,7 @@ NUMKONG_INLINE nk_f64_t nk_transformed_ssd_f32_neon_(nk_f32_t const *a, nk_f32_t
         nk_f64_t a_point[3], b_point[3];
         for (int j = 0; j != 3; ++j)
             a_point[j] = a[i * 3 + j] - centroid_a[j], b_point[j] = b[i * 3 + j] - centroid_b[j];
-        nk_accumulate_residual_f64_(&sum_squared, &sum_squared_compensation, r, a_point, b_point);
+        nk_accumulate_residual_f64_serial_(&sum_squared, &sum_squared_compensation, r, a_point, b_point);
     }
     return sum_squared + sum_squared_compensation;
 }
@@ -270,7 +273,7 @@ NUMKONG_INLINE void nk_centered_moments_f16_neon_(nk_f16_t const *a, nk_f16_t co
                                                   nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
                                                   nk_f32_t *centered_norm_squared_b) {
     nk_f32_t pivot_a[3], pivot_b[3];
-    for (int j = 0; j != 3; ++j) nk_f16_to_f32_(a + j, pivot_a + j), nk_f16_to_f32_(b + j, pivot_b + j);
+    for (int j = 0; j != 3; ++j) nk_f16_to_f32_serial_(a + j, pivot_a + j), nk_f16_to_f32_serial_(b + j, pivot_b + j);
     float32x4_t pivot_a_f32x4[3], pivot_b_f32x4[3], sum_a_f32x4[3], sum_b_f32x4[3], covariance_f32x4[9];
     float32x4_t norm_squared_a_f32x4 = vdupq_n_f32(0), norm_squared_b_f32x4 = vdupq_n_f32(0);
     for (int j = 0; j != 3; ++j)
@@ -304,14 +307,15 @@ NUMKONG_INLINE void nk_centered_moments_f16_neon_(nk_f16_t const *a, nk_f16_t co
     for (; i < n; ++i) {
         nk_f32_t a_point[3], b_point[3];
         for (int j = 0; j != 3; ++j) {
-            nk_f16_to_f32_(a + i * 3 + j, a_point + j), nk_f16_to_f32_(b + i * 3 + j, b_point + j);
+            nk_f16_to_f32_serial_(a + i * 3 + j, a_point + j), nk_f16_to_f32_serial_(b + i * 3 + j, b_point + j);
             a_point[j] -= pivot_a[j], b_point[j] -= pivot_b[j];
         }
-        nk_centered_moments_update_f32_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a, &norm_squared_b);
+        nk_centered_moments_update_f32_serial_(a_point, b_point, sum_a, sum_b, covariance, &norm_squared_a,
+                                               &norm_squared_b);
     }
-    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
-                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
-                                      centered_norm_squared_b);
+    nk_centered_moments_finalize_f32_serial_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a,
+                                             norm_squared_b, centroid_a, centroid_b, cross_covariance,
+                                             centered_norm_squared_a, centered_norm_squared_b);
 }
 
 #if NUMKONG_TARGET_NEON
@@ -419,9 +423,9 @@ NUMKONG_API nk_status_t nk_rmsd_f64_neon(nk_f64_t const *a, nk_f64_t const *b, n
         nk_f64_t delta_x = a[i * 3 + 0] - b[i * 3 + 0];
         nk_f64_t delta_y = a[i * 3 + 1] - b[i * 3 + 1];
         nk_f64_t delta_z = a[i * 3 + 2] - b[i * 3 + 2];
-        nk_accumulate_square_f64_(&total_squared_x, &total_squared_x_compensation, delta_x);
-        nk_accumulate_square_f64_(&total_squared_y, &total_squared_y_compensation, delta_y);
-        nk_accumulate_square_f64_(&total_squared_z, &total_squared_z_compensation, delta_z);
+        nk_accumulate_square_f64_serial_(&total_squared_x, &total_squared_x_compensation, delta_x);
+        nk_accumulate_square_f64_serial_(&total_squared_y, &total_squared_y_compensation, delta_y);
+        nk_accumulate_square_f64_serial_(&total_squared_z, &total_squared_z_compensation, delta_z);
     }
 
     total_squared_x += total_squared_x_compensation, total_squared_y += total_squared_y_compensation,
@@ -473,7 +477,7 @@ NUMKONG_API nk_status_t nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b,
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
 
         optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
         optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
@@ -485,7 +489,7 @@ NUMKONG_API nk_status_t nk_kabsch_f32_neon(nk_f32_t const *a, nk_f32_t const *b,
         optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
-        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
             optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
@@ -666,21 +670,21 @@ NUMKONG_API nk_status_t nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b,
     for (; i < n; ++i) {
         nk_f64_t ax = a[i * 3 + 0] - a[0], ay = a[i * 3 + 1] - a[1], az = a[i * 3 + 2] - a[2];
         nk_f64_t bx = b[i * 3 + 0] - b[0], by = b[i * 3 + 1] - b[1], bz = b[i * 3 + 2] - b[2];
-        nk_accumulate_sum_f64_(&sum_a_x, &sum_a_x_compensation, ax),
-            nk_accumulate_sum_f64_(&sum_a_y, &sum_a_y_compensation, ay),
-            nk_accumulate_sum_f64_(&sum_a_z, &sum_a_z_compensation, az);
-        nk_accumulate_sum_f64_(&sum_b_x, &sum_b_x_compensation, bx),
-            nk_accumulate_sum_f64_(&sum_b_y, &sum_b_y_compensation, by),
-            nk_accumulate_sum_f64_(&sum_b_z, &sum_b_z_compensation, bz);
-        nk_accumulate_product_f64_(&covariance_x_x, &covariance_x_x_compensation, ax, bx),
-            nk_accumulate_product_f64_(&covariance_x_y, &covariance_x_y_compensation, ax, by),
-            nk_accumulate_product_f64_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
-        nk_accumulate_product_f64_(&covariance_y_x, &covariance_y_x_compensation, ay, bx),
-            nk_accumulate_product_f64_(&covariance_y_y, &covariance_y_y_compensation, ay, by),
-            nk_accumulate_product_f64_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
-        nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx),
-            nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by),
-            nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
+        nk_accumulate_sum_f64_serial_(&sum_a_x, &sum_a_x_compensation, ax),
+            nk_accumulate_sum_f64_serial_(&sum_a_y, &sum_a_y_compensation, ay),
+            nk_accumulate_sum_f64_serial_(&sum_a_z, &sum_a_z_compensation, az);
+        nk_accumulate_sum_f64_serial_(&sum_b_x, &sum_b_x_compensation, bx),
+            nk_accumulate_sum_f64_serial_(&sum_b_y, &sum_b_y_compensation, by),
+            nk_accumulate_sum_f64_serial_(&sum_b_z, &sum_b_z_compensation, bz);
+        nk_accumulate_product_f64_serial_(&covariance_x_x, &covariance_x_x_compensation, ax, bx),
+            nk_accumulate_product_f64_serial_(&covariance_x_y, &covariance_x_y_compensation, ax, by),
+            nk_accumulate_product_f64_serial_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
+        nk_accumulate_product_f64_serial_(&covariance_y_x, &covariance_y_x_compensation, ay, bx),
+            nk_accumulate_product_f64_serial_(&covariance_y_y, &covariance_y_y_compensation, ay, by),
+            nk_accumulate_product_f64_serial_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
+        nk_accumulate_product_f64_serial_(&covariance_z_x, &covariance_z_x_compensation, az, bx),
+            nk_accumulate_product_f64_serial_(&covariance_z_y, &covariance_z_y_compensation, az, by),
+            nk_accumulate_product_f64_serial_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
     }
 
     sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
@@ -734,11 +738,11 @@ NUMKONG_API nk_status_t nk_kabsch_f64_neon(nk_f64_t const *a, nk_f64_t const *b,
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
         // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
         }
@@ -800,7 +804,7 @@ NUMKONG_API nk_status_t nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
 
         optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
         optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
@@ -812,7 +816,7 @@ NUMKONG_API nk_status_t nk_umeyama_f32_neon(nk_f32_t const *a, nk_f32_t const *b
         optimal_rotation[7] = svd_right[6] * svd_left[3] + svd_right[7] * svd_left[4] + svd_right[8] * svd_left[5];
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
-        nk_f64_t det = nk_det3x3_f64_(optimal_rotation), sign_correction = det < 0 ? -1.0 : 1.0;
+        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation), sign_correction = det < 0 ? -1.0 : 1.0;
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -1009,24 +1013,24 @@ NUMKONG_API nk_status_t nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b
     for (; i < n; ++i) {
         nk_f64_t ax = a[i * 3 + 0] - a[0], ay = a[i * 3 + 1] - a[1], az = a[i * 3 + 2] - a[2];
         nk_f64_t bx = b[i * 3 + 0] - b[0], by = b[i * 3 + 1] - b[1], bz = b[i * 3 + 2] - b[2];
-        nk_accumulate_sum_f64_(&sum_a_x, &sum_a_x_compensation, ax),
-            nk_accumulate_sum_f64_(&sum_a_y, &sum_a_y_compensation, ay),
-            nk_accumulate_sum_f64_(&sum_a_z, &sum_a_z_compensation, az);
-        nk_accumulate_sum_f64_(&sum_b_x, &sum_b_x_compensation, bx),
-            nk_accumulate_sum_f64_(&sum_b_y, &sum_b_y_compensation, by),
-            nk_accumulate_sum_f64_(&sum_b_z, &sum_b_z_compensation, bz);
-        nk_accumulate_product_f64_(&covariance_x_x, &covariance_x_x_compensation, ax, bx),
-            nk_accumulate_product_f64_(&covariance_x_y, &covariance_x_y_compensation, ax, by),
-            nk_accumulate_product_f64_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
-        nk_accumulate_product_f64_(&covariance_y_x, &covariance_y_x_compensation, ay, bx),
-            nk_accumulate_product_f64_(&covariance_y_y, &covariance_y_y_compensation, ay, by),
-            nk_accumulate_product_f64_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
-        nk_accumulate_product_f64_(&covariance_z_x, &covariance_z_x_compensation, az, bx),
-            nk_accumulate_product_f64_(&covariance_z_y, &covariance_z_y_compensation, az, by),
-            nk_accumulate_product_f64_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
-        nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ax),
-            nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, ay),
-            nk_accumulate_square_f64_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
+        nk_accumulate_sum_f64_serial_(&sum_a_x, &sum_a_x_compensation, ax),
+            nk_accumulate_sum_f64_serial_(&sum_a_y, &sum_a_y_compensation, ay),
+            nk_accumulate_sum_f64_serial_(&sum_a_z, &sum_a_z_compensation, az);
+        nk_accumulate_sum_f64_serial_(&sum_b_x, &sum_b_x_compensation, bx),
+            nk_accumulate_sum_f64_serial_(&sum_b_y, &sum_b_y_compensation, by),
+            nk_accumulate_sum_f64_serial_(&sum_b_z, &sum_b_z_compensation, bz);
+        nk_accumulate_product_f64_serial_(&covariance_x_x, &covariance_x_x_compensation, ax, bx),
+            nk_accumulate_product_f64_serial_(&covariance_x_y, &covariance_x_y_compensation, ax, by),
+            nk_accumulate_product_f64_serial_(&covariance_x_z, &covariance_x_z_compensation, ax, bz);
+        nk_accumulate_product_f64_serial_(&covariance_y_x, &covariance_y_x_compensation, ay, bx),
+            nk_accumulate_product_f64_serial_(&covariance_y_y, &covariance_y_y_compensation, ay, by),
+            nk_accumulate_product_f64_serial_(&covariance_y_z, &covariance_y_z_compensation, ay, bz);
+        nk_accumulate_product_f64_serial_(&covariance_z_x, &covariance_z_x_compensation, az, bx),
+            nk_accumulate_product_f64_serial_(&covariance_z_y, &covariance_z_y_compensation, az, by),
+            nk_accumulate_product_f64_serial_(&covariance_z_z, &covariance_z_z_compensation, az, bz);
+        nk_accumulate_square_f64_serial_(&norm_squared_a_sum, &norm_squared_a_compensation, ax),
+            nk_accumulate_square_f64_serial_(&norm_squared_a_sum, &norm_squared_a_compensation, ay),
+            nk_accumulate_square_f64_serial_(&norm_squared_a_sum, &norm_squared_a_compensation, az);
     }
 
     sum_a_x += sum_a_x_compensation, sum_a_y += sum_a_y_compensation, sum_a_z += sum_a_z_compensation;
@@ -1088,11 +1092,11 @@ NUMKONG_API nk_status_t nk_umeyama_f64_neon(nk_f64_t const *a, nk_f64_t const *b
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
         // Handle reflection and compute scale
-        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation);
         nk_f64_t trace_d_s = svd_diagonal[0] + svd_diagonal[4] + (det < 0 ? -svd_diagonal[8] : svd_diagonal[8]);
         computed_scale = trace_d_s / centered_norm_squared_a;
 
@@ -1223,7 +1227,7 @@ NUMKONG_API nk_status_t nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b,
     else {
         // SVD of H = U * S * Vᵀ
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
 
         // R = V * Uᵀ
         optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -1237,7 +1241,7 @@ NUMKONG_API nk_status_t nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b,
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
         // Handle reflection: if det(R) < 0, negate third column of V and recompute
-        nk_f32_t rotation_determinant = nk_det3x3_f32_(optimal_rotation);
+        nk_f32_t rotation_determinant = nk_det3x3_f32_serial_(optimal_rotation);
         if (rotation_determinant < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -1256,8 +1260,8 @@ NUMKONG_API nk_status_t nk_kabsch_f16_neon(nk_f16_t const *a, nk_f16_t const *b,
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }
@@ -1303,7 +1307,7 @@ NUMKONG_API nk_status_t nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b
     else {
         // SVD of H = U * S * Vᵀ
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
 
         // R = V * Uᵀ
         optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -1317,7 +1321,7 @@ NUMKONG_API nk_status_t nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
         // Handle reflection and compute scale: c = trace(D · S) / ‖a-ā‖²
-        nk_f32_t rotation_determinant = nk_det3x3_f32_(optimal_rotation);
+        nk_f32_t rotation_determinant = nk_det3x3_f32_serial_(optimal_rotation);
         nk_f32_t sign_det = rotation_determinant < 0 ? -1.0f : 1.0f;
         nk_f32_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];
         scale_factor = trace_scaled_s / centered_norm_squared_a;
@@ -1340,8 +1344,8 @@ NUMKONG_API nk_status_t nk_umeyama_f16_neon(nk_f16_t const *a, nk_f16_t const *b
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, scale_factor, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, scale_factor, cross_covariance,
+                                                     centered_norm_squared_a, centered_norm_squared_b);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }

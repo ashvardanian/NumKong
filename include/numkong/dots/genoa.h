@@ -17,7 +17,7 @@
 #include "numkong/cast/icelake.h"   // `nk_load_e4m3x32_to_bf16x32_icelake_`
 #include "numkong/dot/skylake.h"    // `nk_dot_through_f32_finalize_skylake_`
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
-#include "numkong/reduce/genoa.h"   // `nk_reduce_moments_bf16_genoa_contiguous_`
+#include "numkong/reduce/genoa.h"   // `nk_reduce_moments_contiguous_bf16_genoa_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -37,21 +37,21 @@ extern "C" {
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_genoa_(nk_bf16_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_bf16_genoa_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_bf16_genoa_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_genoa_(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_e4m3_genoa_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_e4m3_genoa_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_genoa_(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_e5m2_genoa_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_e5m2_genoa_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
@@ -64,7 +64,7 @@ nk_define_cross_packed_shape_(dots, bf16, genoa)
 nk_define_cross_pack_(dots, bf16, genoa, bf16, bf16, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b16x32_skylake_, nk_store_b512_skylake_, nk_partial_store_b16x32_skylake_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_genoa_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, bf16, genoa, bf16, f32, nk_b512_vec_t, nk_dot_through_bf16_state_genoa_t_,
                            nk_b128_vec_t, nk_dot_through_bf16_init_genoa_, nk_load_b512_skylake_,
@@ -86,7 +86,7 @@ nk_define_cross_pack_(dots, e4m3, genoa, e4m3, bf16, nk_b512_vec_t, nk_load_e4m3
                       nk_partial_load_e4m3x32_to_bf16x32_icelake_, nk_store_b512_skylake_,
                       nk_partial_store_b16x32_skylake_, /*simd_width=*/32,
                       /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_genoa_, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_, /*scale_bytes=*/1)
+                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e4m3, genoa, e4m3, f32, nk_b512_vec_t, nk_dot_through_bf16_state_genoa_t_,
                            nk_b128_vec_t, nk_dot_through_bf16_init_genoa_, nk_load_e4m3x32_to_bf16x32_icelake_,
                            nk_partial_load_e4m3x32_to_bf16x32_icelake_, nk_dot_through_bf16_update_genoa_,
@@ -107,7 +107,7 @@ nk_define_cross_pack_(dots, e5m2, genoa, e5m2, bf16, nk_b512_vec_t, nk_load_e5m2
                       nk_partial_load_e5m2x32_to_bf16x32_icelake_, nk_store_b512_skylake_,
                       nk_partial_store_b16x32_skylake_, /*simd_width=*/32,
                       /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_genoa_, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_, /*scale_bytes=*/1)
+                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e5m2, genoa, e5m2, f32, nk_b512_vec_t, nk_dot_through_bf16_state_genoa_t_,
                            nk_b128_vec_t, nk_dot_through_bf16_init_genoa_, nk_load_e5m2x32_to_bf16x32_icelake_,
                            nk_partial_load_e5m2x32_to_bf16x32_icelake_, nk_dot_through_bf16_update_genoa_,

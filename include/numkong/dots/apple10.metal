@@ -494,7 +494,7 @@ kernel void nk_dots_u4_apple10_kernel_(device uchar const *a [[buffer(0)]], devi
         a, b, c, arguments, group, thread_index, a_stage, b_stage, nullptr);
 }
 
-kernel void nk_dots_i4_apple10_small_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
+kernel void nk_dots_small_i4_apple10_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
                                              device int *c [[buffer(2)]],
                                              constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                              uint2 group [[threadgroup_position_in_grid]],
@@ -505,7 +505,7 @@ kernel void nk_dots_i4_apple10_small_kernel_(device uchar const *a [[buffer(0)]]
         a, b, c, arguments, group, thread_index, a_stage, b_stage, nullptr);
 }
 
-kernel void nk_dots_u4_apple10_small_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
+kernel void nk_dots_small_u4_apple10_kernel_(device uchar const *a [[buffer(0)]], device uchar const *b [[buffer(1)]],
                                              device uint *c [[buffer(2)]],
                                              constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                              uint2 group [[threadgroup_position_in_grid]],

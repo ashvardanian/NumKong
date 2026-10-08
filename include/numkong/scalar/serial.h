@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 /** Reciprocal square root of @p number: a bit-trick seed and three Newton steps, ~34.9 bits. */
-NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_(nk_f32_t number) {
+NUMKONG_INLINE nk_f32_t nk_rsqrt_f32_serial_(nk_f32_t number) {
     nk_fui32_t conv;
     conv.f = number;
     nk_u32_t const result_mask = (nk_u32_t)0 - (conv.u != 0x7F800000u);
@@ -46,14 +46,14 @@ NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_(nk_f32_t number) {
 }
 
 /** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
-NUMKONG_INLINE nk_f32_t nk_f32_sqrt_(nk_f32_t number) {
+NUMKONG_INLINE nk_f32_t nk_sqrt_f32_serial_(nk_f32_t number) {
     nk_f32_t positive = number > 0 ? number : 0;
     nk_f32_t finite = positive == NUMKONG_F32_INF ? 1.0f : positive;
-    return positive * nk_f32_rsqrt_(finite);
+    return positive * nk_rsqrt_f32_serial_(finite);
 }
 
 /** Reciprocal square root of @p number: a bit-trick seed and four Newton steps, ~69.3 bits. */
-NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_(nk_f64_t number) {
+NUMKONG_INLINE nk_f64_t nk_rsqrt_f64_serial_(nk_f64_t number) {
     nk_fui64_t conv;
     conv.f = number;
     nk_u64_t const result_mask = (nk_u64_t)0 - (conv.u != 0x7FF0000000000000ULL);
@@ -72,15 +72,15 @@ NUMKONG_INLINE nk_f64_t nk_f64_rsqrt_(nk_f64_t number) {
 }
 
 /** Square root of @p number as its product with its reciprocal square root, 0 if not positive. */
-NUMKONG_INLINE nk_f64_t nk_f64_sqrt_(nk_f64_t number) {
+NUMKONG_INLINE nk_f64_t nk_sqrt_f64_serial_(nk_f64_t number) {
     nk_f64_t positive = number > 0 ? number : 0;
     nk_f64_t finite = positive == NUMKONG_F64_INF ? 1.0 : positive;
-    return positive * nk_f64_rsqrt_(finite);
+    return positive * nk_rsqrt_f64_serial_(finite);
 }
 
 /** Fused multiply-add emulated in F64 with Dekker's TwoProduct and Knuth's TwoSum error terms. */
-NUMKONG_CONSTEXPR nk_f64_t nk_f64_fma_(nk_f64_t multiplicand, nk_f64_t multiplier,
-                                       nk_f64_t addend) NUMKONG_STREAMABLE_ {
+NUMKONG_CONSTEXPR nk_f64_t nk_fma_f64_serial_(nk_f64_t multiplicand, nk_f64_t multiplier,
+                                              nk_f64_t addend) NUMKONG_STREAMABLE_ {
     nk_f64_t product = multiplicand * multiplier;
     // Dekker splitting: break each operand into non-overlapping high and low halves
     nk_f64_t const dekker_split = 134217729.0; // 2^27 + 1 for double precision
@@ -103,7 +103,7 @@ NUMKONG_CONSTEXPR nk_f64_t nk_f64_fma_(nk_f64_t multiplicand, nk_f64_t multiplie
 }
 
 /** Fused multiply-add emulated in F32 with Dekker's TwoProduct and Knuth's TwoSum error terms. */
-NUMKONG_CONSTEXPR nk_f32_t nk_f32_fma_(nk_f32_t multiplicand, nk_f32_t multiplier, nk_f32_t addend) {
+NUMKONG_CONSTEXPR nk_f32_t nk_fma_f32_serial_(nk_f32_t multiplicand, nk_f32_t multiplier, nk_f32_t addend) {
     nk_f32_t product = multiplicand * multiplier;
     // Dekker splitting: break each operand into non-overlapping high and low halves
     nk_f32_t const dekker_split = 4097.0f; // 2^12 + 1 for single precision
@@ -135,34 +135,34 @@ NUMKONG_CONSTEXPR nk_f32_t nk_f32_fma_(nk_f32_t multiplicand, nk_f32_t multiplie
 #pragma GCC optimize("no-tree-vectorize", "no-tree-slp-vectorize", "no-ipa-cp-clone", "no-inline")
 #endif
 
-NUMKONG_API nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) { return nk_f32_rsqrt_(number); }
-NUMKONG_API nk_f32_t nk_f32_sqrt_serial(nk_f32_t number) { return nk_f32_sqrt_(number); }
-NUMKONG_API nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) { return nk_f64_rsqrt_(number); }
-NUMKONG_API nk_f64_t nk_f64_sqrt_serial(nk_f64_t number) { return nk_f64_sqrt_(number); }
+NUMKONG_API nk_f32_t nk_f32_rsqrt_serial(nk_f32_t number) { return nk_rsqrt_f32_serial_(number); }
+NUMKONG_API nk_f32_t nk_f32_sqrt_serial(nk_f32_t number) { return nk_sqrt_f32_serial_(number); }
+NUMKONG_API nk_f64_t nk_f64_rsqrt_serial(nk_f64_t number) { return nk_rsqrt_f64_serial_(number); }
+NUMKONG_API nk_f64_t nk_f64_sqrt_serial(nk_f64_t number) { return nk_sqrt_f64_serial_(number); }
 
 NUMKONG_API nk_f16_t nk_f16_sqrt_serial(nk_f16_t x) {
     nk_f32_t x_f32;
-    nk_f16_to_f32_(&x, &x_f32);
-    x_f32 = nk_f32_sqrt_(x_f32);
+    nk_f16_to_f32_serial_(&x, &x_f32);
+    x_f32 = nk_sqrt_f32_serial_(x_f32);
     nk_f16_t result;
-    nk_f32_to_f16_(&x_f32, &result);
+    nk_f32_to_f16_serial_(&x_f32, &result);
     return result;
 }
 
 NUMKONG_API nk_f16_t nk_f16_rsqrt_serial(nk_f16_t x) {
     nk_f32_t x_f32;
-    nk_f16_to_f32_(&x, &x_f32);
-    x_f32 = nk_f32_rsqrt_(x_f32);
+    nk_f16_to_f32_serial_(&x, &x_f32);
+    x_f32 = nk_rsqrt_f32_serial_(x_f32);
     nk_f16_t result;
-    nk_f32_to_f16_(&x_f32, &result);
+    nk_f32_to_f16_serial_(&x_f32, &result);
     return result;
 }
 
 NUMKONG_API nk_f64_t nk_f64_fma_serial(nk_f64_t multiplicand, nk_f64_t multiplier, nk_f64_t addend) {
-    return nk_f64_fma_(multiplicand, multiplier, addend);
+    return nk_fma_f64_serial_(multiplicand, multiplier, addend);
 }
 NUMKONG_API nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multiplier, nk_f32_t addend) {
-    return nk_f32_fma_(multiplicand, multiplier, addend);
+    return nk_fma_f32_serial_(multiplicand, multiplier, addend);
 }
 
 #if defined(__clang__)
@@ -175,9 +175,10 @@ NUMKONG_API nk_f32_t nk_f32_fma_serial(nk_f32_t multiplicand, nk_f32_t multiplie
 /** Scalar Dot2 accumulator: sum += a × b with error compensation, using the TwoProd, via FMA, and
  *  TwoSum error-free transformations from "Accurate Sum and Dot Product" by T. Ogita, S. M. Rump
  *  and S. Oishi, 2005. */
-NUMKONG_INLINE void nk_f64_dot2_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a, nk_f64_t b) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE void nk_dot2_f64_serial_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a,
+                                        nk_f64_t b) NUMKONG_STREAMABLE_ {
     nk_f64_t product = a * b;
-    nk_f64_t product_error = nk_f64_fma_(a, b, -product);
+    nk_f64_t product_error = nk_fma_f64_serial_(a, b, -product);
     nk_f64_t running_sum = *sum + product;
     nk_f64_t recovered_addend = running_sum - *sum;
     nk_f64_t sum_error = (*sum - (running_sum - recovered_addend)) + (product - recovered_addend);
@@ -186,36 +187,36 @@ NUMKONG_INLINE void nk_f64_dot2_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t
 }
 
 /** Sum of @p a and @p b clamped to the U16 range. */
-NUMKONG_CONSTEXPR nk_u16_t nk_u16_saturating_add_(nk_u16_t a, nk_u16_t b) {
+NUMKONG_CONSTEXPR nk_u16_t nk_saturating_add_u16_serial_(nk_u16_t a, nk_u16_t b) {
     nk_u32_t result = (nk_u32_t)a + (nk_u32_t)b;
     return (result > 65535u) ? (nk_u16_t)65535u : (nk_u16_t)result;
 }
 
 /** Sum of @p a and @p b clamped to the U32 range. */
-NUMKONG_CONSTEXPR nk_u32_t nk_u32_saturating_add_(nk_u32_t a, nk_u32_t b) {
+NUMKONG_CONSTEXPR nk_u32_t nk_saturating_add_u32_serial_(nk_u32_t a, nk_u32_t b) {
     nk_u64_t result = (nk_u64_t)a + (nk_u64_t)b;
     return (result > 4294967295u) ? (nk_u32_t)4294967295u : (nk_u32_t)result;
 }
 
 /** Sum of @p a and @p b clamped to the U64 range. */
-NUMKONG_CONSTEXPR nk_u64_t nk_u64_saturating_add_(nk_u64_t a, nk_u64_t b) {
+NUMKONG_CONSTEXPR nk_u64_t nk_saturating_add_u64_serial_(nk_u64_t a, nk_u64_t b) {
     return (a + b < a) ? 18446744073709551615ull : (a + b);
 }
 
 /** Sum of @p a and @p b clamped to the I16 range. */
-NUMKONG_CONSTEXPR nk_i16_t nk_i16_saturating_add_(nk_i16_t a, nk_i16_t b) {
+NUMKONG_CONSTEXPR nk_i16_t nk_saturating_add_i16_serial_(nk_i16_t a, nk_i16_t b) {
     nk_i32_t result = (nk_i32_t)a + (nk_i32_t)b;
     return (result > 32767) ? 32767 : (result < -32768 ? -32768 : result);
 }
 
 /** Sum of @p a and @p b clamped to the I32 range. */
-NUMKONG_CONSTEXPR nk_i32_t nk_i32_saturating_add_(nk_i32_t a, nk_i32_t b) {
+NUMKONG_CONSTEXPR nk_i32_t nk_saturating_add_i32_serial_(nk_i32_t a, nk_i32_t b) {
     nk_i64_t result = (nk_i64_t)a + (nk_i64_t)b;
     return (result > 2147483647ll) ? 2147483647ll : (result < -2147483648ll ? -2147483648ll : (nk_i32_t)result);
 }
 
 /** Sum of @p a and @p b clamped to the I64 range, checked before adding. */
-NUMKONG_CONSTEXPR nk_i64_t nk_i64_saturating_add_(nk_i64_t a, nk_i64_t b) {
+NUMKONG_CONSTEXPR nk_i64_t nk_saturating_add_i64_serial_(nk_i64_t a, nk_i64_t b) {
     //? We can't just write `-9223372036854775808ll`, even though it's the smallest signed 64-bit value.
     //? The compiler will complain about the number being too large for the type, as it will process the
     //? constant and the sign separately. So we use the same hint that compilers use to define the `INT64_MIN`.
@@ -225,7 +226,7 @@ NUMKONG_CONSTEXPR nk_i64_t nk_i64_saturating_add_(nk_i64_t a, nk_i64_t b) {
 }
 
 /** Product of @p a and @p b clamped to the U64 range, from four 32-bit partial products. */
-NUMKONG_CONSTEXPR nk_u64_t nk_u64_saturating_mul_(nk_u64_t a, nk_u64_t b) {
+NUMKONG_CONSTEXPR nk_u64_t nk_saturating_mul_u64_serial_(nk_u64_t a, nk_u64_t b) {
     // Split the inputs into high and low 32-bit parts
     nk_u64_t a_high = a >> 32;
     nk_u64_t a_low = a & 0xFFFFFFFF;
@@ -248,7 +249,7 @@ NUMKONG_CONSTEXPR nk_u64_t nk_u64_saturating_mul_(nk_u64_t a, nk_u64_t b) {
 }
 
 /** Product of @p a and @p b clamped to the I64 range, from the magnitudes' 32-bit halves. */
-NUMKONG_CONSTEXPR nk_i64_t nk_i64_saturating_mul_(nk_i64_t a, nk_i64_t b) {
+NUMKONG_CONSTEXPR nk_i64_t nk_saturating_mul_i64_serial_(nk_i64_t a, nk_i64_t b) {
     int sign = ((a < 0) ^ (b < 0)) ? -1 : 1; // Track the sign of the result
 
     // Take absolute values for easy multiplication and overflow detection
@@ -279,33 +280,33 @@ NUMKONG_CONSTEXPR nk_i64_t nk_i64_saturating_mul_(nk_i64_t a, nk_i64_t b) {
 }
 
 /** Orders two E4M3 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
-NUMKONG_CONSTEXPR int nk_e4m3_order_(nk_e4m3_t a, nk_e4m3_t b) {
+NUMKONG_CONSTEXPR int nk_order_e4m3_serial_(nk_e4m3_t a, nk_e4m3_t b) {
     int sign_a = a >> 7, sign_b = b >> 7;
     return (a ^ -sign_a) - (b ^ -sign_b);
 }
 
 /** Orders two E5M2 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
-NUMKONG_CONSTEXPR int nk_e5m2_order_(nk_e5m2_t a, nk_e5m2_t b) {
+NUMKONG_CONSTEXPR int nk_order_e5m2_serial_(nk_e5m2_t a, nk_e5m2_t b) {
     int sign_a = a >> 7, sign_b = b >> 7;
     return (a ^ -sign_a) - (b ^ -sign_b);
 }
 
 /** Orders two E2M3 values by their 6 sign-magnitude bits: negative, zero or positive. */
-NUMKONG_CONSTEXPR int nk_e2m3_order_(nk_e2m3_t a, nk_e2m3_t b) {
+NUMKONG_CONSTEXPR int nk_order_e2m3_serial_(nk_e2m3_t a, nk_e2m3_t b) {
     int value_a = a & 0x3F, value_b = b & 0x3F;
     int sign_a = value_a >> 5, sign_b = value_b >> 5;
     return (value_a ^ -sign_a) - (value_b ^ -sign_b);
 }
 
 /** Orders two E3M2 values by their 6 sign-magnitude bits: negative, zero or positive. */
-NUMKONG_CONSTEXPR int nk_e3m2_order_(nk_e3m2_t a, nk_e3m2_t b) {
+NUMKONG_CONSTEXPR int nk_order_e3m2_serial_(nk_e3m2_t a, nk_e3m2_t b) {
     int value_a = a & 0x3F, value_b = b & 0x3F;
     int sign_a = value_a >> 5, sign_b = value_b >> 5;
     return (value_a ^ -sign_a) - (value_b ^ -sign_b);
 }
 
 /** Orders two BF16 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
-NUMKONG_INLINE int nk_bf16_order_(nk_bf16_t a, nk_bf16_t b) {
+NUMKONG_INLINE int nk_order_bf16_serial_(nk_bf16_t a, nk_bf16_t b) {
     nk_fui16_t a_fui, b_fui;
     a_fui.bf = a, b_fui.bf = b;
     int sign_a = a_fui.u >> 15, sign_b = b_fui.u >> 15;
@@ -313,7 +314,7 @@ NUMKONG_INLINE int nk_bf16_order_(nk_bf16_t a, nk_bf16_t b) {
 }
 
 /** Orders two F16 values by sign-magnitude bits: negative, zero or positive, NaNs outermost. */
-NUMKONG_INLINE int nk_f16_order_(nk_f16_t a, nk_f16_t b) {
+NUMKONG_INLINE int nk_order_f16_serial_(nk_f16_t a, nk_f16_t b) {
     nk_fui16_t a_fui, b_fui;
     a_fui.f = a, b_fui.f = b;
     int sign_a = a_fui.u >> 15, sign_b = b_fui.u >> 15;
@@ -330,12 +331,12 @@ NUMKONG_INLINE int nk_f16_order_(nk_f16_t a, nk_f16_t b) {
 
 NUMKONG_API nk_f16_t nk_f16_fma_serial(nk_f16_t a, nk_f16_t b, nk_f16_t c) {
     nk_f32_t a_f32, b_f32, c_f32;
-    nk_f16_to_f32_(&a, &a_f32);
-    nk_f16_to_f32_(&b, &b_f32);
-    nk_f16_to_f32_(&c, &c_f32);
-    nk_f32_t result_f32 = nk_f32_fma_(a_f32, b_f32, c_f32);
+    nk_f16_to_f32_serial_(&a, &a_f32);
+    nk_f16_to_f32_serial_(&b, &b_f32);
+    nk_f16_to_f32_serial_(&c, &c_f32);
+    nk_f32_t result_f32 = nk_fma_f32_serial_(a_f32, b_f32, c_f32);
     nk_f16_t result;
-    nk_f32_to_f16_(&result_f32, &result);
+    nk_f32_to_f16_serial_(&result_f32, &result);
     return result;
 }
 
@@ -343,16 +344,28 @@ NUMKONG_API nk_u8_t nk_u8_saturating_add_serial(nk_u8_t a, nk_u8_t b) {
     nk_u16_t result = (nk_u16_t)a + (nk_u16_t)b;
     return (result > 255u) ? (nk_u8_t)255u : (nk_u8_t)result;
 }
-NUMKONG_API nk_u16_t nk_u16_saturating_add_serial(nk_u16_t a, nk_u16_t b) { return nk_u16_saturating_add_(a, b); }
-NUMKONG_API nk_u32_t nk_u32_saturating_add_serial(nk_u32_t a, nk_u32_t b) { return nk_u32_saturating_add_(a, b); }
-NUMKONG_API nk_u64_t nk_u64_saturating_add_serial(nk_u64_t a, nk_u64_t b) { return nk_u64_saturating_add_(a, b); }
+NUMKONG_API nk_u16_t nk_u16_saturating_add_serial(nk_u16_t a, nk_u16_t b) {
+    return nk_saturating_add_u16_serial_(a, b);
+}
+NUMKONG_API nk_u32_t nk_u32_saturating_add_serial(nk_u32_t a, nk_u32_t b) {
+    return nk_saturating_add_u32_serial_(a, b);
+}
+NUMKONG_API nk_u64_t nk_u64_saturating_add_serial(nk_u64_t a, nk_u64_t b) {
+    return nk_saturating_add_u64_serial_(a, b);
+}
 NUMKONG_API nk_i8_t nk_i8_saturating_add_serial(nk_i8_t a, nk_i8_t b) {
     nk_i16_t result = (nk_i16_t)a + (nk_i16_t)b;
     return (result > 127) ? 127 : (result < -128 ? -128 : result);
 }
-NUMKONG_API nk_i16_t nk_i16_saturating_add_serial(nk_i16_t a, nk_i16_t b) { return nk_i16_saturating_add_(a, b); }
-NUMKONG_API nk_i32_t nk_i32_saturating_add_serial(nk_i32_t a, nk_i32_t b) { return nk_i32_saturating_add_(a, b); }
-NUMKONG_API nk_i64_t nk_i64_saturating_add_serial(nk_i64_t a, nk_i64_t b) { return nk_i64_saturating_add_(a, b); }
+NUMKONG_API nk_i16_t nk_i16_saturating_add_serial(nk_i16_t a, nk_i16_t b) {
+    return nk_saturating_add_i16_serial_(a, b);
+}
+NUMKONG_API nk_i32_t nk_i32_saturating_add_serial(nk_i32_t a, nk_i32_t b) {
+    return nk_saturating_add_i32_serial_(a, b);
+}
+NUMKONG_API nk_i64_t nk_i64_saturating_add_serial(nk_i64_t a, nk_i64_t b) {
+    return nk_saturating_add_i64_serial_(a, b);
+}
 
 NUMKONG_API nk_u8_t nk_u8_saturating_mul_serial(nk_u8_t a, nk_u8_t b) {
     nk_u16_t result = (nk_u16_t)a * (nk_u16_t)b;
@@ -369,7 +382,9 @@ NUMKONG_API nk_u32_t nk_u32_saturating_mul_serial(nk_u32_t a, nk_u32_t b) {
     return (result > 4294967295u) ? 4294967295u : (nk_u32_t)result;
 }
 
-NUMKONG_API nk_u64_t nk_u64_saturating_mul_serial(nk_u64_t a, nk_u64_t b) { return nk_u64_saturating_mul_(a, b); }
+NUMKONG_API nk_u64_t nk_u64_saturating_mul_serial(nk_u64_t a, nk_u64_t b) {
+    return nk_saturating_mul_u64_serial_(a, b);
+}
 
 NUMKONG_API nk_i8_t nk_i8_saturating_mul_serial(nk_i8_t a, nk_i8_t b) {
     nk_i16_t result = (nk_i16_t)a * (nk_i16_t)b;
@@ -386,7 +401,9 @@ NUMKONG_API nk_i32_t nk_i32_saturating_mul_serial(nk_i32_t a, nk_i32_t b) {
     return (result > 2147483647ll) ? 2147483647ll : (result < -2147483648ll ? -2147483648ll : (nk_i32_t)result);
 }
 
-NUMKONG_API nk_i64_t nk_i64_saturating_mul_serial(nk_i64_t a, nk_i64_t b) { return nk_i64_saturating_mul_(a, b); }
+NUMKONG_API nk_i64_t nk_i64_saturating_mul_serial(nk_i64_t a, nk_i64_t b) {
+    return nk_saturating_mul_i64_serial_(a, b);
+}
 
 NUMKONG_API nk_i4x2_t nk_i4x2_saturating_add_serial(nk_i4x2_t a, nk_i4x2_t b) {
     nk_i8_t low = nk_i4x2_low_(a) + nk_i4x2_low_(b);
@@ -417,12 +434,12 @@ NUMKONG_API nk_u4x2_t nk_u4x2_saturating_mul_serial(nk_u4x2_t a, nk_u4x2_t b) {
     return (nk_u4x2_t)((low & 0x0F) | ((high & 0x0F) << 4));
 }
 
-NUMKONG_API int nk_e4m3_order_serial(nk_e4m3_t a, nk_e4m3_t b) { return nk_e4m3_order_(a, b); }
-NUMKONG_API int nk_e5m2_order_serial(nk_e5m2_t a, nk_e5m2_t b) { return nk_e5m2_order_(a, b); }
-NUMKONG_API int nk_e2m3_order_serial(nk_e2m3_t a, nk_e2m3_t b) { return nk_e2m3_order_(a, b); }
-NUMKONG_API int nk_e3m2_order_serial(nk_e3m2_t a, nk_e3m2_t b) { return nk_e3m2_order_(a, b); }
-NUMKONG_API int nk_bf16_order_serial(nk_bf16_t a, nk_bf16_t b) { return nk_bf16_order_(a, b); }
-NUMKONG_API int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) { return nk_f16_order_(a, b); }
+NUMKONG_API int nk_e4m3_order_serial(nk_e4m3_t a, nk_e4m3_t b) { return nk_order_e4m3_serial_(a, b); }
+NUMKONG_API int nk_e5m2_order_serial(nk_e5m2_t a, nk_e5m2_t b) { return nk_order_e5m2_serial_(a, b); }
+NUMKONG_API int nk_e2m3_order_serial(nk_e2m3_t a, nk_e2m3_t b) { return nk_order_e2m3_serial_(a, b); }
+NUMKONG_API int nk_e3m2_order_serial(nk_e3m2_t a, nk_e3m2_t b) { return nk_order_e3m2_serial_(a, b); }
+NUMKONG_API int nk_bf16_order_serial(nk_bf16_t a, nk_bf16_t b) { return nk_order_bf16_serial_(a, b); }
+NUMKONG_API int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) { return nk_order_f16_serial_(a, b); }
 
 #if defined(__clang__)
 #pragma clang attribute pop
@@ -432,7 +449,7 @@ NUMKONG_API int nk_f16_order_serial(nk_f16_t a, nk_f16_t b) { return nk_f16_orde
 #endif // NUMKONG_TARGET_SERIAL
 
 /** Sine of @p angle_radians: Cody-Waite reduction by π and an odd minimax polynomial. */
-NUMKONG_INLINE nk_f32_t nk_f32_sin_(nk_f32_t const angle_radians) {
+NUMKONG_INLINE nk_f32_t nk_sin_f32_serial_(nk_f32_t const angle_radians) {
 
     // Cody-Waite constants: π split into 12-bit parts, whose products stay exact without an FMA
     nk_f32_t const pi_part_1 = 3.140625f;
@@ -473,7 +490,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_sin_(nk_f32_t const angle_radians) {
 }
 
 /** Cosine of @p angle_radians: Cody-Waite reduction by π around π/2 and an odd polynomial. */
-NUMKONG_INLINE nk_f32_t nk_f32_cos_(nk_f32_t const angle_radians) {
+NUMKONG_INLINE nk_f32_t nk_cos_f32_serial_(nk_f32_t const angle_radians) {
 
     // Cody-Waite constants: π split into 12-bit parts, whose products stay exact without an FMA
     nk_f32_t const pi_part_1 = 3.140625f;
@@ -514,7 +531,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_cos_(nk_f32_t const angle_radians) {
 }
 
 /** Arctangent of @p input: reciprocal folding into [0, 1] and a degree-8 polynomial in x². */
-NUMKONG_INLINE nk_f32_t nk_f32_atan_(nk_f32_t const input) {
+NUMKONG_INLINE nk_f32_t nk_atan_f32_serial_(nk_f32_t const input) {
     // Polynomial coefficients for atan approximation
     nk_f32_t const coeff_8 = -0.333331018686294555664062f;
     nk_f32_t const coeff_7 = +0.199926957488059997558594f;
@@ -537,16 +554,16 @@ NUMKONG_INLINE nk_f32_t nk_f32_atan_(nk_f32_t const input) {
 
     // Polynomial evaluation using FMA for improved precision
     nk_f32_t polynomial = coeff_1;
-    polynomial = nk_f32_fma_(polynomial, value_squared, coeff_2);
-    polynomial = nk_f32_fma_(polynomial, value_squared, coeff_3);
-    polynomial = nk_f32_fma_(polynomial, value_squared, coeff_4);
-    polynomial = nk_f32_fma_(polynomial, value_squared, coeff_5);
-    polynomial = nk_f32_fma_(polynomial, value_squared, coeff_6);
-    polynomial = nk_f32_fma_(polynomial, value_squared, coeff_7);
-    polynomial = nk_f32_fma_(polynomial, value_squared, coeff_8);
+    polynomial = nk_fma_f32_serial_(polynomial, value_squared, coeff_2);
+    polynomial = nk_fma_f32_serial_(polynomial, value_squared, coeff_3);
+    polynomial = nk_fma_f32_serial_(polynomial, value_squared, coeff_4);
+    polynomial = nk_fma_f32_serial_(polynomial, value_squared, coeff_5);
+    polynomial = nk_fma_f32_serial_(polynomial, value_squared, coeff_6);
+    polynomial = nk_fma_f32_serial_(polynomial, value_squared, coeff_7);
+    polynomial = nk_fma_f32_serial_(polynomial, value_squared, coeff_8);
 
     // Adjust for quadrant
-    nk_f32_t result = nk_f32_fma_(polynomial, value_cubed, value);
+    nk_f32_t result = nk_fma_f32_serial_(polynomial, value_cubed, value);
     nk_f32_t const pi_half = 1.5707963267948966f; // π/2
     if ((quadrant & 1) != 0) result = pi_half - result;
     if ((quadrant & 2) != 0) result = -result;
@@ -554,7 +571,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_atan_(nk_f32_t const input) {
 }
 
 /** Sine of an F16 @p angle_radians widened to F32, within one F16 ULP: a degree-5 polynomial. */
-NUMKONG_INLINE nk_f32_t nk_f32_sin_for_f16_(nk_f32_t const angle_radians) {
+NUMKONG_INLINE nk_f32_t nk_f32_sin_for_f16_serial_(nk_f32_t const angle_radians) {
     // π in three parts, the first two of 8 bits, keeping their products exact for every F16 angle
     nk_f32_t const pi_high = 3.140625f, pi_middle = 9.68933105468750e-4f, pi_low = -1.2795157e-6f;
     nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
@@ -573,7 +590,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_sin_for_f16_(nk_f32_t const angle_radians) {
 }
 
 /** Cosine of an F16 @p angle_radians widened to F32, within one F16 ULP: a degree-5 polynomial. */
-NUMKONG_INLINE nk_f32_t nk_f32_cos_for_f16_(nk_f32_t const angle_radians) {
+NUMKONG_INLINE nk_f32_t nk_f32_cos_for_f16_serial_(nk_f32_t const angle_radians) {
     nk_f32_t const pi_high = 3.140625f, pi_middle = 9.68933105468750e-4f, pi_low = -1.2795157e-6f;
     nk_f32_t const pi_reciprocal = 0.31830988618379067154f; // 1/π
     nk_f32_t const coeff_5 = +7.601828013e-3f, coeff_3 = -1.659576743e-1f, coeff_1 = +9.998911284e-1f;
@@ -592,7 +609,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_cos_for_f16_(nk_f32_t const angle_radians) {
 }
 
 /** Arctangent of an F16 @p input widened to F32, within one F16 ULP: a degree-9 polynomial. */
-NUMKONG_INLINE nk_f32_t nk_f32_atan_for_f16_(nk_f32_t const input) {
+NUMKONG_INLINE nk_f32_t nk_f32_atan_for_f16_serial_(nk_f32_t const input) {
     nk_f32_t const coeff_9 = +2.384410794e-2f, coeff_7 = -9.189231944e-2f, coeff_5 = +1.851973596e-1f;
     nk_f32_t const coeff_3 = -3.316979017e-1f, coeff_1 = +9.999699700e-1f;
     nk_f32_t const pi_half = 1.5707963267948966f; // π/2
@@ -614,7 +631,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_atan_for_f16_(nk_f32_t const input) {
 }
 
 /** Four-quadrant arctangent of @p y_input / @p x_input, with IEEE signed zeros and infinities. */
-NUMKONG_INLINE nk_f32_t nk_f32_atan2_(nk_f32_t const y_input, nk_f32_t const x_input) {
+NUMKONG_INLINE nk_f32_t nk_atan2_f32_serial_(nk_f32_t const y_input, nk_f32_t const x_input) {
 
     // Polynomial coefficients for atan2 approximation
     nk_f32_t const coeff_8 = -0.333331018686294555664062f;
@@ -651,18 +668,18 @@ NUMKONG_INLINE nk_f32_t nk_f32_atan2_(nk_f32_t const y_input, nk_f32_t const x_i
 
     // Polynomial evaluation using FMA for improved precision
     nk_f32_t polynomial = coeff_1;
-    polynomial = nk_f32_fma_(polynomial, ratio_squared, coeff_2);
-    polynomial = nk_f32_fma_(polynomial, ratio_squared, coeff_3);
-    polynomial = nk_f32_fma_(polynomial, ratio_squared, coeff_4);
-    polynomial = nk_f32_fma_(polynomial, ratio_squared, coeff_5);
-    polynomial = nk_f32_fma_(polynomial, ratio_squared, coeff_6);
-    polynomial = nk_f32_fma_(polynomial, ratio_squared, coeff_7);
-    polynomial = nk_f32_fma_(polynomial, ratio_squared, coeff_8);
+    polynomial = nk_fma_f32_serial_(polynomial, ratio_squared, coeff_2);
+    polynomial = nk_fma_f32_serial_(polynomial, ratio_squared, coeff_3);
+    polynomial = nk_fma_f32_serial_(polynomial, ratio_squared, coeff_4);
+    polynomial = nk_fma_f32_serial_(polynomial, ratio_squared, coeff_5);
+    polynomial = nk_fma_f32_serial_(polynomial, ratio_squared, coeff_6);
+    polynomial = nk_fma_f32_serial_(polynomial, ratio_squared, coeff_7);
+    polynomial = nk_fma_f32_serial_(polynomial, ratio_squared, coeff_8);
 
     // Compute the result using FMA
     nk_f32_t const pi_half = 1.5707963267948966f; // π/2
-    nk_f32_t result = nk_f32_fma_(polynomial, ratio_cubed, ratio);
-    result = nk_f32_fma_((nk_f32_t)quadrant, pi_half, result); // quadrant * (π/2)
+    nk_f32_t result = nk_fma_f32_serial_(polynomial, ratio_cubed, ratio);
+    result = nk_fma_f32_serial_((nk_f32_t)quadrant, pi_half, result); // quadrant * (π/2)
 
     // Adjust sign
     nk_u32_t const negative_zero = 0x80000000u;
@@ -674,7 +691,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_atan2_(nk_f32_t const y_input, nk_f32_t const x_i
 }
 
 /** Sine of @p angle_radians: Cody-Waite reduction by π and an Estrin-evaluated odd polynomial. */
-NUMKONG_INLINE nk_f64_t nk_f64_sin_(nk_f64_t const angle_radians) {
+NUMKONG_INLINE nk_f64_t nk_sin_f64_serial_(nk_f64_t const angle_radians) {
 
     // Constants for argument reduction
     nk_f64_t const pi_high = 3.141592653589793116;                         // High-digits part of π
@@ -708,19 +725,19 @@ NUMKONG_INLINE nk_f64_t nk_f64_sin_(nk_f64_t const angle_radians) {
     nk_f64_t const angle_octic = angle_quartic * angle_quartic;
 
     // Compute higher-degree polynomial terms using FMA
-    nk_f64_t const poly_67 = nk_f64_fma_(angle_squared, coeff_7, coeff_6);
-    nk_f64_t const poly_45 = nk_f64_fma_(angle_squared, coeff_5, coeff_4);
-    nk_f64_t const poly_4567 = nk_f64_fma_(angle_quartic, poly_67, poly_45);
+    nk_f64_t const poly_67 = nk_fma_f64_serial_(angle_squared, coeff_7, coeff_6);
+    nk_f64_t const poly_45 = nk_fma_f64_serial_(angle_squared, coeff_5, coeff_4);
+    nk_f64_t const poly_4567 = nk_fma_f64_serial_(angle_quartic, poly_67, poly_45);
 
     // Compute lower-degree polynomial terms using FMA
-    nk_f64_t const poly_23 = nk_f64_fma_(angle_squared, coeff_3, coeff_2);
-    nk_f64_t const poly_01 = nk_f64_fma_(angle_squared, coeff_1, coeff_0);
-    nk_f64_t const poly_0123 = nk_f64_fma_(angle_quartic, poly_23, poly_01);
+    nk_f64_t const poly_23 = nk_fma_f64_serial_(angle_squared, coeff_3, coeff_2);
+    nk_f64_t const poly_01 = nk_fma_f64_serial_(angle_squared, coeff_1, coeff_0);
+    nk_f64_t const poly_0123 = nk_fma_f64_serial_(angle_quartic, poly_23, poly_01);
 
     // Combine polynomial terms using FMA
-    nk_f64_t result = nk_f64_fma_(angle_octic, poly_4567, poly_0123);
-    result = nk_f64_fma_(result, angle_squared, coeff_8);
-    result = nk_f64_fma_(result, angle_cubed, angle);
+    nk_f64_t result = nk_fma_f64_serial_(angle_octic, poly_4567, poly_0123);
+    result = nk_fma_f64_serial_(result, angle_squared, coeff_8);
+    result = nk_fma_f64_serial_(result, angle_cubed, angle);
 
     // Handle the special case of negative zero input
     nk_fui64_t converter;
@@ -730,7 +747,7 @@ NUMKONG_INLINE nk_f64_t nk_f64_sin_(nk_f64_t const angle_radians) {
 }
 
 /** Cosine of @p angle_radians: Cody-Waite reduction around π/2 and an Estrin polynomial. */
-NUMKONG_INLINE nk_f64_t nk_f64_cos_(nk_f64_t const angle_radians) {
+NUMKONG_INLINE nk_f64_t nk_cos_f64_serial_(nk_f64_t const angle_radians) {
 
     // Constants for argument reduction
     nk_f64_t const pi_high_half = 3.141592653589793116 * 0.5;              // High-digits part of π
@@ -763,24 +780,24 @@ NUMKONG_INLINE nk_f64_t nk_f64_cos_(nk_f64_t const angle_radians) {
     nk_f64_t const angle_octic = angle_quartic * angle_quartic;
 
     // Compute higher-degree polynomial terms using FMA
-    nk_f64_t const poly_67 = nk_f64_fma_(angle_squared, coeff_7, coeff_6);
-    nk_f64_t const poly_45 = nk_f64_fma_(angle_squared, coeff_5, coeff_4);
-    nk_f64_t const poly_4567 = nk_f64_fma_(angle_quartic, poly_67, poly_45);
+    nk_f64_t const poly_67 = nk_fma_f64_serial_(angle_squared, coeff_7, coeff_6);
+    nk_f64_t const poly_45 = nk_fma_f64_serial_(angle_squared, coeff_5, coeff_4);
+    nk_f64_t const poly_4567 = nk_fma_f64_serial_(angle_quartic, poly_67, poly_45);
 
     // Compute lower-degree polynomial terms using FMA
-    nk_f64_t const poly_23 = nk_f64_fma_(angle_squared, coeff_3, coeff_2);
-    nk_f64_t const poly_01 = nk_f64_fma_(angle_squared, coeff_1, coeff_0);
-    nk_f64_t const poly_0123 = nk_f64_fma_(angle_quartic, poly_23, poly_01);
+    nk_f64_t const poly_23 = nk_fma_f64_serial_(angle_squared, coeff_3, coeff_2);
+    nk_f64_t const poly_01 = nk_fma_f64_serial_(angle_squared, coeff_1, coeff_0);
+    nk_f64_t const poly_0123 = nk_fma_f64_serial_(angle_quartic, poly_23, poly_01);
 
     // Combine polynomial terms using FMA
-    nk_f64_t result = nk_f64_fma_(angle_octic, poly_4567, poly_0123);
-    result = nk_f64_fma_(result, angle_squared, coeff_8);
-    result = nk_f64_fma_(result, angle_cubed, angle);
+    nk_f64_t result = nk_fma_f64_serial_(angle_octic, poly_4567, poly_0123);
+    result = nk_fma_f64_serial_(result, angle_squared, coeff_8);
+    result = nk_fma_f64_serial_(result, angle_cubed, angle);
     return result;
 }
 
 /** Arctangent of @p input: reciprocal folding into [0, 1] and a degree-19 polynomial in x². */
-NUMKONG_INLINE nk_f64_t nk_f64_atan_(nk_f64_t const input) {
+NUMKONG_INLINE nk_f64_t nk_atan_f64_serial_(nk_f64_t const input) {
     // Polynomial coefficients for atan approximation
     nk_f64_t const coeff_19 = -1.88796008463073496563746e-05;
     nk_f64_t const coeff_18 = +0.000209850076645816976906797;
@@ -812,28 +829,28 @@ NUMKONG_INLINE nk_f64_t nk_f64_atan_(nk_f64_t const input) {
 
     // Polynomial evaluation using FMA for improved precision
     nk_f64_t polynomial = coeff_19;
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_18);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_17);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_16);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_15);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_14);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_13);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_12);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_11);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_10);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_9);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_8);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_7);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_6);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_5);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_4);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_3);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_2);
-    polynomial = nk_f64_fma_(polynomial, value_squared, coeff_1);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_18);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_17);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_16);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_15);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_14);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_13);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_12);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_11);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_10);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_9);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_8);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_7);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_6);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_5);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_4);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_3);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_2);
+    polynomial = nk_fma_f64_serial_(polynomial, value_squared, coeff_1);
 
     // Adjust for quadrant
     nk_f64_t const pi_half = 1.5707963267948966; // π/2
-    nk_f64_t result = nk_f64_fma_(polynomial, value_cubed, value);
+    nk_f64_t result = nk_fma_f64_serial_(polynomial, value_cubed, value);
     if (quadrant & 1) result = pi_half - result;
     if (quadrant & 2) result = -result;
 
@@ -841,7 +858,7 @@ NUMKONG_INLINE nk_f64_t nk_f64_atan_(nk_f64_t const input) {
 }
 
 /** Four-quadrant arctangent of @p y_input / @p x_input, with IEEE signed zeros and infinities. */
-NUMKONG_INLINE nk_f64_t nk_f64_atan2_(nk_f64_t const y_input, nk_f64_t const x_input) {
+NUMKONG_INLINE nk_f64_t nk_atan2_f64_serial_(nk_f64_t const y_input, nk_f64_t const x_input) {
     // Polynomial coefficients for atan2 approximation
     nk_f64_t const coeff_19 = -1.88796008463073496563746e-05;
     nk_f64_t const coeff_18 = +0.000209850076645816976906797;
@@ -887,24 +904,24 @@ NUMKONG_INLINE nk_f64_t nk_f64_atan2_(nk_f64_t const y_input, nk_f64_t const x_i
     nk_f64_t const ratio_cubed = ratio * ratio_squared;
 
     // Polynomial evaluation using FMA for improved precision
-    nk_f64_t polynomial = nk_f64_fma_(coeff_19, ratio_squared, coeff_18);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_17);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_16);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_15);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_14);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_13);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_12);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_11);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_10);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_9);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_8);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_7);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_6);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_5);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_4);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_3);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_2);
-    polynomial = nk_f64_fma_(polynomial, ratio_squared, coeff_1);
+    nk_f64_t polynomial = nk_fma_f64_serial_(coeff_19, ratio_squared, coeff_18);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_17);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_16);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_15);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_14);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_13);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_12);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_11);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_10);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_9);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_8);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_7);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_6);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_5);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_4);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_3);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_2);
+    polynomial = nk_fma_f64_serial_(polynomial, ratio_squared, coeff_1);
 
     // Adjust for quadrant
     nk_f64_t const pi = 3.14159265358979323846;     // π
@@ -913,8 +930,8 @@ NUMKONG_INLINE nk_f64_t nk_f64_atan2_(nk_f64_t const y_input, nk_f64_t const x_i
     nk_u64_t const negative_zero = 0x8000000000000000ull;
     nk_u64_t const positive_infinity = 0x7FF0000000000000ull;
     nk_u64_t const negative_infinity = 0xFFF0000000000000ull;
-    nk_f64_t result = nk_f64_fma_(polynomial, ratio_cubed, ratio);
-    result = nk_f64_fma_((nk_f64_t)quadrant, pi_half, result);
+    nk_f64_t result = nk_fma_f64_serial_(polynomial, ratio_cubed, ratio);
+    result = nk_fma_f64_serial_((nk_f64_t)quadrant, pi_half, result);
 
     // Special cases handling using bit reinterpretation
     int const x_is_inf = (x_bits.u == positive_infinity) | (x_bits.u == negative_infinity);
@@ -936,17 +953,17 @@ NUMKONG_INLINE nk_f64_t nk_f64_atan2_(nk_f64_t const y_input, nk_f64_t const x_i
 }
 
 #if NUMKONG_TARGET_SERIAL
-NUMKONG_API nk_f32_t nk_f32_sin_serial(nk_f32_t const angle_radians) { return nk_f32_sin_(angle_radians); }
-NUMKONG_API nk_f32_t nk_f32_cos_serial(nk_f32_t const angle_radians) { return nk_f32_cos_(angle_radians); }
-NUMKONG_API nk_f32_t nk_f32_atan_serial(nk_f32_t const input) { return nk_f32_atan_(input); }
+NUMKONG_API nk_f32_t nk_f32_sin_serial(nk_f32_t const angle_radians) { return nk_sin_f32_serial_(angle_radians); }
+NUMKONG_API nk_f32_t nk_f32_cos_serial(nk_f32_t const angle_radians) { return nk_cos_f32_serial_(angle_radians); }
+NUMKONG_API nk_f32_t nk_f32_atan_serial(nk_f32_t const input) { return nk_atan_f32_serial_(input); }
 NUMKONG_API nk_f32_t nk_f32_atan2_serial(nk_f32_t const y_input, nk_f32_t const x_input) {
-    return nk_f32_atan2_(y_input, x_input);
+    return nk_atan2_f32_serial_(y_input, x_input);
 }
-NUMKONG_API nk_f64_t nk_f64_sin_serial(nk_f64_t const angle_radians) { return nk_f64_sin_(angle_radians); }
-NUMKONG_API nk_f64_t nk_f64_cos_serial(nk_f64_t const angle_radians) { return nk_f64_cos_(angle_radians); }
-NUMKONG_API nk_f64_t nk_f64_atan_serial(nk_f64_t const input) { return nk_f64_atan_(input); }
+NUMKONG_API nk_f64_t nk_f64_sin_serial(nk_f64_t const angle_radians) { return nk_sin_f64_serial_(angle_radians); }
+NUMKONG_API nk_f64_t nk_f64_cos_serial(nk_f64_t const angle_radians) { return nk_cos_f64_serial_(angle_radians); }
+NUMKONG_API nk_f64_t nk_f64_atan_serial(nk_f64_t const input) { return nk_atan_f64_serial_(input); }
 NUMKONG_API nk_f64_t nk_f64_atan2_serial(nk_f64_t const y_input, nk_f64_t const x_input) {
-    return nk_f64_atan2_(y_input, x_input);
+    return nk_atan2_f64_serial_(y_input, x_input);
 }
 #endif // NUMKONG_TARGET_SERIAL
 

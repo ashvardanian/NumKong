@@ -26,7 +26,7 @@ typedef struct AttentionPackedMatrix {
     nk_dtype_t dtype;
 
     /** Number of KV heads packed per token. */
-    nk_size_t heads;
+    nk_size_t key_value_head_count;
 
     /** Channels per head. */
     nk_size_t depth;

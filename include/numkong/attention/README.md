@@ -17,10 +17,10 @@ Ragged batches generalize this to independently sized segments sharing one packe
 Reformulating as Python pseudocode:
 
 ```python
-def attention_ragged(q, k, v, segment_offsets, query_offsets, scale) -> Matrix:
+def attention_ragged(q, k, v, key_offsets, query_offsets, scale) -> Matrix:
     out = zeros(rows=query_offsets[-1], columns=q.columns)
-    for s in range(len(segment_offsets) - 1):
-        kv = slice(segment_offsets[s], segment_offsets[s + 1])
+    for s in range(len(key_offsets) - 1):
+        kv = slice(key_offsets[s], key_offsets[s + 1])
         queries = slice(query_offsets[s], query_offsets[s + 1])
         for h in range(head_count):
             kv_head = h // (head_count // key_value_head_count)  # GQA / MQA sharing

@@ -160,11 +160,11 @@ PyObject *api_fma(PyObject *self, PyObject *const *args, Py_ssize_t const positi
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
         if (beta_obj) {
             if (!py_number_to_nk_scalar_buffer(beta_obj, &beta_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
     }
 
     // Look up the kernel and the capability
@@ -308,11 +308,11 @@ PyObject *api_blend(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
         if (beta_obj) {
             if (!py_number_to_nk_scalar_buffer(beta_obj, &beta_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
     }
 
     // Look up the kernel and the capability
@@ -443,11 +443,11 @@ PyObject *api_scale(PyObject *self, PyObject *const *args, Py_ssize_t const posi
         if (alpha_obj) {
             if (!py_number_to_nk_scalar_buffer(alpha_obj, &alpha_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
         if (beta_obj) {
             if (!py_number_to_nk_scalar_buffer(beta_obj, &beta_buf, scalar_dtype)) goto cleanup;
         }
-        else nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+        else nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
     }
 
     // Look up the kernel and the capability
@@ -997,7 +997,7 @@ static PyObject *add_scalar_array(PyObject *array_obj, PyObject *scalar_obj, PyO
     nk_scalar_buffer_t alpha_buf, beta_buf;
     alpha_buf.f64 = 1.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
-    nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &beta_buf, scalar_dtype)) goto cleanup;
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
@@ -1309,7 +1309,7 @@ static PyObject *multiply_scalar_array(PyObject *array_obj, PyObject *scalar_obj
     beta_buf.f64 = 0.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
     if (!py_number_to_nk_scalar_buffer(scalar_obj, &alpha_buf, scalar_dtype)) goto cleanup;
-    nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
 
     size_t const element_size = nk_dtype_bytes_per_value(dtype);
     nk_size_t total_elements = 1;
@@ -1437,8 +1437,8 @@ static PyObject *multiply_array_array(PyObject *a_obj, PyObject *b_obj, PyObject
     nk_scalar_buffer_t alpha_buf, beta_buf;
     alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(dtype);
-    nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-    nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
 
     int const rank = a_buffer.ndim;
     nk_size_t total_elements = 1;

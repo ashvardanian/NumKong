@@ -36,7 +36,7 @@ extern "C" {
 
 #pragma region F16 Packed
 
-NUMKONG_INLINE void nk_angulars_packed_f16_graniteamx_finalize_(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+NUMKONG_INLINE void nk_angulars_packed_finalize_f16_graniteamx_(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
                                                                 nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                 nk_size_t a_stride_elements,
                                                                 nk_size_t c_stride_elements) {
@@ -58,12 +58,12 @@ NUMKONG_API nk_status_t nk_angulars_packed_f16_graniteamx( //
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
     nk_status_t const status = nk_gemm_packed_f16_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     if (status != nk_success_k) return status;
-    nk_angulars_packed_f16_graniteamx_finalize_(a, b_packed, c, rows, columns, depth, a_stride_elements,
+    nk_angulars_packed_finalize_f16_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                 c_stride_elements);
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_euclideans_packed_f16_graniteamx_finalize_(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
+NUMKONG_INLINE void nk_euclideans_packed_finalize_f16_graniteamx_(nk_f16_t const *a, void const *b_packed, nk_f32_t *c,
                                                                   nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                   nk_size_t a_stride_elements,
                                                                   nk_size_t c_stride_elements) {
@@ -85,7 +85,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f16_graniteamx( //
     nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
     nk_status_t const status = nk_gemm_packed_f16_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride, c_stride);
     if (status != nk_success_k) return status;
-    nk_euclideans_packed_f16_graniteamx_finalize_(a, b_packed, c, rows, columns, depth, a_stride_elements,
+    nk_euclideans_packed_finalize_f16_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                   c_stride_elements);
     return nk_success_k;
 }
@@ -94,7 +94,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_f16_graniteamx( //
 
 #pragma region F16 Symmetric
 
-NUMKONG_INLINE void nk_angulars_symmetric_f16_graniteamx_finalize_(nk_f16_t const *vectors, nk_size_t vector_count,
+NUMKONG_INLINE void nk_angulars_symmetric_finalize_f16_graniteamx_(nk_f16_t const *vectors, nk_size_t vector_count,
                                                                    nk_size_t depth, nk_size_t stride_elements,
                                                                    nk_f32_t *result, nk_size_t result_stride_elements,
                                                                    nk_size_t rows_begin, nk_size_t rows_end) {
@@ -134,12 +134,12 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_f16_graniteamx( //
     nk_status_t const status = nk_gram_f16_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
                                                        rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_angulars_symmetric_f16_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+    nk_angulars_symmetric_finalize_f16_graniteamx_(vectors, vector_count, depth, stride_elements, result,
                                                    result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_euclideans_symmetric_f16_graniteamx_finalize_(nk_f16_t const *vectors, nk_size_t vector_count,
+NUMKONG_INLINE void nk_euclideans_symmetric_finalize_f16_graniteamx_(nk_f16_t const *vectors, nk_size_t vector_count,
                                                                      nk_size_t depth, nk_size_t stride_elements,
                                                                      nk_f32_t *result, nk_size_t result_stride_elements,
                                                                      nk_size_t rows_begin, nk_size_t rows_end) {
@@ -179,7 +179,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_graniteamx( //
     nk_status_t const status = nk_gram_f16_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
                                                        rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_euclideans_symmetric_f16_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+    nk_euclideans_symmetric_finalize_f16_graniteamx_(vectors, vector_count, depth, stride_elements, result,
                                                      result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }
@@ -188,7 +188,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_f16_graniteamx( //
 
 #pragma region E5M2 Packed
 
-NUMKONG_INLINE void nk_angulars_packed_e5m2_graniteamx_finalize_(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
+NUMKONG_INLINE void nk_angulars_packed_finalize_e5m2_graniteamx_(nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,
                                                                  nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                                  nk_size_t a_stride_elements,
                                                                  nk_size_t c_stride_elements) {
@@ -211,12 +211,12 @@ NUMKONG_API nk_status_t nk_angulars_packed_e5m2_graniteamx( //
     nk_status_t const status = nk_gemm_packed_e5m2_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride,
                                                                c_stride);
     if (status != nk_success_k) return status;
-    nk_angulars_packed_e5m2_graniteamx_finalize_(a, b_packed, c, rows, columns, depth, a_stride_elements,
+    nk_angulars_packed_finalize_e5m2_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                  c_stride_elements);
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_euclideans_packed_e5m2_graniteamx_finalize_(nk_e5m2_t const *a, void const *b_packed,
+NUMKONG_INLINE void nk_euclideans_packed_finalize_e5m2_graniteamx_(nk_e5m2_t const *a, void const *b_packed,
                                                                    nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                                    nk_size_t depth, nk_size_t a_stride_elements,
                                                                    nk_size_t c_stride_elements) {
@@ -239,7 +239,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_graniteamx( //
     nk_status_t const status = nk_gemm_packed_e5m2_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride,
                                                                c_stride);
     if (status != nk_success_k) return status;
-    nk_euclideans_packed_e5m2_graniteamx_finalize_(a, b_packed, c, rows, columns, depth, a_stride_elements,
+    nk_euclideans_packed_finalize_e5m2_graniteamx_(a, b_packed, c, rows, columns, depth, a_stride_elements,
                                                    c_stride_elements);
     return nk_success_k;
 }
@@ -248,7 +248,7 @@ NUMKONG_API nk_status_t nk_euclideans_packed_e5m2_graniteamx( //
 
 #pragma region E5M2 Symmetric
 
-NUMKONG_INLINE void nk_angulars_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t const *vectors, nk_size_t vector_count,
+NUMKONG_INLINE void nk_angulars_symmetric_finalize_e5m2_graniteamx_(nk_e5m2_t const *vectors, nk_size_t vector_count,
                                                                     nk_size_t depth, nk_size_t stride_elements,
                                                                     nk_f32_t *result, nk_size_t result_stride_elements,
                                                                     nk_size_t rows_begin, nk_size_t rows_end) {
@@ -288,12 +288,12 @@ NUMKONG_API nk_status_t nk_angulars_symmetric_e5m2_graniteamx( //
     nk_status_t const status = nk_gram_e5m2_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
                                                         rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_angulars_symmetric_e5m2_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+    nk_angulars_symmetric_finalize_e5m2_graniteamx_(vectors, vector_count, depth, stride_elements, result,
                                                     result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_euclideans_symmetric_e5m2_graniteamx_finalize_(nk_e5m2_t const *vectors, nk_size_t vector_count,
+NUMKONG_INLINE void nk_euclideans_symmetric_finalize_e5m2_graniteamx_(nk_e5m2_t const *vectors, nk_size_t vector_count,
                                                                       nk_size_t depth, nk_size_t stride_elements,
                                                                       nk_f32_t *result,
                                                                       nk_size_t result_stride_elements,
@@ -334,7 +334,7 @@ NUMKONG_API nk_status_t nk_euclideans_symmetric_e5m2_graniteamx( //
     nk_status_t const status = nk_gram_e5m2_graniteamx_(vectors, vector_count, depth, stride, result, result_stride,
                                                         rows_begin, rows_end);
     if (status != nk_success_k) return status;
-    nk_euclideans_symmetric_e5m2_graniteamx_finalize_(vectors, vector_count, depth, stride_elements, result,
+    nk_euclideans_symmetric_finalize_e5m2_graniteamx_(vectors, vector_count, depth, stride_elements, result,
                                                       result_stride_elements, rows_begin, rows_end);
     return nk_success_k;
 }

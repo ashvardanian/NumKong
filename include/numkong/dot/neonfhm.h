@@ -68,7 +68,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/serial.h" // `nk_partial_load_b8x8_serial_`
 #include "numkong/cast/neon.h"   // `nk_e4m3x8_to_f16x8_neon_`
-#include "numkong/dot/serial.h"  // `nk_dot_f16c_`, `nk_vdot_f16c_`
+#include "numkong/dot/serial.h"  // `nk_dot_f16c_serial_`, `nk_vdot_f16c_serial_`
 #include "numkong/dot/neon.h"    // `nk_dot_scaled_f16x32_operand_neon_t`, `nk_load_packed_mxfp8x1_neon_`
 
 #if defined(__cplusplus)
@@ -179,7 +179,7 @@ NUMKONG_API nk_status_t nk_dot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t 
 
     // Handle tail with serial fallback
     nk_f32c_t tail_result;
-    nk_dot_f16c_(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_dot_f16c_serial_(a_pairs, b_pairs, count_pairs, &tail_result);
     result->real = vaddvq_f32(sum_real_f32x4) + tail_result.real;
     result->imag = vaddvq_f32(sum_imag_f32x4) + tail_result.imag;
     return nk_success_k;
@@ -225,7 +225,7 @@ NUMKONG_API nk_status_t nk_vdot_f16c_neonfhm(nk_f16c_t const *a_pairs, nk_f16c_t
 
     // Handle tail with serial fallback
     nk_f32c_t tail_result;
-    nk_vdot_f16c_(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_vdot_f16c_serial_(a_pairs, b_pairs, count_pairs, &tail_result);
     result->real = vaddvq_f32(sum_real_f32x4) + tail_result.real;
     result->imag = vaddvq_f32(sum_imag_f32x4) + tail_result.imag;
     return nk_success_k;

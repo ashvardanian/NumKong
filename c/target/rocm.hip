@@ -13,16 +13,16 @@
 #include "numkong/reduce/rocm.cuh"
 
 extern "C" NUMKONG_API nk_status_t nk_rocm_count_devices(nk_size_t *count) {
-    *count = nk_rocm_count_devices_();
+    *count = nk_count_devices_rocm_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
 extern "C" NUMKONG_API nk_status_t nk_rocm_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_rocm_capabilities_detected_(ordinal, capabilities);
+    return nk_capabilities_detected_rocm_(ordinal, capabilities);
 }
 extern "C" NUMKONG_API nk_status_t nk_stream_init_rocm(nk_size_t ordinal, nk_stream_t *stream) {
-    return nk_rocm_stream_init_(ordinal, stream);
+    return nk_stream_init_rocm_(ordinal, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) { return nk_rocm_stream_free_(stream); }
+extern "C" NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) { return nk_stream_free_rocm_(stream); }
 
 extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_rocm(nk_size_t bytes, void **pointer,
                                                                    nk_stream_t stream) {

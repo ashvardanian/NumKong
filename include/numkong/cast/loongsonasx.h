@@ -28,7 +28,7 @@
 
 #include "numkong/types.h"
 #include "numkong/cast/serial.h"        // `nk_partial_load_b32x4_serial_`, `nk_partial_load_b64x4_serial_`
-#include "numkong/scalar/loongsonasx.h" // `nk_xvreplgr2vr_s_128_`, `nk_xvfreplgr2vr_s_`
+#include "numkong/scalar/loongsonasx.h" // `nk_xvreplgr2vr_s_128_loongsonasx_`, `nk_xvfreplgr2vr_s_loongsonasx_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -48,13 +48,13 @@ extern "C" {
  *  round-trip of union punning, unlike an empty asm, whose untied output may land in another
  *  register. The widened upper half is unspecified. The helpers are named after the x86 intrinsics
  *  _mm256_castsi128_si256, _mm256_castsi256_si128 and _mm256_castps256_ps128. */
-NUMKONG_INLINE __m256i nk_lasx_castsi128_si256_(__m128i low_i64x2) {
+NUMKONG_INLINE __m256i nk_lasx_castsi128_si256_loongsonasx_(__m128i low_i64x2) {
     return __builtin_shufflevector(low_i64x2, low_i64x2, 0, 1, -1, -1);
 }
-NUMKONG_INLINE __m128i nk_lasx_castsi256_si128_(__m256i wide_i64x4) {
+NUMKONG_INLINE __m128i nk_lasx_castsi256_si128_loongsonasx_(__m256i wide_i64x4) {
     return __builtin_shufflevector(wide_i64x4, wide_i64x4, 0, 1);
 }
-NUMKONG_INLINE __m128 nk_lasx_castps256_ps128_(__m256 wide_f32x8) {
+NUMKONG_INLINE __m128 nk_lasx_castps256_ps128_loongsonasx_(__m256 wide_f32x8) {
     return __builtin_shufflevector(wide_f32x8, wide_f32x8, 0, 1, 2, 3);
 }
 
@@ -72,7 +72,7 @@ NUMKONG_INLINE void nk_store_b128_loongsonasx_(nk_b128_vec_t const *src, void *d
 
 /** Convert 8 × f16 → 8 × f32 via native LASX hardware conversion. */
 NUMKONG_INLINE __m256i nk_f16x8_to_f32x8_loongsonasx_(__m128i f16_i16x8) {
-    __m256i f16_i16x16 = nk_lasx_castsi128_si256_(f16_i16x8);
+    __m256i f16_i16x16 = nk_lasx_castsi128_si256_loongsonasx_(f16_i16x8);
     __m256i low_f32x8 = (__m256i)__lasx_xvfcvtl_s_h(f16_i16x16);
     __m256i high_f32x8 = (__m256i)__lasx_xvfcvth_s_h(f16_i16x16);
     return __lasx_xvpermi_q(high_f32x8, low_f32x8, 0x20);

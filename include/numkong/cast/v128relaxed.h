@@ -363,7 +363,7 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dt
                  to_dtype == nk_u8_k);
 
     if (!from_ok || !to_ok) {
-        nk_cast_elementwise_(from, from_dtype, count, to, to_dtype);
+        nk_cast_elementwise_serial_(from, from_dtype, count, to, to_dtype);
         return nk_success_k;
     }
 
@@ -420,7 +420,7 @@ NUMKONG_API nk_status_t nk_cast_v128relaxed(void const *from, nk_dtype_t from_dt
     }
 
     // Handle tail elements with serial fallback
-    if (tail) nk_cast_elementwise_(from_ptr, from_dtype, tail, to_ptr, to_dtype);
+    if (tail) nk_cast_elementwise_serial_(from_ptr, from_dtype, tail, to_ptr, to_dtype);
     return nk_success_k;
 }
 

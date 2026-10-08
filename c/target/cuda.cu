@@ -14,16 +14,16 @@
 #include "numkong/reduce/cuda.cuh"
 
 extern "C" NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
-    *count = nk_cuda_count_devices_();
+    *count = nk_count_devices_cuda_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
 extern "C" NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_cuda_capabilities_detected_(ordinal, capabilities);
+    return nk_capabilities_detected_cuda_(ordinal, capabilities);
 }
 extern "C" NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream) {
-    return nk_cuda_stream_init_(ordinal, stream);
+    return nk_stream_init_cuda_(ordinal, stream);
 }
-extern "C" NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) { return nk_cuda_stream_free_(stream); }
+extern "C" NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) { return nk_stream_free_cuda_(stream); }
 
 extern "C" NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer,
                                                                    nk_stream_t stream) {

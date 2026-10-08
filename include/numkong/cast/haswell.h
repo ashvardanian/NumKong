@@ -111,53 +111,56 @@ NUMKONG_INLINE void nk_partial_store_b32x8_haswell_(nk_b256_vec_t const *source,
  *  alone. */
 NUMKONG_INLINE void nk_partial_load_b16x8_haswell_(void const *source, nk_b128_vec_t *destination, nk_size_t count) {
     nk_partial_load_b32x4_haswell_(source, destination, count / 2);
-    if (count & 1) destination->u16s[count - 1] = ((nk_u16_t const *)source)[count - 1];
+    nk_u16_t const *source_words = (nk_u16_t const *)source;
+    if (count & 1) destination->u16s[count - 1] = source_words[count - 1];
 }
 
 /** Loads @p count of at most 16 16-bit values: whole dwords with AVX2 maskload, an odd last one
  *  alone. */
 NUMKONG_INLINE void nk_partial_load_b16x16_haswell_(void const *source, nk_b256_vec_t *destination, nk_size_t count) {
     nk_partial_load_b32x8_haswell_(source, destination, count / 2);
-    if (count & 1) destination->u16s[count - 1] = ((nk_u16_t const *)source)[count - 1];
+    nk_u16_t const *source_words = (nk_u16_t const *)source;
+    if (count & 1) destination->u16s[count - 1] = source_words[count - 1];
 }
 
 /** Stores @p count of at most 16 16-bit values: whole dwords with AVX2 maskstore, an odd last one
  *  alone. */
 NUMKONG_INLINE void nk_partial_store_b16x16_haswell_(nk_b256_vec_t const *source, void *destination, nk_size_t count) {
     nk_partial_store_b32x8_haswell_(source, destination, count / 2);
-    if (count & 1) ((nk_u16_t *)destination)[count - 1] = source->u16s[count - 1];
+    nk_u16_t *destination_words = (nk_u16_t *)destination;
+    if (count & 1) destination_words[count - 1] = source->u16s[count - 1];
 }
 
 /** Loads @p count of at most 16 bytes: whole dwords with AVX maskload, the last 1 to 3 bytes
  *  alone. */
 NUMKONG_INLINE void nk_partial_load_b8x16_haswell_(void const *source, nk_b128_vec_t *destination, nk_size_t count) {
     nk_partial_load_b32x4_haswell_(source, destination, count / 4);
-    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
-        destination->u8s[index] = ((nk_u8_t const *)source)[index];
+    nk_u8_t const *source_bytes = (nk_u8_t const *)source;
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index) destination->u8s[index] = source_bytes[index];
 }
 
 /** Stores @p count of at most 16 bytes: whole dwords with AVX maskstore, the last 1 to 3 bytes
  *  alone. */
 NUMKONG_INLINE void nk_partial_store_b8x16_haswell_(nk_b128_vec_t const *source, void *destination, nk_size_t count) {
     nk_partial_store_b32x4_haswell_(source, destination, count / 4);
-    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
-        ((nk_u8_t *)destination)[index] = source->u8s[index];
+    nk_u8_t *destination_bytes = (nk_u8_t *)destination;
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index) destination_bytes[index] = source->u8s[index];
 }
 
 /** Loads @p count of at most 32 bytes: whole dwords with AVX2 maskload, the last 1 to 3 bytes
  *  alone. */
 NUMKONG_INLINE void nk_partial_load_b8x32_haswell_(void const *source, nk_b256_vec_t *destination, nk_size_t count) {
     nk_partial_load_b32x8_haswell_(source, destination, count / 4);
-    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
-        destination->u8s[index] = ((nk_u8_t const *)source)[index];
+    nk_u8_t const *source_bytes = (nk_u8_t const *)source;
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index) destination->u8s[index] = source_bytes[index];
 }
 
 /** Stores @p count of at most 32 bytes: whole dwords with AVX2 maskstore, the last 1 to 3 bytes
  *  alone. */
 NUMKONG_INLINE void nk_partial_store_b8x32_haswell_(nk_b256_vec_t const *source, void *destination, nk_size_t count) {
     nk_partial_store_b32x8_haswell_(source, destination, count / 4);
-    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index)
-        ((nk_u8_t *)destination)[index] = source->u8s[index];
+    nk_u8_t *destination_bytes = (nk_u8_t *)destination;
+    for (nk_size_t index = count & ~(nk_size_t)3; index < count; ++index) destination_bytes[index] = source->u8s[index];
 }
 
 #pragma endregion Type Punned Loads and Stores
@@ -854,7 +857,7 @@ NUMKONG_INLINE void nk_cast_elementwise_haswell_(void const *from, nk_dtype_t fr
         }
         // Tail (< 8): delegate to serial so packed-nibble writes match the serial reference byte-for-byte.
         nk_size_t tail = n % 8;
-        if (tail) nk_cast_elementwise_(from_ptr, from_type, tail, to_ptr, to_type);
+        if (tail) nk_cast_elementwise_serial_(from_ptr, from_type, tail, to_ptr, to_type);
         return;
     }
 
@@ -869,7 +872,7 @@ NUMKONG_INLINE void nk_cast_elementwise_haswell_(void const *from, nk_dtype_t fr
                         to_type == nk_u8_k || to_type == nk_i16_k || to_type == nk_u16_k || to_type == nk_i32_k ||
                         to_type == nk_u32_k);
     if (!from_supported || !to_supported) {
-        nk_cast_elementwise_(from, from_type, n, to, to_type);
+        nk_cast_elementwise_serial_(from, from_type, n, to, to_type);
         return;
     }
 
@@ -877,7 +880,7 @@ NUMKONG_INLINE void nk_cast_elementwise_haswell_(void const *from, nk_dtype_t fr
     int from_32bit_int = (from_type == nk_i32_k || from_type == nk_u32_k);
     int to_32bit_int = (to_type == nk_i32_k || to_type == nk_u32_k);
     if (from_32bit_int && to_32bit_int) {
-        nk_cast_elementwise_(from, from_type, n, to, to_type);
+        nk_cast_elementwise_serial_(from, from_type, n, to, to_type);
         return;
     }
 
@@ -1046,8 +1049,8 @@ NUMKONG_INLINE void nk_cast_block_scaled_haswell_(void const *from, nk_u8_t cons
         to_tensor_scale_f32 = *to_tensor_scale;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_through_f32_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
-                                              to_tensor_scale, to_format, count);
+            nk_cast_block_scaled_through_f32_serial_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                                     to_tensor_scale, to_format, count);
             return;
         }
     }
@@ -1090,7 +1093,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_haswell_(void const *from, nk_u8_t cons
             nk_cast_elementwise_haswell_(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
         }
         else {
-            nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
+            nk_f32_t element_max = nk_element_max_representable_serial_(to_format->element_dtype);
             for (nk_size_t b = 0; b < chunk_count; b += to_block) {
                 nk_size_t valid = (chunk_count - b) < to_block ? (chunk_count - b) : to_block;
                 nk_f32_t block_amax = nk_block_amax_f32_haswell_(scratch + b, valid);
@@ -1141,7 +1144,8 @@ NUMKONG_API nk_status_t nk_cast_haswell(void const *from, nk_dtype_t from_dtype,
     nk_assert_(stream == NUMKONG_NULL);
     nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
     nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
-    nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+    nk_cast_operand_t const source = nk_cast_operand_serial_(from_dtype, from),
+                            target = nk_cast_operand_serial_(to_dtype, to);
     nk_cast_block_scaled_haswell_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
                                   target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;

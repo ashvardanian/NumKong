@@ -25,12 +25,12 @@ extern "C" {
         if (status != nk_success_k) return status;                                                                    \
         if ((nk_size_t)packed & 15) return nk_misaligned_k;                                                           \
         if (bytes > NUMKONG_SIZE_MAX - (nk_size_t)packed) return nk_unexpected_dimensions_k;                          \
-        nk_size_t const row_bytes = nk_cross_padded_values_(depth, depth_width, per_value,                            \
-                                                            sizeof(nk_##raw_type##_t)) *                              \
+        nk_size_t const row_bytes = nk_cross_padded_values_serial_(depth, depth_width, per_value,                     \
+                                                                   sizeof(nk_##raw_type##_t)) *                       \
                                     sizeof(nk_##raw_type##_t);                                                        \
         if ((((nk_size_t)packed + sizeof(nk_cross_packed_buffer_header_t)) | row_bytes) & (alignment - 1))            \
             return nk_misaligned_k;                                                                                   \
-        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##dtype##_k, depth);                               \
+        nk_size_t const scales_stride = nk_cross_scales_stride_serial_(nk_##dtype##_k, depth);                        \
         nk_cross_operand_t b = {packed, NULL, scales_stride, NULL};                                                   \
         if (nk_block_scaled_format_of_dtype(nk_##dtype##_k).block_size) {                                             \
             b.scales = (nk_u8_t const *)packed + sizeof(nk_cross_packed_buffer_header_t) + columns * row_bytes;       \
@@ -42,19 +42,19 @@ extern "C" {
                                       nk_cross_small_int4_metal_(nk_##dtype##_k, nk_cap_##isa##_k, rows, columns)     \
                                           ? "nk_" #metric "s_" #dtype "_" #isa "_small_kernel_"                       \
                                           : "nk_" #metric "s_" #dtype "_" #isa "_kernel_",                            \
-                                      nk_cross_operand_(nk_##dtype##_k, a, a_stride), b,                              \
+                                      nk_cross_operand_serial_(nk_##dtype##_k, a, a_stride), b,                       \
                                       sizeof(nk_cross_packed_buffer_header_t), c, sizeof(nk_f32_t), 0, rows, columns, \
                                       depth, depth / per_value * sizeof(nk_##raw_type##_t),                           \
                                       columns * (scales_stride + sizeof(nk_f32_t)), a_stride, row_bytes, c_stride, 0, \
-                                      nk_cross_scale_blocks_(nk_##dtype##_k, depth), stream);                         \
+                                      nk_cross_scale_blocks_serial_(nk_##dtype##_k, depth), stream);                  \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##dtype##_##isa(                                                 \
         nk_cross_##dtype##_operand_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride,       \
         nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {    \
-        if (!nk_cross_whole_blocks_(nk_##dtype##_k, depth)) return nk_unexpected_dimensions_k;                        \
+        if (!nk_cross_whole_blocks_serial_(nk_##dtype##_k, depth)) return nk_unexpected_dimensions_k;                 \
         rows_end = nk_min_of_two(rows_end, vector_count);                                                             \
         nk_size_t const window_rows = rows_end > rows_begin ? rows_end - rows_begin : 0;                              \
-        nk_cross_operand_t const a = nk_cross_operand_(nk_##dtype##_k, vectors, stride);                              \
+        nk_cross_operand_t const a = nk_cross_operand_serial_(nk_##dtype##_k, vectors, stride);                       \
         if (depth && (((nk_size_t)a.elements | stride) & (alignment - 1))) return nk_misaligned_k;                    \
         return nk_cross_encode_metal_(                                                                                \
             nk_dots_source_##isa##_, language, nk_cross_threads_##isa##_k,                                            \
@@ -64,7 +64,7 @@ extern "C" {
                 : "nk_" #metric "s_" #dtype "_" #isa "_kernel_",                                                      \
             a, a, 0, result, sizeof(nk_f32_t), rows_begin, rows_end, vector_count, depth,                             \
             depth / per_value * sizeof(nk_##raw_type##_t), 0, stride, stride, result_stride, 1,                       \
-            nk_cross_scale_blocks_(nk_##dtype##_k, depth), stream);                                                   \
+            nk_cross_scale_blocks_serial_(nk_##dtype##_k, depth), stream);                                            \
     }
 
 #if NUMKONG_TARGET_METAL

@@ -237,7 +237,8 @@ NUMKONG_API nk_status_t nk_cast_sapphire(void const *from, nk_dtype_t from_dtype
     if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype)) {
         nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
         nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
-        nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+        nk_cast_operand_t const source = nk_cast_operand_serial_(from_dtype, from),
+                                target = nk_cast_operand_serial_(to_dtype, to);
         nk_cast_block_scaled_icelake_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
                                       target.scales, target.tensor_scale, &to_format, count);
         return nk_success_k;

@@ -36,8 +36,8 @@ NUMKONG_INLINE nk_status_t nk_cast_block_scaled_launch_cuda_(void const *kernel,
     nk_cast_block_scaled_arguments_t arguments;
     if ((!from_plain && from_format->block_size > 32) || (!to_plain && to_format->block_size > 32))
         return nk_unexpected_dimensions_k;
-    if (((nk_size_t)from.codes & (nk_dtype_alignment_(from_format->element_dtype) - 1)) ||
-        ((nk_size_t)to.codes & (nk_dtype_alignment_(to_format->element_dtype) - 1)))
+    if (((nk_size_t)from.codes & (nk_dtype_alignment_simt_(from_format->element_dtype) - 1)) ||
+        ((nk_size_t)to.codes & (nk_dtype_alignment_simt_(to_format->element_dtype) - 1)))
         return nk_misaligned_k;
     arguments.from = (unsigned char const *)from.codes, arguments.to = (unsigned char *)to.codes;
     arguments.from_scales = from.scales, arguments.to_scales = to.scales;
@@ -74,11 +74,12 @@ NUMKONG_INLINE nk_status_t nk_cast_launch_cuda_(void const *kernel, void const *
     if (nk_dtype_is_block_scaled(from_dtype) || nk_dtype_is_block_scaled(to_dtype)) {
         nk_block_scaled_format_t const from_format = nk_block_scaled_format_of_dtype(from_dtype);
         nk_block_scaled_format_t const to_format = nk_block_scaled_format_of_dtype(to_dtype);
-        return nk_cast_block_scaled_launch_cuda_(block_scaled_kernel, nk_cast_operand_(from_dtype, from), &from_format,
-                                                 nk_cast_operand_(to_dtype, to), &to_format, count, stream);
+        return nk_cast_block_scaled_launch_cuda_(block_scaled_kernel, nk_cast_operand_serial_(from_dtype, from),
+                                                 &from_format, nk_cast_operand_serial_(to_dtype, to), &to_format, count,
+                                                 stream);
     }
-    if (((nk_size_t)from & (nk_dtype_alignment_(from_dtype) - 1)) ||
-        ((nk_size_t)to & (nk_dtype_alignment_(to_dtype) - 1)))
+    if (((nk_size_t)from & (nk_dtype_alignment_simt_(from_dtype) - 1)) ||
+        ((nk_size_t)to & (nk_dtype_alignment_simt_(to_dtype) - 1)))
         return nk_misaligned_k;
     if (!nk_cast_plan_simt_(from, from_dtype, count, to, to_dtype, &arguments)) return nk_success_k;
     if (nk_cast_plan_vectors_simt_(&arguments)) kernel = vectors_kernel;

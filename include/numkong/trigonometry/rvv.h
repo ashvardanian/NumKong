@@ -592,7 +592,7 @@ NUMKONG_INLINE vfloat64m4_t nk_f64m4_atan2_rvv_(vfloat64m4_t ys_inputs_f64m4, vf
 }
 
 /*  F16 kernels widen each m1 register of F16 to F32 at m2, evaluate the shorter F16 polynomials of
- *  @c nk_f32_sin_for_f16_ and its siblings in F32, and narrow the result back. */
+ *  @c nk_f32_sin_for_f16_serial_ and its siblings in F32, and narrow the result back. */
 
 NUMKONG_INLINE vfloat32m2_t nk_f32m2_sin_for_f16_rvv_(vfloat32m2_t angles_f32m2, nk_size_t vector_length) {
     vfloat32m2_t quotients_f32m2 = __riscv_vfmul_vf_f32m2(angles_f32m2, 0.31830988618379067154f, vector_length);

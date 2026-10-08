@@ -41,8 +41,8 @@
 #if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/types.h"
-#include "numkong/cast/neon.h"   // `nk_u16x8_splat_`
-#include "numkong/mesh/serial.h" // `nk_det3x3_f32_`, `nk_svd3x3_f32_`
+#include "numkong/cast/neon.h"   // `nk_splat_u16x8_neon_`
+#include "numkong/mesh/serial.h" // `nk_det3x3_f32_serial_`, `nk_svd3x3_f32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -97,12 +97,12 @@ NUMKONG_INLINE void nk_centered_moments_bf16_neonbfdot_(nk_bf16_t const *a, nk_b
                                                         nk_f32_t *centered_norm_squared_b) {
     nk_u16_t const *a_u16 = (nk_u16_t const *)a, *b_u16 = (nk_u16_t const *)b;
     // The wrapper keeps GCC from emitting an FP16 `fmov` of 1.0, which `+bf16` can't assemble.
-    bfloat16x8_t const ones_bf16x8 = vreinterpretq_bf16_u16(nk_u16x8_splat_(0x3F80));
+    bfloat16x8_t const ones_bf16x8 = vreinterpretq_bf16_u16(nk_splat_u16x8_neon_(0x3F80));
     nk_f32_t pivot_a[3], pivot_b[3];
     float32x4_t pivot_a_f32x4[3], pivot_b_f32x4[3], sum_a_f32x4[3], sum_b_f32x4[3], covariance_f32x4[9];
     float32x4_t norm_squared_a_f32x4 = vdupq_n_f32(0), norm_squared_b_f32x4 = vdupq_n_f32(0);
     for (int j = 0; j != 3; ++j)
-        nk_bf16_to_f32_(a + j, pivot_a + j), nk_bf16_to_f32_(b + j, pivot_b + j),
+        nk_bf16_to_f32_serial_(a + j, pivot_a + j), nk_bf16_to_f32_serial_(b + j, pivot_b + j),
             pivot_a_f32x4[j] = vdupq_n_f32(pivot_a[j]), pivot_b_f32x4[j] = vdupq_n_f32(pivot_b[j]),
             sum_a_f32x4[j] = vdupq_n_f32(0), sum_b_f32x4[j] = vdupq_n_f32(0);
     for (int j = 0; j != 9; ++j) covariance_f32x4[j] = vdupq_n_f32(0);
@@ -131,9 +131,10 @@ NUMKONG_INLINE void nk_centered_moments_bf16_neonbfdot_(nk_bf16_t const *a, nk_b
     nk_f32_t sum_a[3], sum_b[3], covariance[9];
     for (int j = 0; j != 3; ++j) sum_a[j] = vaddvq_f32(sum_a_f32x4[j]), sum_b[j] = vaddvq_f32(sum_b_f32x4[j]);
     for (int j = 0; j != 9; ++j) covariance[j] = vaddvq_f32(covariance_f32x4[j]);
-    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, vaddvq_f32(norm_squared_a_f32x4),
-                                      vaddvq_f32(norm_squared_b_f32x4), centroid_a, centroid_b, cross_covariance,
-                                      centered_norm_squared_a, centered_norm_squared_b);
+    nk_centered_moments_finalize_f32_serial_(n, pivot_a, pivot_b, sum_a, sum_b, covariance,
+                                             vaddvq_f32(norm_squared_a_f32x4), vaddvq_f32(norm_squared_b_f32x4),
+                                             centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
+                                             centered_norm_squared_b);
 }
 
 NUMKONG_API nk_status_t nk_rmsd_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t const *b, nk_size_t n,
@@ -238,7 +239,7 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t c
     }
     else {
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
 
         // R = V * Uᵀ
         optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -252,7 +253,7 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t c
         optimal_rotation[8] = svd_right[6] * svd_left[6] + svd_right[7] * svd_left[7] + svd_right[8] * svd_left[8];
 
         // Handle reflection: if det(R) < 0, negate third column of V and recompute R
-        if (nk_det3x3_f32_(optimal_rotation) < 0) {
+        if (nk_det3x3_f32_serial_(optimal_rotation) < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
             optimal_rotation[1] = svd_right[0] * svd_left[3] + svd_right[1] * svd_left[4] + svd_right[2] * svd_left[5];
@@ -271,8 +272,8 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t c
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }
@@ -317,7 +318,7 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t 
     }
     else {
         nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
 
         // R = V * Uᵀ
         optimal_rotation[0] = svd_right[0] * svd_left[0] + svd_right[1] * svd_left[1] + svd_right[2] * svd_left[2];
@@ -332,7 +333,7 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t 
 
         // Handle reflection and compute scale: c = trace(D · S) / ‖a-ā‖²
         // D = diag(1, 1, det(R)), svd_diagonal contains proper positive singular values on diagonal
-        nk_f32_t rotation_det = nk_det3x3_f32_(optimal_rotation);
+        nk_f32_t rotation_det = nk_det3x3_f32_serial_(optimal_rotation);
         nk_f32_t sign_det = rotation_det < 0 ? -1.0f : 1.0f;
         nk_f32_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];
         c = trace_scaled_s / centered_norm_squared_a;
@@ -356,8 +357,8 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t 
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }

@@ -26,36 +26,17 @@
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_f32_to_e5m2_`, `nk_block_scaled_encode_scale_serial_`
+#include "numkong/simt.cuh"
+#include "numkong/cast/serial.h" // `nk_f32_to_e5m2_serial_`, `nk_block_scaled_encode_scale_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-/*  Tiles whose swizzle width or panel varies place staged bytes through these. */
-#pragma region Addressing
-
-/** Byte @p byte of row @p row of an operand in the 32, 64 or 128-byte swizzle that @p swizzle_bytes
- *  names, rows that wide: each 16-byte chunk XORs with the row's 128-byte line, modulo the chunks
- *  of a row, as the NVIDIA tensor cores and copy engines lay operands out. */
-NUMKONG_DEVICE unsigned nk_swizzled_offset_(unsigned row, unsigned byte, unsigned swizzle_bytes) {
-    unsigned const line = (row / (128 / swizzle_bytes)) & (swizzle_bytes / 16 - 1);
-    return row * swizzle_bytes + (((byte >> 4) ^ line) << 4) + (byte & 15);
-}
-
-/** Byte @p byte of row @p row of an operand deeper than one swizzle: blocks of @p panel_bytes, each
- *  holding @p swizzle_bytes of every row in the swizzle of that width. */
-NUMKONG_DEVICE unsigned nk_swizzled_panel_offset_(unsigned row, unsigned byte, unsigned swizzle_bytes,
-                                                  unsigned panel_bytes) {
-    return byte / swizzle_bytes * panel_bytes + nk_swizzled_offset_(row, byte % swizzle_bytes, swizzle_bytes);
-}
-
-#pragma endregion Addressing
-
 #pragma region Conversions
 
 /** One E4M3 code over 256, its NaN code read as 480. */
-NUMKONG_DEVICE nk_f32_t nk_e4m3_to_scaled_f32_(nk_u32_t code) {
+NUMKONG_DEVICE nk_f32_t nk_e4m3_to_scaled_f32_simt_(nk_u32_t code) {
     return __half2float(__ushort_as_half((unsigned short)(((code & 0x7Fu) << 7) | ((code & 0x80u) << 8))));
 }
 
@@ -83,7 +64,7 @@ NUMKONG_DEVICE void nk_e5m2_to_f32_simt_(nk_e5m2_t const *src, nk_f32_t *dest) {
 NUMKONG_DEVICE void nk_e4m3_to_f32_simt_(nk_e4m3_t const *src, nk_f32_t *dest) {
     nk_u32_t const code = *src;
     *dest = (code & 0x7Fu) == 0x7Fu ? __uint_as_float(((code & 0x80u) << 24) | 0x7FC00000u)
-                                    : nk_e4m3_to_scaled_f32_(code) * 256.0f;
+                                    : nk_e4m3_to_scaled_f32_simt_(code) * 256.0f;
 }
 
 /** Widens one E2M3FN value to F32, exactly, reading its low 6 bits. */
@@ -168,16 +149,18 @@ NUMKONG_DEVICE void nk_f32_to_e4m3_simt_(nk_f32_t const *src, nk_e4m3_t *dest) {
 }
 
 /** Narrows one F32 value to E5M2, rounding to nearest even and keeping infinities and NaNs. */
-NUMKONG_DEVICE void nk_f32_to_e5m2_simt_(nk_f32_t const *src, nk_e5m2_t *dest) { nk_f32_to_e5m2_(src, dest); }
+NUMKONG_DEVICE void nk_f32_to_e5m2_simt_(nk_f32_t const *src, nk_e5m2_t *dest) { nk_f32_to_e5m2_serial_(src, dest); }
 
 /** Narrows one F32 value to E2M3FN, rounding to nearest even and saturating at 7.5. */
-NUMKONG_DEVICE void nk_f32_to_e2m3_simt_(nk_f32_t const *src, nk_e2m3_t *dest) { nk_f32_to_e2m3_(src, dest); }
+NUMKONG_DEVICE void nk_f32_to_e2m3_simt_(nk_f32_t const *src, nk_e2m3_t *dest) { nk_f32_to_e2m3_serial_(src, dest); }
 
 /** Narrows one F32 value to E3M2FN, rounding to nearest even and saturating at 28. */
-NUMKONG_DEVICE void nk_f32_to_e3m2_simt_(nk_f32_t const *src, nk_e3m2_t *dest) { nk_f32_to_e3m2_(src, dest); }
+NUMKONG_DEVICE void nk_f32_to_e3m2_simt_(nk_f32_t const *src, nk_e3m2_t *dest) { nk_f32_to_e3m2_serial_(src, dest); }
 
 /** Narrows two F32 values to the E2M1 nibbles of one byte, the first into the high nibble. */
-NUMKONG_DEVICE void nk_f32x2_to_e2m1x2_simt_(nk_f32_t const *src, nk_e2m1x2_t *dest) { nk_f32x2_to_e2m1x2_(src, dest); }
+NUMKONG_DEVICE void nk_f32x2_to_e2m1x2_simt_(nk_f32_t const *src, nk_e2m1x2_t *dest) {
+    nk_f32x2_to_e2m1x2_serial_(src, dest);
+}
 
 /** Widens one F32 value to F64, exactly, quieting a NaN and keeping its payload as CPUs do. */
 NUMKONG_DEVICE void nk_f32_to_f64_simt_(nk_f32_t const *src, nk_f64_t *dest) {
@@ -249,7 +232,7 @@ NUMKONG_DEVICE void nk_f64_to_u64_simt_(nk_f64_t const *src, nk_u64_t *dest) {
 
 /** Whether F32 holds every value of @p dtype exactly, so a bulk cast between two such types never
  *  needs the F64 hub. */
-NUMKONG_CONSTEXPR int nk_dtype_f32_exact_(nk_dtype_t dtype) {
+NUMKONG_CONSTEXPR int nk_dtype_f32_exact_simt_(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f32_k:
     case nk_f32c_k:
@@ -276,7 +259,7 @@ NUMKONG_CONSTEXPR int nk_dtype_f32_exact_(nk_dtype_t dtype) {
 }
 
 /** The alignment a device load or store of one @p dtype value needs: its component's size. */
-NUMKONG_CONSTEXPR nk_size_t nk_dtype_alignment_(nk_dtype_t dtype) {
+NUMKONG_CONSTEXPR nk_size_t nk_dtype_alignment_simt_(nk_dtype_t dtype) {
     switch (dtype) {
     case nk_f64_k:
     case nk_f64c_k:
@@ -296,7 +279,7 @@ NUMKONG_CONSTEXPR nk_size_t nk_dtype_alignment_(nk_dtype_t dtype) {
     }
 }
 
-/** The hub a bulk cast converts through, as @c nk_cast_elementwise_ picks it. */
+/** The hub a bulk cast converts through, as @c nk_cast_elementwise_serial_ picks it. */
 typedef enum {
 
     /** The same type on both ends, copied as bytes. */
@@ -346,30 +329,37 @@ NUMKONG_DEVICE nk_u32_t nk_cast_bit_simt_(unsigned char const *bytes, nk_size_t 
 NUMKONG_DEVICE void nk_cast_load_f32c_simt_(unsigned char const *bytes, nk_dtype_t dtype, nk_size_t index,
                                             nk_f32c_t *value) {
     nk_f32_t real = 0, imag = 0;
+    nk_f32_t const *f32_values = (nk_f32_t const *)bytes;
+    nk_f32c_t const *f32c_values = (nk_f32c_t const *)bytes;
+    nk_f16c_t const *f16c_values = (nk_f16c_t const *)bytes;
+    nk_bf16c_t const *bf16c_values = (nk_bf16c_t const *)bytes;
+    nk_i8_t const *i8_values = (nk_i8_t const *)bytes;
+    nk_i16_t const *i16_values = (nk_i16_t const *)bytes;
+    nk_u16_t const *u16_values = (nk_u16_t const *)bytes;
     switch (dtype) {
-    case nk_f32_k: real = ((nk_f32_t const *)bytes)[index]; break;
-    case nk_f32c_k: real = ((nk_f32c_t const *)bytes)[index].real, imag = ((nk_f32c_t const *)bytes)[index].imag; break;
+    case nk_f32_k: real = f32_values[index]; break;
+    case nk_f32c_k: real = f32c_values[index].real, imag = f32c_values[index].imag; break;
     case nk_f16_k: nk_f16_to_f32_simt_((nk_f16_t const *)bytes + index, &real); break;
     case nk_f16c_k:
-        nk_f16_to_f32_simt_(&((nk_f16c_t const *)bytes)[index].real, &real);
-        nk_f16_to_f32_simt_(&((nk_f16c_t const *)bytes)[index].imag, &imag);
+        nk_f16_to_f32_simt_(&f16c_values[index].real, &real);
+        nk_f16_to_f32_simt_(&f16c_values[index].imag, &imag);
         break;
     case nk_bf16_k: nk_bf16_to_f32_simt_((nk_bf16_t const *)bytes + index, &real); break;
     case nk_bf16c_k:
-        nk_bf16_to_f32_simt_(&((nk_bf16c_t const *)bytes)[index].real, &real);
-        nk_bf16_to_f32_simt_(&((nk_bf16c_t const *)bytes)[index].imag, &imag);
+        nk_bf16_to_f32_simt_(&bf16c_values[index].real, &real);
+        nk_bf16_to_f32_simt_(&bf16c_values[index].imag, &imag);
         break;
     case nk_e4m3_k: nk_e4m3_to_f32_simt_(bytes + index, &real); break;
     case nk_e5m2_k: nk_e5m2_to_f32_simt_(bytes + index, &real); break;
     case nk_e2m3_k: nk_e2m3_to_f32_simt_(bytes + index, &real); break;
     case nk_e3m2_k: nk_e3m2_to_f32_simt_(bytes + index, &real); break;
     case nk_e2m1_k: real = nk_e2m1_nibble_to_f32_simt_(nk_cast_nibble_simt_(bytes, index)); break;
-    case nk_ue8m0_k: nk_ue8m0_to_f32_(bytes + index, &real); break;
-    case nk_ue4m3_k: nk_ue4m3_to_f32_(bytes + index, &real); break;
-    case nk_i8_k: real = (nk_f32_t)((nk_i8_t const *)bytes)[index]; break;
+    case nk_ue8m0_k: nk_ue8m0_to_f32_serial_(bytes + index, &real); break;
+    case nk_ue4m3_k: nk_ue4m3_to_f32_serial_(bytes + index, &real); break;
+    case nk_i8_k: real = (nk_f32_t)i8_values[index]; break;
     case nk_u8_k: real = (nk_f32_t)bytes[index]; break;
-    case nk_i16_k: real = (nk_f32_t)((nk_i16_t const *)bytes)[index]; break;
-    case nk_u16_k: real = (nk_f32_t)((nk_u16_t const *)bytes)[index]; break;
+    case nk_i16_k: real = (nk_f32_t)i16_values[index]; break;
+    case nk_u16_k: real = (nk_f32_t)u16_values[index]; break;
     case nk_i4_k: real = (nk_f32_t)((nk_i32_t)(nk_cast_nibble_simt_(bytes, index) ^ 8u) - 8); break;
     case nk_u4_k: real = (nk_f32_t)nk_cast_nibble_simt_(bytes, index); break;
     case nk_u1_k: real = (nk_f32_t)nk_cast_bit_simt_(bytes, index); break;
@@ -382,31 +372,36 @@ NUMKONG_DEVICE void nk_cast_load_f32c_simt_(unsigned char const *bytes, nk_dtype
  *  narrowing a value that F32 holds exactly. */
 NUMKONG_DEVICE void nk_cast_store_f32c_simt_(nk_f32c_t const *value, unsigned char *bytes, nk_dtype_t dtype,
                                              nk_size_t index) {
+    nk_f32_t *f32_values = (nk_f32_t *)bytes;
+    nk_f32c_t *f32c_values = (nk_f32c_t *)bytes;
+    nk_f16c_t *f16c_values = (nk_f16c_t *)bytes;
+    nk_bf16c_t *bf16c_values = (nk_bf16c_t *)bytes;
+    nk_i8_t *i8_values = (nk_i8_t *)bytes;
+    nk_i16_t *i16_values = (nk_i16_t *)bytes;
+    nk_u16_t *u16_values = (nk_u16_t *)bytes;
     switch (dtype) {
-    case nk_f32_k: ((nk_f32_t *)bytes)[index] = value->real; break;
-    case nk_f32c_k: ((nk_f32c_t *)bytes)[index] = *value; break;
+    case nk_f32_k: f32_values[index] = value->real; break;
+    case nk_f32c_k: f32c_values[index] = *value; break;
     case nk_f16_k: nk_f32_to_f16_simt_(&value->real, (nk_f16_t *)bytes + index); break;
     case nk_f16c_k:
-        nk_f32_to_f16_simt_(&value->real, &((nk_f16c_t *)bytes)[index].real);
-        nk_f32_to_f16_simt_(&value->imag, &((nk_f16c_t *)bytes)[index].imag);
+        nk_f32_to_f16_simt_(&value->real, &f16c_values[index].real);
+        nk_f32_to_f16_simt_(&value->imag, &f16c_values[index].imag);
         break;
     case nk_bf16_k: nk_f32_to_bf16_simt_(&value->real, (nk_bf16_t *)bytes + index); break;
     case nk_bf16c_k:
-        nk_f32_to_bf16_simt_(&value->real, &((nk_bf16c_t *)bytes)[index].real);
-        nk_f32_to_bf16_simt_(&value->imag, &((nk_bf16c_t *)bytes)[index].imag);
+        nk_f32_to_bf16_simt_(&value->real, &bf16c_values[index].real);
+        nk_f32_to_bf16_simt_(&value->imag, &bf16c_values[index].imag);
         break;
     case nk_e4m3_k: nk_f32_to_e4m3_simt_(&value->real, bytes + index); break;
-    case nk_e5m2_k: nk_f32_to_e5m2_(&value->real, bytes + index); break;
-    case nk_e2m3_k: nk_f32_to_e2m3_(&value->real, bytes + index); break;
-    case nk_e3m2_k: nk_f32_to_e3m2_(&value->real, bytes + index); break;
-    case nk_ue8m0_k: nk_f32_to_ue8m0_(&value->real, bytes + index); break;
-    case nk_ue4m3_k: nk_f32_to_ue4m3_(&value->real, bytes + index); break;
-    case nk_i8_k: ((nk_i8_t *)bytes)[index] = (nk_i8_t)nk_cast_f32_rint_simt_(value->real, -128.0f, 127.0f); break;
+    case nk_e5m2_k: nk_f32_to_e5m2_serial_(&value->real, bytes + index); break;
+    case nk_e2m3_k: nk_f32_to_e2m3_serial_(&value->real, bytes + index); break;
+    case nk_e3m2_k: nk_f32_to_e3m2_serial_(&value->real, bytes + index); break;
+    case nk_ue8m0_k: nk_f32_to_ue8m0_serial_(&value->real, bytes + index); break;
+    case nk_ue4m3_k: nk_f32_to_ue4m3_serial_(&value->real, bytes + index); break;
+    case nk_i8_k: i8_values[index] = (nk_i8_t)nk_cast_f32_rint_simt_(value->real, -128.0f, 127.0f); break;
     case nk_u8_k: bytes[index] = (nk_u8_t)nk_cast_f32_rint_simt_(value->real, 0.0f, 255.0f); break;
-    case nk_i16_k:
-        ((nk_i16_t *)bytes)[index] = (nk_i16_t)nk_cast_f32_rint_simt_(value->real, -32768.0f, 32767.0f);
-        break;
-    case nk_u16_k: ((nk_u16_t *)bytes)[index] = (nk_u16_t)nk_cast_f32_rint_simt_(value->real, 0.0f, 65535.0f); break;
+    case nk_i16_k: i16_values[index] = (nk_i16_t)nk_cast_f32_rint_simt_(value->real, -32768.0f, 32767.0f); break;
+    case nk_u16_k: u16_values[index] = (nk_u16_t)nk_cast_f32_rint_simt_(value->real, 0.0f, 65535.0f); break;
     default: break;
     }
 }
@@ -426,18 +421,24 @@ NUMKONG_DEVICE nk_u32_t nk_cast_code_f32c_simt_(nk_f32c_t const *value, nk_dtype
     }
 }
 
-/** Reads value @p index of @p dtype as an F64 pair, like @c nk_scalar_buffer_to_f64c_. */
+/** Reads value @p index of @p dtype as an F64 pair, like @c nk_scalar_buffer_to_f64c_serial_. */
 NUMKONG_DEVICE void nk_cast_load_f64c_simt_(unsigned char const *bytes, nk_dtype_t dtype, nk_size_t index,
                                             nk_f64c_t *value) {
     nk_f32c_t narrow;
     value->real = 0, value->imag = 0;
+    nk_f64_t const *f64_values = (nk_f64_t const *)bytes;
+    nk_f64c_t const *f64c_values = (nk_f64c_t const *)bytes;
+    nk_i32_t const *i32_values = (nk_i32_t const *)bytes;
+    nk_u32_t const *u32_values = (nk_u32_t const *)bytes;
+    nk_i64_t const *i64_values = (nk_i64_t const *)bytes;
+    nk_u64_t const *u64_values = (nk_u64_t const *)bytes;
     switch (dtype) {
-    case nk_f64_k: value->real = ((nk_f64_t const *)bytes)[index]; break;
-    case nk_f64c_k: *value = ((nk_f64c_t const *)bytes)[index]; break;
-    case nk_i32_k: value->real = (nk_f64_t)((nk_i32_t const *)bytes)[index]; break;
-    case nk_u32_k: value->real = (nk_f64_t)((nk_u32_t const *)bytes)[index]; break;
-    case nk_i64_k: value->real = (nk_f64_t)((nk_i64_t const *)bytes)[index]; break;
-    case nk_u64_k: value->real = (nk_f64_t)((nk_u64_t const *)bytes)[index]; break;
+    case nk_f64_k: value->real = f64_values[index]; break;
+    case nk_f64c_k: *value = f64c_values[index]; break;
+    case nk_i32_k: value->real = (nk_f64_t)i32_values[index]; break;
+    case nk_u32_k: value->real = (nk_f64_t)u32_values[index]; break;
+    case nk_i64_k: value->real = (nk_f64_t)i64_values[index]; break;
+    case nk_u64_k: value->real = (nk_f64_t)u64_values[index]; break;
     default:
         nk_cast_load_f32c_simt_(bytes, dtype, index, &narrow);
         nk_f32_to_f64_simt_(&narrow.real, &value->real), nk_f32_to_f64_simt_(&narrow.imag, &value->imag);
@@ -446,13 +447,15 @@ NUMKONG_DEVICE void nk_cast_load_f64c_simt_(unsigned char const *bytes, nk_dtype
 }
 
 /** Writes @p value as value @p index of @p dtype, a byte or wider, like
- *  @c nk_scalar_buffer_from_f64c_: integers round from F64, floats narrow through F32. */
+ *  @c nk_scalar_buffer_from_f64c_serial_: integers round from F64, floats narrow through F32. */
 NUMKONG_DEVICE void nk_cast_store_f64c_simt_(nk_f64c_t const *value, unsigned char *bytes, nk_dtype_t dtype,
                                              nk_size_t index) {
     nk_f32c_t narrow;
+    nk_f64_t *f64_values = (nk_f64_t *)bytes;
+    nk_f64c_t *f64c_values = (nk_f64c_t *)bytes;
     switch (dtype) {
-    case nk_f64_k: ((nk_f64_t *)bytes)[index] = value->real; break;
-    case nk_f64c_k: ((nk_f64c_t *)bytes)[index] = *value; break;
+    case nk_f64_k: f64_values[index] = value->real; break;
+    case nk_f64c_k: f64c_values[index] = *value; break;
     case nk_i64_k: nk_f64_to_i64_serial_(&value->real, (nk_i64_t *)bytes + index); break;
     case nk_u64_k: nk_f64_to_u64_serial_(&value->real, (nk_u64_t *)bytes + index); break;
     case nk_i32_k: nk_f64_to_i32_serial_(&value->real, (nk_i32_t *)bytes + index); break;
@@ -483,20 +486,26 @@ NUMKONG_DEVICE nk_u32_t nk_cast_code_f64c_simt_(nk_f64c_t const *value, nk_dtype
     }
 }
 
-/** Reads value @p index of an integer @p dtype into I64, like @c nk_scalar_buffers_to_i64_. */
+/** Reads integer @p dtype value @p index as I64, like @c nk_scalar_buffers_to_i64_serial_. */
 NUMKONG_DEVICE nk_i64_t nk_cast_load_i64_simt_(unsigned char const *bytes, nk_dtype_t dtype, nk_size_t index) {
+    nk_i64_t const *i64_values = (nk_i64_t const *)bytes;
+    nk_i32_t const *i32_values = (nk_i32_t const *)bytes;
+    nk_i16_t const *i16_values = (nk_i16_t const *)bytes;
+    nk_i8_t const *i8_values = (nk_i8_t const *)bytes;
+    nk_u32_t const *u32_values = (nk_u32_t const *)bytes;
+    nk_u16_t const *u16_values = (nk_u16_t const *)bytes;
     switch (dtype) {
-    case nk_i64_k: return ((nk_i64_t const *)bytes)[index];
-    case nk_i32_k: return ((nk_i32_t const *)bytes)[index];
-    case nk_i16_k: return ((nk_i16_t const *)bytes)[index];
-    case nk_i8_k: return ((nk_i8_t const *)bytes)[index];
+    case nk_i64_k: return i64_values[index];
+    case nk_i32_k: return i32_values[index];
+    case nk_i16_k: return i16_values[index];
+    case nk_i8_k: return i8_values[index];
     case nk_u64_k: {
         nk_i64_t value;
         nk_u64_to_i64_serial_((nk_u64_t const *)bytes + index, &value);
         return value;
     }
-    case nk_u32_k: return ((nk_u32_t const *)bytes)[index];
-    case nk_u16_k: return ((nk_u16_t const *)bytes)[index];
+    case nk_u32_k: return u32_values[index];
+    case nk_u16_k: return u16_values[index];
     case nk_u8_k: return bytes[index];
     case nk_i4_k: return (nk_i32_t)(nk_cast_nibble_simt_(bytes, index) ^ 8u) - 8;
     case nk_u4_k: return nk_cast_nibble_simt_(bytes, index);
@@ -506,11 +515,12 @@ NUMKONG_DEVICE nk_i64_t nk_cast_load_i64_simt_(unsigned char const *bytes, nk_dt
 }
 
 /** Writes @p value as value @p index of an integer @p dtype, a byte or wider, saturating like
- *  @c nk_scalar_buffers_from_i64_. */
+ *  @c nk_scalar_buffers_from_i64_serial_. */
 NUMKONG_DEVICE void nk_cast_store_i64_simt_(nk_i64_t const *value, unsigned char *bytes, nk_dtype_t dtype,
                                             nk_size_t index) {
+    nk_i64_t *i64_values = (nk_i64_t *)bytes;
     switch (dtype) {
-    case nk_i64_k: ((nk_i64_t *)bytes)[index] = *value; break;
+    case nk_i64_k: i64_values[index] = *value; break;
     case nk_i32_k: nk_i64_to_i32_serial_(value, (nk_i32_t *)bytes + index); break;
     case nk_i16_k: nk_i64_to_i16_serial_(value, (nk_i16_t *)bytes + index); break;
     case nk_i8_k: nk_i64_to_i8_serial_(value, (nk_i8_t *)bytes + index); break;
@@ -522,12 +532,15 @@ NUMKONG_DEVICE void nk_cast_store_i64_simt_(nk_i64_t const *value, unsigned char
     }
 }
 
-/** Reads value @p index of an unsigned @p dtype into U64, like @c nk_scalar_buffers_to_u64_. */
+/** Reads unsigned @p dtype value @p index as U64, like @c nk_scalar_buffers_to_u64_serial_. */
 NUMKONG_DEVICE nk_u64_t nk_cast_load_u64_simt_(unsigned char const *bytes, nk_dtype_t dtype, nk_size_t index) {
+    nk_u64_t const *u64_values = (nk_u64_t const *)bytes;
+    nk_u32_t const *u32_values = (nk_u32_t const *)bytes;
+    nk_u16_t const *u16_values = (nk_u16_t const *)bytes;
     switch (dtype) {
-    case nk_u64_k: return ((nk_u64_t const *)bytes)[index];
-    case nk_u32_k: return ((nk_u32_t const *)bytes)[index];
-    case nk_u16_k: return ((nk_u16_t const *)bytes)[index];
+    case nk_u64_k: return u64_values[index];
+    case nk_u32_k: return u32_values[index];
+    case nk_u16_k: return u16_values[index];
     case nk_u8_k: return bytes[index];
     case nk_u4_k: return nk_cast_nibble_simt_(bytes, index);
     case nk_u1_k: return nk_cast_bit_simt_(bytes, index);
@@ -536,11 +549,12 @@ NUMKONG_DEVICE nk_u64_t nk_cast_load_u64_simt_(unsigned char const *bytes, nk_dt
 }
 
 /** Writes @p value as value @p index of an unsigned @p dtype, a byte or wider, saturating like
- *  @c nk_scalar_buffers_from_u64_. */
+ *  @c nk_scalar_buffers_from_u64_serial_. */
 NUMKONG_DEVICE void nk_cast_store_u64_simt_(nk_u64_t const *value, unsigned char *bytes, nk_dtype_t dtype,
                                             nk_size_t index) {
+    nk_u64_t *u64_values = (nk_u64_t *)bytes;
     switch (dtype) {
-    case nk_u64_k: ((nk_u64_t *)bytes)[index] = *value; break;
+    case nk_u64_k: u64_values[index] = *value; break;
     case nk_u32_k: nk_u64_to_u32_serial_(value, (nk_u32_t *)bytes + index); break;
     case nk_u16_k: nk_u64_to_u16_serial_(value, (nk_u16_t *)bytes + index); break;
     case nk_u8_k: nk_u64_to_u8_serial_(value, bytes + index); break;
@@ -590,11 +604,19 @@ NUMKONG_DEVICE void nk_cast_unit_simt_(nk_cast_arguments_t const *arguments, nk_
     nk_scalar_buffer_t value, partner;
     nk_u32_t packed = 0;
     if (hub == nk_cast_hub_bytes_k) {
+        uint4 *to_uint4s = (uint4 *)arguments->to;
+        uint4 const *from_uint4s = (uint4 const *)arguments->from;
+        nk_u64_t *to_u64s = (nk_u64_t *)arguments->to;
+        nk_u64_t const *from_u64s = (nk_u64_t const *)arguments->from;
+        nk_u32_t *to_u32s = (nk_u32_t *)arguments->to;
+        nk_u32_t const *from_u32s = (nk_u32_t const *)arguments->from;
+        nk_u16_t *to_u16s = (nk_u16_t *)arguments->to;
+        nk_u16_t const *from_u16s = (nk_u16_t const *)arguments->from;
         switch (arguments->unit_values) {
-        case 16: ((uint4 *)arguments->to)[unit] = ((uint4 const *)arguments->from)[unit]; break;
-        case 8: ((nk_u64_t *)arguments->to)[unit] = ((nk_u64_t const *)arguments->from)[unit]; break;
-        case 4: ((nk_u32_t *)arguments->to)[unit] = ((nk_u32_t const *)arguments->from)[unit]; break;
-        case 2: ((nk_u16_t *)arguments->to)[unit] = ((nk_u16_t const *)arguments->from)[unit]; break;
+        case 16: to_uint4s[unit] = from_uint4s[unit]; break;
+        case 8: to_u64s[unit] = from_u64s[unit]; break;
+        case 4: to_u32s[unit] = from_u32s[unit]; break;
+        case 2: to_u16s[unit] = from_u16s[unit]; break;
         default: arguments->to[unit] = arguments->from[unit]; break;
         }
         return;
@@ -632,7 +654,7 @@ NUMKONG_DEVICE void nk_cast_unit_simt_(nk_cast_arguments_t const *arguments, nk_
 }
 
 /** Plans the bulk cast of @p count values from @p from to @p to through the hub
- *  @c nk_cast_elementwise_ would take, copying same-type bytes in the widest words their
+ *  @c nk_cast_elementwise_serial_ would take, copying same-type bytes in the widest words their
  *  alignment allows. Returns zero when the serial cast writes nothing. */
 NUMKONG_INLINE int nk_cast_plan_simt_(void const *from, nk_dtype_t from_dtype, nk_size_t count, void *to,
                                       nk_dtype_t to_dtype, nk_cast_arguments_t *arguments) {
@@ -665,7 +687,9 @@ NUMKONG_INLINE int nk_cast_plan_simt_(void const *from, nk_dtype_t from_dtype, n
         if (to_dtype == nk_u4_k || to_dtype == nk_u1_k) return 0;
         arguments->hub = nk_cast_hub_i64_k;
     }
-    else if (nk_dtype_f32_exact_(from_dtype) && nk_dtype_f32_exact_(to_dtype)) { arguments->hub = nk_cast_hub_f32c_k; }
+    else if (nk_dtype_f32_exact_simt_(from_dtype) && nk_dtype_f32_exact_simt_(to_dtype)) {
+        arguments->hub = nk_cast_hub_f32c_k;
+    }
     else { arguments->hub = nk_cast_hub_f64c_k; }
     arguments->units = nk_size_divide_round_up_(arguments->count, arguments->unit_values);
     return arguments->units != 0;
@@ -820,45 +844,46 @@ NUMKONG_DEVICE nk_f32_t nk_cast_block_scaled_to_tensor_scale_simt_(nk_cast_block
     // ptxas 13.2 folded `bits & 0x7FFFFFFF` into an |abs| operand of a register it reused for 1.0
     nk_f32_t const amax = fabsf(__uint_as_float(bits));
     nk_f32_t const scale_max = arguments->to_scale_dtype == nk_ue4m3_k ? 448.0f : 1.0f;
-    return amax > 0 ? amax / (nk_element_max_representable_(arguments->to_dtype) * scale_max) : 1.0f;
+    return amax > 0 ? amax / (nk_element_max_representable_serial_(arguments->to_dtype) * scale_max) : 1.0f;
 }
 
-/** Reads values @p first onward of @p dtype as @p count F32 values, like @c nk_cast_elementwise_
- *  into F32; @p first is a multiple of the values per byte. */
+/** Reads @p count values of @p dtype from @p first as F32, like @c nk_cast_elementwise_serial_,
+ *  with @p first a multiple of the values per byte. */
 NUMKONG_DEVICE void nk_cast_decode_f32s_simt_(unsigned char const *bytes, nk_dtype_t dtype, nk_size_t first,
                                               nk_size_t count, nk_f32_t *values) {
     nk_size_t const bits = nk_dtype_bits(dtype);
     nk_cast_arguments_t arguments;
     if (dtype == nk_f32_k) {
-        for (nk_size_t offset = 0; offset != count; ++offset)
-            values[offset] = ((nk_f32_t const *)bytes)[first + offset];
+        nk_f32_t const *source_values = (nk_f32_t const *)bytes;
+        for (nk_size_t offset = 0; offset != count; ++offset) values[offset] = source_values[first + offset];
         return;
     }
     if (!bits) return;
     arguments.from = bytes + first * bits / NUMKONG_BITS_PER_BYTE, arguments.to = (unsigned char *)values;
     arguments.count = count, arguments.from_dtype = dtype, arguments.to_dtype = nk_f32_k;
     arguments.unit_values = bits < NUMKONG_BITS_PER_BYTE ? (unsigned)(NUMKONG_BITS_PER_BYTE / bits) : 1;
-    arguments.hub = nk_dtype_f32_exact_(dtype) ? nk_cast_hub_f32c_k : nk_cast_hub_f64c_k;
+    arguments.hub = nk_dtype_f32_exact_simt_(dtype) ? nk_cast_hub_f32c_k : nk_cast_hub_f64c_k;
     for (nk_size_t unit = 0; unit * arguments.unit_values < count; ++unit) nk_cast_unit_simt_(&arguments, unit);
 }
 
-/** Writes @p count F32 values as values @p first onward of @p dtype, like @c nk_cast_elementwise_
- *  from F32; @p first is a multiple of the values per byte. */
+/** Writes @p count F32 values to @p dtype from @p first, like @c nk_cast_elementwise_serial_,
+ *  with @p first a multiple of the values per byte. */
 NUMKONG_DEVICE void nk_cast_encode_f32s_simt_(nk_f32_t const *values, nk_size_t count, unsigned char *bytes,
                                               nk_dtype_t dtype, nk_size_t first) {
     nk_size_t const bits = nk_dtype_bits(dtype);
     nk_cast_arguments_t arguments;
     if (dtype == nk_f32_k) {
-        for (nk_size_t offset = 0; offset != count; ++offset) ((nk_f32_t *)bytes)[first + offset] = values[offset];
+        nk_f32_t *destination_values = (nk_f32_t *)bytes;
+        for (nk_size_t offset = 0; offset != count; ++offset) destination_values[first + offset] = values[offset];
         return;
     }
     if (!bits) return;
     arguments.from = (unsigned char const *)values, arguments.to = bytes + first * bits / NUMKONG_BITS_PER_BYTE;
     arguments.count = count, arguments.from_dtype = nk_f32_k, arguments.to_dtype = dtype;
     arguments.unit_values = bits < NUMKONG_BITS_PER_BYTE ? (unsigned)(NUMKONG_BITS_PER_BYTE / bits) : 1;
-    arguments.hub = dtype == nk_bf16_k           ? nk_cast_hub_bf16_k
-                    : nk_dtype_f32_exact_(dtype) ? nk_cast_hub_f32c_k
-                                                 : nk_cast_hub_f64c_k;
+    arguments.hub = dtype == nk_bf16_k                ? nk_cast_hub_bf16_k
+                    : nk_dtype_f32_exact_simt_(dtype) ? nk_cast_hub_f32c_k
+                                                      : nk_cast_hub_f64c_k;
     for (nk_size_t unit = 0; unit * arguments.unit_values < count; ++unit) nk_cast_unit_simt_(&arguments, unit);
 }
 
@@ -871,7 +896,7 @@ NUMKONG_DEVICE nk_f32_t nk_cast_block_scaled_from_scale_simt_(nk_cast_block_scal
            (arguments->from_tensor_scale ? *arguments->from_tensor_scale : 1.0f);
 }
 
-/** Converts the chunk at @p chunk_start like one step of @c nk_cast_block_scaled_through_f32_. */
+/** Converts chunk @p chunk_start, one step of @c nk_cast_block_scaled_through_f32_serial_. */
 NUMKONG_DEVICE void nk_cast_block_scaled_chunk_simt_(nk_cast_block_scaled_arguments_t const *arguments,
                                                      nk_size_t chunk_start) {
     nk_f32_t scratch[32], encoded[32];
@@ -883,7 +908,7 @@ NUMKONG_DEVICE void nk_cast_block_scaled_chunk_simt_(nk_cast_block_scaled_argume
     unsigned const from_step = from_plain ? chunk_count : arguments->from_block;
     unsigned const to_step = to_plain ? chunk_count : arguments->to_block;
     nk_f32_t const to_tensor_scale = nk_cast_block_scaled_to_tensor_scale_simt_(arguments);
-    nk_f32_t const element_max = nk_element_max_representable_(arguments->to_dtype);
+    nk_f32_t const element_max = nk_element_max_representable_serial_(arguments->to_dtype);
     for (unsigned begin = 0; begin < chunk_count; begin += from_step) {
         unsigned const valid = chunk_count - begin < from_step ? chunk_count - begin : from_step;
         nk_cast_decode_f32s_simt_(arguments->from, arguments->from_dtype, chunk_start + begin, valid, scratch + begin);

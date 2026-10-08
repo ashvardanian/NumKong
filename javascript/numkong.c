@@ -72,7 +72,7 @@ static napi_value nk_scalar_buffer_to_js_number(napi_env env, nk_scalar_buffer_t
         return js_result;
     }
     nk_f64c_t result_c;
-    nk_scalar_buffer_to_f64c_(result, out_dtype, &result_c);
+    nk_scalar_buffer_to_f64c_serial_(result, out_dtype, &result_c);
     double result_f64 = result_c.real;
     napi_value js_result;
     if (napi_create_double(env, result_f64, &js_result) != napi_ok) return NULL;

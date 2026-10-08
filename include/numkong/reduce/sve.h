@@ -23,28 +23,28 @@
 
 #include "numkong/types.h"
 
-NUMKONG_INLINE nk_f64_t nk_unpoison_f64_(nk_f64_t v) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_f64_t nk_unpoison_f64_sve_(nk_f64_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NUMKONG_INLINE nk_f32_t nk_unpoison_f32_(nk_f32_t v) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_f32_t nk_unpoison_f32_sve_(nk_f32_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NUMKONG_INLINE nk_u64_t nk_unpoison_u64_(nk_u64_t v) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_u64_t nk_unpoison_u64_sve_(nk_u64_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
-NUMKONG_INLINE nk_i64_t nk_unpoison_i64_(nk_i64_t v) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_i64_t nk_unpoison_i64_sve_(nk_i64_t v) NUMKONG_STREAMABLE_ {
     nk_unpoison_(&v, sizeof(v));
     return v;
 }
 
-#define nk_svaddv_f64_(predicate, vector) nk_unpoison_f64_(svaddv_f64((predicate), (vector)))
-#define nk_svaddv_f32_(predicate, vector) nk_unpoison_f32_(svaddv_f32((predicate), (vector)))
-#define nk_svaddv_u32_(predicate, vector) nk_unpoison_u64_(svaddv_u32((predicate), (vector)))
-#define nk_svaddv_s32_(predicate, vector) nk_unpoison_i64_(svaddv_s32((predicate), (vector)))
-#define nk_svaddv_u8_(predicate, vector)  nk_unpoison_u64_(svaddv_u8((predicate), (vector)))
+#define nk_svaddv_f64_(predicate, vector) nk_unpoison_f64_sve_(svaddv_f64((predicate), (vector)))
+#define nk_svaddv_f32_(predicate, vector) nk_unpoison_f32_sve_(svaddv_f32((predicate), (vector)))
+#define nk_svaddv_u32_(predicate, vector) nk_unpoison_u64_sve_(svaddv_u32((predicate), (vector)))
+#define nk_svaddv_s32_(predicate, vector) nk_unpoison_i64_sve_(svaddv_s32((predicate), (vector)))
+#define nk_svaddv_u8_(predicate, vector)  nk_unpoison_u64_sve_(svaddv_u8((predicate), (vector)))
 
 #endif // NUMKONG_ARCH_ARM64_SVE_
 #endif // NUMKONG_ARCH_ARM64_

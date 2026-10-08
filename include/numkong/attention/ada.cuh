@@ -37,6 +37,15 @@ NUMKONG_DEVICE void nk_attention_weights_e4m3_ada_(nk_f32_t const probabilities[
              __half2float(__ushort_as_half((unsigned short)(high_halves >> 16))));
 }
 
+/** The sum @c nk_attention_weights_e4m3_ada_ adds for a probability of one. */
+NUMKONG_DEVICE nk_f32_t nk_attention_weight_unit_e4m3_ada_(void) {
+    nk_f32_t const probabilities[4] = {1, 0, 0, 0};
+    nk_u32_t packed[2];
+    nk_f32_t unit = 0;
+    nk_attention_weights_e4m3_ada_(probabilities, packed, &unit);
+    return unit;
+}
+
 #pragma endregion Fragments
 
 #if defined(__cplusplus)

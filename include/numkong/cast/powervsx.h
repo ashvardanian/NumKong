@@ -85,7 +85,7 @@
 #if NUMKONG_TARGET_POWERVSX
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_cast_elementwise_`, `nk_dtype_bits`
+#include "numkong/cast/serial.h" // `nk_cast_elementwise_serial_`, `nk_dtype_bits`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -259,7 +259,7 @@ NUMKONG_API nk_status_t nk_cast_powervsx(void const *from, nk_dtype_t from_dtype
     // Fall back to serial for unsupported types or i32 ↔ u32 (loses precision through f32)
     if (!from_ok || !to_ok || (from_dtype == nk_i32_k && to_dtype == nk_u32_k) ||
         (from_dtype == nk_u32_k && to_dtype == nk_i32_k)) {
-        nk_cast_elementwise_(from, from_dtype, count, to, to_dtype);
+        nk_cast_elementwise_serial_(from, from_dtype, count, to, to_dtype);
         return nk_success_k;
     }
 

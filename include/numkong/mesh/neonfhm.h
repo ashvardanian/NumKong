@@ -196,12 +196,12 @@ NUMKONG_INLINE void nk_centered_moments_f16_neonfhm_(nk_f16_t const *a, nk_f16_t
     }
     nk_f32_t pivot_a[3], pivot_b[3], sum_a[3], sum_b[3], covariance[9];
     for (int j = 0; j != 3; ++j)
-        nk_f16_to_f32_(a + j, pivot_a + j), nk_f16_to_f32_(b + j, pivot_b + j), sum_a[j] = vaddvq_f32(sum_a_f32x4[j]),
-                                                                                sum_b[j] = vaddvq_f32(sum_b_f32x4[j]);
+        nk_f16_to_f32_serial_(a + j, pivot_a + j), nk_f16_to_f32_serial_(b + j, pivot_b + j),
+            sum_a[j] = vaddvq_f32(sum_a_f32x4[j]), sum_b[j] = vaddvq_f32(sum_b_f32x4[j]);
     for (int j = 0; j != 9; ++j) covariance[j] = vaddvq_f32(covariance_f32x4[j]);
-    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, norm_squared_b,
-                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
-                                      centered_norm_squared_b);
+    nk_centered_moments_finalize_f32_serial_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a,
+                                             norm_squared_b, centroid_a, centroid_b, cross_covariance,
+                                             centered_norm_squared_a, centered_norm_squared_b);
 }
 
 NUMKONG_API nk_status_t nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const *b, nk_size_t n, nk_f32_t *a_centroid,
@@ -226,9 +226,9 @@ NUMKONG_API nk_status_t nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const 
     if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
     nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9], optimal_rotation[9];
-    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
-    if (nk_det3x3_f32_(optimal_rotation) < 0) {
+    if (nk_det3x3_f32_serial_(optimal_rotation) < 0) {
         svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
         nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
     }
@@ -236,8 +236,8 @@ NUMKONG_API nk_status_t nk_kabsch_f16_neonfhm(nk_f16_t const *a, nk_f16_t const 
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }
@@ -264,11 +264,11 @@ NUMKONG_API nk_status_t nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const
     if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
     nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9], optimal_rotation[9];
-    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
 
     // Scale factor: c = trace(D · S) / ‖a − ā‖², the last singular value signed by the reflection.
-    nk_f32_t determinant = nk_det3x3_f32_(optimal_rotation);
+    nk_f32_t determinant = nk_det3x3_f32_serial_(optimal_rotation);
     nk_f32_t trace_ds = svd_diagonal[0] + svd_diagonal[4] + (determinant < 0 ? -svd_diagonal[8] : svd_diagonal[8]);
     nk_f32_t c = trace_ds / centered_norm_squared_a;
     if (scale) *scale = c;
@@ -279,8 +279,8 @@ NUMKONG_API nk_status_t nk_umeyama_f16_neonfhm(nk_f16_t const *a, nk_f16_t const
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = vget_lane_f32(vsqrt_f32(vdup_n_f32(sum_squared / (nk_f32_t)n)), 0);
     return nk_success_k;
 }

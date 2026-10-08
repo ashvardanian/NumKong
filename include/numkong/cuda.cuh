@@ -158,15 +158,15 @@ NUMKONG_INLINE nk_status_t nk_stream_synchronize_cuda_(nk_stream_t stream) {
 }
 
 /** How many CUDA devices the runtime sees, or zero. */
-NUMKONG_INLINE nk_size_t nk_cuda_count_devices_(void) {
+NUMKONG_INLINE nk_size_t nk_count_devices_cuda_(void) {
     int count = 0;
     return cudaGetDeviceCount(&count) == cudaSuccess ? (nk_size_t)count : 0;
 }
 
 /** The capabilities CUDA device @p ordinal runs, by the runtime's own ordinal. */
-NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_INLINE nk_status_t nk_capabilities_detected_cuda_(nk_size_t ordinal, nk_capability_t *capabilities) {
     *capabilities = 0;
-    if (ordinal >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
+    if (ordinal >= nk_count_devices_cuda_()) return nk_missing_gpu_k;
     int major = 0, minor = 0;
     if (cudaDeviceGetAttribute(&major, cudaDevAttrComputeCapabilityMajor, (int)ordinal) != cudaSuccess ||
         cudaDeviceGetAttribute(&minor, cudaDevAttrComputeCapabilityMinor, (int)ordinal) != cudaSuccess)
@@ -183,9 +183,9 @@ NUMKONG_INLINE nk_status_t nk_cuda_capabilities_detected_(nk_size_t ordinal, nk_
 }
 
 /** Creates a stream on CUDA device @p ordinal, leaving the caller's current device as it was. */
-NUMKONG_INLINE nk_status_t nk_cuda_stream_init_(nk_size_t ordinal, nk_stream_t *stream) {
+NUMKONG_INLINE nk_status_t nk_stream_init_cuda_(nk_size_t ordinal, nk_stream_t *stream) {
     *stream = NUMKONG_NULL;
-    if (ordinal >= nk_cuda_count_devices_()) return nk_missing_gpu_k;
+    if (ordinal >= nk_count_devices_cuda_()) return nk_missing_gpu_k;
     int caller = 0;
     cudaStream_t created = 0;
     if (cudaGetDevice(&caller) != cudaSuccess || cudaSetDevice((int)ordinal) != cudaSuccess) return nk_missing_gpu_k;
@@ -197,7 +197,7 @@ NUMKONG_INLINE nk_status_t nk_cuda_stream_init_(nk_size_t ordinal, nk_stream_t *
 }
 
 /** Destroys @p stream once the work queued on it completes; a null stream is the default one. */
-NUMKONG_INLINE nk_status_t nk_cuda_stream_free_(nk_stream_t stream) {
+NUMKONG_INLINE nk_status_t nk_stream_free_cuda_(nk_stream_t stream) {
     if (!stream) return nk_success_k;
     int caller = 0;
     nk_status_t const entered = nk_device_enter_cuda_(stream, &caller);
@@ -328,16 +328,16 @@ NUMKONG_API nk_status_t nk_allocator_init_pinned_cuda(nk_allocator_t *allocator)
 }
 
 NUMKONG_API nk_status_t nk_cuda_count_devices(nk_size_t *count) {
-    *count = nk_cuda_count_devices_();
+    *count = nk_count_devices_cuda_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
 NUMKONG_API nk_status_t nk_cuda_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_cuda_capabilities_detected_(ordinal, capabilities);
+    return nk_capabilities_detected_cuda_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_stream_init_cuda(nk_size_t ordinal, nk_stream_t *stream) {
-    return nk_cuda_stream_init_(ordinal, stream);
+    return nk_stream_init_cuda_(ordinal, stream);
 }
-NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) { return nk_cuda_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) { return nk_stream_free_cuda_(stream); }
 NUMKONG_API nk_status_t nk_memory_allocate_unified_cuda(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     return nk_memory_allocate_unified_cuda_(bytes, pointer, stream);
 }

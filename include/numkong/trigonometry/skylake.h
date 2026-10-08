@@ -484,7 +484,7 @@ NUMKONG_INLINE __m512d nk_atan2_f64x8_skylake_(__m512d const ys_inputs, __m512d 
     return results_f64x8;
 }
 
-/** Sine of 16 F16 angles within one F16 ULP, the vector form of @c nk_f32_sin_for_f16_. */
+/** Sine of 16 F16 angles within one F16 ULP, the vector form of @c nk_f32_sin_for_f16_serial_. */
 NUMKONG_INLINE __m256i nk_sin_f16x16_skylake_(__m256i angles_f16x16) {
     __m512 const angles_f32x16 = _mm512_cvtph_ps(angles_f16x16);
     __m512 const quotients_f32x16 = _mm512_mul_ps(angles_f32x16, _mm512_set1_ps(0.31830988618379067154f));
@@ -509,7 +509,7 @@ NUMKONG_INLINE __m256i nk_sin_f16x16_skylake_(__m256i angles_f16x16) {
     return _mm512_cvtps_ph(results_f32x16, _MM_FROUND_TO_NEAREST_INT);
 }
 
-/** Cosine of 16 F16 angles within one F16 ULP, the vector form of @c nk_f32_cos_for_f16_. */
+/** Cosine of 16 F16 angles within one F16 ULP, the vector form of @c nk_f32_cos_for_f16_serial_. */
 NUMKONG_INLINE __m256i nk_cos_f16x16_skylake_(__m256i angles_f16x16) {
     __m512 const angles_f32x16 = _mm512_cvtph_ps(angles_f16x16);
     __m512 const quotients_f32x16 = _mm512_fmsub_ps(angles_f32x16, _mm512_set1_ps(0.31830988618379067154f),
@@ -536,7 +536,7 @@ NUMKONG_INLINE __m256i nk_cos_f16x16_skylake_(__m256i angles_f16x16) {
     return _mm512_cvtps_ph(results_f32x16, _MM_FROUND_TO_NEAREST_INT);
 }
 
-/** Arctangent of 16 F16 values within one F16 ULP, the vector form of @c nk_f32_atan_for_f16_. */
+/** Arctangent of 16 F16 values within one F16 ULP, vectorizing @c nk_f32_atan_for_f16_serial_. */
 NUMKONG_INLINE __m256i nk_atan_f16x16_skylake_(__m256i values_f16x16) {
     __m512 const inputs_f32x16 = _mm512_cvtph_ps(values_f16x16);
     __m512 const one_f32x16 = _mm512_set1_ps(1.0f);

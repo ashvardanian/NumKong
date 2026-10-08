@@ -90,7 +90,7 @@ NUMKONG_INLINE nk_i64_t nk_reduce_128bit_sum_i64m2_rvv_( //
     else return NUMKONG_I64_MIN;
 }
 
-NUMKONG_INLINE void nk_reduce_moments_f32_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_f32_rvv_( //
     nk_f32_t const *data, nk_size_t count,                 //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -108,7 +108,7 @@ NUMKONG_INLINE void nk_reduce_moments_f32_rvv_contiguous_( //
         __riscv_vfredusum_vs_f64m2_f64m1(sumsq_f64m2, zero_f64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_f32_rvv_strided_(      //
+NUMKONG_INLINE void nk_reduce_moments_strided_f32_rvv_(      //
     nk_f32_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -153,7 +153,7 @@ NUMKONG_INLINE nk_size_t nk_reduce_find_f64_rvv_(nk_f64_t const *data, nk_size_t
     return NUMKONG_SIZE_MAX;
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_f32_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_f32_rvv_( //
     nk_f32_t const *data, nk_size_t count,                //
     nk_f32_t *min_value, nk_size_t *min_index,            //
     nk_f32_t *max_value, nk_size_t *max_index) {
@@ -212,7 +212,7 @@ NUMKONG_INLINE void nk_reduce_minmax_f32_rvv_contiguous_( //
                                        : nk_reduce_find_f32_rvv_(data, count, sizeof(nk_f32_t), -NUMKONG_F32_INF);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_f32_rvv_strided_(       //
+NUMKONG_INLINE void nk_reduce_minmax_strided_f32_rvv_(       //
     nk_f32_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f32_t *min_value, nk_size_t *min_index,               //
     nk_f32_t *max_value, nk_size_t *max_index) {
@@ -303,7 +303,7 @@ NUMKONG_INLINE void nk_reduce_moments_f64m1_rvv_(vfloat64m1_t data_f64m1, nk_siz
                                                           total_sumsq_error_f64m1, vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_f64_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_f64_rvv_( //
     nk_f64_t const *data, nk_size_t count,                 //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
@@ -321,7 +321,7 @@ NUMKONG_INLINE void nk_reduce_moments_f64_rvv_contiguous_( //
     *sumsq_ptr = nk_dot_stable_sum_f64m1_rvv_(sumsq_f64m1, sumsq_compensation_f64m1);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_f64_rvv_strided_(      //
+NUMKONG_INLINE void nk_reduce_moments_strided_f64_rvv_(      //
     nk_f64_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f64_t *sum_ptr, nk_f64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
@@ -340,7 +340,7 @@ NUMKONG_INLINE void nk_reduce_moments_f64_rvv_strided_(      //
     *sumsq_ptr = nk_dot_stable_sum_f64m1_rvv_(sumsq_f64m1, sumsq_compensation_f64m1);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_f64_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_f64_rvv_( //
     nk_f64_t const *data, nk_size_t count,                //
     nk_f64_t *min_value, nk_size_t *min_index,            //
     nk_f64_t *max_value, nk_size_t *max_index) {
@@ -399,7 +399,7 @@ NUMKONG_INLINE void nk_reduce_minmax_f64_rvv_contiguous_( //
                                        : nk_reduce_find_f64_rvv_(data, count, sizeof(nk_f64_t), -NUMKONG_F64_INF);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_f64_rvv_strided_(       //
+NUMKONG_INLINE void nk_reduce_minmax_strided_f64_rvv_(       //
     nk_f64_t const *data, nk_size_t count, nk_size_t stride, //
     nk_f64_t *min_value, nk_size_t *min_index,               //
     nk_f64_t *max_value, nk_size_t *max_index) {
@@ -497,7 +497,7 @@ NUMKONG_INLINE vuint8m1_t nk_comparable_to_fp6m1_rvv_(vuint8m1_t comparable_u8m1
     return __riscv_vmerge_vvm_u8m1(from_negative_u8m1, from_positive_u8m1, was_positive_b8, vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i8_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_i8_rvv_( //
     nk_i8_t const *data_ptr, nk_size_t count,             //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -538,7 +538,7 @@ NUMKONG_INLINE void nk_reduce_moments_i8_rvv_contiguous_( //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i8_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_i8_rvv_(          //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -581,7 +581,7 @@ NUMKONG_INLINE void nk_reduce_moments_i8_rvv_strided_(          //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i8_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_i8_rvv_( //
     nk_i8_t const *data_ptr, nk_size_t count,            //
     nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -637,7 +637,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i8_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m8_u64m1(max_cands_u64m8, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i8_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_i8_rvv_(           //
     nk_i8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i8_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_i8_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -694,7 +694,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i8_rvv_strided_(           //
         __riscv_vredminu_vs_u64m8_u64m1(max_cands_u64m8, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u8_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_u8_rvv_( //
     nk_u8_t const *data_ptr, nk_size_t count,             //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -732,7 +732,7 @@ NUMKONG_INLINE void nk_reduce_moments_u8_rvv_contiguous_( //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u8_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_u8_rvv_(          //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -772,7 +772,7 @@ NUMKONG_INLINE void nk_reduce_moments_u8_rvv_strided_(          //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u8_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_u8_rvv_( //
     nk_u8_t const *data_ptr, nk_size_t count,            //
     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -828,7 +828,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u8_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m8_u64m1(max_cands_u64m8, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u8_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_u8_rvv_(           //
     nk_u8_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u8_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_u8_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -885,7 +885,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u8_rvv_strided_(           //
         __riscv_vredminu_vs_u64m8_u64m1(max_cands_u64m8, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_i16_rvv_( //
     nk_i16_t const *data_ptr, nk_size_t count,             //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -917,7 +917,7 @@ NUMKONG_INLINE void nk_reduce_moments_i16_rvv_contiguous_( //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i16_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_i16_rvv_(          //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -950,7 +950,7 @@ NUMKONG_INLINE void nk_reduce_moments_i16_rvv_strided_(          //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_i16_rvv_( //
     nk_i16_t const *data_ptr, nk_size_t count,            //
     nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1004,7 +1004,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i16_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m4_u64m1(max_cands_u64m4, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i16_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_i16_rvv_(           //
     nk_i16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_i16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1059,7 +1059,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i16_rvv_strided_(           //
         __riscv_vredminu_vs_u64m4_u64m1(max_cands_u64m4, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_u16_rvv_( //
     nk_u16_t const *data_ptr, nk_size_t count,             //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -1088,7 +1088,7 @@ NUMKONG_INLINE void nk_reduce_moments_u16_rvv_contiguous_( //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u16_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_u16_rvv_(          //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -1118,7 +1118,7 @@ NUMKONG_INLINE void nk_reduce_moments_u16_rvv_strided_(          //
     *sumsq_ptr = __riscv_vmv_x_s_u64m1_u64(__riscv_vredsum_vs_u64m4_u64m1(sumsq_u64m4, zero_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_u16_rvv_( //
     nk_u16_t const *data_ptr, nk_size_t count,            //
     nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1172,7 +1172,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u16_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m4_u64m1(max_cands_u64m4, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u16_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_u16_rvv_(           //
     nk_u16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_u16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1227,7 +1227,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u16_rvv_strided_(           //
         __riscv_vredminu_vs_u64m4_u64m1(max_cands_u64m4, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i32_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_i32_rvv_( //
     nk_i32_t const *data_ptr, nk_size_t count,             //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -1268,7 +1268,7 @@ NUMKONG_INLINE void nk_reduce_moments_i32_rvv_contiguous_( //
     *sumsq_ptr = nk_reduce_vsaddu_u64m2_rvv_(sumsq_u64m2, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i32_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_i32_rvv_(          //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -1310,7 +1310,7 @@ NUMKONG_INLINE void nk_reduce_moments_i32_rvv_strided_(          //
     *sumsq_ptr = nk_reduce_vsaddu_u64m2_rvv_(sumsq_u64m2, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i32_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_i32_rvv_( //
     nk_i32_t const *data_ptr, nk_size_t count,            //
     nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1364,7 +1364,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i32_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m2_u64m1(max_cands_u64m2, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i32_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_i32_rvv_(           //
     nk_i32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i32_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_i32_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1419,7 +1419,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i32_rvv_strided_(           //
         __riscv_vredminu_vs_u64m2_u64m1(max_cands_u64m2, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u32_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_u32_rvv_( //
     nk_u32_t const *data_ptr, nk_size_t count,             //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -1443,7 +1443,7 @@ NUMKONG_INLINE void nk_reduce_moments_u32_rvv_contiguous_( //
     *sumsq_ptr = nk_reduce_vsaddu_u64m2_rvv_(sumsq_u64m2, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u32_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_u32_rvv_(          //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m2();
@@ -1468,7 +1468,7 @@ NUMKONG_INLINE void nk_reduce_moments_u32_rvv_strided_(          //
     *sumsq_ptr = nk_reduce_vsaddu_u64m2_rvv_(sumsq_u64m2, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u32_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_u32_rvv_( //
     nk_u32_t const *data_ptr, nk_size_t count,            //
     nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1522,7 +1522,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u32_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m2_u64m1(max_cands_u64m2, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u32_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_u32_rvv_(           //
     nk_u32_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u32_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_u32_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1577,7 +1577,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u32_rvv_strided_(           //
         __riscv_vredminu_vs_u64m2_u64m1(max_cands_u64m2, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i64_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_i64_rvv_( //
     nk_i64_t const *data_ptr, nk_size_t count,             //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
@@ -1621,7 +1621,7 @@ NUMKONG_INLINE void nk_reduce_moments_i64_rvv_contiguous_( //
     *sumsq_ptr = nk_reduce_vsaddu_u64m1_rvv_(sumsq_u64m1, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i64_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_i64_rvv_(          //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
@@ -1666,7 +1666,7 @@ NUMKONG_INLINE void nk_reduce_moments_i64_rvv_strided_(          //
     *sumsq_ptr = nk_reduce_vsaddu_u64m1_rvv_(sumsq_u64m1, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i64_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_i64_rvv_( //
     nk_i64_t const *data_ptr, nk_size_t count,            //
     nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1720,7 +1720,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i64_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m1_u64m1(max_cands_u64m1, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_i64_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_i64_rvv_(           //
     nk_i64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_i64_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_i64_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1775,7 +1775,7 @@ NUMKONG_INLINE void nk_reduce_minmax_i64_rvv_strided_(           //
         __riscv_vredminu_vs_u64m1_u64m1(max_cands_u64m1, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u64_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_u64_rvv_( //
     nk_u64_t const *data_ptr, nk_size_t count,             //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
@@ -1802,7 +1802,7 @@ NUMKONG_INLINE void nk_reduce_moments_u64_rvv_contiguous_( //
     *sumsq_ptr = nk_reduce_vsaddu_u64m1_rvv_(sumsq_u64m1, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u64_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_u64_rvv_(          //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m1();
@@ -1830,7 +1830,7 @@ NUMKONG_INLINE void nk_reduce_moments_u64_rvv_strided_(          //
     *sumsq_ptr = nk_reduce_vsaddu_u64m1_rvv_(sumsq_u64m1, max_vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u64_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_u64_rvv_( //
     nk_u64_t const *data_ptr, nk_size_t count,            //
     nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1884,7 +1884,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u64_rvv_contiguous_( //
         __riscv_vredminu_vs_u64m1_u64m1(max_cands_u64m1, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_u64_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_u64_rvv_(           //
     nk_u64_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_u64_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_u64_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -1939,7 +1939,7 @@ NUMKONG_INLINE void nk_reduce_minmax_u64_rvv_strided_(           //
         __riscv_vredminu_vs_u64m1_u64m1(max_cands_u64m1, init_umax_u64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_bf16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_bf16_rvv_( //
     nk_bf16_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -1968,7 +1968,7 @@ NUMKONG_INLINE void nk_reduce_moments_bf16_rvv_contiguous_( //
         __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_bf16_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_bf16_rvv_(          //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -2007,7 +2007,7 @@ NUMKONG_INLINE vuint16m1_t nk_fp16m1_to_comparable_u16m1_rvv_(vuint16m1_t raw_u1
     return __riscv_vxor_vv_u16m1(raw_u16m1, flip_u16m1, vector_length);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_bf16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_bf16_rvv_( //
     nk_bf16_t const *data_ptr, nk_size_t count,            //
     nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2078,7 +2078,7 @@ NUMKONG_INLINE void nk_reduce_minmax_bf16_rvv_contiguous_( //
     *max_value_ptr = *(nk_bf16_t *)&max_raw;
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_bf16_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_bf16_rvv_(           //
     nk_bf16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_bf16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_bf16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2150,7 +2150,7 @@ NUMKONG_INLINE void nk_reduce_minmax_bf16_rvv_strided_(           //
     *max_value_ptr = *(nk_bf16_t *)&max_raw;
 }
 
-NUMKONG_INLINE void nk_reduce_moments_f16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_f16_rvv_( //
     nk_f16_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -2179,7 +2179,7 @@ NUMKONG_INLINE void nk_reduce_moments_f16_rvv_contiguous_( //
         __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_f16_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_f16_rvv_(          //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e64m4();
@@ -2209,7 +2209,7 @@ NUMKONG_INLINE void nk_reduce_moments_f16_rvv_strided_(          //
         __riscv_vfredusum_vs_f64m4_f64m1(sumsq_f64m4, zero_f64m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_f16_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_f16_rvv_( //
     nk_f16_t const *data_ptr, nk_size_t count,            //
     nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2280,7 +2280,7 @@ NUMKONG_INLINE void nk_reduce_minmax_f16_rvv_contiguous_( //
     *max_value_ptr = *(nk_f16_t *)&max_raw;
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_f16_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_f16_rvv_(           //
     nk_f16_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f16_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_f16_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2352,7 +2352,7 @@ NUMKONG_INLINE void nk_reduce_minmax_f16_rvv_strided_(           //
     *max_value_ptr = *(nk_f16_t *)&max_raw;
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e4m3_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_e4m3_rvv_( //
     nk_e4m3_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2378,7 +2378,7 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_rvv_contiguous_( //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e4m3_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_e4m3_rvv_(          //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2405,7 +2405,7 @@ NUMKONG_INLINE void nk_reduce_moments_e4m3_rvv_strided_(          //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e4m3_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_e4m3_rvv_( //
     nk_e4m3_t const *data_ptr, nk_size_t count,            //
     nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2483,7 +2483,7 @@ NUMKONG_INLINE void nk_reduce_minmax_e4m3_rvv_contiguous_( //
     *max_value_ptr = (nk_e4m3_t)__riscv_vmv_x_s_u8m1_u8(max_raw_u8m1);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e4m3_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_e4m3_rvv_(           //
     nk_e4m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e4m3_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_e4m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2560,7 +2560,7 @@ NUMKONG_INLINE void nk_reduce_minmax_e4m3_rvv_strided_(           //
     *max_value_ptr = (nk_e4m3_t)__riscv_vmv_x_s_u8m1_u8(max_raw_u8m1);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e5m2_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_e5m2_rvv_( //
     nk_e5m2_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2586,7 +2586,7 @@ NUMKONG_INLINE void nk_reduce_moments_e5m2_rvv_contiguous_( //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e5m2_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_e5m2_rvv_(          //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2613,7 +2613,7 @@ NUMKONG_INLINE void nk_reduce_moments_e5m2_rvv_strided_(          //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e5m2_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_e5m2_rvv_( //
     nk_e5m2_t const *data_ptr, nk_size_t count,            //
     nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2689,7 +2689,7 @@ NUMKONG_INLINE void nk_reduce_minmax_e5m2_rvv_contiguous_( //
     *max_value_ptr = (nk_e5m2_t)__riscv_vmv_x_s_u8m1_u8(max_raw_u8m1);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e5m2_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_e5m2_rvv_(           //
     nk_e5m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e5m2_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_e5m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2766,7 +2766,7 @@ NUMKONG_INLINE void nk_reduce_minmax_e5m2_rvv_strided_(           //
     *max_value_ptr = (nk_e5m2_t)__riscv_vmv_x_s_u8m1_u8(max_raw_u8m1);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e2m3_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_e2m3_rvv_( //
     nk_e2m3_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2792,7 +2792,7 @@ NUMKONG_INLINE void nk_reduce_moments_e2m3_rvv_contiguous_( //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e2m3_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_e2m3_rvv_(          //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2819,7 +2819,7 @@ NUMKONG_INLINE void nk_reduce_moments_e2m3_rvv_strided_(          //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e2m3_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_e2m3_rvv_( //
     nk_e2m3_t const *data_ptr, nk_size_t count,            //
     nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2881,7 +2881,7 @@ NUMKONG_INLINE void nk_reduce_minmax_e2m3_rvv_contiguous_( //
     *max_value_ptr = (nk_e2m3_t)__riscv_vmv_x_s_u8m1_u8(max_raw_u8m1);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e2m3_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_e2m3_rvv_(           //
     nk_e2m3_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e2m3_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_e2m3_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -2943,7 +2943,7 @@ NUMKONG_INLINE void nk_reduce_minmax_e2m3_rvv_strided_(           //
     *max_value_ptr = (nk_e2m3_t)__riscv_vmv_x_s_u8m1_u8(max_raw_u8m1);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e3m2_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_e3m2_rvv_( //
     nk_e3m2_t const *data_ptr, nk_size_t count,             //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2969,7 +2969,7 @@ NUMKONG_INLINE void nk_reduce_moments_e3m2_rvv_contiguous_( //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e3m2_rvv_strided_(          //
+NUMKONG_INLINE void nk_reduce_moments_strided_e3m2_rvv_(          //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     nk_size_t max_vector_length = __riscv_vsetvlmax_e32m4();
@@ -2996,7 +2996,7 @@ NUMKONG_INLINE void nk_reduce_moments_e3m2_rvv_strided_(          //
         __riscv_vfredusum_vs_f32m4_f32m1(sumsq_f32m4, zero_f32m1, max_vector_length));
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e3m2_rvv_contiguous_( //
+NUMKONG_INLINE void nk_reduce_minmax_contiguous_e3m2_rvv_( //
     nk_e3m2_t const *data_ptr, nk_size_t count,            //
     nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,    //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3057,7 +3057,7 @@ NUMKONG_INLINE void nk_reduce_minmax_e3m2_rvv_contiguous_( //
     *max_value_ptr = (nk_e3m2_t)__riscv_vmv_x_s_u8m1_u8(max_raw_u8m1);
 }
 
-NUMKONG_INLINE void nk_reduce_minmax_e3m2_rvv_strided_(           //
+NUMKONG_INLINE void nk_reduce_minmax_strided_e3m2_rvv_(           //
     nk_e3m2_t const *data_ptr, nk_size_t count, nk_size_t stride, //
     nk_e3m2_t *min_value_ptr, nk_size_t *min_index_ptr,           //
     nk_e3m2_t *max_value_ptr, nk_size_t *max_index_ptr) {
@@ -3128,9 +3128,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_f32_rvv(           //
     nk_size_t stride_elements = stride / sizeof(nk_f32_t);
     int aligned = (stride % sizeof(nk_f32_t) == 0);
     if (count == 0) *sum = 0, *sumsq = 0;
-    else if (!aligned) nk_reduce_moments_f32_strided_(data, count, stride, sum, sumsq);
-    else if (stride_elements == 1) nk_reduce_moments_f32_rvv_contiguous_(data, count, sum, sumsq);
-    else nk_reduce_moments_f32_rvv_strided_(data, count, stride, sum, sumsq);
+    else if (!aligned) nk_reduce_moments_strided_f32_serial_(data, count, stride, sum, sumsq);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_f32_rvv_(data, count, sum, sumsq);
+    else nk_reduce_moments_strided_f32_rvv_(data, count, stride, sum, sumsq);
     return nk_success_k;
 }
 
@@ -3144,10 +3144,11 @@ NUMKONG_API nk_status_t nk_reduce_minmax_f32_rvv(            //
     if (count == 0)
         *min_value = NUMKONG_F32_INF, *min_index = NUMKONG_SIZE_MAX, *max_value = -NUMKONG_F32_INF,
         *max_index = NUMKONG_SIZE_MAX;
-    else if (!aligned) nk_reduce_minmax_f32_strided_(data, count, stride, min_value, min_index, max_value, max_index);
+    else if (!aligned)
+        nk_reduce_minmax_strided_f32_serial_(data, count, stride, min_value, min_index, max_value, max_index);
     else if (stride_elements == 1)
-        nk_reduce_minmax_f32_rvv_contiguous_(data, count, min_value, min_index, max_value, max_index);
-    else nk_reduce_minmax_f32_rvv_strided_(data, count, stride, min_value, min_index, max_value, max_index);
+        nk_reduce_minmax_contiguous_f32_rvv_(data, count, min_value, min_index, max_value, max_index);
+    else nk_reduce_minmax_strided_f32_rvv_(data, count, stride, min_value, min_index, max_value, max_index);
     return nk_success_k;
 }
 
@@ -3158,9 +3159,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_f64_rvv(           //
     nk_size_t stride_elements = stride / sizeof(nk_f64_t);
     int aligned = (stride % sizeof(nk_f64_t) == 0);
     if (count == 0) *sum = 0, *sumsq = 0;
-    else if (!aligned) nk_reduce_moments_f64_strided_(data, count, stride, sum, sumsq);
-    else if (stride_elements == 1) nk_reduce_moments_f64_rvv_contiguous_(data, count, sum, sumsq);
-    else nk_reduce_moments_f64_rvv_strided_(data, count, stride, sum, sumsq);
+    else if (!aligned) nk_reduce_moments_strided_f64_serial_(data, count, stride, sum, sumsq);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_f64_rvv_(data, count, sum, sumsq);
+    else nk_reduce_moments_strided_f64_rvv_(data, count, stride, sum, sumsq);
     return nk_success_k;
 }
 
@@ -3174,10 +3175,11 @@ NUMKONG_API nk_status_t nk_reduce_minmax_f64_rvv(            //
     if (count == 0)
         *min_value = NUMKONG_F64_INF, *min_index = NUMKONG_SIZE_MAX, *max_value = -NUMKONG_F64_INF,
         *max_index = NUMKONG_SIZE_MAX;
-    else if (!aligned) nk_reduce_minmax_f64_strided_(data, count, stride, min_value, min_index, max_value, max_index);
+    else if (!aligned)
+        nk_reduce_minmax_strided_f64_serial_(data, count, stride, min_value, min_index, max_value, max_index);
     else if (stride_elements == 1)
-        nk_reduce_minmax_f64_rvv_contiguous_(data, count, min_value, min_index, max_value, max_index);
-    else nk_reduce_minmax_f64_rvv_strided_(data, count, stride, min_value, min_index, max_value, max_index);
+        nk_reduce_minmax_contiguous_f64_rvv_(data, count, min_value, min_index, max_value, max_index);
+    else nk_reduce_minmax_strided_f64_rvv_(data, count, stride, min_value, min_index, max_value, max_index);
     return nk_success_k;
 }
 
@@ -3189,9 +3191,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_i8_rvv(               //
     int aligned = (stride % sizeof(nk_i8_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_i8_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_i8_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_i8_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_i8_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_i8_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_i8_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3207,13 +3209,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i8_rvv(                //
         *min_value_ptr = NUMKONG_I8_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I8_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_i8_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                     max_index_ptr);
+        nk_reduce_minmax_strided_i8_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                            max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_i8_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_i8_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                             max_index_ptr);
     else
-        nk_reduce_minmax_i8_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_i8_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                          max_index_ptr);
     return nk_success_k;
 }
@@ -3226,9 +3228,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_u8_rvv(               //
     int aligned = (stride % sizeof(nk_u8_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_u8_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_u8_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_u8_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_u8_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_u8_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_u8_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3244,13 +3246,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u8_rvv(                //
         *min_value_ptr = NUMKONG_U8_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_U8_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_u8_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                     max_index_ptr);
+        nk_reduce_minmax_strided_u8_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                            max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_u8_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_u8_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                             max_index_ptr);
     else
-        nk_reduce_minmax_u8_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_u8_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                          max_index_ptr);
     return nk_success_k;
 }
@@ -3263,9 +3265,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_i16_rvv(               //
     int aligned = (stride % sizeof(nk_i16_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_i16_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_i16_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_i16_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_i16_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_i16_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_i16_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3281,13 +3283,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i16_rvv(                //
         *min_value_ptr = NUMKONG_I16_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I16_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_i16_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                      max_index_ptr);
+        nk_reduce_minmax_strided_i16_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_i16_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_i16_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                              max_index_ptr);
     else
-        nk_reduce_minmax_i16_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_i16_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                           max_index_ptr);
     return nk_success_k;
 }
@@ -3300,9 +3302,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_u16_rvv(               //
     int aligned = (stride % sizeof(nk_u16_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_u16_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_u16_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_u16_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_u16_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_u16_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_u16_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3318,13 +3320,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u16_rvv(                //
         *min_value_ptr = NUMKONG_U16_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_U16_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_u16_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                      max_index_ptr);
+        nk_reduce_minmax_strided_u16_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_u16_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_u16_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                              max_index_ptr);
     else
-        nk_reduce_minmax_u16_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_u16_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                           max_index_ptr);
     return nk_success_k;
 }
@@ -3337,9 +3339,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_i32_rvv(               //
     int aligned = (stride % sizeof(nk_i32_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_i32_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_i32_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_i32_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_i32_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_i32_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_i32_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3355,13 +3357,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i32_rvv(                //
         *min_value_ptr = NUMKONG_I32_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I32_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_i32_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                      max_index_ptr);
+        nk_reduce_minmax_strided_i32_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_i32_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_i32_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                              max_index_ptr);
     else
-        nk_reduce_minmax_i32_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_i32_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                           max_index_ptr);
     return nk_success_k;
 }
@@ -3374,9 +3376,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_u32_rvv(               //
     int aligned = (stride % sizeof(nk_u32_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_u32_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_u32_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_u32_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_u32_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_u32_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_u32_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3392,13 +3394,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u32_rvv(                //
         *min_value_ptr = NUMKONG_U32_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_U32_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_u32_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                      max_index_ptr);
+        nk_reduce_minmax_strided_u32_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_u32_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_u32_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                              max_index_ptr);
     else
-        nk_reduce_minmax_u32_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_u32_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                           max_index_ptr);
     return nk_success_k;
 }
@@ -3411,9 +3413,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_i64_rvv(               //
     int aligned = (stride % sizeof(nk_i64_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_i64_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_i64_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_i64_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_i64_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_i64_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_i64_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3429,13 +3431,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_i64_rvv(                //
         *min_value_ptr = NUMKONG_I64_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_I64_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_i64_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                      max_index_ptr);
+        nk_reduce_minmax_strided_i64_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_i64_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_i64_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                              max_index_ptr);
     else
-        nk_reduce_minmax_i64_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_i64_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                           max_index_ptr);
     return nk_success_k;
 }
@@ -3448,9 +3450,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_u64_rvv(               //
     int aligned = (stride % sizeof(nk_u64_t) == 0);
 
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned) { nk_reduce_moments_u64_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
-    else if (stride_elements == 1) { nk_reduce_moments_u64_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr); }
-    else { nk_reduce_moments_u64_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (!aligned) { nk_reduce_moments_strided_u64_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
+    else if (stride_elements == 1) { nk_reduce_moments_contiguous_u64_rvv_(data_ptr, count, sum_ptr, sumsq_ptr); }
+    else { nk_reduce_moments_strided_u64_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr); }
     return nk_success_k;
 }
 
@@ -3466,13 +3468,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_u64_rvv(                //
         *min_value_ptr = NUMKONG_U64_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_U64_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_u64_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                      max_index_ptr);
+        nk_reduce_minmax_strided_u64_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_u64_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_u64_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                              max_index_ptr);
     else
-        nk_reduce_minmax_u64_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_u64_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                           max_index_ptr);
     return nk_success_k;
 }
@@ -3485,9 +3487,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_bf16_rvv(               //
     int aligned = (stride % sizeof(nk_bf16_t) == 0);
 
     if (count == 0) *sum_ptr = 0.0f, *sumsq_ptr = 0.0f;
-    else if (!aligned) nk_reduce_moments_bf16_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else if (stride_elements == 1) nk_reduce_moments_bf16_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_bf16_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_strided_bf16_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_bf16_rvv_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_bf16_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -3503,13 +3505,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_bf16_rvv(                //
         *min_value_ptr = NUMKONG_BF16_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_BF16_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_bf16_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                       max_index_ptr);
+        nk_reduce_minmax_strided_bf16_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                              max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_bf16_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_bf16_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                               max_index_ptr);
     else
-        nk_reduce_minmax_bf16_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_bf16_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                            max_index_ptr);
     return nk_success_k;
 }
@@ -3522,9 +3524,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_f16_rvv(               //
     int aligned = (stride % sizeof(nk_f16_t) == 0);
 
     if (count == 0) *sum_ptr = 0.0f, *sumsq_ptr = 0.0f;
-    else if (!aligned) nk_reduce_moments_f16_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else if (stride_elements == 1) nk_reduce_moments_f16_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_f16_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_strided_f16_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_f16_rvv_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_f16_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -3540,13 +3542,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_f16_rvv(                //
         *min_value_ptr = NUMKONG_F16_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_F16_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_f16_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                      max_index_ptr);
+        nk_reduce_minmax_strided_f16_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                             max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_f16_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_f16_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                              max_index_ptr);
     else
-        nk_reduce_minmax_f16_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_f16_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                           max_index_ptr);
     return nk_success_k;
 }
@@ -3559,9 +3561,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_e4m3_rvv(               //
     int aligned = (stride % sizeof(nk_e4m3_t) == 0);
 
     if (count == 0) *sum_ptr = 0.0f, *sumsq_ptr = 0.0f;
-    else if (!aligned) nk_reduce_moments_e4m3_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else if (stride_elements == 1) nk_reduce_moments_e4m3_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e4m3_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_strided_e4m3_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_e4m3_rvv_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_e4m3_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -3577,13 +3579,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e4m3_rvv(                //
         *min_value_ptr = NUMKONG_E4M3_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E4M3_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_e4m3_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                       max_index_ptr);
+        nk_reduce_minmax_strided_e4m3_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                              max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_e4m3_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_e4m3_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                               max_index_ptr);
     else
-        nk_reduce_minmax_e4m3_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_e4m3_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                            max_index_ptr);
     return nk_success_k;
 }
@@ -3596,9 +3598,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_e5m2_rvv(               //
     int aligned = (stride % sizeof(nk_e5m2_t) == 0);
 
     if (count == 0) *sum_ptr = 0.0f, *sumsq_ptr = 0.0f;
-    else if (!aligned) nk_reduce_moments_e5m2_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else if (stride_elements == 1) nk_reduce_moments_e5m2_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e5m2_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_strided_e5m2_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_e5m2_rvv_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_e5m2_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -3614,13 +3616,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e5m2_rvv(                //
         *min_value_ptr = NUMKONG_E5M2_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E5M2_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_e5m2_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                       max_index_ptr);
+        nk_reduce_minmax_strided_e5m2_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                              max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_e5m2_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_e5m2_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                               max_index_ptr);
     else
-        nk_reduce_minmax_e5m2_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_e5m2_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                            max_index_ptr);
     return nk_success_k;
 }
@@ -3633,9 +3635,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_e2m3_rvv(               //
     int aligned = (stride % sizeof(nk_e2m3_t) == 0);
 
     if (count == 0) *sum_ptr = 0.0f, *sumsq_ptr = 0.0f;
-    else if (!aligned) nk_reduce_moments_e2m3_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else if (stride_elements == 1) nk_reduce_moments_e2m3_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e2m3_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_strided_e2m3_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_e2m3_rvv_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_e2m3_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -3651,13 +3653,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e2m3_rvv(                //
         *min_value_ptr = NUMKONG_E2M3_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E2M3_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_e2m3_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                       max_index_ptr);
+        nk_reduce_minmax_strided_e2m3_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                              max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_e2m3_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_e2m3_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                               max_index_ptr);
     else
-        nk_reduce_minmax_e2m3_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_e2m3_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                            max_index_ptr);
     return nk_success_k;
 }
@@ -3670,9 +3672,9 @@ NUMKONG_API nk_status_t nk_reduce_moments_e3m2_rvv(               //
     int aligned = (stride % sizeof(nk_e3m2_t) == 0);
 
     if (count == 0) *sum_ptr = 0.0f, *sumsq_ptr = 0.0f;
-    else if (!aligned) nk_reduce_moments_e3m2_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
-    else if (stride_elements == 1) nk_reduce_moments_e3m2_rvv_contiguous_(data_ptr, count, sum_ptr, sumsq_ptr);
-    else nk_reduce_moments_e3m2_rvv_strided_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned) nk_reduce_moments_strided_e3m2_serial_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
+    else if (stride_elements == 1) nk_reduce_moments_contiguous_e3m2_rvv_(data_ptr, count, sum_ptr, sumsq_ptr);
+    else nk_reduce_moments_strided_e3m2_rvv_(data_ptr, count, stride, sum_ptr, sumsq_ptr);
     return nk_success_k;
 }
 
@@ -3688,13 +3690,13 @@ NUMKONG_API nk_status_t nk_reduce_minmax_e3m2_rvv(                //
         *min_value_ptr = NUMKONG_E3M2_MAX, *min_index_ptr = NUMKONG_SIZE_MAX, *max_value_ptr = NUMKONG_E3M2_MIN,
         *max_index_ptr = NUMKONG_SIZE_MAX;
     else if (!aligned)
-        nk_reduce_minmax_e3m2_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
-                                       max_index_ptr);
+        nk_reduce_minmax_strided_e3m2_serial_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+                                              max_index_ptr);
     else if (stride_elements == 1)
-        nk_reduce_minmax_e3m2_rvv_contiguous_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_contiguous_e3m2_rvv_(data_ptr, count, min_value_ptr, min_index_ptr, max_value_ptr,
                                               max_index_ptr);
     else
-        nk_reduce_minmax_e3m2_rvv_strided_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
+        nk_reduce_minmax_strided_e3m2_rvv_(data_ptr, count, stride, min_value_ptr, min_index_ptr, max_value_ptr,
                                            max_index_ptr);
     return nk_success_k;
 }

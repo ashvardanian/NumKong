@@ -43,7 +43,7 @@
 #if NUMKONG_ARCH_RISCV64_RVV_
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_cast_elementwise_`
+#include "numkong/cast/serial.h" // `nk_cast_elementwise_serial_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -1048,7 +1048,7 @@ NUMKONG_API nk_status_t nk_cast_rvv(void const *from, nk_dtype_t from_dtype, voi
     }
 
     // Fallback to serial for unimplemented conversions
-    nk_cast_elementwise_(from, from_dtype, count, to, to_dtype);
+    nk_cast_elementwise_serial_(from, from_dtype, count, to, to_dtype);
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_RVV

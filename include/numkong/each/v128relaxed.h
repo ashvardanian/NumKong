@@ -142,10 +142,10 @@ NUMKONG_INLINE void nk_each_add_f16_v128relaxed_(nk_f16_t const *a, nk_f16_t con
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
-        nk_f16_to_f32_(a + i, &ai);
-        nk_f16_to_f32_(b + i, &bi);
+        nk_f16_to_f32_serial_(a + i, &ai);
+        nk_f16_to_f32_serial_(b + i, &bi);
         nk_f32_t sum = ai + bi;
-        nk_f32_to_f16_(&sum, result + i);
+        nk_f32_to_f16_serial_(&sum, result + i);
     }
 }
 
@@ -173,9 +173,9 @@ NUMKONG_INLINE void nk_each_affine_f16_v128relaxed_(nk_f16_t const *a, nk_size_t
     }
     for (; i < n; ++i) {
         nk_f32_t ai;
-        nk_f16_to_f32_(a + i, &ai);
+        nk_f16_to_f32_serial_(a + i, &ai);
         nk_f32_t sum = alpha_val * ai + beta_val;
-        nk_f32_to_f16_(&sum, result + i);
+        nk_f32_to_f16_serial_(&sum, result + i);
     }
 }
 
@@ -218,10 +218,10 @@ NUMKONG_API nk_status_t nk_each_blend_f16_v128relaxed(nk_f16_t const *a, nk_f16_
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
-        nk_f16_to_f32_(a + i, &ai);
-        nk_f16_to_f32_(b + i, &bi);
+        nk_f16_to_f32_serial_(a + i, &ai);
+        nk_f16_to_f32_serial_(b + i, &bi);
         nk_f32_t sum = alpha_val * ai + beta_val * bi;
-        nk_f32_to_f16_(&sum, result + i);
+        nk_f32_to_f16_serial_(&sum, result + i);
     }
     return nk_success_k;
 }
@@ -252,11 +252,11 @@ NUMKONG_API nk_status_t nk_each_fma_f16_v128relaxed(         //
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi, ci;
-        nk_f16_to_f32_(a + i, &ai);
-        nk_f16_to_f32_(b + i, &bi);
-        nk_f16_to_f32_(c + i, &ci);
+        nk_f16_to_f32_serial_(a + i, &ai);
+        nk_f16_to_f32_serial_(b + i, &bi);
+        nk_f16_to_f32_serial_(c + i, &ci);
         nk_f32_t sum = alpha_val * ai * bi + beta_val * ci;
-        nk_f32_to_f16_(&sum, result + i);
+        nk_f32_to_f16_serial_(&sum, result + i);
     }
     return nk_success_k;
 }
@@ -281,9 +281,9 @@ NUMKONG_INLINE void nk_each_affine_bf16_v128relaxed_(nk_bf16_t const *a, nk_size
     }
     for (; i < n; ++i) {
         nk_f32_t ai;
-        nk_bf16_to_f32_(a + i, &ai);
+        nk_bf16_to_f32_serial_(a + i, &ai);
         nk_f32_t sum = alpha_val * ai + beta_val;
-        nk_f32_to_bf16_(&sum, result + i);
+        nk_f32_to_bf16_serial_(&sum, result + i);
     }
 }
 
@@ -326,10 +326,10 @@ NUMKONG_API nk_status_t nk_each_blend_bf16_v128relaxed(nk_bf16_t const *a, nk_bf
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
-        nk_bf16_to_f32_(a + i, &ai);
-        nk_bf16_to_f32_(b + i, &bi);
+        nk_bf16_to_f32_serial_(a + i, &ai);
+        nk_bf16_to_f32_serial_(b + i, &bi);
         nk_f32_t sum = alpha_val * ai + beta_val * bi;
-        nk_f32_to_bf16_(&sum, result + i);
+        nk_f32_to_bf16_serial_(&sum, result + i);
     }
     return nk_success_k;
 }
@@ -360,11 +360,11 @@ NUMKONG_API nk_status_t nk_each_fma_bf16_v128relaxed(           //
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi, ci;
-        nk_bf16_to_f32_(a + i, &ai);
-        nk_bf16_to_f32_(b + i, &bi);
-        nk_bf16_to_f32_(c + i, &ci);
+        nk_bf16_to_f32_serial_(a + i, &ai);
+        nk_bf16_to_f32_serial_(b + i, &bi);
+        nk_bf16_to_f32_serial_(c + i, &ci);
         nk_f32_t sum = alpha_val * ai * bi + beta_val * ci;
-        nk_f32_to_bf16_(&sum, result + i);
+        nk_f32_to_bf16_serial_(&sum, result + i);
     }
     return nk_success_k;
 }

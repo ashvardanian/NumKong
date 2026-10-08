@@ -68,7 +68,7 @@ NUMKONG_DEVICE nk_f32_t nk_tmem_load_extreme_x32_blackwellultra_(nk_u32_t addres
 nk_define_attention_pack_size_simt_(bf16, blackwellultra, 2)
 nk_define_attention_packed_shape_cuda_(bf16, blackwellultra)
 nk_define_attention_pack_blackwell_(bf16, blackwellultra, bf16)
-nk_define_attention_tma_blackwell_(bf16, blackwellultra, bf16, nk_attention_float_threads_blackwell_k,
+nk_define_attention_tma_blackwell_(bf16, blackwellultra, bf16, 2, 0, nk_attention_float_threads_blackwell_k,
                                    nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_bf16_blackwell_, /*format=*/1)
 
@@ -77,12 +77,12 @@ nk_define_attention_tma_blackwell_(bf16, blackwellultra, bf16, nk_attention_floa
 static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell_k, 1)
     nk_attention_backward_keys_bf16_blackwellultra_kernel_(nk_attention_backward_arguments_t arguments) {
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_blackwell_(&arguments);
-    else nk_attention_backward_keys_cuda_(nk_bf16_k, &arguments);
+    else nk_attention_backward_keys_bf16_cuda_(&arguments);
 }
 static __global__ void __launch_bounds__(nk_attention_backward_threads_blackwell_k, 1)
     nk_attention_backward_queries_bf16_blackwellultra_kernel_(nk_attention_backward_arguments_t arguments) {
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_blackwell_(&arguments);
-    else nk_attention_backward_queries_cuda_(nk_bf16_k, &arguments);
+    else nk_attention_backward_queries_bf16_cuda_(&arguments);
 }
 nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_backward_launch_blackwell_)
 
@@ -93,7 +93,7 @@ nk_define_attention_backward_cuda_(bf16, blackwellultra, bf16, nk_attention_back
 nk_define_attention_pack_size_simt_(f16, blackwellultra, 2)
 nk_define_attention_packed_shape_cuda_(f16, blackwellultra)
 nk_define_attention_pack_blackwell_(f16, blackwellultra, f16)
-nk_define_attention_tma_blackwell_(f16, blackwellultra, f16, nk_attention_float_threads_blackwell_k,
+nk_define_attention_tma_blackwell_(f16, blackwellultra, f16, 2, 0, nk_attention_float_threads_blackwell_k,
                                    nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_f16_blackwell_, /*format=*/0)
 
@@ -104,7 +104,7 @@ nk_define_attention_tma_blackwell_(f16, blackwellultra, f16, nk_attention_float_
 nk_define_attention_pack_size_simt_(e4m3, blackwellultra, 1)
 nk_define_attention_packed_shape_cuda_(e4m3, blackwellultra)
 nk_define_attention_pack_blackwell_(e4m3, blackwellultra, e4m3)
-nk_define_attention_tma_blackwell_(e4m3, blackwellultra, e4m3, nk_attention_float_threads_blackwell_k,
+nk_define_attention_tma_blackwell_(e4m3, blackwellultra, e4m3, 1, 0, nk_attention_float_threads_blackwell_k,
                                    nk_mma_f8f6f4_blackwell_, nk_mma_f8f6f4_tmem_blackwell_,
                                    nk_attention_weights_e4m3_blackwell_, /*format=*/0)
 
@@ -115,7 +115,7 @@ nk_define_attention_tma_blackwell_(e4m3, blackwellultra, e4m3, nk_attention_floa
 nk_define_attention_pack_size_simt_(i8, blackwellultra, 1)
 nk_define_attention_packed_shape_cuda_(i8, blackwellultra)
 nk_define_attention_pack_blackwell_(i8, blackwellultra, i8)
-nk_define_attention_tma_blackwell_(i8, blackwellultra, i8, nk_attention_integer_threads_blackwell_k,
+nk_define_attention_tma_blackwell_(i8, blackwellultra, i8, 1, 1, nk_attention_integer_threads_blackwell_k,
                                    nk_mma_f16_blackwell_, nk_mma_f16_tmem_blackwell_,
                                    nk_attention_weights_u8_blackwell_, /*format=*/0)
 

@@ -28,7 +28,7 @@
 
 #include "numkong/dot/skylake.h"
 #include "numkong/cast/skylake.h"   // `nk_partial_load_b32x16_skylake_`
-#include "numkong/reduce/skylake.h" // `nk_reduce_moments_f32_skylake_chunked_`
+#include "numkong/reduce/skylake.h" // `nk_reduce_moments_chunked_f32_skylake_`
 #include "numkong/dots/serial.h"    // `nk_define_cross_pack_size_`
 
 #if defined(__cplusplus)
@@ -48,46 +48,46 @@ extern "C" {
 NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f64_skylake_(nk_f64_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f64_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_f64_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_f64_skylake_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f64_t nk_dots_reduce_sumsq_f32_skylake_(nk_f32_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f64_t sum, sumsq;
-    nk_reduce_moments_f32_skylake_chunked_(data, count, stride, &sum, &sumsq);
+    nk_reduce_moments_chunked_f32_skylake_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_f16_skylake_(nk_f16_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_f16_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_f16_skylake_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_bf16_skylake_(nk_bf16_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_reduce_moments_bf16_skylake_chunked_(data, count, stride, &sum, &sumsq);
+    nk_reduce_moments_chunked_bf16_skylake_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e4m3_skylake_(nk_e4m3_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
-    nk_reduce_moments_e4m3_skylake_chunked_(data, count, stride, &sum, &sumsq);
+    nk_reduce_moments_chunked_e4m3_skylake_(data, count, stride, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e5m2_skylake_(nk_e5m2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_e5m2_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_e5m2_skylake_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_skylake_(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_e2m3_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_e2m3_skylake_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
@@ -129,7 +129,7 @@ NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m1_skylake_(nk_e2m1x2_t const *da
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e3m2_skylake_(nk_e3m2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_e3m2_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_e3m2_skylake_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
@@ -137,14 +137,14 @@ NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i8_skylake_(nk_i8_t const *data, nk
     nk_i64_t sum;
     nk_u64_t sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_i8_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_i8_skylake_(data, count, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
 
 NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_skylake_(nk_u8_t const *data, nk_size_t count, nk_size_t stride) {
     nk_u64_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_u8_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_u8_skylake_(data, count, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
 
@@ -152,21 +152,21 @@ NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_i4_skylake_(nk_i4x2_t const *data, 
     nk_i64_t sum;
     nk_u64_t sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_i4_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_i4_skylake_(data, count, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
 
 NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u4_skylake_(nk_u4x2_t const *data, nk_size_t count, nk_size_t stride) {
     nk_u64_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_u4_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_u4_skylake_(data, count, &sum, &sumsq);
     return (nk_u32_t)sumsq;
 }
 
 NUMKONG_INLINE nk_u32_t nk_dots_reduce_sum_u1_skylake_(nk_u1x8_t const *data, nk_size_t count, nk_size_t stride) {
     nk_u64_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_u1_skylake_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_u1_skylake_(data, count, &sum, &sumsq);
     return (nk_u32_t)sum;
 }
 
@@ -175,7 +175,7 @@ NUMKONG_INLINE void nk_dots_reduce_moments_i4_skylake_(nk_i4x2_t const *data, nk
     nk_i64_t row_sum;
     nk_u64_t row_sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_i4_skylake_contiguous_(data, count, &row_sum, &row_sumsq);
+    nk_reduce_moments_contiguous_i4_skylake_(data, count, &row_sum, &row_sumsq);
     *sum = (nk_i32_t)row_sum, *norm = (nk_u32_t)row_sumsq;
 }
 
@@ -190,7 +190,7 @@ nk_define_cross_packed_shape_(dots, f64, skylake)
 nk_define_cross_pack_(dots, f64, skylake, f64, f64, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b64x8_skylake_, nk_store_b512_skylake_, nk_partial_store_b64x8_skylake_,
                       /*simd_width=*/8, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f64_skylake_,
-                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f64, skylake, f64, f64, nk_b512_vec_t, nk_dot_f64x8_state_skylake_t, nk_b256_vec_t,
                            nk_dot_f64x8_init_skylake, nk_load_b512_skylake_, nk_partial_load_b64x8_skylake_,
@@ -210,7 +210,7 @@ nk_define_cross_packed_shape_(dots, f32, skylake)
 nk_define_cross_pack_(dots, f32, skylake, f32, f32, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b32x16_skylake_, nk_store_b512_skylake_, nk_partial_store_b32x16_skylake_,
                       /*simd_width=*/16, /*norm_value_type=*/f64, nk_dots_reduce_sumsq_f32_skylake_,
-                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f32, skylake, f32, f64, nk_b256_vec_t, nk_dot_f32x8_state_skylake_t, nk_b256_vec_t,
                            nk_dot_f32x8_init_skylake, nk_load_b256_haswell_, nk_partial_load_b32x8_skylake_,
@@ -231,7 +231,7 @@ nk_define_cross_packed_shape_(dots, bf16, skylake)
 nk_define_cross_pack_(dots, bf16, skylake, bf16, bf16, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b16x32_skylake_, nk_store_b512_skylake_, nk_partial_store_b16x32_skylake_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_bf16_skylake_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, bf16, skylake, bf16, f32, nk_b512_vec_t, nk_dot_bf16x32_state_skylake_t, nk_b128_vec_t,
                            nk_dot_bf16x32_init_skylake, nk_load_b512_skylake_, nk_partial_load_b16x32_skylake_,
@@ -253,7 +253,7 @@ nk_define_cross_pack_(dots, f16, skylake, f16, f32, nk_b512_vec_t, nk_load_f16x1
                       nk_partial_load_f16x16_to_f32x16_skylake_, nk_store_b512_skylake_,
                       nk_partial_store_b32x16_skylake_, /*simd_width=*/16,
                       /*norm_value_type=*/f32, nk_dots_reduce_sumsq_f16_skylake_, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_, /*scale_bytes=*/1)
+                      /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_, /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, f16, skylake, f16, f32, nk_b512_vec_t, nk_dot_through_f32_state_skylake_t_,
                            nk_b128_vec_t, nk_dot_through_f32_init_skylake_, nk_load_f16x16_to_f32x16_skylake_,
                            nk_partial_load_f16x16_to_f32x16_skylake_, nk_dot_through_f32_update_skylake_,
@@ -280,7 +280,7 @@ nk_define_cross_pack_(dots, e4m3, skylake, e4m3, f16, nk_b256_vec_t, nk_load_e4m
                       nk_partial_load_e4m3x16_to_f16x16_skylake_, nk_store_b256_haswell_,
                       nk_partial_store_b16x16_skylake_,
                       /*simd_width=*/16, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_skylake_,
-                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e4m3, skylake, e4m3, f32, nk_b512_vec_t, nk_dot_through_f32_state_skylake_t_,
                            nk_b128_vec_t, nk_dot_through_f32_init_skylake_, nk_load_e4m3x16_to_f32x16_skylake_,
@@ -302,7 +302,7 @@ nk_define_cross_packed_shape_(dots, e5m2, skylake)
 nk_define_cross_pack_(dots, e5m2, skylake, e5m2, f32, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
                       /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_skylake_,
-                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e5m2, skylake, e5m2, f32, nk_b512_vec_t, nk_dot_through_f32_state_skylake_t_,
                            nk_b128_vec_t, nk_dot_through_f32_init_skylake_, nk_load_b512_skylake_,
@@ -325,7 +325,7 @@ nk_define_cross_packed_shape_(dots, e2m3, skylake)
 nk_define_cross_pack_(dots, e2m3, skylake, e2m3, e2m3, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
                       /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_skylake_,
-                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e2m3, skylake, e2m3, f32, nk_b512_vec_t, nk_dot_e2m3x64_state_skylake_t, nk_b128_vec_t,
                            nk_dot_e2m3x64_init_skylake, nk_load_b512_skylake_, nk_partial_load_b8x64_skylake_,
@@ -347,7 +347,7 @@ nk_define_cross_packed_shape_(dots, e2m1, skylake)
 nk_define_cross_pack_(dots, e2m1, skylake, e2m1x2, e2m1x2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
                       /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_skylake_,
-                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/128, /*dimensions_per_value=*/2, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e2m1, skylake, e2m1x2, f32, nk_b512_vec_t, nk_dot_e2m1x128_state_skylake_t,
                            nk_b128_vec_t, nk_dot_e2m1x128_init_skylake, nk_load_b512_skylake_,
@@ -367,12 +367,12 @@ nk_define_cross_packed_(dots, e2m1, skylake, e2m1x2, e2m1x2, f32, nk_b512_vec_t,
 NUMKONG_INLINE void nk_pack_nvfp4_scales_skylake_(nk_u8_t const *source, nk_size_t blocks, nk_u8_t *destination,
                                                   nk_size_t stride, nk_i32_t base) {
     nk_unused_(base);
-    nk_cross_pack_scales_ue4m3_f32_(source, blocks, destination, stride, 1.0f, 1);
+    nk_cross_pack_scales_ue4m3_f32_serial_(source, blocks, destination, stride, 1.0f, 1);
 }
 
 NUMKONG_INLINE void nk_pack_ue8m0_scales_skylake_(nk_u8_t const *source, nk_size_t blocks, nk_u8_t *destination,
                                                   nk_size_t stride, nk_i32_t base) {
-    nk_cross_pack_scales_ue8m0_f32_(source, blocks, destination, stride, base, 1.0f, 1);
+    nk_cross_pack_scales_ue8m0_f32_serial_(source, blocks, destination, stride, base, 1.0f, 1);
 }
 
 nk_define_cross_pack_size_(dots, nvfp4, skylake, e2m1x2, e2m1x2, /*norm_value_type=*/f32, /*depth_simd_dimensions=*/32,
@@ -387,10 +387,10 @@ nk_define_cross_scaled_packed_(dots, nvfp4, skylake, e2m1x2, nk_dot_f32x32_opera
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_nvfp4x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
                                nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
-                               nk_cross_scaled_exact_wide_nvfp4_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
+                               nk_cross_scaled_exact_wide_nvfp4_serial_, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-nk_define_cross_scaled_symmetric_(dots, nvfp4, skylake, e2m1x2, nk_dot_f32_from_wide_, /*normalized=*/0,
+nk_define_cross_scaled_symmetric_(dots, nvfp4, skylake, e2m1x2, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
@@ -406,10 +406,10 @@ nk_define_cross_scaled_packed_(dots, mxfp4, skylake, e2m1x2, nk_dot_f32x32_opera
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp4x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
                                nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
-                               nk_cross_scaled_exact_wide_mxfp4_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
+                               nk_cross_scaled_exact_wide_mxfp4_serial_, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-nk_define_cross_scaled_symmetric_(dots, mxfp4, skylake, e2m1x2, nk_dot_f32_from_wide_, /*normalized=*/0,
+nk_define_cross_scaled_symmetric_(dots, mxfp4, skylake, e2m1x2, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
@@ -425,10 +425,11 @@ nk_define_cross_scaled_packed_(dots, mxfp6e2m3, skylake, e2m3, nk_dot_f32x32_ope
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp6e2m3x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
                                nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
-                               nk_cross_scaled_exact_wide_mxfp6e2m3_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
+                               nk_cross_scaled_exact_wide_mxfp6e2m3_serial_, nk_dot_from_wide_f32_serial_,
+                               /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-nk_define_cross_scaled_symmetric_(dots, mxfp6e2m3, skylake, e2m3, nk_dot_f32_from_wide_, /*normalized=*/0,
+nk_define_cross_scaled_symmetric_(dots, mxfp6e2m3, skylake, e2m3, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
@@ -444,10 +445,11 @@ nk_define_cross_scaled_packed_(dots, mxfp6e3m2, skylake, e3m2, nk_dot_f32x32_ope
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp6e3m2x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
                                nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
-                               nk_cross_scaled_exact_wide_mxfp6e3m2_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
+                               nk_cross_scaled_exact_wide_mxfp6e3m2_serial_, nk_dot_from_wide_f32_serial_,
+                               /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-nk_define_cross_scaled_symmetric_(dots, mxfp6e3m2, skylake, e3m2, nk_dot_f32_from_wide_, /*normalized=*/0,
+nk_define_cross_scaled_symmetric_(dots, mxfp6e3m2, skylake, e3m2, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
@@ -463,10 +465,11 @@ nk_define_cross_scaled_packed_(dots, mxfp8e4m3, skylake, e4m3, nk_dot_f32x32_ope
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp8e4m3x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
                                nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
-                               nk_cross_scaled_exact_wide_mxfp8e4m3_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
+                               nk_cross_scaled_exact_wide_mxfp8e4m3_serial_, nk_dot_from_wide_f32_serial_,
+                               /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-nk_define_cross_scaled_symmetric_(dots, mxfp8e4m3, skylake, e4m3, nk_dot_f32_from_wide_, /*normalized=*/0,
+nk_define_cross_scaled_symmetric_(dots, mxfp8e4m3, skylake, e4m3, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
@@ -482,10 +485,11 @@ nk_define_cross_scaled_packed_(dots, mxfp8e5m2, skylake, e5m2, nk_dot_f32x32_ope
                                nk_dot_through_f32_state_skylake_t_, nk_dot_scaled_f32_init_skylake_,
                                nk_load_scaled_mxfp8e5m2x32_skylake_, nk_dot_scaled_f32x32_update_skylake_,
                                nk_dot_scaled_f32_reduce_skylake_, nk_dot_f32x4_from_relative_skylake_,
-                               nk_cross_scaled_exact_wide_mxfp8e5m2_serial_, nk_dot_f32_from_wide_, /*normalized=*/0,
+                               nk_cross_scaled_exact_wide_mxfp8e5m2_serial_, nk_dot_from_wide_f32_serial_,
+                               /*normalized=*/0,
                                /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                /*register_rows=*/2, /*register_columns=*/4)
-nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, skylake, e5m2, nk_dot_f32_from_wide_, /*normalized=*/0,
+nk_define_cross_scaled_symmetric_(dots, mxfp8e5m2, skylake, e5m2, nk_dot_from_wide_f32_serial_, /*normalized=*/0,
                                   /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, /*scale_bytes=*/5,
                                   /*register_rows=*/2, /*register_columns=*/4)
 
@@ -497,7 +501,7 @@ nk_define_cross_packed_shape_(dots, e3m2, skylake)
 nk_define_cross_pack_(dots, e3m2, skylake, e3m2, e3m2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
                       /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e3m2_skylake_,
-                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e3m2, skylake, e3m2, f32, nk_b512_vec_t, nk_dot_e3m2x64_state_skylake_t, nk_b128_vec_t,
                            nk_dot_e3m2x64_init_skylake, nk_load_b512_skylake_, nk_partial_load_b8x64_skylake_,

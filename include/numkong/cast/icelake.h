@@ -670,8 +670,8 @@ NUMKONG_INLINE void nk_cast_block_scaled_icelake_(void const *from, nk_u8_t cons
         to_tensor_scale_f32 = *to_tensor_scale;
         if (to_tensor_scale_f32 == 0.0f) {
             // Fall back to serial for auto-derive (needs a full tensor scan; rare calibration path).
-            nk_cast_block_scaled_through_f32_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
-                                              to_tensor_scale, to_format, count);
+            nk_cast_block_scaled_through_f32_serial_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                                     to_tensor_scale, to_format, count);
             return;
         }
     }
@@ -716,7 +716,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_icelake_(void const *from, nk_u8_t cons
             nk_cast_elementwise_icelake_(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
         }
         else {
-            nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
+            nk_f32_t element_max = nk_element_max_representable_serial_(to_format->element_dtype);
             for (nk_size_t b = 0; b < chunk_count; b += to_block) {
                 nk_size_t valid = (chunk_count - b) < to_block ? (chunk_count - b) : to_block;
                 nk_f32_t block_amax = nk_block_amax_f32_icelake_(scratch + b, valid);
@@ -759,7 +759,8 @@ NUMKONG_API nk_status_t nk_cast_icelake(void const *from, nk_dtype_t from_dtype,
     nk_assert_(stream == NUMKONG_NULL);
     nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
     nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
-    nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+    nk_cast_operand_t const source = nk_cast_operand_serial_(from_dtype, from),
+                            target = nk_cast_operand_serial_(to_dtype, to);
     nk_cast_block_scaled_icelake_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
                                   target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;

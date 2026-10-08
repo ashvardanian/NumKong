@@ -121,7 +121,6 @@ status_t attention_packed(in_type_ const *queries, void const *key_value_packed,
  *      @p key_value_head_count × @p depth per key token; rows past a segment's live keys are
  *      left unwritten by the kernel.
  *  @param[out] value_gradient Gradient of the packed values, shaped like @p key_gradient.
- *  @param[in] key_offsets First key token of each segment, the pack-time segment offsets.
  *  @param[in] query_gradient_stride Bytes between the @p query_gradient rows of consecutive tokens.
  *  @param[in] key_value_gradient_stride Bytes between the gradient rows of consecutive key tokens.
  *  @param[in] tasks_begin First task of a window over the segments × key-value heads grid.
@@ -135,9 +134,8 @@ template <numeric_dtype in_type_>
 status_t attention_packed_gradients(
     in_type_ const *queries, void const *key_value_packed, f32_t const *output, f32_t const *output_gradient,
     f32_t const *log_sum_exp, f32_t *query_gradient, f32_t *key_gradient, f32_t *value_gradient, std::size_t head_count,
-    std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *query_offsets,
-    std::uint32_t const *key_offsets, std::size_t queries_stride, std::size_t output_stride,
-    std::size_t query_gradient_stride, std::size_t key_value_gradient_stride, f32_t scale,
+    std::size_t key_value_head_count, std::size_t depth, std::uint32_t const *query_offsets, std::size_t queries_stride,
+    std::size_t output_stride, std::size_t query_gradient_stride, std::size_t key_value_gradient_stride, f32_t scale,
     std::size_t keys_before = std::numeric_limits<std::size_t>::max(),
     std::size_t keys_after = std::numeric_limits<std::size_t>::max(), std::size_t tasks_begin = 0,
     std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
@@ -154,11 +152,11 @@ status_t attention_packed_gradients(
             return static_cast<status_t>(nk_attention_packed_gradients_bf16_best(
                 queries_raw, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
                 key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
-                key_offsets, queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride,
-                scale.raw_, keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
+                queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_,
+                keys_before, keys_after, tasks_begin, tasks_end, capabilities, stream));
         return static_cast<status_t>(nk_attention_packed_gradients_bf16_serial(
             queries_raw, key_value_packed, output_raw, output_gradient_raw, log_sum_exp_raw, query_gradient_raw,
-            key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets, key_offsets,
+            key_gradient_raw, value_gradient_raw, head_count, key_value_head_count, depth, query_offsets,
             queries_stride, output_stride, query_gradient_stride, key_value_gradient_stride, scale.raw_, keys_before,
             keys_after, tasks_begin, tasks_end, stream));
     }
@@ -245,13 +243,13 @@ status_t attention_shapes_(tensor_view<value_type_, max_rank_> queries,
     if (queries.extent(2) != key_value_packed.depth() ||
         queries.extent(1) % key_value_packed.key_value_head_count() != 0)
         return status_t::unexpected_dimensions_k;
-    if (key_value_packed.segment_offsets()[key_value_packed.segment_count()] > queries.extent(0))
+    if (key_value_packed.key_offsets()[key_value_packed.segment_count()] > queries.extent(0))
         return status_t::unexpected_dimensions_k;
     return status_t::success_k;
 }
 
 /** Self-attention of @b [tokens,heads,depth] @p queries against @p key_value_packed, whose
- *  pack-time segment offsets split the query tokens too, under the @p keys_before, @p keys_after
+ *  pack-time key offsets split the query tokens too, under the @p keys_before, @p keys_after
  *  band; @c unexpected_dimensions_k when the shapes disagree. The raw-pointer overload covers
  *  cross-attention and pooling. */
 template <numeric_dtype value_type_, std::size_t max_rank_, typename allocator_type_>
@@ -265,7 +263,7 @@ status_t attention_packed(tensor_view<value_type_, max_rank_> queries,
     if (status_t status = attention_shapes_(queries, key_value_packed, output); failed(status)) return status;
     return attention_packed<value_type_>(
         queries.data(), key_value_packed.data(), output.data(), nullptr, queries.extent(1),
-        key_value_packed.key_value_head_count(), key_value_packed.depth(), key_value_packed.segment_offsets().data(),
+        key_value_packed.key_value_head_count(), key_value_packed.depth(), key_value_packed.key_offsets().data(),
         static_cast<std::size_t>(queries.stride_bytes(0)), static_cast<std::size_t>(output.stride_bytes(0)), scale,
         keys_before, keys_after, 0, std::numeric_limits<std::size_t>::max(), capabilities, stream);
 }

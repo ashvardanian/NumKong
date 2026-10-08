@@ -10,106 +10,107 @@
 #define NUMKONG_SPARSE_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_bf16_to_f32_`, `nk_assign_from_to_`
+#include "numkong/cast/serial.h" // `nk_bf16_to_f32_serial_`, `nk_assign_from_to_`
 
 #if defined(__cplusplus)
 extern "C" {
 #endif
 
-#define nk_define_sparse_intersect_helpers_(input_type)                                                               \
-    NUMKONG_INLINE nk_size_t nk_sparse_intersect_##input_type##_galloping_search_(                                    \
-        nk_##input_type##_t const *array, nk_size_t start, nk_size_t length, nk_##input_type##_t val) {               \
-        nk_size_t low = start;                                                                                        \
-        nk_size_t high = start + 1 < length ? start + 1 : length;                                                     \
-        if (low >= high) return length; /* `start == length` would otherwise read `array[length]` */                  \
-        while (high < length && array[high] < val) {                                                                  \
-            low = high;                                                                                               \
-            high = (2 * high < length) ? 2 * high : length;                                                           \
-        }                                                                                                             \
-        while (low < high) {                                                                                          \
-            nk_size_t mid = low + (high - low) / 2;                                                                   \
-            if (array[mid] < val) { low = mid + 1; }                                                                  \
-            else { high = mid; }                                                                                      \
-        }                                                                                                             \
-        return low;                                                                                                   \
-    }                                                                                                                 \
-    NUMKONG_INLINE nk_size_t nk_sparse_intersect_##input_type##_linear_scan_(                                         \
-        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t a_length, nk_size_t b_length,           \
-        nk_##input_type##_t *result) {                                                                                \
-        nk_size_t intersection_size = 0;                                                                              \
-        nk_size_t i = 0, j = 0;                                                                                       \
-        while (i != a_length && j != b_length) {                                                                      \
-            nk_##input_type##_t ai = a[i];                                                                            \
-            nk_##input_type##_t bj = b[j];                                                                            \
-            if (ai == bj) {                                                                                           \
-                if (result) result[intersection_size] = ai;                                                           \
-                intersection_size++;                                                                                  \
-            }                                                                                                         \
-            i += ai <= bj;                                                                                            \
-            j += ai >= bj;                                                                                            \
-        }                                                                                                             \
-        return intersection_size;                                                                                     \
-    }                                                                                                                 \
-    /* Whether @p indices strictly ascend, so they are sorted and unique */                                           \
-    NUMKONG_CONSTEXPR int nk_sparse_ascending_##input_type##_(nk_##input_type##_t const *indices, nk_size_t length) { \
-        for (nk_size_t index = 1; index < length; ++index)                                                            \
-            if (indices[index - 1] >= indices[index]) return 0;                                                       \
-        return 1;                                                                                                     \
-    }                                                                                                                 \
-    /* Intersects two ascending index arrays, merging or galloping through the longer one. */                         \
-    NUMKONG_INLINE void nk_sparse_intersect_##input_type##_(                                                          \
-        nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,              \
-        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                     \
-        nk_assert_(nk_sparse_ascending_##input_type##_(shorter, shorter_length) &&                                    \
-                   nk_sparse_ascending_##input_type##_(longer, longer_length));                                       \
-        /* Swap arrays if necessary, as we want "longer" to be larger than "shorter" */                               \
-        if (longer_length < shorter_length) {                                                                         \
-            nk_##input_type##_t const *temp = shorter;                                                                \
-            shorter = longer;                                                                                         \
-            longer = temp;                                                                                            \
-            nk_size_t temp_length = shorter_length;                                                                   \
-            shorter_length = longer_length;                                                                           \
-            longer_length = temp_length;                                                                              \
-        }                                                                                                             \
-                                                                                                                      \
-        /* Use the accurate implementation if galloping is not beneficial */                                          \
-        if (longer_length < 64 * shorter_length) {                                                                    \
-            *count = nk_sparse_intersect_##input_type##_linear_scan_(shorter, longer, shorter_length, longer_length,  \
-                                                                     result);                                         \
-            return;                                                                                                   \
-        }                                                                                                             \
-                                                                                                                      \
-        /* Perform galloping, shrinking the target range */                                                           \
-        nk_size_t intersection_size = 0;                                                                              \
-        nk_size_t j = 0;                                                                                              \
-        for (nk_size_t i = 0; i < shorter_length; ++i) {                                                              \
-            nk_##input_type##_t shorter_i = shorter[i];                                                               \
-            j = nk_sparse_intersect_##input_type##_galloping_search_(longer, j, longer_length, shorter_i);            \
-            if (j < longer_length && longer[j] == shorter_i) {                                                        \
-                if (result) result[intersection_size] = shorter_i;                                                    \
-                intersection_size++;                                                                                  \
-            }                                                                                                         \
-        }                                                                                                             \
-        *count = intersection_size;                                                                                   \
+#define nk_define_sparse_intersect_helpers_(input_type)                                                           \
+    NUMKONG_INLINE nk_size_t nk_sparse_intersect_##input_type##_galloping_search_serial_(                         \
+        nk_##input_type##_t const *array, nk_size_t start, nk_size_t length, nk_##input_type##_t val) {           \
+        nk_size_t low = start;                                                                                    \
+        nk_size_t high = start + 1 < length ? start + 1 : length;                                                 \
+        if (low >= high) return length; /* `start == length` would otherwise read `array[length]` */              \
+        while (high < length && array[high] < val) {                                                              \
+            low = high;                                                                                           \
+            high = (2 * high < length) ? 2 * high : length;                                                       \
+        }                                                                                                         \
+        while (low < high) {                                                                                      \
+            nk_size_t mid = low + (high - low) / 2;                                                               \
+            if (array[mid] < val) { low = mid + 1; }                                                              \
+            else { high = mid; }                                                                                  \
+        }                                                                                                         \
+        return low;                                                                                               \
+    }                                                                                                             \
+    NUMKONG_INLINE nk_size_t nk_sparse_intersect_##input_type##_linear_scan_serial_(                              \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t a_length, nk_size_t b_length,       \
+        nk_##input_type##_t *result) {                                                                            \
+        nk_size_t intersection_size = 0;                                                                          \
+        nk_size_t i = 0, j = 0;                                                                                   \
+        while (i != a_length && j != b_length) {                                                                  \
+            nk_##input_type##_t ai = a[i];                                                                        \
+            nk_##input_type##_t bj = b[j];                                                                        \
+            if (ai == bj) {                                                                                       \
+                if (result) result[intersection_size] = ai;                                                       \
+                intersection_size++;                                                                              \
+            }                                                                                                     \
+            i += ai <= bj;                                                                                        \
+            j += ai >= bj;                                                                                        \
+        }                                                                                                         \
+        return intersection_size;                                                                                 \
+    }                                                                                                             \
+    /* Whether @p indices strictly ascend, so they are sorted and unique */                                       \
+    NUMKONG_CONSTEXPR int nk_sparse_ascending_##input_type##_serial_(nk_##input_type##_t const *indices,          \
+                                                                     nk_size_t length) {                          \
+        for (nk_size_t index = 1; index < length; ++index)                                                        \
+            if (indices[index - 1] >= indices[index]) return 0;                                                   \
+        return 1;                                                                                                 \
+    }                                                                                                             \
+    /* Intersects two ascending index arrays, merging or galloping through the longer one. */                     \
+    NUMKONG_INLINE void nk_sparse_intersect_##input_type##_serial_(                                               \
+        nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,          \
+        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count) {                                 \
+        nk_assert_(nk_sparse_ascending_##input_type##_serial_(shorter, shorter_length) &&                         \
+                   nk_sparse_ascending_##input_type##_serial_(longer, longer_length));                            \
+        /* Swap arrays if necessary, as we want "longer" to be larger than "shorter" */                           \
+        if (longer_length < shorter_length) {                                                                     \
+            nk_##input_type##_t const *temp = shorter;                                                            \
+            shorter = longer;                                                                                     \
+            longer = temp;                                                                                        \
+            nk_size_t temp_length = shorter_length;                                                               \
+            shorter_length = longer_length;                                                                       \
+            longer_length = temp_length;                                                                          \
+        }                                                                                                         \
+                                                                                                                  \
+        /* Use the accurate implementation if galloping is not beneficial */                                      \
+        if (longer_length < 64 * shorter_length) {                                                                \
+            *count = nk_sparse_intersect_##input_type##_linear_scan_serial_(shorter, longer, shorter_length,      \
+                                                                            longer_length, result);               \
+            return;                                                                                               \
+        }                                                                                                         \
+                                                                                                                  \
+        /* Perform galloping, shrinking the target range */                                                       \
+        nk_size_t intersection_size = 0;                                                                          \
+        nk_size_t j = 0;                                                                                          \
+        for (nk_size_t i = 0; i < shorter_length; ++i) {                                                          \
+            nk_##input_type##_t shorter_i = shorter[i];                                                           \
+            j = nk_sparse_intersect_##input_type##_galloping_search_serial_(longer, j, longer_length, shorter_i); \
+            if (j < longer_length && longer[j] == shorter_i) {                                                    \
+                if (result) result[intersection_size] = shorter_i;                                                \
+                intersection_size++;                                                                              \
+            }                                                                                                     \
+        }                                                                                                         \
+        *count = intersection_size;                                                                               \
     }
 
-#define nk_define_sparse_intersect_(input_type)                                                             \
-    NUMKONG_API nk_status_t nk_sparse_intersect_##input_type##_serial(                                      \
-        nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,    \
-        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count, nk_stream_t stream) {       \
-        nk_assert_(stream == NUMKONG_NULL);                                                                 \
-        nk_sparse_intersect_##input_type##_(shorter, longer, shorter_length, longer_length, result, count); \
-        return nk_success_k;                                                                                \
+#define nk_define_sparse_intersect_(input_type)                                                                    \
+    NUMKONG_API nk_status_t nk_sparse_intersect_##input_type##_serial(                                             \
+        nk_##input_type##_t const *shorter, nk_##input_type##_t const *longer, nk_size_t shorter_length,           \
+        nk_size_t longer_length, nk_##input_type##_t *result, nk_size_t *count, nk_stream_t stream) {              \
+        nk_assert_(stream == NUMKONG_NULL);                                                                        \
+        nk_sparse_intersect_##input_type##_serial_(shorter, longer, shorter_length, longer_length, result, count); \
+        return nk_success_k;                                                                                       \
     }
 
 #define nk_define_sparse_dot_helpers_(input_type, weight_type, accumulator_type, load_and_convert)         \
     /* Sums the weight products over the indices two ascending index arrays share. */                      \
-    NUMKONG_INLINE void nk_sparse_dot_##input_type##weight_type##_(                                        \
+    NUMKONG_INLINE void nk_sparse_dot_##input_type##weight_type##_serial_(                                 \
         nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights, \
         nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                     \
         nk_##accumulator_type##_t *product) {                                                              \
-        nk_assert_(nk_sparse_ascending_##input_type##_(a, a_length) &&                                     \
-                   nk_sparse_ascending_##input_type##_(b, b_length));                                      \
+        nk_assert_(nk_sparse_ascending_##input_type##_serial_(a, a_length) &&                              \
+                   nk_sparse_ascending_##input_type##_serial_(b, b_length));                               \
         nk_##accumulator_type##_t weights_product = 0, awi, bwi;                                           \
         nk_size_t i = 0, j = 0;                                                                            \
         while (i != a_length && j != b_length) {                                                           \
@@ -125,20 +126,20 @@ extern "C" {
         *product = weights_product;                                                                        \
     }
 
-#define nk_define_sparse_dot_(input_type, weight_type, accumulator_type)                                     \
-    NUMKONG_API nk_status_t nk_sparse_dot_##input_type##weight_type##_serial(                                \
-        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights,   \
-        nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                       \
-        nk_##accumulator_type##_t *product, nk_stream_t stream) {                                            \
-        nk_assert_(stream == NUMKONG_NULL);                                                                  \
-        nk_sparse_dot_##input_type##weight_type##_(a, b, a_weights, b_weights, a_length, b_length, product); \
-        return nk_success_k;                                                                                 \
+#define nk_define_sparse_dot_(input_type, weight_type, accumulator_type)                                            \
+    NUMKONG_API nk_status_t nk_sparse_dot_##input_type##weight_type##_serial(                                       \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_##weight_type##_t const *a_weights,          \
+        nk_##weight_type##_t const *b_weights, nk_size_t a_length, nk_size_t b_length,                              \
+        nk_##accumulator_type##_t *product, nk_stream_t stream) {                                                   \
+        nk_assert_(stream == NUMKONG_NULL);                                                                         \
+        nk_sparse_dot_##input_type##weight_type##_serial_(a, b, a_weights, b_weights, a_length, b_length, product); \
+        return nk_success_k;                                                                                        \
     }
 
 nk_define_sparse_intersect_helpers_(u16)
 nk_define_sparse_intersect_helpers_(u32)
 nk_define_sparse_intersect_helpers_(u64)
-nk_define_sparse_dot_helpers_(u16, bf16, f32, nk_bf16_to_f32_)
+nk_define_sparse_dot_helpers_(u16, bf16, f32, nk_bf16_to_f32_serial_)
 nk_define_sparse_dot_helpers_(u32, f32, f64, nk_assign_from_to_)
 
 #if NUMKONG_TARGET_SERIAL

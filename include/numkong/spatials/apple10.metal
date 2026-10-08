@@ -468,7 +468,7 @@ kernel void nk_euclideans_u4_apple10_kernel_(device uchar const *a [[buffer(0)]]
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
 }
 
-kernel void nk_angulars_i4_apple10_small_kernel_(device uchar const *a [[buffer(0)]],
+kernel void nk_angulars_small_i4_apple10_kernel_(device uchar const *a [[buffer(0)]],
                                                  device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
                                                  constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                                  uint2 group [[threadgroup_position_in_grid]],
@@ -481,7 +481,7 @@ kernel void nk_angulars_i4_apple10_small_kernel_(device uchar const *a [[buffer(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
 }
 
-kernel void nk_angulars_u4_apple10_small_kernel_(device uchar const *a [[buffer(0)]],
+kernel void nk_angulars_small_u4_apple10_kernel_(device uchar const *a [[buffer(0)]],
                                                  device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
                                                  constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                                  uint2 group [[threadgroup_position_in_grid]],
@@ -494,7 +494,7 @@ kernel void nk_angulars_u4_apple10_small_kernel_(device uchar const *a [[buffer(
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
 }
 
-kernel void nk_euclideans_i4_apple10_small_kernel_(device uchar const *a [[buffer(0)]],
+kernel void nk_euclideans_small_i4_apple10_kernel_(device uchar const *a [[buffer(0)]],
                                                    device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
                                                    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                                    uint2 group [[threadgroup_position_in_grid]],
@@ -507,7 +507,7 @@ kernel void nk_euclideans_i4_apple10_small_kernel_(device uchar const *a [[buffe
         a, b, c, arguments, group, thread_index, a_stage, b_stage, norms);
 }
 
-kernel void nk_euclideans_u4_apple10_small_kernel_(device uchar const *a [[buffer(0)]],
+kernel void nk_euclideans_small_u4_apple10_kernel_(device uchar const *a [[buffer(0)]],
                                                    device uchar const *b [[buffer(1)]], device float *c [[buffer(2)]],
                                                    constant nk_cross_arguments_metal_t &arguments [[buffer(3)]],
                                                    uint2 group [[threadgroup_position_in_grid]],

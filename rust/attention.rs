@@ -29,14 +29,18 @@
 //! let values = keys.clone().unwrap();
 //! let offsets = [0u32, tokens as u32];
 //!
-//! let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
+//! let kv = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
 //! let outputs = kv.attention(&keys.view(), &offsets, None, usize::MAX, usize::MAX).unwrap();
 //! ```
 //!
 //! File: rust/attention.rs
 //! Author: Ash Vardanian
 
-use core::{ffi::c_void, marker::PhantomData, ptr::null_mut};
+use core::{
+    ffi::c_void,
+    marker::PhantomData,
+    ptr::{null, null_mut},
+};
 
 #[cfg(feature = "parallel")]
 use forkunion as fu;
@@ -46,7 +50,6 @@ use crate::{
     scalar::Roots,
     tensor::{Allocator, Error, Global, PackedBuffer, Tensor, TensorMut, TensorRef},
     types::{bf16, e4m3, f16, StorageElement},
-    vector::Vector,
 };
 
 #[cfg(feature = "parallel")]
@@ -69,8 +72,8 @@ extern "C" {
         values: *const bf16,
         heads: nk_size_t,
         depth: nk_size_t,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: nk_size_t,
         key_stride: nk_size_t,
         value_stride: nk_size_t,
@@ -112,7 +115,6 @@ extern "C" {
         key_value_head_count: nk_size_t,
         depth: nk_size_t,
         query_offsets: *const u32,
-        key_offsets: *const u32,
         query_stride: nk_size_t,
         output_stride: nk_size_t,
         query_gradient_stride: nk_size_t,
@@ -139,8 +141,8 @@ extern "C" {
         values: *const f16,
         heads: nk_size_t,
         depth: nk_size_t,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: nk_size_t,
         key_stride: nk_size_t,
         value_stride: nk_size_t,
@@ -183,8 +185,8 @@ extern "C" {
         values: *const e4m3,
         heads: nk_size_t,
         depth: nk_size_t,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: nk_size_t,
         key_stride: nk_size_t,
         value_stride: nk_size_t,
@@ -227,8 +229,8 @@ extern "C" {
         values: *const i8,
         heads: nk_size_t,
         depth: nk_size_t,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: nk_size_t,
         key_stride: nk_size_t,
         value_stride: nk_size_t,
@@ -260,7 +262,7 @@ extern "C" {
 
     fn nk_attention_packed_shape_bf16_best(
         packed: *const u8,
-        heads: *mut nk_size_t,
+        key_value_head_count: *mut nk_size_t,
         depth: *mut nk_size_t,
         segments: *mut nk_size_t,
         capabilities: nk_capability_t,
@@ -268,7 +270,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_packed_shape_f16_best(
         packed: *const u8,
-        heads: *mut nk_size_t,
+        key_value_head_count: *mut nk_size_t,
         depth: *mut nk_size_t,
         segments: *mut nk_size_t,
         capabilities: nk_capability_t,
@@ -276,7 +278,7 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_packed_shape_e4m3_best(
         packed: *const u8,
-        heads: *mut nk_size_t,
+        key_value_head_count: *mut nk_size_t,
         depth: *mut nk_size_t,
         segments: *mut nk_size_t,
         capabilities: nk_capability_t,
@@ -284,11 +286,17 @@ extern "C" {
     ) -> nk_status_t;
     fn nk_attention_packed_shape_i8_best(
         packed: *const u8,
-        heads: *mut nk_size_t,
+        key_value_head_count: *mut nk_size_t,
         depth: *mut nk_size_t,
         segments: *mut nk_size_t,
         capabilities: nk_capability_t,
         stream: *mut c_void,
+    ) -> nk_status_t;
+    fn nk_attention_packed_segments(
+        key_value_packed: *const u8,
+        segment_count: nk_size_t,
+        key_offsets: *mut *const u32,
+        key_lengths: *mut *const u32,
     ) -> nk_status_t;
     fn nk_attention_rope_f32_best(
         x: *const f32,
@@ -358,7 +366,9 @@ pub trait Attention: StorageElement + Clone {
     /// Pack a window of the `(segment, kv_head)` task grid into the KV-cache blob.
     /// # Safety
     /// - `k` / `v` must point to token matrices with `key_stride` / `value_stride` byte
-    ///   rows covering every token addressed by `segment_offsets` + `segment_lengths`
+    ///   rows covering every token addressed by `key_offsets` + `key_lengths`
+    /// - `key_offsets` holds `segment_count + 1` non-decreasing slot boundaries, and `key_lengths`
+    ///   is null or holds one count per segment, at most its slot's width
     /// - `key_value_packed` must have at least `attention_pack_size(..)` bytes
     ///
     /// Windows run in any order: the one starting at task 0 also writes the header and directory,
@@ -369,8 +379,8 @@ pub trait Attention: StorageElement + Clone {
         values: *const Self,
         heads: usize,
         depth: usize,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: usize,
         key_stride: usize,
         value_stride: usize,
@@ -453,8 +463,8 @@ impl Attention for bf16 {
         values: *const Self,
         heads: usize,
         depth: usize,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: usize,
         key_stride: usize,
         value_stride: usize,
@@ -468,8 +478,8 @@ impl Attention for bf16 {
                 values,
                 heads,
                 depth,
-                segment_offsets,
-                segment_lengths,
+                key_offsets,
+                key_lengths,
                 segment_count,
                 key_stride,
                 value_stride,
@@ -533,11 +543,11 @@ impl bf16 {
     /// `output` and `log_sum_exp` are the forward's results. The query gradient holds one row of
     /// `head_count * depth` values per query token, spaced `query_gradient_stride` bytes apart. Key
     /// and value gradients hold one row of `heads * depth` values per key token at
-    /// `key_offsets[segment] + token`, spaced `key_value_gradient_stride` bytes apart; rows past a
-    /// segment's live keys are never written, and all others are overwritten.
+    /// `key_offsets[segment] + token` of the offsets the cache was packed with, spaced
+    /// `key_value_gradient_stride` bytes apart; rows past a segment's key count are never written,
+    /// and all others are overwritten.
     /// # Safety
     /// - the forward's safety contract holds for `queries`, `key_value_packed` and `query_offsets`
-    /// - `key_offsets` must be the segment offsets the cache was packed with
     /// - every gradient buffer must be writable for its extent, and `output` and `output_gradient`
     ///   share `output_stride`
     #[allow(clippy::too_many_arguments)]
@@ -554,7 +564,6 @@ impl bf16 {
         heads: usize,
         depth: usize,
         query_offsets: *const u32,
-        key_offsets: *const u32,
         query_stride: usize,
         output_stride: usize,
         query_gradient_stride: usize,
@@ -579,7 +588,6 @@ impl bf16 {
                 heads,
                 depth,
                 query_offsets,
-                key_offsets,
                 query_stride,
                 output_stride,
                 query_gradient_stride,
@@ -638,8 +646,8 @@ impl Attention for f16 {
         values: *const Self,
         heads: usize,
         depth: usize,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: usize,
         key_stride: usize,
         value_stride: usize,
@@ -653,8 +661,8 @@ impl Attention for f16 {
                 values,
                 heads,
                 depth,
-                segment_offsets,
-                segment_lengths,
+                key_offsets,
+                key_lengths,
                 segment_count,
                 key_stride,
                 value_stride,
@@ -751,8 +759,8 @@ impl Attention for e4m3 {
         values: *const Self,
         heads: usize,
         depth: usize,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: usize,
         key_stride: usize,
         value_stride: usize,
@@ -766,8 +774,8 @@ impl Attention for e4m3 {
                 values,
                 heads,
                 depth,
-                segment_offsets,
-                segment_lengths,
+                key_offsets,
+                key_lengths,
                 segment_count,
                 key_stride,
                 value_stride,
@@ -864,8 +872,8 @@ impl Attention for i8 {
         values: *const Self,
         heads: usize,
         depth: usize,
-        segment_offsets: *const u32,
-        segment_lengths: *const u32,
+        key_offsets: *const u32,
+        key_lengths: *const u32,
         segment_count: usize,
         key_stride: usize,
         value_stride: usize,
@@ -879,8 +887,8 @@ impl Attention for i8 {
                 values,
                 heads,
                 depth,
-                segment_offsets,
-                segment_lengths,
+                key_offsets,
+                key_lengths,
                 segment_count,
                 key_stride,
                 value_stride,
@@ -946,12 +954,6 @@ impl Attention for i8 {
 #[derive(Debug)]
 pub struct AttentionPackedMatrix<Scalar: Attention, Alloc: Allocator = Global> {
     buffer: PackedBuffer<Alloc>,
-    /// Per-segment token counts, when the caller left them to be derived from the offsets.
-    ///
-    /// Held on this container's own allocator, and reused by every later pack, so a decode loop
-    /// that repacks each step does not allocate again — the same contract [`PackedBuffer`] offers
-    /// for the blob itself. Empty whenever the caller supplies the lengths directly.
-    derived_lengths: Vector<u32, Alloc>,
     heads: usize,
     depth: usize,
     segment_count: usize,
@@ -969,7 +971,6 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     pub fn clone(&self) -> Result<Self, Error> {
         Ok(Self {
             buffer: self.buffer.clone()?,
-            derived_lengths: self.derived_lengths.clone()?,
             heads: self.heads,
             depth: self.depth,
             segment_count: self.segment_count,
@@ -1067,16 +1068,35 @@ fn validate_offsets(offsets: &[u32], tokens: usize) -> Result<usize, Error> {
     Ok(offsets.len() - 1)
 }
 
+/// Validates that `key_lengths`, when given, holds one count per segment of `key_offsets`, none
+/// past its slot, and returns the keys across all segments.
+fn validate_lengths(key_offsets: &[u32], key_lengths: Option<&[u32]>) -> Result<usize, Error> {
+    let Some(lengths) = key_lengths else {
+        return Ok((key_offsets[key_offsets.len() - 1] - key_offsets[0]) as usize);
+    };
+    if lengths.len() + 1 != key_offsets.len() {
+        return Err(Error::DimensionMismatch {
+            expected: key_offsets.len() - 1,
+            got: lengths.len(),
+        });
+    }
+    for (pair, &length) in key_offsets.windows(2).zip(lengths) {
+        if length > pair[1] - pair[0] {
+            return Err(Error::InvalidShape {
+                axis: 0,
+                size: length as usize,
+                reason: "key lengths must fit between adjacent key offsets",
+            });
+        }
+    }
+    Ok(lengths.iter().map(|&length| length as usize).sum())
+}
+
 /// Everything a pack window needs once the geometry is validated and the buffer is sized.
-///
-/// `segment_lengths` is raw because it borrows the cache's own scratch while `destination` borrows
-/// its buffer; handing both back as pointers is what lets one `&mut self` call produce both, and it
-/// is the form the FFI consumes anyway.
 struct PackPlan {
     heads: usize,
     keys_stride: usize,
     values_stride: usize,
-    segment_lengths: *const u32,
     segment_count: usize,
     destination: *mut u8,
 }
@@ -1089,25 +1109,6 @@ struct QueryPlan {
     scale: f32,
 }
 
-/// Fill `storage` with the per-segment token counts implied by `segment_offsets`.
-///
-/// The offsets are cumulative, so each length is one first difference. `storage` grows through the
-/// cache's own allocator and keeps its capacity, so repeated packs of the same geometry reuse it
-/// without allocating.
-fn derive_segment_lengths<Alloc: Allocator>(
-    storage: &mut Vector<u32, Alloc>,
-    segment_offsets: &[u32],
-) -> Result<(), Error> {
-    // `validate_offsets` has already established at least two offsets, so this cannot underflow.
-    let segment_count = segment_offsets.len() - 1;
-    storage.reserve(segment_count)?;
-    storage.resize(segment_count)?;
-    for (slot, pair) in storage.as_mut_slice().iter_mut().zip(segment_offsets.windows(2)) {
-        *slot = pair[1] - pair[0];
-    }
-    Ok(())
-}
-
 impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, Alloc> {
     /// An empty cache that owns no allocation, holding only the given allocator.
     ///
@@ -1117,7 +1118,6 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     pub fn empty_in(alloc: Alloc) -> Self {
         Self {
             buffer: PackedBuffer::empty_in(alloc.clone()),
-            derived_lengths: Vector::empty_in(alloc),
             heads: 0,
             depth: 0,
             segment_count: 0,
@@ -1131,7 +1131,8 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
         keys: &KeysTensor,
         values: &ValuesTensor,
         depth: usize,
-        segment_offsets: &[u32],
+        key_offsets: &[u32],
+        key_lengths: Option<&[u32]>,
         alloc: Alloc,
     ) -> Result<Self, Error>
     where
@@ -1139,7 +1140,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
         ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let mut cache = Self::empty_in(alloc);
-        cache.pack_into(keys, values, depth, segment_offsets)?;
+        cache.pack_into(keys, values, depth, key_offsets, key_lengths)?;
         Ok(cache)
     }
 
@@ -1149,15 +1150,16 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     /// forward step with no further allocation. Packing overwrites, so a grow discards the old
     /// contents rather than copying them.
     ///
-    /// Per-segment token counts are derived from `segment_offsets` into storage this cache owns on
-    /// its own allocator, reused by every later pack, so the derivation costs no allocation after
-    /// the first call.
+    /// `key_offsets` holds the `segment_count + 1` boundaries of the segments' key slots, and
+    /// `key_lengths`, when given, how many keys each slot holds, at most its width; `None` fills
+    /// every slot.
     pub fn pack_into<KeysTensor, ValuesTensor, const MAX_RANK: usize>(
         &mut self,
         keys: &KeysTensor,
         values: &ValuesTensor,
         depth: usize,
-        segment_offsets: &[u32],
+        key_offsets: &[u32],
+        key_lengths: Option<&[u32]>,
     ) -> Result<(), Error>
     where
         KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
@@ -1167,10 +1169,9 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
             heads,
             keys_stride,
             values_stride,
-            segment_lengths,
             segment_count,
             destination,
-        }) = self.prepare_pack(keys, values, depth, segment_offsets)?
+        }) = self.prepare_pack(keys, values, depth, key_offsets, key_lengths)?
         else {
             return Ok(());
         };
@@ -1183,8 +1184,8 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
                 values.as_ptr(),
                 heads,
                 depth,
-                segment_offsets.as_ptr(),
-                segment_lengths,
+                key_offsets.as_ptr(),
+                key_lengths.map_or(core::ptr::null(), <[u32]>::as_ptr),
                 segment_count,
                 keys_stride,
                 values_stride,
@@ -1198,14 +1199,14 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     /// Pre-grow the cache to hold the given ragged geometry, so a later `pack_into` that fits
     /// stays allocation-free with a stable pointer — allocate once at layer-init for the maximum
     /// sequence length, then refresh every decode step with no further allocation.
-    /// `segment_lengths` carries one token count per segment.
-    pub fn reserve(&mut self, heads: usize, depth: usize, segment_lengths: &[u32]) -> Result<(), Error> {
-        let token_count = segment_lengths.iter().map(|&length| length as usize).sum();
+    /// `key_lengths` carries one token count per segment.
+    pub fn reserve(&mut self, heads: usize, depth: usize, key_lengths: &[u32]) -> Result<(), Error> {
+        let token_count = key_lengths.iter().map(|&length| length as usize).sum();
         self.buffer.reserve(Scalar::attention_pack_size(
             heads,
             depth,
             token_count,
-            segment_lengths.len(),
+            key_lengths.len(),
         )?)
     }
 
@@ -1269,7 +1270,7 @@ impl<Scalar: Attention, Alloc: Allocator + Clone> AttentionPackedMatrix<Scalar, 
     /// short to hold one. Unlike the dots packed matrix, the attention blob records its own shape,
     /// so no caller-supplied dimensions are needed.
     ///
-    /// Reads via the C `nk_attention_packed_shape_<dtype>` accessor for this cache's scalar type.
+    /// Reads via the C `nk_attention_packed_shape_serial_<dtype>` accessor for this scalar type.
     pub fn peek_shape(packed: &[u8]) -> Result<(usize, usize, usize), Error> {
         if packed.len() < 12 {
             return Err(Error::InvalidShape {
@@ -1342,13 +1343,14 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
         keys: &KeysTensor,
         values: &ValuesTensor,
         depth: usize,
-        segment_offsets: &[u32],
+        key_offsets: &[u32],
+        key_lengths: Option<&[u32]>,
     ) -> Result<Self, Error>
     where
         KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
-        Self::new_in(keys, values, depth, segment_offsets, Global)
+        Self::new_in(keys, values, depth, key_offsets, key_lengths, Global)
     }
 }
 
@@ -1384,23 +1386,22 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         keys: &KeysTensor,
         values: &ValuesTensor,
         depth: usize,
-        segment_offsets: &[u32],
+        key_offsets: &[u32],
+        key_lengths: Option<&[u32]>,
     ) -> Result<Option<PackPlan>, Error>
     where
         KeysTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
         ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let (tokens, heads, keys_stride, values_stride) = validate_attention_views(keys, values, depth)?;
-        let segment_count = validate_offsets(segment_offsets, tokens)?;
-        derive_segment_lengths(&mut self.derived_lengths, segment_offsets)?;
-
-        let token_count = (segment_offsets[segment_count] - segment_offsets[0]) as usize;
+        let segment_count = validate_offsets(key_offsets, tokens)?;
+        let token_count = validate_lengths(key_offsets, key_lengths)?;
         let size = Scalar::attention_pack_size(heads, depth, token_count, segment_count)?;
         let destination = self.buffer.reset_for_pack(size)?;
         self.heads = heads;
         self.depth = depth;
         self.segment_count = segment_count;
-        self.total_tokens = segment_offsets[segment_count] as usize;
+        self.total_tokens = token_count;
         if size == 0 {
             return Ok(None);
         }
@@ -1408,7 +1409,6 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
             heads,
             keys_stride,
             values_stride,
-            segment_lengths: self.derived_lengths.as_ptr(),
             segment_count,
             destination,
         }))
@@ -1488,7 +1488,7 @@ fn attention_row_cost(row: usize, queries: usize, keys: usize, keys_before: usiz
 #[cfg(feature = "parallel")]
 fn attention_windows(
     query_offsets: &[u32],
-    segment_lengths: &[u32],
+    key_lengths: &[u32],
     head_count: usize,
     keys_before: usize,
     keys_after: usize,
@@ -1496,7 +1496,7 @@ fn attention_windows(
 ) {
     let window_count = bounds.len() - 1;
     let heads = head_count as u64;
-    let segments = || query_offsets.windows(2).zip(segment_lengths);
+    let segments = || query_offsets.windows(2).zip(key_lengths);
     let mut total = 0u64;
     for (pair, &keys) in segments() {
         let queries = (pair[1] - pair[0]) as usize;
@@ -1533,11 +1533,16 @@ fn attention_windows(
 #[cfg(feature = "parallel")]
 #[cfg_attr(docsrs, doc(cfg(feature = "parallel")))]
 impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
-    /// Key counts of the packed segments, which every pack's directory keeps past its 64-byte
-    /// header and `segments + 1` payload offsets.
+    /// Key counts of the packed segments, located by the C accessor so that blobs adopted from
+    /// bytes read the same as ones packed here.
     fn packed_lengths(&self) -> &[u32] {
-        let offset = 64 + (self.segment_count + 1) * core::mem::size_of::<u64>();
-        unsafe { core::slice::from_raw_parts(self.buffer.as_ptr().add(offset) as *const u32, self.segment_count) }
+        let (mut offsets, mut lengths) = (null(), null());
+        unsafe {
+            let status =
+                nk_attention_packed_segments(self.buffer.as_ptr(), self.segment_count, &mut offsets, &mut lengths);
+            debug_assert!(status.check().is_ok());
+            core::slice::from_raw_parts(lengths, self.segment_count)
+        }
     }
 
     /// Ragged attention parallelized over the `(query token, head)` task grid with a ForkUnion
@@ -1658,7 +1663,8 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
         keys: &KeysTensor,
         values: &ValuesTensor,
         depth: usize,
-        segment_offsets: &[u32],
+        key_offsets: &[u32],
+        key_lengths: Option<&[u32]>,
         pool: &mut fu::ThreadPool,
     ) -> Result<(), Error>
     where
@@ -1669,18 +1675,17 @@ impl<Scalar: Attention, Alloc: Allocator> AttentionPackedMatrix<Scalar, Alloc> {
             heads,
             keys_stride,
             values_stride,
-            segment_lengths,
             segment_count,
             destination,
-        }) = self.prepare_pack(keys, values, depth, segment_offsets)?
+        }) = self.prepare_pack(keys, values, depth, key_offsets, key_lengths)?
         else {
             return Ok(());
         };
 
         let keys_ptr = fu::SyncConstPtr::new(keys.as_ptr());
         let values_ptr = fu::SyncConstPtr::new(values.as_ptr());
-        let offsets_ptr = fu::SyncConstPtr::new(segment_offsets.as_ptr());
-        let lengths_ptr = fu::SyncConstPtr::new(segment_lengths);
+        let offsets_ptr = fu::SyncConstPtr::new(key_offsets.as_ptr());
+        let lengths_ptr = fu::SyncConstPtr::new(key_lengths.map_or(core::ptr::null(), <[u32]>::as_ptr));
         let packed_ptr = fu::SyncMutPtr::new(destination);
         let failure = WorkerStatus::default();
         let failure = &failure;
@@ -1719,7 +1724,8 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
         keys: &KeysTensor,
         values: &ValuesTensor,
         depth: usize,
-        segment_offsets: &[u32],
+        key_offsets: &[u32],
+        key_lengths: Option<&[u32]>,
         pool: &mut fu::ThreadPool,
     ) -> Result<Self, Error>
     where
@@ -1727,7 +1733,7 @@ impl<Scalar: Attention> AttentionPackedMatrix<Scalar, Global> {
         ValuesTensor: TensorRef<Scalar, MAX_RANK> + ?Sized,
     {
         let mut cache = Self::empty_in(Global);
-        cache.pack_parallel_into(keys, values, depth, segment_offsets, pool)?;
+        cache.pack_parallel_into(keys, values, depth, key_offsets, key_lengths, pool)?;
         Ok(cache)
     }
 }
@@ -1978,7 +1984,7 @@ mod tests {
         let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
         let values = keys.clone().unwrap();
         let offsets = [0u32, tokens as u32]; // one ragged segment
-        let cache = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
+        let cache = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
 
         // peek_shape reads the C-written header; it must agree with the cache's own getters and
         // its instance `shape()`.
@@ -2000,13 +2006,15 @@ mod tests {
         cache.reserve(heads, depth, &max_lengths).unwrap();
         let reserved_capacity = cache.capacity();
         let reserved_ptr = cache.as_ptr();
-        assert!(reserved_capacity >= AttentionPackedMatrix::<bf16>::pack_size(heads, depth, &max_lengths).unwrap());
+        assert!(reserved_capacity >= AttentionPackedMatrix::<bf16>::pack_size(heads, depth, 64, 1).unwrap());
 
         for tokens in [8usize, 33, 64] {
             let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
             let values = keys.clone().unwrap();
             let offsets = [0u32, tokens as u32];
-            cache.pack_into(&keys.view(), &values.view(), depth, &offsets).unwrap();
+            cache
+                .pack_into(&keys.view(), &values.view(), depth, &offsets, None)
+                .unwrap();
             assert_eq!(cache.shape(), (heads, depth, 1));
             assert_eq!(cache.capacity(), reserved_capacity, "reserved capacity must not change");
             assert_eq!(cache.as_ptr(), reserved_ptr, "reserved pointer must stay stable");
@@ -2020,11 +2028,27 @@ mod tests {
         let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
         let values = keys.clone().unwrap();
         let offsets = [0u32, tokens as u32];
-        let cache = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets).unwrap();
+        let cache = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &offsets, None).unwrap();
 
         let adopted = unsafe { AttentionPackedMatrix::<bf16>::from_packed_bytes_in(cache.as_bytes(), Global) }.unwrap();
         assert_eq!(adopted.shape(), cache.shape());
         assert_eq!(adopted.as_bytes(), cache.as_bytes());
+    }
+
+    #[test]
+    fn spare_slot_capacity_stays_out_of_the_pack() {
+        crate::capabilities::configure_cpu_thread().unwrap();
+        let (tokens, depth) = (10usize, 8usize);
+        let keys = Tensor::<bf16>::full(&[tokens, depth], bf16::from_f32(0.1)).unwrap();
+        let offsets = [0u32, tokens as u32];
+        let cache = AttentionPackedMatrix::new(&keys.view(), &keys.view(), depth, &offsets, Some(&[6u32])).unwrap();
+        assert_eq!(cache.tokens(), 6);
+        assert_eq!(
+            cache.as_bytes().len(),
+            AttentionPackedMatrix::<bf16>::pack_size(1, depth, 6, 1).unwrap()
+        );
+        assert!(AttentionPackedMatrix::new(&keys.view(), &keys.view(), depth, &offsets, Some(&[11u32])).is_err());
+        assert!(AttentionPackedMatrix::new(&keys.view(), &keys.view(), depth, &[0u32, 6, 3], None).is_err());
     }
 
     #[test]
@@ -2036,7 +2060,8 @@ mod tests {
             .flat_map(|token| core::iter::repeat(bf16::from_f32(token as f32)).take(depth))
             .collect();
         let values = Tensor::<bf16>::from_slice(&rows, &[tokens, depth]).unwrap();
-        let cache = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &[0u32, tokens as u32]).unwrap();
+        let cache =
+            AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &[0u32, tokens as u32], None).unwrap();
 
         // Equal scores weight every visible key alike, so a row is the mean index of its band.
         let bands = [(usize::MAX, usize::MAX), (usize::MAX, 0), (0, 0), (1, 0), (1, 2)];
@@ -2066,7 +2091,8 @@ mod tests {
             .flat_map(|token| core::iter::repeat(bf16::from_f32(token as f32)).take(depth))
             .collect();
         let values = Tensor::<bf16>::from_slice(&rows, &[tokens, depth]).unwrap();
-        let cache = AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &[0u32, tokens as u32]).unwrap();
+        let cache =
+            AttentionPackedMatrix::new(&keys.view(), &values.view(), depth, &[0u32, tokens as u32], None).unwrap();
         let query = Tensor::<bf16>::full(&[1, depth], bf16::from_f32(0.1)).unwrap();
 
         let causal = cache.attention(&query.view(), &[0u32, 1], None, usize::MAX, 0).unwrap();
@@ -2087,8 +2113,8 @@ mod tests {
         crate::capabilities::configure_cpu_thread().unwrap();
         let (heads, depth) = (2usize, 64usize);
         let offsets = [0u32, 7, 7, 40]; // three segments, including a 0-length pad (7..7)
-        let segment_lengths: Vec<u32> = offsets.windows(2).map(|pair| pair[1] - pair[0]).collect();
-        let segment_count = segment_lengths.len();
+        let key_lengths: Vec<u32> = offsets.windows(2).map(|pair| pair[1] - pair[0]).collect();
+        let segment_count = key_lengths.len();
         let tokens = *offsets.last().unwrap() as usize;
         let keys = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.1)).unwrap();
         let values = Tensor::<bf16>::full(&[tokens, heads * depth], bf16::from_f32(0.2)).unwrap();
@@ -2108,7 +2134,7 @@ mod tests {
                     heads,
                     depth,
                     offsets.as_ptr(),
-                    segment_lengths.as_ptr(),
+                    key_lengths.as_ptr(),
                     segment_count,
                     keys_stride,
                     values_stride,

@@ -30,21 +30,21 @@ extern "C" {
 #endif
 
 /** Broadcast f32 scalar into all 4 lanes of a 128-bit register (GCC/Clang portable). */
-NUMKONG_INLINE __m128 nk_xvreplgr2vr_s_128_(float x) {
+NUMKONG_INLINE __m128 nk_xvreplgr2vr_s_128_loongsonasx_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m128)__lsx_vreplgr2vr_w((int)c.u);
 }
 
 /** Broadcast f32 scalar into all 8 lanes of a 256-bit register (GCC/Clang portable). */
-NUMKONG_INLINE __m256 nk_xvfreplgr2vr_s_(float x) {
+NUMKONG_INLINE __m256 nk_xvfreplgr2vr_s_loongsonasx_(float x) {
     nk_fui32_t c;
     c.f = x;
     return (__m256)__lasx_xvreplgr2vr_w((int)c.u);
 }
 
 /** Broadcast f64 scalar into all 4 lanes of a 256-bit register (GCC/Clang portable). */
-NUMKONG_INLINE __m256d nk_xvfreplgr2vr_d_(double x) {
+NUMKONG_INLINE __m256d nk_xvfreplgr2vr_d_loongsonasx_(double x) {
     nk_fui64_t c;
     c.f = x;
     return (__m256d)__lasx_xvreplgr2vr_d((long long)c.u);
@@ -52,7 +52,7 @@ NUMKONG_INLINE __m256d nk_xvfreplgr2vr_d_(double x) {
 
 /** Reciprocal square root of @p x in the first lane of a full-precision @c xvfrsqrt.s. */
 NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_lane_loongsonasx_(nk_f32_t x) {
-    __m256 x_f32x8 = nk_xvfreplgr2vr_s_(x);
+    __m256 x_f32x8 = nk_xvfreplgr2vr_s_loongsonasx_(x);
     __m256 result_f32x8 = __lasx_xvfrsqrt_s(x_f32x8);
     nk_fui32_t c;
     c.u = (nk_u32_t)__lasx_xvpickve2gr_w((__m256i)result_f32x8, 0);
@@ -61,7 +61,7 @@ NUMKONG_INLINE nk_f32_t nk_f32_rsqrt_lane_loongsonasx_(nk_f32_t x) {
 
 /** Square root of @p x in the first lane of @c xvfsqrt.d. */
 NUMKONG_INLINE nk_f64_t nk_f64_sqrt_lane_loongsonasx_(nk_f64_t x) {
-    __m256d x_f64x4 = nk_xvfreplgr2vr_d_(x);
+    __m256d x_f64x4 = nk_xvfreplgr2vr_d_loongsonasx_(x);
     __m256d result_f64x4 = __lasx_xvfsqrt_d(x_f64x4);
     nk_fui64_t c;
     c.u = (nk_u64_t)__lasx_xvpickve2gr_du((__m256i)result_f64x4, 0);
@@ -71,7 +71,7 @@ NUMKONG_INLINE nk_f64_t nk_f64_sqrt_lane_loongsonasx_(nk_f64_t x) {
 NUMKONG_API nk_f32_t nk_f32_rsqrt_loongsonasx(nk_f32_t x) { return nk_f32_rsqrt_lane_loongsonasx_(x); }
 
 NUMKONG_API nk_f32_t nk_f32_sqrt_loongsonasx(nk_f32_t x) {
-    __m256 result_f32x8 = __lasx_xvfsqrt_s(nk_xvfreplgr2vr_s_(x));
+    __m256 result_f32x8 = __lasx_xvfsqrt_s(nk_xvfreplgr2vr_s_loongsonasx_(x));
     nk_fui32_t conv;
     conv.u = (nk_u32_t)__lasx_xvpickve2gr_w((__m256i)result_f32x8, 0);
     return x > 0 ? conv.f : 0;

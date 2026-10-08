@@ -10,8 +10,8 @@
 #define NUMKONG_PROBABILITY_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"   // `nk_f16_to_f32_`, `nk_bf16_to_f32_`, `nk_assign_from_to_`
-#include "numkong/scalar/serial.h" // `nk_f32_sqrt_`, `nk_f64_sqrt_`
+#include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial_`, `nk_bf16_to_f32_serial_`, `nk_assign_from_to_`
+#include "numkong/scalar/serial.h" // `nk_sqrt_f32_serial_`, `nk_sqrt_f64_serial_`
 
 #if !defined(NUMKONG_F64_DIVISION_EPSILON)
 #define NUMKONG_F64_DIVISION_EPSILON (1e-15)
@@ -136,14 +136,15 @@ NUMKONG_INLINE nk_f64_t nk_f64_log_serial_(nk_f64_t x) {
 #if NUMKONG_TARGET_SERIAL
 nk_define_kld_(f32, f32, f64, nk_f64_t, nk_assign_from_to_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
 nk_define_jsd_(f32, f32, f64, nk_f64_t, nk_assign_from_to_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_,
-               nk_f64_sqrt_)
+               nk_sqrt_f64_serial_)
 
-nk_define_kld_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
-nk_define_jsd_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_, nk_f32_sqrt_)
+nk_define_kld_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_serial_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
+nk_define_jsd_(f16, f32, f32, nk_f32_t, nk_f16_to_f32_serial_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_,
+               nk_sqrt_f32_serial_)
 
-nk_define_kld_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
-nk_define_jsd_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_,
-               nk_f32_sqrt_)
+nk_define_kld_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_)
+nk_define_jsd_(bf16, f32, f32, nk_f32_t, nk_bf16_to_f32_serial_, NUMKONG_F32_DIVISION_EPSILON, nk_f32_log_serial_,
+               nk_sqrt_f32_serial_)
 
 NUMKONG_API nk_status_t nk_kld_f64_serial(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result,
                                           nk_stream_t stream) {
@@ -183,7 +184,7 @@ NUMKONG_API nk_status_t nk_jsd_f64_serial(nk_f64_t const *a, nk_f64_t const *b, 
         sum = provisional_sum;
     }
     nk_f64_t sum_half = (sum + compensation) / 2;
-    *result = sum_half > 0 ? nk_f64_sqrt_(sum_half) : 0;
+    *result = sum_half > 0 ? nk_sqrt_f64_serial_(sum_half) : 0;
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_SERIAL

@@ -51,8 +51,8 @@
 #if NUMKONG_ARCH_ARM64_
 #if NUMKONG_ARCH_ARM64_SME_
 
-#include "numkong/dots/sme.h"      // `nk_dots_pack_bf16_tiles_sme_`, `nk_sme_zero_za32_*`
-#include "numkong/maxsim/serial.h" // `nk_maxsim_screen_error_`
+#include "numkong/dots/sme.h"      // `nk_dots_pack_bf16_tiles_sme_`, `nk_zero_za32_sme_*`
+#include "numkong/maxsim/serial.h" // `nk_maxsim_screen_error_serial_`
 #include "numkong/reduce/sve.h"    // `nk_svaddv_f64_`
 
 #if defined(__cplusplus)
@@ -114,7 +114,8 @@ typedef struct {
 nk_static_assert_(sizeof(nk_maxsim_sme_packed_header_t) == 64, nk_maxsim_sme_packed_header_must_be_64_bytes);
 
 /** Whether any of @p count inverse norms is zero, as packs store it for a zero vector. */
-NUMKONG_INLINE int nk_maxsim_any_zero_f32_ssve_(nk_f32_t const *inverse_norms, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE int nk_maxsim_any_zero_f32_sme_streaming_(nk_f32_t const *inverse_norms,
+                                                         nk_size_t count) NUMKONG_STREAMING_ {
     svbool_t zeros_b32x = svpfalse_b();
     for (nk_size_t index = 0; index < count; index += svcntw()) {
         svbool_t const predicate_b32x = svwhilelt_b32_u64(index, count);
@@ -125,7 +126,8 @@ NUMKONG_INLINE int nk_maxsim_any_zero_f32_ssve_(nk_f32_t const *inverse_norms, n
 }
 
 /** Whether any of @p count inverse norms is NaN, as packs store it for a vector holding a NaN. */
-NUMKONG_INLINE int nk_maxsim_any_nan_f32_ssve_(nk_f32_t const *inverse_norms, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE int nk_maxsim_any_nan_f32_sme_streaming_(nk_f32_t const *inverse_norms,
+                                                        nk_size_t count) NUMKONG_STREAMING_ {
     svbool_t nans_b32x = svpfalse_b();
     for (nk_size_t index = 0; index < count; index += svcntw()) {
         svbool_t const predicate_b32x = svwhilelt_b32_u64(index, count);
@@ -136,7 +138,8 @@ NUMKONG_INLINE int nk_maxsim_any_nan_f32_ssve_(nk_f32_t const *inverse_norms, nk
 }
 
 /** Whether any of @p count f64 inverse norms is NaN, as packs store it for a vector with a NaN. */
-NUMKONG_INLINE int nk_maxsim_any_nan_f64_ssve_(nk_f64_t const *inverse_norms, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_INLINE int nk_maxsim_any_nan_f64_sme_streaming_(nk_f64_t const *inverse_norms,
+                                                        nk_size_t count) NUMKONG_STREAMING_ {
     svbool_t nans_b64x = svpfalse_b();
     for (nk_size_t index = 0; index < count; index += svcntd()) {
         svbool_t const predicate_b64x = svwhilelt_b64_u64(index, count);
@@ -148,7 +151,7 @@ NUMKONG_INLINE int nk_maxsim_any_nan_f64_ssve_(nk_f64_t const *inverse_norms, nk
 
 /** Turns @p count f32 squared norms into inverse norms in place through f64, zero for zero vectors
  *  and NaN for vectors holding a NaN. */
-NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f32_ssve_(nk_f32_t *norms, nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f32_sme_streaming_(nk_f32_t *norms, nk_size_t count) NUMKONG_STREAMING_ {
     for (nk_size_t index = 0; index < count; index += svcntd()) {
         svbool_t const predicate_b64x = svwhilelt_b64_u64(index, count);
         svfloat64_t const sumsq_f64x = svcvt_f64_f32_x(
@@ -163,8 +166,8 @@ NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f32_ssve_(nk_f32_t *norms, nk_siz
 
 /** Turns @p count f64 sums of squares into inverse norms in place, as the f32 helper does, and
  *  multiplies the @p screen_weights by them. */
-NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f64_ssve_(nk_f64_t *norms, nk_f32_t *screen_weights,
-                                                         nk_size_t count) NUMKONG_STREAMING_ {
+NUMKONG_OUTLINED_ void nk_maxsim_inverse_norms_f64_sme_streaming_(nk_f64_t *norms, nk_f32_t *screen_weights,
+                                                                  nk_size_t count) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
     for (nk_size_t index = 0; index < count; index += svcntd()) {
         svbool_t const predicate_b64x = svwhilelt_b64_u64(index, count);
@@ -216,9 +219,9 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f16_streaming_( //
     svbool_t const predicate_all_b32x = svptrue_b32();
 
     nk_f32_t total_angular_distance = 0.0f;
-    int const zero_documents = nk_maxsim_any_zero_f32_ssve_(document_inverse_norms, document_count);
-    if (nk_maxsim_any_nan_f32_ssve_(query_inverse_norms, query_count) ||
-        nk_maxsim_any_nan_f32_ssve_(document_inverse_norms, document_count)) {
+    int const zero_documents = nk_maxsim_any_zero_f32_sme_streaming_(document_inverse_norms, document_count);
+    if (nk_maxsim_any_nan_f32_sme_streaming_(query_inverse_norms, query_count) ||
+        nk_maxsim_any_nan_f32_sme_streaming_(document_inverse_norms, document_count)) {
         nk_fui32_t nan;
         nan.u = 0x7FC00000u, *result = nan.f;
         return;
@@ -402,9 +405,9 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_bf16_streaming_( //
     svbool_t const predicate_all_b32x = svptrue_b32();
 
     nk_f32_t total_angular_distance = 0.0f;
-    int const zero_documents = nk_maxsim_any_zero_f32_ssve_(document_inverse_norms, document_count);
-    if (nk_maxsim_any_nan_f32_ssve_(query_inverse_norms, query_count) ||
-        nk_maxsim_any_nan_f32_ssve_(document_inverse_norms, document_count)) {
+    int const zero_documents = nk_maxsim_any_zero_f32_sme_streaming_(document_inverse_norms, document_count);
+    if (nk_maxsim_any_nan_f32_sme_streaming_(query_inverse_norms, query_count) ||
+        nk_maxsim_any_nan_f32_sme_streaming_(document_inverse_norms, document_count)) {
         nk_fui32_t nan;
         nan.u = 0x7FC00000u, *result = nan.f;
         return;
@@ -560,8 +563,8 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_bf16_streaming_( //
 /** Bytes of an F32 pack: I8 tiles, f64 inverse norms, screening weights, aligned originals. */
 NUMKONG_INLINE nk_size_t nk_maxsim_pack_bytes_f32_sme_(nk_size_t columns, nk_size_t depth) {
     nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
-    nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512
-    nk_size_t const vector_elements = nk_sme_cntb_(); // 64 for SVL=512
+    nk_size_t const tile_dimension = nk_cntw_sme_();  // 16 for SVL=512
+    nk_size_t const vector_elements = nk_cntb_sme_(); // 64 for SVL=512
     nk_size_t const column_tile_count = nk_size_divide_round_up_(columns, tile_dimension);
     nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, expansion);
     nk_size_t const original_stride = nk_size_round_up_to_multiple_(depth * sizeof(nk_f32_t), 64);
@@ -575,8 +578,8 @@ NUMKONG_INLINE nk_size_t nk_maxsim_pack_bytes_f32_sme_(nk_size_t columns, nk_siz
 }
 
 /** Streaming-compatible f32 dot product with f64 accumulation, following the svcntd() stride and
- *  svcvt_f64_f32_x widening of @c nk_dots_reduce_sumsq_f32_ssve_. */
-NUMKONG_INLINE nk_f64_t nk_maxsim_reduce_dot_f32_ssve_(                         //
+ *  svcvt_f64_f32_x widening of @c nk_dots_reduce_sumsq_f32_smef64_streaming_. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_reduce_dot_f32_sme_streaming_(                //
     nk_f32_t const *a, nk_f32_t const *b, nk_size_t count) NUMKONG_STREAMING_ { //
     svfloat64_t accumulator_even_f64x = svdup_f64(0.0);
     svfloat64_t accumulator_odd_f64x = svdup_f64(0.0);
@@ -611,7 +614,7 @@ typedef struct {
     nk_f32_t const *document_screen_weights;
 } nk_maxsim_refine_f32_sme_t;
 
-/** Raises each query's lower bound with a column, as @c nk_maxsim_screen_lower_bound_ does. */
+/** Raises each query's lower bound with a column, like @c nk_maxsim_screen_lower_bound_serial_. */
 NUMKONG_INLINE svfloat32_t nk_maxsim_fold_column_sme_(                          //
     svfloat32_t lower_bounds_f32x, svint32_t dots_i32x, nk_f32_t screen_weight, //
     svfloat32_t error_bases_f32x, svfloat32_t error_per_weights_f32x) NUMKONG_STREAMING_ {
@@ -625,7 +628,7 @@ NUMKONG_INLINE svfloat32_t nk_maxsim_fold_column_sme_(                          
 }
 
 /** Refines against @p document_index every query whose screened score plus error reaches its lower
- *  bound, as @c nk_maxsim_screen_candidates_ selects, keeping each query's best cosine. */
+ *  bound, as @c nk_maxsim_screen_candidates_serial_ selects, keeping each query's best cosine. */
 NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                                                    //
     nk_maxsim_refine_f32_sme_t const *refine, svint32_t dots_i32x, nk_size_t document_index,         //
     svfloat32_t error_bases_f32x, svfloat32_t error_per_weights_f32x, svfloat32_t lower_bounds_f32x, //
@@ -648,7 +651,7 @@ NUMKONG_INLINE void nk_maxsim_refine_column_sme_(                               
         nk_size_t const query_index = row_start + row_in_tile;
         nk_f64_t const query_inverse_norm = refine->query_inverse_norms[query_index];
         nk_f64_t const document_inverse_norm = refine->document_inverse_norms[document_index];
-        nk_f64_t cosine = nk_maxsim_reduce_dot_f32_ssve_(
+        nk_f64_t cosine = nk_maxsim_reduce_dot_f32_sme_streaming_(
                               refine->query_originals + query_index * refine->query_stride_elements, document_original,
                               refine->depth) *
                           query_inverse_norm * document_inverse_norm;
@@ -706,8 +709,8 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f32_streaming_( //
     svbool_t const predicate_all_b8x = svptrue_b8();
     svbool_t const predicate_all_b32x = svptrue_b32();
 
-    if (nk_maxsim_any_nan_f64_ssve_(refine.query_inverse_norms, query_count) ||
-        nk_maxsim_any_nan_f64_ssve_(refine.document_inverse_norms, document_count)) {
+    if (nk_maxsim_any_nan_f64_sme_streaming_(refine.query_inverse_norms, query_count) ||
+        nk_maxsim_any_nan_f64_sme_streaming_(refine.document_inverse_norms, document_count)) {
         nk_fui64_t nan;
         nan.u = 0x7FF8000000000000ull, *result = nan.f;
         return;
@@ -730,7 +733,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f32_streaming_( //
         for (nk_size_t row_in_tile = 0; row_in_tile < tile_dimension; row_in_tile++) {
             nk_maxsim_screen_error_t error = {0.0f, 0.0f};
             if (row_in_tile < rows_remaining)
-                error = nk_maxsim_screen_error_(query_screen_weights[row_start + row_in_tile], residue, depth);
+                error = nk_maxsim_screen_error_serial_(query_screen_weights[row_start + row_in_tile], residue, depth);
             error_bases[row_in_tile] = error.base;
             error_per_weights[row_in_tile] = error.per_weight;
             best_cosines[row_in_tile] = NUMKONG_F32_MIN;
@@ -861,7 +864,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f32_streaming_( //
         for (nk_size_t row_in_tile = 0; row_in_tile < rows_remaining; row_in_tile++) {
             nk_f64_t angular = 1.0 - best_cosines[row_in_tile];
             if (angular < 0.0) angular = 0.0;
-            nk_f64_dot2_(&total_angular_distance_f64, &total_compensation_f64, angular, 1.0);
+            nk_dot2_f64_serial_(&total_angular_distance_f64, &total_compensation_f64, angular, 1.0);
         }
     }
 
@@ -869,7 +872,7 @@ __arm_new("za") NUMKONG_OUTLINED_ void nk_maxsim_packed_f32_streaming_( //
 }
 
 /** Divides @p values_f32x by @p scale_f32x, biases by ±0.5 along the sign, truncates and clamps
- *  to ±127, as @c nk_maxsim_quantize_f32_ does lane by lane. */
+ *  to ±127, as @c nk_maxsim_quantize_f32_serial_ does lane by lane. */
 NUMKONG_INLINE svint32_t nk_maxsim_quantize_f32x_sme_(svfloat32_t values_f32x,
                                                       svfloat32_t scale_f32x) NUMKONG_STREAMING_ {
     svbool_t const predicate_all_b32x = svptrue_b32();
@@ -980,9 +983,9 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_sme( //
         return nk_pack_mismatch_k;
     nk_unused_(depth);
 
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_maxsim_packed_f16_streaming_(query_packed, document_packed, query_count, document_count, result);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -995,9 +998,9 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_sme( //
         return nk_pack_mismatch_k;
     nk_unused_(depth);
 
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_maxsim_packed_bf16_streaming_(query_packed, document_packed, query_count, document_count, result);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -1047,9 +1050,9 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_sme( //
     header->capability = nk_cap_sme_k;
     for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
 
-    nk_sme_start_streaming_();
-    nk_maxsim_inverse_norms_f32_ssve_((nk_f32_t *)((char *)packed + header->norms_offset), vector_count);
-    nk_sme_stop_streaming_();
+    nk_start_sme_streaming_();
+    nk_maxsim_inverse_norms_f32_sme_streaming_((nk_f32_t *)((char *)packed + header->norms_offset), vector_count);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -1069,9 +1072,9 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f16_sme( //
     header->capability = nk_cap_sme_k;
     for (nk_size_t i = 0; i < 5; i++) header->reserved[i] = 0;
 
-    nk_sme_start_streaming_();
-    nk_maxsim_inverse_norms_f32_ssve_((nk_f32_t *)((char *)packed + header->norms_offset), vector_count);
-    nk_sme_stop_streaming_();
+    nk_start_sme_streaming_();
+    nk_maxsim_inverse_norms_f32_sme_streaming_((nk_f32_t *)((char *)packed + header->norms_offset), vector_count);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -1095,8 +1098,8 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
     nk_stream_t stream) { //
     nk_assert_(stream == NUMKONG_NULL);
     nk_size_t const expansion = 4;                    // i8 → i32 SMOPA
-    nk_size_t const tile_dimension = nk_sme_cntw_();  // 16 for SVL=512
-    nk_size_t const vector_elements = nk_sme_cntb_(); // 64 for SVL=512
+    nk_size_t const tile_dimension = nk_cntw_sme_();  // 16 for SVL=512
+    nk_size_t const vector_elements = nk_cntb_sme_(); // 64 for SVL=512
 
     nk_size_t const column_tile_count = nk_size_divide_round_up_(vector_count, tile_dimension);
     nk_size_t const depth_step_count = nk_size_divide_round_up_(depth, expansion);
@@ -1128,12 +1131,12 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_sme( //
     nk_f32_t *screen_weights = (nk_f32_t *)((char *)packed + screen_weights_offset);
     char *originals = (char *)packed + originals_offset;
 
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_maxsim_pack_f32_streaming_(vectors, vector_count, depth, stride, tiles, inverse_norms, screen_weights, originals,
                                   original_stride);
     // The streaming pass left the sums of squares and the scales in place
-    nk_maxsim_inverse_norms_f64_ssve_(inverse_norms, screen_weights, vector_count);
-    nk_sme_stop_streaming_();
+    nk_maxsim_inverse_norms_f64_sme_streaming_(inverse_norms, screen_weights, vector_count);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -1145,10 +1148,10 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_sme( //
         ((nk_maxsim_sme_packed_header_t const *)document_packed)->capability != nk_cap_sme_k)
         return nk_pack_mismatch_k;
 
-    nk_f32_t const residue = 0.5f * nk_f32_sqrt_((nk_f32_t)depth);
-    nk_sme_start_streaming_();
+    nk_f32_t const residue = 0.5f * nk_sqrt_f32_serial_((nk_f32_t)depth);
+    nk_start_sme_streaming_();
     nk_maxsim_packed_f32_streaming_(query_packed, document_packed, query_count, document_count, depth, residue, result);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 #endif // NUMKONG_TARGET_SME

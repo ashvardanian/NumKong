@@ -735,8 +735,8 @@ static PyObject *tensor_elementwise_scalar(Tensor *a, double alpha_value, double
     nk_scalar_buffer_t alpha_buf, beta_buf;
     nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
     alpha_buf.f64 = alpha_value, beta_buf.f64 = beta_value;
-    nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-    nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+    nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
     PyThreadState *gil = PyEval_SaveThread();
     nk_status_t const status = each_scale_recursive(kernel, NULL, a->data, r->data, &alpha_buf, &beta_buf, a->shape,
                                                     a->strides, r_strides, a->rank, contiguous_tail);
@@ -866,8 +866,8 @@ static PyObject *Tensor_subtract(PyObject *self, PyObject *other) {
         nk_scalar_buffer_t alpha_buf, beta_buf;
         alpha_buf.f64 = 1.0, beta_buf.f64 = -1.0;
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
-        nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-        nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+        nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
         PyThreadState *gil = PyEval_SaveThread();
         nk_status_t const status = each_blend_recursive(kernel, NULL, a->data, b->data, r->data, &alpha_buf, &beta_buf,
                                                         a->shape, a->strides, b->strides, r_strides, a->rank,
@@ -943,8 +943,8 @@ static PyObject *Tensor_multiply(PyObject *self, PyObject *other) {
         nk_scalar_buffer_t alpha_buf, beta_buf;
         alpha_buf.f64 = 1.0, beta_buf.f64 = 0.0;
         nk_dtype_t scalar_dtype = nk_each_scale_input_dtype(a->dtype);
-        nk_scalar_buffer_from_f64_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
-        nk_scalar_buffer_from_f64_(&beta_buf.f64, &beta_buf, scalar_dtype);
+        nk_scalar_buffer_from_f64_serial_(&alpha_buf.f64, &alpha_buf, scalar_dtype);
+        nk_scalar_buffer_from_f64_serial_(&beta_buf.f64, &beta_buf, scalar_dtype);
         PyThreadState *gil = PyEval_SaveThread();
         nk_status_t const status = each_fma_recursive(kernel, NULL, a->data, b->data, r->data, r->data, &alpha_buf,
                                                       &beta_buf, a->shape, a->strides, b->strides, r_strides, r_strides,
@@ -2379,7 +2379,7 @@ static int norm_slice(nk_tensor_view_t const *slice, reduce_args_t const *parsed
     nk_dtype_t sum_dtype, sumsq_dtype;
     int const result = impl_reduce_moments(slice, parsed->capabilities, parsed->stream, &sum_buf, &sum_dtype,
                                            &sumsq_buf, &sumsq_dtype);
-    nk_scalar_buffer_to_f64_(&sumsq_buf, sumsq_dtype, &out->f64);
+    nk_scalar_buffer_to_f64_serial_(&sumsq_buf, sumsq_dtype, &out->f64);
     out->f64 = nk_f64_sqrt_best(out->f64, parsed->capabilities);
     return result;
 }
@@ -2437,7 +2437,7 @@ static PyObject *Tensor_norm(PyObject *self, PyObject *const *args, Py_ssize_t n
         if (impl_reduce_moments(&view, parsed.capabilities, parsed.stream, &sum_buf, &sum_dtype, &sumsq_buf,
                                 &sumsq_dtype) < 0)
             return NULL;
-        nk_scalar_buffer_to_f64_(&sumsq_buf, sumsq_dtype, &sumsq_buf.f64);
+        nk_scalar_buffer_to_f64_serial_(&sumsq_buf, sumsq_dtype, &sumsq_buf.f64);
         return PyFloat_FromDouble(nk_f64_sqrt_best(sumsq_buf.f64, parsed.capabilities));
     }
     return reduce_axis_dispatch(&view, &parsed, nk_f64_k, norm_slice);
@@ -4002,11 +4002,11 @@ static int tensor_fill_affine(Tensor *tensor, nk_f64_t first, nk_f64_t step) {
     size_t const element_size = nk_dtype_bytes_per_value(tensor->dtype);
     nk_scalar_buffer_t value;
     value.f64 = first;
-    nk_scalar_buffer_from_f64_(&value.f64, &value, tensor->dtype);
+    nk_scalar_buffer_from_f64_serial_(&value.f64, &value, tensor->dtype);
     for (size_t i = 0; i < total; i++) {
         if (step != 0.0 && i != 0) {
             value.f64 = first + step * (nk_f64_t)i;
-            nk_scalar_buffer_from_f64_(&value.f64, &value, tensor->dtype);
+            nk_scalar_buffer_from_f64_serial_(&value.f64, &value, tensor->dtype);
         }
         memcpy(tensor->data + i * element_size, &value, element_size);
     }
@@ -4454,7 +4454,7 @@ PyObject *api_diagonal(PyObject *self, PyObject *const *args, Py_ssize_t const n
     {
         nk_scalar_buffer_t val;
         val.f64 = (nk_f64_t)seed;
-        nk_scalar_buffer_from_f64_(&val.f64, &val, dtype);
+        nk_scalar_buffer_from_f64_serial_(&val.f64, &val, dtype);
         for (Py_ssize_t i = 0; i < n; i++) {
             memcpy(result->data + (size_t)i * ((size_t)n + 1) * elem_size, &val, elem_size);
         }
@@ -4768,7 +4768,7 @@ PyObject *api_norm(PyObject *self, PyObject *const *args, Py_ssize_t const nargs
                                 &sumsq_dtype) < 0)
             result = NULL;
         else {
-            nk_scalar_buffer_to_f64_(&sumsq_buf, sumsq_dtype, &sumsq_buf.f64);
+            nk_scalar_buffer_to_f64_serial_(&sumsq_buf, sumsq_dtype, &sumsq_buf.f64);
             result = PyFloat_FromDouble(nk_f64_sqrt_best(sumsq_buf.f64, parsed.capabilities));
         }
     }

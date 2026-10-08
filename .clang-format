@@ -150,8 +150,7 @@ StatementMacros:
   - nk_define_lane_sumsq_simt_
   - nk_define_each_sum_cuda_
   - nk_define_each_sum_rocm_
-  - nk_define_each_rmsnorm_cuda_
-  - nk_define_each_rmsnorm_rocm_
+  - nk_define_each_rmsnorm_simt_
   - nk_define_each_swiglu_cuda_
   - nk_define_each_swiglu_rocm_
   - nk_define_each_scale_cuda_
@@ -165,18 +164,15 @@ StatementMacros:
   - nk_define_attention_pack_rocm_
   - nk_define_attention_baseline_cuda_
   - nk_define_attention_baseline_rocm_
-  - nk_define_attention_packed_cuda_
-  - nk_define_attention_packed_rocm_
+  - nk_define_attention_packed_simt_
   - nk_define_attention_pack_blackwell_
   - nk_define_attention_tma_blackwell_
   - nk_define_attention_backward_cuda_
   - nk_define_attention_backward_rocm_
   - nk_define_attention_rope_cuda_
   - nk_define_attention_rope_
-  - nk_define_reduce_moments_cuda_
-  - nk_define_reduce_minmax_cuda_
-  - nk_define_reduce_moments_rocm_
-  - nk_define_reduce_minmax_rocm_
+  - nk_define_reduce_moments_simt_
+  - nk_define_reduce_minmax_simt_
 
 # Align consecutive macro definitions (useful for NUMKONG_TARGET_* flags)
 AlignConsecutiveMacros:

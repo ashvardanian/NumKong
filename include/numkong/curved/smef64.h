@@ -50,8 +50,8 @@
 
 #include "numkong/types.h"
 #include "numkong/reduce/sve.h"    // `nk_svaddv_f64_`
-#include "numkong/dots/smef64.h"   // `nk_dot2_f64_sve_accumulate_`, `nk_sme_zero_za64_tile_0_k`
-#include "numkong/dots/sme.h"      // `nk_sme_start_streaming_`, `nk_sme_stop_streaming_`
+#include "numkong/dots/smef64.h"   // `nk_dot2_accumulate_f64_smef64_streaming_`, `nk_sme_zero_za64_tile_0_k`
+#include "numkong/dots/sme.h"      // `nk_start_sme_streaming_`, `nk_stop_sme_streaming_`
 #include "numkong/curved/serial.h" // `nk_bilinear_f64_serial`
 #include "numkong/dot/serial.h"    // `nk_dot_f16c_serial`, `nk_vdot_f16c_serial`
 
@@ -68,9 +68,9 @@ extern "C" {
 
 /** Adds @p a times the sum of @p high and @p low to a Dot2 @p sum and @p compensation, the low part
  *  being too small for its product's rounding to matter. */
-NUMKONG_INLINE void nk_f64_dot2_pair_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a, nk_f64_t high,
-                                      nk_f64_t low) NUMKONG_STREAMABLE_ {
-    nk_f64_dot2_(sum, compensation, a, high);
+NUMKONG_INLINE void nk_dot2_pair_f64_smef64_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t a, nk_f64_t high,
+                                             nk_f64_t low) NUMKONG_STREAMABLE_ {
+    nk_dot2_f64_serial_(sum, compensation, a, high);
     *compensation += a * low;
 }
 
@@ -121,9 +121,9 @@ NUMKONG_API nk_status_t nk_bilinear_f32_smef64( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result,
     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_bilinear_f32_smef64_streaming_(a, b, c, dimensions, result);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
@@ -178,16 +178,16 @@ NUMKONG_API nk_status_t nk_mahalanobis_f32_smef64( //
     nk_f32_t const *a, nk_f32_t const *b, nk_f32_t const *c, nk_size_t dimensions, nk_f64_t *result,
     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_f64_t quadratic = nk_mahalanobis_f32_smef64_streaming_(a, b, c, dimensions);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic > 0 ? quadratic : 0)), 0);
     return nk_success_k;
 }
 
 /** f64 bilinear: row-by-row streaming SVE with Dot2 compensation. 4-row fast path shares b_f64x
  *  loads; 1-row tail for remainder. */
-NUMKONG_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
+NUMKONG_OUTLINED_ void nk_bilinear_f64_smef64_streaming_( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions,
     nk_f64_t *result) NUMKONG_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
@@ -207,26 +207,26 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
 
         while (svptest_first(predicate_all_b64x, predicate_b64x)) {
             svfloat64_t b_f64x = svld1_f64(predicate_b64x, b + j);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_0_f64x, &compensation_0_f64x,
-                                        svld1_f64(predicate_b64x, c + (row + 0) * dimensions + j), b_f64x);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_1_f64x, &compensation_1_f64x,
-                                        svld1_f64(predicate_b64x, c + (row + 1) * dimensions + j), b_f64x);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_2_f64x, &compensation_2_f64x,
-                                        svld1_f64(predicate_b64x, c + (row + 2) * dimensions + j), b_f64x);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_3_f64x, &compensation_3_f64x,
-                                        svld1_f64(predicate_b64x, c + (row + 3) * dimensions + j), b_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_0_f64x, &compensation_0_f64x,
+                                                     svld1_f64(predicate_b64x, c + (row + 0) * dimensions + j), b_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_1_f64x, &compensation_1_f64x,
+                                                     svld1_f64(predicate_b64x, c + (row + 1) * dimensions + j), b_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_2_f64x, &compensation_2_f64x,
+                                                     svld1_f64(predicate_b64x, c + (row + 2) * dimensions + j), b_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_3_f64x, &compensation_3_f64x,
+                                                     svld1_f64(predicate_b64x, c + (row + 3) * dimensions + j), b_f64x);
             j += svcntd();
             predicate_b64x = svwhilelt_b64(j, dimensions);
         }
 
-        nk_dot2_f64_sve_reduce_(sum_0_f64x, compensation_0_f64x, &inner_high, &inner_low);
-        nk_f64_dot2_pair_(&outer_sum, &outer_comp, a0, inner_high, inner_low);
-        nk_dot2_f64_sve_reduce_(sum_1_f64x, compensation_1_f64x, &inner_high, &inner_low);
-        nk_f64_dot2_pair_(&outer_sum, &outer_comp, a1, inner_high, inner_low);
-        nk_dot2_f64_sve_reduce_(sum_2_f64x, compensation_2_f64x, &inner_high, &inner_low);
-        nk_f64_dot2_pair_(&outer_sum, &outer_comp, a2, inner_high, inner_low);
-        nk_dot2_f64_sve_reduce_(sum_3_f64x, compensation_3_f64x, &inner_high, &inner_low);
-        nk_f64_dot2_pair_(&outer_sum, &outer_comp, a3, inner_high, inner_low);
+        nk_dot2_reduce_f64_smef64_streaming_(sum_0_f64x, compensation_0_f64x, &inner_high, &inner_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum, &outer_comp, a0, inner_high, inner_low);
+        nk_dot2_reduce_f64_smef64_streaming_(sum_1_f64x, compensation_1_f64x, &inner_high, &inner_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum, &outer_comp, a1, inner_high, inner_low);
+        nk_dot2_reduce_f64_smef64_streaming_(sum_2_f64x, compensation_2_f64x, &inner_high, &inner_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum, &outer_comp, a2, inner_high, inner_low);
+        nk_dot2_reduce_f64_smef64_streaming_(sum_3_f64x, compensation_3_f64x, &inner_high, &inner_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum, &outer_comp, a3, inner_high, inner_low);
     }
 
     // 1-row tail
@@ -236,16 +236,16 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64_smef64_ssve_( //
         svbool_t predicate_b64x = svwhilelt_b64(j, dimensions);
 
         while (svptest_first(predicate_all_b64x, predicate_b64x)) {
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_f64x, &compensation_f64x,
-                                        svld1_f64(predicate_b64x, c + row * dimensions + j),
-                                        svld1_f64(predicate_b64x, b + j));
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_f64x, &compensation_f64x,
+                                                     svld1_f64(predicate_b64x, c + row * dimensions + j),
+                                                     svld1_f64(predicate_b64x, b + j));
             j += svcntd();
             predicate_b64x = svwhilelt_b64(j, dimensions);
         }
 
         nk_f64_t inner_high, inner_low;
-        nk_dot2_f64_sve_reduce_(sum_f64x, compensation_f64x, &inner_high, &inner_low);
-        nk_f64_dot2_pair_(&outer_sum, &outer_comp, a[row], inner_high, inner_low);
+        nk_dot2_reduce_f64_smef64_streaming_(sum_f64x, compensation_f64x, &inner_high, &inner_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum, &outer_comp, a[row], inner_high, inner_low);
     }
 
     *result = outer_sum + outer_comp;
@@ -255,43 +255,45 @@ NUMKONG_API nk_status_t nk_bilinear_f64_smef64( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result,
     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sme_start_streaming_();
-    nk_bilinear_f64_smef64_ssve_(a, b, c, dimensions, result);
-    nk_sme_stop_streaming_();
+    nk_start_sme_streaming_();
+    nk_bilinear_f64_smef64_streaming_(a, b, c, dimensions, result);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
 /** Returns a - b as @p difference and its rounding error, by TwoSum. */
-NUMKONG_INLINE nk_f64_t nk_f64_difference_error_(nk_f64_t a, nk_f64_t b, nk_f64_t difference) NUMKONG_STREAMABLE_ {
+NUMKONG_INLINE nk_f64_t nk_difference_error_f64_smef64_(nk_f64_t a, nk_f64_t b,
+                                                        nk_f64_t difference) NUMKONG_STREAMABLE_ {
     nk_f64_t const bent = difference - a;
     return (a - (difference - bent)) - (b + bent);
 }
 
-/** Splits a - b into @p difference and @p error with TwoSum, lane by lane. */
-NUMKONG_INLINE void nk_f64_difference_sve_(svbool_t predicate_b64x, svfloat64_t a_f64x, svfloat64_t b_f64x,
-                                           svfloat64_t *difference, svfloat64_t *error) NUMKONG_STREAMING_ {
-    *difference = svsub_f64_x(predicate_b64x, a_f64x, b_f64x);
-    svfloat64_t const bent_f64x = svsub_f64_x(predicate_b64x, *difference, a_f64x);
-    *error = svsub_f64_x(predicate_b64x,
-                         svsub_f64_x(predicate_b64x, a_f64x, svsub_f64_x(predicate_b64x, *difference, bent_f64x)),
-                         svadd_f64_x(predicate_b64x, b_f64x, bent_f64x));
+/** Splits a - b into @p difference_f64x and @p error_f64x with TwoSum, lane by lane. */
+NUMKONG_INLINE void nk_difference_f64_smef64_streaming_(svbool_t predicate_b64x, svfloat64_t a_f64x, svfloat64_t b_f64x,
+                                                        svfloat64_t *difference_f64x,
+                                                        svfloat64_t *error_f64x) NUMKONG_STREAMING_ {
+    *difference_f64x = svsub_f64_x(predicate_b64x, a_f64x, b_f64x);
+    svfloat64_t const bent_f64x = svsub_f64_x(predicate_b64x, *difference_f64x, a_f64x);
+    *error_f64x = svsub_f64_x(
+        predicate_b64x, svsub_f64_x(predicate_b64x, a_f64x, svsub_f64_x(predicate_b64x, *difference_f64x, bent_f64x)),
+        svadd_f64_x(predicate_b64x, b_f64x, bent_f64x));
 }
 
 /** Adds (a - b) × the row's Dot2 lanes to the outer Dot2, with the rounding errors of a - b and of
  *  the lane fold carried as plain products. */
-NUMKONG_INLINE void nk_mahalanobis_f64_smef64_row_(nk_f64_t a, nk_f64_t b, svfloat64_t sum_f64x,
+NUMKONG_INLINE void nk_mahalanobis_row_f64_smef64_(nk_f64_t a, nk_f64_t b, svfloat64_t sum_f64x,
                                                    svfloat64_t compensation_f64x, nk_f64_t *outer_sum,
                                                    nk_f64_t *outer_comp) NUMKONG_STREAMING_ {
-    nk_f64_t const difference = a - b, difference_error = nk_f64_difference_error_(a, b, difference);
+    nk_f64_t const difference = a - b, difference_error = nk_difference_error_f64_smef64_(a, b, difference);
     nk_f64_t inner_high, inner_low;
-    nk_dot2_f64_sve_reduce_(sum_f64x, compensation_f64x, &inner_high, &inner_low);
-    nk_f64_dot2_pair_(outer_sum, outer_comp, difference, inner_high, inner_low);
+    nk_dot2_reduce_f64_smef64_streaming_(sum_f64x, compensation_f64x, &inner_high, &inner_low);
+    nk_dot2_pair_f64_smef64_(outer_sum, outer_comp, difference, inner_high, inner_low);
     *outer_comp += difference_error * inner_high;
 }
 
 /** f64 Mahalanobis: row-by-row streaming SVE with Dot2 compensation, carrying each a − b with its
  *  rounding error. 4-row fast path shares the column differences; 1-row tail for the remainder. */
-NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
+NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_streaming_( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions) NUMKONG_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
     nk_f64_t outer_sum = 0.0, outer_comp = 0.0;
@@ -308,16 +310,21 @@ NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
 
         while (svptest_first(predicate_all_b64x, predicate_b64x)) {
             svfloat64_t difference_f64x, difference_error_f64x;
-            nk_f64_difference_sve_(predicate_b64x, svld1_f64(predicate_b64x, a + j), svld1_f64(predicate_b64x, b + j),
-                                   &difference_f64x, &difference_error_f64x);
+            nk_difference_f64_smef64_streaming_(predicate_b64x, svld1_f64(predicate_b64x, a + j),
+                                                svld1_f64(predicate_b64x, b + j), &difference_f64x,
+                                                &difference_error_f64x);
             svfloat64_t const c_0_f64x = svld1_f64(predicate_b64x, c + (row + 0) * dimensions + j);
             svfloat64_t const c_1_f64x = svld1_f64(predicate_b64x, c + (row + 1) * dimensions + j);
             svfloat64_t const c_2_f64x = svld1_f64(predicate_b64x, c + (row + 2) * dimensions + j);
             svfloat64_t const c_3_f64x = svld1_f64(predicate_b64x, c + (row + 3) * dimensions + j);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_0_f64x, &compensation_0_f64x, c_0_f64x, difference_f64x);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_1_f64x, &compensation_1_f64x, c_1_f64x, difference_f64x);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_2_f64x, &compensation_2_f64x, c_2_f64x, difference_f64x);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_3_f64x, &compensation_3_f64x, c_3_f64x, difference_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_0_f64x, &compensation_0_f64x, c_0_f64x,
+                                                     difference_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_1_f64x, &compensation_1_f64x, c_1_f64x,
+                                                     difference_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_2_f64x, &compensation_2_f64x, c_2_f64x,
+                                                     difference_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_3_f64x, &compensation_3_f64x, c_3_f64x,
+                                                     difference_f64x);
             compensation_0_f64x = svmla_f64_m(predicate_b64x, compensation_0_f64x, c_0_f64x, difference_error_f64x);
             compensation_1_f64x = svmla_f64_m(predicate_b64x, compensation_1_f64x, c_1_f64x, difference_error_f64x);
             compensation_2_f64x = svmla_f64_m(predicate_b64x, compensation_2_f64x, c_2_f64x, difference_error_f64x);
@@ -326,13 +333,13 @@ NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
             predicate_b64x = svwhilelt_b64(j, dimensions);
         }
 
-        nk_mahalanobis_f64_smef64_row_(a[row + 0], b[row + 0], sum_0_f64x, compensation_0_f64x, &outer_sum,
+        nk_mahalanobis_row_f64_smef64_(a[row + 0], b[row + 0], sum_0_f64x, compensation_0_f64x, &outer_sum,
                                        &outer_comp);
-        nk_mahalanobis_f64_smef64_row_(a[row + 1], b[row + 1], sum_1_f64x, compensation_1_f64x, &outer_sum,
+        nk_mahalanobis_row_f64_smef64_(a[row + 1], b[row + 1], sum_1_f64x, compensation_1_f64x, &outer_sum,
                                        &outer_comp);
-        nk_mahalanobis_f64_smef64_row_(a[row + 2], b[row + 2], sum_2_f64x, compensation_2_f64x, &outer_sum,
+        nk_mahalanobis_row_f64_smef64_(a[row + 2], b[row + 2], sum_2_f64x, compensation_2_f64x, &outer_sum,
                                        &outer_comp);
-        nk_mahalanobis_f64_smef64_row_(a[row + 3], b[row + 3], sum_3_f64x, compensation_3_f64x, &outer_sum,
+        nk_mahalanobis_row_f64_smef64_(a[row + 3], b[row + 3], sum_3_f64x, compensation_3_f64x, &outer_sum,
                                        &outer_comp);
     }
 
@@ -344,16 +351,18 @@ NUMKONG_OUTLINED_ nk_f64_t nk_mahalanobis_f64_smef64_ssve_( //
 
         while (svptest_first(predicate_all_b64x, predicate_b64x)) {
             svfloat64_t difference_f64x, difference_error_f64x;
-            nk_f64_difference_sve_(predicate_b64x, svld1_f64(predicate_b64x, a + j), svld1_f64(predicate_b64x, b + j),
-                                   &difference_f64x, &difference_error_f64x);
+            nk_difference_f64_smef64_streaming_(predicate_b64x, svld1_f64(predicate_b64x, a + j),
+                                                svld1_f64(predicate_b64x, b + j), &difference_f64x,
+                                                &difference_error_f64x);
             svfloat64_t const c_f64x = svld1_f64(predicate_b64x, c + row * dimensions + j);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_f64x, &compensation_f64x, c_f64x, difference_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_f64x, &compensation_f64x, c_f64x,
+                                                     difference_f64x);
             compensation_f64x = svmla_f64_m(predicate_b64x, compensation_f64x, c_f64x, difference_error_f64x);
             j += svcntd();
             predicate_b64x = svwhilelt_b64(j, dimensions);
         }
 
-        nk_mahalanobis_f64_smef64_row_(a[row], b[row], sum_f64x, compensation_f64x, &outer_sum, &outer_comp);
+        nk_mahalanobis_row_f64_smef64_(a[row], b[row], sum_f64x, compensation_f64x, &outer_sum, &outer_comp);
     }
 
     return outer_sum + outer_comp;
@@ -363,9 +372,9 @@ NUMKONG_API nk_status_t nk_mahalanobis_f64_smef64( //
     nk_f64_t const *a, nk_f64_t const *b, nk_f64_t const *c, nk_size_t dimensions, nk_f64_t *result,
     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sme_start_streaming_();
-    nk_f64_t quadratic = nk_mahalanobis_f64_smef64_ssve_(a, b, c, dimensions);
-    nk_sme_stop_streaming_();
+    nk_start_sme_streaming_();
+    nk_f64_t quadratic = nk_mahalanobis_f64_smef64_streaming_(a, b, c, dimensions);
+    nk_stop_sme_streaming_();
     *result = vget_lane_f64(vsqrt_f64(vdup_n_f64(quadratic > 0 ? quadratic : 0)), 0);
     return nk_success_k;
 }
@@ -452,15 +461,15 @@ NUMKONG_API nk_status_t nk_bilinear_f32c_smef64( //
     nk_f32c_t const *a_pairs, nk_f32c_t const *b_pairs, nk_f32c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sme_start_streaming_();
+    nk_start_sme_streaming_();
     nk_bilinear_f32c_smef64_streaming_(a_pairs, b_pairs, c_pairs, dimensions, results);
-    nk_sme_stop_streaming_();
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 
 /** f64c bilinear: interleaved Dot2 with permute + deferred XOR sign-flip. 2 accumulators instead of
  *  4, halving inner loop work (~15 vs ~28 SVE ops). */
-NUMKONG_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
+NUMKONG_OUTLINED_ void nk_bilinear_f64c_smef64_streaming_( //
     nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results) NUMKONG_STREAMING_ {
     svbool_t predicate_all_b64x = svptrue_b64();
@@ -493,8 +502,9 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
             // 2 Dot2 accumulators instead of 4:
             // sum_real_f64x accumulates [c_real × b_real, c_imag × b_imag, …] (sign-flip deferred)
             // sum_imag_f64x accumulates [c_imag × b_real, c_real × b_imag, …] (all positive)
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_real_f64x, &comp_real_f64x, c_f64x, b_f64x);
-            nk_dot2_f64_sve_accumulate_(predicate_b64x, &sum_imag_f64x, &comp_imag_f64x, c_swapped_f64x, b_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_real_f64x, &comp_real_f64x, c_f64x, b_f64x);
+            nk_dot2_accumulate_f64_smef64_streaming_(predicate_b64x, &sum_imag_f64x, &comp_imag_f64x, c_swapped_f64x,
+                                                     b_f64x);
 
             j += svcntd();
             predicate_b64x = svwhilelt_b64(j, n2);
@@ -506,14 +516,14 @@ NUMKONG_OUTLINED_ void nk_bilinear_f64c_smef64_ssve_( //
         comp_real_f64x = svreinterpret_f64_u64(
             sveor_u64_x(predicate_all_b64x, svreinterpret_u64_f64(comp_real_f64x), sign_mask_u64x));
         nk_f64_t inner_real_high, inner_real_low, inner_imag_high, inner_imag_low;
-        nk_dot2_f64_sve_reduce_(sum_real_f64x, comp_real_f64x, &inner_real_high, &inner_real_low);
-        nk_dot2_f64_sve_reduce_(sum_imag_f64x, comp_imag_f64x, &inner_imag_high, &inner_imag_low);
+        nk_dot2_reduce_f64_smef64_streaming_(sum_real_f64x, comp_real_f64x, &inner_real_high, &inner_real_low);
+        nk_dot2_reduce_f64_smef64_streaming_(sum_imag_f64x, comp_imag_f64x, &inner_imag_high, &inner_imag_low);
 
         // Outer Dot2 complex multiply: a × inner
-        nk_f64_dot2_pair_(&outer_sum_real, &outer_comp_real, a_real, inner_real_high, inner_real_low);
-        nk_f64_dot2_pair_(&outer_sum_real, &outer_comp_real, -a_imag, inner_imag_high, inner_imag_low);
-        nk_f64_dot2_pair_(&outer_sum_imag, &outer_comp_imag, a_real, inner_imag_high, inner_imag_low);
-        nk_f64_dot2_pair_(&outer_sum_imag, &outer_comp_imag, a_imag, inner_real_high, inner_real_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum_real, &outer_comp_real, a_real, inner_real_high, inner_real_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum_real, &outer_comp_real, -a_imag, inner_imag_high, inner_imag_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum_imag, &outer_comp_imag, a_real, inner_imag_high, inner_imag_low);
+        nk_dot2_pair_f64_smef64_(&outer_sum_imag, &outer_comp_imag, a_imag, inner_real_high, inner_real_low);
     }
 
     results->real = outer_sum_real + outer_comp_real;
@@ -524,9 +534,9 @@ NUMKONG_API nk_status_t nk_bilinear_f64c_smef64( //
     nk_f64c_t const *a_pairs, nk_f64c_t const *b_pairs, nk_f64c_t const *c_pairs, nk_size_t dimensions,
     nk_f64c_t *results, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sme_start_streaming_();
-    nk_bilinear_f64c_smef64_ssve_(a_pairs, b_pairs, c_pairs, dimensions, results);
-    nk_sme_stop_streaming_();
+    nk_start_sme_streaming_();
+    nk_bilinear_f64c_smef64_streaming_(a_pairs, b_pairs, c_pairs, dimensions, results);
+    nk_stop_sme_streaming_();
     return nk_success_k;
 }
 

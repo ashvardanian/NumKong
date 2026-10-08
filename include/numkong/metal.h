@@ -46,27 +46,27 @@ typedef struct {
 
 /** @c MTLCreateSystemDefaultDevice, renamed so Objective-C units may include `<Metal/Metal.h>`. */
 typedef void *nk_metal_device_factory_t(void);
-nk_metal_device_factory_t nk_metal_default_device_ __asm__("_MTLCreateSystemDefaultDevice");
+nk_metal_device_factory_t nk_default_device_metal_ __asm__("_MTLCreateSystemDefaultDevice");
 #if TARGET_OS_OSX
 
 /** @c MTLCopyAllDevices, renamed the same way; only macOS lists more than the default device. */
-nk_metal_device_factory_t nk_metal_all_devices_ __asm__("_MTLCopyAllDevices");
+nk_metal_device_factory_t nk_all_devices_metal_ __asm__("_MTLCopyAllDevices");
 #endif
 void *objc_autoreleasePoolPush(void);
 void objc_autoreleasePoolPop(void *pool);
 
-NUMKONG_INLINE void *nk_metal_class_(char const *name) { return (void *)objc_getClass(name); }
-NUMKONG_INLINE void *nk_metal_get_(void *object, char const *selector) {
+NUMKONG_INLINE void *nk_class_metal_(char const *name) { return (void *)objc_getClass(name); }
+NUMKONG_INLINE void *nk_get_metal_(void *object, char const *selector) {
     return ((void *(*)(void *, SEL))objc_msgSend)(object, sel_registerName(selector));
 }
-NUMKONG_INLINE void nk_metal_do_(void *object, char const *selector) {
+NUMKONG_INLINE void nk_do_metal_(void *object, char const *selector) {
     ((void (*)(void *, SEL))objc_msgSend)(object, sel_registerName(selector));
 }
-NUMKONG_INLINE nk_size_t nk_metal_count_(void *object, char const *selector) {
+NUMKONG_INLINE nk_size_t nk_count_metal_(void *object, char const *selector) {
     return ((nk_size_t (*)(void *, SEL))objc_msgSend)(object, sel_registerName(selector));
 }
-NUMKONG_INLINE void *nk_metal_string_(char const *text) {
-    return ((void *(*)(void *, SEL, char const *))objc_msgSend)(nk_metal_class_("NSString"),
+NUMKONG_INLINE void *nk_string_metal_(char const *text) {
+    return ((void *(*)(void *, SEL, char const *))objc_msgSend)(nk_class_metal_("NSString"),
                                                                 sel_registerName("stringWithUTF8String:"), text);
 }
 
@@ -77,35 +77,35 @@ NUMKONG_INLINE void *nk_metal_string_(char const *text) {
 #define NUMKONG_METAL_LANGUAGE_4_0_ ((4u << 16) | 0u)
 
 /** How many Metal devices the system lists: every GPU on macOS, the default one elsewhere. */
-NUMKONG_INLINE nk_size_t nk_metal_list_devices_(void) {
+NUMKONG_INLINE nk_size_t nk_list_devices_metal_(void) {
 #if TARGET_OS_OSX
-    void *const devices = nk_metal_all_devices_();
+    void *const devices = nk_all_devices_metal_();
     if (!devices) return 0;
-    nk_size_t const count = nk_metal_count_(devices, "count");
-    nk_metal_do_(devices, "release");
+    nk_size_t const count = nk_count_metal_(devices, "count");
+    nk_do_metal_(devices, "release");
     return count;
 #else
-    void *const device = nk_metal_default_device_();
+    void *const device = nk_default_device_metal_();
     if (!device) return 0;
-    nk_metal_do_(device, "release");
+    nk_do_metal_(device, "release");
     return 1;
 #endif
 }
 
 /** The Metal device at @p index of the system's list, retained, or null past its end. */
-NUMKONG_INLINE void *nk_metal_device_(nk_size_t index) {
+NUMKONG_INLINE void *nk_device_metal_(nk_size_t index) {
 #if TARGET_OS_OSX
-    void *const devices = nk_metal_all_devices_();
+    void *const devices = nk_all_devices_metal_();
     if (!devices) return NULL;
     void *device = NULL;
-    if (index < nk_metal_count_(devices, "count")) {
+    if (index < nk_count_metal_(devices, "count")) {
         device = ((void *(*)(void *, SEL, nk_size_t))objc_msgSend)(devices, sel_registerName("objectAtIndex:"), index);
-        nk_metal_do_(device, "retain");
+        nk_do_metal_(device, "retain");
     }
-    nk_metal_do_(devices, "release");
+    nk_do_metal_(devices, "release");
     return device;
 #else
-    return index == 0 ? nk_metal_default_device_() : NULL;
+    return index == 0 ? nk_default_device_metal_() : NULL;
 #endif
 }
 
@@ -155,10 +155,10 @@ typedef struct {
 enum { nk_metal_contexts_max_k = 8 };
 
 /** The device contexts and the lock guarding their initialization. */
-NUMKONG_API nk_metal_context_t *nk_metal_contexts_(os_unfair_lock_t *contexts_lock);
+NUMKONG_API nk_metal_context_t *nk_contexts_metal_(os_unfair_lock_t *contexts_lock);
 
 #if NUMKONG_HEADER_ONLY
-NUMKONG_API nk_metal_context_t *nk_metal_contexts_(os_unfair_lock_t *contexts_lock) {
+NUMKONG_API nk_metal_context_t *nk_contexts_metal_(os_unfair_lock_t *contexts_lock) {
     static nk_metal_context_t contexts[nk_metal_contexts_max_k];
     static os_unfair_lock lock;
     *contexts_lock = &lock;
@@ -168,11 +168,11 @@ NUMKONG_API nk_metal_context_t *nk_metal_contexts_(os_unfair_lock_t *contexts_lo
 
 /** The context of the device @p stream belongs to, of the system default device for a null one, or
  *  null without a GPU or past the 8 devices it keeps. */
-NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(nk_stream_t stream);
+NUMKONG_INLINE nk_metal_context_t *nk_context_metal_(nk_stream_t stream);
 
 /** @p items with room for one past @p count of @p size bytes each, grown twofold from 16, or null
  *  leaving @p items as they were. */
-NUMKONG_INLINE void *nk_metal_reserve_(void *items, nk_size_t count, nk_size_t *capacity, nk_size_t size) {
+NUMKONG_INLINE void *nk_reserve_metal_(void *items, nk_size_t count, nk_size_t *capacity, nk_size_t size) {
     if (count < *capacity) return items;
     if (*capacity > ((nk_size_t)-1) / 2) return NULL;
     nk_size_t const grown_capacity = *capacity ? *capacity * 2 : 16;
@@ -183,25 +183,25 @@ NUMKONG_INLINE void *nk_metal_reserve_(void *items, nk_size_t count, nk_size_t *
 }
 
 /** The committed work of @p queue in @p context, or null if it has none; called under the lock. */
-NUMKONG_INLINE nk_metal_pending_t *nk_metal_pending_(nk_metal_context_t *context, void *queue) {
+NUMKONG_INLINE nk_metal_pending_t *nk_pending_metal_(nk_metal_context_t *context, void *queue) {
     for (nk_size_t index = 0; index != context->pending_count; ++index)
         if (context->pending[index].queue == queue) return &context->pending[index];
     return NULL;
 }
 
 /** Opens @p call on @p stream: its device's context and the queue it names. */
-NUMKONG_INLINE nk_status_t nk_metal_enter_(nk_stream_t stream, nk_metal_call_t *call) {
+NUMKONG_INLINE nk_status_t nk_enter_metal_(nk_stream_t stream, nk_metal_call_t *call) {
     call->queue = NULL, call->commands = NULL, call->encoder = NULL;
-    call->context = nk_metal_context_(stream);
+    call->context = nk_context_metal_(stream);
     if (!call->context) return nk_missing_gpu_k;
-    call->queue = nk_metal_get_(stream ? stream : call->context->queue, "retain");
+    call->queue = nk_get_metal_(stream ? stream : call->context->queue, "retain");
     void *const pool = objc_autoreleasePoolPush();
-    call->commands = nk_metal_get_(nk_metal_get_(call->queue, "commandBuffer"), "retain");
-    if (call->commands) call->encoder = nk_metal_get_(nk_metal_get_(call->commands, "computeCommandEncoder"), "retain");
+    call->commands = nk_get_metal_(nk_get_metal_(call->queue, "commandBuffer"), "retain");
+    if (call->commands) call->encoder = nk_get_metal_(nk_get_metal_(call->commands, "computeCommandEncoder"), "retain");
     objc_autoreleasePoolPop(pool);
     if (!call->encoder) {
-        if (call->commands) nk_metal_do_(call->commands, "release");
-        nk_metal_do_(call->queue, "release");
+        if (call->commands) nk_do_metal_(call->commands, "release");
+        nk_do_metal_(call->queue, "release");
         call->queue = NULL, call->commands = NULL;
         return nk_device_code_mismatch_k;
     }
@@ -212,7 +212,7 @@ NUMKONG_INLINE nk_status_t nk_metal_enter_(nk_stream_t stream, nk_metal_call_t *
  *  @brief Finds and retains the allocation holding @p pointer for @p call.
  *  @return The block's @c id<MTLBuffer>, or null when @p pointer lies outside every block.
  */
-NUMKONG_INLINE void *nk_metal_resolve_(nk_metal_call_t *call, void const *pointer, nk_size_t bytes, nk_size_t *offset) {
+NUMKONG_INLINE void *nk_resolve_metal_(nk_metal_call_t *call, void const *pointer, nk_size_t bytes, nk_size_t *offset) {
     nk_metal_context_t *const context = call->context;
     nk_size_t const address = (nk_size_t)pointer;
     void *buffer = NULL;
@@ -235,10 +235,10 @@ NUMKONG_INLINE void *nk_metal_resolve_(nk_metal_call_t *call, void const *pointe
     return buffer;
 }
 
-NUMKONG_INLINE nk_status_t nk_metal_abort_(nk_metal_call_t *call, nk_status_t status) {
-    if (call->encoder) nk_metal_do_(call->encoder, "endEncoding"), nk_metal_do_(call->encoder, "release");
-    if (call->commands) nk_metal_do_(call->commands, "release");
-    if (call->queue) nk_metal_do_(call->queue, "release");
+NUMKONG_INLINE nk_status_t nk_abort_metal_(nk_metal_call_t *call, nk_status_t status) {
+    if (call->encoder) nk_do_metal_(call->encoder, "endEncoding"), nk_do_metal_(call->encoder, "release");
+    if (call->commands) nk_do_metal_(call->commands, "release");
+    if (call->queue) nk_do_metal_(call->queue, "release");
     call->queue = NULL, call->commands = NULL, call->encoder = NULL;
     return status;
 }
@@ -248,7 +248,7 @@ NUMKONG_INLINE nk_status_t nk_metal_abort_(nk_metal_call_t *call, nk_status_t st
  *  @param[in] language_version An @c MTLLanguageVersion, like `(3 << 16) | 1` for Metal 3.1.
  *  @return The pipeline, or null when it fails to build.
  */
-NUMKONG_INLINE void *nk_metal_pipeline_(nk_metal_context_t *context, char const *source, char const *name,
+NUMKONG_INLINE void *nk_pipeline_metal_(nk_metal_context_t *context, char const *source, char const *name,
                                         nk_size_t language_version) {
     void *library = NULL;
     os_unfair_lock_lock(&context->lock);
@@ -262,7 +262,7 @@ NUMKONG_INLINE void *nk_metal_pipeline_(nk_metal_context_t *context, char const 
         os_unfair_lock_unlock(&context->lock);
         return pipeline;
     }
-    nk_metal_pipeline_t *const pipelines = (nk_metal_pipeline_t *)nk_metal_reserve_(
+    nk_metal_pipeline_t *const pipelines = (nk_metal_pipeline_t *)nk_reserve_metal_(
         context->pipelines, context->pipelines_count, &context->pipelines_capacity, sizeof(nk_metal_pipeline_t));
     if (!pipelines) {
         os_unfair_lock_unlock(&context->lock);
@@ -272,24 +272,24 @@ NUMKONG_INLINE void *nk_metal_pipeline_(nk_metal_context_t *context, char const 
     int const new_library = !library;
     void *const pool = objc_autoreleasePoolPush();
     if (new_library) {
-        void *const options = nk_metal_get_(nk_metal_get_(nk_metal_class_("MTLCompileOptions"), "alloc"), "init");
+        void *const options = nk_get_metal_(nk_get_metal_(nk_class_metal_("MTLCompileOptions"), "alloc"), "init");
         ((void (*)(void *, SEL, nk_size_t))objc_msgSend)(options, sel_registerName("setLanguageVersion:"),
                                                          language_version);
         void *error = NULL;
         library = ((void *(*)(void *, SEL, void *, void *, void **))objc_msgSend)(
-            context->device, sel_registerName("newLibraryWithSource:options:error:"), nk_metal_string_(source), options,
+            context->device, sel_registerName("newLibraryWithSource:options:error:"), nk_string_metal_(source), options,
             &error);
-        nk_metal_do_(options, "release");
+        nk_do_metal_(options, "release");
     }
     void *pipeline = NULL;
     if (library) {
         void *const function = ((void *(*)(void *, SEL, void *))objc_msgSend)(
-            library, sel_registerName("newFunctionWithName:"), nk_metal_string_(name));
+            library, sel_registerName("newFunctionWithName:"), nk_string_metal_(name));
         if (function) {
             void *error = NULL;
             pipeline = ((void *(*)(void *, SEL, void *, void **))objc_msgSend)(
                 context->device, sel_registerName("newComputePipelineStateWithFunction:error:"), function, &error);
-            nk_metal_do_(function, "release");
+            nk_do_metal_(function, "release");
         }
     }
     objc_autoreleasePoolPop(pool);
@@ -298,67 +298,67 @@ NUMKONG_INLINE void *nk_metal_pipeline_(nk_metal_context_t *context, char const 
         entry->source = source, entry->name = name, entry->language_version = language_version;
         entry->library = library, entry->pipeline = pipeline;
     }
-    else if (new_library && library) nk_metal_do_(library, "release");
+    else if (new_library && library) nk_do_metal_(library, "release");
     os_unfair_lock_unlock(&context->lock);
     return pipeline;
 }
 
 /** Sets @p pipeline on the call's compute encoder. */
-NUMKONG_INLINE void nk_metal_encoder_(nk_metal_call_t *call, void *pipeline) {
+NUMKONG_INLINE void nk_encoder_metal_(nk_metal_call_t *call, void *pipeline) {
     ((void (*)(void *, SEL, void *))objc_msgSend)(call->encoder, sel_registerName("setComputePipelineState:"),
                                                   pipeline);
 }
 
 /** Binds @p buffer at @p offset to buffer slot @p index of @p encoder. */
-NUMKONG_INLINE void nk_metal_bind_(void *encoder, void *buffer, nk_size_t offset, nk_size_t index) {
+NUMKONG_INLINE void nk_bind_metal_(void *encoder, void *buffer, nk_size_t offset, nk_size_t index) {
     ((void (*)(void *, SEL, void *, nk_size_t, nk_size_t))objc_msgSend)(
         encoder, sel_registerName("setBuffer:offset:atIndex:"), buffer, offset, index);
 }
 
 /** Copies @p bytes of @p arguments into buffer slot @p index of @p encoder. */
-NUMKONG_INLINE void nk_metal_bind_bytes_(void *encoder, void const *arguments, nk_size_t bytes, nk_size_t index) {
+NUMKONG_INLINE void nk_bind_bytes_metal_(void *encoder, void const *arguments, nk_size_t bytes, nk_size_t index) {
     ((void (*)(void *, SEL, void const *, nk_size_t, nk_size_t))objc_msgSend)(
         encoder, sel_registerName("setBytes:length:atIndex:"), arguments, bytes, index);
 }
 
 /** Dispatches @p groups threadgroups of @p threads each, then commits the call, so it starts
  *  running while the host moves on, as a CUDA launch does. */
-NUMKONG_INLINE nk_status_t nk_metal_dispatch_(nk_metal_call_t *call, nk_metal_size_t groups, nk_metal_size_t threads) {
+NUMKONG_INLINE nk_status_t nk_dispatch_metal_(nk_metal_call_t *call, nk_metal_size_t groups, nk_metal_size_t threads) {
     ((void (*)(void *, SEL, nk_metal_size_t, nk_metal_size_t))objc_msgSend)(
         call->encoder, sel_registerName("dispatchThreadgroups:threadsPerThreadgroup:"), groups, threads);
-    nk_metal_do_(call->encoder, "endEncoding");
-    nk_metal_do_(call->encoder, "release");
+    nk_do_metal_(call->encoder, "endEncoding");
+    nk_do_metal_(call->encoder, "release");
     call->encoder = NULL;
 
     // Committing under the lock keeps every stream's commands in their commit order
     nk_metal_context_t *const context = call->context;
     os_unfair_lock_lock(&context->lock);
-    nk_metal_pending_t *pending = nk_metal_pending_(context, call->queue);
+    nk_metal_pending_t *pending = nk_pending_metal_(context, call->queue);
     if (!pending) {
-        nk_metal_pending_t *const grown = (nk_metal_pending_t *)nk_metal_reserve_(
+        nk_metal_pending_t *const grown = (nk_metal_pending_t *)nk_reserve_metal_(
             context->pending, context->pending_count, &context->pending_capacity, sizeof(nk_metal_pending_t));
         if (grown) {
             context->pending = grown, pending = &grown[context->pending_count++];
             memset(pending, 0, sizeof(*pending));
-            pending->queue = nk_metal_get_(call->queue, "retain");
+            pending->queue = nk_get_metal_(call->queue, "retain");
         }
     }
-    void **const commands = pending ? (void **)nk_metal_reserve_(pending->commands, pending->commands_count,
+    void **const commands = pending ? (void **)nk_reserve_metal_(pending->commands, pending->commands_count,
                                                                  &pending->commands_capacity, sizeof(void *))
                                     : NULL;
     if (commands) {
         pending->commands = commands, commands[pending->commands_count++] = call->commands;
-        nk_metal_do_(call->commands, "commit");
+        nk_do_metal_(call->commands, "commit");
     }
     os_unfair_lock_unlock(&context->lock);
     if (commands) call->commands = NULL;
-    return nk_metal_abort_(call, commands ? nk_success_k : nk_bad_alloc_k);
+    return nk_abort_metal_(call, commands ? nk_success_k : nk_bad_alloc_k);
 }
 
-NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(nk_stream_t stream) {
+NUMKONG_INLINE nk_metal_context_t *nk_context_metal_(nk_stream_t stream) {
     os_unfair_lock_t contexts_lock;
-    nk_metal_context_t *const contexts = nk_metal_contexts_(&contexts_lock);
-    void *const device = stream ? nk_metal_get_(stream, "device") : nk_metal_default_device_();
+    nk_metal_context_t *const contexts = nk_contexts_metal_(&contexts_lock);
+    void *const device = stream ? nk_get_metal_(stream, "device") : nk_default_device_metal_();
     if (!device) return NULL;
     nk_metal_context_t *context = NULL;
     os_unfair_lock_lock(contexts_lock);
@@ -366,30 +366,30 @@ NUMKONG_INLINE nk_metal_context_t *nk_metal_context_(nk_stream_t stream) {
     for (; index != nk_metal_contexts_max_k && contexts[index].device && !context; ++index)
         if (contexts[index].device == device) context = &contexts[index];
     if (!context && index != nk_metal_contexts_max_k) {
-        void *const queue = nk_metal_get_(device, "newCommandQueue");
+        void *const queue = nk_get_metal_(device, "newCommandQueue");
         if (queue) {
             context = &contexts[index];
-            context->device = nk_metal_get_(device, "retain");
+            context->device = nk_get_metal_(device, "retain");
             context->queue = queue;
         }
     }
     os_unfair_lock_unlock(contexts_lock);
-    if (!stream) nk_metal_do_(device, "release");
+    if (!stream) nk_do_metal_(device, "release");
     return context;
 }
 
 NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, void **pointer, nk_stream_t stream) {
     *pointer = NULL;
     if (!bytes) return nk_success_k;
-    nk_metal_context_t *const context = nk_metal_context_(stream);
+    nk_metal_context_t *const context = nk_context_metal_(stream);
     if (!context) return nk_missing_gpu_k;
     nk_size_t const shared_storage = 0; // `MTLResourceStorageModeShared`
     void *const buffer = ((void *(*)(void *, SEL, nk_size_t, nk_size_t))objc_msgSend)(
         context->device, sel_registerName("newBufferWithLength:options:"), bytes, shared_storage);
     if (!buffer) return nk_bad_alloc_k;
-    char *const host = (char *)nk_metal_get_(buffer, "contents");
+    char *const host = (char *)nk_get_metal_(buffer, "contents");
     os_unfair_lock_lock(&context->lock);
-    nk_metal_block_t *const blocks = (nk_metal_block_t *)nk_metal_reserve_(
+    nk_metal_block_t *const blocks = (nk_metal_block_t *)nk_reserve_metal_(
         context->blocks, context->blocks_count, &context->blocks_capacity, sizeof(nk_metal_block_t));
     if (blocks) {
         nk_size_t position = context->blocks_count;
@@ -401,7 +401,7 @@ NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, vo
     }
     os_unfair_lock_unlock(&context->lock);
     if (!blocks) {
-        nk_metal_do_(buffer, "release");
+        nk_do_metal_(buffer, "release");
         return nk_bad_alloc_k;
     }
     *pointer = host;
@@ -411,7 +411,7 @@ NUMKONG_INLINE nk_status_t nk_memory_allocate_unified_metal_(nk_size_t bytes, vo
 NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_t bytes, nk_stream_t stream) {
     nk_unused_(bytes);
     if (!pointer) return nk_success_k;
-    nk_metal_context_t *const context = nk_metal_context_(stream);
+    nk_metal_context_t *const context = nk_context_metal_(stream);
     if (!context) return nk_missing_gpu_k;
     os_unfair_lock_lock(&context->lock);
     nk_size_t index = 0;
@@ -424,7 +424,7 @@ NUMKONG_INLINE nk_status_t nk_memory_free_unified_metal_(void *pointer, nk_size_
         --context->blocks_count;
     }
     os_unfair_lock_unlock(&context->lock);
-    if (buffer) nk_metal_do_(buffer, "release");
+    if (buffer) nk_do_metal_(buffer, "release");
     return status;
 }
 
@@ -448,13 +448,13 @@ NUMKONG_INLINE nk_status_t nk_allocator_init_unified_metal_(nk_allocator_t *allo
 }
 
 NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(nk_stream_t stream) {
-    nk_metal_context_t *const context = nk_metal_context_(stream);
+    nk_metal_context_t *const context = nk_context_metal_(stream);
     if (!context) return nk_missing_gpu_k;
     void *const queue = stream ? stream : context->queue;
     void **commands = NULL;
     nk_size_t commands_count = 0;
     os_unfair_lock_lock(&context->lock);
-    nk_metal_pending_t *pending = nk_metal_pending_(context, queue);
+    nk_metal_pending_t *pending = nk_pending_metal_(context, queue);
     if (pending) {
         commands_count = pending->commands_count;
         if (commands_count) commands = (void **)malloc(commands_count * sizeof(void *));
@@ -463,7 +463,7 @@ NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(nk_stream_t stream) {
             return nk_bad_alloc_k;
         }
         for (nk_size_t index = 0; index != commands_count; ++index)
-            commands[index] = nk_metal_get_(pending->commands[index], "retain");
+            commands[index] = nk_get_metal_(pending->commands[index], "retain");
         ++pending->waiters;
     }
     os_unfair_lock_unlock(&context->lock);
@@ -471,18 +471,18 @@ NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(nk_stream_t stream) {
 
     nk_status_t status = nk_success_k;
     for (nk_size_t index = 0; index != commands_count; ++index) {
-        nk_metal_do_(commands[index], "waitUntilCompleted");
-        if (nk_metal_count_(commands[index], "status") != 4) status = nk_device_code_mismatch_k;
+        nk_do_metal_(commands[index], "waitUntilCompleted");
+        if (nk_count_metal_(commands[index], "status") != 4) status = nk_device_code_mismatch_k;
     }
 
     void *drained = NULL;
     os_unfair_lock_lock(&context->lock);
-    pending = nk_metal_pending_(context, queue);
+    pending = nk_pending_metal_(context, queue);
     nk_size_t completed = 0;
     // Other waiters may already have drained this snapshot; later submissions stay queued.
     for (nk_size_t index = 0; commands_count && index != pending->commands_count; ++index)
         if (pending->commands[index] == commands[commands_count - 1]) completed = index + 1;
-    for (nk_size_t index = 0; index != completed; ++index) nk_metal_do_(pending->commands[index], "release");
+    for (nk_size_t index = 0; index != completed; ++index) nk_do_metal_(pending->commands[index], "release");
     if (completed) {
         pending->commands_count -= completed;
         memmove(pending->commands, pending->commands + completed, pending->commands_count * sizeof(void *));
@@ -493,8 +493,8 @@ NUMKONG_INLINE nk_status_t nk_stream_synchronize_metal_(nk_stream_t stream) {
         *pending = context->pending[--context->pending_count];
     }
     os_unfair_lock_unlock(&context->lock);
-    if (drained) nk_metal_do_(drained, "release");
-    for (nk_size_t index = 0; index != commands_count; ++index) nk_metal_do_(commands[index], "release");
+    if (drained) nk_do_metal_(drained, "release");
+    for (nk_size_t index = 0; index != commands_count; ++index) nk_do_metal_(commands[index], "release");
     free(commands);
     return status;
 }

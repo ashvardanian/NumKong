@@ -32,7 +32,7 @@
 #include "numkong/types.h"
 #include "numkong/cast/skylake.h"   // `nk_e4m3x16_to_f32x16_skylake_`
 #include "numkong/each/haswell.h"   // `nk_add_f16_haswell_`
-#include "numkong/reduce/skylake.h" // `nk_reduce_moments_f32_skylake_chunked_`
+#include "numkong/reduce/skylake.h" // `nk_reduce_moments_chunked_f32_skylake_`
 #include "numkong/scalar/serial.h"  // `nk_f32_exp2_serial_`
 
 #if defined(__cplusplus)
@@ -1975,7 +1975,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_f32_skylake(nk_f32_t const *x, nk_f32_t 
             nk_f32_t const *group_input = x_row + group * columns;
             nk_f32_t *group_output = y_row + group * columns;
             nk_f64_t sum, sumsq;
-            nk_reduce_moments_f32_skylake_chunked_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_reduce_moments_chunked_f32_skylake_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
             nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
@@ -2013,7 +2013,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_skylake(nk_bf16_t const *x, nk_f32_
             for (nk_size_t start = 0; start < columns; start += 64) {
                 nk_size_t const count = columns - start < 64 ? columns - start : 64;
                 nk_f32_t partial_sum, partial_sumsq;
-                nk_reduce_moments_bf16_skylake_chunked_(group_input + start, count, sizeof(nk_bf16_t), &partial_sum,
+                nk_reduce_moments_chunked_bf16_skylake_(group_input + start, count, sizeof(nk_bf16_t), &partial_sum,
                                                         &partial_sumsq);
                 sumsq += partial_sumsq;
             }
@@ -2056,7 +2056,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_skylake(nk_e4m3_t const *x, nk_f32_
             nk_e4m3_t const *group_input = x_row + group * columns;
             nk_e4m3_t *group_output = y_row + group * columns;
             nk_f32_t sum, sumsq;
-            nk_reduce_moments_e4m3_skylake_chunked_(group_input, columns, sizeof(nk_e4m3_t), &sum, &sumsq);
+            nk_reduce_moments_chunked_e4m3_skylake_(group_input, columns, sizeof(nk_e4m3_t), &sum, &sumsq);
             nk_f32_t mean_square = (nk_f32_t)((nk_f64_t)sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
@@ -2096,7 +2096,7 @@ NUMKONG_API nk_status_t nk_each_rmscast_bf16_skylake(nk_f32_t const *x, nk_f32_t
             nk_f32_t const *group_input = x_row + group * columns;
             nk_bf16_t *group_output = y_row + group * columns;
             nk_f64_t sum, sumsq;
-            nk_reduce_moments_f32_skylake_chunked_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_reduce_moments_chunked_f32_skylake_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
             nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
@@ -2131,7 +2131,7 @@ NUMKONG_API nk_status_t nk_each_rmscast_e4m3_skylake(nk_f32_t const *x, nk_f32_t
             nk_f32_t const *group_input = x_row + group * columns;
             nk_e4m3_t *group_output = y_row + group * columns;
             nk_f64_t sum, sumsq;
-            nk_reduce_moments_f32_skylake_chunked_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
+            nk_reduce_moments_chunked_f32_skylake_(group_input, columns, sizeof(nk_f32_t), &sum, &sumsq);
             nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);
@@ -2166,7 +2166,7 @@ NUMKONG_API nk_status_t nk_each_rmscast_f32_skylake(nk_f64_t const *x, nk_f32_t 
             nk_f64_t const *group_input = x_row + group * columns;
             nk_f32_t *group_output = y_row + group * columns;
             nk_f64_t sum, sumsq;
-            nk_reduce_moments_f64_skylake_contiguous_(group_input, columns, &sum, &sumsq);
+            nk_reduce_moments_contiguous_f64_skylake_(group_input, columns, &sum, &sumsq);
             nk_f32_t mean_square = (nk_f32_t)(sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t inv_rms = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             __m512 gain_f32x16 = _mm512_set1_ps(inv_rms);

@@ -39,16 +39,6 @@ enum {
     nk_attention_block_bytes_hopper_k = nk_attention_swizzle_rows_hopper_k * nk_attention_swizzle_bytes_hopper_k,
 };
 
-/** One 32-byte depth step of S for the warpgroup's 64 rows against 64 positions, Q and K both
- *  from shared memory, adding to @p scores or, when @p accumulate is 0, replacing them. */
-typedef void (*nk_attention_scores_hopper_t)(nk_fui32_t scores[32], nk_u64_t query_descriptor, nk_u64_t key_descriptor,
-                                             int accumulate);
-
-/** One step of P · V into 64 output columns, P as A fragments in @p weights and V from shared
- *  memory, adding to @p output or, when @p accumulate is 0, replacing it. */
-typedef void (*nk_attention_values_hopper_t)(nk_fui32_t output[32], nk_u32_t const weights[4],
-                                             nk_u64_t value_descriptor, int accumulate);
-
 #pragma endregion Configuration
 
 #pragma region Instructions
@@ -197,250 +187,173 @@ NUMKONG_DEVICE void nk_attention_stage_columns_hopper_(unsigned char *shared, un
     }
 }
 
+/** Where one warpgroup's work item sits: its output blocks, the shared buffers that stage them, and
+ *  the packed planes they come from. */
+typedef struct {
+    unsigned max_blocks, row_bytes, depth_steps, depth_padded, depth_blocks;
+    unsigned char *keys_shared, *values_shared, *queries_shared;
+    nk_u32_t queries_address, keys_address, values_address;
+    unsigned char const *keys_plane, *values_plane;
+    nk_size_t length, positions_padded;
+    nk_diagonal_band_t band;
+    unsigned warp_rows, panel_first, panel_end;
+    nk_i64_t warp_first;
+} nk_attention_frame_hopper_t;
+
 /**
- *  @brief One work item on one warpgroup: scores, online softmax and P · V over every panel its
- *      rows see, then the output.
- *  @param[in] dtype The input dtype, which the MMAs take as it is: @c nk_bf16_k, @c nk_e4m3_k or
- *      @c nk_i8_k.
- *  @param[in] width Two or four 64-column output blocks in registers, see @c nk_attention_width_t.
+ *  @brief Places one work item on one warpgroup: how many 64-column output blocks it holds per
+ *      @p width, its shared buffers, and the panels its rows see.
  *  @param[in] mask Whether panels crossing the band's edges mask their scores, see
  *      @c nk_attention_mask_t; panels past the segment's keys always do.
- *  @param[in] epilogue F32 scores, or exact I32 ones converted per panel.
- *  @param[in] scores One depth step of S, see @c nk_attention_scores_hopper_t.
- *  @param[in] values_mma One step of P · V, see @c nk_attention_values_hopper_t.
- *  @param[in] weights P from probabilities, see @c nk_attention_weights_ampere_t.
- *
- *  Q, K and a BF16 V sit in 64-byte swizzled blocks of 64 rows, one block per 64 depth bytes; a
- *  transposed V sits as one swizzled 64-byte row per depth row. Warp @c w holds rows 16w to 16w +
- *  15, with scores and output in the Ampere tile's order: register 4t + 2h + e of a thread is row
- *  16w + lane / 4 + 8h at column 8t + 2 · (lane mod 4) + e.
+ *  @param[in] element_bytes Bytes of one input element: 2 keeps V position-major, 1 transposes it.
  */
-NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_width_t width, nk_attention_mask_t mask,
-                                               nk_cross_epilogue_t epilogue, nk_attention_scores_hopper_t scores,
-                                               nk_attention_values_hopper_t values_mma,
-                                               nk_attention_weights_ampere_t weights,
-                                               nk_attention_arguments_t const *arguments,
-                                               nk_attention_work_t const *work, unsigned char *shared) {
-
-    nk_f32_t const negative_infinity = nk_attention_negative_infinity_();
-    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
-    unsigned const element_bytes = dtype == nk_bf16_k ? 2 : 1;
-    unsigned const max_blocks = width == nk_attention_width_128_k ? nk_attention_narrow_depth_ampere_k / 64
-                                                                  : nk_attention_wide_depth_ampere_k / 64;
-
+NUMKONG_DEVICE nk_attention_frame_hopper_t nk_attention_frame_hopper_(nk_attention_width_t width,
+                                                                      nk_attention_mask_t mask, unsigned element_bytes,
+                                                                      nk_attention_arguments_t const *arguments,
+                                                                      nk_attention_work_t const *work,
+                                                                      unsigned char *shared) {
+    nk_attention_frame_hopper_t frame;
+    unsigned const warp = threadIdx.x >> 5;
+    frame.max_blocks = width == nk_attention_width_128_k ? nk_attention_narrow_depth_ampere_k / 64
+                                                         : nk_attention_wide_depth_ampere_k / 64;
     nk_size_t const depth = arguments->depth;
-    unsigned const row_bytes = (unsigned)nk_size_round_up_to_multiple_(depth * element_bytes,
-                                                                       nk_attention_step_bytes_k);
-    unsigned const depth_steps = row_bytes / nk_attention_step_bytes_k;
-    unsigned const depth_padded = row_bytes / element_bytes,
-                   depth_blocks = (unsigned)nk_size_divide_round_up_(depth_padded, 64);
-    unsigned char *keys_shared = shared + arguments->key_offset[0];
-    unsigned char *values_shared = shared + arguments->value_offset[0];
-    unsigned char *queries_shared = shared + arguments->query_offset[0];
-    nk_u32_t const queries_address = nk_shared_address_ampere_(queries_shared);
-    nk_u32_t const keys_address = nk_shared_address_ampere_(keys_shared);
-    nk_u32_t const values_address = nk_shared_address_ampere_(values_shared);
+    frame.row_bytes = (unsigned)nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
+    frame.depth_steps = frame.row_bytes / nk_attention_step_bytes_k;
+    frame.depth_padded = frame.row_bytes / element_bytes;
+    frame.depth_blocks = (unsigned)nk_size_divide_round_up_(frame.depth_padded, 64);
+    frame.keys_shared = shared + arguments->key_offset[0];
+    frame.values_shared = shared + arguments->value_offset[0];
+    frame.queries_shared = shared + arguments->query_offset[0];
+    frame.queries_address = nk_shared_address_ampere_(frame.queries_shared);
+    frame.keys_address = nk_shared_address_ampere_(frame.keys_shared);
+    frame.values_address = nk_shared_address_ampere_(frame.values_shared);
 
-    nk_size_t length, plane_bytes;
-    unsigned char const *keys_plane = nk_attention_keys_plane_(arguments, work, row_bytes, &length, &plane_bytes);
-    unsigned char const *values_plane = keys_plane + arguments->key_value_head_count * plane_bytes;
-    nk_size_t const positions_padded = plane_bytes / row_bytes;
+    nk_size_t plane_bytes;
+    frame.keys_plane = nk_attention_keys_plane_simt_(arguments, work, frame.row_bytes, &frame.length, &plane_bytes);
+    frame.values_plane = frame.keys_plane + arguments->key_value_head_count * plane_bytes;
+    frame.positions_padded = plane_bytes / frame.row_bytes;
 
     // A thread holds rows `group` and `group + 8` of its warp's 16, which classify panels jointly.
-    nk_diagonal_band_t const band = nk_attention_kernel_band_(mask, arguments);
-    unsigned const warp_rows = work->row_count > warp * 16 ? min((unsigned)work->row_count - warp * 16, 16u) : 0;
-    nk_i64_t const warp_first = nk_attention_row_position_(work, warp * 16, length);
+    frame.band = nk_attention_kernel_band_simt_(mask, arguments);
+    frame.warp_rows = work->row_count > warp * 16 ? min((unsigned)work->row_count - warp * 16, 16u) : 0;
+    frame.warp_first = nk_attention_row_position_simt_(work, warp * 16, frame.length);
     nk_size_t block_begin, block_end;
-    nk_attention_rows_keys_(band, nk_attention_row_position_(work, 0, length),
-                            nk_attention_row_position_(work, work->row_count - 1, length), length, &block_begin,
-                            &block_end);
-    unsigned const panel = nk_attention_panel_k;
-    unsigned const panel_first = (unsigned)(block_begin / panel);
-    unsigned const panel_end = block_begin < block_end ? (unsigned)nk_size_divide_round_up_(block_end, panel)
-                                                       : panel_first;
-    // Retires the previous item's reads of every buffer this item refills.
-    __syncthreads();
+    nk_attention_rows_keys_simt_(frame.band, nk_attention_row_position_simt_(work, 0, frame.length),
+                                 nk_attention_row_position_simt_(work, work->row_count - 1, frame.length), frame.length,
+                                 &block_begin, &block_end);
+    frame.panel_first = (unsigned)(block_begin / nk_attention_panel_k);
+    frame.panel_end = block_begin < block_end ? (unsigned)nk_size_divide_round_up_(block_end, nk_attention_panel_k)
+                                              : frame.panel_first;
+    return frame;
+}
 
-    if (panel_first < panel_end)
-        nk_attention_stage_rows_hopper_(keys_shared, keys_plane, (nk_size_t)panel_first * panel, row_bytes);
-    nk_commit_async_ampere_();
-
-    // Q rows need not be 16-byte aligned, so they are stored element by element.
+/** Stores the work item's Q rows of 2-byte elements into 64-byte swizzled blocks. Rows need not be
+ *  16-byte aligned, so they are stored element by element. */
+NUMKONG_DEVICE void nk_attention_stage_queries_b16_hopper_(nk_attention_frame_hopper_t const *frame,
+                                                           nk_attention_arguments_t const *arguments,
+                                                           nk_attention_work_t const *work) {
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
     for (unsigned local = warp; local < nk_attention_block_rows_k; local += 4) {
         int const valid = local < work->row_count;
-        unsigned char const *source = valid ? nk_attention_query_row_(arguments, work, local, element_bytes)
-                                            : NUMKONG_NULL;
-        for (unsigned element = lane; element < depth_padded; element += 32) {
-            unsigned const byte = element * element_bytes, column = (byte >> 4) & 3;
-            unsigned char *destination = queries_shared + (byte >> 6) * nk_attention_block_bytes_hopper_k +
+        unsigned char const *source = valid ? nk_attention_query_row_simt_(arguments, work, local, 2) : NUMKONG_NULL;
+        unsigned short const *source_words = (unsigned short const *)source;
+        for (unsigned element = lane; element < frame->depth_padded; element += 32) {
+            unsigned const byte = element * 2, column = (byte >> 4) & 3;
+            unsigned char *destination = frame->queries_shared + (byte >> 6) * nk_attention_block_bytes_hopper_k +
                                          local * nk_attention_swizzle_bytes_hopper_k +
                                          ((column ^ ((local >> 1) & 3)) << 4) + (byte & 15);
-            int const inside = valid && element < depth;
-            if (dtype == nk_bf16_k)
-                *(unsigned short *)destination = inside ? ((unsigned short const *)source)[element] : (unsigned short)0;
-            else *destination = inside ? source[element] : (unsigned char)0;
+            int const inside = valid && element < arguments->depth;
+            *(unsigned short *)destination = inside ? source_words[element] : (unsigned short)0;
         }
     }
+}
 
-    nk_f32_t row_max[2] = {negative_infinity, negative_infinity}, row_sum[2] = {0, 0};
-    nk_fui32_t output[nk_attention_wide_depth_ampere_k / 64 * 32];
-#pragma unroll
-    for (unsigned index = 0; index < max_blocks * 32; ++index) output[index].u = 0;
-    nk_f32_t const scale2 = arguments->scale2 * arguments->score_scale;
-
-    for (unsigned panel_index = panel_first; panel_index < panel_end; ++panel_index) {
-        nk_wait_async_ampere_(0);
-        nk_fence_proxy_async_hopper_();
-        // K has landed, Q too on the first panel, and every warp is done with the V this refills.
-        __syncthreads();
-        nk_size_t const panel_position = (nk_size_t)panel_index * panel;
-        if (dtype == nk_bf16_k) nk_attention_stage_rows_hopper_(values_shared, values_plane, panel_position, row_bytes);
-        else
-            nk_attention_stage_columns_hopper_(values_shared, values_plane, positions_padded, panel_position,
-                                               depth_padded);
-        nk_commit_async_ampere_();
-
-        nk_fui32_t tile_scores[32];
-#pragma unroll
-        for (unsigned index = 0; index < 32; ++index) tile_scores[index].u = 0;
-        nk_wgmma_fence_operands_hopper_(tile_scores, 32, epilogue);
-        nk_wgmma_fence_hopper_();
-#pragma unroll
-        for (unsigned step = 0; step < max_blocks * 4; ++step) {
-            if (step >= depth_steps) continue;
-            // K-major rows, the leading offset unread, each step starting where row 0 holds it.
-            nk_u32_t const offset = (step >> 1) * nk_attention_block_bytes_hopper_k + (step & 1) * 32;
-            scores(tile_scores,
-                   nk_smem_descriptor_hopper_(queries_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
-                   nk_smem_descriptor_hopper_(keys_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512), step != 0);
+/** The 1-byte twin of @c nk_attention_stage_queries_b16_hopper_. */
+NUMKONG_DEVICE void nk_attention_stage_queries_b8_hopper_(nk_attention_frame_hopper_t const *frame,
+                                                          nk_attention_arguments_t const *arguments,
+                                                          nk_attention_work_t const *work) {
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5;
+    for (unsigned local = warp; local < nk_attention_block_rows_k; local += 4) {
+        int const valid = local < work->row_count;
+        unsigned char const *source = valid ? nk_attention_query_row_simt_(arguments, work, local, 1) : NUMKONG_NULL;
+        for (unsigned element = lane; element < frame->depth_padded; element += 32) {
+            unsigned const byte = element, column = (byte >> 4) & 3;
+            unsigned char *destination = frame->queries_shared + (byte >> 6) * nk_attention_block_bytes_hopper_k +
+                                         local * nk_attention_swizzle_bytes_hopper_k +
+                                         ((column ^ ((local >> 1) & 3)) << 4) + (byte & 15);
+            int const inside = valid && element < arguments->depth;
+            *destination = inside ? source[element] : (unsigned char)0;
         }
-        nk_wgmma_commit_hopper_();
-        nk_wgmma_wait_hopper_();
-        nk_wgmma_fence_operands_hopper_(tile_scores, 32, epilogue);
+    }
+}
 
+/**
+ *  @brief Turns a panel's raw scores into the exponentials of its online softmax: scales them,
+ *      masks the columns the band hides, folds the panel's maxima into @p row_max and rescales
+ *      @p row_sum, with the factor the output needs in @p correction.
+ *  @param[in] epilogue F32 scores, or exact I32 ones converted first.
+ */
+NUMKONG_DEVICE void nk_attention_softmax_hopper_(nk_cross_epilogue_t epilogue, nk_fui32_t tile_scores[32],
+                                                 nk_attention_frame_hopper_t const *frame,
+                                                 nk_attention_work_t const *work, nk_f32_t scale2,
+                                                 nk_size_t panel_position, nk_f32_t row_max[2], nk_f32_t row_sum[2],
+                                                 nk_f32_t correction[2]) {
+    nk_f32_t const negative_infinity = nk_attention_negative_infinity_simt_();
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
 #pragma unroll
-        for (unsigned index = 0; index < 32; ++index)
-            tile_scores[index].f = (epilogue == nk_cross_epilogue_i32_to_f32_k ? (nk_f32_t)tile_scores[index].i
-                                                                               : tile_scores[index].f) *
-                                   scale2;
-        // The warpgroup multiplies every panel, so a warp outside one masks all of it.
-        if (nk_attention_tile_coverage_(band, warp_first, warp_rows, panel_position, panel, length) !=
-            nk_diagonal_band_inside_k) {
-            nk_u32_t visible[2][2] = {{0, 0}, {0, 0}};
-#pragma unroll
-            for (unsigned half = 0; half < 2; ++half) {
-                unsigned const local = warp * 16 + group + half * 8;
-                if (local >= work->row_count) continue;
-                nk_i64_t const row = nk_attention_row_position_(work, local, length);
-                visible[half][0] = nk_diagonal_band_row_mask_simt_(band, row, panel_position, length);
-                visible[half][1] = nk_diagonal_band_row_mask_simt_(band, row, panel_position + 32, length);
-            }
-#pragma unroll
-            for (unsigned index = 0; index < 32; ++index) {
-                unsigned const offset = (index >> 2) * 8 + quad * 2 + (index & 1);
-                if (!((visible[(index >> 1) & 1][offset >> 5] >> (offset & 31)) & 1))
-                    tile_scores[index].f = negative_infinity;
-            }
-        }
-        nk_f32_t subtrahend[2], correction[2];
+    for (unsigned index = 0; index < 32; ++index)
+        tile_scores[index].f = (epilogue == nk_cross_epilogue_i32_to_f32_k ? (nk_f32_t)tile_scores[index].i
+                                                                           : tile_scores[index].f) *
+                               scale2;
+    // The warpgroup multiplies every panel, so a warp outside one masks all of it.
+    if (nk_attention_tile_coverage_simt_(frame->band, frame->warp_first, frame->warp_rows, panel_position,
+                                         nk_attention_panel_k, frame->length) != nk_diagonal_band_inside_k) {
+        nk_u32_t visible[2][2] = {{0, 0}, {0, 0}};
 #pragma unroll
         for (unsigned half = 0; half < 2; ++half) {
-            nk_f32_t chunk_max = negative_infinity;
-#pragma unroll
-            for (unsigned tile = 0; tile < 8; ++tile)
-                chunk_max = fmaxf(chunk_max,
-                                  fmaxf(tile_scores[tile * 4 + half * 2].f, tile_scores[tile * 4 + half * 2 + 1].f));
-            chunk_max = fmaxf(chunk_max, __shfl_xor_sync(0xFFFFFFFFu, chunk_max, 1));
-            chunk_max = fmaxf(chunk_max, __shfl_xor_sync(0xFFFFFFFFu, chunk_max, 2));
-            nk_f32_t const new_max = fmaxf(row_max[half], chunk_max);
-            // With every key so far masked, subtracting 0 keeps exp2(-∞ - max) from turning NaN.
-            subtrahend[half] = new_max == negative_infinity ? 0.0f : new_max;
-            correction[half] = nk_f32_exp2_cuda_(row_max[half] - subtrahend[half]);
-            row_max[half] = new_max;
-            row_sum[half] *= correction[half];
+            unsigned const local = warp * 16 + group + half * 8;
+            if (local >= work->row_count) continue;
+            nk_i64_t const row = nk_attention_row_position_simt_(work, local, frame->length);
+            visible[half][0] = nk_diagonal_band_row_mask_simt_(frame->band, row, panel_position, frame->length);
+            visible[half][1] = nk_diagonal_band_row_mask_simt_(frame->band, row, panel_position + 32, frame->length);
         }
 #pragma unroll
-        for (unsigned index = 0; index < 32; ++index)
-            tile_scores[index].f = nk_f32_exp2_cuda_(tile_scores[index].f - subtrahend[(index >> 1) & 1]);
-        nk_u32_t probabilities[4][4];
-#pragma unroll
-        for (unsigned position_group = 0; position_group < 4; ++position_group)
-#pragma unroll
-            for (unsigned half = 0; half < 2; ++half) {
-                nk_f32_t const four[4] = {tile_scores[position_group * 8 + half * 2].f,
-                                          tile_scores[position_group * 8 + half * 2 + 1].f,
-                                          tile_scores[position_group * 8 + 4 + half * 2].f,
-                                          tile_scores[position_group * 8 + 4 + half * 2 + 1].f};
-                nk_u32_t packed[2];
-                weights(four, packed, &row_sum[half]);
-                if (dtype != nk_bf16_k) probabilities[position_group >> 1][(position_group & 1) * 2 + half] = packed[0];
-                else
-                    probabilities[position_group][half] = packed[0],
-                    probabilities[position_group][half + 2] = packed[1];
-            }
-        if (dtype == nk_bf16_k)
-#pragma unroll
-            for (unsigned index = 0; index < max_blocks * 32; ++index) output[index].f *= correction[(index >> 1) & 1];
-
-        nk_wait_async_ampere_(0);
-        nk_fence_proxy_async_hopper_();
-        // V has landed, and every warp is done with the K this refills.
-        __syncthreads();
-        if (panel_index + 1 < panel_end)
-            nk_attention_stage_rows_hopper_(keys_shared, keys_plane, panel_position + panel, row_bytes);
-        nk_commit_async_ampere_();
-
-#pragma unroll
-        for (unsigned position_group = 0; position_group < (dtype == nk_bf16_k ? 4 : 2); ++position_group)
-            nk_wgmma_fence_operands_hopper_((nk_fui32_t *)probabilities[position_group], 4, nk_cross_epilogue_i32_k);
-        if (dtype == nk_bf16_k) {
-            nk_wgmma_fence_operands_hopper_(output, max_blocks * 32, nk_cross_epilogue_f32_k);
-            nk_wgmma_fence_hopper_();
-            // N-major rows of 32 columns, the next 32 a block on, in 8-row groups 512 bytes apart.
-#pragma unroll
-            for (unsigned block = 0; block < max_blocks; ++block) {
-                if (block >= depth_blocks) continue;
-#pragma unroll
-                for (unsigned position_group = 0; position_group < 4; ++position_group) {
-                    nk_u32_t const address = values_address + block * 2 * nk_attention_block_bytes_hopper_k +
-                                             position_group * 16 * nk_attention_swizzle_bytes_hopper_k;
-                    values_mma(output + block * 32, probabilities[position_group],
-                               nk_smem_descriptor_hopper_(address, nk_smem_swizzle_64_hopper_k,
-                                                          nk_attention_block_bytes_hopper_k, 512),
-                               1);
-                }
-            }
-            nk_wgmma_commit_hopper_();
-            nk_wgmma_wait_hopper_();
-            nk_wgmma_fence_operands_hopper_(output, max_blocks * 32, nk_cross_epilogue_f32_k);
-            continue;
-        }
-#pragma unroll
-        for (unsigned block = 0; block < max_blocks; ++block) {
-            if (block >= depth_blocks) continue;
-            nk_fui32_t sums[32];
-#pragma unroll
-            for (unsigned index = 0; index < 32; ++index) sums[index].u = 0;
-            nk_wgmma_fence_operands_hopper_(sums, 32, epilogue);
-            nk_wgmma_fence_hopper_();
-#pragma unroll
-            for (unsigned step = 0; step < 2; ++step)
-                values_mma(
-                    sums, probabilities[step],
-                    nk_smem_descriptor_hopper_(values_address + block * nk_attention_block_bytes_hopper_k + step * 32,
-                                               nk_smem_swizzle_64_hopper_k, 16, 512),
-                    step);
-            nk_wgmma_commit_hopper_();
-            nk_wgmma_wait_hopper_();
-            nk_wgmma_fence_operands_hopper_(sums, 32, epilogue);
-#pragma unroll
-            for (unsigned index = 0; index < 32; ++index)
-                output[block * 32 + index].f = fmaf(
-                    output[block * 32 + index].f, correction[(index >> 1) & 1],
-                    epilogue == nk_cross_epilogue_i32_to_f32_k ? (nk_f32_t)sums[index].i : sums[index].f);
+        for (unsigned index = 0; index < 32; ++index) {
+            unsigned const offset = (index >> 2) * 8 + quad * 2 + (index & 1);
+            if (!((visible[(index >> 1) & 1][offset >> 5] >> (offset & 31)) & 1))
+                tile_scores[index].f = negative_infinity;
         }
     }
+    nk_f32_t subtrahend[2];
+#pragma unroll
+    for (unsigned half = 0; half < 2; ++half) {
+        nk_f32_t chunk_max = negative_infinity;
+#pragma unroll
+        for (unsigned tile = 0; tile < 8; ++tile)
+            chunk_max = fmaxf(chunk_max,
+                              fmaxf(tile_scores[tile * 4 + half * 2].f, tile_scores[tile * 4 + half * 2 + 1].f));
+        chunk_max = fmaxf(chunk_max, __shfl_xor_sync(0xFFFFFFFFu, chunk_max, 1));
+        chunk_max = fmaxf(chunk_max, __shfl_xor_sync(0xFFFFFFFFu, chunk_max, 2));
+        nk_f32_t const new_max = fmaxf(row_max[half], chunk_max);
+        // With every key so far masked, subtracting 0 keeps exp2(-∞ - max) from turning NaN.
+        subtrahend[half] = new_max == negative_infinity ? 0.0f : new_max;
+        correction[half] = nk_f32_exp2_cuda_(row_max[half] - subtrahend[half]);
+        row_max[half] = new_max;
+        row_sum[half] *= correction[half];
+    }
+#pragma unroll
+    for (unsigned index = 0; index < 32; ++index)
+        tile_scores[index].f = nk_f32_exp2_cuda_(tile_scores[index].f - subtrahend[(index >> 1) & 1]);
+}
 
+/** Writes the rows' outputs and log-sum-exps, @p unit being what the dtype's weights add for a
+ *  probability of one. */
+NUMKONG_DEVICE void nk_attention_finish_hopper_(nk_attention_frame_hopper_t const *frame, nk_fui32_t output[],
+                                                nk_f32_t row_max[2], nk_f32_t row_sum[2], nk_f32_t unit,
+                                                nk_attention_arguments_t const *arguments,
+                                                nk_attention_work_t const *work) {
+    unsigned const lane = threadIdx.x & 31, warp = threadIdx.x >> 5, group = lane >> 2, quad = lane & 3;
+    nk_size_t const depth = arguments->depth;
 #pragma unroll
     for (unsigned half = 0; half < 2; ++half) {
         row_sum[half] += __shfl_xor_sync(0xFFFFFFFFu, row_sum[half], 1);
@@ -451,43 +364,432 @@ NUMKONG_DEVICE void nk_attention_block_hopper_(nk_dtype_t dtype, nk_attention_wi
     for (unsigned half = 0; half < 2; ++half) {
         unsigned const local = warp * 16 + group + half * 8;
         if (local >= work->row_count) continue;
-        nk_f32_t *destination = nk_attention_output_row_(arguments, work, local);
+        nk_f32_t *destination = nk_attention_output_row_simt_(arguments, work, local);
         nk_f32_t const inverse = row_sum[half] > 0 ? arguments->output_scale / row_sum[half] : 0.0f;
 #pragma unroll
-        for (unsigned tile = 0; tile < max_blocks * 8; ++tile)
+        for (unsigned tile = 0; tile < frame->max_blocks * 8; ++tile)
 #pragma unroll
             for (unsigned element = 0; element < 2; ++element) {
                 unsigned const column = tile * 8 + quad * 2 + element;
                 if (column < depth) destination[column] = output[tile * 4 + half * 2 + element].f * inverse;
             }
-        nk_f32_t *const log_sum_exp_slot = quad == 0 ? nk_attention_log_sum_exp_slot_(arguments, work, local)
+        nk_f32_t *const log_sum_exp_slot = quad == 0 ? nk_attention_log_sum_exp_slot_simt_(arguments, work, local)
                                                      : NUMKONG_NULL;
-        if (log_sum_exp_slot)
-            *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(row_max[half], row_sum[half],
-                                                               nk_attention_weight_unit_ampere_(weights));
+        if (log_sum_exp_slot) *log_sum_exp_slot = nk_attention_log_sum_exp_simt_(row_max[half], row_sum[half], unit);
     }
 }
 
 /**
- *  @brief Every work item of a launch, walked with a stride of the grid, on a dynamic shared
- *      buffer aligned up to the 512-byte boundary the 64-byte swizzle repeats on.
- *  @sa nk_attention_block_hopper_ for the parameters.
+ *  @brief One BF16 work item on one warpgroup: scores, online softmax and P · V over every panel
+ *      its rows see, then the output.
+ *  @param[in] width Two or four 64-column output blocks in registers, see @c nk_attention_width_t.
+ *  @param[in] mask Whether panels crossing the band's edges mask their scores, see
+ *      @c nk_attention_mask_t; panels past the segment's keys always do.
+ *
+ *  Q, K and a BF16 V sit in 64-byte swizzled blocks of 64 rows, one block per 64 depth bytes; a
+ *  transposed V sits as one swizzled 64-byte row per depth row. Warp @c w holds rows 16w to 16w +
+ *  15, with scores and output in the Ampere tile's order: register 4t + 2h + e of a thread is row
+ *  16w + lane / 4 + 8h at column 8t + 2 · (lane mod 4) + e.
  */
-NUMKONG_DEVICE void nk_attention_tile_hopper_(nk_dtype_t dtype, nk_attention_width_t width, nk_attention_mask_t mask,
-                                              nk_cross_epilogue_t epilogue, nk_attention_scores_hopper_t scores,
-                                              nk_attention_values_hopper_t values_mma,
-                                              nk_attention_weights_ampere_t weights,
-                                              nk_attention_arguments_t const *arguments) {
+NUMKONG_DEVICE void nk_attention_block_bf16_hopper_(nk_attention_width_t width, nk_attention_mask_t mask,
+                                                    nk_attention_arguments_t const *arguments,
+                                                    nk_attention_work_t const *work, unsigned char *shared) {
+
+    nk_f32_t const negative_infinity = nk_attention_negative_infinity_simt_();
+    nk_attention_frame_hopper_t const frame = nk_attention_frame_hopper_(width, mask, 2, arguments, work, shared);
+    // Retires the previous item's reads of every buffer this item refills.
+    __syncthreads();
+
+    if (frame.panel_first < frame.panel_end)
+        nk_attention_stage_rows_hopper_(frame.keys_shared, frame.keys_plane,
+                                        (nk_size_t)frame.panel_first * nk_attention_panel_k, frame.row_bytes);
+    nk_commit_async_ampere_();
+
+    nk_attention_stage_queries_b16_hopper_(&frame, arguments, work);
+
+    nk_f32_t row_max[2] = {negative_infinity, negative_infinity}, row_sum[2] = {0, 0};
+    nk_fui32_t output[nk_attention_wide_depth_ampere_k / 64 * 32];
+#pragma unroll
+    for (unsigned index = 0; index < frame.max_blocks * 32; ++index) output[index].u = 0;
+    nk_f32_t const scale2 = arguments->scale2 * arguments->score_scale;
+
+    for (unsigned panel_index = frame.panel_first; panel_index < frame.panel_end; ++panel_index) {
+        nk_wait_async_ampere_(0);
+        nk_fence_proxy_async_hopper_();
+        // K has landed, Q too on the first panel, and every warp is done with the V this refills.
+        __syncthreads();
+        nk_size_t const panel_position = (nk_size_t)panel_index * nk_attention_panel_k;
+        nk_attention_stage_rows_hopper_(frame.values_shared, frame.values_plane, panel_position, frame.row_bytes);
+        nk_commit_async_ampere_();
+
+        nk_fui32_t tile_scores[32];
+#pragma unroll
+        for (unsigned index = 0; index < 32; ++index) tile_scores[index].u = 0;
+        nk_wgmma_fence_operands_hopper_(tile_scores, 32, nk_cross_epilogue_f32_k);
+        nk_wgmma_fence_hopper_();
+#pragma unroll
+        for (unsigned step = 0; step < frame.max_blocks * 4; ++step) {
+            if (step >= frame.depth_steps) continue;
+            // K-major rows, the leading offset unread, each step starting where row 0 holds it.
+            nk_u32_t const offset = (step >> 1) * nk_attention_block_bytes_hopper_k + (step & 1) * 32;
+            nk_attention_scores_bf16_hopper_(
+                tile_scores,
+                nk_smem_descriptor_hopper_(frame.queries_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
+                nk_smem_descriptor_hopper_(frame.keys_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
+                step != 0);
+        }
+        nk_wgmma_commit_hopper_();
+        nk_wgmma_wait_hopper_();
+        nk_wgmma_fence_operands_hopper_(tile_scores, 32, nk_cross_epilogue_f32_k);
+
+        nk_f32_t correction[2];
+        nk_attention_softmax_hopper_(nk_cross_epilogue_f32_k, tile_scores, &frame, work, scale2, panel_position,
+                                     row_max, row_sum, correction);
+        nk_u32_t probabilities[4][4];
+#pragma unroll
+        for (unsigned position_group = 0; position_group < 4; ++position_group)
+#pragma unroll
+            for (unsigned half = 0; half < 2; ++half) {
+                nk_f32_t const four[4] = {tile_scores[position_group * 8 + half * 2].f,
+                                          tile_scores[position_group * 8 + half * 2 + 1].f,
+                                          tile_scores[position_group * 8 + 4 + half * 2].f,
+                                          tile_scores[position_group * 8 + 4 + half * 2 + 1].f};
+                nk_u32_t packed[2];
+                nk_attention_weights_bf16_ampere_(four, packed, &row_sum[half]);
+                probabilities[position_group][half] = packed[0];
+                probabilities[position_group][half + 2] = packed[1];
+            }
+#pragma unroll
+        for (unsigned index = 0; index < frame.max_blocks * 32; ++index)
+            output[index].f *= correction[(index >> 1) & 1];
+
+        nk_wait_async_ampere_(0);
+        nk_fence_proxy_async_hopper_();
+        // V has landed, and every warp is done with the K this refills.
+        __syncthreads();
+        if (panel_index + 1 < frame.panel_end)
+            nk_attention_stage_rows_hopper_(frame.keys_shared, frame.keys_plane, panel_position + nk_attention_panel_k,
+                                            frame.row_bytes);
+        nk_commit_async_ampere_();
+
+#pragma unroll
+        for (unsigned position_group = 0; position_group < 4; ++position_group)
+            nk_wgmma_fence_operands_hopper_((nk_fui32_t *)probabilities[position_group], 4, nk_cross_epilogue_i32_k);
+        nk_wgmma_fence_operands_hopper_(output, frame.max_blocks * 32, nk_cross_epilogue_f32_k);
+        nk_wgmma_fence_hopper_();
+        // N-major rows of 32 columns, the next 32 a block on, in 8-row groups 512 bytes apart.
+#pragma unroll
+        for (unsigned block = 0; block < frame.max_blocks; ++block) {
+            if (block >= frame.depth_blocks) continue;
+#pragma unroll
+            for (unsigned position_group = 0; position_group < 4; ++position_group) {
+                nk_u32_t const address = frame.values_address + block * 2 * nk_attention_block_bytes_hopper_k +
+                                         position_group * 16 * nk_attention_swizzle_bytes_hopper_k;
+                nk_attention_values_bf16_hopper_(output + block * 32, probabilities[position_group],
+                                                 nk_smem_descriptor_hopper_(address, nk_smem_swizzle_64_hopper_k,
+                                                                            nk_attention_block_bytes_hopper_k, 512),
+                                                 1);
+            }
+        }
+        nk_wgmma_commit_hopper_();
+        nk_wgmma_wait_hopper_();
+        nk_wgmma_fence_operands_hopper_(output, frame.max_blocks * 32, nk_cross_epilogue_f32_k);
+    }
+
+    nk_attention_finish_hopper_(&frame, output, row_max, row_sum, nk_attention_weight_unit_bf16_ampere_(), arguments,
+                                work);
+}
+
+/**
+ *  @brief One E4M3 work item on one warpgroup, on native E4M3 MMAs with E4M3 probabilities.
+ *  @sa nk_attention_block_bf16_hopper_ for the parameters.
+ */
+NUMKONG_DEVICE void nk_attention_block_e4m3_hopper_(nk_attention_width_t width, nk_attention_mask_t mask,
+                                                    nk_attention_arguments_t const *arguments,
+                                                    nk_attention_work_t const *work, unsigned char *shared) {
+
+    nk_f32_t const negative_infinity = nk_attention_negative_infinity_simt_();
+    nk_attention_frame_hopper_t const frame = nk_attention_frame_hopper_(width, mask, 1, arguments, work, shared);
+    // Retires the previous item's reads of every buffer this item refills.
+    __syncthreads();
+
+    if (frame.panel_first < frame.panel_end)
+        nk_attention_stage_rows_hopper_(frame.keys_shared, frame.keys_plane,
+                                        (nk_size_t)frame.panel_first * nk_attention_panel_k, frame.row_bytes);
+    nk_commit_async_ampere_();
+
+    nk_attention_stage_queries_b8_hopper_(&frame, arguments, work);
+
+    nk_f32_t row_max[2] = {negative_infinity, negative_infinity}, row_sum[2] = {0, 0};
+    nk_fui32_t output[nk_attention_wide_depth_ampere_k / 64 * 32];
+#pragma unroll
+    for (unsigned index = 0; index < frame.max_blocks * 32; ++index) output[index].u = 0;
+    nk_f32_t const scale2 = arguments->scale2 * arguments->score_scale;
+
+    for (unsigned panel_index = frame.panel_first; panel_index < frame.panel_end; ++panel_index) {
+        nk_wait_async_ampere_(0);
+        nk_fence_proxy_async_hopper_();
+        // K has landed, Q too on the first panel, and every warp is done with the V this refills.
+        __syncthreads();
+        nk_size_t const panel_position = (nk_size_t)panel_index * nk_attention_panel_k;
+        nk_attention_stage_columns_hopper_(frame.values_shared, frame.values_plane, frame.positions_padded,
+                                           panel_position, frame.depth_padded);
+        nk_commit_async_ampere_();
+
+        nk_fui32_t tile_scores[32];
+#pragma unroll
+        for (unsigned index = 0; index < 32; ++index) tile_scores[index].u = 0;
+        nk_wgmma_fence_operands_hopper_(tile_scores, 32, nk_cross_epilogue_f32_k);
+        nk_wgmma_fence_hopper_();
+#pragma unroll
+        for (unsigned step = 0; step < frame.max_blocks * 4; ++step) {
+            if (step >= frame.depth_steps) continue;
+            // K-major rows, the leading offset unread, each step starting where row 0 holds it.
+            nk_u32_t const offset = (step >> 1) * nk_attention_block_bytes_hopper_k + (step & 1) * 32;
+            nk_attention_scores_e4m3_hopper_(
+                tile_scores,
+                nk_smem_descriptor_hopper_(frame.queries_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
+                nk_smem_descriptor_hopper_(frame.keys_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
+                step != 0);
+        }
+        nk_wgmma_commit_hopper_();
+        nk_wgmma_wait_hopper_();
+        nk_wgmma_fence_operands_hopper_(tile_scores, 32, nk_cross_epilogue_f32_k);
+
+        nk_f32_t correction[2];
+        nk_attention_softmax_hopper_(nk_cross_epilogue_f32_k, tile_scores, &frame, work, scale2, panel_position,
+                                     row_max, row_sum, correction);
+        nk_u32_t probabilities[4][4];
+#pragma unroll
+        for (unsigned position_group = 0; position_group < 4; ++position_group)
+#pragma unroll
+            for (unsigned half = 0; half < 2; ++half) {
+                nk_f32_t const four[4] = {tile_scores[position_group * 8 + half * 2].f,
+                                          tile_scores[position_group * 8 + half * 2 + 1].f,
+                                          tile_scores[position_group * 8 + 4 + half * 2].f,
+                                          tile_scores[position_group * 8 + 4 + half * 2 + 1].f};
+                nk_u32_t packed[2];
+                nk_attention_weights_e4m3_ada_(four, packed, &row_sum[half]);
+                probabilities[position_group >> 1][(position_group & 1) * 2 + half] = packed[0];
+            }
+
+        nk_wait_async_ampere_(0);
+        nk_fence_proxy_async_hopper_();
+        // V has landed, and every warp is done with the K this refills.
+        __syncthreads();
+        if (panel_index + 1 < frame.panel_end)
+            nk_attention_stage_rows_hopper_(frame.keys_shared, frame.keys_plane, panel_position + nk_attention_panel_k,
+                                            frame.row_bytes);
+        nk_commit_async_ampere_();
+
+#pragma unroll
+        for (unsigned position_group = 0; position_group < 2; ++position_group)
+            nk_wgmma_fence_operands_hopper_((nk_fui32_t *)probabilities[position_group], 4, nk_cross_epilogue_i32_k);
+#pragma unroll
+        for (unsigned block = 0; block < frame.max_blocks; ++block) {
+            if (block >= frame.depth_blocks) continue;
+            nk_fui32_t sums[32];
+#pragma unroll
+            for (unsigned index = 0; index < 32; ++index) sums[index].u = 0;
+            nk_wgmma_fence_operands_hopper_(sums, 32, nk_cross_epilogue_f32_k);
+            nk_wgmma_fence_hopper_();
+#pragma unroll
+            for (unsigned step = 0; step < 2; ++step)
+                nk_attention_values_e4m3_hopper_(
+                    sums, probabilities[step],
+                    nk_smem_descriptor_hopper_(
+                        frame.values_address + block * nk_attention_block_bytes_hopper_k + step * 32,
+                        nk_smem_swizzle_64_hopper_k, 16, 512),
+                    step);
+            nk_wgmma_commit_hopper_();
+            nk_wgmma_wait_hopper_();
+            nk_wgmma_fence_operands_hopper_(sums, 32, nk_cross_epilogue_f32_k);
+#pragma unroll
+            for (unsigned index = 0; index < 32; ++index)
+                output[block * 32 + index].f = fmaf(output[block * 32 + index].f, correction[(index >> 1) & 1],
+                                                    sums[index].f);
+        }
+    }
+
+    nk_attention_finish_hopper_(&frame, output, row_max, row_sum, nk_attention_weight_unit_e4m3_ada_(), arguments,
+                                work);
+}
+
+/**
+ *  @brief One I8 work item on one warpgroup: exact integer scores, U8 probabilities, and P · V
+ *      sums converted per panel.
+ *  @sa nk_attention_block_bf16_hopper_ for the parameters.
+ */
+NUMKONG_DEVICE void nk_attention_block_i8_hopper_(nk_attention_width_t width, nk_attention_mask_t mask,
+                                                  nk_attention_arguments_t const *arguments,
+                                                  nk_attention_work_t const *work, unsigned char *shared) {
+
+    nk_f32_t const negative_infinity = nk_attention_negative_infinity_simt_();
+    nk_attention_frame_hopper_t const frame = nk_attention_frame_hopper_(width, mask, 1, arguments, work, shared);
+    // Retires the previous item's reads of every buffer this item refills.
+    __syncthreads();
+
+    if (frame.panel_first < frame.panel_end)
+        nk_attention_stage_rows_hopper_(frame.keys_shared, frame.keys_plane,
+                                        (nk_size_t)frame.panel_first * nk_attention_panel_k, frame.row_bytes);
+    nk_commit_async_ampere_();
+
+    nk_attention_stage_queries_b8_hopper_(&frame, arguments, work);
+
+    nk_f32_t row_max[2] = {negative_infinity, negative_infinity}, row_sum[2] = {0, 0};
+    nk_fui32_t output[nk_attention_wide_depth_ampere_k / 64 * 32];
+#pragma unroll
+    for (unsigned index = 0; index < frame.max_blocks * 32; ++index) output[index].u = 0;
+    nk_f32_t const scale2 = arguments->scale2 * arguments->score_scale;
+
+    for (unsigned panel_index = frame.panel_first; panel_index < frame.panel_end; ++panel_index) {
+        nk_wait_async_ampere_(0);
+        nk_fence_proxy_async_hopper_();
+        // K has landed, Q too on the first panel, and every warp is done with the V this refills.
+        __syncthreads();
+        nk_size_t const panel_position = (nk_size_t)panel_index * nk_attention_panel_k;
+        nk_attention_stage_columns_hopper_(frame.values_shared, frame.values_plane, frame.positions_padded,
+                                           panel_position, frame.depth_padded);
+        nk_commit_async_ampere_();
+
+        nk_fui32_t tile_scores[32];
+#pragma unroll
+        for (unsigned index = 0; index < 32; ++index) tile_scores[index].u = 0;
+        nk_wgmma_fence_operands_hopper_(tile_scores, 32, nk_cross_epilogue_i32_to_f32_k);
+        nk_wgmma_fence_hopper_();
+#pragma unroll
+        for (unsigned step = 0; step < frame.max_blocks * 4; ++step) {
+            if (step >= frame.depth_steps) continue;
+            // K-major rows, the leading offset unread, each step starting where row 0 holds it.
+            nk_u32_t const offset = (step >> 1) * nk_attention_block_bytes_hopper_k + (step & 1) * 32;
+            nk_attention_scores_i8_hopper_(
+                tile_scores,
+                nk_smem_descriptor_hopper_(frame.queries_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
+                nk_smem_descriptor_hopper_(frame.keys_address + offset, nk_smem_swizzle_64_hopper_k, 16, 512),
+                step != 0);
+        }
+        nk_wgmma_commit_hopper_();
+        nk_wgmma_wait_hopper_();
+        nk_wgmma_fence_operands_hopper_(tile_scores, 32, nk_cross_epilogue_i32_to_f32_k);
+
+        nk_f32_t correction[2];
+        nk_attention_softmax_hopper_(nk_cross_epilogue_i32_to_f32_k, tile_scores, &frame, work, scale2, panel_position,
+                                     row_max, row_sum, correction);
+        nk_u32_t probabilities[4][4];
+#pragma unroll
+        for (unsigned position_group = 0; position_group < 4; ++position_group)
+#pragma unroll
+            for (unsigned half = 0; half < 2; ++half) {
+                nk_f32_t const four[4] = {tile_scores[position_group * 8 + half * 2].f,
+                                          tile_scores[position_group * 8 + half * 2 + 1].f,
+                                          tile_scores[position_group * 8 + 4 + half * 2].f,
+                                          tile_scores[position_group * 8 + 4 + half * 2 + 1].f};
+                nk_u32_t packed[2];
+                nk_attention_weights_u8_ampere_(four, packed, &row_sum[half]);
+                probabilities[position_group >> 1][(position_group & 1) * 2 + half] = packed[0];
+            }
+
+        nk_wait_async_ampere_(0);
+        nk_fence_proxy_async_hopper_();
+        // V has landed, and every warp is done with the K this refills.
+        __syncthreads();
+        if (panel_index + 1 < frame.panel_end)
+            nk_attention_stage_rows_hopper_(frame.keys_shared, frame.keys_plane, panel_position + nk_attention_panel_k,
+                                            frame.row_bytes);
+        nk_commit_async_ampere_();
+
+#pragma unroll
+        for (unsigned position_group = 0; position_group < 2; ++position_group)
+            nk_wgmma_fence_operands_hopper_((nk_fui32_t *)probabilities[position_group], 4, nk_cross_epilogue_i32_k);
+#pragma unroll
+        for (unsigned block = 0; block < frame.max_blocks; ++block) {
+            if (block >= frame.depth_blocks) continue;
+            nk_fui32_t sums[32];
+#pragma unroll
+            for (unsigned index = 0; index < 32; ++index) sums[index].u = 0;
+            nk_wgmma_fence_operands_hopper_(sums, 32, nk_cross_epilogue_i32_to_f32_k);
+            nk_wgmma_fence_hopper_();
+#pragma unroll
+            for (unsigned step = 0; step < 2; ++step)
+                nk_attention_values_u8i8_hopper_(
+                    sums, probabilities[step],
+                    nk_smem_descriptor_hopper_(
+                        frame.values_address + block * nk_attention_block_bytes_hopper_k + step * 32,
+                        nk_smem_swizzle_64_hopper_k, 16, 512),
+                    step);
+            nk_wgmma_commit_hopper_();
+            nk_wgmma_wait_hopper_();
+            nk_wgmma_fence_operands_hopper_(sums, 32, nk_cross_epilogue_i32_to_f32_k);
+#pragma unroll
+            for (unsigned index = 0; index < 32; ++index)
+                output[block * 32 + index].f = fmaf(output[block * 32 + index].f, correction[(index >> 1) & 1],
+                                                    (nk_f32_t)sums[index].i);
+        }
+    }
+
+    nk_attention_finish_hopper_(&frame, output, row_max, row_sum, nk_attention_weight_unit_u8_ampere_(), arguments,
+                                work);
+}
+
+/** Dynamic shared memory of a launch, aligned up to the 512-byte boundary the 64-byte swizzle
+ *  repeats on. */
+NUMKONG_DEVICE unsigned char *nk_attention_dynamic_shared_hopper_(void) {
     extern __shared__ __align__(128) unsigned char nk_attention_shared_hopper_[];
+    return nk_shared_aligned_ampere_(nk_attention_shared_hopper_, 512);
+}
+
+/**
+ *  @brief Every @c bf16 work item of a launch, walked with a stride of the grid, on a dynamic
+ *      shared buffer aligned up to the 512-byte boundary the 64-byte swizzle repeats on.
+ *  @sa nk_attention_block_bf16_hopper_ for the parameters.
+ */
+NUMKONG_DEVICE void nk_attention_tile_bf16_hopper_(nk_attention_width_t width, nk_attention_mask_t mask,
+                                                   nk_attention_arguments_t const *arguments) {
     __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
     __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
-    unsigned char *shared = nk_shared_aligned_ampere_(nk_attention_shared_hopper_, 512);
+    unsigned char *shared = nk_attention_dynamic_shared_hopper_();
     nk_attention_schedule_t schedule;
     if (!nk_attention_schedule_start_cuda_(arguments, &schedule, prefix, warp_totals)) return;
     nk_attention_work_t work;
     for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_cuda_(&schedule, prefix, warp_totals, item, &work);
          item += gridDim.x)
-        nk_attention_block_hopper_(dtype, width, mask, epilogue, scores, values_mma, weights, arguments, &work, shared);
+        nk_attention_block_bf16_hopper_(width, mask, arguments, &work, shared);
+}
+
+/**
+ *  @brief Every @c e4m3 work item of a launch, walked with a stride of the grid, on a dynamic
+ *      shared buffer aligned up to the 512-byte boundary the 64-byte swizzle repeats on.
+ *  @sa nk_attention_block_e4m3_hopper_ for the parameters.
+ */
+NUMKONG_DEVICE void nk_attention_tile_e4m3_hopper_(nk_attention_width_t width, nk_attention_mask_t mask,
+                                                   nk_attention_arguments_t const *arguments) {
+    __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
+    __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
+    unsigned char *shared = nk_attention_dynamic_shared_hopper_();
+    nk_attention_schedule_t schedule;
+    if (!nk_attention_schedule_start_cuda_(arguments, &schedule, prefix, warp_totals)) return;
+    nk_attention_work_t work;
+    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_cuda_(&schedule, prefix, warp_totals, item, &work);
+         item += gridDim.x)
+        nk_attention_block_e4m3_hopper_(width, mask, arguments, &work, shared);
+}
+
+/**
+ *  @brief Every @c i8 work item of a launch, walked with a stride of the grid, on a dynamic shared
+ *      buffer aligned up to the 512-byte boundary the 64-byte swizzle repeats on.
+ *  @sa nk_attention_block_i8_hopper_ for the parameters.
+ */
+NUMKONG_DEVICE void nk_attention_tile_i8_hopper_(nk_attention_width_t width, nk_attention_mask_t mask,
+                                                 nk_attention_arguments_t const *arguments) {
+    __shared__ nk_u64_t prefix[nk_attention_threads_k + 1];
+    __shared__ nk_u64_t warp_totals[nk_attention_threads_k / 32];
+    unsigned char *shared = nk_attention_dynamic_shared_hopper_();
+    nk_attention_schedule_t schedule;
+    if (!nk_attention_schedule_start_cuda_(arguments, &schedule, prefix, warp_totals)) return;
+    nk_attention_work_t work;
+    for (nk_size_t item = blockIdx.x; nk_attention_schedule_next_cuda_(&schedule, prefix, warp_totals, item, &work);
+         item += gridDim.x)
+        nk_attention_block_i8_hopper_(width, mask, arguments, &work, shared);
 }
 
 #pragma endregion Tile
@@ -495,9 +797,8 @@ NUMKONG_DEVICE void nk_attention_tile_hopper_(nk_dtype_t dtype, nk_attention_wid
 #pragma region Launch
 
 /** Places Q, K and V in dynamic shared memory, returning the bytes a block needs. */
-NUMKONG_INLINE nk_size_t nk_attention_shared_layout_hopper_(nk_dtype_t dtype, nk_size_t depth,
+NUMKONG_INLINE nk_size_t nk_attention_shared_layout_hopper_(nk_size_t element_bytes, nk_size_t depth,
                                                             nk_attention_arguments_t *arguments) {
-    nk_size_t const element_bytes = dtype == nk_bf16_k ? 2 : 1;
     nk_size_t const row_bytes = nk_size_round_up_to_multiple_(depth * element_bytes, nk_attention_step_bytes_k);
     nk_size_t const row_blocks = nk_size_divide_round_up_(row_bytes, nk_attention_swizzle_bytes_hopper_k);
     nk_size_t const depth_blocks = nk_size_divide_round_up_(row_bytes / element_bytes, 64);
@@ -511,21 +812,22 @@ NUMKONG_INLINE nk_size_t nk_attention_shared_layout_hopper_(nk_dtype_t dtype, nk
 
 /** Dynamic shared memory of a block at the deepest head @p width takes, which each of its kernels
  *  sets as its limit. */
-NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_hopper_(nk_dtype_t dtype, nk_attention_width_t width) {
+NUMKONG_INLINE nk_size_t nk_attention_shared_ceiling_hopper_(nk_size_t element_bytes, nk_attention_width_t width) {
     nk_attention_arguments_t deepest;
     nk_size_t const depth = width == nk_attention_width_128_k ? nk_attention_narrow_depth_ampere_k
                                                               : nk_attention_wide_depth_ampere_k;
-    return nk_attention_shared_layout_hopper_(dtype, depth, &deepest);
+    return nk_attention_shared_layout_hopper_(element_bytes, depth, &deepest);
 }
 
 /**
  *  @brief Validates the contract and launches the kernel for the depth's width with as many blocks
  *      as stay resident, Q, K and V each taking 64-byte swizzled blocks past a 512-byte alignment.
+ *  @param[in] element_bytes Bytes of one input element: 2 or 1.
  *  @param[in] score_scale Undoes the power of two that converting Q and K puts on scores, or 1.
  *  @param[in] output_scale Undoes the power of two that converting V puts on the output, or 1.
  */
 NUMKONG_INLINE nk_status_t nk_attention_launch_hopper_(
-    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_dtype_t dtype,
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, nk_size_t element_bytes,
     void const *queries, void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count,
     nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride,
     nk_size_t output_stride, nk_f32_t scale, nk_f32_t score_scale, nk_f32_t output_scale, nk_size_t keys_before,
@@ -533,7 +835,7 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_hopper_(
     if (((nk_size_t)packed & 15) || (((nk_size_t)output | output_stride) & 3)) return nk_misaligned_k;
     if (key_value_head_count == 0 || head_count % key_value_head_count != 0) return nk_unexpected_dimensions_k;
     if (tasks_begin >= tasks_end || depth == 0) return nk_success_k;
-    nk_attention_arguments_t arguments = nk_attention_arguments_init_(
+    nk_attention_arguments_t arguments = nk_attention_arguments_init_simt_(
         queries, packed, output, log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
         output_stride, scale, score_scale, output_scale, keys_before, keys_after, tasks_begin, tasks_end);
     if (depth > nk_attention_wide_depth_ampere_k)
@@ -541,10 +843,46 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_hopper_(
                                         stream);
     nk_attention_width_t const width = depth <= nk_attention_narrow_depth_ampere_k ? nk_attention_width_128_k
                                                                                    : nk_attention_width_256_k;
-    nk_size_t const shared_bytes = nk_attention_shared_layout_hopper_(dtype, depth, &arguments);
+    nk_size_t const shared_bytes = nk_attention_shared_layout_hopper_(element_bytes, depth, &arguments);
     return nk_launch_resident_cuda_(
         width == nk_attention_width_128_k ? narrow_kernel : wide_kernel, nk_attention_threads_k, shared_bytes,
-        nk_attention_shared_ceiling_hopper_(dtype, width), NUMKONG_SIZE_MAX, &arguments, stream);
+        nk_attention_shared_ceiling_hopper_(element_bytes, width), NUMKONG_SIZE_MAX, &arguments, stream);
+}
+
+/** The launch for BF16. */
+NUMKONG_INLINE nk_status_t nk_attention_launch_bf16_hopper_(
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
+    void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    return nk_attention_launch_hopper_(narrow_kernel, wide_kernel, fallback_kernel, 2, queries, packed, output,
+                                       log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
+                                       query_stride, output_stride, scale, 1.0f, 1.0f, keys_before, keys_after,
+                                       tasks_begin, tasks_end, stream);
+}
+
+/** The launch for E4M3. */
+NUMKONG_INLINE nk_status_t nk_attention_launch_e4m3_hopper_(
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
+    void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    return nk_attention_launch_hopper_(narrow_kernel, wide_kernel, fallback_kernel, 1, queries, packed, output,
+                                       log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
+                                       query_stride, output_stride, scale, 1.0f, 1.0f, keys_before, keys_after,
+                                       tasks_begin, tasks_end, stream);
+}
+
+/** The launch for I8. */
+NUMKONG_INLINE nk_status_t nk_attention_launch_i8_hopper_(
+    void const *narrow_kernel, void const *wide_kernel, void const *fallback_kernel, void const *queries,
+    void const *packed, nk_f32_t *output, nk_f32_t *log_sum_exp, nk_size_t head_count, nk_size_t key_value_head_count,
+    nk_size_t depth, nk_u32_t const *query_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale,
+    nk_size_t keys_before, nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
+    return nk_attention_launch_hopper_(narrow_kernel, wide_kernel, fallback_kernel, 1, queries, packed, output,
+                                       log_sum_exp, head_count, key_value_head_count, depth, query_offsets,
+                                       query_stride, output_stride, scale, 1.0f, 1.0f, keys_before, keys_after,
+                                       tasks_begin, tasks_end, stream);
 }
 
 #pragma endregion Launch
@@ -554,37 +892,31 @@ NUMKONG_INLINE nk_status_t nk_attention_launch_hopper_(
 nk_define_attention_pack_size_simt_(bf16, hopper, 2)
 nk_define_attention_packed_shape_cuda_(bf16, hopper)
 nk_define_attention_pack_cuda_(bf16, hopper, bf16)
-nk_define_attention_packed_cuda_(bf16, hopper, hopper, nk_attention_launch_hopper_, bf16, nk_cross_epilogue_f32_k,
-                                 nk_attention_scores_bf16_hopper_, nk_attention_values_bf16_hopper_,
-                                 nk_attention_weights_bf16_ampere_, 1.0f, 1.0f)
+nk_define_attention_packed_simt_(bf16, hopper, cuda)
 
 /** Both BF16 backward kernels, on the Ampere tensor-core loops when the launch gives them shared
  *  memory and the @c cuda kernels' loops when it does not. */
 static __global__ void __launch_bounds__(nk_attention_threads_k)
     nk_attention_backward_keys_bf16_hopper_kernel_(nk_attention_backward_arguments_t arguments) {
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_keys_ampere_(&arguments);
-    else nk_attention_backward_keys_cuda_(nk_bf16_k, &arguments);
+    else nk_attention_backward_keys_bf16_cuda_(&arguments);
 }
 static __global__ void __launch_bounds__(nk_attention_threads_k)
     nk_attention_backward_queries_bf16_hopper_kernel_(nk_attention_backward_arguments_t arguments) {
     if (nk_dynamic_shared_bytes_ampere_()) nk_attention_backward_queries_ampere_(&arguments);
-    else nk_attention_backward_queries_cuda_(nk_bf16_k, &arguments);
+    else nk_attention_backward_queries_bf16_cuda_(&arguments);
 }
 nk_define_attention_backward_cuda_(bf16, hopper, bf16, nk_attention_backward_launch_ampere_)
 
 nk_define_attention_pack_size_simt_(e4m3, hopper, 1)
 nk_define_attention_packed_shape_cuda_(e4m3, hopper)
 nk_define_attention_pack_cuda_(e4m3, hopper, e4m3)
-nk_define_attention_packed_cuda_(e4m3, hopper, hopper, nk_attention_launch_hopper_, e4m3, nk_cross_epilogue_f32_k,
-                                 nk_attention_scores_e4m3_hopper_, nk_attention_values_e4m3_hopper_,
-                                 nk_attention_weights_e4m3_ada_, 1.0f, 1.0f)
+nk_define_attention_packed_simt_(e4m3, hopper, cuda)
 
 nk_define_attention_pack_size_simt_(i8, hopper, 1)
 nk_define_attention_packed_shape_cuda_(i8, hopper)
 nk_define_attention_pack_cuda_(i8, hopper, i8)
-nk_define_attention_packed_cuda_(i8, hopper, hopper, nk_attention_launch_hopper_, i8, nk_cross_epilogue_i32_to_f32_k,
-                                 nk_attention_scores_i8_hopper_, nk_attention_values_u8i8_hopper_,
-                                 nk_attention_weights_u8_ampere_, 1.0f, 1.0f)
+nk_define_attention_packed_simt_(i8, hopper, cuda)
 
 #pragma endregion Instantiations
 

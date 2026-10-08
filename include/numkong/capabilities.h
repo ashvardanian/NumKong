@@ -128,7 +128,7 @@
 #define NUMKONG_CAPABILITIES_H
 
 #include "numkong/types.h" // `nk_u64_t`, `NUMKONG_OS_LINUX_`
-#include "numkong/metal.h" // `nk_metal_list_devices_`, empty unless `NUMKONG_ARCH_METAL_`
+#include "numkong/metal.h" // `nk_list_devices_metal_`, empty unless `NUMKONG_ARCH_METAL_`
 
 /* AMD GPUs name their architecture only as a string, like "gfx950:sramecc+:xnack-" */
 #if NUMKONG_ARCH_ROCM_
@@ -718,8 +718,8 @@ typedef nk_status_t (*nk_maxsim_packed_punned_t)(void const *query_packed, void 
                                                  nk_size_t query_count, nk_size_t document_count, nk_size_t depth,
                                                  void *result, nk_stream_t stream);
 
-typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *head_count, nk_size_t *depth,
-                                                          nk_size_t *segments, nk_stream_t stream);
+typedef nk_status_t (*nk_attention_packed_shape_punned_t)(void const *packed, nk_size_t *key_value_head_count,
+                                                          nk_size_t *depth, nk_size_t *segments, nk_stream_t stream);
 
 /** Pack sizes are host arithmetic, so they take no stream. */
 typedef nk_status_t (*nk_attention_pack_size_punned_t)(nk_size_t key_value_head_count, nk_size_t depth,
@@ -727,8 +727,8 @@ typedef nk_status_t (*nk_attention_pack_size_punned_t)(nk_size_t key_value_head_
                                                        nk_size_t *bytes);
 
 typedef nk_status_t (*nk_attention_pack_punned_t)(void const *keys, void const *values, nk_size_t key_value_head_count,
-                                                  nk_size_t depth, nk_u32_t const *segment_offsets,
-                                                  nk_u32_t const *segment_lengths, nk_size_t segment_count,
+                                                  nk_size_t depth, nk_u32_t const *key_offsets,
+                                                  nk_u32_t const *key_lengths, nk_size_t segment_count,
                                                   nk_size_t key_stride, nk_size_t value_stride, void *key_value_packed,
                                                   nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream);
 
@@ -744,7 +744,7 @@ typedef nk_status_t (*nk_attention_packed_gradients_punned_t)(
     void const *queries, void const *key_value_packed, nk_f32_t const *output, nk_f32_t const *output_gradient,
     nk_f32_t const *log_sum_exp, nk_f32_t *query_gradient, nk_f32_t *key_gradient, nk_f32_t *value_gradient,
     nk_size_t head_count, nk_size_t key_value_head_count, nk_size_t depth, nk_u32_t const *query_offsets,
-    nk_u32_t const *key_offsets, nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
+    nk_size_t query_stride, nk_size_t output_stride, nk_size_t query_gradient_stride,
     nk_size_t key_value_gradient_stride, nk_f32_t scale, nk_size_t keys_before, nk_size_t keys_after,
     nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream);
 
@@ -1346,20 +1346,20 @@ NUMKONG_API nk_status_t nk_stream_synchronize_metal(nk_stream_t stream);
 #endif
 
 /** How many Metal devices the system lists, or zero. */
-NUMKONG_INLINE nk_size_t nk_metal_count_devices_(void) {
+NUMKONG_INLINE nk_size_t nk_count_devices_metal_(void) {
 #if NUMKONG_ARCH_METAL_
-    return nk_metal_list_devices_();
+    return nk_list_devices_metal_();
 #else
     return 0;
 #endif
 }
 
 /** The capabilities Metal device @p ordinal runs, in the order the system lists them. */
-NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t ordinal, nk_capability_t *capabilities) {
+NUMKONG_INLINE nk_status_t nk_capabilities_detected_metal_(nk_size_t ordinal, nk_capability_t *capabilities) {
     *capabilities = 0;
-    if (ordinal >= nk_metal_count_devices_()) return nk_missing_gpu_k;
+    if (ordinal >= nk_count_devices_metal_()) return nk_missing_gpu_k;
 #if NUMKONG_ARCH_METAL_
-    void *const metal_device = nk_metal_device_(ordinal);
+    void *const metal_device = nk_device_metal_(ordinal);
     if (!metal_device) return nk_device_code_mismatch_k;
     SEL const supports = sel_registerName("supportsFamily:");
     nk_size_t const apple9 = 1009, apple10 = 1010; // `MTLGPUFamilyApple9` and `MTLGPUFamilyApple10`
@@ -1368,7 +1368,7 @@ NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t ordinal, nk
         detected |= nk_cap_apple9_k;
     if (((signed char (*)(void *, SEL, nk_size_t))objc_msgSend)(metal_device, supports, apple10))
         detected |= nk_cap_apple10_k;
-    nk_metal_do_(metal_device, "release");
+    nk_do_metal_(metal_device, "release");
     *capabilities = detected;
 #endif
     return nk_success_k;
@@ -1376,24 +1376,24 @@ NUMKONG_INLINE nk_status_t nk_metal_capabilities_detected_(nk_size_t ordinal, nk
 
 /** Opens a retained @c id<MTLCommandQueue> on Metal device @p ordinal, in the order the system
  *  lists them. */
-NUMKONG_INLINE nk_status_t nk_metal_stream_init_(nk_size_t ordinal, nk_stream_t *stream) {
+NUMKONG_INLINE nk_status_t nk_stream_init_metal_(nk_size_t ordinal, nk_stream_t *stream) {
     *stream = NUMKONG_NULL;
-    if (ordinal >= nk_metal_count_devices_()) return nk_missing_gpu_k;
+    if (ordinal >= nk_count_devices_metal_()) return nk_missing_gpu_k;
 #if NUMKONG_ARCH_METAL_
-    void *const metal_device = nk_metal_device_(ordinal);
+    void *const metal_device = nk_device_metal_(ordinal);
     if (!metal_device) return nk_device_code_mismatch_k;
-    *stream = (nk_stream_t)nk_metal_get_(metal_device, "newCommandQueue");
-    nk_metal_do_(metal_device, "release");
+    *stream = (nk_stream_t)nk_get_metal_(metal_device, "newCommandQueue");
+    nk_do_metal_(metal_device, "release");
     if (!*stream) return nk_bad_alloc_k;
 #endif
     return nk_success_k;
 }
 
 /** Waits for @p stream 's committed work and its deferred frees, then releases it. */
-NUMKONG_INLINE nk_status_t nk_metal_stream_free_(nk_stream_t stream) {
+NUMKONG_INLINE nk_status_t nk_stream_free_metal_(nk_stream_t stream) {
 #if NUMKONG_ARCH_METAL_
     nk_status_t const status = nk_stream_synchronize_metal(stream);
-    nk_metal_do_(stream, "release");
+    nk_do_metal_(stream, "release");
     return status;
 #else
     nk_unused_(stream);
@@ -1403,7 +1403,7 @@ NUMKONG_INLINE nk_status_t nk_metal_stream_free_(nk_stream_t stream) {
 
 /** The CUDA capabilities this binary holds kernels for: the baseline and what
  *  `NUMKONG_TARGET_*` enables. */
-NUMKONG_CONSTEXPR nk_capability_t nk_cuda_capabilities_compiled_(void) {
+NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_cuda_(void) {
     return (nk_cap_cuda_k * NUMKONG_TARGET_CUDA) | (nk_cap_ampere_k * NUMKONG_TARGET_AMPERE) |
            (nk_cap_ada_k * NUMKONG_TARGET_ADA) | (nk_cap_hopper_k * NUMKONG_TARGET_HOPPER) |
            (nk_cap_blackwell_k * NUMKONG_TARGET_BLACKWELL) | (nk_cap_blackwellrtx_k * NUMKONG_TARGET_BLACKWELLRTX) |
@@ -1411,13 +1411,13 @@ NUMKONG_CONSTEXPR nk_capability_t nk_cuda_capabilities_compiled_(void) {
 }
 
 /** The ROCm capabilities this binary holds kernels for. */
-NUMKONG_CONSTEXPR nk_capability_t nk_rocm_capabilities_compiled_(void) {
+NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_rocm_(void) {
     return (nk_cap_rocm_k * NUMKONG_TARGET_ROCM) | (nk_cap_cdna3_k * NUMKONG_TARGET_CDNA3) |
            (nk_cap_cdna4_k * NUMKONG_TARGET_CDNA4) | (nk_cap_cdna5_k * NUMKONG_TARGET_CDNA5);
 }
 
 /** The Metal capabilities this binary holds kernels for. */
-NUMKONG_CONSTEXPR nk_capability_t nk_metal_capabilities_compiled_(void) {
+NUMKONG_CONSTEXPR nk_capability_t nk_capabilities_compiled_metal_(void) {
     return (nk_cap_metal_k * NUMKONG_TARGET_METAL) | (nk_cap_apple9_k * NUMKONG_TARGET_APPLE9) |
            (nk_cap_apple10_k * NUMKONG_TARGET_APPLE10);
 }
@@ -1535,12 +1535,12 @@ NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) {
 }
 #endif // !NUMKONG_ARCH_CUDA_
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_cuda_capabilities_compiled_();
+    *capabilities = nk_capabilities_compiled_cuda_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
     nk_status_t const status = nk_cuda_capabilities_detected(ordinal, capabilities);
-    *capabilities &= nk_cuda_capabilities_compiled_();
+    *capabilities &= nk_capabilities_compiled_cuda_();
     return status;
 }
 #if !NUMKONG_ARCH_ROCM_
@@ -1564,34 +1564,34 @@ NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) {
 }
 #endif // !NUMKONG_ARCH_ROCM_
 NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_rocm_capabilities_compiled_();
+    *capabilities = nk_capabilities_compiled_rocm_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
     nk_status_t const status = nk_rocm_capabilities_detected(ordinal, capabilities);
-    *capabilities &= nk_rocm_capabilities_compiled_();
+    *capabilities &= nk_capabilities_compiled_rocm_();
     return status;
 }
 NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
-    *count = nk_metal_count_devices_();
+    *count = nk_count_devices_metal_();
     return *count ? nk_success_k : nk_missing_gpu_k;
 }
 NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_metal_capabilities_detected_(ordinal, capabilities);
+    return nk_capabilities_detected_metal_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_metal_capabilities_compiled_();
+    *capabilities = nk_capabilities_compiled_metal_();
     return nk_success_k;
 }
 NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
-    nk_status_t const status = nk_metal_capabilities_detected_(ordinal, capabilities);
-    *capabilities &= nk_metal_capabilities_compiled_();
+    nk_status_t const status = nk_capabilities_detected_metal_(ordinal, capabilities);
+    *capabilities &= nk_capabilities_compiled_metal_();
     return status;
 }
 NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream) {
-    return nk_metal_stream_init_(ordinal, stream);
+    return nk_stream_init_metal_(ordinal, stream);
 }
-NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_metal_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_stream_free_metal_(stream); }
 
 NUMKONG_API nk_status_t nk_stream_synchronize_best(nk_capability_t capabilities, nk_stream_t stream) {
     nk_unused_(capabilities), nk_unused_(stream);

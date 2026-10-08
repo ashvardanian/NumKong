@@ -29,6 +29,7 @@
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
 #include "numkong/dots/serial.h"
+#include "numkong/simt.cuh"      // `nk_diagonal_band_row_range_simt_`
 #include "numkong/cast/simt.cuh" // `nk_e4m3_to_f32_simt_`, `nk_f32_to_f16_simt_`
 
 #if defined(__cplusplus)
@@ -56,49 +57,13 @@ nk_static_assert_(nk_cross_threads_simt_k % 64 == 0, nk_cross_blocks_hold_whole_
 nk_static_assert_(nk_cross_threads_simt_k % nk_cross_slab_simt_k == 0 && nk_cross_slab_simt_k <= 32,
                   nk_cross_slab_fits_a_warp);
 
-/** How a tile accumulates, matching the serial backends, and how a B32 tile's word holds depth. */
-typedef enum {
-
-    /** One F64 FMA per product, for F32 inputs. */
-    nk_cross_accumulation_f64_k,
-
-    /** Ogita-Rump-Oishi Dot2: TwoProd and TwoSum, for F64 inputs. */
-    nk_cross_accumulation_dot2_k,
-
-    /** One element per word as F32, folded by one F32 FMA. */
-    nk_cross_accumulation_f32_k,
-
-    /** Two elements per word as F16, folded by one dot2 into F32. */
-    nk_cross_accumulation_f16x2_k,
-
-    /** Four signed bytes per word, folded by one dot4 into wrapping I32. */
-    nk_cross_accumulation_i8x4_k,
-
-    /** Four unsigned bytes per word, folded by one dot4 into wrapping U32. */
-    nk_cross_accumulation_u8x4_k,
-
-    /** Four signed nibbles widened to bytes, folded as @c i8x4. */
-    nk_cross_accumulation_i4x4_k,
-
-    /** Four unsigned nibbles widened to bytes, folded as @c u8x4. */
-    nk_cross_accumulation_u4x4_k,
-
-    /** Eight signed nibbles as packed, folded by one dot8 into wrapping I32. */
-    nk_cross_accumulation_i4x8_k,
-
-    /** Eight unsigned nibbles as packed, folded by one dot8 into wrapping U32. */
-    nk_cross_accumulation_u4x8_k,
-} nk_cross_accumulation_t;
-
-/** Which outputs a tile writes. */
-typedef enum {
-
-    /** Every output, for @c packed. */
-    nk_cross_triangle_full_k,
-
-    /** The upper triangle with its diagonal, for @c symmetric. */
-    nk_cross_triangle_upper_k,
-} nk_cross_triangle_t;
+/** Elements of depth one staged 32-bit word holds, by the shape of the word. */
+enum {
+    nk_cross_dimensions_f32x1_simt_k = 1,
+    nk_cross_dimensions_f16x2_simt_k = 2,
+    nk_cross_dimensions_b8x4_simt_k = 4,
+    nk_cross_dimensions_b4x8_simt_k = 8,
+};
 
 /** What a tile turns each dot product into. */
 typedef enum {
@@ -207,19 +172,11 @@ typedef enum {
     nk_cross_norm_u32_k,
 } nk_cross_norm_t;
 
-/** Adds the squares of 16 staged bytes: exact integer codes into @p integer_sum, the others
- *  into @p real_sum. */
-typedef void (*nk_cross_norm_update_t)(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum);
-
-/** Splits one fragment register into two narrower-typed ones: 4 codes into F16 pairs, or 8 nibbles
- *  into I8 quads. */
-typedef void (*nk_cross_widen_t)(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high);
-
 #pragma endregion Configuration
 
 #pragma region Pack Layout
 
-/** Storage values in one packed GPU row: @c nk_cross_padded_values_ without its power-of-two
+/** Storage values in one packed GPU row: @c nk_cross_padded_values_serial_ without its power-of-two
  *  break, since the GPU loaders never read the padding and only lose bandwidth to it. */
 NUMKONG_INLINE nk_size_t nk_cross_padded_values_simt_(nk_size_t depth, nk_size_t depth_simd_dimensions,
                                                       nk_size_t dimensions_per_value, nk_size_t packed_value_bytes) {
@@ -281,20 +238,20 @@ NUMKONG_DEVICE nk_f32_t nk_dot_f16x2_simt_(nk_u32_t a, nk_u32_t b, nk_f32_t sum)
 
 /** Eight I4 nibbles become two registers of four sign-extended I8, each (v ^ 8) − 8 without
  *  cross-byte borrows. */
-NUMKONG_DEVICE void nk_i4x8_to_i8x8_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_DEVICE void nk_i4x8_to_i8x8_simt_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     nk_u32_t const low_nibbles = codes & 0x0F0F0F0Fu, high_nibbles = (codes >> 4) & 0x0F0F0F0Fu;
     *low = (((low_nibbles ^ 0x08080808u) | 0x80808080u) - 0x08080808u) ^ 0x80808080u;
     *high = (((high_nibbles ^ 0x08080808u) | 0x80808080u) - 0x08080808u) ^ 0x80808080u;
 }
 
 /** Eight U4 nibbles become two registers of four U8. */
-NUMKONG_DEVICE void nk_u4x8_to_u8x8_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
+NUMKONG_DEVICE void nk_u4x8_to_u8x8_simt_(nk_u32_t codes, nk_u32_t *low, nk_u32_t *high) {
     *low = codes & 0x0F0F0F0Fu, *high = (codes >> 4) & 0x0F0F0F0Fu;
 }
 
 /** Four E2M3 magnitudes times 8 as U8: @c m where e = 0, otherwise (8 + m) << (e − 1), at most
  *  60. */
-NUMKONG_DEVICE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_(nk_u32_t codes) {
+NUMKONG_DEVICE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_simt_(nk_u32_t codes) {
     nk_u32_t const exponent_low = (codes >> 3) & 0x01010101u, exponent_high = (codes >> 4) & 0x01010101u;
     nk_u32_t const significand = (codes & 0x07070707u) | ((exponent_low | exponent_high) << 3);
     nk_u32_t const doubled_mask = exponent_high * 0xFFu, quadrupled_mask = (exponent_high & exponent_low) * 0xFFu;
@@ -302,98 +259,83 @@ NUMKONG_DEVICE nk_u32_t nk_e2m3x4_to_u8x4_magnitudes_(nk_u32_t codes) {
 }
 
 /** One E3M2 code over 4096. */
-NUMKONG_DEVICE nk_f32_t nk_e3m2_to_scaled_f32_(nk_u32_t code) {
+NUMKONG_DEVICE nk_f32_t nk_e3m2_to_scaled_f32_simt_(nk_u32_t code) {
     return __half2float(__ushort_as_half((unsigned short)(((code & 0x1Fu) << 8) | ((code & 0x20u) << 10))));
 }
 
 /** Keeps a packed byte as it is. */
-NUMKONG_DEVICE unsigned char nk_load_b8_(unsigned char value) { return value; }
+NUMKONG_DEVICE unsigned char nk_load_b8_simt_(unsigned char value) { return value; }
 
-NUMKONG_DEVICE nk_f64_t nk_f64_load_f64_(unsigned char const *row, nk_size_t index) {
-    return ((nk_f64_t const *)row)[index];
+NUMKONG_DEVICE nk_f64_t nk_f64_load_f64_simt_(unsigned char const *row, nk_size_t index) {
+    nk_f64_t const *elements = (nk_f64_t const *)row;
+    return elements[index];
 }
 
-NUMKONG_DEVICE nk_f64_t nk_f32_load_f64_(unsigned char const *row, nk_size_t index) {
-    return (nk_f64_t)((nk_f32_t const *)row)[index];
+NUMKONG_DEVICE nk_f64_t nk_f32_load_f64_simt_(unsigned char const *row, nk_size_t index) {
+    nk_f32_t const *elements = (nk_f32_t const *)row;
+    return (nk_f64_t)elements[index];
 }
 
-NUMKONG_DEVICE nk_f32_t nk_bf16_load_f32_(unsigned char const *row, nk_size_t index) {
+NUMKONG_DEVICE nk_f32_t nk_bf16_load_f32_simt_(unsigned char const *row, nk_size_t index) {
     return __uint_as_float(((nk_u32_t)row[index * 2] | ((nk_u32_t)row[index * 2 + 1] << 8)) << 16);
 }
 
-NUMKONG_DEVICE nk_f32_t nk_f16_load_f32_(unsigned char const *row, nk_size_t index) {
+NUMKONG_DEVICE nk_f32_t nk_f16_load_f32_simt_(unsigned char const *row, nk_size_t index) {
     return __half2float(__ushort_as_half((unsigned short)(row[index * 2] | (row[index * 2 + 1] << 8))));
 }
 
-NUMKONG_DEVICE nk_f32_t nk_e5m2_load_f32_(unsigned char const *row, nk_size_t index) {
+NUMKONG_DEVICE nk_f32_t nk_e5m2_load_f32_simt_(unsigned char const *row, nk_size_t index) {
     nk_f32_t value;
     nk_e5m2_to_f32_simt_(row + index, &value);
     return value;
 }
 
-NUMKONG_DEVICE nk_f32_t nk_e4m3_load_f32_(unsigned char const *row, nk_size_t index) {
+NUMKONG_DEVICE nk_f32_t nk_e4m3_load_f32_simt_(unsigned char const *row, nk_size_t index) {
     nk_f32_t value;
     nk_e4m3_to_f32_simt_(row + index, &value);
     return value;
 }
 
-NUMKONG_DEVICE nk_f32_t nk_e3m2_load_f32_(unsigned char const *row, nk_size_t index) {
-    return nk_e3m2_to_scaled_f32_(row[index]) * 4096.0f;
+NUMKONG_DEVICE nk_f32_t nk_e3m2_load_f32_simt_(unsigned char const *row, nk_size_t index) {
+    return nk_e3m2_to_scaled_f32_simt_(row[index]) * 4096.0f;
 }
 
-NUMKONG_DEVICE nk_f32_t nk_e2m3_load_f32_(unsigned char const *row, nk_size_t index) {
+NUMKONG_DEVICE nk_f32_t nk_e2m3_load_f32_simt_(unsigned char const *row, nk_size_t index) {
     unsigned const code = row[index];
-    nk_f32_t const magnitude = (nk_f32_t)nk_e2m3x4_to_u8x4_magnitudes_(code) * 0.125f;
+    nk_f32_t const magnitude = (nk_f32_t)nk_e2m3x4_to_u8x4_magnitudes_simt_(code) * 0.125f;
     return code & 0x20u ? -magnitude : magnitude;
 }
 
-NUMKONG_DEVICE unsigned nk_b4_load_(unsigned char const *row, nk_size_t index) {
+NUMKONG_DEVICE unsigned nk_b4_load_simt_(unsigned char const *row, nk_size_t index) {
     return (index & 1) ? (row[index / 2] & 0x0Fu) : (row[index / 2] >> 4);
 }
 
-NUMKONG_DEVICE nk_f32_t nk_e2m1_load_f32_(unsigned char const *row, nk_size_t index) {
-    unsigned const code = nk_b4_load_(row, index), exponent = (code >> 1) & 3u;
+NUMKONG_DEVICE nk_f32_t nk_e2m1_load_f32_simt_(unsigned char const *row, nk_size_t index) {
+    unsigned const code = nk_b4_load_simt_(row, index), exponent = (code >> 1) & 3u;
     nk_f32_t const magnitude = exponent ? (nk_f32_t)((2u + (code & 1u)) << (exponent - 1)) * 0.5f
                                         : (nk_f32_t)(code & 1u) * 0.5f;
     return code & 8u ? -magnitude : magnitude;
-}
-
-/** Element @p index of an F64 or F32 row, as the F64 tile reads it. */
-NUMKONG_DEVICE nk_f64_t nk_cross_load_f64_(nk_dtype_t dtype, unsigned char const *row, nk_size_t index) {
-    return dtype == nk_f64_k ? nk_f64_load_f64_(row, index) : nk_f32_load_f64_(row, index);
-}
-
-/** Element @p index of a 16-bit or narrower float row, exactly as F32. */
-NUMKONG_DEVICE nk_f32_t nk_cross_load_f32_(nk_dtype_t dtype, unsigned char const *row, nk_size_t index) {
-    switch (dtype) {
-    case nk_bf16_k: return nk_bf16_load_f32_(row, index);
-    case nk_f16_k: return nk_f16_load_f32_(row, index);
-    case nk_e5m2_k: return nk_e5m2_load_f32_(row, index);
-    case nk_e4m3_k: return nk_e4m3_load_f32_(row, index);
-    case nk_e3m2_k: return nk_e3m2_load_f32_(row, index);
-    case nk_e2m3_k: return nk_e2m3_load_f32_(row, index);
-    default: return nk_e2m1_load_f32_(row, index);
-    }
 }
 
 #pragma endregion Conversions
 
 /*  Each lane share returns a lane's part of a column's sum of squares, over indices `lane + 32 × k`
  *  below @c depth, which the pack merges across the 32 lanes: F64 for floats and exact 64-bit sums
- *  for integers. The Dot2-compensated shares of F64 and F32 inputs, and the merges, round through
+ *  for integers, while block-scaled columns store `nk_cross_scaled_pack_norm_<dtype>_simt_` in F32
+ *  rebased form. The Dot2-compensated shares of F64 and F32 inputs, and the merges, round through
  *  each vendor's primitives in its own header. Rows read bytewise, since the source's stride need
  *  not be element-aligned. */
 #pragma region Norms
 
-#define nk_define_lane_sumsq_simt_(input_type_name)                                                       \
-    NUMKONG_DEVICE nk_f64_t nk_##input_type_name##_lane_sumsq_(unsigned char const *row, nk_size_t depth, \
-                                                               unsigned lane) {                           \
-        nk_f64_t sum = 0;                                                                                 \
-        for (nk_size_t index = lane; index < depth; index += 32) {                                        \
-            nk_f64_t const value = nk_##input_type_name##_load_f32_(row, index);                          \
-            sum = __fma_rn(value, value, sum);                                                            \
-        }                                                                                                 \
-        return sum;                                                                                       \
+#define nk_define_lane_sumsq_simt_(input_type_name)                                                                   \
+    NUMKONG_DEVICE nk_f64_t nk_##input_type_name##_lane_sumsq_simt_(unsigned char const *row, nk_size_t depth,        \
+                                                                    unsigned lane, unsigned char const *, nk_f32_t) { \
+        nk_f64_t sum = 0;                                                                                             \
+        for (nk_size_t index = lane; index < depth; index += 32) {                                                    \
+            nk_f64_t const value = nk_##input_type_name##_load_f32_simt_(row, index);                                 \
+            sum = __fma_rn(value, value, sum);                                                                        \
+        }                                                                                                             \
+        return sum;                                                                                                   \
     }
 
 nk_define_lane_sumsq_simt_(bf16)
@@ -404,29 +346,10 @@ nk_define_lane_sumsq_simt_(e3m2)
 nk_define_lane_sumsq_simt_(e2m3)
 nk_define_lane_sumsq_simt_(e2m1)
 
-/** The sum of squares of a block-scaled row of @p dtype over its blocks first + step × k below
- *  @p depth, each block summed in F32 and taking its scale times @p tensor_scale squared once, in
- *  F64 so no UE8M0 extreme overflows: a lane's share for the pack, or a whole row. */
-NUMKONG_DEVICE nk_f64_t nk_cross_scaled_sumsq_simt_(nk_dtype_t dtype, unsigned char const *row,
-                                                    unsigned char const *scales, nk_f64_t tensor_scale, nk_size_t depth,
-                                                    nk_size_t first, nk_size_t step) {
-    nk_block_scaled_format_t const format = nk_block_scaled_format_of_dtype(dtype);
-    nk_f64_t sum = 0;
-    for (nk_size_t block = first; block * format.block_size < depth; block += step) {
-        nk_f32_t block_sum = 0;
-        for (nk_size_t index = block * format.block_size; index != (block + 1) * format.block_size; ++index) {
-            nk_f32_t const value = nk_cross_load_f32_(format.element_dtype, row, index);
-            block_sum = __fmaf_rn(value, value, block_sum);
-        }
-        nk_f64_t const scale = nk_block_scaled_decode_scale_serial_(scales[block], format.scale_dtype) * tensor_scale;
-        sum += block_sum * scale * scale;
-    }
-    return sum;
-}
-
 #undef nk_define_lane_sumsq_simt_
 
-NUMKONG_DEVICE nk_u64_t nk_i8_lane_sumsq_(unsigned char const *row, nk_size_t depth, unsigned lane) {
+NUMKONG_DEVICE nk_u64_t nk_i8_lane_sumsq_simt_(unsigned char const *row, nk_size_t depth, unsigned lane,
+                                               unsigned char const *, nk_f32_t) {
     nk_u64_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_i32_t const value = (signed char)row[index];
@@ -435,25 +358,28 @@ NUMKONG_DEVICE nk_u64_t nk_i8_lane_sumsq_(unsigned char const *row, nk_size_t de
     return sum;
 }
 
-NUMKONG_DEVICE nk_u64_t nk_u8_lane_sumsq_(unsigned char const *row, nk_size_t depth, unsigned lane) {
+NUMKONG_DEVICE nk_u64_t nk_u8_lane_sumsq_simt_(unsigned char const *row, nk_size_t depth, unsigned lane,
+                                               unsigned char const *, nk_f32_t) {
     nk_u64_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) sum += (nk_u64_t)row[index] * row[index];
     return sum;
 }
 
-NUMKONG_DEVICE nk_u64_t nk_i4_lane_sumsq_(unsigned char const *row, nk_size_t depth, unsigned lane) {
+NUMKONG_DEVICE nk_u64_t nk_i4_lane_sumsq_simt_(unsigned char const *row, nk_size_t depth, unsigned lane,
+                                               unsigned char const *, nk_f32_t) {
     nk_u64_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
-        nk_i32_t const value = (nk_i32_t)(nk_b4_load_(row, index) ^ 8u) - 8;
+        nk_i32_t const value = (nk_i32_t)(nk_b4_load_simt_(row, index) ^ 8u) - 8;
         sum += (nk_u64_t)(value * value);
     }
     return sum;
 }
 
-NUMKONG_DEVICE nk_u64_t nk_u4_lane_sumsq_(unsigned char const *row, nk_size_t depth, unsigned lane) {
+NUMKONG_DEVICE nk_u64_t nk_u4_lane_sumsq_simt_(unsigned char const *row, nk_size_t depth, unsigned lane,
+                                               unsigned char const *, nk_f32_t) {
     nk_u64_t sum = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
-        nk_u64_t const value = nk_b4_load_(row, index);
+        nk_u64_t const value = nk_b4_load_simt_(row, index);
         sum += value * value;
     }
     return sum;
@@ -463,13 +389,13 @@ NUMKONG_DEVICE nk_u64_t nk_u4_lane_sumsq_(unsigned char const *row, nk_size_t de
  *  in any order, since a sum of squares has none, and the finish stores them in 32 bits. */
 
 /** Adds the squares of both F16 halves of @p halves to @p real_sum. */
-NUMKONG_DEVICE void nk_f16x2_norm_update_(nk_u32_t halves, nk_f32_t *real_sum) {
+NUMKONG_DEVICE void nk_f16x2_norm_update_simt_(nk_u32_t halves, nk_f32_t *real_sum) {
     nk_f32_t const low = __half2float(__ushort_as_half((unsigned short)(halves & 0xFFFFu)));
     nk_f32_t const high = __half2float(__ushort_as_half((unsigned short)(halves >> 16)));
     *real_sum = __fmaf_rn(high, high, __fmaf_rn(low, low, *real_sum));
 }
 
-NUMKONG_DEVICE void nk_bf16_norm_update_(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum) {
+NUMKONG_DEVICE void nk_bf16_norm_update_simt_(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum) {
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_f32_t const low = __uint_as_float(words[word] << 16), high = __uint_as_float(words[word] & 0xFFFF0000u);
@@ -477,15 +403,15 @@ NUMKONG_DEVICE void nk_bf16_norm_update_(nk_u32_t const words[4], nk_u32_t *inte
     }
 }
 
-NUMKONG_DEVICE void nk_f16_norm_update_(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum) {
+NUMKONG_DEVICE void nk_f16_norm_update_simt_(nk_u32_t const words[4], nk_u32_t *integer_sum, nk_f32_t *real_sum) {
 #pragma unroll
-    for (unsigned word = 0; word < 4; ++word) nk_f16x2_norm_update_(words[word], real_sum);
+    for (unsigned word = 0; word < 4; ++word) nk_f16x2_norm_update_simt_(words[word], real_sum);
 }
 
 /** A thread's accumulated squared norm in the 32 bits the epilogue reads: integers as summed,
  *  floats in true units. */
-NUMKONG_DEVICE nk_fui32_t nk_cross_norm_finalize_(nk_cross_norm_t norm, nk_u32_t integer_sum, nk_f32_t real_sum,
-                                                  nk_f32_t norm_scale) {
+NUMKONG_DEVICE nk_fui32_t nk_cross_norm_finalize_simt_(nk_cross_norm_t norm, nk_u32_t integer_sum, nk_f32_t real_sum,
+                                                       nk_f32_t norm_scale) {
     nk_fui32_t result;
     if (norm == nk_cross_norm_f32_k) result.f = ((nk_f32_t)integer_sum + real_sum) * norm_scale;
     else result.u = integer_sum;
@@ -498,7 +424,7 @@ NUMKONG_DEVICE nk_fui32_t nk_cross_norm_finalize_(nk_cross_norm_t norm, nk_u32_t
 
 /** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of `spatials.h`: 0 for two zero norms, 1 for one
  *  zero norm or a zero dot, and NaN for a NaN dot. */
-NUMKONG_DEVICE nk_f64_t nk_f64_angular_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
+NUMKONG_DEVICE nk_f64_t nk_f64_angular_simt_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
     if (dot != dot) return dot;
     if (row_norm == 0 && column_norm == 0) return 0.0;
     if (dot == 0 || row_norm == 0 || column_norm == 0) return 1.0;
@@ -507,14 +433,14 @@ NUMKONG_DEVICE nk_f64_t nk_f64_angular_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_
 }
 
 /** √(‖a‖² + ‖b‖² − 2 · dot), with a negative radicand from rounding clamped to 0 and NaN kept. */
-NUMKONG_DEVICE nk_f64_t nk_f64_euclidean_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
+NUMKONG_DEVICE nk_f64_t nk_f64_euclidean_simt_(nk_f64_t dot, nk_f64_t row_norm, nk_f64_t column_norm) {
     nk_f64_t const squared = row_norm + column_norm - 2.0 * dot;
     return squared < 0 ? 0.0 : sqrt(squared);
 }
 
 /** 1 − dot / (‖a‖ ‖b‖) clamped at 0, by the rule of `spatials.h`: 0 for two zero norms, 1 for one
  *  zero norm or a zero dot, and NaN for a NaN dot. */
-NUMKONG_DEVICE nk_f32_t nk_f32_angular_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
+NUMKONG_DEVICE nk_f32_t nk_f32_angular_simt_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
     if (dot != dot) return dot;
     if (row_norm == 0 && column_norm == 0) return 0.0f;
     if (dot == 0 || row_norm == 0 || column_norm == 0) return 1.0f;
@@ -523,7 +449,7 @@ NUMKONG_DEVICE nk_f32_t nk_f32_angular_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_
 }
 
 /** √(‖a‖² + ‖b‖² − 2 · dot), with a negative radicand from rounding clamped to 0 and NaN kept. */
-NUMKONG_DEVICE nk_f32_t nk_f32_euclidean_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
+NUMKONG_DEVICE nk_f32_t nk_f32_euclidean_simt_(nk_f32_t dot, nk_f32_t row_norm, nk_f32_t column_norm) {
     nk_f32_t const squared = row_norm + column_norm - 2.0f * dot;
     return squared < 0 ? 0.0f : sqrtf(squared);
 }
@@ -531,8 +457,8 @@ NUMKONG_DEVICE nk_f32_t nk_f32_euclidean_(nk_f32_t dot, nk_f32_t row_norm, nk_f3
 /** The angular or euclidean distance of an integer pair from its exact @p dot bits, I32 or U32 as
  *  @p norm says, and wrapping U32 norms, as the serial backends finish it: ab − d² and a + b − 2d
  *  stay exact in 64 bits, so equal rows are exactly 0 apart, and one F64 tail rounds into F32. */
-NUMKONG_DEVICE nk_f32_t nk_cross_integer_metric_(nk_cross_metric_t metric, nk_cross_norm_t norm, nk_u32_t dot_bits,
-                                                 nk_u32_t row_norm, nk_u32_t column_norm) {
+NUMKONG_DEVICE nk_f32_t nk_cross_integer_metric_simt_(nk_cross_metric_t metric, nk_cross_norm_t norm, nk_u32_t dot_bits,
+                                                      nk_u32_t row_norm, nk_u32_t column_norm) {
     nk_i64_t const dot = norm == nk_cross_norm_u32_k ? (nk_i64_t)dot_bits : (nk_i64_t)(nk_i32_t)dot_bits;
     if (metric == nk_cross_metric_euclidean_k) {
         nk_i64_t const distance_sq = (nk_i64_t)row_norm + column_norm - 2 * dot;
@@ -548,7 +474,7 @@ NUMKONG_DEVICE nk_f32_t nk_cross_integer_metric_(nk_cross_metric_t metric, nk_cr
 
 /** A tensor-core dot product of a floating type as F32: F32 sums, or integer sums of its scaled
  *  codes, times @p output_scale. */
-NUMKONG_DEVICE nk_f32_t nk_cross_dot_to_f32_(nk_fui32_t sum, nk_cross_epilogue_t epilogue, nk_f32_t output_scale) {
+NUMKONG_DEVICE nk_f32_t nk_cross_dot_to_f32_simt_(nk_fui32_t sum, nk_cross_epilogue_t epilogue, nk_f32_t output_scale) {
     return epilogue == nk_cross_epilogue_f32_k ? sum.f * output_scale : (nk_f32_t)sum.i * output_scale;
 }
 
@@ -563,101 +489,72 @@ NUMKONG_DEVICE nk_f32_t nk_cross_dot_to_f32_(nk_fui32_t sum, nk_cross_epilogue_t
  *  folds and lane merges. */
 #pragma region Baseline Tile
 
-/** How the B32 tile's sums and norms under @p accumulation read: F32, or signed or unsigned
- *  integers as the serial backends read them. */
-NUMKONG_DEVICE nk_cross_norm_t nk_cross_b32_norm_(nk_cross_accumulation_t accumulation) {
-    switch (accumulation) {
-    case nk_cross_accumulation_f32_k:
-    case nk_cross_accumulation_f16x2_k: return nk_cross_norm_f32_k;
-    case nk_cross_accumulation_i8x4_k:
-    case nk_cross_accumulation_i4x4_k:
-    case nk_cross_accumulation_i4x8_k: return nk_cross_norm_i32_k;
-    default: return nk_cross_norm_u32_k;
-    }
+/** Whether @p band asks for a Gram matrix: the diagonal and above, whose lower half is mirrored. */
+NUMKONG_DEVICE int nk_cross_symmetric_simt_(nk_diagonal_band_t band) { return band.subdiagonals == 0; }
+
+/** One thread's cell of a staged slab: its row in the tile, its word in the slab, and the rows of A
+ *  and B to read it from, null past the operand's rows or past @c words . */
+typedef struct {
+    unsigned tile_row, offset;
+    nk_size_t word;
+    unsigned char const *a_row, *b_row;
+} nk_cross_cell_simt_t;
+
+NUMKONG_DEVICE nk_cross_cell_simt_t nk_cross_cell_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                        nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                        unsigned step) {
+    unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
+    nk_cross_cell_simt_t cell;
+    cell.tile_row = element / nk_cross_slab_simt_k, cell.offset = element % nk_cross_slab_simt_k;
+    cell.word = slab + cell.offset;
+    nk_size_t const row = first_row + cell.tile_row, column = first_column + cell.tile_row;
+    cell.a_row = row < arguments->rows_end && cell.word < words ? arguments->a + row * arguments->a_stride
+                                                                : NUMKONG_NULL;
+    cell.b_row = column < arguments->column_count && cell.word < words ? arguments->b + column * arguments->b_stride
+                                                                       : NUMKONG_NULL;
+    return cell;
 }
 
-/** Elements of depth one staged word holds under @p accumulation. */
-NUMKONG_DEVICE unsigned nk_cross_b32_dimensions_(nk_cross_accumulation_t accumulation) {
-    switch (accumulation) {
-    case nk_cross_accumulation_f32_k: return 1;
-    case nk_cross_accumulation_f16x2_k: return 2;
-    case nk_cross_accumulation_i4x8_k:
-    case nk_cross_accumulation_u4x8_k: return 8;
-    default: return 4;
-    }
-}
-
-/** Word @p word of a row as the B32 tile stages it for @p accumulation, with every element at or
- *  past @p depth zeroed. Rows start on 16 bytes, so whole words load aligned. */
-NUMKONG_DEVICE nk_u32_t nk_cross_stage_b32_(nk_cross_accumulation_t accumulation, nk_dtype_t dtype,
-                                            unsigned char const *row, nk_size_t word, nk_size_t depth) {
-    nk_size_t const first = word * nk_cross_b32_dimensions_(accumulation);
-    nk_u32_t bits = 0;
-    switch (accumulation) {
-    case nk_cross_accumulation_f32_k: return __float_as_uint(nk_cross_load_f32_(dtype, row, first));
-    case nk_cross_accumulation_f16x2_k: {
-        unsigned short halves[2] = {0, 0};
-        nk_f32_t value = nk_cross_load_f32_(dtype, row, first);
-        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
-        if (first + 1 < depth) {
-            value = nk_cross_load_f32_(dtype, row, first + 1);
-            nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
-        }
-        return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
-    }
-    case nk_cross_accumulation_i8x4_k:
-    case nk_cross_accumulation_u8x4_k:
-        if (first + 4 <= depth) return *(nk_u32_t const *)(row + first);
-        for (unsigned byte = 0; byte < 4; ++byte)
-            if (first + byte < depth) bits |= (nk_u32_t)row[first + byte] << (byte * 8);
-        return bits;
-    case nk_cross_accumulation_i4x4_k:
-    case nk_cross_accumulation_u4x4_k:
-        // Sign- or zero-extends each nibble into its own byte, for NVIDIA's byte-wise `dp4a`.
-        for (unsigned nibble = 0; nibble < 4; ++nibble) {
-            if (first + nibble >= depth) continue;
-            nk_u32_t const code = nk_b4_load_(row, first + nibble);
-            nk_u32_t const byte = accumulation == nk_cross_accumulation_i4x4_k ? ((0u - (code & 8u)) | code) & 0xFFu
-                                                                               : code;
-            bits |= byte << (nibble * 8);
-        }
-        return bits;
-    default:
-        if (first + 8 <= depth) return *(nk_u32_t const *)(row + first / 2);
-        for (unsigned nibble = 0; nibble < 8; ++nibble)
-            if (first + nibble < depth)
-                bits |= nk_b4_load_(row, first + nibble) << (nibble / 2 * 8 + (nibble & 1 ? 0 : 4));
-        return bits;
-    }
-}
-
-/** Stages one slab of F64 values for the tile at @p first_row and @p first_column, returning the
- *  values this thread staged in @p a_values and @p b_values for a metric's norms. */
-NUMKONG_DEVICE void nk_cross_stage_slab_f64_simt_(nk_dtype_t dtype, nk_cross_tile_arguments_t const *arguments,
-                                                  nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+/** Stages one slab of F64 values of an F64 row for the tile at @p first_row and @p first_column,
+ *  returning the values this thread staged in @p a_values and @p b_values for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_f64_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                  nk_size_t first_column, nk_size_t slab,
                                                   nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
                                                   nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
                                                   nk_f64_t a_values[nk_cross_loads_simt_k],
                                                   nk_f64_t b_values[nk_cross_loads_simt_k]) {
 #pragma unroll
     for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
-        unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
-        unsigned const tile_row = element / nk_cross_slab_simt_k, offset = element % nk_cross_slab_simt_k;
-        nk_size_t const index = slab + offset, row = first_row + tile_row, column = first_column + tile_row;
-        nk_f64_t const a_value = row < arguments->rows_end && index < arguments->depth
-                                     ? nk_cross_load_f64_(dtype, arguments->a + row * arguments->a_stride, index)
-                                     : 0;
-        nk_f64_t const b_value = column < arguments->column_count && index < arguments->depth
-                                     ? nk_cross_load_f64_(dtype, arguments->b + column * arguments->b_stride, index)
-                                     : 0;
-        a_slab[offset][tile_row] = a_value, b_slab[offset][tile_row] = b_value;
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab,
+                                                              arguments->depth, step);
+        nk_f64_t const a_value = cell.a_row ? nk_f64_load_f64_simt_(cell.a_row, cell.word) : 0;
+        nk_f64_t const b_value = cell.b_row ? nk_f64_load_f64_simt_(cell.b_row, cell.word) : 0;
+        a_slab[cell.offset][cell.tile_row] = a_value, b_slab[cell.offset][cell.tile_row] = b_value;
+        a_values[step] = a_value, b_values[step] = b_value;
+    }
+}
+
+/** @c nk_cross_stage_slab_f64_simt_ for F32 rows, widened to F64. */
+NUMKONG_DEVICE void nk_cross_stage_slab_f32_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                  nk_size_t first_column, nk_size_t slab,
+                                                  nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                  nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                  nk_f64_t a_values[nk_cross_loads_simt_k],
+                                                  nk_f64_t b_values[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab,
+                                                              arguments->depth, step);
+        nk_f64_t const a_value = cell.a_row ? nk_f32_load_f64_simt_(cell.a_row, cell.word) : 0;
+        nk_f64_t const b_value = cell.b_row ? nk_f32_load_f64_simt_(cell.b_row, cell.word) : 0;
+        a_slab[cell.offset][cell.tile_row] = a_value, b_slab[cell.offset][cell.tile_row] = b_value;
         a_values[step] = a_value, b_values[step] = b_value;
     }
 }
 
 /** Publishes the tile's row norms, which the threads staging each row merged and rounded, and its
- *  column norms, merged likewise for @c symmetric and read from @p b_norms for @c packed. */
-NUMKONG_DEVICE void nk_cross_publish_norms_f64_simt_(nk_cross_triangle_t triangle,
+ *  column norms, merged likewise for a Gram matrix and read from @p b_norms for a packed one. */
+NUMKONG_DEVICE void nk_cross_publish_norms_f64_simt_(nk_diagonal_band_t band,
                                                      nk_cross_tile_arguments_t const *arguments, nk_size_t first_column,
                                                      nk_f64_t const a_norms[nk_cross_loads_simt_k],
                                                      nk_f64_t const b_norms[nk_cross_loads_simt_k],
@@ -670,21 +567,22 @@ NUMKONG_DEVICE void nk_cross_publish_norms_f64_simt_(nk_cross_triangle_t triangl
             unsigned const tile_row = threadIdx.x / nk_cross_slab_simt_k +
                                       step * (nk_cross_threads_simt_k / nk_cross_slab_simt_k);
             norms[0][tile_row] = a_norms[step];
-            if (triangle == nk_cross_triangle_upper_k) norms[1][tile_row] = b_norms[step];
+            if (nk_cross_symmetric_simt_(band)) norms[1][tile_row] = b_norms[step];
         }
-    if (triangle == nk_cross_triangle_full_k && threadIdx.x < nk_cross_tile_simt_k) {
+    if (!nk_cross_symmetric_simt_(band) && threadIdx.x < nk_cross_tile_simt_k) {
         nk_size_t const column = first_column + threadIdx.x;
-        norms[1][threadIdx.x] = column < arguments->column_count ? ((nk_f64_t const *)arguments->b_norms)[column] : 0;
+        nk_f64_t const *column_norms = (nk_f64_t const *)arguments->b_norms;
+        norms[1][threadIdx.x] = column < arguments->column_count ? column_norms[column] : 0;
     }
     __syncthreads();
 }
 
 /** Writes this thread's outputs of the tile as F64: its rounded @p dots, or metrics with zeros on
- *  the diagonal of @c symmetric. */
+ *  the diagonal of a Gram matrix. */
 NUMKONG_DEVICE void nk_cross_store_tile_f64_simt_(
-    nk_cross_triangle_t triangle, nk_cross_metric_t metric, nk_cross_tile_arguments_t const *arguments,
-    nk_size_t first_row, nk_size_t first_column,
-    nk_f64_t dots[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k], nk_f64_t norms[2][nk_cross_tile_simt_k]) {
+    nk_diagonal_band_t band, nk_cross_metric_t metric, nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+    nk_size_t first_column, nk_f64_t dots[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
+    nk_f64_t norms[2][nk_cross_tile_simt_k]) {
     unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
     unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
 #pragma unroll
@@ -692,53 +590,485 @@ NUMKONG_DEVICE void nk_cross_store_tile_f64_simt_(
         unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
         nk_size_t const row = first_row + tile_row;
         if (row >= arguments->rows_end) continue;
+        nk_size_t column_begin, column_end;
+        nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
         nk_f64_t *output = (nk_f64_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
 #pragma unroll
         for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
             unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
             nk_size_t const column = first_column + tile_column;
-            if (column >= arguments->column_count || (triangle == nk_cross_triangle_upper_k && column < row)) continue;
+            if (column < column_begin || column >= column_end) continue;
             nk_f64_t const dot = dots[row_step][column_step];
             if (metric == nk_cross_metric_dot_k) output[column] = dot;
-            else if (triangle == nk_cross_triangle_upper_k && column == row) output[column] = 0;
+            else if (nk_cross_symmetric_simt_(band) && column == row) output[column] = 0;
             else if (metric == nk_cross_metric_angular_k)
-                output[column] = nk_f64_angular_(dot, norms[0][tile_row], norms[1][tile_column]);
-            else output[column] = nk_f64_euclidean_(dot, norms[0][tile_row], norms[1][tile_column]);
+                output[column] = nk_f64_angular_simt_(dot, norms[0][tile_row], norms[1][tile_column]);
+            else output[column] = nk_f64_euclidean_simt_(dot, norms[0][tile_row], norms[1][tile_column]);
         }
     }
 }
 
-/** Stages one slab of 32-bit words for the tile at @p first_row and @p first_column, returning the
+/** Stores the staged words of a cell, and returns them for the metric's norms. */
+NUMKONG_DEVICE void nk_cross_store_cell_simt_(nk_cross_cell_simt_t const *cell, nk_u32_t a_word, nk_u32_t b_word,
+                                              nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                              nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                              nk_u32_t *a_staged, nk_u32_t *b_staged) {
+    a_slab[cell->offset][cell->tile_row] = a_word, b_slab[cell->offset][cell->tile_row] = b_word;
+    *a_staged = a_word, *b_staged = b_word;
+}
+
+/** The word of a row of bytes: 4 consecutive ones, zeros past @p depth. Rows start on 16 bytes, so
+ *  whole words load aligned. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_b8x4_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 4;
+    if (first + 4 <= depth) return *(nk_u32_t const *)(row + first);
+    nk_u32_t bits = 0;
+    for (unsigned byte = 0; byte < 4; ++byte)
+        if (first + byte < depth) bits |= (nk_u32_t)row[first + byte] << (byte * 8);
+    return bits;
+}
+
+/** The word of a row of nibbles as packed: 8 consecutive ones, zeros past @p depth. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_b4x8_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 8;
+    if (first + 8 <= depth) return *(nk_u32_t const *)(row + first / 2);
+    nk_u32_t bits = 0;
+    for (unsigned nibble = 0; nibble < 8; ++nibble)
+        if (first + nibble < depth)
+            bits |= nk_b4_load_simt_(row, first + nibble) << (nibble / 2 * 8 + (nibble & 1 ? 0 : 4));
+    return bits;
+}
+
+/** The word of a row of signed nibbles, each sign-extended into its own byte for byte-wise dots. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_i4x4_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 4;
+    nk_u32_t bits = 0;
+    for (unsigned nibble = 0; nibble < 4; ++nibble) {
+        if (first + nibble >= depth) continue;
+        nk_u32_t const code = nk_b4_load_simt_(row, first + nibble);
+        bits |= (((0u - (code & 8u)) | code) & 0xFFu) << (nibble * 8);
+    }
+    return bits;
+}
+
+/** The word of a row of unsigned nibbles, each zero-extended into its own byte. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_u4x4_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 4;
+    nk_u32_t bits = 0;
+    for (unsigned nibble = 0; nibble < 4; ++nibble)
+        if (first + nibble < depth) bits |= nk_b4_load_simt_(row, first + nibble) << (nibble * 8);
+    return bits;
+}
+
+/** The word of a row of F16: 2 consecutive elements as F16 pairs, low first, a second one past
+ *  @p depth as zero. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_f16_f16x2_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 2;
+    unsigned short halves[2] = {0, 0};
+    nk_f32_t value = nk_f16_load_f32_simt_(row, first);
+    nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
+    if (first + 1 < depth) {
+        value = nk_f16_load_f32_simt_(row, first + 1);
+        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
+    }
+    return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
+}
+
+/** The word of a row of E5M2: 2 consecutive elements as F16 pairs, low first, a second one past
+ *  @p depth as zero. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_e5m2_f16x2_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 2;
+    unsigned short halves[2] = {0, 0};
+    nk_f32_t value = nk_e5m2_load_f32_simt_(row, first);
+    nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
+    if (first + 1 < depth) {
+        value = nk_e5m2_load_f32_simt_(row, first + 1);
+        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
+    }
+    return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
+}
+
+/** The word of a row of E4M3: 2 consecutive elements as F16 pairs, low first, a second one past
+ *  @p depth as zero. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_e4m3_f16x2_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 2;
+    unsigned short halves[2] = {0, 0};
+    nk_f32_t value = nk_e4m3_load_f32_simt_(row, first);
+    nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
+    if (first + 1 < depth) {
+        value = nk_e4m3_load_f32_simt_(row, first + 1);
+        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
+    }
+    return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
+}
+
+/** The word of a row of E3M2: 2 consecutive elements as F16 pairs, low first, a second one past
+ *  @p depth as zero. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_e3m2_f16x2_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 2;
+    unsigned short halves[2] = {0, 0};
+    nk_f32_t value = nk_e3m2_load_f32_simt_(row, first);
+    nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
+    if (first + 1 < depth) {
+        value = nk_e3m2_load_f32_simt_(row, first + 1);
+        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
+    }
+    return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
+}
+
+/** The word of a row of E2M3: 2 consecutive elements as F16 pairs, low first, a second one past
+ *  @p depth as zero. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_e2m3_f16x2_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 2;
+    unsigned short halves[2] = {0, 0};
+    nk_f32_t value = nk_e2m3_load_f32_simt_(row, first);
+    nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
+    if (first + 1 < depth) {
+        value = nk_e2m3_load_f32_simt_(row, first + 1);
+        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
+    }
+    return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
+}
+
+/** The word of a row of E2M1: 2 consecutive elements as F16 pairs, low first, a second one past
+ *  @p depth as zero. */
+NUMKONG_DEVICE nk_u32_t nk_cross_word_e2m1_f16x2_simt_(unsigned char const *row, nk_size_t word, nk_size_t depth) {
+    nk_size_t const first = word * 2;
+    unsigned short halves[2] = {0, 0};
+    nk_f32_t value = nk_e2m1_load_f32_simt_(row, first);
+    nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[0]);
+    if (first + 1 < depth) {
+        value = nk_e2m1_load_f32_simt_(row, first + 1);
+        nk_f32_to_f16_simt_(&value, (nk_f16_t *)&halves[1]);
+    }
+    return (nk_u32_t)halves[0] | ((nk_u32_t)halves[1] << 16);
+}
+
+/** Stages one slab of BF16 words for the tile at @p first_row and @p first_column, returning the
  *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
-NUMKONG_DEVICE void nk_cross_stage_slab_b32_simt_(nk_dtype_t dtype, nk_cross_accumulation_t accumulation,
-                                                  nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
-                                                  nk_size_t first_column, nk_size_t slab, nk_size_t words,
-                                                  nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-                                                  nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-                                                  nk_u32_t a_words[nk_cross_loads_simt_k],
-                                                  nk_u32_t b_words[nk_cross_loads_simt_k]) {
+NUMKONG_DEVICE void nk_cross_stage_slab_bf16_f32x1_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
 #pragma unroll
     for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
-        unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
-        unsigned const tile_row = element / nk_cross_slab_simt_k, offset = element % nk_cross_slab_simt_k;
-        nk_size_t const word = slab + offset, row = first_row + tile_row, column = first_column + tile_row;
-        nk_u32_t const a_word = row < arguments->rows_end && word < words
-                                    ? nk_cross_stage_b32_(accumulation, dtype, arguments->a + row * arguments->a_stride,
-                                                          word, arguments->depth)
-                                    : 0;
-        nk_u32_t const b_word = column < arguments->column_count && word < words
-                                    ? nk_cross_stage_b32_(accumulation, dtype,
-                                                          arguments->b + column * arguments->b_stride, word,
-                                                          arguments->depth)
-                                    : 0;
-        a_slab[offset][tile_row] = a_word, b_slab[offset][tile_row] = b_word;
-        a_words[step] = a_word, b_words[step] = b_word;
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? __float_as_uint(nk_bf16_load_f32_simt_(cell.a_row, cell.word)) : 0;
+        nk_u32_t const b_word = cell.b_row ? __float_as_uint(nk_bf16_load_f32_simt_(cell.b_row, cell.word)) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of F16 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_f16_f32x1_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                        nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                        nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                        nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                        nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                        nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? __float_as_uint(nk_f16_load_f32_simt_(cell.a_row, cell.word)) : 0;
+        nk_u32_t const b_word = cell.b_row ? __float_as_uint(nk_f16_load_f32_simt_(cell.b_row, cell.word)) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E5M2 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e5m2_f32x1_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? __float_as_uint(nk_e5m2_load_f32_simt_(cell.a_row, cell.word)) : 0;
+        nk_u32_t const b_word = cell.b_row ? __float_as_uint(nk_e5m2_load_f32_simt_(cell.b_row, cell.word)) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E4M3 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e4m3_f32x1_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? __float_as_uint(nk_e4m3_load_f32_simt_(cell.a_row, cell.word)) : 0;
+        nk_u32_t const b_word = cell.b_row ? __float_as_uint(nk_e4m3_load_f32_simt_(cell.b_row, cell.word)) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E3M2 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e3m2_f32x1_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? __float_as_uint(nk_e3m2_load_f32_simt_(cell.a_row, cell.word)) : 0;
+        nk_u32_t const b_word = cell.b_row ? __float_as_uint(nk_e3m2_load_f32_simt_(cell.b_row, cell.word)) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E2M3 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e2m3_f32x1_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? __float_as_uint(nk_e2m3_load_f32_simt_(cell.a_row, cell.word)) : 0;
+        nk_u32_t const b_word = cell.b_row ? __float_as_uint(nk_e2m3_load_f32_simt_(cell.b_row, cell.word)) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E2M1 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e2m1_f32x1_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? __float_as_uint(nk_e2m1_load_f32_simt_(cell.a_row, cell.word)) : 0;
+        nk_u32_t const b_word = cell.b_row ? __float_as_uint(nk_e2m1_load_f32_simt_(cell.b_row, cell.word)) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of F16 words as F16 pairs for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_f16_f16x2_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                        nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                        nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                        nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                        nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                        nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_f16_f16x2_simt_(cell.a_row, cell.word, arguments->depth) : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_f16_f16x2_simt_(cell.b_row, cell.word, arguments->depth) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E5M2 words as F16 pairs for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e5m2_f16x2_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_e5m2_f16x2_simt_(cell.a_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_e5m2_f16x2_simt_(cell.b_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E4M3 words as F16 pairs for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e4m3_f16x2_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_e4m3_f16x2_simt_(cell.a_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_e4m3_f16x2_simt_(cell.b_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E3M2 words as F16 pairs for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e3m2_f16x2_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_e3m2_f16x2_simt_(cell.a_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_e3m2_f16x2_simt_(cell.b_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E2M3 words as F16 pairs for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e2m3_f16x2_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_e2m3_f16x2_simt_(cell.a_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_e2m3_f16x2_simt_(cell.b_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of E2M1 words as F16 pairs for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_e2m1_f16x2_simt_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_size_t words, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1], nk_u32_t a_words[nk_cross_loads_simt_k],
+    nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_e2m1_f16x2_simt_(cell.a_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_e2m1_f16x2_simt_(cell.b_row, cell.word, arguments->depth)
+                                           : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of I8 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_i8_b8x4_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                      nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                      nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_b8x4_simt_(cell.a_row, cell.word, arguments->depth) : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_b8x4_simt_(cell.b_row, cell.word, arguments->depth) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of U8 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_u8_b8x4_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                      nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                      nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_b8x4_simt_(cell.a_row, cell.word, arguments->depth) : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_b8x4_simt_(cell.b_row, cell.word, arguments->depth) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of I4 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_i4_i4x4_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                      nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                      nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_i4x4_simt_(cell.a_row, cell.word, arguments->depth) : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_i4x4_simt_(cell.b_row, cell.word, arguments->depth) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of U4 words for the tile at @p first_row and @p first_column, returning the
+ *  words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_u4_u4x4_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                      nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                      nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_u4x4_simt_(cell.a_row, cell.word, arguments->depth) : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_u4x4_simt_(cell.b_row, cell.word, arguments->depth) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of I4 words as packed nibbles for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_i4_b4x8_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                      nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                      nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_b4x8_simt_(cell.a_row, cell.word, arguments->depth) : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_b4x8_simt_(cell.b_row, cell.word, arguments->depth) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
+    }
+}
+
+/** Stages one slab of U4 words as packed nibbles for the tile at @p first_row and @p first_column,
+ *  returning the words this thread staged in @p a_words and @p b_words for a metric's norms. */
+NUMKONG_DEVICE void nk_cross_stage_slab_u4_b4x8_simt_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t slab, nk_size_t words,
+                                                      nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                                      nk_u32_t a_words[nk_cross_loads_simt_k],
+                                                      nk_u32_t b_words[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab, words, step);
+        nk_u32_t const a_word = cell.a_row ? nk_cross_word_b4x8_simt_(cell.a_row, cell.word, arguments->depth) : 0;
+        nk_u32_t const b_word = cell.b_row ? nk_cross_word_b4x8_simt_(cell.b_row, cell.word, arguments->depth) : 0;
+        nk_cross_store_cell_simt_(&cell, a_word, b_word, a_slab, b_slab, &a_words[step], &b_words[step]);
     }
 }
 
 /** Publishes the tile's row norms, which the threads staging each row merged, and its column norms,
- *  merged likewise for @c symmetric and read from the pack for @c packed. */
-NUMKONG_DEVICE void nk_cross_publish_norms_b32_simt_(nk_cross_triangle_t triangle,
+ *  merged likewise for a Gram matrix and read from the pack for a packed one. */
+NUMKONG_DEVICE void nk_cross_publish_norms_b32_simt_(nk_diagonal_band_t band,
                                                      nk_cross_tile_arguments_t const *arguments, nk_size_t first_column,
                                                      nk_fui32_t const a_norms[nk_cross_loads_simt_k],
                                                      nk_fui32_t const b_norms[nk_cross_loads_simt_k],
@@ -751,45 +1081,76 @@ NUMKONG_DEVICE void nk_cross_publish_norms_b32_simt_(nk_cross_triangle_t triangl
             unsigned const tile_row = threadIdx.x / nk_cross_slab_simt_k +
                                       step * (nk_cross_threads_simt_k / nk_cross_slab_simt_k);
             norms[0][tile_row] = a_norms[step];
-            if (triangle == nk_cross_triangle_upper_k) norms[1][tile_row] = b_norms[step];
+            if (nk_cross_symmetric_simt_(band)) norms[1][tile_row] = b_norms[step];
         }
-    if (triangle == nk_cross_triangle_full_k && threadIdx.x < nk_cross_tile_simt_k) {
+    if (!nk_cross_symmetric_simt_(band) && threadIdx.x < nk_cross_tile_simt_k) {
         nk_size_t const column = first_column + threadIdx.x;
-        norms[1][threadIdx.x].u = column < arguments->column_count ? ((nk_u32_t const *)arguments->b_norms)[column] : 0;
+        nk_u32_t const *column_norms = (nk_u32_t const *)arguments->b_norms;
+        norms[1][threadIdx.x].u = column < arguments->column_count ? column_norms[column] : 0;
     }
     __syncthreads();
 }
 
-/** Writes this thread's outputs of the tile: dots as their 32 bits, or metrics in F32 with zeros
- *  on the diagonal of @c symmetric. */
-NUMKONG_DEVICE void nk_cross_store_tile_b32_simt_(
-    nk_cross_accumulation_t accumulation, nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column,
-    nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
+/** Writes this thread's outputs of a tile of F32 sums: dots as their 32 bits, or metrics in F32
+ *  with zeros on the diagonal of a Gram matrix. */
+NUMKONG_DEVICE void nk_cross_store_tile_f32_simt_(
+    nk_diagonal_band_t band, nk_cross_metric_t metric, nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+    nk_size_t first_column, nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
     nk_fui32_t norms[2][nk_cross_tile_simt_k]) {
     unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
     unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
-    nk_cross_norm_t const norm = nk_cross_b32_norm_(accumulation);
 #pragma unroll
     for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
         unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
         nk_size_t const row = first_row + tile_row;
         if (row >= arguments->rows_end) continue;
+        nk_size_t column_begin, column_end;
+        nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
         nk_fui32_t *output = (nk_fui32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
 #pragma unroll
         for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
             unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
             nk_size_t const column = first_column + tile_column;
-            if (column >= arguments->column_count || (triangle == nk_cross_triangle_upper_k && column < row)) continue;
+            if (column < column_begin || column >= column_end) continue;
             nk_fui32_t const sum = sums[row_step][column_step];
             nk_fui32_t const row_norm = norms[0][tile_row], column_norm = norms[1][tile_column];
             if (metric == nk_cross_metric_dot_k) output[column] = sum;
-            else if (triangle == nk_cross_triangle_upper_k && column == row) output[column].f = 0;
-            else if (norm != nk_cross_norm_f32_k)
-                output[column].f = nk_cross_integer_metric_(metric, norm, sum.u, row_norm.u, column_norm.u);
+            else if (nk_cross_symmetric_simt_(band) && column == row) output[column].f = 0;
             else if (metric == nk_cross_metric_angular_k)
-                output[column].f = nk_f32_angular_(sum.f, row_norm.f, column_norm.f);
-            else output[column].f = nk_f32_euclidean_(sum.f, row_norm.f, column_norm.f);
+                output[column].f = nk_f32_angular_simt_(sum.f, row_norm.f, column_norm.f);
+            else output[column].f = nk_f32_euclidean_simt_(sum.f, row_norm.f, column_norm.f);
+        }
+    }
+}
+
+/** Writes this thread's outputs of a tile of wrapping integer sums, signed or unsigned as @p norm
+ *  says: dots as their 32 bits, or metrics in F32 with zeros on the diagonal of a Gram matrix. */
+NUMKONG_DEVICE void nk_cross_store_tile_integer_simt_(
+    nk_cross_norm_t norm, nk_diagonal_band_t band, nk_cross_metric_t metric, nk_cross_tile_arguments_t const *arguments,
+    nk_size_t first_row, nk_size_t first_column,
+    nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
+    nk_fui32_t norms[2][nk_cross_tile_simt_k]) {
+    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
+    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+#pragma unroll
+    for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
+        unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
+        nk_size_t const row = first_row + tile_row;
+        if (row >= arguments->rows_end) continue;
+        nk_size_t column_begin, column_end;
+        nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+        nk_fui32_t *output = (nk_fui32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+        for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
+            unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
+            nk_size_t const column = first_column + tile_column;
+            if (column < column_begin || column >= column_end) continue;
+            nk_fui32_t const sum = sums[row_step][column_step];
+            if (metric == nk_cross_metric_dot_k) output[column] = sum;
+            else if (nk_cross_symmetric_simt_(band) && column == row) output[column].f = 0;
+            else
+                output[column].f = nk_cross_integer_metric_simt_(metric, norm, sum.u, norms[0][tile_row].u,
+                                                                 norms[1][tile_column].u);
         }
     }
 }
@@ -865,15 +1226,15 @@ NUMKONG_DEVICE nk_f32_t nk_ue4m3_split_simt_(unsigned code, nk_i32_t *exponent) 
     return value;
 }
 
-/** The rebasing exponent of @p blocks scale codes, which @p split takes apart: their largest
- *  exponent less the headroom, over the codes that are neither zero nor NaN, or zero for none;
- *  @p spread receives the spread of their exponents. */
-NUMKONG_DEVICE nk_i32_t nk_cross_scaled_base_simt_(nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned char const *scales,
-                                                   nk_size_t blocks, nk_i32_t *spread) {
+/** The rebasing exponent of @p blocks UE8M0 scale codes: their largest exponent less the headroom,
+ *  over the codes that are neither zero nor NaN, or zero for none; @p spread receives the spread
+ *  of their exponents. */
+NUMKONG_DEVICE nk_i32_t nk_cross_scaled_base_ue8m0_simt_(unsigned char const *scales, nk_size_t blocks,
+                                                         nk_i32_t *spread) {
     nk_i32_t low = 0x7FFFFFFF, high = -0x7FFFFFFF;
     for (nk_size_t block = 0; block != blocks; ++block) {
         nk_i32_t exponent;
-        nk_f32_t const mantissa = split(scales[block], &exponent);
+        nk_f32_t const mantissa = nk_ue8m0_split_simt_(scales[block], &exponent);
         if (mantissa == 0 || mantissa != mantissa) continue;
         low = exponent < low ? exponent : low, high = exponent > high ? exponent : high;
     }
@@ -881,11 +1242,35 @@ NUMKONG_DEVICE nk_i32_t nk_cross_scaled_base_simt_(nk_f32_t (*split)(unsigned, n
     return low > high ? 0 : high - nk_cross_scaled_headroom_k;
 }
 
-/** Scale code @p code relative to a row's @p base, exact while the row's spread fits the window. */
-NUMKONG_DEVICE nk_f32_t nk_cross_relative_scale_simt_(nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned code,
-                                                      nk_i32_t base) {
+/** UE8M0 scale code @p code relative to a row's @p base, exact while the row's spread fits the
+ *  window. */
+NUMKONG_DEVICE nk_f32_t nk_cross_relative_scale_ue8m0_simt_(unsigned code, nk_i32_t base) {
     nk_i32_t exponent;
-    nk_f32_t const mantissa = split(code, &exponent);
+    nk_f32_t const mantissa = nk_ue8m0_split_simt_(code, &exponent);
+    return nk_f32_scale_simt_(mantissa, exponent - base);
+}
+
+/** The rebasing exponent of @p blocks UE4M3 scale codes: their largest exponent less the headroom,
+ *  over the codes that are neither zero nor NaN, or zero for none; @p spread receives the spread
+ *  of their exponents. */
+NUMKONG_DEVICE nk_i32_t nk_cross_scaled_base_ue4m3_simt_(unsigned char const *scales, nk_size_t blocks,
+                                                         nk_i32_t *spread) {
+    nk_i32_t low = 0x7FFFFFFF, high = -0x7FFFFFFF;
+    for (nk_size_t block = 0; block != blocks; ++block) {
+        nk_i32_t exponent;
+        nk_f32_t const mantissa = nk_ue4m3_split_simt_(scales[block], &exponent);
+        if (mantissa == 0 || mantissa != mantissa) continue;
+        low = exponent < low ? exponent : low, high = exponent > high ? exponent : high;
+    }
+    *spread = low > high ? 0 : high - low;
+    return low > high ? 0 : high - nk_cross_scaled_headroom_k;
+}
+
+/** UE4M3 scale code @p code relative to a row's @p base, exact while the row's spread fits the
+ *  window. */
+NUMKONG_DEVICE nk_f32_t nk_cross_relative_scale_ue4m3_simt_(unsigned code, nk_i32_t base) {
+    nk_i32_t exponent;
+    nk_f32_t const mantissa = nk_ue4m3_split_simt_(code, &exponent);
     return nk_f32_scale_simt_(mantissa, exponent - base);
 }
 
@@ -896,56 +1281,238 @@ NUMKONG_DEVICE int nk_cross_scaled_exceeds_simt_(nk_i32_t row_spread, nk_i32_t c
     return (normalized ? 2 * larger : row_spread + column_spread) > nk_cross_scaled_spread_k;
 }
 
-/** The squared norm of a block-scaled row of codes relative to its @p base: each block's squares
- *  summed in F32 times its relative scale squared. */
-NUMKONG_DEVICE nk_f32_t nk_cross_scaled_norm_simt_(nk_f32_t (*load)(unsigned char const *, nk_size_t),
-                                                   nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned block_size,
-                                                   unsigned char const *row, unsigned char const *scales,
-                                                   nk_size_t depth, nk_i32_t base) {
+/** The squared norm of a nvfp4 row of codes relative to its @p base: each block's squares summed in
+ *  F32 times its relative scale squared. */
+NUMKONG_DEVICE nk_f32_t nk_cross_scaled_norm_nvfp4_simt_(unsigned char const *row, unsigned char const *scales,
+                                                         nk_size_t depth, nk_i32_t base) {
     nk_f32_t sum = 0;
-    for (nk_size_t block = 0; block * block_size < depth; ++block) {
+    for (nk_size_t block = 0; block * 16 < depth; ++block) {
         nk_f32_t block_sum = 0;
-        for (nk_size_t index = block * block_size; index != (block + 1) * block_size; ++index) {
-            nk_f32_t const value = load(row, index);
+        for (nk_size_t index = block * 16; index != (block + 1) * 16; ++index) {
+            nk_f32_t const value = nk_e2m1_load_f32_simt_(row, index);
             block_sum = __fmaf_rn(value, value, block_sum);
         }
-        nk_f32_t const scale = nk_cross_relative_scale_simt_(split, scales[block], base);
+        nk_f32_t const scale = nk_cross_relative_scale_ue4m3_simt_(scales[block], base);
         sum = __fadd_rn(sum, __fmul_rn(block_sum, __fmul_rn(scale, scale)));
     }
     return sum;
 }
 
-/** The dot of an A row and a B row of codes as an unrounded wide sum of exact block sums, summing
- *  both rows' squared norms the same way into @p a_sumsq and @p b_sumsq. */
-NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_exact_wide_simt_(
-    nk_f32_t (*load)(unsigned char const *, nk_size_t), nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned block_size,
+/** The squared norm of a mxfp4 row of codes relative to its @p base: each block's squares summed in
+ *  F32 times its relative scale squared. */
+NUMKONG_DEVICE nk_f32_t nk_cross_scaled_norm_mxfp4_simt_(unsigned char const *row, unsigned char const *scales,
+                                                         nk_size_t depth, nk_i32_t base) {
+    nk_f32_t sum = 0;
+    for (nk_size_t block = 0; block * 32 < depth; ++block) {
+        nk_f32_t block_sum = 0;
+        for (nk_size_t index = block * 32; index != (block + 1) * 32; ++index) {
+            nk_f32_t const value = nk_e2m1_load_f32_simt_(row, index);
+            block_sum = __fmaf_rn(value, value, block_sum);
+        }
+        nk_f32_t const scale = nk_cross_relative_scale_ue8m0_simt_(scales[block], base);
+        sum = __fadd_rn(sum, __fmul_rn(block_sum, __fmul_rn(scale, scale)));
+    }
+    return sum;
+}
+
+/** The squared norm of a mxfp8e4m3 row of codes relative to its @p base: each block's squares
+ *  summed in F32 times its relative scale squared. */
+NUMKONG_DEVICE nk_f32_t nk_cross_scaled_norm_mxfp8e4m3_simt_(unsigned char const *row, unsigned char const *scales,
+                                                             nk_size_t depth, nk_i32_t base) {
+    nk_f32_t sum = 0;
+    for (nk_size_t block = 0; block * 32 < depth; ++block) {
+        nk_f32_t block_sum = 0;
+        for (nk_size_t index = block * 32; index != (block + 1) * 32; ++index) {
+            nk_f32_t const value = nk_e4m3_load_f32_simt_(row, index);
+            block_sum = __fmaf_rn(value, value, block_sum);
+        }
+        nk_f32_t const scale = nk_cross_relative_scale_ue8m0_simt_(scales[block], base);
+        sum = __fadd_rn(sum, __fmul_rn(block_sum, __fmul_rn(scale, scale)));
+    }
+    return sum;
+}
+
+/** The squared norm of a mxfp8e5m2 row of codes relative to its @p base: each block's squares
+ *  summed in F32 times its relative scale squared. */
+NUMKONG_DEVICE nk_f32_t nk_cross_scaled_norm_mxfp8e5m2_simt_(unsigned char const *row, unsigned char const *scales,
+                                                             nk_size_t depth, nk_i32_t base) {
+    nk_f32_t sum = 0;
+    for (nk_size_t block = 0; block * 32 < depth; ++block) {
+        nk_f32_t block_sum = 0;
+        for (nk_size_t index = block * 32; index != (block + 1) * 32; ++index) {
+            nk_f32_t const value = nk_e5m2_load_f32_simt_(row, index);
+            block_sum = __fmaf_rn(value, value, block_sum);
+        }
+        nk_f32_t const scale = nk_cross_relative_scale_ue8m0_simt_(scales[block], base);
+        sum = __fadd_rn(sum, __fmul_rn(block_sum, __fmul_rn(scale, scale)));
+    }
+    return sum;
+}
+
+/** A packed nvfp4 column's squared norm relative to four to the power of its base, at twice the
+ *  base as the exponent and without the tensor scale; lane 0 sums it whole, as the tiles do, so
+ *  both agree bit for bit. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_pack_norm_nvfp4_simt_(unsigned char const *row, nk_size_t depth,
+                                                                         unsigned lane, unsigned char const *scales,
+                                                                         nk_f32_t) {
+    nk_cross_wide_sum_t norm = {0, 0};
+    if (lane != 0) return norm;
+    nk_i32_t spread;
+    nk_i32_t const base = nk_cross_scaled_base_ue4m3_simt_(scales, depth / 16, &spread);
+    norm.sum = nk_cross_scaled_norm_nvfp4_simt_(row, scales, depth, base), norm.exponent = 2 * base;
+    return norm;
+}
+
+/** A packed mxfp4 column's squared norm relative to four to the power of its base, at twice the
+ *  base as the exponent and without the tensor scale; lane 0 sums it whole, as the tiles do, so
+ *  both agree bit for bit. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_pack_norm_mxfp4_simt_(unsigned char const *row, nk_size_t depth,
+                                                                         unsigned lane, unsigned char const *scales,
+                                                                         nk_f32_t) {
+    nk_cross_wide_sum_t norm = {0, 0};
+    if (lane != 0) return norm;
+    nk_i32_t spread;
+    nk_i32_t const base = nk_cross_scaled_base_ue8m0_simt_(scales, depth / 32, &spread);
+    norm.sum = nk_cross_scaled_norm_mxfp4_simt_(row, scales, depth, base), norm.exponent = 2 * base;
+    return norm;
+}
+
+/** A packed mxfp8e4m3 column's squared norm relative to four to the power of its base, at twice the
+ *  base as the exponent and without the tensor scale; lane 0 sums it whole, as the tiles do, so
+ *  both agree bit for bit. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_pack_norm_mxfp8e4m3_simt_(unsigned char const *row, nk_size_t depth,
+                                                                             unsigned lane, unsigned char const *scales,
+                                                                             nk_f32_t) {
+    nk_cross_wide_sum_t norm = {0, 0};
+    if (lane != 0) return norm;
+    nk_i32_t spread;
+    nk_i32_t const base = nk_cross_scaled_base_ue8m0_simt_(scales, depth / 32, &spread);
+    norm.sum = nk_cross_scaled_norm_mxfp8e4m3_simt_(row, scales, depth, base), norm.exponent = 2 * base;
+    return norm;
+}
+
+/** A packed mxfp8e5m2 column's squared norm relative to four to the power of its base, at twice the
+ *  base as the exponent and without the tensor scale; lane 0 sums it whole, as the tiles do, so
+ *  both agree bit for bit. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_pack_norm_mxfp8e5m2_simt_(unsigned char const *row, nk_size_t depth,
+                                                                             unsigned lane, unsigned char const *scales,
+                                                                             nk_f32_t) {
+    nk_cross_wide_sum_t norm = {0, 0};
+    if (lane != 0) return norm;
+    nk_i32_t spread;
+    nk_i32_t const base = nk_cross_scaled_base_ue8m0_simt_(scales, depth / 32, &spread);
+    norm.sum = nk_cross_scaled_norm_mxfp8e5m2_simt_(row, scales, depth, base), norm.exponent = 2 * base;
+    return norm;
+}
+
+/** Adds one block's exact sums and TwoSum errors of the dot and of both squared norms into the wide
+ *  sums, at the exponents of the block's two scale mantissas. */
+NUMKONG_DEVICE void nk_cross_wide_block_simt_(nk_cross_wide_sum_t *dot, nk_cross_wide_sum_t *a_squares,
+                                              nk_cross_wide_sum_t *b_squares, nk_f32_t const sums[3],
+                                              nk_f32_t const errors[3], nk_f32_t a_mantissa, nk_i32_t a_exponent,
+                                              nk_f32_t b_mantissa, nk_i32_t b_exponent) {
+    nk_cross_wide_add_simt_(dot, __fmul_rn(__fadd_rn(sums[0], errors[0]), __fmul_rn(a_mantissa, b_mantissa)),
+                            a_exponent + b_exponent);
+    nk_cross_wide_add_simt_(a_squares, __fmul_rn(__fadd_rn(sums[1], errors[1]), __fmul_rn(a_mantissa, a_mantissa)),
+                            2 * a_exponent);
+    nk_cross_wide_add_simt_(b_squares, __fmul_rn(__fadd_rn(sums[2], errors[2]), __fmul_rn(b_mantissa, b_mantissa)),
+                            2 * b_exponent);
+}
+
+/** TwoSum of the three products of one element pair into the running sums and their errors, so
+ *  cancelling blocks give zero. */
+NUMKONG_DEVICE void nk_cross_two_sum_products_simt_(nk_f32_t sums[3], nk_f32_t errors[3], nk_f32_t a_value,
+                                                    nk_f32_t b_value) {
+    nk_f32_t const products[3] = {__fmul_rn(a_value, b_value), __fmul_rn(a_value, a_value),
+                                  __fmul_rn(b_value, b_value)};
+    for (unsigned term = 0; term != 3; ++term) {
+        nk_f32_t const sum = __fadd_rn(sums[term], products[term]);
+        nk_f32_t const split_sum = __fsub_rn(sum, sums[term]);
+        errors[term] = __fadd_rn(errors[term], __fadd_rn(__fsub_rn(sums[term], __fsub_rn(sum, split_sum)),
+                                                         __fsub_rn(products[term], split_sum)));
+        sums[term] = sum;
+    }
+}
+
+/** The dot of an A row and a B row of nvfp4 codes as an unrounded wide sum of exact block sums,
+ *  summing both rows' squared norms the same way into @p a_sumsq and @p b_sumsq. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_exact_wide_nvfp4_simt_(
     unsigned char const *a_row, unsigned char const *a_scales, unsigned char const *b_row,
     unsigned char const *b_scales, nk_size_t depth, nk_cross_wide_sum_t *a_sumsq, nk_cross_wide_sum_t *b_sumsq) {
     nk_cross_wide_sum_t dot = {0, 0}, a_squares = {0, 0}, b_squares = {0, 0};
-    for (nk_size_t block = 0; block * block_size < depth; ++block) {
-        // TwoSum keeps what each sum of exact products sheds, so cancelling blocks give zero.
+    for (nk_size_t block = 0; block * 16 < depth; ++block) {
         nk_f32_t sums[3] = {0, 0, 0}, errors[3] = {0, 0, 0};
-        for (nk_size_t index = block * block_size; index != (block + 1) * block_size; ++index) {
-            nk_f32_t const a_value = load(a_row, index), b_value = load(b_row, index);
-            nk_f32_t const products[3] = {__fmul_rn(a_value, b_value), __fmul_rn(a_value, a_value),
-                                          __fmul_rn(b_value, b_value)};
-            for (unsigned term = 0; term != 3; ++term) {
-                nk_f32_t const sum = __fadd_rn(sums[term], products[term]);
-                nk_f32_t const split_sum = __fsub_rn(sum, sums[term]);
-                errors[term] = __fadd_rn(errors[term], __fadd_rn(__fsub_rn(sums[term], __fsub_rn(sum, split_sum)),
-                                                                 __fsub_rn(products[term], split_sum)));
-                sums[term] = sum;
-            }
-        }
+        for (nk_size_t index = block * 16; index != (block + 1) * 16; ++index)
+            nk_cross_two_sum_products_simt_(sums, errors, nk_e2m1_load_f32_simt_(a_row, index),
+                                            nk_e2m1_load_f32_simt_(b_row, index));
         nk_i32_t a_exponent, b_exponent;
-        nk_f32_t const a_mantissa = split(a_scales[block], &a_exponent);
-        nk_f32_t const b_mantissa = split(b_scales[block], &b_exponent);
-        nk_cross_wide_add_simt_(&dot, __fmul_rn(__fadd_rn(sums[0], errors[0]), __fmul_rn(a_mantissa, b_mantissa)),
-                                a_exponent + b_exponent);
-        nk_cross_wide_add_simt_(&a_squares, __fmul_rn(__fadd_rn(sums[1], errors[1]), __fmul_rn(a_mantissa, a_mantissa)),
-                                2 * a_exponent);
-        nk_cross_wide_add_simt_(&b_squares, __fmul_rn(__fadd_rn(sums[2], errors[2]), __fmul_rn(b_mantissa, b_mantissa)),
-                                2 * b_exponent);
+        nk_f32_t const a_mantissa = nk_ue4m3_split_simt_(a_scales[block], &a_exponent);
+        nk_f32_t const b_mantissa = nk_ue4m3_split_simt_(b_scales[block], &b_exponent);
+        nk_cross_wide_block_simt_(&dot, &a_squares, &b_squares, sums, errors, a_mantissa, a_exponent, b_mantissa,
+                                  b_exponent);
+    }
+    *a_sumsq = a_squares, *b_sumsq = b_squares;
+    return dot;
+}
+
+/** The dot of an A row and a B row of mxfp4 codes as an unrounded wide sum of exact block sums,
+ *  summing both rows' squared norms the same way into @p a_sumsq and @p b_sumsq. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_exact_wide_mxfp4_simt_(
+    unsigned char const *a_row, unsigned char const *a_scales, unsigned char const *b_row,
+    unsigned char const *b_scales, nk_size_t depth, nk_cross_wide_sum_t *a_sumsq, nk_cross_wide_sum_t *b_sumsq) {
+    nk_cross_wide_sum_t dot = {0, 0}, a_squares = {0, 0}, b_squares = {0, 0};
+    for (nk_size_t block = 0; block * 32 < depth; ++block) {
+        nk_f32_t sums[3] = {0, 0, 0}, errors[3] = {0, 0, 0};
+        for (nk_size_t index = block * 32; index != (block + 1) * 32; ++index)
+            nk_cross_two_sum_products_simt_(sums, errors, nk_e2m1_load_f32_simt_(a_row, index),
+                                            nk_e2m1_load_f32_simt_(b_row, index));
+        nk_i32_t a_exponent, b_exponent;
+        nk_f32_t const a_mantissa = nk_ue8m0_split_simt_(a_scales[block], &a_exponent);
+        nk_f32_t const b_mantissa = nk_ue8m0_split_simt_(b_scales[block], &b_exponent);
+        nk_cross_wide_block_simt_(&dot, &a_squares, &b_squares, sums, errors, a_mantissa, a_exponent, b_mantissa,
+                                  b_exponent);
+    }
+    *a_sumsq = a_squares, *b_sumsq = b_squares;
+    return dot;
+}
+
+/** The dot of an A row and a B row of mxfp8e4m3 codes as an unrounded wide sum of exact block sums,
+ *  summing both rows' squared norms the same way into @p a_sumsq and @p b_sumsq. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_exact_wide_mxfp8e4m3_simt_(
+    unsigned char const *a_row, unsigned char const *a_scales, unsigned char const *b_row,
+    unsigned char const *b_scales, nk_size_t depth, nk_cross_wide_sum_t *a_sumsq, nk_cross_wide_sum_t *b_sumsq) {
+    nk_cross_wide_sum_t dot = {0, 0}, a_squares = {0, 0}, b_squares = {0, 0};
+    for (nk_size_t block = 0; block * 32 < depth; ++block) {
+        nk_f32_t sums[3] = {0, 0, 0}, errors[3] = {0, 0, 0};
+        for (nk_size_t index = block * 32; index != (block + 1) * 32; ++index)
+            nk_cross_two_sum_products_simt_(sums, errors, nk_e4m3_load_f32_simt_(a_row, index),
+                                            nk_e4m3_load_f32_simt_(b_row, index));
+        nk_i32_t a_exponent, b_exponent;
+        nk_f32_t const a_mantissa = nk_ue8m0_split_simt_(a_scales[block], &a_exponent);
+        nk_f32_t const b_mantissa = nk_ue8m0_split_simt_(b_scales[block], &b_exponent);
+        nk_cross_wide_block_simt_(&dot, &a_squares, &b_squares, sums, errors, a_mantissa, a_exponent, b_mantissa,
+                                  b_exponent);
+    }
+    *a_sumsq = a_squares, *b_sumsq = b_squares;
+    return dot;
+}
+
+/** The dot of an A row and a B row of mxfp8e5m2 codes as an unrounded wide sum of exact block sums,
+ *  summing both rows' squared norms the same way into @p a_sumsq and @p b_sumsq. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_scaled_exact_wide_mxfp8e5m2_simt_(
+    unsigned char const *a_row, unsigned char const *a_scales, unsigned char const *b_row,
+    unsigned char const *b_scales, nk_size_t depth, nk_cross_wide_sum_t *a_sumsq, nk_cross_wide_sum_t *b_sumsq) {
+    nk_cross_wide_sum_t dot = {0, 0}, a_squares = {0, 0}, b_squares = {0, 0};
+    for (nk_size_t block = 0; block * 32 < depth; ++block) {
+        nk_f32_t sums[3] = {0, 0, 0}, errors[3] = {0, 0, 0};
+        for (nk_size_t index = block * 32; index != (block + 1) * 32; ++index)
+            nk_cross_two_sum_products_simt_(sums, errors, nk_e5m2_load_f32_simt_(a_row, index),
+                                            nk_e5m2_load_f32_simt_(b_row, index));
+        nk_i32_t a_exponent, b_exponent;
+        nk_f32_t const a_mantissa = nk_ue8m0_split_simt_(a_scales[block], &a_exponent);
+        nk_f32_t const b_mantissa = nk_ue8m0_split_simt_(b_scales[block], &b_exponent);
+        nk_cross_wide_block_simt_(&dot, &a_squares, &b_squares, sums, errors, a_mantissa, a_exponent, b_mantissa,
+                                  b_exponent);
     }
     *a_sumsq = a_squares, *b_sumsq = b_squares;
     return dot;
@@ -1000,9 +1567,8 @@ NUMKONG_DEVICE nk_f32_t nk_cross_scaled_metric_simt_(nk_cross_metric_t metric, n
 
 #pragma endregion Block Scales
 
-/*  Every tile, baseline or tensor, takes its own leading arguments, then the triangle, the metric
- *  and the launch arguments, so one generator per shape serves them all: the site passes the tile's
- *  own arguments last, through the variadic tail. */
+/*  Every tile, baseline or tensor, takes the band, the metric and the launch arguments, so one
+ *  generator per shape serves them all. */
 #pragma region Cross Macros
 
 /**
@@ -1020,7 +1586,7 @@ NUMKONG_DEVICE nk_f32_t nk_cross_scaled_metric_simt_(nk_cross_metric_t metric, n
                                                                  sizeof(nk_##packed_value_type##_t)) *               \
                                     sizeof(nk_##packed_value_type##_t);                                              \
         *bytes = sizeof(nk_cross_packed_buffer_header_t) +                                                           \
-                 column_count * (row_bytes + nk_cross_scales_stride_(nk_##input_type_name##_k, depth) +              \
+                 column_count * (row_bytes + nk_cross_scales_stride_serial_(nk_##input_type_name##_k, depth) +       \
                                  sizeof(nk_##norm_value_type##_t));                                                  \
         return nk_success_k;                                                                                         \
     }

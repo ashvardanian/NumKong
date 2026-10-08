@@ -30,7 +30,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dot/serial.h"
-#include "numkong/cast/loongsonasx.h" // `nk_f16x8_to_f32x8_loongsonasx_`, `nk_lasx_castsi256_si128_`
+#include "numkong/cast/loongsonasx.h" // `nk_f16x8_to_f32x8_loongsonasx_`, `nk_lasx_castsi256_si128_loongsonasx_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -111,7 +111,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x4_loongsonasx_(__m256d sum_f64x4, 
     return tentative_sum + (error_low + error_high + rounding_error);
 }
 
-/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_: TwoProd through FMA, then TwoSum. */
+/** Dot2 step, sum += a × b, mirroring @c nk_dot2_f64_serial_: TwoProd through FMA, then TwoSum. */
 NUMKONG_INLINE void nk_dot2_f64x4_loongsonasx_(__m256d *sum_f64x4, __m256d *compensation_f64x4, __m256d a_f64x4,
                                                __m256d b_f64x4) {
     __m256d product_f64x4 = __lasx_xvfmul_d(a_f64x4, b_f64x4);
@@ -265,8 +265,8 @@ NUMKONG_API nk_status_t nk_dot_bf16_loongsonasx(nk_bf16_t const *a_scalars, nk_b
     nk_f32_t sum = c.f;
     for (; index_scalars < count_scalars; ++index_scalars) {
         nk_f32_t a_value, b_value;
-        nk_bf16_to_f32_(&a_scalars[index_scalars], &a_value);
-        nk_bf16_to_f32_(&b_scalars[index_scalars], &b_value);
+        nk_bf16_to_f32_serial_(&a_scalars[index_scalars], &a_value);
+        nk_bf16_to_f32_serial_(&b_scalars[index_scalars], &b_value);
         sum += a_value * b_value;
     }
     *result = sum;
@@ -432,7 +432,7 @@ NUMKONG_INLINE void nk_dot_through_i32_finalize_loongsonasx_(                   
     // Vertical sum
     __m256i sum_i32x4 = __lasx_xvadd_w(__lasx_xvadd_w(sum_lane0_i32x4, sum_lane1_i32x4),
                                        __lasx_xvadd_w(sum_lane2_i32x4, sum_lane3_i32x4));
-    result->xmm = nk_lasx_castsi256_si128_(sum_i32x4);
+    result->xmm = nk_lasx_castsi256_si128_loongsonasx_(sum_i32x4);
 }
 
 /**
@@ -558,7 +558,7 @@ NUMKONG_INLINE void nk_dot_through_f32_finalize_loongsonasx_(                   
     // Vertical sum
     __m256 sum_f32x4 = __lasx_xvfadd_s(__lasx_xvfadd_s((__m256)sum_lane0_f32x4, (__m256)sum_lane1_f32x4),
                                        __lasx_xvfadd_s((__m256)sum_lane2_f32x4, (__m256)sum_lane3_f32x4));
-    result->xmm_ps = nk_lasx_castps256_ps128_(sum_f32x4);
+    result->xmm_ps = nk_lasx_castps256_ps128_loongsonasx_(sum_f32x4);
 }
 
 /**
@@ -617,8 +617,8 @@ NUMKONG_API nk_status_t nk_dot_f16_loongsonasx(nk_f16_t const *a_scalars, nk_f16
     nk_f32_t sum = c.f;
     for (; index_scalars < count_scalars; ++index_scalars) {
         nk_f32_t a_value, b_value;
-        nk_f16_to_f32_(&a_scalars[index_scalars], &a_value);
-        nk_f16_to_f32_(&b_scalars[index_scalars], &b_value);
+        nk_f16_to_f32_serial_(&a_scalars[index_scalars], &a_value);
+        nk_f16_to_f32_serial_(&b_scalars[index_scalars], &b_value);
         sum += a_value * b_value;
     }
     *result = sum;
@@ -682,13 +682,13 @@ NUMKONG_INLINE void nk_dot_u1x256_finalize_loongsonasx(                         
     nk_size_t total_dimensions, nk_b128_vec_t *result) {
     nk_unused_(total_dimensions);
     // Fold 8→4 in 256-bit (add high 128-bit lane to low), extract low 128 bits
-    __m128i sum_a_u32x4 = nk_lasx_castsi256_si128_(__lasx_xvadd_w(
+    __m128i sum_a_u32x4 = nk_lasx_castsi256_si128_loongsonasx_(__lasx_xvadd_w(
         state_a->dot_count_u32x8, __lasx_xvpermi_q(state_a->dot_count_u32x8, state_a->dot_count_u32x8, 0x11)));
-    __m128i sum_b_u32x4 = nk_lasx_castsi256_si128_(__lasx_xvadd_w(
+    __m128i sum_b_u32x4 = nk_lasx_castsi256_si128_loongsonasx_(__lasx_xvadd_w(
         state_b->dot_count_u32x8, __lasx_xvpermi_q(state_b->dot_count_u32x8, state_b->dot_count_u32x8, 0x11)));
-    __m128i sum_c_u32x4 = nk_lasx_castsi256_si128_(__lasx_xvadd_w(
+    __m128i sum_c_u32x4 = nk_lasx_castsi256_si128_loongsonasx_(__lasx_xvadd_w(
         state_c->dot_count_u32x8, __lasx_xvpermi_q(state_c->dot_count_u32x8, state_c->dot_count_u32x8, 0x11)));
-    __m128i sum_d_u32x4 = nk_lasx_castsi256_si128_(__lasx_xvadd_w(
+    __m128i sum_d_u32x4 = nk_lasx_castsi256_si128_loongsonasx_(__lasx_xvadd_w(
         state_d->dot_count_u32x8, __lasx_xvpermi_q(state_d->dot_count_u32x8, state_d->dot_count_u32x8, 0x11)));
     // Transpose 4×4 in 128-bit via LSX interleave
     __m128i transpose_ab_low_u32x4 = __lsx_vilvl_w(sum_b_u32x4, sum_a_u32x4);

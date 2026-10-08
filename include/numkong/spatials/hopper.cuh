@@ -29,91 +29,73 @@ extern "C" {
 
 #pragma region BF16
 
-nk_define_cross_cuda_(angular, bf16, hopper, hopper, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
-                      /*dimensions_per_value=*/1, nk_dots_bf16_multiply_hopper_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_bf16_norm_update_, /*norm_scale=*/1.0f)
-nk_define_cross_cuda_(euclidean, bf16, hopper, hopper, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
-                      /*dimensions_per_value=*/1, nk_dots_bf16_multiply_hopper_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_bf16_norm_update_, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(angular, bf16, hopper, bf16_hopper, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+                      /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(euclidean, bf16, hopper, bf16_hopper, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion BF16
 
 #pragma region F16
 
-nk_define_cross_cuda_(angular, f16, hopper, hopper, f16, f16, f32, /*depth_simd_dimensions=*/8,
-                      /*dimensions_per_value=*/1, nk_dots_f16_multiply_hopper_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_f16_norm_update_, /*norm_scale=*/1.0f)
-nk_define_cross_cuda_(euclidean, f16, hopper, hopper, f16, f16, f32, /*depth_simd_dimensions=*/8,
-                      /*dimensions_per_value=*/1, nk_dots_f16_multiply_hopper_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, nk_f16_norm_update_, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(angular, f16, hopper, f16_hopper, f16, f16, f32, /*depth_simd_dimensions=*/8,
+                      /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(euclidean, f16, hopper, f16_hopper, f16, f16, f32, /*depth_simd_dimensions=*/8,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion F16
 
 #pragma region E2M3
 
-nk_define_cross_cuda_(angular, e2m3, hopper, hopper, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_hopper_, nk_cross_epilogue_i32_to_f32_k,
-                      /*output_scale=*/0.015625f, nk_cross_norm_f32_k, nk_e2m3_norm_update_ampere_,
-                      /*norm_scale=*/0.015625f)
-nk_define_cross_cuda_(euclidean, e2m3, hopper, hopper, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_hopper_, nk_cross_epilogue_i32_to_f32_k,
-                      /*output_scale=*/0.015625f, nk_cross_norm_f32_k, nk_e2m3_norm_update_ampere_,
-                      /*norm_scale=*/0.015625f)
+nk_define_cross_cuda_(angular, e2m3, hopper, e2m3_hopper, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(euclidean, e2m3, hopper, e2m3_hopper, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion E2M3
 
 #pragma region E2M1
 
-nk_define_cross_cuda_(angular, e2m1, hopper, hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_hopper_, nk_cross_epilogue_i32_to_f32_k,
-                      /*output_scale=*/0.25f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f)
-nk_define_cross_cuda_(euclidean, e2m1, hopper, hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_hopper_, nk_cross_epilogue_i32_to_f32_k,
-                      /*output_scale=*/0.25f, nk_cross_norm_f32_k, nk_e2m1_norm_update_ampere_, /*norm_scale=*/0.25f)
+nk_define_cross_cuda_(angular, e2m1, hopper, e2m1_hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
+nk_define_cross_cuda_(euclidean, e2m1, hopper, e2m1_hopper, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
 
 #pragma endregion E2M1
 
 #pragma region I8
 
-nk_define_cross_cuda_(angular, i8, hopper, hopper, i8, i8, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_i8_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_cuda_(euclidean, i8, hopper, hopper, i8, i8, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_i8_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i8_norm_update_ampere_, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(angular, i8, hopper, i8_hopper, i8, i8, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(euclidean, i8, hopper, i8_hopper, i8, i8, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion I8
 
 #pragma region I4
 
-nk_define_cross_cuda_(angular, i4, hopper, hopper, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_i4_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_cuda_(euclidean, i4, hopper, hopper, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_i4_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_i32_k, nk_i4_norm_update_ampere_, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(angular, i4, hopper, i4_hopper, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
+nk_define_cross_cuda_(euclidean, i4, hopper, i4_hopper, i4x2, i4x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
 
 #pragma endregion I4
 
 #pragma region U8
 
-nk_define_cross_cuda_(angular, u8, hopper, hopper, u8, u8, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_u8_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_cuda_(euclidean, u8, hopper, hopper, u8, u8, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_u8_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u8_norm_update_ampere_, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(angular, u8, hopper, u8_hopper, u8, u8, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
+nk_define_cross_cuda_(euclidean, u8, hopper, u8_hopper, u8, u8, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion U8
 
 #pragma region U4
 
-nk_define_cross_cuda_(angular, u4, hopper, hopper, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_u4_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_ampere_, /*norm_scale=*/1.0f)
-nk_define_cross_cuda_(euclidean, u4, hopper, hopper, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_u4_multiply_hopper_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_u32_k, nk_u4_norm_update_ampere_, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(angular, u4, hopper, u4_hopper, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
+nk_define_cross_cuda_(euclidean, u4, hopper, u4_hopper, u4x2, u4x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
 
 #pragma endregion U4
 

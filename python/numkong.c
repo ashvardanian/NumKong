@@ -612,7 +612,7 @@ int py_number_to_nk_scalar_buffer(PyObject *obj, nk_scalar_buffer_t *buf, nk_dty
     nk_f64_t value;
     if (!py_number_to_f64(obj, &value)) return 0;
     buf->f64 = value;
-    nk_scalar_buffer_from_f64_(&buf->f64, buf, dtype);
+    nk_scalar_buffer_from_f64_serial_(&buf->f64, buf, dtype);
     return 1;
 }
 
@@ -620,8 +620,8 @@ int nk_scalar_buffer_export(                                   //
     nk_scalar_buffer_t const *source, nk_dtype_t source_dtype, //
     void *target, nk_dtype_t target_dtype) {                   //
     nk_scalar_buffer_t converted;
-    if (!nk_scalar_buffer_to_f64c_(source, source_dtype, &converted.f64c)) return 0;
-    if (!nk_scalar_buffer_from_f64c_(&converted.f64c, &converted, target_dtype)) return 0;
+    if (!nk_scalar_buffer_to_f64c_serial_(source, source_dtype, &converted.f64c)) return 0;
+    if (!nk_scalar_buffer_from_f64c_serial_(&converted.f64c, &converted, target_dtype)) return 0;
     nk_size_t target_size = nk_dtype_bits(target_dtype) / NUMKONG_BITS_PER_BYTE;
     nk_copy_bytes_(target, &converted, target_size);
     return 1;

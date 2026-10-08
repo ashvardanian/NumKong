@@ -39,11 +39,6 @@ enum {
     nk_cross_loads_cdna3_k = nk_cross_stage_bytes_cdna3_k / 16 / nk_cross_threads_cdna3_k,
 };
 
-/** Folds one wavefront's fragments of a 128-byte slab: A as 4 row tiles of 16 and B as 4 column
- *  tiles of 16, each lane holding the 32 bytes of one quarter of its row's slab. */
-typedef void (*nk_cross_multiply_cdna3_t)(nk_fui32_t accumulators[4][4][4], nk_u32_t const a[4][8],
-                                          nk_u32_t const b[4][8]);
-
 /** Shared memory of a tile: two stages, A then B in each, whose first holds the row norms, column
  *  norms, row byte sums and column byte sums, a tile's worth each, once every product is done. */
 typedef union {
@@ -133,7 +128,7 @@ NUMKONG_DEVICE void nk_i4_norm_update_cdna3_(nk_u32_t const words[4], nk_u32_t *
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
-        nk_i4x8_to_i8x8_(words[word], &low, &high);
+        nk_i4x8_to_i8x8_simt_(words[word], &low, &high);
         *integer_sum = (nk_u32_t)nk_dot_i8x4_cdna3_(low, low, (nk_i32_t)*integer_sum);
         *integer_sum = (nk_u32_t)nk_dot_i8x4_cdna3_(high, high, (nk_i32_t)*integer_sum);
     }
@@ -143,10 +138,101 @@ NUMKONG_DEVICE void nk_u4_norm_update_cdna3_(nk_u32_t const words[4], nk_u32_t *
 #pragma unroll
     for (unsigned word = 0; word < 4; ++word) {
         nk_u32_t low, high;
-        nk_u4x8_to_u8x8_(words[word], &low, &high);
+        nk_u4x8_to_u8x8_simt_(words[word], &low, &high);
         *integer_sum = nk_dot_u8x4_rocm_(low, low, *integer_sum);
         *integer_sum = nk_dot_u8x4_rocm_(high, high, *integer_sum);
     }
+}
+
+/** Adds the running squares of the staged chunks of each operand, for the dtype in the name. */
+NUMKONG_DEVICE void nk_cross_stage_norms_bf16_cdna3_(int row_squares, int column_squares,
+                                                     uint4 const chunks[2][nk_cross_loads_cdna3_k],
+                                                     nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
+                                                     nk_f32_t real_norms[2][nk_cross_loads_cdna3_k]) {
+#pragma unroll
+    for (unsigned operand = 0; operand < 2; ++operand)
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_loads_cdna3_k; ++step) {
+            if (!(operand ? column_squares : row_squares)) continue;
+            uint4 const chunk = chunks[operand][step];
+            nk_u32_t const words[4] = {chunk.x, chunk.y, chunk.z, chunk.w};
+            nk_bf16_norm_update_simt_(words, &integer_norms[operand][step], &real_norms[operand][step]);
+        }
+}
+
+NUMKONG_DEVICE void nk_cross_stage_norms_f16_cdna3_(int row_squares, int column_squares,
+                                                    uint4 const chunks[2][nk_cross_loads_cdna3_k],
+                                                    nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
+                                                    nk_f32_t real_norms[2][nk_cross_loads_cdna3_k]) {
+#pragma unroll
+    for (unsigned operand = 0; operand < 2; ++operand)
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_loads_cdna3_k; ++step) {
+            if (!(operand ? column_squares : row_squares)) continue;
+            uint4 const chunk = chunks[operand][step];
+            nk_u32_t const words[4] = {chunk.x, chunk.y, chunk.z, chunk.w};
+            nk_f16_norm_update_simt_(words, &integer_norms[operand][step], &real_norms[operand][step]);
+        }
+}
+
+NUMKONG_DEVICE void nk_cross_stage_norms_i8_cdna3_(int row_squares, int column_squares,
+                                                   uint4 const chunks[2][nk_cross_loads_cdna3_k],
+                                                   nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
+                                                   nk_f32_t real_norms[2][nk_cross_loads_cdna3_k]) {
+#pragma unroll
+    for (unsigned operand = 0; operand < 2; ++operand)
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_loads_cdna3_k; ++step) {
+            if (!(operand ? column_squares : row_squares)) continue;
+            uint4 const chunk = chunks[operand][step];
+            nk_u32_t const words[4] = {chunk.x, chunk.y, chunk.z, chunk.w};
+            nk_i8_norm_update_cdna3_(words, &integer_norms[operand][step], &real_norms[operand][step]);
+        }
+}
+
+NUMKONG_DEVICE void nk_cross_stage_norms_u8_cdna3_(int row_squares, int column_squares,
+                                                   uint4 const chunks[2][nk_cross_loads_cdna3_k],
+                                                   nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
+                                                   nk_f32_t real_norms[2][nk_cross_loads_cdna3_k]) {
+#pragma unroll
+    for (unsigned operand = 0; operand < 2; ++operand)
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_loads_cdna3_k; ++step) {
+            if (!(operand ? column_squares : row_squares)) continue;
+            uint4 const chunk = chunks[operand][step];
+            nk_u32_t const words[4] = {chunk.x, chunk.y, chunk.z, chunk.w};
+            nk_u8_norm_update_cdna3_(words, &integer_norms[operand][step], &real_norms[operand][step]);
+        }
+}
+
+NUMKONG_DEVICE void nk_cross_stage_norms_i4_cdna3_(int row_squares, int column_squares,
+                                                   uint4 const chunks[2][nk_cross_loads_cdna3_k],
+                                                   nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
+                                                   nk_f32_t real_norms[2][nk_cross_loads_cdna3_k]) {
+#pragma unroll
+    for (unsigned operand = 0; operand < 2; ++operand)
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_loads_cdna3_k; ++step) {
+            if (!(operand ? column_squares : row_squares)) continue;
+            uint4 const chunk = chunks[operand][step];
+            nk_u32_t const words[4] = {chunk.x, chunk.y, chunk.z, chunk.w};
+            nk_i4_norm_update_cdna3_(words, &integer_norms[operand][step], &real_norms[operand][step]);
+        }
+}
+
+NUMKONG_DEVICE void nk_cross_stage_norms_u4_cdna3_(int row_squares, int column_squares,
+                                                   uint4 const chunks[2][nk_cross_loads_cdna3_k],
+                                                   nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
+                                                   nk_f32_t real_norms[2][nk_cross_loads_cdna3_k]) {
+#pragma unroll
+    for (unsigned operand = 0; operand < 2; ++operand)
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_loads_cdna3_k; ++step) {
+            if (!(operand ? column_squares : row_squares)) continue;
+            uint4 const chunk = chunks[operand][step];
+            nk_u32_t const words[4] = {chunk.x, chunk.y, chunk.z, chunk.w};
+            nk_u4_norm_update_cdna3_(words, &integer_norms[operand][step], &real_norms[operand][step]);
+        }
 }
 
 #pragma endregion Norms
@@ -208,23 +294,15 @@ NUMKONG_DEVICE void nk_cross_store_slab_cdna3_(unsigned char stage[2][nk_cross_s
                                                     threadIdx.x & 7)) = chunks[operand][step];
 }
 
-/** Folds this thread's staged chunks into its running sums: A's squares through @p norm_update if
- *  @p row_squares, B's if @p column_squares, and both operands' byte sums if @p offsets. */
-NUMKONG_DEVICE void nk_cross_stage_statistics_cdna3_(nk_cross_norm_update_t norm_update, int row_squares,
-                                                     int column_squares, int offsets,
-                                                     uint4 const chunks[2][nk_cross_loads_cdna3_k],
-                                                     nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
-                                                     nk_f32_t real_norms[2][nk_cross_loads_cdna3_k],
-                                                     nk_u32_t sums[2][nk_cross_loads_cdna3_k]) {
+/** Adds both operands' byte sums of this thread's staged chunks into @p sums. */
+NUMKONG_DEVICE void nk_cross_stage_byte_sums_cdna3_(uint4 const chunks[2][nk_cross_loads_cdna3_k],
+                                                    nk_u32_t sums[2][nk_cross_loads_cdna3_k]) {
 #pragma unroll
     for (unsigned operand = 0; operand < 2; ++operand)
 #pragma unroll
         for (unsigned step = 0; step < nk_cross_loads_cdna3_k; ++step) {
             uint4 const chunk = chunks[operand][step];
             nk_u32_t const words[4] = {chunk.x, chunk.y, chunk.z, chunk.w};
-            if (operand ? column_squares : row_squares)
-                norm_update(words, &integer_norms[operand][step], &real_norms[operand][step]);
-            if (!offsets) continue;
 #pragma unroll
             for (unsigned word = 0; word < 4; ++word)
                 sums[operand][step] = nk_dot_u8x4_rocm_(words[word], 0x01010101u, sums[operand][step]);
@@ -255,47 +333,47 @@ NUMKONG_DEVICE void nk_cross_write_statistics_cdna3_(nk_cross_norm_t norm, nk_f3
             if ((threadIdx.x & 7) != 0) continue;
             unsigned const tile_row = (threadIdx.x >> 3) + step * (nk_cross_threads_cdna3_k / 8);
             if (squares)
-                statistics[operand * nk_cross_tile_cdna3_k + tile_row] = nk_cross_norm_finalize_(
+                statistics[operand * nk_cross_tile_cdna3_k + tile_row] = nk_cross_norm_finalize_simt_(
                     norm, integer_norms[operand][step], real_norms[operand][step], norm_scale);
             if (offsets) statistics[(2 + operand) * nk_cross_tile_cdna3_k + tile_row].u = sums[operand][step];
         }
     if (!row_squares || column_squares || threadIdx.x >= nk_cross_tile_cdna3_k) return;
     nk_size_t const column = first_column + threadIdx.x;
-    statistics[nk_cross_tile_cdna3_k + threadIdx.x].u = column < arguments->column_count
-                                                            ? ((nk_u32_t const *)arguments->b_norms)[column]
-                                                            : 0;
+    nk_u32_t const *column_norms = (nk_u32_t const *)arguments->b_norms;
+    statistics[nk_cross_tile_cdna3_k + threadIdx.x].u = column < arguments->column_count ? column_norms[column] : 0;
 }
 
 /** Writes one output of a tile: the dot product, restored from its U8 offset where it has one, or
- *  the metric from it and both squared norms, with zeros on a @c symmetric diagonal. @p statistics
+ *  the metric from it and both squared norms, with zeros on a Gram matrix's diagonal. @p statistics
  *  holds the row norms, column norms, row byte sums and column byte sums, a tile's worth each. */
-NUMKONG_DEVICE void nk_cross_store_cdna3_(nk_cross_epilogue_t epilogue, nk_f32_t output_scale,
-                                          nk_cross_triangle_t triangle, nk_cross_metric_t metric, nk_cross_norm_t norm,
-                                          nk_fui32_t sum, nk_fui32_t const *statistics, nk_u32_t offset_correction,
-                                          unsigned tile_row, unsigned tile_column, nk_size_t row, nk_size_t column,
+NUMKONG_DEVICE void nk_cross_store_cdna3_(nk_cross_epilogue_t epilogue, nk_f32_t output_scale, nk_diagonal_band_t band,
+                                          nk_cross_metric_t metric, nk_cross_norm_t norm, nk_fui32_t sum,
+                                          nk_fui32_t const *statistics, nk_u32_t offset_correction, unsigned tile_row,
+                                          unsigned tile_column, nk_size_t row, nk_size_t column,
                                           unsigned char *output) {
+    nk_f32_t *output_f32 = (nk_f32_t *)output;
+    nk_u32_t *output_u32 = (nk_u32_t *)output;
     if (epilogue == nk_cross_epilogue_offset_u32_k)
         sum.u += 128u * (statistics[2 * nk_cross_tile_cdna3_k + tile_row].u +
                          statistics[3 * nk_cross_tile_cdna3_k + tile_column].u) -
                  offset_correction;
     if (metric == nk_cross_metric_dot_k) {
-        if (epilogue == nk_cross_epilogue_f32_k) ((nk_f32_t *)output)[column] = sum.f * output_scale;
-        else if (epilogue == nk_cross_epilogue_i32_to_f32_k)
-            ((nk_f32_t *)output)[column] = (nk_f32_t)sum.i * output_scale;
-        else ((nk_u32_t *)output)[column] = sum.u;
+        if (epilogue == nk_cross_epilogue_f32_k) output_f32[column] = sum.f * output_scale;
+        else if (epilogue == nk_cross_epilogue_i32_to_f32_k) output_f32[column] = (nk_f32_t)sum.i * output_scale;
+        else output_u32[column] = sum.u;
         return;
     }
-    if (triangle == nk_cross_triangle_upper_k && column == row) {
-        ((nk_f32_t *)output)[column] = 0.0f;
+    if (nk_cross_symmetric_simt_(band) && column == row) {
+        output_f32[column] = 0.0f;
         return;
     }
     nk_fui32_t const row_norm = statistics[tile_row], column_norm = statistics[nk_cross_tile_cdna3_k + tile_column];
-    nk_f32_t const dot = nk_cross_dot_to_f32_(sum, epilogue, output_scale);
+    nk_f32_t const dot = nk_cross_dot_to_f32_simt_(sum, epilogue, output_scale);
     if (norm != nk_cross_norm_f32_k)
-        ((nk_f32_t *)output)[column] = nk_cross_integer_metric_(metric, norm, sum.u, row_norm.u, column_norm.u);
+        output_f32[column] = nk_cross_integer_metric_simt_(metric, norm, sum.u, row_norm.u, column_norm.u);
     else if (metric == nk_cross_metric_angular_k)
-        ((nk_f32_t *)output)[column] = nk_f32_angular_(dot, row_norm.f, column_norm.f);
-    else ((nk_f32_t *)output)[column] = nk_f32_euclidean_(dot, row_norm.f, column_norm.f);
+        output_f32[column] = nk_f32_angular_simt_(dot, row_norm.f, column_norm.f);
+    else output_f32[column] = nk_f32_euclidean_simt_(dot, row_norm.f, column_norm.f);
 }
 
 #pragma endregion Staging
@@ -311,108 +389,91 @@ NUMKONG_DEVICE void nk_cross_load_fragment_cdna3_(unsigned char const *stage, un
     fragment[4] = second.x, fragment[5] = second.y, fragment[6] = second.z, fragment[7] = second.w;
 }
 
-/**
- *  @brief The whole GEMM of one 128 × 128 output tile on 64-lane wavefronts, shared by every dtype
- *      and every metric of CDNA3 and CDNA4.
- *  @param[in] multiply Folds one slab of fragments into the wavefront's accumulators; inlined,
- *      being a constant.
- *  @param[in] epilogue What the accumulators hold and how they reach the output.
- *  @param[in] output_scale Undoes the power of two a widening introduced, or 1.
- *  @param[in] norm How the squared norms are stored and the metric is computed; unused for dots.
- *  @param[in] norm_update Adds staged squares; unused for dots.
- *  @param[in] norm_scale Undoes the power of two the norm update's widening introduced, or 1.
- *  @param[in] triangle Whether tiles and outputs below the diagonal are skipped.
- *  @param[in] metric The dot product itself, or a distance from it and the two squared norms.
- *
- *  Each slab's global loads land in registers while the previous slab multiplies, then go to the
- *  stage no wavefront is reading, so one barrier a slab suffices. Row norms, and for @c symmetric
- *  the column norms, accumulate from the staged chunks, 8 threads per row; @c packed reads its
- *  column norms from @c b_norms. Lane l of each 16 × 16 MFMA output holds its column l % 16 in rows
- *  4 × (l / 16) + e.
- */
-NUMKONG_DEVICE void nk_cross_tile_cdna3_(nk_cross_multiply_cdna3_t multiply, nk_cross_epilogue_t epilogue,
-                                         nk_f32_t output_scale, nk_cross_norm_t norm,
-                                         nk_cross_norm_update_t norm_update, nk_f32_t norm_scale,
-                                         nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-                                         nk_cross_tile_arguments_t const *arguments) {
-    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna3_t shared;
+NUMKONG_DEVICE void nk_cross_accumulators_clear_cdna3_(nk_fui32_t accumulators[4][4][4]) {
+#pragma unroll
+    for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
+#pragma unroll
+        for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
+#pragma unroll
+            for (unsigned element = 0; element < 4; ++element) accumulators[row_tile][column_tile][element].u = 0;
+}
 
+/** Loads the next slab's chunks while this one multiplies, then waits for every store of
+ *  this one and every read of the stage the next refills, and loads this wavefront's
+ *  fragments of @p stage. */
+NUMKONG_DEVICE void nk_cross_advance_slab_cdna3_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                 nk_size_t first_column, nk_size_t slab, nk_size_t slabs,
+                                                 unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k],
+                                                 uint4 chunks[2][nk_cross_loads_cdna3_k], nk_u32_t a_fragments[4][8],
+                                                 nk_u32_t b_fragments[4][8]) {
     unsigned const lane = threadIdx.x & 63, wave = threadIdx.x >> 6;
     unsigned const wave_row = (wave >> 1) * 64, wave_column = (wave & 1) * 64;
     unsigned const lane_row = lane & 15, quarter = lane >> 4;
-    nk_size_t const slabs = nk_size_divide_round_up_(arguments->depth_bytes, nk_cross_slab_bytes_cdna3_k);
+    if (slab + 1 < slabs) nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, slab + 1);
+    __syncthreads();
+#pragma unroll
+    for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
+        nk_cross_load_fragment_cdna3_(stage[0], wave_row + row_tile * 16 + lane_row, quarter, a_fragments[row_tile]);
+#pragma unroll
+    for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
+        nk_cross_load_fragment_cdna3_(stage[1], wave_column + column_tile * 16 + lane_row, quarter,
+                                      b_fragments[column_tile]);
+}
+
+/**
+ *  @brief Writes the statistics of one 128 × 128 output tile and its outputs after every slab.
+ *  @param[in] epilogue What the accumulators hold and how they reach the output.
+ *  @param[in] output_scale Undoes the power of two a widening introduced, or 1.
+ *  @param[in] norm How the squared norms are stored and the metric is computed; unused for dots.
+ *  @param[in] norm_scale Undoes the power of two the norm update's widening introduced, or 1.
+ *
+ *  Row norms, and for a Gram matrix the column norms, accumulate from the staged chunks, 8 threads
+ *  per row; a packed product reads its column norms from @c b_norms. Lane l of each 16 × 16 MFMA
+ *  output holds its column l % 16 in rows 4 × (l / 16) + e.
+ */
+NUMKONG_DEVICE void nk_cross_finish_tile_cdna3_(
+    nk_cross_epilogue_t epilogue, nk_f32_t output_scale, nk_cross_norm_t norm, nk_f32_t norm_scale,
+    nk_cross_metric_t metric, nk_diagonal_band_t band, nk_cross_tile_arguments_t const *arguments,
+    nk_cross_shared_cdna3_t *shared, nk_size_t first_row, nk_size_t first_column, nk_size_t slabs,
+    nk_fui32_t accumulators[4][4][4], nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k],
+    nk_f32_t real_norms[2][nk_cross_loads_cdna3_k], nk_u32_t sums[2][nk_cross_loads_cdna3_k]) {
+    unsigned const lane = threadIdx.x & 63, wave = threadIdx.x >> 6;
+    unsigned const wave_row = (wave >> 1) * 64, wave_column = (wave & 1) * 64;
+    unsigned const lane_row = lane & 15, quarter = lane >> 4;
     int const offsets = epilogue == nk_cross_epilogue_offset_u32_k, row_squares = metric != nk_cross_metric_dot_k;
-    int const column_squares = row_squares && triangle == nk_cross_triangle_upper_k;
+    int const column_squares = row_squares && nk_cross_symmetric_simt_(band);
 
-    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
-        // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
+    // Row, then column, norms and byte sums go to the first stage once fragment reads retire.
+    nk_fui32_t *statistics = shared->statistics;
+    if (row_squares || offsets) {
         __syncthreads();
-        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
-        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_cdna3_k <= first_row) continue;
-
-        nk_fui32_t accumulators[4][4][4];
-#pragma unroll
-        for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
-#pragma unroll
-            for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
-#pragma unroll
-                for (unsigned element = 0; element < 4; ++element) accumulators[row_tile][column_tile][element].u = 0;
-        nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k] = {{0}}, sums[2][nk_cross_loads_cdna3_k] = {{0}};
-        nk_f32_t real_norms[2][nk_cross_loads_cdna3_k] = {{0}};
-        uint4 chunks[2][nk_cross_loads_cdna3_k];
-        nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, 0);
-        for (nk_size_t slab = 0; slab < slabs; ++slab) {
-            unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k] = shared.stages[slab & 1];
-            nk_cross_store_slab_cdna3_(stage, chunks);
-            nk_cross_stage_statistics_cdna3_(norm_update, row_squares, column_squares, offsets, chunks, integer_norms,
-                                             real_norms, sums);
-            if (slab + 1 < slabs) nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, slab + 1);
-            // Retires the stores above, and every read of the stage the next slab refills.
-            __syncthreads();
-            nk_u32_t a_fragments[4][8], b_fragments[4][8];
-#pragma unroll
-            for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
-                nk_cross_load_fragment_cdna3_(stage[0], wave_row + row_tile * 16 + lane_row, quarter,
-                                              a_fragments[row_tile]);
-#pragma unroll
-            for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
-                nk_cross_load_fragment_cdna3_(stage[1], wave_column + column_tile * 16 + lane_row, quarter,
-                                              b_fragments[column_tile]);
-            multiply(accumulators, a_fragments, b_fragments);
-        }
-
-        // Row, then column, norms and byte sums go to the first stage once fragment reads retire.
-        nk_fui32_t *statistics = shared.statistics;
-        if (row_squares || offsets) {
-            __syncthreads();
-            nk_cross_write_statistics_cdna3_(norm, norm_scale, row_squares, column_squares, offsets, arguments,
-                                             first_column, integer_norms, real_norms, sums, statistics);
-            __syncthreads();
-        }
-        // Every multiplied position of a U8 offset product adds 128² beyond the codes' own product.
-        nk_u32_t const offset_correction = (nk_u32_t)(slabs * nk_cross_slab_bytes_cdna3_k * 16384u);
-
-#pragma unroll
-        for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
-#pragma unroll
-            for (unsigned element = 0; element < 4; ++element) {
-                unsigned const tile_row = wave_row + row_tile * 16 + quarter * 4 + element;
-                nk_size_t const row = first_row + tile_row;
-                if (row >= arguments->rows_end) continue;
-                unsigned char *output = (unsigned char *)arguments->c + row * arguments->c_stride;
-#pragma unroll
-                for (unsigned column_tile = 0; column_tile < 4; ++column_tile) {
-                    unsigned const tile_column = wave_column + column_tile * 16 + lane_row;
-                    nk_size_t const column = first_column + tile_column;
-                    if (column >= arguments->column_count || (triangle == nk_cross_triangle_upper_k && column < row))
-                        continue;
-                    nk_cross_store_cdna3_(epilogue, output_scale, triangle, metric, norm,
-                                          accumulators[row_tile][column_tile][element], statistics, offset_correction,
-                                          tile_row, tile_column, row, column, output);
-                }
-            }
+        nk_cross_write_statistics_cdna3_(norm, norm_scale, row_squares, column_squares, offsets, arguments,
+                                         first_column, integer_norms, real_norms, sums, statistics);
+        __syncthreads();
     }
+    // Every multiplied position of a U8 offset product adds 128² beyond the codes' own product.
+    nk_u32_t const offset_correction = (nk_u32_t)(slabs * nk_cross_slab_bytes_cdna3_k * 16384u);
+
+#pragma unroll
+    for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
+#pragma unroll
+        for (unsigned element = 0; element < 4; ++element) {
+            unsigned const tile_row = wave_row + row_tile * 16 + quarter * 4 + element;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            unsigned char *output = (unsigned char *)arguments->c + row * arguments->c_stride;
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < 4; ++column_tile) {
+                unsigned const tile_column = wave_column + column_tile * 16 + lane_row;
+                nk_size_t const column = first_column + tile_column;
+                if (column < column_begin || column >= column_end) continue;
+                nk_cross_store_cdna3_(epilogue, output_scale, band, metric, norm,
+                                      accumulators[row_tile][column_tile][element], statistics, offset_correction,
+                                      tile_row, tile_column, row, column, output);
+            }
+        }
 }
 
 #pragma endregion Tile
@@ -424,20 +485,30 @@ NUMKONG_DEVICE void nk_cross_tile_cdna3_(nk_cross_multiply_cdna3_t multiply, nk_
 
 enum { nk_cross_threads_b32_cdna3_k = nk_cross_threads_simt_k, nk_cross_tile_b32_cdna3_k = nk_cross_tile_simt_k };
 
+/** Adds the squares of the staged F16 pairs into the running norms of this thread's rows of A, and
+ *  for a Gram matrix of B, through CDNA3's @c v_dot2_f32_f16 . */
+NUMKONG_DEVICE void nk_cross_stage_norms_f16x2_cdna3_(nk_diagonal_band_t band,
+                                                      nk_u32_t const a_words[nk_cross_loads_simt_k],
+                                                      nk_u32_t const b_words[nk_cross_loads_simt_k],
+                                                      nk_fui32_t a_norms[nk_cross_loads_simt_k],
+                                                      nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        a_norms[step].f = nk_dot_f16x2_cdna3_(a_words[step], a_words[step], a_norms[step].f);
+        if (nk_cross_symmetric_simt_(band))
+            b_norms[step].f = nk_dot_f16x2_cdna3_(b_words[step], b_words[step], b_norms[step].f);
+    }
+}
+
 /** Folds one staged slab of F16 pairs into this thread's grid of F32 sums. */
-NUMKONG_DEVICE void nk_cross_fold_slab_b32_cdna3_(
+NUMKONG_DEVICE void nk_cross_fold_slab_f16x2_cdna3_(
     nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
     nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
     nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
-    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
-    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
 #pragma unroll
     for (unsigned offset = 0; offset < nk_cross_slab_simt_k; ++offset) {
         nk_u32_t a_words[nk_cross_thread_tile_simt_k], b_words[nk_cross_thread_tile_simt_k];
-#pragma unroll
-        for (unsigned step = 0; step < nk_cross_thread_tile_simt_k; ++step)
-            a_words[step] = a_slab[offset][thread_row + nk_cross_grid_side_simt_k * step],
-            b_words[step] = b_slab[offset][thread_column + nk_cross_grid_side_simt_k * step];
+        nk_cross_load_words_b32_rocm_(a_slab, b_slab, offset, a_words, b_words);
 #pragma unroll
         for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
 #pragma unroll
@@ -447,49 +518,168 @@ NUMKONG_DEVICE void nk_cross_fold_slab_b32_cdna3_(
     }
 }
 
-/** @c nk_cross_tile_b32_rocm_ folding F16 pairs through CDNA3's @c v_dot2_f32_f16 . */
-NUMKONG_DEVICE void nk_cross_tile_b32_cdna3_(nk_dtype_t dtype, nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-                                             nk_cross_tile_arguments_t const *arguments) {
+/** @c nk_cross_tile_e5m2_rocm_ folding F16 pairs through CDNA3's @c v_dot2_f32_f16 . */
+NUMKONG_DEVICE void nk_cross_tile_e5m2_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
     // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
     __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
     __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
     __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
-    nk_cross_accumulation_t const accumulation = nk_cross_accumulation_f16x2_k;
-    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_b32_dimensions_(accumulation));
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f16x2_simt_k);
 
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
         nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_simt_k)) continue;
         nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
         nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
         for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
             nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
-            nk_cross_stage_slab_b32_simt_(dtype, accumulation, arguments, first_row, first_column, slab, words, a_slab,
-                                          b_slab, a_words, b_words);
+            nk_cross_stage_slab_e5m2_f16x2_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
             if (metric != nk_cross_metric_dot_k)
-#pragma unroll
-                for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
-                    a_norms[step].f = nk_dot_f16x2_cdna3_(a_words[step], a_words[step], a_norms[step].f);
-                    if (triangle == nk_cross_triangle_upper_k)
-                        b_norms[step].f = nk_dot_f16x2_cdna3_(b_words[step], b_words[step], b_norms[step].f);
-                }
+                nk_cross_stage_norms_f16x2_cdna3_(band, a_words, b_words, a_norms, b_norms);
             __syncthreads();
-            nk_cross_fold_slab_b32_cdna3_(a_slab, b_slab, sums);
+            nk_cross_fold_slab_f16x2_cdna3_(a_slab, b_slab, sums);
             __syncthreads();
         }
         if (metric != nk_cross_metric_dot_k) {
-#pragma unroll
-            for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step)
-#pragma unroll
-                for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
-                    a_norms[step] = nk_cross_merge_lanes_b32_rocm_(accumulation, offset, a_norms[step]);
-                    if (triangle == nk_cross_triangle_upper_k)
-                        b_norms[step] = nk_cross_merge_lanes_b32_rocm_(accumulation, offset, b_norms[step]);
-                }
-            nk_cross_publish_norms_b32_simt_(triangle, arguments, first_column, a_norms, b_norms, norms);
+            nk_cross_merge_norms_f32_rocm_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
         }
-        nk_cross_store_tile_b32_simt_(accumulation, triangle, metric, arguments, first_row, first_column, sums, norms);
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** @c nk_cross_tile_e4m3_rocm_ folding F16 pairs through CDNA3's @c v_dot2_f32_f16 . */
+NUMKONG_DEVICE void nk_cross_tile_e4m3_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f16x2_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_simt_k)) continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e4m3_f16x2_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_stage_norms_f16x2_cdna3_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f16x2_cdna3_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_rocm_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** @c nk_cross_tile_e3m2_rocm_ folding F16 pairs through CDNA3's @c v_dot2_f32_f16 . */
+NUMKONG_DEVICE void nk_cross_tile_e3m2_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f16x2_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_simt_k)) continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e3m2_f16x2_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_stage_norms_f16x2_cdna3_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f16x2_cdna3_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_rocm_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** @c nk_cross_tile_e2m3_rocm_ folding F16 pairs through CDNA3's @c v_dot2_f32_f16 . */
+NUMKONG_DEVICE void nk_cross_tile_e2m3_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f16x2_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_simt_k)) continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e2m3_f16x2_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_stage_norms_f16x2_cdna3_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f16x2_cdna3_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_rocm_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** @c nk_cross_tile_e2m1_rocm_ folding F16 pairs through CDNA3's @c v_dot2_f32_f16 . */
+NUMKONG_DEVICE void nk_cross_tile_e2m1_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f16x2_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_simt_k)) continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e2m1_f16x2_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_stage_norms_f16x2_cdna3_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f16x2_cdna3_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_rocm_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
     }
 }
 
@@ -557,15 +747,15 @@ NUMKONG_DEVICE void nk_dots_u8_multiply_cdna3_(nk_fui32_t accumulators[4][4][4],
 }
 
 /** Widens nibble fragments into I8, each word of nibbles becoming the 2 words of one MFMA. */
-NUMKONG_DEVICE void nk_dots_widened_i8_multiply_cdna3_(nk_cross_widen_t widen, nk_fui32_t accumulators[4][4][4],
-                                                       nk_u32_t const a[4][8], nk_u32_t const b[4][8]) {
+NUMKONG_DEVICE void nk_dots_i4_multiply_cdna3_(nk_fui32_t accumulators[4][4][4], nk_u32_t const a[4][8],
+                                               nk_u32_t const b[4][8]) {
 #pragma unroll
     for (unsigned step = 0; step < 8; ++step) {
         nk_u32_t a_widened[4][2], b_widened[4][2];
 #pragma unroll
         for (unsigned tile = 0; tile < 4; ++tile)
-            widen(a[tile][step], &a_widened[tile][0], &a_widened[tile][1]),
-                widen(b[tile][step], &b_widened[tile][0], &b_widened[tile][1]);
+            nk_i4x8_to_i8x8_simt_(a[tile][step], &a_widened[tile][0], &a_widened[tile][1]),
+                nk_i4x8_to_i8x8_simt_(b[tile][step], &b_widened[tile][0], &b_widened[tile][1]);
 #pragma unroll
         for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
 #pragma unroll
@@ -574,90 +764,329 @@ NUMKONG_DEVICE void nk_dots_widened_i8_multiply_cdna3_(nk_cross_widen_t widen, n
     }
 }
 
-NUMKONG_DEVICE void nk_dots_i4_multiply_cdna3_(nk_fui32_t accumulators[4][4][4], nk_u32_t const a[4][8],
-                                               nk_u32_t const b[4][8]) {
-    nk_dots_widened_i8_multiply_cdna3_(nk_i4x8_to_i8x8_, accumulators, a, b);
-}
-
+/** Widens nibble fragments into I8, each word of nibbles becoming the 2 words of one MFMA. */
 NUMKONG_DEVICE void nk_dots_u4_multiply_cdna3_(nk_fui32_t accumulators[4][4][4], nk_u32_t const a[4][8],
                                                nk_u32_t const b[4][8]) {
-    nk_dots_widened_i8_multiply_cdna3_(nk_u4x8_to_u8x8_, accumulators, a, b);
+#pragma unroll
+    for (unsigned step = 0; step < 8; ++step) {
+        nk_u32_t a_widened[4][2], b_widened[4][2];
+#pragma unroll
+        for (unsigned tile = 0; tile < 4; ++tile)
+            nk_u4x8_to_u8x8_simt_(a[tile][step], &a_widened[tile][0], &a_widened[tile][1]),
+                nk_u4x8_to_u8x8_simt_(b[tile][step], &b_widened[tile][0], &b_widened[tile][1]);
+#pragma unroll
+        for (unsigned row_tile = 0; row_tile < 4; ++row_tile)
+#pragma unroll
+            for (unsigned column_tile = 0; column_tile < 4; ++column_tile)
+                nk_mfma_i8_cdna3_(accumulators[row_tile][column_tile], a_widened[row_tile], b_widened[column_tile]);
+    }
 }
 
 #pragma endregion Multiplies
 
+#pragma region Tiles
+
+/** The GEMM of one 128 × 128 output tile of BF16 inputs on 64-lane wavefronts, streaming
+ *  128-byte slabs through two swizzled stages: each slab's global loads land in registers
+ *  while the previous slab multiplies, then go to the stage no wavefront is reading, so one
+ *  barrier a slab suffices. */
+NUMKONG_DEVICE void nk_cross_tile_bf16_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna3_t shared;
+    nk_size_t const slabs = nk_size_divide_round_up_(arguments->depth_bytes, nk_cross_slab_bytes_cdna3_k);
+    int const row_squares = metric != nk_cross_metric_dot_k;
+    int const column_squares = row_squares && nk_cross_symmetric_simt_(band);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
+        __syncthreads();
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_cdna3_k)) continue;
+
+        nk_fui32_t accumulators[4][4][4];
+        nk_cross_accumulators_clear_cdna3_(accumulators);
+        nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k] = {{0}}, sums[2][nk_cross_loads_cdna3_k] = {{0}};
+        nk_f32_t real_norms[2][nk_cross_loads_cdna3_k] = {{0}};
+        uint4 chunks[2][nk_cross_loads_cdna3_k];
+        nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, 0);
+        for (nk_size_t slab = 0; slab < slabs; ++slab) {
+            unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k] = shared.stages[slab & 1];
+            nk_cross_store_slab_cdna3_(stage, chunks);
+            nk_cross_stage_norms_bf16_cdna3_(row_squares, column_squares, chunks, integer_norms, real_norms);
+            nk_u32_t a_fragments[4][8], b_fragments[4][8];
+            nk_cross_advance_slab_cdna3_(arguments, first_row, first_column, slab, slabs, stage, chunks, a_fragments,
+                                         b_fragments);
+            nk_dots_bf16_multiply_cdna3_(accumulators, a_fragments, b_fragments);
+        }
+        nk_cross_finish_tile_cdna3_(nk_cross_epilogue_f32_k, 1.0f, nk_cross_norm_f32_k, 1.0f, metric, band, arguments,
+                                    &shared, first_row, first_column, slabs, accumulators, integer_norms, real_norms,
+                                    sums);
+    }
+}
+
+/** The GEMM of one 128 × 128 output tile of F16 inputs on 64-lane wavefronts, streaming
+ *  128-byte slabs through two swizzled stages: each slab's global loads land in registers
+ *  while the previous slab multiplies, then go to the stage no wavefront is reading, so one
+ *  barrier a slab suffices. */
+NUMKONG_DEVICE void nk_cross_tile_f16_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                             nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna3_t shared;
+    nk_size_t const slabs = nk_size_divide_round_up_(arguments->depth_bytes, nk_cross_slab_bytes_cdna3_k);
+    int const row_squares = metric != nk_cross_metric_dot_k;
+    int const column_squares = row_squares && nk_cross_symmetric_simt_(band);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
+        __syncthreads();
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_cdna3_k)) continue;
+
+        nk_fui32_t accumulators[4][4][4];
+        nk_cross_accumulators_clear_cdna3_(accumulators);
+        nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k] = {{0}}, sums[2][nk_cross_loads_cdna3_k] = {{0}};
+        nk_f32_t real_norms[2][nk_cross_loads_cdna3_k] = {{0}};
+        uint4 chunks[2][nk_cross_loads_cdna3_k];
+        nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, 0);
+        for (nk_size_t slab = 0; slab < slabs; ++slab) {
+            unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k] = shared.stages[slab & 1];
+            nk_cross_store_slab_cdna3_(stage, chunks);
+            nk_cross_stage_norms_f16_cdna3_(row_squares, column_squares, chunks, integer_norms, real_norms);
+            nk_u32_t a_fragments[4][8], b_fragments[4][8];
+            nk_cross_advance_slab_cdna3_(arguments, first_row, first_column, slab, slabs, stage, chunks, a_fragments,
+                                         b_fragments);
+            nk_dots_f16_multiply_cdna3_(accumulators, a_fragments, b_fragments);
+        }
+        nk_cross_finish_tile_cdna3_(nk_cross_epilogue_f32_k, 1.0f, nk_cross_norm_f32_k, 1.0f, metric, band, arguments,
+                                    &shared, first_row, first_column, slabs, accumulators, integer_norms, real_norms,
+                                    sums);
+    }
+}
+
+/** The GEMM of one 128 × 128 output tile of I8 inputs on 64-lane wavefronts, streaming
+ *  128-byte slabs through two swizzled stages: each slab's global loads land in registers
+ *  while the previous slab multiplies, then go to the stage no wavefront is reading, so one
+ *  barrier a slab suffices. */
+NUMKONG_DEVICE void nk_cross_tile_i8_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                            nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna3_t shared;
+    nk_size_t const slabs = nk_size_divide_round_up_(arguments->depth_bytes, nk_cross_slab_bytes_cdna3_k);
+    int const row_squares = metric != nk_cross_metric_dot_k;
+    int const column_squares = row_squares && nk_cross_symmetric_simt_(band);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
+        __syncthreads();
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_cdna3_k)) continue;
+
+        nk_fui32_t accumulators[4][4][4];
+        nk_cross_accumulators_clear_cdna3_(accumulators);
+        nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k] = {{0}}, sums[2][nk_cross_loads_cdna3_k] = {{0}};
+        nk_f32_t real_norms[2][nk_cross_loads_cdna3_k] = {{0}};
+        uint4 chunks[2][nk_cross_loads_cdna3_k];
+        nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, 0);
+        for (nk_size_t slab = 0; slab < slabs; ++slab) {
+            unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k] = shared.stages[slab & 1];
+            nk_cross_store_slab_cdna3_(stage, chunks);
+            nk_cross_stage_norms_i8_cdna3_(row_squares, column_squares, chunks, integer_norms, real_norms);
+            nk_u32_t a_fragments[4][8], b_fragments[4][8];
+            nk_cross_advance_slab_cdna3_(arguments, first_row, first_column, slab, slabs, stage, chunks, a_fragments,
+                                         b_fragments);
+            nk_dots_i8_multiply_cdna3_(accumulators, a_fragments, b_fragments);
+        }
+        nk_cross_finish_tile_cdna3_(nk_cross_epilogue_i32_k, 1.0f, nk_cross_norm_i32_k, 1.0f, metric, band, arguments,
+                                    &shared, first_row, first_column, slabs, accumulators, integer_norms, real_norms,
+                                    sums);
+    }
+}
+
+/** The GEMM of one 128 × 128 output tile of U8 inputs on 64-lane wavefronts, streaming
+ *  128-byte slabs through two swizzled stages: each slab's global loads land in registers
+ *  while the previous slab multiplies, then go to the stage no wavefront is reading, so one
+ *  barrier a slab suffices. */
+NUMKONG_DEVICE void nk_cross_tile_u8_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                            nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna3_t shared;
+    nk_size_t const slabs = nk_size_divide_round_up_(arguments->depth_bytes, nk_cross_slab_bytes_cdna3_k);
+    int const row_squares = metric != nk_cross_metric_dot_k;
+    int const column_squares = row_squares && nk_cross_symmetric_simt_(band);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
+        __syncthreads();
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_cdna3_k)) continue;
+
+        nk_fui32_t accumulators[4][4][4];
+        nk_cross_accumulators_clear_cdna3_(accumulators);
+        nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k] = {{0}}, sums[2][nk_cross_loads_cdna3_k] = {{0}};
+        nk_f32_t real_norms[2][nk_cross_loads_cdna3_k] = {{0}};
+        uint4 chunks[2][nk_cross_loads_cdna3_k];
+        nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, 0);
+        for (nk_size_t slab = 0; slab < slabs; ++slab) {
+            unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k] = shared.stages[slab & 1];
+            nk_cross_store_slab_cdna3_(stage, chunks);
+            nk_cross_stage_norms_u8_cdna3_(row_squares, column_squares, chunks, integer_norms, real_norms);
+            nk_cross_stage_byte_sums_cdna3_(chunks, sums);
+            nk_u32_t a_fragments[4][8], b_fragments[4][8];
+            nk_cross_advance_slab_cdna3_(arguments, first_row, first_column, slab, slabs, stage, chunks, a_fragments,
+                                         b_fragments);
+            nk_dots_u8_multiply_cdna3_(accumulators, a_fragments, b_fragments);
+        }
+        nk_cross_finish_tile_cdna3_(nk_cross_epilogue_offset_u32_k, 1.0f, nk_cross_norm_u32_k, 1.0f, metric, band,
+                                    arguments, &shared, first_row, first_column, slabs, accumulators, integer_norms,
+                                    real_norms, sums);
+    }
+}
+
+/** The GEMM of one 128 × 128 output tile of I4 inputs on 64-lane wavefronts, streaming
+ *  128-byte slabs through two swizzled stages: each slab's global loads land in registers
+ *  while the previous slab multiplies, then go to the stage no wavefront is reading, so one
+ *  barrier a slab suffices. */
+NUMKONG_DEVICE void nk_cross_tile_i4_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                            nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna3_t shared;
+    nk_size_t const slabs = nk_size_divide_round_up_(arguments->depth_bytes, nk_cross_slab_bytes_cdna3_k);
+    int const row_squares = metric != nk_cross_metric_dot_k;
+    int const column_squares = row_squares && nk_cross_symmetric_simt_(band);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
+        __syncthreads();
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_cdna3_k)) continue;
+
+        nk_fui32_t accumulators[4][4][4];
+        nk_cross_accumulators_clear_cdna3_(accumulators);
+        nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k] = {{0}}, sums[2][nk_cross_loads_cdna3_k] = {{0}};
+        nk_f32_t real_norms[2][nk_cross_loads_cdna3_k] = {{0}};
+        uint4 chunks[2][nk_cross_loads_cdna3_k];
+        nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, 0);
+        for (nk_size_t slab = 0; slab < slabs; ++slab) {
+            unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k] = shared.stages[slab & 1];
+            nk_cross_store_slab_cdna3_(stage, chunks);
+            nk_cross_stage_norms_i4_cdna3_(row_squares, column_squares, chunks, integer_norms, real_norms);
+            nk_u32_t a_fragments[4][8], b_fragments[4][8];
+            nk_cross_advance_slab_cdna3_(arguments, first_row, first_column, slab, slabs, stage, chunks, a_fragments,
+                                         b_fragments);
+            nk_dots_i4_multiply_cdna3_(accumulators, a_fragments, b_fragments);
+        }
+        nk_cross_finish_tile_cdna3_(nk_cross_epilogue_i32_k, 1.0f, nk_cross_norm_i32_k, 1.0f, metric, band, arguments,
+                                    &shared, first_row, first_column, slabs, accumulators, integer_norms, real_norms,
+                                    sums);
+    }
+}
+
+/** The GEMM of one 128 × 128 output tile of U4 inputs on 64-lane wavefronts, streaming
+ *  128-byte slabs through two swizzled stages: each slab's global loads land in registers
+ *  while the previous slab multiplies, then go to the stage no wavefront is reading, so one
+ *  barrier a slab suffices. */
+NUMKONG_DEVICE void nk_cross_tile_u4_cdna3_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                            nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __attribute__((aligned(16))) nk_cross_shared_cdna3_t shared;
+    nk_size_t const slabs = nk_size_divide_round_up_(arguments->depth_bytes, nk_cross_slab_bytes_cdna3_k);
+    int const row_squares = metric != nk_cross_metric_dot_k;
+    int const column_squares = row_squares && nk_cross_symmetric_simt_(band);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's epilogue reads the first stage, which this tile's first slab refills.
+        __syncthreads();
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_cdna3_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_cdna3_k;
+        if (nk_cross_tile_outside_rocm_(band, first_row, first_column, nk_cross_tile_cdna3_k)) continue;
+
+        nk_fui32_t accumulators[4][4][4];
+        nk_cross_accumulators_clear_cdna3_(accumulators);
+        nk_u32_t integer_norms[2][nk_cross_loads_cdna3_k] = {{0}}, sums[2][nk_cross_loads_cdna3_k] = {{0}};
+        nk_f32_t real_norms[2][nk_cross_loads_cdna3_k] = {{0}};
+        uint4 chunks[2][nk_cross_loads_cdna3_k];
+        nk_cross_load_slab_cdna3_(chunks, arguments, first_row, first_column, 0);
+        for (nk_size_t slab = 0; slab < slabs; ++slab) {
+            unsigned char (*stage)[nk_cross_stage_bytes_cdna3_k] = shared.stages[slab & 1];
+            nk_cross_store_slab_cdna3_(stage, chunks);
+            nk_cross_stage_norms_u4_cdna3_(row_squares, column_squares, chunks, integer_norms, real_norms);
+            nk_u32_t a_fragments[4][8], b_fragments[4][8];
+            nk_cross_advance_slab_cdna3_(arguments, first_row, first_column, slab, slabs, stage, chunks, a_fragments,
+                                         b_fragments);
+            nk_dots_u4_multiply_cdna3_(accumulators, a_fragments, b_fragments);
+        }
+        nk_cross_finish_tile_cdna3_(nk_cross_epilogue_i32_k, 1.0f, nk_cross_norm_u32_k, 1.0f, metric, band, arguments,
+                                    &shared, first_row, first_column, slabs, accumulators, integer_norms, real_norms,
+                                    sums);
+    }
+}
+
+#pragma endregion Tiles
+
 #pragma region BF16
 
-nk_define_cross_pack_rocm_(bf16, cdna3, bf16, bf16, nk_load_b8_, /*norm_value_type=*/f32, nk_bf16_lane_sumsq_,
+nk_define_cross_pack_rocm_(bf16, cdna3, bf16, bf16, nk_load_b8_simt_, /*norm_value_type=*/f32, nk_bf16_lane_sumsq_simt_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_rocm_(dot, bf16, cdna3, cdna3, bf16, bf16, f32, /*depth_simd_dimensions=*/8,
-                      /*dimensions_per_value=*/1, nk_dots_bf16_multiply_cdna3_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_rocm_(dot, bf16, cdna3, cdna3, bf16, bf16, f32, /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 
 #pragma endregion BF16
 
 #pragma region F16
 
-nk_define_cross_pack_rocm_(f16, cdna3, f16, f16, nk_load_b8_, /*norm_value_type=*/f32, nk_f16_lane_sumsq_,
+nk_define_cross_pack_rocm_(f16, cdna3, f16, f16, nk_load_b8_simt_, /*norm_value_type=*/f32, nk_f16_lane_sumsq_simt_,
                            /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
-nk_define_cross_rocm_(dot, f16, cdna3, cdna3, f16, f16, f32, /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1,
-                      nk_dots_f16_multiply_cdna3_, nk_cross_epilogue_f32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                      NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_rocm_(dot, f16, cdna3, cdna3, f16, f16, f32, /*depth_simd_dimensions=*/8, /*dimensions_per_value=*/1)
 
 #pragma endregion F16
 
 #pragma region Float8, Float6 and Float4
 
-nk_define_cross_pack_rocm_(e5m2, cdna3, e5m2, e5m2, nk_load_b8_, f32, nk_e5m2_lane_sumsq_, 16, 1)
-nk_define_cross_rocm_(dot, e5m2, cdna3, b32_cdna3, e5m2, e5m2, f32, 16, 1, nk_e5m2_k)
-nk_define_cross_pack_rocm_(e4m3, cdna3, e4m3, e4m3, nk_load_b8_, f32, nk_e4m3_lane_sumsq_, 16, 1)
-nk_define_cross_rocm_(dot, e4m3, cdna3, b32_cdna3, e4m3, e4m3, f32, 16, 1, nk_e4m3_k)
-nk_define_cross_pack_rocm_(e3m2, cdna3, e3m2, e3m2, nk_load_b8_, f32, nk_e3m2_lane_sumsq_, 16, 1)
-nk_define_cross_rocm_(dot, e3m2, cdna3, b32_cdna3, e3m2, e3m2, f32, 16, 1, nk_e3m2_k)
-nk_define_cross_pack_rocm_(e2m3, cdna3, e2m3, e2m3, nk_load_b8_, f32, nk_e2m3_lane_sumsq_, 16, 1)
-nk_define_cross_rocm_(dot, e2m3, cdna3, b32_cdna3, e2m3, e2m3, f32, 16, 1, nk_e2m3_k)
-nk_define_cross_pack_rocm_(e2m1, cdna3, e2m1x2, e2m1x2, nk_load_b8_, f32, nk_e2m1_lane_sumsq_, 32, 2)
-nk_define_cross_rocm_(dot, e2m1, cdna3, b32_cdna3, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_k)
+nk_define_cross_pack_rocm_(e5m2, cdna3, e5m2, e5m2, nk_load_b8_simt_, f32, nk_e5m2_lane_sumsq_simt_, 16, 1)
+nk_define_cross_rocm_(dot, e5m2, cdna3, b32_cdna3, e5m2, e5m2, f32, 16, 1)
+nk_define_cross_pack_rocm_(e4m3, cdna3, e4m3, e4m3, nk_load_b8_simt_, f32, nk_e4m3_lane_sumsq_simt_, 16, 1)
+nk_define_cross_rocm_(dot, e4m3, cdna3, b32_cdna3, e4m3, e4m3, f32, 16, 1)
+nk_define_cross_pack_rocm_(e3m2, cdna3, e3m2, e3m2, nk_load_b8_simt_, f32, nk_e3m2_lane_sumsq_simt_, 16, 1)
+nk_define_cross_rocm_(dot, e3m2, cdna3, b32_cdna3, e3m2, e3m2, f32, 16, 1)
+nk_define_cross_pack_rocm_(e2m3, cdna3, e2m3, e2m3, nk_load_b8_simt_, f32, nk_e2m3_lane_sumsq_simt_, 16, 1)
+nk_define_cross_rocm_(dot, e2m3, cdna3, b32_cdna3, e2m3, e2m3, f32, 16, 1)
+nk_define_cross_pack_rocm_(e2m1, cdna3, e2m1x2, e2m1x2, nk_load_b8_simt_, f32, nk_e2m1_lane_sumsq_simt_, 32, 2)
+nk_define_cross_rocm_(dot, e2m1, cdna3, b32_cdna3, e2m1x2, e2m1x2, f32, 32, 2)
 
 #pragma endregion Float8, Float6 and Float4
 
 #pragma region I8
 
-nk_define_cross_pack_rocm_(i8, cdna3, i8, i8, nk_load_b8_, /*norm_value_type=*/u32, nk_i8_lane_sumsq_,
+nk_define_cross_pack_rocm_(i8, cdna3, i8, i8, nk_load_b8_simt_, /*norm_value_type=*/u32, nk_i8_lane_sumsq_simt_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_rocm_(dot, i8, cdna3, cdna3, i8, i8, i32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
-                      nk_dots_i8_multiply_cdna3_, nk_cross_epilogue_i32_k, /*output_scale=*/1.0f, nk_cross_norm_f32_k,
-                      NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_rocm_(dot, i8, cdna3, cdna3, i8, i8, i32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion I8
 
 #pragma region I4
 
-nk_define_cross_pack_rocm_(i4, cdna3, i4x2, i4x2, nk_load_b8_, /*norm_value_type=*/u32, nk_i4_lane_sumsq_,
+nk_define_cross_pack_rocm_(i4, cdna3, i4x2, i4x2, nk_load_b8_simt_, /*norm_value_type=*/u32, nk_i4_lane_sumsq_simt_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_rocm_(dot, i4, cdna3, cdna3, i4x2, i4x2, i32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_i4_multiply_cdna3_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+                      /*dimensions_per_value=*/2)
 
 #pragma endregion I4
 
 #pragma region U8
 
-nk_define_cross_pack_rocm_(u8, cdna3, u8, u8, nk_load_b8_, /*norm_value_type=*/u32, nk_u8_lane_sumsq_,
+nk_define_cross_pack_rocm_(u8, cdna3, u8, u8, nk_load_b8_simt_, /*norm_value_type=*/u32, nk_u8_lane_sumsq_simt_,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_rocm_(dot, u8, cdna3, cdna3, u8, u8, u32, /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1,
-                      nk_dots_u8_multiply_cdna3_, nk_cross_epilogue_offset_u32_k, /*output_scale=*/1.0f,
-                      nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_rocm_(dot, u8, cdna3, cdna3, u8, u8, u32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion U8
 
 #pragma region U4
 
-nk_define_cross_pack_rocm_(u4, cdna3, u4x2, u4x2, nk_load_b8_, /*norm_value_type=*/u32, nk_u4_lane_sumsq_,
+nk_define_cross_pack_rocm_(u4, cdna3, u4x2, u4x2, nk_load_b8_simt_, /*norm_value_type=*/u32, nk_u4_lane_sumsq_simt_,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
 nk_define_cross_rocm_(dot, u4, cdna3, cdna3, u4x2, u4x2, u32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_u4_multiply_cdna3_, nk_cross_epilogue_i32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+                      /*dimensions_per_value=*/2)
 
 #pragma endregion U4
 

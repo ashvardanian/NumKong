@@ -683,7 +683,8 @@ assert q.nbytes == nk.MaxSimPackedMatrix.pack_size(32, 128, dtype="float32")
 ## Attention with a Pre-Packed KV-Cache
 
 Ragged scaled-dot-product attention packs the key/value tokens once, then scores many queries against them.
-Segments of different lengths share one packed cache, addressed by cumulative `segment_offsets`.
+Segments of different lengths share one packed cache, addressed by cumulative `key_offsets`.
+A segment may hold fewer keys than its slot, as a decode cache with spare room does: pass `key_lengths` too, and the keys past each length are left out of the pack.
 
 ```python
 import numpy as np
@@ -695,13 +696,13 @@ tokens, heads, depth = int(offsets[-1]), 2, 64
 
 k = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
 v = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
-kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth)
+kv = nk.attention_pack(k, v, key_offsets=offsets, depth=depth)
 
 queries = nk.Tensor(np.random.randn(tokens, heads * depth).astype(np.float32)).astype("bfloat16")
 out = nk.attention_packed(queries, kv, query_offsets=offsets)
 windowed = nk.attention_packed(queries, kv, query_offsets=offsets, keys_before=3, keys_after=0)
 
-assert kv.shape == (kv.heads, kv.depth, kv.segments)
+assert kv.shape == (kv.key_value_head_count, kv.depth, kv.segments)
 ```
 
 Queries align to the end of each segment's keys: row `r` of `q` queries over `k` keys sits at position `r + k - q` and sees `keys_before` keys before it and `keys_after` after, `None` being unbounded.
@@ -712,12 +713,12 @@ For training, the forward also fills a `(tokens, heads)` log-sum-exp, and `atten
 CPUs compute them serially, so the cache is packed with `nk.Capability.SERIAL`:
 
 ```python
-kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth, capabilities=nk.Capability.SERIAL)
+kv = nk.attention_pack(k, v, key_offsets=offsets, depth=depth, capabilities=nk.Capability.SERIAL)
 log_sum_exp = np.empty((tokens, heads), dtype=np.float32)
 out = nk.attention_packed(queries, kv, query_offsets=offsets, keys_after=0, log_sum_exp=log_sum_exp)
 output_gradient = np.random.randn(tokens, heads * depth).astype(np.float32)
 query_gradient, key_gradient, value_gradient = nk.attention_packed_gradients(
-    queries, kv, query_offsets=offsets, key_offsets=offsets, output=out, output_gradient=output_gradient,
+    queries, kv, query_offsets=offsets, output=out, output_gradient=output_gradient,
     log_sum_exp=log_sum_exp, keys_after=0)
 ```
 

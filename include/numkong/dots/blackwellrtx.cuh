@@ -26,6 +26,20 @@
 extern "C" {
 #endif
 
+/*  Each dtype launches the Ampere shape under its own stem, so the generators paste it. */
+enum {
+    nk_cross_threads_e5m2_blackwellrtx_k = nk_cross_threads_ampere_k,
+    nk_cross_tile_e5m2_blackwellrtx_k = nk_cross_tile_ampere_k,
+    nk_cross_threads_e4m3_blackwellrtx_k = nk_cross_threads_ampere_k,
+    nk_cross_tile_e4m3_blackwellrtx_k = nk_cross_tile_ampere_k,
+    nk_cross_threads_e3m2_blackwellrtx_k = nk_cross_threads_ampere_k,
+    nk_cross_tile_e3m2_blackwellrtx_k = nk_cross_tile_ampere_k,
+    nk_cross_threads_e2m3_blackwellrtx_k = nk_cross_threads_ampere_k,
+    nk_cross_tile_e2m3_blackwellrtx_k = nk_cross_tile_ampere_k,
+    nk_cross_threads_e2m1_blackwellrtx_k = nk_cross_threads_ampere_k,
+    nk_cross_tile_e2m1_blackwellrtx_k = nk_cross_tile_ampere_k,
+};
+
 #pragma region Instructions
 
 NUMKONG_DEVICE void nk_mma_e5m2_blackwellrtx_(nk_fui32_t accumulator[4], nk_u32_t const a[4], nk_u32_t b_first,
@@ -127,53 +141,247 @@ NUMKONG_DEVICE void nk_dots_e2m1_multiply_blackwellrtx_(nk_fui32_t accumulators[
 
 #pragma endregion Multiplies
 
+#pragma region Tiles
+
+NUMKONG_DEVICE void nk_cross_tile_e5m2_blackwellrtx_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                     nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __align__(128) nk_cross_shared_ampere_t shared;
+    nk_fui32_t accumulators[4][8][4];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last ring reads must retire before this tile's prologue refills it.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_cross_accumulators_clear_ampere_(accumulators);
+        nk_f32_t row_real_norm = 0, column_real_norm = 0;
+        nk_cross_prologue_ampere_(&shared, arguments, first_row, first_column);
+        unsigned read_stage = 0, write_stage = nk_cross_stages_ampere_k - 1;
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(nk_cross_stages_ampere_k - 2);
+            __syncthreads();
+            unsigned char *a_stage = shared.stages[read_stage][0], *b_stage = shared.stages[read_stage][1];
+#pragma unroll
+            for (unsigned sub_slab = 0; sub_slab < 2; ++sub_slab) {
+                nk_u32_t a_fragments[4][4], b_fragments[8][2];
+                nk_cross_load_fragments_ampere_(a_stage, b_stage, sub_slab, a_fragments, b_fragments);
+                nk_dots_e5m2_multiply_blackwellrtx_(accumulators, a_fragments, b_fragments);
+            }
+            nk_cross_prefetch_ampere_(&shared, arguments, first_row, first_column, slab, write_stage);
+            if (metric != nk_cross_metric_dot_k) {
+                nk_cross_stage_norm_e5m2_ampere_(a_stage, &row_real_norm);
+                if (nk_cross_symmetric_simt_(band)) nk_cross_stage_norm_e5m2_ampere_(b_stage, &column_real_norm);
+            }
+            read_stage = read_stage + 1 == nk_cross_stages_ampere_k ? 0 : read_stage + 1;
+            write_stage = write_stage + 1 == nk_cross_stages_ampere_k ? 0 : write_stage + 1;
+        }
+        nk_cross_tile_store_ampere_(
+            &shared, accumulators, nk_cross_epilogue_f32_k, 1.0f, nk_cross_norm_f32_k, metric, band, first_row,
+            first_column, nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, 0, row_real_norm, 1.0f),
+            nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, 0, column_real_norm, 1.0f), arguments);
+    }
+}
+
+NUMKONG_DEVICE void nk_cross_tile_e4m3_blackwellrtx_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                     nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __align__(128) nk_cross_shared_ampere_t shared;
+    nk_fui32_t accumulators[4][8][4];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last ring reads must retire before this tile's prologue refills it.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_cross_accumulators_clear_ampere_(accumulators);
+        nk_f32_t row_real_norm = 0, column_real_norm = 0;
+        nk_cross_prologue_ampere_(&shared, arguments, first_row, first_column);
+        unsigned read_stage = 0, write_stage = nk_cross_stages_ampere_k - 1;
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(nk_cross_stages_ampere_k - 2);
+            __syncthreads();
+            unsigned char *a_stage = shared.stages[read_stage][0], *b_stage = shared.stages[read_stage][1];
+#pragma unroll
+            for (unsigned sub_slab = 0; sub_slab < 2; ++sub_slab) {
+                nk_u32_t a_fragments[4][4], b_fragments[8][2];
+                nk_cross_load_fragments_ampere_(a_stage, b_stage, sub_slab, a_fragments, b_fragments);
+                nk_dots_e4m3_multiply_blackwellrtx_(accumulators, a_fragments, b_fragments);
+            }
+            nk_cross_prefetch_ampere_(&shared, arguments, first_row, first_column, slab, write_stage);
+            if (metric != nk_cross_metric_dot_k) {
+                nk_cross_stage_norm_e4m3_ampere_(a_stage, &row_real_norm);
+                if (nk_cross_symmetric_simt_(band)) nk_cross_stage_norm_e4m3_ampere_(b_stage, &column_real_norm);
+            }
+            read_stage = read_stage + 1 == nk_cross_stages_ampere_k ? 0 : read_stage + 1;
+            write_stage = write_stage + 1 == nk_cross_stages_ampere_k ? 0 : write_stage + 1;
+        }
+        nk_cross_tile_store_ampere_(
+            &shared, accumulators, nk_cross_epilogue_f32_k, 1.0f, nk_cross_norm_f32_k, metric, band, first_row,
+            first_column, nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, 0, row_real_norm, 65536.0f),
+            nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, 0, column_real_norm, 65536.0f), arguments);
+    }
+}
+
+NUMKONG_DEVICE void nk_cross_tile_e3m2_blackwellrtx_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                     nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __align__(128) nk_cross_shared_ampere_t shared;
+    nk_fui32_t accumulators[4][8][4];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last ring reads must retire before this tile's prologue refills it.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_cross_accumulators_clear_ampere_(accumulators);
+        nk_f32_t row_real_norm = 0, column_real_norm = 0;
+        nk_cross_prologue_ampere_(&shared, arguments, first_row, first_column);
+        unsigned read_stage = 0, write_stage = nk_cross_stages_ampere_k - 1;
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(nk_cross_stages_ampere_k - 2);
+            __syncthreads();
+            unsigned char *a_stage = shared.stages[read_stage][0], *b_stage = shared.stages[read_stage][1];
+#pragma unroll
+            for (unsigned sub_slab = 0; sub_slab < 2; ++sub_slab) {
+                nk_u32_t a_fragments[4][4], b_fragments[8][2];
+                nk_cross_load_fragments_ampere_(a_stage, b_stage, sub_slab, a_fragments, b_fragments);
+                nk_dots_e3m2_multiply_blackwellrtx_(accumulators, a_fragments, b_fragments);
+            }
+            nk_cross_prefetch_ampere_(&shared, arguments, first_row, first_column, slab, write_stage);
+            if (metric != nk_cross_metric_dot_k) {
+                nk_cross_stage_norm_e3m2_ampere_(a_stage, &row_real_norm);
+                if (nk_cross_symmetric_simt_(band)) nk_cross_stage_norm_e3m2_ampere_(b_stage, &column_real_norm);
+            }
+            read_stage = read_stage + 1 == nk_cross_stages_ampere_k ? 0 : read_stage + 1;
+            write_stage = write_stage + 1 == nk_cross_stages_ampere_k ? 0 : write_stage + 1;
+        }
+        nk_cross_tile_store_ampere_(
+            &shared, accumulators, nk_cross_epilogue_f32_k, 1.0f, nk_cross_norm_f32_k, metric, band, first_row,
+            first_column, nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, 0, row_real_norm, 16777216.0f),
+            nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, 0, column_real_norm, 16777216.0f), arguments);
+    }
+}
+
+NUMKONG_DEVICE void nk_cross_tile_e2m3_blackwellrtx_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                     nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __align__(128) nk_cross_shared_ampere_t shared;
+    nk_fui32_t accumulators[4][8][4];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last ring reads must retire before this tile's prologue refills it.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_cross_accumulators_clear_ampere_(accumulators);
+        nk_u32_t row_integer_norm = 0, column_integer_norm = 0;
+        nk_cross_prologue_ampere_(&shared, arguments, first_row, first_column);
+        unsigned read_stage = 0, write_stage = nk_cross_stages_ampere_k - 1;
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(nk_cross_stages_ampere_k - 2);
+            __syncthreads();
+            unsigned char *a_stage = shared.stages[read_stage][0], *b_stage = shared.stages[read_stage][1];
+#pragma unroll
+            for (unsigned sub_slab = 0; sub_slab < 2; ++sub_slab) {
+                nk_u32_t a_fragments[4][4], b_fragments[8][2];
+                nk_cross_load_fragments_ampere_(a_stage, b_stage, sub_slab, a_fragments, b_fragments);
+                nk_dots_e2m3_multiply_blackwellrtx_(accumulators, a_fragments, b_fragments);
+            }
+            nk_cross_prefetch_ampere_(&shared, arguments, first_row, first_column, slab, write_stage);
+            if (metric != nk_cross_metric_dot_k) {
+                nk_cross_stage_norm_e2m3_ampere_(a_stage, &row_integer_norm);
+                if (nk_cross_symmetric_simt_(band)) nk_cross_stage_norm_e2m3_ampere_(b_stage, &column_integer_norm);
+            }
+            read_stage = read_stage + 1 == nk_cross_stages_ampere_k ? 0 : read_stage + 1;
+            write_stage = write_stage + 1 == nk_cross_stages_ampere_k ? 0 : write_stage + 1;
+        }
+        nk_cross_tile_store_ampere_(
+            &shared, accumulators, nk_cross_epilogue_f32_k, 1.0f, nk_cross_norm_f32_k, metric, band, first_row,
+            first_column, nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, row_integer_norm, 0, 0.015625f),
+            nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, column_integer_norm, 0, 0.015625f), arguments);
+    }
+}
+
+NUMKONG_DEVICE void nk_cross_tile_e2m1_blackwellrtx_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                     nk_cross_tile_arguments_t const *arguments) {
+    __shared__ __align__(128) nk_cross_shared_ampere_t shared;
+    nk_fui32_t accumulators[4][8][4];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        // The previous tile's last ring reads must retire before this tile's prologue refills it.
+        __syncthreads();
+        nk_size_t first_row, first_column;
+        if (!nk_cross_tile_origin_ampere_(band, arguments, tile, &first_row, &first_column)) continue;
+        nk_cross_accumulators_clear_ampere_(accumulators);
+        nk_u32_t row_integer_norm = 0, column_integer_norm = 0;
+        nk_cross_prologue_ampere_(&shared, arguments, first_row, first_column);
+        unsigned read_stage = 0, write_stage = nk_cross_stages_ampere_k - 1;
+        for (nk_size_t slab = 0; slab < arguments->depth_slabs; ++slab) {
+            nk_wait_async_ampere_(nk_cross_stages_ampere_k - 2);
+            __syncthreads();
+            unsigned char *a_stage = shared.stages[read_stage][0], *b_stage = shared.stages[read_stage][1];
+#pragma unroll
+            for (unsigned sub_slab = 0; sub_slab < 2; ++sub_slab) {
+                nk_u32_t a_fragments[4][4], b_fragments[8][2];
+                nk_cross_load_fragments_ampere_(a_stage, b_stage, sub_slab, a_fragments, b_fragments);
+                nk_dots_e2m1_multiply_blackwellrtx_(accumulators, a_fragments, b_fragments);
+            }
+            nk_cross_prefetch_ampere_(&shared, arguments, first_row, first_column, slab, write_stage);
+            if (metric != nk_cross_metric_dot_k) {
+                nk_cross_stage_norm_e2m1_ampere_(a_stage, &row_integer_norm);
+                if (nk_cross_symmetric_simt_(band)) nk_cross_stage_norm_e2m1_ampere_(b_stage, &column_integer_norm);
+            }
+            read_stage = read_stage + 1 == nk_cross_stages_ampere_k ? 0 : read_stage + 1;
+            write_stage = write_stage + 1 == nk_cross_stages_ampere_k ? 0 : write_stage + 1;
+        }
+        nk_cross_tile_store_ampere_(
+            &shared, accumulators, nk_cross_epilogue_f32_k, 1.0f, nk_cross_norm_f32_k, metric, band, first_row,
+            first_column, nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, row_integer_norm, 0, 0.25f),
+            nk_cross_norm_finalize_simt_(nk_cross_norm_f32_k, column_integer_norm, 0, 0.25f), arguments);
+    }
+}
+
+#pragma endregion Tiles
+
 #pragma region E5M2
 
-nk_define_cross_pack_cuda_(e5m2, blackwellrtx, e5m2, e5m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e5m2, blackwellrtx, e5m2, e5m2, nk_load_b8_simt_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_(dot, e5m2, blackwellrtx, ampere, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_e5m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(dot, e5m2, blackwellrtx, e5m2_blackwellrtx, e5m2, e5m2, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion E5M2
 
 #pragma region E4M3
 
-nk_define_cross_pack_cuda_(e4m3, blackwellrtx, e4m3, e4m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e4m3, blackwellrtx, e4m3, e4m3, nk_load_b8_simt_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_(dot, e4m3, blackwellrtx, ampere, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_e4m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(dot, e4m3, blackwellrtx, e4m3_blackwellrtx, e4m3, e4m3, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion E4M3
 
 #pragma region E3M2
 
-nk_define_cross_pack_cuda_(e3m2, blackwellrtx, e3m2, e3m2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e3m2, blackwellrtx, e3m2, e3m2, nk_load_b8_simt_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_(dot, e3m2, blackwellrtx, ampere, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_e3m2_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(dot, e3m2, blackwellrtx, e3m2_blackwellrtx, e3m2, e3m2, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion E3M2
 
 #pragma region E2M3
 
-nk_define_cross_pack_cuda_(e2m3, blackwellrtx, e2m3, e2m3, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m3, blackwellrtx, e2m3, e2m3, nk_load_b8_simt_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/16, /*dimensions_per_value=*/1)
-nk_define_cross_cuda_(dot, e2m3, blackwellrtx, ampere, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
-                      /*dimensions_per_value=*/1, nk_dots_e2m3_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(dot, e2m3, blackwellrtx, e2m3_blackwellrtx, e2m3, e2m3, f32, /*depth_simd_dimensions=*/16,
+                      /*dimensions_per_value=*/1)
 
 #pragma endregion E2M3
 
 #pragma region E2M1
 
-nk_define_cross_pack_cuda_(e2m1, blackwellrtx, e2m1x2, e2m1x2, nk_load_b8_, /*norm_value_type=*/f32,
+nk_define_cross_pack_cuda_(e2m1, blackwellrtx, e2m1x2, e2m1x2, nk_load_b8_simt_, /*norm_value_type=*/f32,
                            /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/2)
-nk_define_cross_cuda_(dot, e2m1, blackwellrtx, ampere, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
-                      /*dimensions_per_value=*/2, nk_dots_e2m1_multiply_blackwellrtx_, nk_cross_epilogue_f32_k,
-                      /*output_scale=*/1.0f, nk_cross_norm_f32_k, NUMKONG_NULL, /*norm_scale=*/1.0f)
+nk_define_cross_cuda_(dot, e2m1, blackwellrtx, e2m1_blackwellrtx, e2m1x2, e2m1x2, f32, /*depth_simd_dimensions=*/32,
+                      /*dimensions_per_value=*/2)
 
 #pragma endregion E2M1
 

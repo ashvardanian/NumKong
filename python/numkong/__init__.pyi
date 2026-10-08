@@ -633,7 +633,7 @@ class AttentionPackedMatrix:
         ...
 
     @property
-    def heads(self) -> int:
+    def key_value_head_count(self) -> int:
         """Number of KV heads."""
         ...
 
@@ -649,7 +649,7 @@ class AttentionPackedMatrix:
 
     @property
     def shape(self) -> tuple[int, int, int]:
-        """Dimensions (heads, depth, segments) read from the packed buffer header."""
+        """Dimensions (key_value_head_count, depth, segments) read from the packed buffer header."""
         ...
 
     @property
@@ -1603,13 +1603,14 @@ def attention_pack(
     k: _BufferType,
     v: _BufferType,
     /,
-    segment_offsets: _BufferType,
-    segment_lengths: _BufferType | None = None,
+    key_offsets: _BufferType,
+    key_lengths: _BufferType | None = None,
     depth: int | None = None,
     threads: int = 1,
     **dispatch: Unpack[_Dispatch],
 ) -> AttentionPackedMatrix:
-    """Pack ragged K/V token matrices into a backend-opaque KV-cache blob."""
+    """Pack ragged K/V token matrices into a backend-opaque KV-cache blob, segment s keeping its
+    `key_lengths[s]` keys, by default the whole slot, from row `key_offsets[s]`."""
     ...
 
 def attention_packed(
@@ -1634,7 +1635,6 @@ def attention_packed_gradients(
     kv: AttentionPackedMatrix,
     /,
     query_offsets: _BufferType,
-    key_offsets: _BufferType,
     output: _BufferType,
     output_gradient: _BufferType,
     log_sum_exp: _BufferType,

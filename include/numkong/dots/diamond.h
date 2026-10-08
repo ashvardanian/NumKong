@@ -44,7 +44,7 @@ nk_define_cross_packed_shape_(dots, e4m3, diamond)
 nk_define_cross_pack_(dots, e4m3, diamond, e4m3, e4m3, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
                       /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e4m3_skylake_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e4m3, diamond, e4m3, f32, nk_b512_vec_t, nk_dot_through_f16_state_diamond_t_,
                            nk_b128_vec_t, nk_dot_through_f16_init_diamond_, nk_load_e4m3x32_to_f16x32_diamond_,
@@ -66,7 +66,7 @@ nk_define_cross_packed_shape_(dots, e5m2, diamond)
 nk_define_cross_pack_(dots, e5m2, diamond, e5m2, e5m2, nk_b512_vec_t, nk_load_b512_skylake_,
                       nk_partial_load_b8x64_skylake_, nk_store_b512_skylake_, nk_partial_store_b8x64_skylake_,
                       /*simd_width=*/64, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e5m2_skylake_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e5m2, diamond, e5m2, f32, nk_b512_vec_t, nk_dot_through_f16_state_diamond_t_,
                            nk_b128_vec_t, nk_dot_through_f16_init_diamond_, nk_load_e5m2x32_to_f16x32_diamond_,

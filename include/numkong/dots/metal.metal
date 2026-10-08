@@ -114,7 +114,10 @@ struct f16_t {
     using norm_t = float;
     static constant constexpr uint dimensions_per_value = 1;
     static half4 widen(ushort4 codes) { return as_type<half4>(codes); }
-    static float load(device uchar const *row, uint index) { return (float)((device half const *)row)[index]; }
+    static float load(device uchar const *row, uint index) {
+        device half const *elements = (device half const *)row;
+        return (float)elements[index];
+    }
     static float squares(uint bits) {
         float const value = (float)as_type<half>((ushort)bits);
         return value * value;
@@ -128,7 +131,10 @@ struct bf16_t {
     using norm_t = float;
     static constant constexpr uint dimensions_per_value = 1;
     static bfloat4 widen(ushort4 codes) { return as_type<bfloat4>(codes); }
-    static float load(device uchar const *row, uint index) { return (float)((device bfloat const *)row)[index]; }
+    static float load(device uchar const *row, uint index) {
+        device bfloat const *elements = (device bfloat const *)row;
+        return (float)elements[index];
+    }
     static float squares(uint bits) {
         float const value = as_type<float>(bits << 16);
         return value * value;

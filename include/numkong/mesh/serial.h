@@ -10,7 +10,7 @@
 #define NUMKONG_MESH_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/scalar/serial.h" // `nk_f32_sqrt_`, `nk_f64_sqrt_`
+#include "numkong/scalar/serial.h" // `nk_sqrt_f32_serial_`, `nk_sqrt_f64_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -30,22 +30,22 @@ extern "C" {
 
 /** Type-generic SVD helper macros, starting with this conditional swap, generate f32 and f64
  *  versions of the SVD helper functions used by the Kabsch and Umeyama algorithms. */
-#define nk_define_cond_swap_(type)                                                          \
-    NUMKONG_INLINE void nk_cond_swap_##type##_(int c, nk_##type##_t *x, nk_##type##_t *y) { \
-        nk_##type##_t temp = *x;                                                            \
-        *x = c ? *y : *x;                                                                   \
-        *y = c ? temp : *y;                                                                 \
+#define nk_define_cond_swap_(type)                                                                 \
+    NUMKONG_INLINE void nk_cond_swap_##type##_serial_(int c, nk_##type##_t *x, nk_##type##_t *y) { \
+        nk_##type##_t temp = *x;                                                                   \
+        *x = c ? *y : *x;                                                                          \
+        *y = c ? temp : *y;                                                                        \
     }
 
-#define nk_define_conditional_negating_swap_(type)                                                          \
-    NUMKONG_INLINE void nk_conditional_negating_swap_##type##_(int c, nk_##type##_t *x, nk_##type##_t *y) { \
-        nk_##type##_t neg_x = -*x;                                                                          \
-        *x = c ? *y : *x;                                                                                   \
-        *y = c ? neg_x : *y;                                                                                \
+#define nk_define_conditional_negating_swap_(type)                                                                 \
+    NUMKONG_INLINE void nk_conditional_negating_swap_##type##_serial_(int c, nk_##type##_t *x, nk_##type##_t *y) { \
+        nk_##type##_t neg_x = -*x;                                                                                 \
+        *x = c ? *y : *x;                                                                                          \
+        *y = c ? neg_x : *y;                                                                                       \
     }
 
 #define nk_define_approximate_givens_quaternion_(type, gamma, cstar, sstar, compute_rsqrt)                           \
-    NUMKONG_INLINE void nk_approximate_givens_quaternion_##type##_(                                                  \
+    NUMKONG_INLINE void nk_approximate_givens_quaternion_##type##_serial_(                                           \
         nk_##type##_t a11, nk_##type##_t a12, nk_##type##_t a22, nk_##type##_t *cos_half, nk_##type##_t *sin_half) { \
         *cos_half = 2 * (a11 - a22), *sin_half = a12;                                                                \
         int use_givens = gamma * (*sin_half) * (*sin_half) < (*cos_half) * (*cos_half);                              \
@@ -55,11 +55,11 @@ extern "C" {
     }
 
 #define nk_define_jacobi_conjugation_(type)                                                          \
-    NUMKONG_INLINE void nk_jacobi_conjugation_##type##_(                                             \
+    NUMKONG_INLINE void nk_jacobi_conjugation_##type##_serial_(                                      \
         int idx_x, int idx_y, int idx_z, nk_##type##_t *s11, nk_##type##_t *s21, nk_##type##_t *s22, \
         nk_##type##_t *s31, nk_##type##_t *s32, nk_##type##_t *s33, nk_##type##_t *quaternion) {     \
         nk_##type##_t cos_half, sin_half;                                                            \
-        nk_approximate_givens_quaternion_##type##_(*s11, *s21, *s22, &cos_half, &sin_half);          \
+        nk_approximate_givens_quaternion_##type##_serial_(*s11, *s21, *s22, &cos_half, &sin_half);   \
         nk_##type##_t scale = cos_half * cos_half + sin_half * sin_half;                             \
         nk_##type##_t cos_theta = (cos_half * cos_half - sin_half * sin_half) / scale;               \
         nk_##type##_t sin_theta = (2 * sin_half * cos_half) / scale;                                 \
@@ -91,110 +91,110 @@ extern "C" {
         *s31 = s31_old, *s32 = s32_old, *s33 = s33_old;                                              \
     }
 
-#define nk_define_quaternion_to_mat3x3_(type)                                                                 \
-    NUMKONG_INLINE void nk_quaternion_to_mat3x3_##type##_(nk_##type##_t const *quat, nk_##type##_t *matrix) { \
-        nk_##type##_t w = quat[3], x = quat[0], y = quat[1], z = quat[2];                                     \
-        nk_##type##_t q_xx = x * x, q_yy = y * y, q_zz = z * z;                                               \
-        nk_##type##_t q_xz = x * z, q_xy = x * y, q_yz = y * z;                                               \
-        nk_##type##_t q_wx = w * x, q_wy = w * y, q_wz = w * z;                                               \
-        matrix[0] = 1 - 2 * (q_yy + q_zz), matrix[1] = 2 * (q_xy - q_wz);                                     \
-        matrix[2] = 2 * (q_xz + q_wy);                                                                        \
-        matrix[3] = 2 * (q_xy + q_wz), matrix[4] = 1 - 2 * (q_xx + q_zz);                                     \
-        matrix[5] = 2 * (q_yz - q_wx);                                                                        \
-        matrix[6] = 2 * (q_xz - q_wy), matrix[7] = 2 * (q_yz + q_wx);                                         \
-        matrix[8] = 1 - 2 * (q_xx + q_yy);                                                                    \
+#define nk_define_quaternion_to_mat3x3_(type)                                                                        \
+    NUMKONG_INLINE void nk_quaternion_to_mat3x3_##type##_serial_(nk_##type##_t const *quat, nk_##type##_t *matrix) { \
+        nk_##type##_t w = quat[3], x = quat[0], y = quat[1], z = quat[2];                                            \
+        nk_##type##_t q_xx = x * x, q_yy = y * y, q_zz = z * z;                                                      \
+        nk_##type##_t q_xz = x * z, q_xy = x * y, q_yz = y * z;                                                      \
+        nk_##type##_t q_wx = w * x, q_wy = w * y, q_wz = w * z;                                                      \
+        matrix[0] = 1 - 2 * (q_yy + q_zz), matrix[1] = 2 * (q_xy - q_wz);                                            \
+        matrix[2] = 2 * (q_xz + q_wy);                                                                               \
+        matrix[3] = 2 * (q_xy + q_wz), matrix[4] = 1 - 2 * (q_xx + q_zz);                                            \
+        matrix[5] = 2 * (q_yz - q_wx);                                                                               \
+        matrix[6] = 2 * (q_xz - q_wy), matrix[7] = 2 * (q_yz + q_wx);                                                \
+        matrix[8] = 1 - 2 * (q_xx + q_yy);                                                                           \
     }
 
-#define nk_define_jacobi_eigenanalysis_(type, compute_rsqrt)                                                          \
-    NUMKONG_INLINE void nk_jacobi_eigenanalysis_##type##_(nk_##type##_t *s11, nk_##type##_t *s21, nk_##type##_t *s22, \
-                                                          nk_##type##_t *s31, nk_##type##_t *s32, nk_##type##_t *s33, \
-                                                          nk_##type##_t *quaternion) {                                \
-        quaternion[0] = 0, quaternion[1] = 0, quaternion[2] = 0, quaternion[3] = 1;                                   \
-        /* 16 iterations converge better with repeated eigenvalues and identity-like matrices */                      \
-        for (int iter = 0; iter < 16; iter++) {                                                                       \
-            nk_jacobi_conjugation_##type##_(0, 1, 2, s11, s21, s22, s31, s32, s33, quaternion);                       \
-            nk_jacobi_conjugation_##type##_(1, 2, 0, s11, s21, s22, s31, s32, s33, quaternion);                       \
-            nk_jacobi_conjugation_##type##_(2, 0, 1, s11, s21, s22, s31, s32, s33, quaternion);                       \
-        }                                                                                                             \
-        nk_##type##_t norm = compute_rsqrt(quaternion[0] * quaternion[0] + quaternion[1] * quaternion[1] +            \
-                                           quaternion[2] * quaternion[2] + quaternion[3] * quaternion[3]);            \
-        quaternion[0] *= norm, quaternion[1] *= norm;                                                                 \
-        quaternion[2] *= norm, quaternion[3] *= norm;                                                                 \
+#define nk_define_jacobi_eigenanalysis_(type, compute_rsqrt)                                                \
+    NUMKONG_INLINE void nk_jacobi_eigenanalysis_##type##_serial_(                                           \
+        nk_##type##_t *s11, nk_##type##_t *s21, nk_##type##_t *s22, nk_##type##_t *s31, nk_##type##_t *s32, \
+        nk_##type##_t *s33, nk_##type##_t *quaternion) {                                                    \
+        quaternion[0] = 0, quaternion[1] = 0, quaternion[2] = 0, quaternion[3] = 1;                         \
+        /* 16 iterations converge better with repeated eigenvalues and identity-like matrices */            \
+        for (int iter = 0; iter < 16; iter++) {                                                             \
+            nk_jacobi_conjugation_##type##_serial_(0, 1, 2, s11, s21, s22, s31, s32, s33, quaternion);      \
+            nk_jacobi_conjugation_##type##_serial_(1, 2, 0, s11, s21, s22, s31, s32, s33, quaternion);      \
+            nk_jacobi_conjugation_##type##_serial_(2, 0, 1, s11, s21, s22, s31, s32, s33, quaternion);      \
+        }                                                                                                   \
+        nk_##type##_t norm = compute_rsqrt(quaternion[0] * quaternion[0] + quaternion[1] * quaternion[1] +  \
+                                           quaternion[2] * quaternion[2] + quaternion[3] * quaternion[3]);  \
+        quaternion[0] *= norm, quaternion[1] *= norm;                                                       \
+        quaternion[2] *= norm, quaternion[3] *= norm;                                                       \
     }
 
-#define nk_define_qr_givens_quaternion_(type, epsilon, compute_rsqrt)                                                  \
-    NUMKONG_INLINE void nk_qr_givens_quaternion_##type##_(nk_##type##_t a1, nk_##type##_t a2, nk_##type##_t *cos_half, \
-                                                          nk_##type##_t *sin_half) {                                   \
-        nk_##type##_t a1_sq_plus_a2_sq = a1 * a1 + a2 * a2;                                                            \
-        nk_##type##_t rho = a1_sq_plus_a2_sq * compute_rsqrt(a1_sq_plus_a2_sq);                                        \
-        rho = a1_sq_plus_a2_sq > epsilon ? rho : 0;                                                                    \
-        *sin_half = rho > epsilon ? a2 : 0;                                                                            \
-        nk_##type##_t abs_a1 = a1 < 0 ? -a1 : a1;                                                                      \
-        nk_##type##_t max_rho = rho > epsilon ? rho : epsilon;                                                         \
-        *cos_half = abs_a1 + max_rho;                                                                                  \
-        int should_swap = a1 < 0;                                                                                      \
-        nk_cond_swap_##type##_(should_swap, sin_half, cos_half);                                                       \
-        nk_##type##_t w = compute_rsqrt((*cos_half) * (*cos_half) + (*sin_half) * (*sin_half));                        \
-        *cos_half *= w, *sin_half *= w;                                                                                \
+#define nk_define_qr_givens_quaternion_(type, epsilon, compute_rsqrt)                                                \
+    NUMKONG_INLINE void nk_qr_givens_quaternion_##type##_serial_(nk_##type##_t a1, nk_##type##_t a2,                 \
+                                                                 nk_##type##_t *cos_half, nk_##type##_t *sin_half) { \
+        nk_##type##_t a1_sq_plus_a2_sq = a1 * a1 + a2 * a2;                                                          \
+        nk_##type##_t rho = a1_sq_plus_a2_sq * compute_rsqrt(a1_sq_plus_a2_sq);                                      \
+        rho = a1_sq_plus_a2_sq > epsilon ? rho : 0;                                                                  \
+        *sin_half = rho > epsilon ? a2 : 0;                                                                          \
+        nk_##type##_t abs_a1 = a1 < 0 ? -a1 : a1;                                                                    \
+        nk_##type##_t max_rho = rho > epsilon ? rho : epsilon;                                                       \
+        *cos_half = abs_a1 + max_rho;                                                                                \
+        int should_swap = a1 < 0;                                                                                    \
+        nk_cond_swap_##type##_serial_(should_swap, sin_half, cos_half);                                              \
+        nk_##type##_t w = compute_rsqrt((*cos_half) * (*cos_half) + (*sin_half) * (*sin_half));                      \
+        *cos_half *= w, *sin_half *= w;                                                                              \
     }
 
-#define nk_define_sort_singular_values_(type)                                                   \
-    NUMKONG_INLINE void nk_sort_singular_values_##type##_(nk_##type##_t *b, nk_##type##_t *v) { \
-        nk_##type##_t column_norm_squared_0 = b[0] * b[0] + b[3] * b[3] + b[6] * b[6];          \
-        nk_##type##_t column_norm_squared_1 = b[1] * b[1] + b[4] * b[4] + b[7] * b[7];          \
-        nk_##type##_t column_norm_squared_2 = b[2] * b[2] + b[5] * b[5] + b[8] * b[8];          \
-        int should_swap;                                                                        \
-        /* Sort columns by descending singular value magnitude */                               \
-        should_swap = column_norm_squared_0 < column_norm_squared_1;                            \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[0], &b[1]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[0], &v[1]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[3], &b[4]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[3], &v[4]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[6], &b[7]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[6], &v[7]);                      \
-        nk_cond_swap_##type##_(should_swap, &column_norm_squared_0, &column_norm_squared_1);    \
-        should_swap = column_norm_squared_0 < column_norm_squared_2;                            \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[0], &b[2]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[0], &v[2]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[3], &b[5]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[3], &v[5]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[6], &b[8]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[6], &v[8]);                      \
-        nk_cond_swap_##type##_(should_swap, &column_norm_squared_0, &column_norm_squared_2);    \
-        should_swap = column_norm_squared_1 < column_norm_squared_2;                            \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[1], &b[2]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[1], &v[2]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[4], &b[5]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[4], &v[5]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &b[7], &b[8]);                      \
-        nk_conditional_negating_swap_##type##_(should_swap, &v[7], &v[8]);                      \
+#define nk_define_sort_singular_values_(type)                                                          \
+    NUMKONG_INLINE void nk_sort_singular_values_##type##_serial_(nk_##type##_t *b, nk_##type##_t *v) { \
+        nk_##type##_t column_norm_squared_0 = b[0] * b[0] + b[3] * b[3] + b[6] * b[6];                 \
+        nk_##type##_t column_norm_squared_1 = b[1] * b[1] + b[4] * b[4] + b[7] * b[7];                 \
+        nk_##type##_t column_norm_squared_2 = b[2] * b[2] + b[5] * b[5] + b[8] * b[8];                 \
+        int should_swap;                                                                               \
+        /* Sort columns by descending singular value magnitude */                                      \
+        should_swap = column_norm_squared_0 < column_norm_squared_1;                                   \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[0], &b[1]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[0], &v[1]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[3], &b[4]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[3], &v[4]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[6], &b[7]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[6], &v[7]);                      \
+        nk_cond_swap_##type##_serial_(should_swap, &column_norm_squared_0, &column_norm_squared_1);    \
+        should_swap = column_norm_squared_0 < column_norm_squared_2;                                   \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[0], &b[2]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[0], &v[2]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[3], &b[5]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[3], &v[5]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[6], &b[8]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[6], &v[8]);                      \
+        nk_cond_swap_##type##_serial_(should_swap, &column_norm_squared_0, &column_norm_squared_2);    \
+        should_swap = column_norm_squared_1 < column_norm_squared_2;                                   \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[1], &b[2]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[1], &v[2]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[4], &b[5]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[4], &v[5]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &b[7], &b[8]);                      \
+        nk_conditional_negating_swap_##type##_serial_(should_swap, &v[7], &v[8]);                      \
     }
 
 /** Q-only QR via three Givens rotations. The R upper-triangular factor is unused by the SVD caller,
  *  so we skip computing it (saves the third cos_theta/sin_theta and 9 R stores per call). */
 #define nk_define_qr_orthogonal_factor_(type)                                                                        \
-    NUMKONG_INLINE void nk_qr_orthogonal_factor_##type##_(nk_##type##_t const *input, nk_##type##_t *q) {            \
+    NUMKONG_INLINE void nk_qr_orthogonal_factor_##type##_serial_(nk_##type##_t const *input, nk_##type##_t *q) {     \
         nk_##type##_t cos_half_1, sin_half_1;                                                                        \
         nk_##type##_t cos_half_2, sin_half_2;                                                                        \
         nk_##type##_t cos_half_3, sin_half_3;                                                                        \
         nk_##type##_t cos_theta, sin_theta;                                                                          \
         nk_##type##_t rotation_temp[9];                                                                              \
         /* First Givens rotation (zero input[3]) */                                                                  \
-        nk_qr_givens_quaternion_##type##_(input[0], input[3], &cos_half_1, &sin_half_1);                             \
+        nk_qr_givens_quaternion_##type##_serial_(input[0], input[3], &cos_half_1, &sin_half_1);                      \
         cos_theta = 1 - 2 * sin_half_1 * sin_half_1;                                                                 \
         sin_theta = 2 * cos_half_1 * sin_half_1;                                                                     \
         rotation_temp[1] = cos_theta * input[1] + sin_theta * input[4];                                              \
         rotation_temp[4] = -sin_theta * input[1] + cos_theta * input[4];                                             \
         rotation_temp[7] = input[7];                                                                                 \
         /* Second Givens rotation (only the [4]/[7] cells flow into the third Givens) */                             \
-        nk_qr_givens_quaternion_##type##_(input[0] * cos_theta + sin_theta * input[3], input[6], &cos_half_2,        \
-                                          &sin_half_2);                                                              \
+        nk_qr_givens_quaternion_##type##_serial_(input[0] * cos_theta + sin_theta * input[3], input[6], &cos_half_2, \
+                                                 &sin_half_2);                                                       \
         cos_theta = 1 - 2 * sin_half_2 * sin_half_2;                                                                 \
         sin_theta = 2 * cos_half_2 * sin_half_2;                                                                     \
         nk_##type##_t matrix_temp_4 = rotation_temp[4];                                                              \
         nk_##type##_t matrix_temp_7 = -sin_theta * rotation_temp[1] + cos_theta * rotation_temp[7];                  \
         /* Third Givens rotation zeroes matrix_temp_7; Q needs only sin_half_3 and cos_half_3 */                     \
-        nk_qr_givens_quaternion_##type##_(matrix_temp_4, matrix_temp_7, &cos_half_3, &sin_half_3);                   \
+        nk_qr_givens_quaternion_##type##_serial_(matrix_temp_4, matrix_temp_7, &cos_half_3, &sin_half_3);            \
         /* Construct Q = Q1 * Q2 * Q3 (closed-form expressions) */                                                   \
         nk_##type##_t sin_half_1_sq = sin_half_1 * sin_half_1;                                                       \
         nk_##type##_t sin_half_2_sq = sin_half_2 * sin_half_2;                                                       \
@@ -215,52 +215,64 @@ extern "C" {
         q[8] = (-1 + 2 * sin_half_2_sq) * (-1 + 2 * sin_half_3_sq);                                                  \
     }
 
-#define nk_define_svd3x3_(type, compute_sqrt)                                                                        \
-    NUMKONG_INLINE void nk_svd3x3_##type##_(nk_##type##_t const *a, nk_##type##_t *svd_left,                         \
-                                            nk_##type##_t *svd_diagonal, nk_##type##_t *svd_right) {                 \
-        /* Compute Aᵀ * A (symmetric) */                                                                             \
-        nk_##type##_t ata[9];                                                                                        \
-        ata[0] = nk_sum_three_squares_##type##_(a[0], a[3], a[6]);                                                   \
-        ata[1] = nk_sum_three_products_##type##_(a[0], a[1], a[3], a[4], a[6], a[7]);                                \
-        ata[2] = nk_sum_three_products_##type##_(a[0], a[2], a[3], a[5], a[6], a[8]);                                \
-        ata[3] = ata[1];                                                                                             \
-        ata[4] = nk_sum_three_squares_##type##_(a[1], a[4], a[7]);                                                   \
-        ata[5] = nk_sum_three_products_##type##_(a[1], a[2], a[4], a[5], a[7], a[8]);                                \
-        ata[6] = ata[2];                                                                                             \
-        ata[7] = ata[5];                                                                                             \
-        ata[8] = nk_sum_three_squares_##type##_(a[2], a[5], a[8]);                                                   \
-        /* Jacobi eigenanalysis of Aᵀ * A */                                                                         \
-        nk_##type##_t quaternion[4];                                                                                 \
-        nk_jacobi_eigenanalysis_##type##_(&ata[0], &ata[1], &ata[4], &ata[2], &ata[5], &ata[8], quaternion);         \
-        nk_quaternion_to_mat3x3_##type##_(quaternion, svd_right);                                                    \
-        /* B = A * V */                                                                                              \
-        nk_##type##_t product[9];                                                                                    \
-        product[0] = nk_sum_three_products_##type##_(a[0], svd_right[0], a[1], svd_right[3], a[2], svd_right[6]);    \
-        product[1] = nk_sum_three_products_##type##_(a[0], svd_right[1], a[1], svd_right[4], a[2], svd_right[7]);    \
-        product[2] = nk_sum_three_products_##type##_(a[0], svd_right[2], a[1], svd_right[5], a[2], svd_right[8]);    \
-        product[3] = nk_sum_three_products_##type##_(a[3], svd_right[0], a[4], svd_right[3], a[5], svd_right[6]);    \
-        product[4] = nk_sum_three_products_##type##_(a[3], svd_right[1], a[4], svd_right[4], a[5], svd_right[7]);    \
-        product[5] = nk_sum_three_products_##type##_(a[3], svd_right[2], a[4], svd_right[5], a[5], svd_right[8]);    \
-        product[6] = nk_sum_three_products_##type##_(a[6], svd_right[0], a[7], svd_right[3], a[8], svd_right[6]);    \
-        product[7] = nk_sum_three_products_##type##_(a[6], svd_right[1], a[7], svd_right[4], a[8], svd_right[7]);    \
-        product[8] = nk_sum_three_products_##type##_(a[6], svd_right[2], a[7], svd_right[5], a[8], svd_right[8]);    \
-        /* Sort singular values and update V */                                                                      \
-        nk_sort_singular_values_##type##_(product, svd_right);                                                       \
-        /* Compute singular values from column norms of sorted B (before QR orthogonalizes them) */                  \
-        /* These are the true singular values: √(‖colᵢ‖²) */                                                         \
-        nk_##type##_t singular_value_squared_0 = nk_sum_three_squares_##type##_(product[0], product[3], product[6]); \
-        nk_##type##_t singular_value_squared_1 = nk_sum_three_squares_##type##_(product[1], product[4], product[7]); \
-        nk_##type##_t singular_value_squared_2 = nk_sum_three_squares_##type##_(product[2], product[5], product[8]); \
-        /* Q-only QR: extract U (the orthogonal factor); R is unused by SVD */                                       \
-        nk_qr_orthogonal_factor_##type##_(product, svd_left);                                                        \
-        /* Singular values go on diagonal positions [0], [4], [8]; callers never read the rest */                    \
-        svd_diagonal[0] = compute_sqrt(singular_value_squared_0);                                                    \
-        svd_diagonal[4] = compute_sqrt(singular_value_squared_1);                                                    \
-        svd_diagonal[8] = compute_sqrt(singular_value_squared_2);                                                    \
+#define nk_define_svd3x3_(type, compute_sqrt)                                                                       \
+    NUMKONG_INLINE void nk_svd3x3_##type##_serial_(nk_##type##_t const *a, nk_##type##_t *svd_left,                 \
+                                                   nk_##type##_t *svd_diagonal, nk_##type##_t *svd_right) {         \
+        /* Compute Aᵀ * A (symmetric) */                                                                            \
+        nk_##type##_t ata[9];                                                                                       \
+        ata[0] = nk_sum_three_squares_##type##_serial_(a[0], a[3], a[6]);                                           \
+        ata[1] = nk_sum_three_products_##type##_serial_(a[0], a[1], a[3], a[4], a[6], a[7]);                        \
+        ata[2] = nk_sum_three_products_##type##_serial_(a[0], a[2], a[3], a[5], a[6], a[8]);                        \
+        ata[3] = ata[1];                                                                                            \
+        ata[4] = nk_sum_three_squares_##type##_serial_(a[1], a[4], a[7]);                                           \
+        ata[5] = nk_sum_three_products_##type##_serial_(a[1], a[2], a[4], a[5], a[7], a[8]);                        \
+        ata[6] = ata[2];                                                                                            \
+        ata[7] = ata[5];                                                                                            \
+        ata[8] = nk_sum_three_squares_##type##_serial_(a[2], a[5], a[8]);                                           \
+        /* Jacobi eigenanalysis of Aᵀ * A */                                                                        \
+        nk_##type##_t quaternion[4];                                                                                \
+        nk_jacobi_eigenanalysis_##type##_serial_(&ata[0], &ata[1], &ata[4], &ata[2], &ata[5], &ata[8], quaternion); \
+        nk_quaternion_to_mat3x3_##type##_serial_(quaternion, svd_right);                                            \
+        /* B = A * V */                                                                                             \
+        nk_##type##_t product[9];                                                                                   \
+        product[0] = nk_sum_three_products_##type##_serial_(a[0], svd_right[0], a[1], svd_right[3], a[2],           \
+                                                            svd_right[6]);                                          \
+        product[1] = nk_sum_three_products_##type##_serial_(a[0], svd_right[1], a[1], svd_right[4], a[2],           \
+                                                            svd_right[7]);                                          \
+        product[2] = nk_sum_three_products_##type##_serial_(a[0], svd_right[2], a[1], svd_right[5], a[2],           \
+                                                            svd_right[8]);                                          \
+        product[3] = nk_sum_three_products_##type##_serial_(a[3], svd_right[0], a[4], svd_right[3], a[5],           \
+                                                            svd_right[6]);                                          \
+        product[4] = nk_sum_three_products_##type##_serial_(a[3], svd_right[1], a[4], svd_right[4], a[5],           \
+                                                            svd_right[7]);                                          \
+        product[5] = nk_sum_three_products_##type##_serial_(a[3], svd_right[2], a[4], svd_right[5], a[5],           \
+                                                            svd_right[8]);                                          \
+        product[6] = nk_sum_three_products_##type##_serial_(a[6], svd_right[0], a[7], svd_right[3], a[8],           \
+                                                            svd_right[6]);                                          \
+        product[7] = nk_sum_three_products_##type##_serial_(a[6], svd_right[1], a[7], svd_right[4], a[8],           \
+                                                            svd_right[7]);                                          \
+        product[8] = nk_sum_three_products_##type##_serial_(a[6], svd_right[2], a[7], svd_right[5], a[8],           \
+                                                            svd_right[8]);                                          \
+        /* Sort singular values and update V */                                                                     \
+        nk_sort_singular_values_##type##_serial_(product, svd_right);                                               \
+        /* Compute singular values from column norms of sorted B (before QR orthogonalizes them) */                 \
+        /* These are the true singular values: √(‖colᵢ‖²) */                                                        \
+        nk_##type##_t singular_value_squared_0 = nk_sum_three_squares_##type##_serial_(product[0], product[3],      \
+                                                                                       product[6]);                 \
+        nk_##type##_t singular_value_squared_1 = nk_sum_three_squares_##type##_serial_(product[1], product[4],      \
+                                                                                       product[7]);                 \
+        nk_##type##_t singular_value_squared_2 = nk_sum_three_squares_##type##_serial_(product[2], product[5],      \
+                                                                                       product[8]);                 \
+        /* Q-only QR: extract U (the orthogonal factor); R is unused by SVD */                                      \
+        nk_qr_orthogonal_factor_##type##_serial_(product, svd_left);                                                \
+        /* Singular values go on diagonal positions [0], [4], [8]; callers never read the rest */                   \
+        svd_diagonal[0] = compute_sqrt(singular_value_squared_0);                                                   \
+        svd_diagonal[4] = compute_sqrt(singular_value_squared_1);                                                   \
+        svd_diagonal[8] = compute_sqrt(singular_value_squared_2);                                                   \
     }
 
 #define nk_define_det3x3_(type)                                                          \
-    NUMKONG_INLINE nk_##type##_t nk_det3x3_##type##_(nk_##type##_t const *m) {           \
+    NUMKONG_INLINE nk_##type##_t nk_det3x3_##type##_serial_(nk_##type##_t const *m) {    \
         return m[0] * (m[4] * m[8] - m[5] * m[7]) - m[1] * (m[3] * m[8] - m[5] * m[6]) + \
                m[2] * (m[3] * m[7] - m[4] * m[6]);                                       \
     }
@@ -284,70 +296,73 @@ extern "C" {
 #endif
 #endif
 
-NUMKONG_INLINE nk_f32_t nk_sum_three_products_f32_(nk_f32_t left_0, nk_f32_t right_0, nk_f32_t left_1, nk_f32_t right_1,
-                                                   nk_f32_t left_2, nk_f32_t right_2) {
+NUMKONG_INLINE nk_f32_t nk_sum_three_products_f32_serial_(nk_f32_t left_0, nk_f32_t right_0, nk_f32_t left_1,
+                                                          nk_f32_t right_1, nk_f32_t left_2, nk_f32_t right_2) {
     return left_0 * right_0 + left_1 * right_1 + left_2 * right_2;
 }
-NUMKONG_INLINE nk_f64_t nk_sum_three_products_f64_(nk_f64_t left_0, nk_f64_t right_0, nk_f64_t left_1, nk_f64_t right_1,
-                                                   nk_f64_t left_2, nk_f64_t right_2) {
+NUMKONG_INLINE nk_f64_t nk_sum_three_products_f64_serial_(nk_f64_t left_0, nk_f64_t right_0, nk_f64_t left_1,
+                                                          nk_f64_t right_1, nk_f64_t left_2, nk_f64_t right_2) {
     nk_f64_t sum = 0.0, compensation = 0.0;
-    nk_f64_dot2_(&sum, &compensation, left_0, right_0);
-    nk_f64_dot2_(&sum, &compensation, left_1, right_1);
-    nk_f64_dot2_(&sum, &compensation, left_2, right_2);
+    nk_dot2_f64_serial_(&sum, &compensation, left_0, right_0);
+    nk_dot2_f64_serial_(&sum, &compensation, left_1, right_1);
+    nk_dot2_f64_serial_(&sum, &compensation, left_2, right_2);
     return sum + compensation;
 }
 
-NUMKONG_INLINE nk_f32_t nk_sum_three_squares_f32_(nk_f32_t value_0, nk_f32_t value_1, nk_f32_t value_2) {
+NUMKONG_INLINE nk_f32_t nk_sum_three_squares_f32_serial_(nk_f32_t value_0, nk_f32_t value_1, nk_f32_t value_2) {
     return value_0 * value_0 + value_1 * value_1 + value_2 * value_2;
 }
-NUMKONG_INLINE nk_f64_t nk_sum_three_squares_f64_(nk_f64_t value_0, nk_f64_t value_1, nk_f64_t value_2) {
+NUMKONG_INLINE nk_f64_t nk_sum_three_squares_f64_serial_(nk_f64_t value_0, nk_f64_t value_1, nk_f64_t value_2) {
     nk_f64_t sum = 0.0, compensation = 0.0;
-    nk_f64_dot2_(&sum, &compensation, value_0, value_0);
-    nk_f64_dot2_(&sum, &compensation, value_1, value_1);
-    nk_f64_dot2_(&sum, &compensation, value_2, value_2);
+    nk_dot2_f64_serial_(&sum, &compensation, value_0, value_0);
+    nk_dot2_f64_serial_(&sum, &compensation, value_1, value_1);
+    nk_dot2_f64_serial_(&sum, &compensation, value_2, value_2);
     return sum + compensation;
 }
 
-NUMKONG_INLINE void nk_accumulate_sum_f32_(nk_f32_t *sum, nk_f32_t *compensation, nk_f32_t value) {
+NUMKONG_INLINE void nk_accumulate_sum_f32_serial_(nk_f32_t *sum, nk_f32_t *compensation, nk_f32_t value) {
     nk_unused_(compensation);
     *sum += value;
 }
-NUMKONG_INLINE void nk_accumulate_sum_f64_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t value) {
+NUMKONG_INLINE void nk_accumulate_sum_f64_serial_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t value) {
     nk_f64_t running_sum = *sum + value;
     *compensation += (nk_f64_abs_(*sum) >= nk_f64_abs_(value)) ? ((*sum - running_sum) + value)
                                                                : ((value - running_sum) + *sum);
     *sum = running_sum;
 }
 
-NUMKONG_INLINE void nk_accumulate_product_f32_(nk_f32_t *sum, nk_f32_t *compensation, nk_f32_t left, nk_f32_t right) {
+NUMKONG_INLINE void nk_accumulate_product_f32_serial_(nk_f32_t *sum, nk_f32_t *compensation, nk_f32_t left,
+                                                      nk_f32_t right) {
     nk_unused_(compensation);
     *sum += left * right;
 }
-NUMKONG_INLINE void nk_accumulate_product_f64_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t left, nk_f64_t right) {
-    nk_f64_dot2_(sum, compensation, left, right);
+NUMKONG_INLINE void nk_accumulate_product_f64_serial_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t left,
+                                                      nk_f64_t right) {
+    nk_dot2_f64_serial_(sum, compensation, left, right);
 }
 
-NUMKONG_INLINE void nk_accumulate_square_f32_(nk_f32_t *sum, nk_f32_t *compensation, nk_f32_t value) {
+NUMKONG_INLINE void nk_accumulate_square_f32_serial_(nk_f32_t *sum, nk_f32_t *compensation, nk_f32_t value) {
     nk_unused_(compensation);
     *sum += value * value;
 }
-NUMKONG_INLINE void nk_accumulate_square_f64_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t value) {
-    nk_f64_dot2_(sum, compensation, value, value);
+NUMKONG_INLINE void nk_accumulate_square_f64_serial_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t value) {
+    nk_dot2_f64_serial_(sum, compensation, value, value);
 }
 
-/** Adds one pivot-shifted point pair to the sums for @ref nk_centered_moments_finalize_f32_. */
-NUMKONG_INLINE void nk_centered_moments_update_f32_(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t *sum_a,
-                                                    nk_f32_t *sum_b, nk_f32_t *covariance, nk_f32_t *norm_squared_a,
-                                                    nk_f32_t *norm_squared_b) {
+/** Adds one pivot-shifted point pair to sums for @ref nk_centered_moments_finalize_f32_serial_. */
+NUMKONG_INLINE void nk_centered_moments_update_f32_serial_(nk_f32_t const *a, nk_f32_t const *b, nk_f32_t *sum_a,
+                                                           nk_f32_t *sum_b, nk_f32_t *covariance,
+                                                           nk_f32_t *norm_squared_a, nk_f32_t *norm_squared_b) {
     for (int j = 0; j != 3; ++j) {
         sum_a[j] += a[j], sum_b[j] += b[j], *norm_squared_a += a[j] * a[j], *norm_squared_b += b[j] * b[j];
         for (int k = 0; k != 3; ++k) covariance[j * 3 + k] += a[j] * b[k];
     }
 }
 
-/** Adds one pivot-shifted point pair to the sums for @ref nk_centered_moments_finalize_f64_. */
-NUMKONG_INLINE void nk_centered_moments_update_f64_(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t *sum_a,
-                                                    nk_f64_t *sum_b, nk_f64_t *covariance, nk_f64_t *norm_squared_a) {
+/** Adds one pivot-shifted point pair to sums for @ref nk_centered_moments_finalize_f64_serial_. */
+NUMKONG_INLINE void nk_centered_moments_update_f64_serial_(nk_f64_t const *a, nk_f64_t const *b, nk_f64_t *sum_a,
+                                                           nk_f64_t *sum_b, nk_f64_t *covariance,
+                                                           nk_f64_t *norm_squared_a) {
     for (int j = 0; j != 3; ++j) {
         sum_a[j] += a[j], sum_b[j] += b[j], *norm_squared_a += a[j] * a[j];
         for (int k = 0; k != 3; ++k) covariance[j * 3 + k] += a[j] * b[k];
@@ -361,7 +376,7 @@ NUMKONG_INLINE void nk_centered_moments_update_f64_(nk_f64_t const *a, nk_f64_t 
  *  Shifting by a point of each cloud, like the first one, keeps the centering correction from
  *  cancelling when the clouds sit far from the origin.
  */
-NUMKONG_INLINE void nk_centered_moments_finalize_f32_(                                                           //
+NUMKONG_INLINE void nk_centered_moments_finalize_f32_serial_(                                                    //
     nk_size_t n, nk_f32_t const *pivot_a, nk_f32_t const *pivot_b, nk_f32_t const *sum_a, nk_f32_t const *sum_b, //
     nk_f32_t const *covariance, nk_f32_t norm_squared_a, nk_f32_t norm_squared_b, nk_f32_t *centroid_a,          //
     nk_f32_t *centroid_b, nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,                         //
@@ -386,7 +401,7 @@ NUMKONG_INLINE void nk_centered_moments_finalize_f32_(                          
  *  Shifting by a point of each cloud, like the first one, keeps the centering correction from
  *  cancelling when the clouds sit far from the origin. @p centered_norm_squared_a may be null.
  */
-NUMKONG_INLINE void nk_centered_moments_finalize_f64_(                                                           //
+NUMKONG_INLINE void nk_centered_moments_finalize_f64_serial_(                                                    //
     nk_size_t n, nk_f64_t const *pivot_a, nk_f64_t const *pivot_b, nk_f64_t const *sum_a, nk_f64_t const *sum_b, //
     nk_f64_t const *covariance, nk_f64_t norm_squared_a, nk_f64_t *centroid_a, nk_f64_t *centroid_b,             //
     nk_f64_t *cross_covariance, nk_f64_t *centered_norm_squared_a) {
@@ -409,8 +424,9 @@ NUMKONG_INLINE void nk_centered_moments_finalize_f64_(                          
  *  The f16 and bf16 kernels take this single-pass form over a residual pass, as its √ε cancellation
  *  in f32 stays below the quantization of their own inputs.
  */
-NUMKONG_INLINE nk_f32_t nk_folded_ssd_f32_(nk_f32_t const *rotation, nk_f32_t scale, nk_f32_t const *cross_covariance,
-                                           nk_f32_t centered_norm_squared_a, nk_f32_t centered_norm_squared_b) {
+NUMKONG_INLINE nk_f32_t nk_folded_ssd_f32_serial_(nk_f32_t const *rotation, nk_f32_t scale,
+                                                  nk_f32_t const *cross_covariance, nk_f32_t centered_norm_squared_a,
+                                                  nk_f32_t centered_norm_squared_b) {
     nk_f32_t trace_rotation_covariance = 0;
     for (int j = 0; j != 3; ++j)
         for (int k = 0; k != 3; ++k) trace_rotation_covariance += rotation[j * 3 + k] * cross_covariance[k * 3 + j];
@@ -420,120 +436,120 @@ NUMKONG_INLINE nk_f32_t nk_folded_ssd_f32_(nk_f32_t const *rotation, nk_f32_t sc
 }
 
 /** Adds ‖r · a − b‖² of one centered point pair to a sum, @p r being the scaled rotation s · R. */
-NUMKONG_INLINE void nk_accumulate_residual_f64_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t const *r,
-                                                nk_f64_t const *a, nk_f64_t const *b) {
+NUMKONG_INLINE void nk_accumulate_residual_f64_serial_(nk_f64_t *sum, nk_f64_t *compensation, nk_f64_t const *r,
+                                                       nk_f64_t const *a, nk_f64_t const *b) {
     for (int j = 0; j != 3; ++j)
-        nk_accumulate_square_f64_(sum, compensation,
-                                  r[j * 3] * a[0] + r[j * 3 + 1] * a[1] + r[j * 3 + 2] * a[2] - b[j]);
+        nk_accumulate_square_f64_serial_(sum, compensation,
+                                         r[j * 3] * a[0] + r[j * 3 + 1] * a[1] + r[j * 3 + 2] * a[2] - b[j]);
 }
 
 NUMKONG_INLINE void nk_rotation_from_svd_f32_serial_(nk_f32_t const *svd_left, nk_f32_t const *svd_right,
                                                      nk_f32_t *rotation) {
-    rotation[0] = nk_sum_three_products_f32_( //
+    rotation[0] = nk_sum_three_products_f32_serial_( //
         svd_right[0], svd_left[0], svd_right[1], svd_left[1], svd_right[2], svd_left[2]);
-    rotation[1] = nk_sum_three_products_f32_( //
+    rotation[1] = nk_sum_three_products_f32_serial_( //
         svd_right[0], svd_left[3], svd_right[1], svd_left[4], svd_right[2], svd_left[5]);
-    rotation[2] = nk_sum_three_products_f32_( //
+    rotation[2] = nk_sum_three_products_f32_serial_( //
         svd_right[0], svd_left[6], svd_right[1], svd_left[7], svd_right[2], svd_left[8]);
-    rotation[3] = nk_sum_three_products_f32_( //
+    rotation[3] = nk_sum_three_products_f32_serial_( //
         svd_right[3], svd_left[0], svd_right[4], svd_left[1], svd_right[5], svd_left[2]);
-    rotation[4] = nk_sum_three_products_f32_( //
+    rotation[4] = nk_sum_three_products_f32_serial_( //
         svd_right[3], svd_left[3], svd_right[4], svd_left[4], svd_right[5], svd_left[5]);
-    rotation[5] = nk_sum_three_products_f32_( //
+    rotation[5] = nk_sum_three_products_f32_serial_( //
         svd_right[3], svd_left[6], svd_right[4], svd_left[7], svd_right[5], svd_left[8]);
-    rotation[6] = nk_sum_three_products_f32_( //
+    rotation[6] = nk_sum_three_products_f32_serial_( //
         svd_right[6], svd_left[0], svd_right[7], svd_left[1], svd_right[8], svd_left[2]);
-    rotation[7] = nk_sum_three_products_f32_( //
+    rotation[7] = nk_sum_three_products_f32_serial_( //
         svd_right[6], svd_left[3], svd_right[7], svd_left[4], svd_right[8], svd_left[5]);
-    rotation[8] = nk_sum_three_products_f32_( //
+    rotation[8] = nk_sum_three_products_f32_serial_( //
         svd_right[6], svd_left[6], svd_right[7], svd_left[7], svd_right[8], svd_left[8]);
 }
 NUMKONG_INLINE void nk_rotation_from_svd_f64_serial_(nk_f64_t const *svd_left, nk_f64_t const *svd_right,
                                                      nk_f64_t *rotation) {
-    rotation[0] = nk_sum_three_products_f64_( //
+    rotation[0] = nk_sum_three_products_f64_serial_( //
         svd_right[0], svd_left[0], svd_right[1], svd_left[1], svd_right[2], svd_left[2]);
-    rotation[1] = nk_sum_three_products_f64_( //
+    rotation[1] = nk_sum_three_products_f64_serial_( //
         svd_right[0], svd_left[3], svd_right[1], svd_left[4], svd_right[2], svd_left[5]);
-    rotation[2] = nk_sum_three_products_f64_( //
+    rotation[2] = nk_sum_three_products_f64_serial_( //
         svd_right[0], svd_left[6], svd_right[1], svd_left[7], svd_right[2], svd_left[8]);
-    rotation[3] = nk_sum_three_products_f64_( //
+    rotation[3] = nk_sum_three_products_f64_serial_( //
         svd_right[3], svd_left[0], svd_right[4], svd_left[1], svd_right[5], svd_left[2]);
-    rotation[4] = nk_sum_three_products_f64_( //
+    rotation[4] = nk_sum_three_products_f64_serial_( //
         svd_right[3], svd_left[3], svd_right[4], svd_left[4], svd_right[5], svd_left[5]);
-    rotation[5] = nk_sum_three_products_f64_( //
+    rotation[5] = nk_sum_three_products_f64_serial_( //
         svd_right[3], svd_left[6], svd_right[4], svd_left[7], svd_right[5], svd_left[8]);
-    rotation[6] = nk_sum_three_products_f64_( //
+    rotation[6] = nk_sum_three_products_f64_serial_( //
         svd_right[6], svd_left[0], svd_right[7], svd_left[1], svd_right[8], svd_left[2]);
-    rotation[7] = nk_sum_three_products_f64_( //
+    rotation[7] = nk_sum_three_products_f64_serial_( //
         svd_right[6], svd_left[3], svd_right[7], svd_left[4], svd_right[8], svd_left[5]);
-    rotation[8] = nk_sum_three_products_f64_( //
+    rotation[8] = nk_sum_three_products_f64_serial_( //
         svd_right[6], svd_left[6], svd_right[7], svd_left[7], svd_right[8], svd_left[8]);
 }
 
 nk_define_cond_swap_(f32)
 nk_define_conditional_negating_swap_(f32)
 nk_define_approximate_givens_quaternion_(f32, NUMKONG_F32_SVD_GAMMA_, NUMKONG_F32_SVD_CSTAR_, NUMKONG_F32_SVD_SSTAR_,
-                                         nk_f32_rsqrt_)
+                                         nk_rsqrt_f32_serial_)
 nk_define_jacobi_conjugation_(f32)
 nk_define_quaternion_to_mat3x3_(f32)
-nk_define_jacobi_eigenanalysis_(f32, nk_f32_rsqrt_)
-nk_define_qr_givens_quaternion_(f32, NUMKONG_F32_SVD_EPSILON_, nk_f32_rsqrt_)
+nk_define_jacobi_eigenanalysis_(f32, nk_rsqrt_f32_serial_)
+nk_define_qr_givens_quaternion_(f32, NUMKONG_F32_SVD_EPSILON_, nk_rsqrt_f32_serial_)
 nk_define_sort_singular_values_(f32)
 nk_define_qr_orthogonal_factor_(f32)
-nk_define_svd3x3_(f32, nk_f32_sqrt_)
+nk_define_svd3x3_(f32, nk_sqrt_f32_serial_)
 nk_define_det3x3_(f32)
 
 nk_define_cond_swap_(f64)
 nk_define_conditional_negating_swap_(f64)
 nk_define_approximate_givens_quaternion_(f64, NUMKONG_F64_SVD_GAMMA_, NUMKONG_F64_SVD_CSTAR_, NUMKONG_F64_SVD_SSTAR_,
-                                         nk_f64_rsqrt_)
+                                         nk_rsqrt_f64_serial_)
 nk_define_jacobi_conjugation_(f64)
 nk_define_quaternion_to_mat3x3_(f64)
-nk_define_jacobi_eigenanalysis_(f64, nk_f64_rsqrt_)
-nk_define_qr_givens_quaternion_(f64, NUMKONG_F64_SVD_EPSILON_, nk_f64_rsqrt_)
+nk_define_jacobi_eigenanalysis_(f64, nk_rsqrt_f64_serial_)
+nk_define_qr_givens_quaternion_(f64, NUMKONG_F64_SVD_EPSILON_, nk_rsqrt_f64_serial_)
 nk_define_sort_singular_values_(f64)
 nk_define_qr_orthogonal_factor_(f64)
-nk_define_svd3x3_(f64, nk_f64_sqrt_)
+nk_define_svd3x3_(f64, nk_sqrt_f64_serial_)
 nk_define_det3x3_(f64)
 
 /** RMSD, the root mean square deviation, without optimal superposition: the RMS of distances
  *  between corresponding points. */
-#define nk_define_rmsd_(input_type, accumulator_type, output_type, result_type, load_and_convert, compute_sqrt)   \
-    NUMKONG_INLINE void nk_rmsd_##input_type##_(nk_##input_type##_t const *a, nk_##input_type##_t const *b,       \
-                                                nk_size_t n, nk_##output_type##_t *a_centroid,                    \
-                                                nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, \
-                                                nk_##output_type##_t *scale, nk_##result_type##_t *result) {      \
-        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;                                  \
-        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;                                  \
-        if (rotation)                                                                                             \
-            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0, \
-            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;                                                    \
-        if (scale) *scale = (nk_##output_type##_t)1;                                                              \
-        nk_##accumulator_type##_t sum_squared = 0, sum_squared_compensation = 0;                                  \
-        nk_##accumulator_type##_t val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;                           \
-        for (nk_size_t i = 0; i < n; ++i) {                                                                       \
-            load_and_convert(a + i * 3 + 0, &val_a_x), load_and_convert(b + i * 3 + 0, &val_b_x);                 \
-            load_and_convert(a + i * 3 + 1, &val_a_y), load_and_convert(b + i * 3 + 1, &val_b_y);                 \
-            load_and_convert(a + i * 3 + 2, &val_a_z), load_and_convert(b + i * 3 + 2, &val_b_z);                 \
-            nk_##accumulator_type##_t dx = val_a_x - val_b_x;                                                     \
-            nk_##accumulator_type##_t dy = val_a_y - val_b_y;                                                     \
-            nk_##accumulator_type##_t dz = val_a_z - val_b_z;                                                     \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation, dx);              \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation, dy);              \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation, dz);              \
-        }                                                                                                         \
-        nk_##accumulator_type##_t msd = (sum_squared + sum_squared_compensation) / (nk_##accumulator_type##_t)n;  \
-        *result = msd > 0 ? (nk_##result_type##_t)compute_sqrt(msd) : 0;                                          \
+#define nk_define_rmsd_(input_type, accumulator_type, output_type, result_type, load_and_convert, compute_sqrt)    \
+    NUMKONG_INLINE void nk_rmsd_##input_type##_serial_(                                                            \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *a_centroid, \
+        nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, nk_##output_type##_t *scale,             \
+        nk_##result_type##_t *result) {                                                                            \
+        if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;                                   \
+        if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;                                   \
+        if (rotation)                                                                                              \
+            rotation[0] = 1, rotation[1] = 0, rotation[2] = 0, rotation[3] = 0, rotation[4] = 1, rotation[5] = 0,  \
+            rotation[6] = 0, rotation[7] = 0, rotation[8] = 1;                                                     \
+        if (scale) *scale = (nk_##output_type##_t)1;                                                               \
+        nk_##accumulator_type##_t sum_squared = 0, sum_squared_compensation = 0;                                   \
+        nk_##accumulator_type##_t val_a_x, val_a_y, val_a_z, val_b_x, val_b_y, val_b_z;                            \
+        for (nk_size_t i = 0; i < n; ++i) {                                                                        \
+            load_and_convert(a + i * 3 + 0, &val_a_x), load_and_convert(b + i * 3 + 0, &val_b_x);                  \
+            load_and_convert(a + i * 3 + 1, &val_a_y), load_and_convert(b + i * 3 + 1, &val_b_y);                  \
+            load_and_convert(a + i * 3 + 2, &val_a_z), load_and_convert(b + i * 3 + 2, &val_b_z);                  \
+            nk_##accumulator_type##_t dx = val_a_x - val_b_x;                                                      \
+            nk_##accumulator_type##_t dy = val_a_y - val_b_y;                                                      \
+            nk_##accumulator_type##_t dz = val_a_z - val_b_z;                                                      \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation, dx);        \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation, dy);        \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation, dz);        \
+        }                                                                                                          \
+        nk_##accumulator_type##_t msd = (sum_squared + sum_squared_compensation) / (nk_##accumulator_type##_t)n;   \
+        *result = msd > 0 ? (nk_##result_type##_t)compute_sqrt(msd) : 0;                                           \
     }
 
 /** Kabsch algorithm for optimal rigid body superposition. Finds the rotation matrix R that
  *  minimizes the RMSD between the two point sets. */
 #define nk_define_kabsch_(input_type, accumulator_type, output_type, result_type, svd_type, load_and_convert,         \
                           compute_sqrt)                                                                               \
-    NUMKONG_INLINE void nk_kabsch_##input_type##_(nk_##input_type##_t const *a, nk_##input_type##_t const *b,         \
-                                                  nk_size_t n, nk_##output_type##_t *a_centroid,                      \
-                                                  nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation,   \
-                                                  nk_##output_type##_t *scale, nk_##result_type##_t *result) {        \
+    NUMKONG_INLINE void nk_kabsch_##input_type##_serial_(                                                             \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *a_centroid,    \
+        nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, nk_##output_type##_t *scale,                \
+        nk_##result_type##_t *result) {                                                                               \
         if (n == 0) {                                                                                                 \
             if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;                                  \
             if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;                                  \
@@ -554,12 +570,12 @@ nk_define_det3x3_(f64)
             load_and_convert(a + i * 3 + 0, &val_a_x), load_and_convert(a + i * 3 + 1, &val_a_y);                     \
             load_and_convert(a + i * 3 + 2, &val_a_z), load_and_convert(b + i * 3 + 0, &val_b_x);                     \
             load_and_convert(b + i * 3 + 1, &val_b_y), load_and_convert(b + i * 3 + 2, &val_b_z);                     \
-            nk_accumulate_sum_##accumulator_type##_(&sum_a_x, &sum_a_x_compensation, val_a_x);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_a_y, &sum_a_y_compensation, val_a_y);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_a_z, &sum_a_z_compensation, val_a_z);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_b_x, &sum_b_x_compensation, val_b_x);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_b_y, &sum_b_y_compensation, val_b_y);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_b_z, &sum_b_z_compensation, val_b_z);                        \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_a_x, &sum_a_x_compensation, val_a_x);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_a_y, &sum_a_y_compensation, val_a_y);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_a_z, &sum_a_z_compensation, val_a_z);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_b_x, &sum_b_x_compensation, val_b_x);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_b_y, &sum_b_y_compensation, val_b_y);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_b_z, &sum_b_z_compensation, val_b_z);                 \
         }                                                                                                             \
         nk_##accumulator_type##_t inv_n = (nk_##accumulator_type##_t)1.0 / (nk_##accumulator_type##_t)n;              \
         nk_##accumulator_type##_t centroid_a_x = (sum_a_x + sum_a_x_compensation) * inv_n;                            \
@@ -583,24 +599,24 @@ nk_define_det3x3_(f64)
             load_and_convert(a + i * 3 + 2, &val_a_z), load_and_convert(b + i * 3 + 2, &val_b_z);                     \
             val_a_x -= centroid_a_x, val_a_y -= centroid_a_y, val_a_z -= centroid_a_z;                                \
             val_b_x -= centroid_b_x, val_b_y -= centroid_b_y, val_b_z -= centroid_b_z;                                \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[0],                               \
-                                                        &cross_covariance_kahan_compensation[0], val_a_x, val_b_x);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[1],                               \
-                                                        &cross_covariance_kahan_compensation[1], val_a_x, val_b_y);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[2],                               \
-                                                        &cross_covariance_kahan_compensation[2], val_a_x, val_b_z);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[3],                               \
-                                                        &cross_covariance_kahan_compensation[3], val_a_y, val_b_x);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[4],                               \
-                                                        &cross_covariance_kahan_compensation[4], val_a_y, val_b_y);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[5],                               \
-                                                        &cross_covariance_kahan_compensation[5], val_a_y, val_b_z);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[6],                               \
-                                                        &cross_covariance_kahan_compensation[6], val_a_z, val_b_x);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[7],                               \
-                                                        &cross_covariance_kahan_compensation[7], val_a_z, val_b_y);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[8],                               \
-                                                        &cross_covariance_kahan_compensation[8], val_a_z, val_b_z);   \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[0], &cross_covariance_kahan_compensation[0], val_a_x, val_b_x);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[1], &cross_covariance_kahan_compensation[1], val_a_x, val_b_y);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[2], &cross_covariance_kahan_compensation[2], val_a_x, val_b_z);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[3], &cross_covariance_kahan_compensation[3], val_a_y, val_b_x);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[4], &cross_covariance_kahan_compensation[4], val_a_y, val_b_y);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[5], &cross_covariance_kahan_compensation[5], val_a_y, val_b_z);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[6], &cross_covariance_kahan_compensation[6], val_a_z, val_b_x);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[7], &cross_covariance_kahan_compensation[7], val_a_z, val_b_y);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[8], &cross_covariance_kahan_compensation[8], val_a_z, val_b_z);           \
         }                                                                                                             \
         /* Convert to svd_type for SVD */                                                                             \
         nk_##svd_type##_t cross_covariance[9];                                                                        \
@@ -609,12 +625,12 @@ nk_define_det3x3_(f64)
                                                       cross_covariance_kahan_compensation[j]);                        \
         /* SVD of H = U * S * Vᵀ */                                                                                   \
         nk_##svd_type##_t svd_left[9], svd_diagonal[9], svd_right[9];                                                 \
-        nk_svd3x3_##svd_type##_(cross_covariance, svd_left, svd_diagonal, svd_right);                                 \
+        nk_svd3x3_##svd_type##_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);                          \
         /* R = V * Uᵀ */                                                                                              \
         nk_##svd_type##_t optimal_rotation[9];                                                                        \
         nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                             \
         /* Handle reflection: if det(R) < 0, negate third column of V and recompute R */                              \
-        nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_(optimal_rotation);                           \
+        nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_serial_(optimal_rotation);                    \
         if (rotation_determinant < 0) {                                                                               \
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];                 \
             nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                         \
@@ -645,12 +661,12 @@ nk_define_det3x3_(f64)
             nk_##svd_type##_t dx = rotated_point_a[0] - point_b[0];                                                   \
             nk_##svd_type##_t dy = rotated_point_a[1] - point_b[1];                                                   \
             nk_##svd_type##_t dz = rotated_point_a[2] - point_b[2];                                                   \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation,                       \
-                                                       (nk_##accumulator_type##_t)dx);                                \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation,                       \
-                                                       (nk_##accumulator_type##_t)dy);                                \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation,                       \
-                                                       (nk_##accumulator_type##_t)dz);                                \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation,                \
+                                                              (nk_##accumulator_type##_t)dx);                         \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation,                \
+                                                              (nk_##accumulator_type##_t)dy);                         \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation,                \
+                                                              (nk_##accumulator_type##_t)dz);                         \
         }                                                                                                             \
         *result = (nk_##result_type##_t)compute_sqrt((sum_squared + sum_squared_compensation) * inv_n);               \
     }
@@ -660,10 +676,10 @@ nk_define_det3x3_(f64)
  *  1991: "Least-squares estimation of transformation parameters between two point patterns". */
 #define nk_define_umeyama_(input_type, accumulator_type, output_type, result_type, svd_type, load_and_convert,        \
                            compute_sqrt)                                                                              \
-    NUMKONG_INLINE void nk_umeyama_##input_type##_(nk_##input_type##_t const *a, nk_##input_type##_t const *b,        \
-                                                   nk_size_t n, nk_##output_type##_t *a_centroid,                     \
-                                                   nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation,  \
-                                                   nk_##output_type##_t *scale, nk_##result_type##_t *result) {       \
+    NUMKONG_INLINE void nk_umeyama_##input_type##_serial_(                                                            \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *a_centroid,    \
+        nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, nk_##output_type##_t *scale,                \
+        nk_##result_type##_t *result) {                                                                               \
         if (n == 0) {                                                                                                 \
             if (a_centroid) a_centroid[0] = 0, a_centroid[1] = 0, a_centroid[2] = 0;                                  \
             if (b_centroid) b_centroid[0] = 0, b_centroid[1] = 0, b_centroid[2] = 0;                                  \
@@ -684,12 +700,12 @@ nk_define_det3x3_(f64)
             load_and_convert(a + i * 3 + 0, &val_a_x), load_and_convert(a + i * 3 + 1, &val_a_y);                     \
             load_and_convert(a + i * 3 + 2, &val_a_z), load_and_convert(b + i * 3 + 0, &val_b_x);                     \
             load_and_convert(b + i * 3 + 1, &val_b_y), load_and_convert(b + i * 3 + 2, &val_b_z);                     \
-            nk_accumulate_sum_##accumulator_type##_(&sum_a_x, &sum_a_x_compensation, val_a_x);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_a_y, &sum_a_y_compensation, val_a_y);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_a_z, &sum_a_z_compensation, val_a_z);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_b_x, &sum_b_x_compensation, val_b_x);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_b_y, &sum_b_y_compensation, val_b_y);                        \
-            nk_accumulate_sum_##accumulator_type##_(&sum_b_z, &sum_b_z_compensation, val_b_z);                        \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_a_x, &sum_a_x_compensation, val_a_x);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_a_y, &sum_a_y_compensation, val_a_y);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_a_z, &sum_a_z_compensation, val_a_z);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_b_x, &sum_b_x_compensation, val_b_x);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_b_y, &sum_b_y_compensation, val_b_y);                 \
+            nk_accumulate_sum_##accumulator_type##_serial_(&sum_b_z, &sum_b_z_compensation, val_b_z);                 \
         }                                                                                                             \
         nk_##accumulator_type##_t inv_n = (nk_##accumulator_type##_t)1.0 / (nk_##accumulator_type##_t)n;              \
         nk_##accumulator_type##_t centroid_a_x = (sum_a_x + sum_a_x_compensation) * inv_n;                            \
@@ -714,27 +730,27 @@ nk_define_det3x3_(f64)
             load_and_convert(a + i * 3 + 2, &val_a_z), load_and_convert(b + i * 3 + 2, &val_b_z);                     \
             val_a_x -= centroid_a_x, val_a_y -= centroid_a_y, val_a_z -= centroid_a_z;                                \
             val_b_x -= centroid_b_x, val_b_y -= centroid_b_y, val_b_z -= centroid_b_z;                                \
-            nk_accumulate_square_##accumulator_type##_(&variance_a, &variance_a_compensation, val_a_x);               \
-            nk_accumulate_square_##accumulator_type##_(&variance_a, &variance_a_compensation, val_a_y);               \
-            nk_accumulate_square_##accumulator_type##_(&variance_a, &variance_a_compensation, val_a_z);               \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[0],                               \
-                                                        &cross_covariance_kahan_compensation[0], val_a_x, val_b_x);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[1],                               \
-                                                        &cross_covariance_kahan_compensation[1], val_a_x, val_b_y);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[2],                               \
-                                                        &cross_covariance_kahan_compensation[2], val_a_x, val_b_z);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[3],                               \
-                                                        &cross_covariance_kahan_compensation[3], val_a_y, val_b_x);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[4],                               \
-                                                        &cross_covariance_kahan_compensation[4], val_a_y, val_b_y);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[5],                               \
-                                                        &cross_covariance_kahan_compensation[5], val_a_y, val_b_z);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[6],                               \
-                                                        &cross_covariance_kahan_compensation[6], val_a_z, val_b_x);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[7],                               \
-                                                        &cross_covariance_kahan_compensation[7], val_a_z, val_b_y);   \
-            nk_accumulate_product_##accumulator_type##_(&cross_covariance_kahan_sum[8],                               \
-                                                        &cross_covariance_kahan_compensation[8], val_a_z, val_b_z);   \
+            nk_accumulate_square_##accumulator_type##_serial_(&variance_a, &variance_a_compensation, val_a_x);        \
+            nk_accumulate_square_##accumulator_type##_serial_(&variance_a, &variance_a_compensation, val_a_y);        \
+            nk_accumulate_square_##accumulator_type##_serial_(&variance_a, &variance_a_compensation, val_a_z);        \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[0], &cross_covariance_kahan_compensation[0], val_a_x, val_b_x);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[1], &cross_covariance_kahan_compensation[1], val_a_x, val_b_y);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[2], &cross_covariance_kahan_compensation[2], val_a_x, val_b_z);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[3], &cross_covariance_kahan_compensation[3], val_a_y, val_b_x);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[4], &cross_covariance_kahan_compensation[4], val_a_y, val_b_y);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[5], &cross_covariance_kahan_compensation[5], val_a_y, val_b_z);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[6], &cross_covariance_kahan_compensation[6], val_a_z, val_b_x);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[7], &cross_covariance_kahan_compensation[7], val_a_z, val_b_y);           \
+            nk_accumulate_product_##accumulator_type##_serial_(                                                       \
+                &cross_covariance_kahan_sum[8], &cross_covariance_kahan_compensation[8], val_a_z, val_b_z);           \
         }                                                                                                             \
         variance_a = (variance_a + variance_a_compensation) * inv_n;                                                  \
         /* Convert to svd_type for SVD */                                                                             \
@@ -744,13 +760,13 @@ nk_define_det3x3_(f64)
                                                       cross_covariance_kahan_compensation[j]);                        \
         /* SVD of H = U * S * Vᵀ */                                                                                   \
         nk_##svd_type##_t svd_left[9], svd_diagonal[9], svd_right[9];                                                 \
-        nk_svd3x3_##svd_type##_(cross_covariance, svd_left, svd_diagonal, svd_right);                                 \
+        nk_svd3x3_##svd_type##_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);                          \
         /* R = V * Uᵀ */                                                                                              \
         nk_##svd_type##_t optimal_rotation[9];                                                                        \
         nk_rotation_from_svd_##svd_type##_serial_(svd_left, svd_right, optimal_rotation);                             \
         /* Handle reflection and compute scale: c = trace(D × S) / variance(a) */                                     \
         /* D = diag(1, 1, det(R)); svd_diagonal holds proper positive singular values */                              \
-        nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_(optimal_rotation);                           \
+        nk_##svd_type##_t rotation_determinant = nk_det3x3_##svd_type##_serial_(optimal_rotation);                    \
         nk_##svd_type##_t sign_det = rotation_determinant < 0 ? (nk_##svd_type##_t) - 1.0 : (nk_##svd_type##_t)1.0;   \
         nk_##svd_type##_t trace_scaled_s = svd_diagonal[0] + svd_diagonal[4] + sign_det * svd_diagonal[8];            \
         nk_##accumulator_type##_t scale_factor = (nk_##accumulator_type##_t)trace_scaled_s /                          \
@@ -788,12 +804,12 @@ nk_define_det3x3_(f64)
             nk_##svd_type##_t dx = rotated_point_a[0] - point_b[0];                                                   \
             nk_##svd_type##_t dy = rotated_point_a[1] - point_b[1];                                                   \
             nk_##svd_type##_t dz = rotated_point_a[2] - point_b[2];                                                   \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation,                       \
-                                                       (nk_##accumulator_type##_t)dx);                                \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation,                       \
-                                                       (nk_##accumulator_type##_t)dy);                                \
-            nk_accumulate_square_##accumulator_type##_(&sum_squared, &sum_squared_compensation,                       \
-                                                       (nk_##accumulator_type##_t)dz);                                \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation,                \
+                                                              (nk_##accumulator_type##_t)dx);                         \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation,                \
+                                                              (nk_##accumulator_type##_t)dy);                         \
+            nk_accumulate_square_##accumulator_type##_serial_(&sum_squared, &sum_squared_compensation,                \
+                                                              (nk_##accumulator_type##_t)dz);                         \
         }                                                                                                             \
         *result = (nk_##result_type##_t)compute_sqrt((sum_squared + sum_squared_compensation) * inv_n);               \
     }
@@ -805,25 +821,25 @@ nk_define_det3x3_(f64)
         nk_##output_type##_t *b_centroid, nk_##output_type##_t *rotation, nk_##output_type##_t *scale,             \
         nk_##result_type##_t *result, nk_stream_t stream) {                                                        \
         nk_assert_(stream == NUMKONG_NULL);                                                                        \
-        nk_##metric##_##input_type##_(a, b, n, a_centroid, b_centroid, rotation, scale, result);                   \
+        nk_##metric##_##input_type##_serial_(a, b, n, a_centroid, b_centroid, rotation, scale, result);            \
         return nk_success_k;                                                                                       \
     }
 
-nk_define_rmsd_(f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_)
-nk_define_kabsch_(f64, f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_)
-nk_define_umeyama_(f64, f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_)
+nk_define_rmsd_(f64, f64, f64, f64, nk_assign_from_to_, nk_sqrt_f64_serial_)
+nk_define_kabsch_(f64, f64, f64, f64, f64, nk_assign_from_to_, nk_sqrt_f64_serial_)
+nk_define_umeyama_(f64, f64, f64, f64, f64, nk_assign_from_to_, nk_sqrt_f64_serial_)
 
-nk_define_rmsd_(f32, f64, f32, f64, nk_assign_from_to_, nk_f64_sqrt_)
-nk_define_kabsch_(f32, f64, f32, f64, f64, nk_assign_from_to_, nk_f64_sqrt_)
-nk_define_umeyama_(f32, f64, f32, f64, f64, nk_assign_from_to_, nk_f64_sqrt_)
+nk_define_rmsd_(f32, f64, f32, f64, nk_assign_from_to_, nk_sqrt_f64_serial_)
+nk_define_kabsch_(f32, f64, f32, f64, f64, nk_assign_from_to_, nk_sqrt_f64_serial_)
+nk_define_umeyama_(f32, f64, f32, f64, f64, nk_assign_from_to_, nk_sqrt_f64_serial_)
 
-nk_define_rmsd_(f16, f32, f32, f32, nk_f16_to_f32_, nk_f32_sqrt_)
-nk_define_kabsch_(f16, f32, f32, f32, f32, nk_f16_to_f32_, nk_f32_sqrt_)
-nk_define_umeyama_(f16, f32, f32, f32, f32, nk_f16_to_f32_, nk_f32_sqrt_)
+nk_define_rmsd_(f16, f32, f32, f32, nk_f16_to_f32_serial_, nk_sqrt_f32_serial_)
+nk_define_kabsch_(f16, f32, f32, f32, f32, nk_f16_to_f32_serial_, nk_sqrt_f32_serial_)
+nk_define_umeyama_(f16, f32, f32, f32, f32, nk_f16_to_f32_serial_, nk_sqrt_f32_serial_)
 
-nk_define_rmsd_(bf16, f32, f32, f32, nk_bf16_to_f32_, nk_f32_sqrt_)
-nk_define_kabsch_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_, nk_f32_sqrt_)
-nk_define_umeyama_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_, nk_f32_sqrt_)
+nk_define_rmsd_(bf16, f32, f32, f32, nk_bf16_to_f32_serial_, nk_sqrt_f32_serial_)
+nk_define_kabsch_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_serial_, nk_sqrt_f32_serial_)
+nk_define_umeyama_(bf16, f32, f32, f32, f32, nk_bf16_to_f32_serial_, nk_sqrt_f32_serial_)
 
 #if NUMKONG_TARGET_SERIAL
 /*  Keep the serial instantiations below actually scalar, regardless of build type. Without this,

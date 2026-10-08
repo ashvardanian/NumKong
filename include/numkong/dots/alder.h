@@ -19,8 +19,8 @@
 #include "numkong/dot/haswell.h"    // Haswell partial load functions
 #include "numkong/cast/haswell.h"   // `nk_partial_load_b8x32_haswell_`
 #include "numkong/dots/serial.h"    // GEMM macro definitions
-#include "numkong/reduce/haswell.h" // `nk_reduce_moments_i8_haswell_contiguous_`
-#include "numkong/reduce/alder.h"   // `nk_reduce_moments_u8_alder_contiguous_`
+#include "numkong/reduce/haswell.h" // `nk_reduce_moments_contiguous_i8_haswell_`
+#include "numkong/reduce/alder.h"   // `nk_reduce_moments_contiguous_u8_alder_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -40,7 +40,7 @@ NUMKONG_INLINE void nk_dots_reduce_moments_i8_alder_(nk_i8_t const *data, nk_siz
     nk_i64_t row_sum;
     nk_u64_t row_sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_i8_haswell_contiguous_(data, count, &row_sum, &row_sumsq);
+    nk_reduce_moments_contiguous_i8_haswell_(data, count, &row_sum, &row_sumsq);
     *sum = (nk_i32_t)row_sum, *norm = (nk_u32_t)row_sumsq;
 }
 
@@ -48,7 +48,7 @@ NUMKONG_INLINE void nk_dots_reduce_moments_u8_alder_(nk_u8_t const *data, nk_siz
                                                      nk_u32_t *sum, nk_u32_t *norm) {
     nk_u64_t row_sum, row_sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_u8_alder_contiguous_(data, count, &row_sum, &row_sumsq);
+    nk_reduce_moments_contiguous_u8_alder_(data, count, &row_sum, &row_sumsq);
     *sum = (nk_u32_t)row_sum, *norm = (nk_u32_t)row_sumsq;
 }
 
@@ -68,7 +68,7 @@ NUMKONG_INLINE nk_u32_t nk_dots_reduce_sumsq_u8_alder_(nk_u8_t const *data, nk_s
 NUMKONG_INLINE nk_f32_t nk_dots_reduce_sumsq_e2m3_alder_(nk_e2m3_t const *data, nk_size_t count, nk_size_t stride) {
     nk_f32_t sum, sumsq;
     nk_unused_(stride);
-    nk_reduce_moments_e2m3_alder_contiguous_(data, count, &sum, &sumsq);
+    nk_reduce_moments_contiguous_e2m3_alder_(data, count, &sum, &sumsq);
     return sumsq;
 }
 
@@ -133,7 +133,7 @@ nk_define_cross_compensated_packed_(dots, i8, alder, i8, i8, i32,
                                     nk_partial_load_b8x32_haswell_, nk_dot_i8x32_update_alder,
                                     nk_dot_i8x32_finalize_alder, nk_store_b128_haswell_,
                                     nk_partial_store_b32x4_haswell_, nk_load_b128_haswell_,
-                                    nk_partial_load_b32x4_haswell_, nk_dots_reduce_sum_i8_stub_,
+                                    nk_partial_load_b32x4_haswell_, nk_dots_reduce_sum_stub_i8_serial_,
                                     /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
 /* U8 GEMM: depth_simd_dimensions=32 — compensated (operand swap, B sums precomputed) */
@@ -163,7 +163,7 @@ nk_define_cross_compensated_packed_(dots, u8, alder, u8, u8, u32,
                                     nk_partial_load_b8x32_haswell_, nk_dot_u8x32_update_alder,
                                     nk_dot_u8x32_finalize_alder, nk_store_b128_haswell_,
                                     nk_partial_store_b32x4_haswell_, nk_load_b128_haswell_,
-                                    nk_partial_load_b32x4_haswell_, nk_dots_reduce_sum_u8_stub_,
+                                    nk_partial_load_b32x4_haswell_, nk_dots_reduce_sum_stub_u8_serial_,
                                     /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1)
 
 /*  E2M3 GEMM via the DPBUSD integer path: depth_simd_dimensions = 32, as 32 e2m3s span the 32 bytes
@@ -174,7 +174,7 @@ nk_define_cross_packed_shape_(dots, e2m3, alder)
 nk_define_cross_pack_(dots, e2m3, alder, e2m3, e2m3, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b8x32_haswell_, nk_store_b256_haswell_, nk_partial_store_b8x32_haswell_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m3_alder_,
-                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/32, /*dimensions_per_value=*/1, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e2m3, alder, e2m3, f32, nk_b256_vec_t, nk_dot_e2m3x32_state_alder_t, nk_b128_vec_t,
                            nk_dot_e2m3x32_init_alder, nk_load_b256_haswell_, nk_partial_load_b8x32_haswell_,
@@ -195,7 +195,7 @@ nk_define_cross_packed_shape_(dots, e2m1, alder)
 nk_define_cross_pack_(dots, e2m1, alder, e2m1x2, e2m1x2, nk_b256_vec_t, nk_load_b256_haswell_,
                       nk_partial_load_b8x32_haswell_, nk_store_b256_haswell_, nk_partial_store_b8x32_haswell_,
                       /*simd_width=*/32, /*norm_value_type=*/f32, nk_dots_reduce_sumsq_e2m1_alder_,
-                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2, nk_cross_pack_scales_bytes_,
+                      /*depth_simd_dimensions=*/64, /*dimensions_per_value=*/2, nk_cross_pack_scales_bytes_serial_,
                       /*scale_bytes=*/1)
 nk_define_cross_symmetric_(dots, e2m1, alder, e2m1x2, f32, nk_b256_vec_t, nk_dot_e2m1x64_state_alder_t, nk_b128_vec_t,
                            nk_dot_e2m1x64_init_alder, nk_load_b256_haswell_, nk_partial_load_b4x64_serial_,

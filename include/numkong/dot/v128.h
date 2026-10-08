@@ -47,8 +47,8 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x2_v128_(v128_t sum_f64x2, v128_t c
     return tentative_sum + (lower_error + upper_error + rounding_error);
 }
 
-/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_. TwoProd uses Veltkamp splitting, since
- *  @c relaxed_madd may round twice and SIMD128 has no guaranteed fused multiply-add. */
+/** Dot2 step, sum += a × b, mirroring @c nk_dot2_f64_serial_. TwoProd uses Veltkamp splitting,
+ *  since @c relaxed_madd may round twice and SIMD128 has no guaranteed fused multiply-add. */
 NUMKONG_INLINE void nk_dot2_f64x2_v128_(v128_t *sum_f64x2, v128_t *compensation_f64x2, v128_t a_f64x2, v128_t b_f64x2) {
     v128_t split_f64x2 = wasm_f64x2_splat(134217729.0); // 2^27 + 1
     v128_t a_scaled_f64x2 = wasm_f64x2_mul(split_f64x2, a_f64x2);

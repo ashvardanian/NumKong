@@ -2092,31 +2092,9 @@ NUMKONG_INLINE nk_status_t nk_gram_u8_sapphireamx_(                  //
 /*  FP8 rows and block-scaled rows reach the AMX units as BF16, which holds every E4M3 and E5M2
  *  value and every block-scaled element times its scale exactly: an E2M1 value times a UE4M3
  *  scale needs 6 significant bits of BF16's 8, and the MX scales are powers of two, so only
- *  products leaving BF16's exponent range, beyond 2^±126, round. One GEMM, one Gram and one
- *  pack serve every such dtype. */
+ *  products leaving BF16's exponent range, beyond 2^±126, round. Each such dtype widens its own
+ *  rows and runs its own GEMM, Gram and pack around the dtype-free tile helpers below. */
 #pragma region Through BF16
-
-typedef struct nk_dots_bf16_rows_sapphireamx_t nk_dots_bf16_rows_sapphireamx_t;
-
-/** Elements @p first to `first + 32` of row @p row as BF16, zeros past @p valid of them. A
- *  block-scaled @p valid covers whole blocks, so no scale past the row is read. */
-typedef __m512i (*nk_dots_bf16_widen_sapphireamx_t)(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                    nk_size_t first, nk_size_t valid);
-
-/** The squared norm of row @p row over @p depth elements. */
-typedef nk_f32_t (*nk_dots_bf16_sumsq_sapphireamx_t)(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                     nk_size_t depth);
-
-/** Rows @p stride bytes apart, block scales @p scales_stride bytes apart for block-scaled dtypes,
- *  and the two functions of their dtype that widen them to BF16 and measure their norms. */
-struct nk_dots_bf16_rows_sapphireamx_t {
-    nk_u8_t const *values;
-    nk_size_t stride;
-    nk_u8_t const *scales;
-    nk_size_t scales_stride;
-    nk_dots_bf16_widen_sapphireamx_t widen;
-    nk_dots_bf16_sumsq_sapphireamx_t sumsq;
-};
 
 /** Byte mask of the first @p valid of 32 elements. */
 NUMKONG_INLINE __mmask32 nk_dots_bf16_valid_mask_sapphireamx_(nk_size_t valid) {
@@ -2138,412 +2116,410 @@ NUMKONG_INLINE __m512i nk_scaled_halves_to_bf16x32_sapphireamx_(__m512 low_f32x1
     return _mm512_inserti64x4(_mm512_castsi256_si512(low_bf16x16), high_bf16x16, 1);
 }
 
-NUMKONG_INLINE nk_f32_t nk_ue8m0_scale_sapphireamx_(nk_u8_t const *scales, nk_size_t block) {
+NUMKONG_INLINE nk_f32_t nk_ue8m0_scale_sapphireamx_(nk_ue8m0_t const *scales, nk_size_t block) {
     nk_f32_t scale;
-    nk_ue8m0_to_f32_(scales + block, &scale);
+    nk_ue8m0_to_f32_serial_(scales + block, &scale);
     return scale;
 }
 
-NUMKONG_INLINE nk_f32_t nk_ue4m3_scale_sapphireamx_(nk_u8_t const *scales, nk_size_t block) {
+NUMKONG_INLINE nk_f32_t nk_ue4m3_scale_sapphireamx_(nk_ue4m3_t const *scales, nk_size_t block) {
     nk_f32_t scale;
-    nk_ue4m3_to_f32_(scales + block, &scale);
+    nk_ue4m3_to_f32_serial_(scales + block, &scale);
     return scale;
 }
 
-NUMKONG_INLINE __m512i nk_e4m3_widen_bf16_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                       nk_size_t first, nk_size_t valid) {
-    return nk_e4m3x32_to_bf16x32_icelake_(_mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid),
-                                                                  rows->values + row * rows->stride + first));
-}
-
-NUMKONG_INLINE __m512i nk_e5m2_widen_bf16_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                       nk_size_t first, nk_size_t valid) {
-    return nk_e5m2x32_to_bf16x32_icelake_(_mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid),
-                                                                  rows->values + row * rows->stride + first));
-}
-
-/** The 16 values of each half of 32 E2M1 elements from @p first, zeros past @p valid. */
-NUMKONG_INLINE void nk_e2m1x32_to_f32x16x2_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
+/** The 16 values per half of 32 E2M1 elements from @p first of row @p row, zero past @p valid. */
+NUMKONG_INLINE void nk_e2m1x32_to_f32x16x2_sapphireamx_(nk_e2m1x2_t const *values, nk_size_t stride, nk_size_t row,
                                                         nk_size_t first, nk_size_t valid, __m512 *low_f32x16,
                                                         __m512 *high_f32x16) {
     __m128i const bytes_u8x16 = _mm_maskz_loadu_epi8((__mmask16)((1u << ((valid + 1) / 2)) - 1),
-                                                     rows->values + row * rows->stride + first / 2);
+                                                     values + row * stride + first / 2);
     *low_f32x16 = nk_e2m1x16_to_f32x16_skylake_(bytes_u8x16);
     *high_f32x16 = nk_e2m1x16_to_f32x16_skylake_(_mm_srli_si128(bytes_u8x16, 8));
 }
 
-NUMKONG_INLINE __m512i nk_nvfp4_widen_bf16_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                        nk_size_t first, nk_size_t valid) {
-    __m512 low_f32x16, high_f32x16;
-    nk_e2m1x32_to_f32x16x2_sapphireamx_(rows, row, first, valid, &low_f32x16, &high_f32x16);
-    nk_u8_t const *scales = rows->scales + row * rows->scales_stride;
-    return nk_scaled_halves_to_bf16x32_sapphireamx_(
-        low_f32x16, high_f32x16, nk_ue4m3_scale_sapphireamx_(scales, first / 16),
-        valid > 16 ? nk_ue4m3_scale_sapphireamx_(scales, first / 16 + 1) : 0);
+/** The squares of 32 BF16, added to @p sum_f32x16 in F32. */
+NUMKONG_INLINE __m512 nk_bf16x32_sumsq_step_sapphireamx_(__m512 sum_f32x16, __m512i widened_bf16x32) {
+    __m512 const low_f32x16 = _mm512_castsi512_ps(
+        _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_castsi512_si256(widened_bf16x32)), 16));
+    __m512 const high_f32x16 = _mm512_castsi512_ps(
+        _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(widened_bf16x32, 1)), 16));
+    return _mm512_fmadd_ps(low_f32x16, low_f32x16, _mm512_fmadd_ps(high_f32x16, high_f32x16, sum_f32x16));
 }
 
-NUMKONG_INLINE __m512i nk_mxfp4_widen_bf16_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                        nk_size_t first, nk_size_t valid) {
-    __m512 low_f32x16, high_f32x16;
-    nk_e2m1x32_to_f32x16x2_sapphireamx_(rows, row, first, valid, &low_f32x16, &high_f32x16);
-    nk_f32_t const scale = nk_ue8m0_scale_sapphireamx_(rows->scales + row * rows->scales_stride, first / 32);
-    return nk_scaled_halves_to_bf16x32_sapphireamx_(low_f32x16, high_f32x16, scale, scale);
+NUMKONG_INLINE nk_dots_bf16_b32x16_sapphireamx_t const *nk_dots_bf16_b_tile_sapphireamx_(nk_bf16_t const *b_tiles,
+                                                                                         nk_size_t tile_index) {
+    return (nk_dots_bf16_b32x16_sapphireamx_t const *)(b_tiles + tile_index * 512);
 }
 
-NUMKONG_INLINE __m512i nk_mxfp8e4m3_widen_bf16_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                            nk_size_t first, nk_size_t valid) {
-    __m256i const bytes_u8x32 = _mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid),
-                                                        rows->values + row * rows->stride + first);
-    nk_f32_t const scale = nk_ue8m0_scale_sapphireamx_(rows->scales + row * rows->scales_stride, first / 32);
-    return nk_scaled_halves_to_bf16x32_sapphireamx_(
-        nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(bytes_u8x32)),
-        nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(bytes_u8x32, 1)), scale, scale);
+NUMKONG_INLINE nk_f32_t const *nk_dots_bf16_packed_norms_sapphireamx_(void const *b_packed) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    return (nk_f32_t const *)((char const *)b_packed + header->norms_byte_offset);
 }
 
-NUMKONG_INLINE __m512i nk_mxfp8e5m2_widen_bf16_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                            nk_size_t first, nk_size_t valid) {
-    __m256i const bytes_u8x32 = _mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid),
-                                                        rows->values + row * rows->stride + first);
-    nk_f32_t const scale = nk_ue8m0_scale_sapphireamx_(rows->scales + row * rows->scales_stride, first / 32);
-    return nk_scaled_halves_to_bf16x32_sapphireamx_(
-        nk_e5m2x16_to_f32x16_skylake_(_mm256_castsi256_si128(bytes_u8x32)),
-        nk_e5m2x16_to_f32x16_skylake_(_mm256_extracti128_si256(bytes_u8x32, 1)), scale, scale);
+NUMKONG_INLINE void nk_dots_bf16_zero_2x2_sapphireamx_(void) {
+    _tile_zero(4);
+    _tile_zero(5);
+    _tile_zero(6);
+    _tile_zero(7);
 }
 
-NUMKONG_INLINE nk_f32_t nk_e4m3_sumsq_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                   nk_size_t depth) {
-    return nk_dots_reduce_sumsq_e4m3_skylake_((nk_e4m3_t const *)(rows->values + row * rows->stride), depth,
-                                              sizeof(nk_e4m3_t));
+NUMKONG_INLINE void nk_dots_bf16_zero_2x1_sapphireamx_(void) {
+    _tile_zero(4);
+    _tile_zero(6);
 }
 
-NUMKONG_INLINE nk_f32_t nk_e5m2_sumsq_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                   nk_size_t depth) {
-    return nk_dots_reduce_sumsq_e5m2_skylake_((nk_e5m2_t const *)(rows->values + row * rows->stride), depth,
-                                              sizeof(nk_e5m2_t));
+/** One depth step of two A tiles against two B tiles into TMM4-7. */
+NUMKONG_INLINE void nk_dots_bf16_accumulate_2x2_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_top,
+                                                             nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_bottom,
+                                                             nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_left,
+                                                             nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_right) {
+    _tile_loadd(0, a_tile_top->data, 64);
+    _tile_loadd(1, a_tile_bottom->data, 64);
+    _tile_loadd(2, b_tile_left->data, 64);
+    _tile_loadd(3, b_tile_right->data, 64);
+
+    _tile_dpbf16ps(4, 0, 2);
+    _tile_dpbf16ps(5, 0, 3);
+    _tile_dpbf16ps(6, 1, 2);
+    _tile_dpbf16ps(7, 1, 3);
 }
 
-/** Squared norm of a block-scaled row of the BF16 values the GEMM multiplies, summed in F32. */
-NUMKONG_INLINE nk_f32_t nk_scaled_sumsq_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t const *rows, nk_size_t row,
-                                                     nk_size_t depth) {
-    __m512 sum_f32x16 = _mm512_setzero_ps();
-    for (nk_size_t first = 0; first < depth; first += 32) {
-        __m512i const widened_bf16x32 = rows->widen(rows, row, first, depth - first < 32 ? depth - first : 32);
-        __m512 const low_f32x16 = _mm512_castsi512_ps(
-            _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_castsi512_si256(widened_bf16x32)), 16));
-        __m512 const high_f32x16 = _mm512_castsi512_ps(
-            _mm512_slli_epi32(_mm512_cvtepu16_epi32(_mm512_extracti64x4_epi64(widened_bf16x32, 1)), 16));
-        sum_f32x16 = _mm512_fmadd_ps(low_f32x16, low_f32x16, _mm512_fmadd_ps(high_f32x16, high_f32x16, sum_f32x16));
+/** One depth step of two A tiles against one B tile into TMM4 and TMM6. */
+NUMKONG_INLINE void nk_dots_bf16_accumulate_2x1_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_top,
+                                                             nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_bottom,
+                                                             nk_dots_bf16_b32x16_sapphireamx_t const *b_tile) {
+    _tile_loadd(0, a_tile_top->data, 64);
+    _tile_loadd(1, a_tile_bottom->data, 64);
+    _tile_loadd(2, b_tile->data, 64);
+
+    _tile_dpbf16ps(4, 0, 2);
+    _tile_dpbf16ps(6, 1, 2);
+}
+
+/** One depth step of two A tiles against the BF16 column-edge rows at @p depth_offset, which are
+ *  transposed into a B tile first. */
+NUMKONG_INLINE void nk_dots_bf16_accumulate_edge_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_top,
+                                                              nk_dots_bf16_a16x32_sapphireamx_t const *a_tile_bottom,
+                                                              nk_bf16_t const *column_edge, nk_size_t depth_offset,
+                                                              nk_size_t depth, nk_size_t column_remainder_count,
+                                                              nk_size_t valid_depth) {
+    nk_dots_bf16_a16x32_sapphireamx_t b_as_a;
+    nk_dots_bf16_b32x16_sapphireamx_t b_tile;
+    nk_dots_bf16_load_a_sapphireamx_(&b_as_a, column_edge + depth_offset, depth, column_remainder_count, valid_depth);
+    nk_dots_pack_bf16_transposed_sapphireamx_(&b_as_a, &b_tile);
+    nk_dots_bf16_accumulate_2x1_sapphireamx_(a_tile_top, a_tile_bottom, &b_tile);
+}
+
+/** Stores TMM4-7 as a 32 × 32 block of F32 at @p c_block, clipped to @p valid_rows_count rows. */
+NUMKONG_INLINE void nk_dots_bf16_store_block_sapphireamx_(nk_f32_t *c_block, nk_size_t c_stride,
+                                                          nk_size_t valid_rows_count) {
+    if (valid_rows_count == 32) {
+        _tile_stored(4, c_block, c_stride);
+        _tile_stored(5, c_block + 16, c_stride);
+        _tile_stored(6, (nk_f32_t *)((char *)c_block + 16 * c_stride), c_stride);
+        _tile_stored(7, (nk_f32_t *)((char *)c_block + 16 * c_stride) + 16, c_stride);
     }
-    return _mm512_reduce_add_ps(sum_f32x16);
+    else {
+        nk_dots_bf16_state2x2_sapphireamx_t c_accum_buffer;
+        _tile_stored(4, c_accum_buffer.c[0][0].data, 64);
+        _tile_stored(5, c_accum_buffer.c[0][1].data, 64);
+        _tile_stored(6, c_accum_buffer.c[1][0].data, 64);
+        _tile_stored(7, c_accum_buffer.c[1][1].data, 64);
+        nk_dots_bf16_output2x2_sapphireamx_(&c_accum_buffer, c_block, c_stride / sizeof(nk_f32_t), valid_rows_count,
+                                            32);
+    }
 }
 
-/** Loads rows @p first_row to `first_row + 16` of @p source into a BF16 A tile, zeros past
+/** Stores TMM4 and TMM6 as up to 16 columns of F32 at @p c_column, the high and low tiles clipped
+ *  to their row counts. */
+NUMKONG_INLINE void nk_dots_bf16_store_column_sapphireamx_(nk_f32_t *c_column, nk_size_t c_stride_elements,
+                                                           nk_size_t rows_in_high_tile, nk_size_t rows_in_low_tile,
+                                                           nk_size_t columns) {
+    nk_dots_bf16_state_sapphireamx_t c_high_state, c_low_state;
+    _tile_stored(4, c_high_state.data, 64);
+    _tile_stored(6, c_low_state.data, 64);
+
+    nk_dots_bf16_store_sapphireamx_(&c_high_state, c_column, c_stride_elements, rows_in_high_tile, columns);
+    if (rows_in_low_tile > 0)
+        nk_dots_bf16_store_sapphireamx_(&c_low_state, c_column + 16 * c_stride_elements, c_stride_elements,
+                                        rows_in_low_tile, columns);
+}
+
+/** Zeros the @p columns_count results of each of @p rows rows, as an empty depth sums to. */
+NUMKONG_INLINE void nk_dots_bf16_zero_results_sapphireamx_(nk_f32_t *c, nk_size_t rows, nk_size_t columns_count,
+                                                           nk_size_t c_stride_elements) {
+    for (nk_size_t row = 0; row < rows; row++)
+        for (nk_size_t column = 0; column < columns_count; column += 16)
+            _mm512_mask_storeu_ps(
+                c + row * c_stride_elements + column,
+                columns_count - column < 16 ? (__mmask16)((1u << (columns_count - column)) - 1) : (__mmask16)0xFFFF,
+                _mm512_setzero_ps());
+}
+
+/** Bytes from the packed buffer's start to its column-edge rows, past the full BF16 tiles. */
+NUMKONG_INLINE nk_size_t nk_dots_bf16_column_edge_offset_sapphireamx_(nk_size_t column_count, nk_size_t depth) {
+    return sizeof(nk_dots_amx_packed_header_t) +
+           (column_count / 16) * nk_size_divide_round_up_(depth, 32) * 512 * sizeof(nk_bf16_t);
+}
+
+/** Bytes from the packed buffer's start to its per-column norms, past the column-edge rows. */
+NUMKONG_INLINE nk_size_t nk_dots_bf16_norms_offset_sapphireamx_(nk_size_t column_count, nk_size_t depth) {
+    return nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth) +
+           (column_count % 16) * depth * sizeof(nk_bf16_t);
+}
+
+/** Writes the header of a BF16 pack of @p column_count columns, from the call packing column 0. */
+NUMKONG_INLINE void nk_dots_bf16_pack_header_sapphireamx_(void *b_packed, nk_f32_t tensor_scale, nk_size_t column_count,
+                                                          nk_size_t depth, nk_size_t columns_begin) {
+    if (columns_begin != 0) return;
+    nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
+    nk_u32_t *header_words = (nk_u32_t *)header;
+    for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
+        header_words[word_index] = 0;
+    header->tensor_scale = tensor_scale;
+    header->columns = (nk_u32_t)column_count;
+    header->depth = (nk_u32_t)depth;
+    header->full_column_tiles = (nk_u32_t)(column_count / 16);
+    header->full_depth_tiles = (nk_u32_t)nk_size_divide_round_up_(depth, 32);
+    header->column_remainder_count = (nk_u32_t)(column_count % 16);
+    header->capability = nk_cap_sapphireamx_k;
+    header->column_edge_offset = (nk_u32_t)nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth);
+    header->norms_byte_offset = (nk_u32_t)nk_dots_bf16_norms_offset_sapphireamx_(column_count, depth);
+}
+
+/** Transposes a widened 16 × 32 BF16 tile into the B tile layout at @p tile_output. */
+NUMKONG_INLINE void nk_dots_bf16_pack_tile_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t const *source_tile,
+                                                        nk_bf16_t *tile_output) {
+    nk_dots_bf16_b32x16_sapphireamx_t transposed_tile;
+    nk_dots_pack_bf16_transposed_sapphireamx_(source_tile, &transposed_tile);
+    for (nk_size_t i = 0; i < 512 * sizeof(nk_bf16_t); i += 64)
+        _mm512_storeu_si512((char *)tile_output + i, _mm512_load_si512((char const *)&transposed_tile + i));
+}
+
+/** Bytes a block-scaled pack takes: the BF16 pack with norms, exponents and spreads padded to whole
+ *  tiles, then the raw codes and scales of every column for the exact path. */
+NUMKONG_INLINE nk_size_t nk_dots_packed_bytes_scaled_sapphireamx_(nk_size_t block_size, nk_size_t block_bytes,
+                                                                  nk_size_t column_count, nk_size_t depth) {
+    nk_size_t const padded = nk_size_round_up_to_multiple_(column_count, 16);
+    return nk_dots_packed_bytes_bf16_sapphireamx_(column_count, depth) + (padded - column_count) * sizeof(nk_f32_t) +
+           padded * 2 * sizeof(nk_i32_t) + column_count * depth / block_size * (block_bytes + 1);
+}
+
+/** The arrays a block-scaled pack keeps past its tiles: norms, exponents and spreads padded to
+ *  whole tiles, then raw codes and scales. */
+typedef struct nk_dots_scaled_view_sapphireamx_t {
+    nk_f32_t *norms;
+    nk_i32_t *exponents;
+    nk_i32_t *spreads;
+    nk_u8_t *codes;
+    nk_u8_t *scales;
+    nk_size_t padded;
+    nk_size_t blocks;
+    nk_size_t row_bytes;
+} nk_dots_scaled_view_sapphireamx_t;
+
+NUMKONG_INLINE nk_dots_scaled_view_sapphireamx_t nk_dots_scaled_view_sapphireamx_(void const *b_packed,
+                                                                                  nk_size_t column_count,
+                                                                                  nk_size_t depth, nk_size_t block_size,
+                                                                                  nk_size_t block_bytes) {
+    nk_dots_scaled_view_sapphireamx_t view;
+    view.padded = nk_size_round_up_to_multiple_(column_count, 16);
+    view.blocks = depth / block_size;
+    view.row_bytes = view.blocks * block_bytes;
+    view.norms = (nk_f32_t *)((char *)b_packed + nk_dots_bf16_norms_offset_sapphireamx_(column_count, depth));
+    view.exponents = (nk_i32_t *)(view.norms + view.padded);
+    view.spreads = view.exponents + view.padded;
+    view.codes = (nk_u8_t *)(view.spreads + view.padded);
+    view.scales = view.codes + column_count * view.row_bytes;
+    return view;
+}
+
+/** The widest spread in the pack's @p padded columns. */
+NUMKONG_INLINE nk_i32_t nk_dots_scaled_spread_max_sapphireamx_(nk_i32_t const *spreads, nk_size_t padded) {
+    __m512i spread_max_i32x16 = _mm512_setzero_si512();
+    for (nk_size_t column = 0; column < padded; column += 16)
+        spread_max_i32x16 = _mm512_max_epi32(spread_max_i32x16, _mm512_loadu_si512(spreads + column));
+    return _mm512_reduce_max_epi32(spread_max_i32x16);
+}
+
+/** Zeros the padding of the arrays of @p view past @p column_count, which the epilogues read four
+ *  columns at a time. */
+NUMKONG_INLINE void nk_dots_scaled_pad_sapphireamx_(nk_dots_scaled_view_sapphireamx_t const *view,
+                                                    nk_size_t column_count) {
+    for (nk_size_t column = column_count; column < view->padded; column += 16) {
+        __mmask16 const padding_m16 = (__mmask16)_bzhi_u32(0xFFFF, (unsigned int)(view->padded - column));
+        _mm512_mask_storeu_ps(view->norms + column, padding_m16, _mm512_setzero_ps());
+        _mm512_mask_storeu_epi32(view->exponents + column, padding_m16, _mm512_setzero_si512());
+        _mm512_mask_storeu_epi32(view->spreads + column, padding_m16, _mm512_setzero_si512());
+    }
+}
+
+/*  AMX reads F32 subnormals as zero, so an MX row or column spreading past a dtype's limit, where
+ *  its smallest element times its smallest rebased scale would be one, takes the exact path. A
+ *  limit is 157 plus the binary exponent of the smallest element: 2⁻¹ for E2M1, 2⁻⁹ for E4M3,
+ *  2⁻¹⁶ for E5M2. */
+enum {
+    nk_dots_spread_limit_mxfp4_sapphireamx_k = 156,
+    nk_dots_spread_limit_mxfp8e4m3_sapphireamx_k = 148,
+    nk_dots_spread_limit_mxfp8e5m2_sapphireamx_k = 141,
+};
+
+/** Whether a row and a column spreading @p row_spread and @p column_spread binades leave the
+ *  rebased window, or either passes @p spread_limit. */
+NUMKONG_INLINE int nk_dots_scaled_exceeds_sapphireamx_(nk_i32_t row_spread, nk_i32_t column_spread, int normalized,
+                                                       nk_i32_t spread_limit) {
+    return nk_cross_scaled_exceeds_serial_(row_spread, column_spread, normalized) || row_spread > spread_limit ||
+           column_spread > spread_limit;
+}
+
+/** Finishes @p count relative sums at @p values into dots, four at a time with masked tails;
+ *  @p column_exponents and @p column_norms are readable four lanes past @p count. */
+NUMKONG_INLINE void nk_dots_scaled_finish_row_dot_sapphireamx_(nk_f32_t *values, nk_size_t count, nk_f32_t mantissa,
+                                                               nk_i32_t row_exponent, nk_i32_t const *column_exponents,
+                                                               nk_f32_t row_norm, nk_f32_t const *column_norms) {
+    for (nk_size_t column = 0; column < count; column += 4) {
+        __mmask8 const column_m8 = count - column < 4 ? (__mmask8)((1u << (count - column)) - 1) : (__mmask8)0xF;
+        nk_b128_vec_t values_vec;
+        values_vec.xmm_ps = _mm_maskz_loadu_ps(column_m8, values + column);
+        nk_dot_f32x4_from_relative_skylake_(&values_vec, mantissa, row_exponent, column_exponents + column, row_norm,
+                                            column_norms + column);
+        _mm_mask_storeu_ps(values + column, column_m8, values_vec.xmm_ps);
+    }
+}
+
+#pragma endregion Through BF16
+
+#pragma region E4M3 Floats
+
+NUMKONG_INLINE __m512i nk_e4m3_widen_bf16_sapphireamx_(nk_e4m3_t const *values, nk_size_t stride, nk_size_t row,
+                                                       nk_size_t first, nk_size_t valid) {
+    return nk_e4m3x32_to_bf16x32_icelake_(
+        _mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid), values + row * stride + first));
+}
+
+NUMKONG_INLINE nk_f32_t nk_e4m3_sumsq_sapphireamx_(nk_e4m3_t const *values, nk_size_t stride, nk_size_t row,
+                                                   nk_size_t depth) {
+    return nk_dots_reduce_sumsq_e4m3_skylake_(values + row * stride, depth, sizeof(nk_e4m3_t));
+}
+
+/** Loads rows @p first_row to `first_row + 16` of @p values into a BF16 A tile, zeros past
  *  @p valid_rows rows and @p valid_columns elements from @p depth_offset. */
-NUMKONG_INLINE void nk_dots_through_bf16_load_a_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
-                                                             nk_dots_bf16_rows_sapphireamx_t source,
-                                                             nk_size_t first_row, nk_size_t depth_offset,
-                                                             nk_size_t valid_rows, nk_size_t valid_columns) {
+NUMKONG_INLINE void nk_dots_load_a_e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile, nk_e4m3_t const *values,
+                                                     nk_size_t stride, nk_size_t first_row, nk_size_t depth_offset,
+                                                     nk_size_t valid_rows, nk_size_t valid_columns) {
     for (nk_size_t row = 0; row < 16; row++)
         _mm512_store_si512((__m512i *)a_tile->data[row],
-                           row < valid_rows ? source.widen(&source, first_row + row, depth_offset, valid_columns)
+                           row < valid_rows ? nk_e4m3_widen_bf16_sapphireamx_(values, stride, first_row + row,
+                                                                              depth_offset, valid_columns)
                                             : _mm512_setzero_si512());
     nk_compiler_barrier_sapphireamx_();
 }
 
-/** Packs columns from @p columns_begin up to @p columns_end of @p b widened to BF16 into the BF16
- *  tile layout, with each column's squared norm. */
-NUMKONG_INLINE nk_status_t nk_dots_pack_through_bf16_sapphireamx_(nk_dots_bf16_rows_sapphireamx_t b,
-                                                                  nk_f32_t tensor_scale, nk_size_t column_count,
-                                                                  nk_size_t depth, void *b_packed,
-                                                                  nk_size_t columns_begin, nk_size_t columns_end) {
-
-    nk_size_t const tile_rows = 16;
-    nk_size_t const tile_columns = 32; // Same depth granularity as BF16
-    nk_size_t const tile_elements = 512;
-    nk_size_t const tile_bytes = tile_elements * sizeof(nk_bf16_t);
-
-    nk_size_t const column_tiles_count = column_count / tile_rows;
-    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, tile_columns);
-    nk_size_t const column_remainder_count = column_count - column_tiles_count * tile_rows;
-    nk_size_t const total_tiles = column_tiles_count * depth_tiles_count;
-
-    nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
-    if (columns_begin == 0) {
-        for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
-        header->tensor_scale = tensor_scale;
-        header->columns = (nk_u32_t)column_count;
-        header->depth = (nk_u32_t)depth;
-        header->full_column_tiles = (nk_u32_t)column_tiles_count;
-        header->full_depth_tiles = (nk_u32_t)depth_tiles_count;
-        header->column_remainder_count = (nk_u32_t)column_remainder_count;
-        header->capability = nk_cap_sapphireamx_k;
-    }
-
-    nk_size_t const tiles_offset = sizeof(nk_dots_amx_packed_header_t);
-    nk_size_t const column_edge_offset = tiles_offset + total_tiles * tile_bytes;
-    if (columns_begin == 0) header->column_edge_offset = (nk_u32_t)column_edge_offset;
-
-    nk_bf16_t *tiles = (nk_bf16_t *)((char *)b_packed + tiles_offset);
-    nk_bf16_t *column_edge = (nk_bf16_t *)((char *)b_packed + column_edge_offset);
-
-    // Pack tiles using vectorized convert + SIMD transpose
-    for (nk_size_t column_tile = nk_size_divide_round_up_(columns_begin, 16);
-         column_tile < column_tiles_count && column_tile < nk_size_divide_round_up_(columns_end, 16); column_tile++) {
-        for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
-            nk_size_t const tile_index = column_tile * depth_tiles_count + depth_tile;
-            nk_bf16_t *tile_output = tiles + tile_index * tile_elements;
-
-            nk_size_t const source_row_start = column_tile * tile_rows;
-            nk_size_t const source_column_start = depth_tile * tile_columns;
-            nk_size_t const columns_to_pack = (source_column_start + tile_columns <= depth)
-                                                  ? tile_columns
-                                                  : (depth - source_column_start);
-
-            nk_dots_bf16_a16x32_sapphireamx_t source_tile;
-            nk_dots_through_bf16_load_a_sapphireamx_(&source_tile, b, source_row_start, source_column_start, tile_rows,
-                                                     columns_to_pack);
-
-            nk_dots_bf16_b32x16_sapphireamx_t transposed_tile;
-            nk_dots_pack_bf16_transposed_sapphireamx_(&source_tile, &transposed_tile);
-            for (nk_size_t i = 0; i < tile_bytes; i += 64)
-                _mm512_storeu_si512((char *)tile_output + i, _mm512_load_si512((char const *)&transposed_tile + i));
-        }
-    }
-
-    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
-        column_tiles_count * 16 < columns_end) {
-        nk_size_t const remainder_start_row = column_tiles_count * tile_rows;
-        for (nk_size_t row = 0; row < column_remainder_count; row++)
-            for (nk_size_t column = 0; column < depth; column += 32) {
-                nk_size_t const columns = (column + 32 <= depth) ? 32 : (depth - column);
-                __mmask32 const column_m32 = (columns >= 32) ? 0xFFFFFFFF : ((__mmask32)1 << columns) - 1;
-                _mm512_mask_storeu_epi16(column_edge + row * depth + column, column_m32,
-                                         b.widen(&b, remainder_start_row + row, column, columns));
-            }
-    }
-
-    // Compute and store per-column norms for angular/euclidean distance
-    nk_size_t norms_offset = column_edge_offset +
-                             (column_remainder_count > 0 ? column_remainder_count * depth * sizeof(nk_bf16_t) : 0);
-    if (columns_begin == 0) header->norms_byte_offset = (nk_u32_t)norms_offset;
-    nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
-    for (nk_size_t column = columns_begin; column < columns_end; column++)
-        norms[column] = b.sumsq(&b, column, depth) * tensor_scale * tensor_scale;
-    return nk_success_k;
-}
-
-/** GEMM of @p a rows, widened to BF16 by their @c widen, against B columns packed by
- *  @c nk_dots_pack_through_bf16_sapphireamx_, into F32 @p c, on BF16 AMX tiles. */
-NUMKONG_INLINE nk_status_t nk_gemm_packed_through_bf16_sapphireamx_(                               //
-    nk_dots_bf16_rows_sapphireamx_t a, nk_f32_t a_tensor_scale, void const *b_packed, nk_f32_t *c, //
-    nk_size_t rows, nk_size_t columns_count, nk_size_t depth, nk_size_t c_stride) {
+/** GEMM of @p a rows widened to BF16 against B columns from @c nk_dots_pack_e4m3_sapphireamx, into
+ *  F32 @p c, on BF16 AMX tiles. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_e4m3_sapphireamx_( //
+    nk_e4m3_t const *a, void const *b_packed, nk_f32_t *c,   //
+    nk_size_t rows, nk_size_t columns_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
     nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
     if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
     nk_size_t const column_tiles_count = header->full_column_tiles;
     nk_size_t const depth_tiles_count = header->full_depth_tiles;
     nk_size_t const column_remainder_count = header->column_remainder_count;
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
+    if (depth_tiles_count == 0) {
+        nk_dots_bf16_zero_results_sapphireamx_(c, rows, columns_count, c_stride_elements);
+        return nk_success_k;
+    }
 
-    // B tiles are already in BF16 format
     nk_bf16_t const *b_tiles = (nk_bf16_t const *)((char const *)b_packed + sizeof(nk_dots_amx_packed_header_t));
     nk_bf16_t const *column_edge = (nk_bf16_t const *)((char const *)b_packed + header->column_edge_offset);
-
-    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
-    nk_size_t const tile_depth = 32;
-    nk_size_t const tile_size = 512;
     nk_size_t const full_columns = column_tiles_count * 16;
-
     nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
     nk_size_t const column_blocks_count = column_tiles_count / 2;
-
-    if (depth_tiles_count == 0) return nk_success_k;
-
+    nk_size_t const full_depth_tiles_count = depth / 32;
+    nk_size_t const depth_remainder = depth % 32;
     nk_dots_bf16_a16x32_sapphireamx_t a_tile_top, a_tile_bottom;
-    nk_dots_bf16_state2x2_sapphireamx_t c_accum_buffer;
-
-    nk_size_t const full_depth_tiles_count = depth / tile_depth;
-    nk_size_t const depth_remainder = depth % tile_depth;
 
     nk_amx_tile_configure_sapphireamx_();
 
-    // Loop order: row_blocks outer, col_blocks inner
     for (nk_size_t row_block = 0; row_block < row_blocks_count; row_block++) {
         nk_size_t const row_block_start = row_block * 32;
         nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
-        nk_size_t const is_full_row_block = (valid_rows_count == 32);
         nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
         nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
 
         for (nk_size_t column_block = 0; column_block < column_blocks_count; column_block++) {
-            nk_size_t const column_block_start = column_block * 32;
-            nk_size_t const b_column_left_base = (column_block * 2) * depth_tiles_count;
-            nk_size_t const b_column_right_base = (column_block * 2 + 1) * depth_tiles_count;
-
-            // Zero accumulators (TMM4-7 stay resident across entire depth loop)
-            _tile_zero(4);
-            _tile_zero(5);
-            _tile_zero(6);
-            _tile_zero(7);
-
+            nk_dots_bf16_zero_2x2_sapphireamx_();
             for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
-                nk_size_t const depth_offset = depth_tile * tile_depth;
-                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? tile_depth : depth_remainder;
-
-                nk_dots_through_bf16_load_a_sapphireamx_(&a_tile_top, a, row_block_start, depth_offset,
-                                                         rows_in_high_tile, valid_depth);
-                if (rows_in_low_tile > 0) {
-                    nk_dots_through_bf16_load_a_sapphireamx_(&a_tile_bottom, a, row_block_start + 16, depth_offset,
-                                                             rows_in_low_tile, valid_depth);
-                }
-
-                nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_left =
-                    (nk_dots_bf16_b32x16_sapphireamx_t const *)(b_tiles +
-                                                                (b_column_left_base + depth_tile) * tile_size);
-                nk_dots_bf16_b32x16_sapphireamx_t const *b_tile_right =
-                    (nk_dots_bf16_b32x16_sapphireamx_t const *)(b_tiles +
-                                                                (b_column_right_base + depth_tile) * tile_size);
-
-                _tile_loadd(0, a_tile_top.data, 64);
-                _tile_loadd(1, a_tile_bottom.data, 64);
-                _tile_loadd(2, b_tile_left->data, 64);
-                _tile_loadd(3, b_tile_right->data, 64);
-
-                _tile_dpbf16ps(4, 0, 2);
-                _tile_dpbf16ps(5, 0, 3);
-                _tile_dpbf16ps(6, 1, 2);
-                _tile_dpbf16ps(7, 1, 3);
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_e4m3_sapphireamx_(&a_tile_top, a, a_stride, row_block_start, depth_offset,
+                                                 rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_e4m3_sapphireamx_(&a_tile_bottom, a, a_stride, row_block_start + 16, depth_offset,
+                                                     rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x2_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2) * depth_tiles_count + depth_tile),
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2 + 1) * depth_tiles_count + depth_tile));
             }
-
-            // Store accumulators to output (once per output block)
-            if (is_full_row_block) {
-                nk_f32_t *c_block = c + row_block_start * c_stride_elements + column_block_start;
-                _tile_stored(4, c_block, c_stride);
-                _tile_stored(5, c_block + 16, c_stride);
-                _tile_stored(6, (nk_f32_t *)((char *)c_block + 16 * c_stride), c_stride);
-                _tile_stored(7, (nk_f32_t *)((char *)c_block + 16 * c_stride) + 16, c_stride);
-            }
-            else {
-                _tile_stored(4, c_accum_buffer.c[0][0].data, 64);
-                _tile_stored(5, c_accum_buffer.c[0][1].data, 64);
-                _tile_stored(6, c_accum_buffer.c[1][0].data, 64);
-                _tile_stored(7, c_accum_buffer.c[1][1].data, 64);
-                nk_dots_bf16_output2x2_sapphireamx_(&c_accum_buffer,
-                                                    c + row_block_start * c_stride_elements + column_block_start,
-                                                    c_stride_elements, valid_rows_count, 32);
-            }
+            nk_dots_bf16_store_block_sapphireamx_(c + row_block_start * c_stride_elements + column_block * 32, c_stride,
+                                                  valid_rows_count);
         }
 
-        // Handle odd column-tile (single 16-column tile if column_tiles_count is odd)
         if (column_tiles_count % 2 == 1) {
             nk_size_t const column_tile = column_tiles_count - 1;
-            nk_size_t const column_start = column_tile * 16;
-            nk_size_t const b_column_base = column_tile * depth_tiles_count;
-
-            nk_dots_bf16_state_sapphireamx_t c_high_state, c_low_state;
-            _tile_zero(4);
-            _tile_zero(6);
-
+            nk_dots_bf16_zero_2x1_sapphireamx_();
             for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
-                nk_size_t const depth_offset = depth_tile * tile_depth;
-                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? tile_depth : depth_remainder;
-
-                nk_dots_through_bf16_load_a_sapphireamx_(&a_tile_top, a, row_block_start, depth_offset,
-                                                         rows_in_high_tile, valid_depth);
-                if (rows_in_low_tile > 0) {
-                    nk_dots_through_bf16_load_a_sapphireamx_(&a_tile_bottom, a, row_block_start + 16, depth_offset,
-                                                             rows_in_low_tile, valid_depth);
-                }
-
-                nk_dots_bf16_b32x16_sapphireamx_t const *b_tile =
-                    (nk_dots_bf16_b32x16_sapphireamx_t const *)(b_tiles + (b_column_base + depth_tile) * tile_size);
-
-                _tile_loadd(0, a_tile_top.data, 64);
-                _tile_loadd(1, a_tile_bottom.data, 64);
-                _tile_loadd(2, b_tile->data, 64);
-
-                _tile_dpbf16ps(4, 0, 2);
-                _tile_dpbf16ps(6, 1, 2);
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_e4m3_sapphireamx_(&a_tile_top, a, a_stride, row_block_start, depth_offset,
+                                                 rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_e4m3_sapphireamx_(&a_tile_bottom, a, a_stride, row_block_start + 16, depth_offset,
+                                                     rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x1_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, column_tile * depth_tiles_count + depth_tile));
             }
-
-            _tile_stored(4, c_high_state.data, 64);
-            _tile_stored(6, c_low_state.data, 64);
-
-            nk_dots_bf16_store_sapphireamx_(&c_high_state, c + row_block_start * c_stride_elements + column_start,
-                                            c_stride_elements, rows_in_high_tile, 16);
-            if (rows_in_low_tile > 0) {
-                nk_dots_bf16_store_sapphireamx_(&c_low_state,
-                                                c + (row_block_start + 16) * c_stride_elements + column_start,
-                                                c_stride_elements, rows_in_low_tile, 16);
-            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + column_tile * 16,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile, 16);
         }
 
-        // Handle column-edge (remaining columns < 16) using AMX with partial tiles
         if (column_remainder_count > 0) {
-            nk_dots_bf16_state_sapphireamx_t c_high_state, c_low_state;
-            nk_dots_bf16_a16x32_sapphireamx_t b_as_a;
-            nk_dots_bf16_b32x16_sapphireamx_t b_tile;
-
-            _tile_zero(4);
-            _tile_zero(6);
-
+            nk_dots_bf16_zero_2x1_sapphireamx_();
             for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
-                nk_size_t const depth_offset = depth_tile * tile_depth;
-                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? tile_depth : depth_remainder;
-
-                nk_dots_through_bf16_load_a_sapphireamx_(&a_tile_top, a, row_block_start, depth_offset,
-                                                         rows_in_high_tile, valid_depth);
-                if (rows_in_low_tile > 0) {
-                    nk_dots_through_bf16_load_a_sapphireamx_(&a_tile_bottom, a, row_block_start + 16, depth_offset,
-                                                             rows_in_low_tile, valid_depth);
-                }
-
-                // B edge data is already in BF16 format
-                nk_dots_bf16_load_a_sapphireamx_(&b_as_a, column_edge + depth_offset, depth, column_remainder_count,
-                                                 valid_depth);
-                nk_dots_pack_bf16_transposed_sapphireamx_(&b_as_a, &b_tile);
-
-                _tile_loadd(0, a_tile_top.data, 64);
-                _tile_loadd(1, a_tile_bottom.data, 64);
-                _tile_loadd(2, b_tile.data, 64);
-
-                _tile_dpbf16ps(4, 0, 2);
-                _tile_dpbf16ps(6, 1, 2);
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_e4m3_sapphireamx_(&a_tile_top, a, a_stride, row_block_start, depth_offset,
+                                                 rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_e4m3_sapphireamx_(&a_tile_bottom, a, a_stride, row_block_start + 16, depth_offset,
+                                                     rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_edge_sapphireamx_(&a_tile_top, &a_tile_bottom, column_edge, depth_offset, depth,
+                                                          column_remainder_count, valid_depth);
             }
-
-            _tile_stored(4, c_high_state.data, 64);
-            _tile_stored(6, c_low_state.data, 64);
-
-            nk_dots_bf16_store_sapphireamx_(&c_high_state, c + row_block_start * c_stride_elements + full_columns,
-                                            c_stride_elements, rows_in_high_tile, column_remainder_count);
-            if (rows_in_low_tile > 0) {
-                nk_dots_bf16_store_sapphireamx_(&c_low_state,
-                                                c + (row_block_start + 16) * c_stride_elements + full_columns,
-                                                c_stride_elements, rows_in_low_tile, column_remainder_count);
-            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + full_columns,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile,
+                                                   column_remainder_count);
         }
     }
 
     _tile_release();
-    nk_f32_t const factor = a_tensor_scale * header->tensor_scale;
-    for (nk_size_t row = 0; row < rows; row++)
-        nk_cross_scale_results_(c + row * c_stride_elements, columns_count, factor);
     return nk_success_k;
 }
 
-/** Gram upper triangle of @p vectors, widened to BF16 like the GEMM's A, on AMX tiles, covering
- *  rows from @p rows_begin up to @p rows_end. */
-NUMKONG_INLINE nk_status_t nk_gram_through_bf16_sapphireamx_(                                                //
-    nk_dots_bf16_rows_sapphireamx_t vectors, nk_f32_t tensor_scale, nk_size_t vector_count, nk_size_t depth, //
+/** Gram upper triangle of @p vectors widened to BF16, on AMX tiles, covering rows from
+ *  @p rows_begin up to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_e4m3_sapphireamx_(                                    //
+    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, //
     nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) {
-
     nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
-
-    // Handle row slicing: compute rows [rows_begin, rows_end)
     rows_end = nk_min_of_two(rows_end, vector_count);
 
-    // Round depth up to multiple of 96 (3 tiles × 32 elements)
-    nk_size_t const depth_tiles = nk_size_divide_round_up_(depth, 32);
-    nk_size_t const depth_tile_groups = nk_size_divide_round_up_(depth_tiles, 3);
+    // Depth is walked in groups of 3 tiles × 32 elements
+    nk_size_t const depth_tile_groups = nk_size_divide_round_up_(nk_size_divide_round_up_(depth, 32), 3);
 
     nk_dots_bf16_a16x32_sapphireamx_t a_tiles[3];
     nk_dots_bf16_a16x32_sapphireamx_t b_src_tiles[3];
@@ -2561,23 +2537,20 @@ NUMKONG_INLINE nk_status_t nk_gram_through_bf16_sapphireamx_(                   
             nk_dots_bf16_init_sapphireamx_(&state);
 
             for (nk_size_t depth_group = 0; depth_group < depth_tile_groups; depth_group++) {
-                nk_size_t const depth_base = depth_group * 96;
-
                 for (int tile_index = 0; tile_index < 3; tile_index++) {
-                    nk_size_t const depth_start = depth_base + tile_index * 32;
+                    nk_size_t const depth_start = depth_group * 96 + tile_index * 32;
                     nk_size_t const valid_depth = (depth_start + 32 <= depth)
                                                       ? 32
                                                       : (depth > depth_start ? depth - depth_start : 0);
 
-                    nk_dots_through_bf16_load_a_sapphireamx_(&a_tiles[tile_index], vectors, row_tile, depth_start,
-                                                             valid_rows, valid_depth);
-
+                    nk_dots_load_a_e4m3_sapphireamx_(&a_tiles[tile_index], vectors, stride, row_tile, depth_start,
+                                                     valid_rows, valid_depth);
                     if (row_tile == column_tile && valid_rows == valid_columns) {
                         nk_dots_pack_bf16_transposed_sapphireamx_(&a_tiles[tile_index], &b_tiles[tile_index]);
                     }
                     else {
-                        nk_dots_through_bf16_load_a_sapphireamx_(&b_src_tiles[tile_index], vectors, column_tile,
-                                                                 depth_start, valid_columns, valid_depth);
+                        nk_dots_load_a_e4m3_sapphireamx_(&b_src_tiles[tile_index], vectors, stride, column_tile,
+                                                         depth_start, valid_columns, valid_depth);
                         nk_dots_pack_bf16_transposed_sapphireamx_(&b_src_tiles[tile_index], &b_tiles[tile_index]);
                     }
                 }
@@ -2591,13 +2564,1120 @@ NUMKONG_INLINE nk_status_t nk_gram_through_bf16_sapphireamx_(                   
                 result_stride_elements, valid_rows, valid_columns, column_tile - row_tile);
         }
     }
-    for (nk_size_t row = rows_begin; row < rows_end; row++)
-        nk_cross_scale_results_(result + row * result_stride_elements + row, vector_count - row,
-                                tensor_scale * tensor_scale);
     return nk_success_k;
 }
 
-#pragma endregion Through BF16
+#pragma endregion E4M3 Floats
+
+#pragma region E5M2 Floats
+
+NUMKONG_INLINE __m512i nk_e5m2_widen_bf16_sapphireamx_(nk_e5m2_t const *values, nk_size_t stride, nk_size_t row,
+                                                       nk_size_t first, nk_size_t valid) {
+    return nk_e5m2x32_to_bf16x32_icelake_(
+        _mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid), values + row * stride + first));
+}
+
+NUMKONG_INLINE nk_f32_t nk_e5m2_sumsq_sapphireamx_(nk_e5m2_t const *values, nk_size_t stride, nk_size_t row,
+                                                   nk_size_t depth) {
+    return nk_dots_reduce_sumsq_e5m2_skylake_(values + row * stride, depth, sizeof(nk_e5m2_t));
+}
+
+/** Loads rows @p first_row to `first_row + 16` of @p values into a BF16 A tile, zeros past
+ *  @p valid_rows rows and @p valid_columns elements from @p depth_offset. */
+NUMKONG_INLINE void nk_dots_load_a_e5m2_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile, nk_e5m2_t const *values,
+                                                     nk_size_t stride, nk_size_t first_row, nk_size_t depth_offset,
+                                                     nk_size_t valid_rows, nk_size_t valid_columns) {
+    for (nk_size_t row = 0; row < 16; row++)
+        _mm512_store_si512((__m512i *)a_tile->data[row],
+                           row < valid_rows ? nk_e5m2_widen_bf16_sapphireamx_(values, stride, first_row + row,
+                                                                              depth_offset, valid_columns)
+                                            : _mm512_setzero_si512());
+    nk_compiler_barrier_sapphireamx_();
+}
+
+/** GEMM of @p a rows widened to BF16 against B columns from @c nk_dots_pack_e5m2_sapphireamx, into
+ *  F32 @p c, on BF16 AMX tiles. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_e5m2_sapphireamx_( //
+    nk_e5m2_t const *a, void const *b_packed, nk_f32_t *c,   //
+    nk_size_t rows, nk_size_t columns_count, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    nk_size_t const column_tiles_count = header->full_column_tiles;
+    nk_size_t const depth_tiles_count = header->full_depth_tiles;
+    nk_size_t const column_remainder_count = header->column_remainder_count;
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
+    if (depth_tiles_count == 0) {
+        nk_dots_bf16_zero_results_sapphireamx_(c, rows, columns_count, c_stride_elements);
+        return nk_success_k;
+    }
+
+    nk_bf16_t const *b_tiles = (nk_bf16_t const *)((char const *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t const *column_edge = (nk_bf16_t const *)((char const *)b_packed + header->column_edge_offset);
+    nk_size_t const full_columns = column_tiles_count * 16;
+    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
+    nk_size_t const column_blocks_count = column_tiles_count / 2;
+    nk_size_t const full_depth_tiles_count = depth / 32;
+    nk_size_t const depth_remainder = depth % 32;
+    nk_dots_bf16_a16x32_sapphireamx_t a_tile_top, a_tile_bottom;
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_block = 0; row_block < row_blocks_count; row_block++) {
+        nk_size_t const row_block_start = row_block * 32;
+        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
+        nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
+        nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
+
+        for (nk_size_t column_block = 0; column_block < column_blocks_count; column_block++) {
+            nk_dots_bf16_zero_2x2_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_e5m2_sapphireamx_(&a_tile_top, a, a_stride, row_block_start, depth_offset,
+                                                 rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_e5m2_sapphireamx_(&a_tile_bottom, a, a_stride, row_block_start + 16, depth_offset,
+                                                     rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x2_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2) * depth_tiles_count + depth_tile),
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2 + 1) * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_block_sapphireamx_(c + row_block_start * c_stride_elements + column_block * 32, c_stride,
+                                                  valid_rows_count);
+        }
+
+        if (column_tiles_count % 2 == 1) {
+            nk_size_t const column_tile = column_tiles_count - 1;
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_e5m2_sapphireamx_(&a_tile_top, a, a_stride, row_block_start, depth_offset,
+                                                 rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_e5m2_sapphireamx_(&a_tile_bottom, a, a_stride, row_block_start + 16, depth_offset,
+                                                     rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x1_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, column_tile * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + column_tile * 16,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile, 16);
+        }
+
+        if (column_remainder_count > 0) {
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_e5m2_sapphireamx_(&a_tile_top, a, a_stride, row_block_start, depth_offset,
+                                                 rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_e5m2_sapphireamx_(&a_tile_bottom, a, a_stride, row_block_start + 16, depth_offset,
+                                                     rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_edge_sapphireamx_(&a_tile_top, &a_tile_bottom, column_edge, depth_offset, depth,
+                                                          column_remainder_count, valid_depth);
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + full_columns,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile,
+                                                   column_remainder_count);
+        }
+    }
+
+    _tile_release();
+    return nk_success_k;
+}
+
+/** Gram upper triangle of @p vectors widened to BF16, on AMX tiles, covering rows from
+ *  @p rows_begin up to @p rows_end. */
+NUMKONG_INLINE nk_status_t nk_gram_e5m2_sapphireamx_(                                    //
+    nk_e5m2_t const *vectors, nk_size_t vector_count, nk_size_t depth, nk_size_t stride, //
+    nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin, nk_size_t rows_end) {
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+
+    // Depth is walked in groups of 3 tiles × 32 elements
+    nk_size_t const depth_tile_groups = nk_size_divide_round_up_(nk_size_divide_round_up_(depth, 32), 3);
+
+    nk_dots_bf16_a16x32_sapphireamx_t a_tiles[3];
+    nk_dots_bf16_a16x32_sapphireamx_t b_src_tiles[3];
+    nk_dots_bf16_b32x16_sapphireamx_t b_tiles[3];
+    nk_dots_bf16_state_sapphireamx_t state;
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
+
+        for (nk_size_t column_tile = row_tile; column_tile < vector_count; column_tile += 16) {
+            nk_size_t const valid_columns = (column_tile + 16 <= vector_count) ? 16 : (vector_count - column_tile);
+
+            nk_dots_bf16_init_sapphireamx_(&state);
+
+            for (nk_size_t depth_group = 0; depth_group < depth_tile_groups; depth_group++) {
+                for (int tile_index = 0; tile_index < 3; tile_index++) {
+                    nk_size_t const depth_start = depth_group * 96 + tile_index * 32;
+                    nk_size_t const valid_depth = (depth_start + 32 <= depth)
+                                                      ? 32
+                                                      : (depth > depth_start ? depth - depth_start : 0);
+
+                    nk_dots_load_a_e5m2_sapphireamx_(&a_tiles[tile_index], vectors, stride, row_tile, depth_start,
+                                                     valid_rows, valid_depth);
+                    if (row_tile == column_tile && valid_rows == valid_columns) {
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&a_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                    else {
+                        nk_dots_load_a_e5m2_sapphireamx_(&b_src_tiles[tile_index], vectors, stride, column_tile,
+                                                         depth_start, valid_columns, valid_depth);
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&b_src_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                }
+
+                nk_dots_bf16_update_sapphireamx_( //
+                    &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
+            }
+
+            nk_dots_symmetric_store_sapphireamx_(                                     //
+                state.data, result + row_tile * result_stride_elements + column_tile, //
+                result_stride_elements, valid_rows, valid_columns, column_tile - row_tile);
+        }
+    }
+    return nk_success_k;
+}
+
+#pragma endregion E5M2 Floats
+
+#pragma region NVFP4 Floats
+
+/** NVFP4 scales are not rebased, so every row has base zero and spread zero. */
+NUMKONG_INLINE nk_i32_t nk_nvfp4_base_sapphireamx_(nk_ue4m3_t const *scales, nk_size_t scales_stride, nk_size_t row,
+                                                   nk_size_t depth, nk_i32_t *spread) {
+    nk_unused_(scales), nk_unused_(scales_stride), nk_unused_(row), nk_unused_(depth);
+    *spread = 0;
+    return 0;
+}
+
+NUMKONG_INLINE __m512i nk_nvfp4_widen_bf16_sapphireamx_(nk_e2m1x2_t const *values, nk_size_t stride,
+                                                        nk_ue4m3_t const *scales, nk_size_t scales_stride,
+                                                        nk_i32_t base, nk_size_t row, nk_size_t first,
+                                                        nk_size_t valid) {
+    nk_unused_(base);
+    __m512 low_f32x16, high_f32x16;
+    nk_e2m1x32_to_f32x16x2_sapphireamx_(values, stride, row, first, valid, &low_f32x16, &high_f32x16);
+    nk_ue4m3_t const *row_scales = scales + row * scales_stride;
+    return nk_scaled_halves_to_bf16x32_sapphireamx_(
+        low_f32x16, high_f32x16, nk_ue4m3_scale_sapphireamx_(row_scales, first / 16),
+        valid > 16 ? nk_ue4m3_scale_sapphireamx_(row_scales, first / 16 + 1) : 0);
+}
+
+/** Squared norm of row @p row over @p depth elements of the BF16 values the GEMM multiplies,
+ *  rebased by @p base, summed in F32. */
+NUMKONG_INLINE nk_f32_t nk_nvfp4_sumsq_sapphireamx_(nk_e2m1x2_t const *values, nk_size_t stride,
+                                                    nk_ue4m3_t const *scales, nk_size_t scales_stride, nk_i32_t base,
+                                                    nk_size_t row, nk_size_t depth) {
+    __m512 sum_f32x16 = _mm512_setzero_ps();
+    for (nk_size_t first = 0; first < depth; first += 32)
+        sum_f32x16 = nk_bf16x32_sumsq_step_sapphireamx_(
+            sum_f32x16, nk_nvfp4_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, base, row, first,
+                                                         depth - first < 32 ? depth - first : 32));
+    return _mm512_reduce_add_ps(sum_f32x16);
+}
+
+/** Fills @p bases with the rebasing exponents of @p count rows of @p scales from @p first_row, and
+ *  zeros up to @p capacity. */
+NUMKONG_INLINE void nk_dots_bases_nvfp4_sapphireamx_(nk_ue4m3_t const *scales, nk_size_t scales_stride,
+                                                     nk_size_t first_row, nk_size_t count, nk_size_t capacity,
+                                                     nk_size_t depth, nk_i32_t *bases) {
+    nk_i32_t spread;
+    for (nk_size_t row = 0; row < capacity; row++)
+        bases[row] = row < count ? nk_nvfp4_base_sapphireamx_(scales, scales_stride, first_row + row, depth, &spread)
+                                 : 0;
+}
+
+/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+ *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
+ *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
+NUMKONG_INLINE void nk_dots_load_a_nvfp4_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
+                                                      nk_e2m1x2_t const *values, nk_size_t stride,
+                                                      nk_ue4m3_t const *scales, nk_size_t scales_stride,
+                                                      nk_i32_t const *bases, nk_size_t first_row,
+                                                      nk_size_t depth_offset, nk_size_t valid_rows,
+                                                      nk_size_t valid_columns) {
+    if (!valid_columns) valid_rows = 0;
+    for (nk_size_t row = 0; row < 16; row++)
+        _mm512_store_si512((__m512i *)a_tile->data[row],
+                           row < valid_rows
+                               ? nk_nvfp4_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, bases[row],
+                                                                  first_row + row, depth_offset, valid_columns)
+                               : _mm512_setzero_si512());
+    nk_compiler_barrier_sapphireamx_();
+}
+
+/** GEMM of @p a rows widened to BF16 against the columns packed by
+ *  @c nk_dots_pack_nvfp4_sapphireamx, into F32 @p c: rows and columns rebased, before
+ *  any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_nvfp4_sapphireamx_(                            //
+    nk_e2m1x2_t const *a, nk_ue4m3_t const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns_count, nk_size_t depth, nk_size_t a_stride, nk_size_t a_scales_stride,
+    nk_size_t c_stride) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    nk_size_t const column_tiles_count = header->full_column_tiles;
+    nk_size_t const depth_tiles_count = header->full_depth_tiles;
+    nk_size_t const column_remainder_count = header->column_remainder_count;
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
+
+    // An empty depth gives zero sums, which the epilogues still finish
+    if (depth_tiles_count == 0) {
+        nk_dots_bf16_zero_results_sapphireamx_(c, rows, columns_count, c_stride_elements);
+        return nk_success_k;
+    }
+
+    nk_bf16_t const *b_tiles = (nk_bf16_t const *)((char const *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t const *column_edge = (nk_bf16_t const *)((char const *)b_packed + header->column_edge_offset);
+    nk_size_t const full_columns = column_tiles_count * 16;
+    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
+    nk_size_t const column_blocks_count = column_tiles_count / 2;
+    nk_size_t const full_depth_tiles_count = depth / 32;
+    nk_size_t const depth_remainder = depth % 32;
+    nk_dots_bf16_a16x32_sapphireamx_t a_tile_top, a_tile_bottom;
+    nk_i32_t row_bases[32];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_block = 0; row_block < row_blocks_count; row_block++) {
+        nk_size_t const row_block_start = row_block * 32;
+        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
+        nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
+        nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
+        nk_dots_bases_nvfp4_sapphireamx_(a_scales, a_scales_stride, row_block_start, valid_rows_count, 32, depth,
+                                         row_bases);
+
+        for (nk_size_t column_block = 0; column_block < column_blocks_count; column_block++) {
+            nk_dots_bf16_zero_2x2_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_nvfp4_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                  row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_nvfp4_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                      row_bases + 16, row_block_start + 16, depth_offset,
+                                                      rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x2_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2) * depth_tiles_count + depth_tile),
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2 + 1) * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_block_sapphireamx_(c + row_block_start * c_stride_elements + column_block * 32, c_stride,
+                                                  valid_rows_count);
+        }
+
+        if (column_tiles_count % 2 == 1) {
+            nk_size_t const column_tile = column_tiles_count - 1;
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_nvfp4_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                  row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_nvfp4_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                      row_bases + 16, row_block_start + 16, depth_offset,
+                                                      rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x1_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, column_tile * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + column_tile * 16,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile, 16);
+        }
+
+        if (column_remainder_count > 0) {
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_nvfp4_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                  row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_nvfp4_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                      row_bases + 16, row_block_start + 16, depth_offset,
+                                                      rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_edge_sapphireamx_(&a_tile_top, &a_tile_bottom, column_edge, depth_offset, depth,
+                                                          column_remainder_count, valid_depth);
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + full_columns,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile,
+                                                   column_remainder_count);
+        }
+    }
+
+    _tile_release();
+    return nk_success_k;
+}
+
+/** Gram upper triangle of @p vectors widened to BF16, on AMX tiles, covering rows from
+ *  @p rows_begin up to @p rows_end: vectors rebased, before any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gram_nvfp4_sapphireamx_(                                             //
+    nk_e2m1x2_t const *vectors, nk_ue4m3_t const *scales, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_size_t scales_stride, nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin,
+    nk_size_t rows_end) {
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+
+    // Depth is walked in groups of 3 tiles × 32 elements
+    nk_size_t const depth_tile_groups = nk_size_divide_round_up_(nk_size_divide_round_up_(depth, 32), 3);
+
+    nk_dots_bf16_a16x32_sapphireamx_t a_tiles[3];
+    nk_dots_bf16_a16x32_sapphireamx_t b_src_tiles[3];
+    nk_dots_bf16_b32x16_sapphireamx_t b_tiles[3];
+    nk_dots_bf16_state_sapphireamx_t state;
+    nk_i32_t row_bases[16], column_bases[16];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
+        nk_dots_bases_nvfp4_sapphireamx_(scales, scales_stride, row_tile, valid_rows, 16, depth, row_bases);
+
+        for (nk_size_t column_tile = row_tile; column_tile < vector_count; column_tile += 16) {
+            nk_size_t const valid_columns = (column_tile + 16 <= vector_count) ? 16 : (vector_count - column_tile);
+            nk_dots_bases_nvfp4_sapphireamx_(scales, scales_stride, column_tile, valid_columns, 16, depth,
+                                             column_bases);
+
+            nk_dots_bf16_init_sapphireamx_(&state);
+
+            for (nk_size_t depth_group = 0; depth_group < depth_tile_groups; depth_group++) {
+                for (int tile_index = 0; tile_index < 3; tile_index++) {
+                    nk_size_t const depth_start = depth_group * 96 + tile_index * 32;
+                    nk_size_t const valid_depth = (depth_start + 32 <= depth)
+                                                      ? 32
+                                                      : (depth > depth_start ? depth - depth_start : 0);
+
+                    nk_dots_load_a_nvfp4_sapphireamx_(&a_tiles[tile_index], vectors, stride, scales, scales_stride,
+                                                      row_bases, row_tile, depth_start, valid_rows, valid_depth);
+                    if (row_tile == column_tile && valid_rows == valid_columns) {
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&a_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                    else {
+                        nk_dots_load_a_nvfp4_sapphireamx_(&b_src_tiles[tile_index], vectors, stride, scales,
+                                                          scales_stride, column_bases, column_tile, depth_start,
+                                                          valid_columns, valid_depth);
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&b_src_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                }
+
+                nk_dots_bf16_update_sapphireamx_( //
+                    &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
+            }
+
+            nk_dots_symmetric_store_sapphireamx_(                                     //
+                state.data, result + row_tile * result_stride_elements + column_tile, //
+                result_stride_elements, valid_rows, valid_columns, column_tile - row_tile);
+        }
+    }
+    return nk_success_k;
+}
+
+#pragma endregion NVFP4 Floats
+
+#pragma region MXFP4 Floats
+
+/** The rebasing exponent of row @p row over @p depth elements, its spread into @p spread. */
+NUMKONG_INLINE nk_i32_t nk_mxfp4_base_sapphireamx_(nk_ue8m0_t const *scales, nk_size_t scales_stride, nk_size_t row,
+                                                   nk_size_t depth, nk_i32_t *spread) {
+    return nk_cross_scaled_base_serial_(scales + row * scales_stride, depth / 32, spread);
+}
+
+NUMKONG_INLINE __m512i nk_mxfp4_widen_bf16_sapphireamx_(nk_e2m1x2_t const *values, nk_size_t stride,
+                                                        nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                        nk_i32_t base, nk_size_t row, nk_size_t first,
+                                                        nk_size_t valid) {
+    __m512 low_f32x16, high_f32x16;
+    nk_e2m1x32_to_f32x16x2_sapphireamx_(values, stride, row, first, valid, &low_f32x16, &high_f32x16);
+    nk_f32_t const scale = nk_relative_ue8m0_to_f32_serial_(scales[row * scales_stride + first / 32], base);
+    return nk_scaled_halves_to_bf16x32_sapphireamx_(low_f32x16, high_f32x16, scale, scale);
+}
+
+/** Squared norm of row @p row over @p depth elements of the BF16 values the GEMM multiplies,
+ *  rebased by @p base, summed in F32. */
+NUMKONG_INLINE nk_f32_t nk_mxfp4_sumsq_sapphireamx_(nk_e2m1x2_t const *values, nk_size_t stride,
+                                                    nk_ue8m0_t const *scales, nk_size_t scales_stride, nk_i32_t base,
+                                                    nk_size_t row, nk_size_t depth) {
+    __m512 sum_f32x16 = _mm512_setzero_ps();
+    for (nk_size_t first = 0; first < depth; first += 32)
+        sum_f32x16 = nk_bf16x32_sumsq_step_sapphireamx_(
+            sum_f32x16, nk_mxfp4_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, base, row, first,
+                                                         depth - first < 32 ? depth - first : 32));
+    return _mm512_reduce_add_ps(sum_f32x16);
+}
+
+/** Fills @p bases with the rebasing exponents of @p count rows of @p scales from @p first_row, and
+ *  zeros up to @p capacity. */
+NUMKONG_INLINE void nk_dots_bases_mxfp4_sapphireamx_(nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                     nk_size_t first_row, nk_size_t count, nk_size_t capacity,
+                                                     nk_size_t depth, nk_i32_t *bases) {
+    nk_i32_t spread;
+    for (nk_size_t row = 0; row < capacity; row++)
+        bases[row] = row < count ? nk_mxfp4_base_sapphireamx_(scales, scales_stride, first_row + row, depth, &spread)
+                                 : 0;
+}
+
+/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+ *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
+ *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
+NUMKONG_INLINE void nk_dots_load_a_mxfp4_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
+                                                      nk_e2m1x2_t const *values, nk_size_t stride,
+                                                      nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                      nk_i32_t const *bases, nk_size_t first_row,
+                                                      nk_size_t depth_offset, nk_size_t valid_rows,
+                                                      nk_size_t valid_columns) {
+    if (!valid_columns) valid_rows = 0;
+    for (nk_size_t row = 0; row < 16; row++)
+        _mm512_store_si512((__m512i *)a_tile->data[row],
+                           row < valid_rows
+                               ? nk_mxfp4_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, bases[row],
+                                                                  first_row + row, depth_offset, valid_columns)
+                               : _mm512_setzero_si512());
+    nk_compiler_barrier_sapphireamx_();
+}
+
+/** GEMM of @p a rows widened to BF16 against the columns packed by
+ *  @c nk_dots_pack_mxfp4_sapphireamx, into F32 @p c: rows and columns rebased, before
+ *  any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_mxfp4_sapphireamx_(                            //
+    nk_e2m1x2_t const *a, nk_ue8m0_t const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns_count, nk_size_t depth, nk_size_t a_stride, nk_size_t a_scales_stride,
+    nk_size_t c_stride) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    nk_size_t const column_tiles_count = header->full_column_tiles;
+    nk_size_t const depth_tiles_count = header->full_depth_tiles;
+    nk_size_t const column_remainder_count = header->column_remainder_count;
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
+
+    // An empty depth gives zero sums, which the epilogues still finish
+    if (depth_tiles_count == 0) {
+        nk_dots_bf16_zero_results_sapphireamx_(c, rows, columns_count, c_stride_elements);
+        return nk_success_k;
+    }
+
+    nk_bf16_t const *b_tiles = (nk_bf16_t const *)((char const *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t const *column_edge = (nk_bf16_t const *)((char const *)b_packed + header->column_edge_offset);
+    nk_size_t const full_columns = column_tiles_count * 16;
+    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
+    nk_size_t const column_blocks_count = column_tiles_count / 2;
+    nk_size_t const full_depth_tiles_count = depth / 32;
+    nk_size_t const depth_remainder = depth % 32;
+    nk_dots_bf16_a16x32_sapphireamx_t a_tile_top, a_tile_bottom;
+    nk_i32_t row_bases[32];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_block = 0; row_block < row_blocks_count; row_block++) {
+        nk_size_t const row_block_start = row_block * 32;
+        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
+        nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
+        nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
+        nk_dots_bases_mxfp4_sapphireamx_(a_scales, a_scales_stride, row_block_start, valid_rows_count, 32, depth,
+                                         row_bases);
+
+        for (nk_size_t column_block = 0; column_block < column_blocks_count; column_block++) {
+            nk_dots_bf16_zero_2x2_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp4_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                  row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp4_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                      row_bases + 16, row_block_start + 16, depth_offset,
+                                                      rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x2_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2) * depth_tiles_count + depth_tile),
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2 + 1) * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_block_sapphireamx_(c + row_block_start * c_stride_elements + column_block * 32, c_stride,
+                                                  valid_rows_count);
+        }
+
+        if (column_tiles_count % 2 == 1) {
+            nk_size_t const column_tile = column_tiles_count - 1;
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp4_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                  row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp4_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                      row_bases + 16, row_block_start + 16, depth_offset,
+                                                      rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x1_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, column_tile * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + column_tile * 16,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile, 16);
+        }
+
+        if (column_remainder_count > 0) {
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp4_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                  row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp4_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                      row_bases + 16, row_block_start + 16, depth_offset,
+                                                      rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_edge_sapphireamx_(&a_tile_top, &a_tile_bottom, column_edge, depth_offset, depth,
+                                                          column_remainder_count, valid_depth);
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + full_columns,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile,
+                                                   column_remainder_count);
+        }
+    }
+
+    _tile_release();
+    return nk_success_k;
+}
+
+/** Gram upper triangle of @p vectors widened to BF16, on AMX tiles, covering rows from
+ *  @p rows_begin up to @p rows_end: vectors rebased, before any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gram_mxfp4_sapphireamx_(                                             //
+    nk_e2m1x2_t const *vectors, nk_ue8m0_t const *scales, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_size_t scales_stride, nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin,
+    nk_size_t rows_end) {
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+
+    // Depth is walked in groups of 3 tiles × 32 elements
+    nk_size_t const depth_tile_groups = nk_size_divide_round_up_(nk_size_divide_round_up_(depth, 32), 3);
+
+    nk_dots_bf16_a16x32_sapphireamx_t a_tiles[3];
+    nk_dots_bf16_a16x32_sapphireamx_t b_src_tiles[3];
+    nk_dots_bf16_b32x16_sapphireamx_t b_tiles[3];
+    nk_dots_bf16_state_sapphireamx_t state;
+    nk_i32_t row_bases[16], column_bases[16];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
+        nk_dots_bases_mxfp4_sapphireamx_(scales, scales_stride, row_tile, valid_rows, 16, depth, row_bases);
+
+        for (nk_size_t column_tile = row_tile; column_tile < vector_count; column_tile += 16) {
+            nk_size_t const valid_columns = (column_tile + 16 <= vector_count) ? 16 : (vector_count - column_tile);
+            nk_dots_bases_mxfp4_sapphireamx_(scales, scales_stride, column_tile, valid_columns, 16, depth,
+                                             column_bases);
+
+            nk_dots_bf16_init_sapphireamx_(&state);
+
+            for (nk_size_t depth_group = 0; depth_group < depth_tile_groups; depth_group++) {
+                for (int tile_index = 0; tile_index < 3; tile_index++) {
+                    nk_size_t const depth_start = depth_group * 96 + tile_index * 32;
+                    nk_size_t const valid_depth = (depth_start + 32 <= depth)
+                                                      ? 32
+                                                      : (depth > depth_start ? depth - depth_start : 0);
+
+                    nk_dots_load_a_mxfp4_sapphireamx_(&a_tiles[tile_index], vectors, stride, scales, scales_stride,
+                                                      row_bases, row_tile, depth_start, valid_rows, valid_depth);
+                    if (row_tile == column_tile && valid_rows == valid_columns) {
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&a_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                    else {
+                        nk_dots_load_a_mxfp4_sapphireamx_(&b_src_tiles[tile_index], vectors, stride, scales,
+                                                          scales_stride, column_bases, column_tile, depth_start,
+                                                          valid_columns, valid_depth);
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&b_src_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                }
+
+                nk_dots_bf16_update_sapphireamx_( //
+                    &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
+            }
+
+            nk_dots_symmetric_store_sapphireamx_(                                     //
+                state.data, result + row_tile * result_stride_elements + column_tile, //
+                result_stride_elements, valid_rows, valid_columns, column_tile - row_tile);
+        }
+    }
+    return nk_success_k;
+}
+
+#pragma endregion MXFP4 Floats
+
+#pragma region MXFP8E4M3 Floats
+
+/** The rebasing exponent of row @p row over @p depth elements, its spread into @p spread. */
+NUMKONG_INLINE nk_i32_t nk_mxfp8e4m3_base_sapphireamx_(nk_ue8m0_t const *scales, nk_size_t scales_stride, nk_size_t row,
+                                                       nk_size_t depth, nk_i32_t *spread) {
+    return nk_cross_scaled_base_serial_(scales + row * scales_stride, depth / 32, spread);
+}
+
+NUMKONG_INLINE __m512i nk_mxfp8e4m3_widen_bf16_sapphireamx_(nk_e4m3_t const *values, nk_size_t stride,
+                                                            nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                            nk_i32_t base, nk_size_t row, nk_size_t first,
+                                                            nk_size_t valid) {
+    __m256i const bytes_u8x32 = _mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid),
+                                                        values + row * stride + first);
+    nk_f32_t const scale = nk_relative_ue8m0_to_f32_serial_(scales[row * scales_stride + first / 32], base);
+    return nk_scaled_halves_to_bf16x32_sapphireamx_(
+        nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(bytes_u8x32)),
+        nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(bytes_u8x32, 1)), scale, scale);
+}
+
+/** Squared norm of row @p row over @p depth elements of the BF16 values the GEMM multiplies,
+ *  rebased by @p base, summed in F32. */
+NUMKONG_INLINE nk_f32_t nk_mxfp8e4m3_sumsq_sapphireamx_(nk_e4m3_t const *values, nk_size_t stride,
+                                                        nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                        nk_i32_t base, nk_size_t row, nk_size_t depth) {
+    __m512 sum_f32x16 = _mm512_setzero_ps();
+    for (nk_size_t first = 0; first < depth; first += 32)
+        sum_f32x16 = nk_bf16x32_sumsq_step_sapphireamx_(
+            sum_f32x16, nk_mxfp8e4m3_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, base, row, first,
+                                                             depth - first < 32 ? depth - first : 32));
+    return _mm512_reduce_add_ps(sum_f32x16);
+}
+
+/** Fills @p bases with the rebasing exponents of @p count rows of @p scales from @p first_row, and
+ *  zeros up to @p capacity. */
+NUMKONG_INLINE void nk_dots_bases_mxfp8e4m3_sapphireamx_(nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                         nk_size_t first_row, nk_size_t count, nk_size_t capacity,
+                                                         nk_size_t depth, nk_i32_t *bases) {
+    nk_i32_t spread;
+    for (nk_size_t row = 0; row < capacity; row++)
+        bases[row] = row < count
+                         ? nk_mxfp8e4m3_base_sapphireamx_(scales, scales_stride, first_row + row, depth, &spread)
+                         : 0;
+}
+
+/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+ *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
+ *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
+NUMKONG_INLINE void nk_dots_load_a_mxfp8e4m3_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
+                                                          nk_e4m3_t const *values, nk_size_t stride,
+                                                          nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                          nk_i32_t const *bases, nk_size_t first_row,
+                                                          nk_size_t depth_offset, nk_size_t valid_rows,
+                                                          nk_size_t valid_columns) {
+    if (!valid_columns) valid_rows = 0;
+    for (nk_size_t row = 0; row < 16; row++)
+        _mm512_store_si512((__m512i *)a_tile->data[row],
+                           row < valid_rows
+                               ? nk_mxfp8e4m3_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, bases[row],
+                                                                      first_row + row, depth_offset, valid_columns)
+                               : _mm512_setzero_si512());
+    nk_compiler_barrier_sapphireamx_();
+}
+
+/** GEMM of @p a rows widened to BF16 against the columns packed by
+ *  @c nk_dots_pack_mxfp8e4m3_sapphireamx, into F32 @p c: rows and columns rebased, before
+ *  any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_mxfp8e4m3_sapphireamx_(                      //
+    nk_e4m3_t const *a, nk_ue8m0_t const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns_count, nk_size_t depth, nk_size_t a_stride, nk_size_t a_scales_stride,
+    nk_size_t c_stride) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    nk_size_t const column_tiles_count = header->full_column_tiles;
+    nk_size_t const depth_tiles_count = header->full_depth_tiles;
+    nk_size_t const column_remainder_count = header->column_remainder_count;
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
+
+    // An empty depth gives zero sums, which the epilogues still finish
+    if (depth_tiles_count == 0) {
+        nk_dots_bf16_zero_results_sapphireamx_(c, rows, columns_count, c_stride_elements);
+        return nk_success_k;
+    }
+
+    nk_bf16_t const *b_tiles = (nk_bf16_t const *)((char const *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t const *column_edge = (nk_bf16_t const *)((char const *)b_packed + header->column_edge_offset);
+    nk_size_t const full_columns = column_tiles_count * 16;
+    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
+    nk_size_t const column_blocks_count = column_tiles_count / 2;
+    nk_size_t const full_depth_tiles_count = depth / 32;
+    nk_size_t const depth_remainder = depth % 32;
+    nk_dots_bf16_a16x32_sapphireamx_t a_tile_top, a_tile_bottom;
+    nk_i32_t row_bases[32];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_block = 0; row_block < row_blocks_count; row_block++) {
+        nk_size_t const row_block_start = row_block * 32;
+        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
+        nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
+        nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
+        nk_dots_bases_mxfp8e4m3_sapphireamx_(a_scales, a_scales_stride, row_block_start, valid_rows_count, 32, depth,
+                                             row_bases);
+
+        for (nk_size_t column_block = 0; column_block < column_blocks_count; column_block++) {
+            nk_dots_bf16_zero_2x2_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp8e4m3_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                      row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp8e4m3_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                          row_bases + 16, row_block_start + 16, depth_offset,
+                                                          rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x2_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2) * depth_tiles_count + depth_tile),
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2 + 1) * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_block_sapphireamx_(c + row_block_start * c_stride_elements + column_block * 32, c_stride,
+                                                  valid_rows_count);
+        }
+
+        if (column_tiles_count % 2 == 1) {
+            nk_size_t const column_tile = column_tiles_count - 1;
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp8e4m3_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                      row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp8e4m3_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                          row_bases + 16, row_block_start + 16, depth_offset,
+                                                          rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x1_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, column_tile * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + column_tile * 16,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile, 16);
+        }
+
+        if (column_remainder_count > 0) {
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp8e4m3_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                      row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp8e4m3_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                          row_bases + 16, row_block_start + 16, depth_offset,
+                                                          rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_edge_sapphireamx_(&a_tile_top, &a_tile_bottom, column_edge, depth_offset, depth,
+                                                          column_remainder_count, valid_depth);
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + full_columns,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile,
+                                                   column_remainder_count);
+        }
+    }
+
+    _tile_release();
+    return nk_success_k;
+}
+
+/** Gram upper triangle of @p vectors widened to BF16, on AMX tiles, covering rows from
+ *  @p rows_begin up to @p rows_end: vectors rebased, before any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gram_mxfp8e4m3_sapphireamx_(                                       //
+    nk_e4m3_t const *vectors, nk_ue8m0_t const *scales, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_size_t scales_stride, nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin,
+    nk_size_t rows_end) {
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+
+    // Depth is walked in groups of 3 tiles × 32 elements
+    nk_size_t const depth_tile_groups = nk_size_divide_round_up_(nk_size_divide_round_up_(depth, 32), 3);
+
+    nk_dots_bf16_a16x32_sapphireamx_t a_tiles[3];
+    nk_dots_bf16_a16x32_sapphireamx_t b_src_tiles[3];
+    nk_dots_bf16_b32x16_sapphireamx_t b_tiles[3];
+    nk_dots_bf16_state_sapphireamx_t state;
+    nk_i32_t row_bases[16], column_bases[16];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
+        nk_dots_bases_mxfp8e4m3_sapphireamx_(scales, scales_stride, row_tile, valid_rows, 16, depth, row_bases);
+
+        for (nk_size_t column_tile = row_tile; column_tile < vector_count; column_tile += 16) {
+            nk_size_t const valid_columns = (column_tile + 16 <= vector_count) ? 16 : (vector_count - column_tile);
+            nk_dots_bases_mxfp8e4m3_sapphireamx_(scales, scales_stride, column_tile, valid_columns, 16, depth,
+                                                 column_bases);
+
+            nk_dots_bf16_init_sapphireamx_(&state);
+
+            for (nk_size_t depth_group = 0; depth_group < depth_tile_groups; depth_group++) {
+                for (int tile_index = 0; tile_index < 3; tile_index++) {
+                    nk_size_t const depth_start = depth_group * 96 + tile_index * 32;
+                    nk_size_t const valid_depth = (depth_start + 32 <= depth)
+                                                      ? 32
+                                                      : (depth > depth_start ? depth - depth_start : 0);
+
+                    nk_dots_load_a_mxfp8e4m3_sapphireamx_(&a_tiles[tile_index], vectors, stride, scales, scales_stride,
+                                                          row_bases, row_tile, depth_start, valid_rows, valid_depth);
+                    if (row_tile == column_tile && valid_rows == valid_columns) {
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&a_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                    else {
+                        nk_dots_load_a_mxfp8e4m3_sapphireamx_(&b_src_tiles[tile_index], vectors, stride, scales,
+                                                              scales_stride, column_bases, column_tile, depth_start,
+                                                              valid_columns, valid_depth);
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&b_src_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                }
+
+                nk_dots_bf16_update_sapphireamx_( //
+                    &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
+            }
+
+            nk_dots_symmetric_store_sapphireamx_(                                     //
+                state.data, result + row_tile * result_stride_elements + column_tile, //
+                result_stride_elements, valid_rows, valid_columns, column_tile - row_tile);
+        }
+    }
+    return nk_success_k;
+}
+
+#pragma endregion MXFP8E4M3 Floats
+
+#pragma region MXFP8E5M2 Floats
+
+/** The rebasing exponent of row @p row over @p depth elements, its spread into @p spread. */
+NUMKONG_INLINE nk_i32_t nk_mxfp8e5m2_base_sapphireamx_(nk_ue8m0_t const *scales, nk_size_t scales_stride, nk_size_t row,
+                                                       nk_size_t depth, nk_i32_t *spread) {
+    return nk_cross_scaled_base_serial_(scales + row * scales_stride, depth / 32, spread);
+}
+
+NUMKONG_INLINE __m512i nk_mxfp8e5m2_widen_bf16_sapphireamx_(nk_e5m2_t const *values, nk_size_t stride,
+                                                            nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                            nk_i32_t base, nk_size_t row, nk_size_t first,
+                                                            nk_size_t valid) {
+    __m256i const bytes_u8x32 = _mm256_maskz_loadu_epi8(nk_dots_bf16_valid_mask_sapphireamx_(valid),
+                                                        values + row * stride + first);
+    nk_f32_t const scale = nk_relative_ue8m0_to_f32_serial_(scales[row * scales_stride + first / 32], base);
+    return nk_scaled_halves_to_bf16x32_sapphireamx_(
+        nk_e5m2x16_to_f32x16_skylake_(_mm256_castsi256_si128(bytes_u8x32)),
+        nk_e5m2x16_to_f32x16_skylake_(_mm256_extracti128_si256(bytes_u8x32, 1)), scale, scale);
+}
+
+/** Squared norm of row @p row over @p depth elements of the BF16 values the GEMM multiplies,
+ *  rebased by @p base, summed in F32. */
+NUMKONG_INLINE nk_f32_t nk_mxfp8e5m2_sumsq_sapphireamx_(nk_e5m2_t const *values, nk_size_t stride,
+                                                        nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                        nk_i32_t base, nk_size_t row, nk_size_t depth) {
+    __m512 sum_f32x16 = _mm512_setzero_ps();
+    for (nk_size_t first = 0; first < depth; first += 32)
+        sum_f32x16 = nk_bf16x32_sumsq_step_sapphireamx_(
+            sum_f32x16, nk_mxfp8e5m2_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, base, row, first,
+                                                             depth - first < 32 ? depth - first : 32));
+    return _mm512_reduce_add_ps(sum_f32x16);
+}
+
+/** Fills @p bases with the rebasing exponents of @p count rows of @p scales from @p first_row, and
+ *  zeros up to @p capacity. */
+NUMKONG_INLINE void nk_dots_bases_mxfp8e5m2_sapphireamx_(nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                         nk_size_t first_row, nk_size_t count, nk_size_t capacity,
+                                                         nk_size_t depth, nk_i32_t *bases) {
+    nk_i32_t spread;
+    for (nk_size_t row = 0; row < capacity; row++)
+        bases[row] = row < count
+                         ? nk_mxfp8e5m2_base_sapphireamx_(scales, scales_stride, first_row + row, depth, &spread)
+                         : 0;
+}
+
+/** Loads rows @p first_row to `first_row + 16` of @p values and @p scales, row r rebased by
+ *  @p bases[r], into a BF16 A tile, zeros past @p valid_rows rows and @p valid_columns elements
+ *  from @p depth_offset. A tile past the depth stays zero without reading scales past the row. */
+NUMKONG_INLINE void nk_dots_load_a_mxfp8e5m2_sapphireamx_(nk_dots_bf16_a16x32_sapphireamx_t *a_tile,
+                                                          nk_e5m2_t const *values, nk_size_t stride,
+                                                          nk_ue8m0_t const *scales, nk_size_t scales_stride,
+                                                          nk_i32_t const *bases, nk_size_t first_row,
+                                                          nk_size_t depth_offset, nk_size_t valid_rows,
+                                                          nk_size_t valid_columns) {
+    if (!valid_columns) valid_rows = 0;
+    for (nk_size_t row = 0; row < 16; row++)
+        _mm512_store_si512((__m512i *)a_tile->data[row],
+                           row < valid_rows
+                               ? nk_mxfp8e5m2_widen_bf16_sapphireamx_(values, stride, scales, scales_stride, bases[row],
+                                                                      first_row + row, depth_offset, valid_columns)
+                               : _mm512_setzero_si512());
+    nk_compiler_barrier_sapphireamx_();
+}
+
+/** GEMM of @p a rows widened to BF16 against the columns packed by
+ *  @c nk_dots_pack_mxfp8e5m2_sapphireamx, into F32 @p c: rows and columns rebased, before
+ *  any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gemm_packed_mxfp8e5m2_sapphireamx_(                      //
+    nk_e5m2_t const *a, nk_ue8m0_t const *a_scales, void const *b_packed, nk_f32_t *c, //
+    nk_size_t rows, nk_size_t columns_count, nk_size_t depth, nk_size_t a_stride, nk_size_t a_scales_stride,
+    nk_size_t c_stride) {
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    if (header->capability != nk_cap_sapphireamx_k) return nk_pack_mismatch_k;
+    nk_size_t const column_tiles_count = header->full_column_tiles;
+    nk_size_t const depth_tiles_count = header->full_depth_tiles;
+    nk_size_t const column_remainder_count = header->column_remainder_count;
+    nk_size_t const c_stride_elements = c_stride / sizeof(nk_f32_t);
+
+    // An empty depth gives zero sums, which the epilogues still finish
+    if (depth_tiles_count == 0) {
+        nk_dots_bf16_zero_results_sapphireamx_(c, rows, columns_count, c_stride_elements);
+        return nk_success_k;
+    }
+
+    nk_bf16_t const *b_tiles = (nk_bf16_t const *)((char const *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t const *column_edge = (nk_bf16_t const *)((char const *)b_packed + header->column_edge_offset);
+    nk_size_t const full_columns = column_tiles_count * 16;
+    nk_size_t const row_blocks_count = nk_size_divide_round_up_(rows, 32);
+    nk_size_t const column_blocks_count = column_tiles_count / 2;
+    nk_size_t const full_depth_tiles_count = depth / 32;
+    nk_size_t const depth_remainder = depth % 32;
+    nk_dots_bf16_a16x32_sapphireamx_t a_tile_top, a_tile_bottom;
+    nk_i32_t row_bases[32];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_block = 0; row_block < row_blocks_count; row_block++) {
+        nk_size_t const row_block_start = row_block * 32;
+        nk_size_t const valid_rows_count = (row_block_start + 32 <= rows) ? 32 : (rows - row_block_start);
+        nk_size_t const rows_in_high_tile = (valid_rows_count > 16) ? 16 : valid_rows_count;
+        nk_size_t const rows_in_low_tile = (valid_rows_count > 16) ? valid_rows_count - 16 : 0;
+        nk_dots_bases_mxfp8e5m2_sapphireamx_(a_scales, a_scales_stride, row_block_start, valid_rows_count, 32, depth,
+                                             row_bases);
+
+        for (nk_size_t column_block = 0; column_block < column_blocks_count; column_block++) {
+            nk_dots_bf16_zero_2x2_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp8e5m2_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                      row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp8e5m2_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                          row_bases + 16, row_block_start + 16, depth_offset,
+                                                          rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x2_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2) * depth_tiles_count + depth_tile),
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, (column_block * 2 + 1) * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_block_sapphireamx_(c + row_block_start * c_stride_elements + column_block * 32, c_stride,
+                                                  valid_rows_count);
+        }
+
+        if (column_tiles_count % 2 == 1) {
+            nk_size_t const column_tile = column_tiles_count - 1;
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp8e5m2_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                      row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp8e5m2_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                          row_bases + 16, row_block_start + 16, depth_offset,
+                                                          rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_2x1_sapphireamx_(
+                    &a_tile_top, &a_tile_bottom,
+                    nk_dots_bf16_b_tile_sapphireamx_(b_tiles, column_tile * depth_tiles_count + depth_tile));
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + column_tile * 16,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile, 16);
+        }
+
+        if (column_remainder_count > 0) {
+            nk_dots_bf16_zero_2x1_sapphireamx_();
+            for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+                nk_size_t const depth_offset = depth_tile * 32;
+                nk_size_t const valid_depth = (depth_tile < full_depth_tiles_count) ? 32 : depth_remainder;
+                nk_dots_load_a_mxfp8e5m2_sapphireamx_(&a_tile_top, a, a_stride, a_scales, a_scales_stride, row_bases,
+                                                      row_block_start, depth_offset, rows_in_high_tile, valid_depth);
+                if (rows_in_low_tile > 0)
+                    nk_dots_load_a_mxfp8e5m2_sapphireamx_(&a_tile_bottom, a, a_stride, a_scales, a_scales_stride,
+                                                          row_bases + 16, row_block_start + 16, depth_offset,
+                                                          rows_in_low_tile, valid_depth);
+                nk_dots_bf16_accumulate_edge_sapphireamx_(&a_tile_top, &a_tile_bottom, column_edge, depth_offset, depth,
+                                                          column_remainder_count, valid_depth);
+            }
+            nk_dots_bf16_store_column_sapphireamx_(c + row_block_start * c_stride_elements + full_columns,
+                                                   c_stride_elements, rows_in_high_tile, rows_in_low_tile,
+                                                   column_remainder_count);
+        }
+    }
+
+    _tile_release();
+    return nk_success_k;
+}
+
+/** Gram upper triangle of @p vectors widened to BF16, on AMX tiles, covering rows from
+ *  @p rows_begin up to @p rows_end: vectors rebased, before any tensor scale. */
+NUMKONG_INLINE nk_status_t nk_gram_mxfp8e5m2_sapphireamx_(                                       //
+    nk_e5m2_t const *vectors, nk_ue8m0_t const *scales, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_size_t scales_stride, nk_f32_t *result, nk_size_t result_stride, nk_size_t rows_begin,
+    nk_size_t rows_end) {
+    nk_size_t const result_stride_elements = result_stride / sizeof(nk_f32_t);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+
+    // Depth is walked in groups of 3 tiles × 32 elements
+    nk_size_t const depth_tile_groups = nk_size_divide_round_up_(nk_size_divide_round_up_(depth, 32), 3);
+
+    nk_dots_bf16_a16x32_sapphireamx_t a_tiles[3];
+    nk_dots_bf16_a16x32_sapphireamx_t b_src_tiles[3];
+    nk_dots_bf16_b32x16_sapphireamx_t b_tiles[3];
+    nk_dots_bf16_state_sapphireamx_t state;
+    nk_i32_t row_bases[16], column_bases[16];
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    for (nk_size_t row_tile = rows_begin; row_tile < rows_end; row_tile += 16) {
+        nk_size_t const valid_rows = (row_tile + 16 <= rows_end) ? 16 : (rows_end - row_tile);
+        nk_dots_bases_mxfp8e5m2_sapphireamx_(scales, scales_stride, row_tile, valid_rows, 16, depth, row_bases);
+
+        for (nk_size_t column_tile = row_tile; column_tile < vector_count; column_tile += 16) {
+            nk_size_t const valid_columns = (column_tile + 16 <= vector_count) ? 16 : (vector_count - column_tile);
+            nk_dots_bases_mxfp8e5m2_sapphireamx_(scales, scales_stride, column_tile, valid_columns, 16, depth,
+                                                 column_bases);
+
+            nk_dots_bf16_init_sapphireamx_(&state);
+
+            for (nk_size_t depth_group = 0; depth_group < depth_tile_groups; depth_group++) {
+                for (int tile_index = 0; tile_index < 3; tile_index++) {
+                    nk_size_t const depth_start = depth_group * 96 + tile_index * 32;
+                    nk_size_t const valid_depth = (depth_start + 32 <= depth)
+                                                      ? 32
+                                                      : (depth > depth_start ? depth - depth_start : 0);
+
+                    nk_dots_load_a_mxfp8e5m2_sapphireamx_(&a_tiles[tile_index], vectors, stride, scales, scales_stride,
+                                                          row_bases, row_tile, depth_start, valid_rows, valid_depth);
+                    if (row_tile == column_tile && valid_rows == valid_columns) {
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&a_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                    else {
+                        nk_dots_load_a_mxfp8e5m2_sapphireamx_(&b_src_tiles[tile_index], vectors, stride, scales,
+                                                              scales_stride, column_bases, column_tile, depth_start,
+                                                              valid_columns, valid_depth);
+                        nk_dots_pack_bf16_transposed_sapphireamx_(&b_src_tiles[tile_index], &b_tiles[tile_index]);
+                    }
+                }
+
+                nk_dots_bf16_update_sapphireamx_( //
+                    &state, &a_tiles[0], &a_tiles[1], &a_tiles[2], &b_tiles[0], &b_tiles[1], &b_tiles[2]);
+            }
+
+            nk_dots_symmetric_store_sapphireamx_(                                     //
+                state.data, result + row_tile * result_stride_elements + column_tile, //
+                result_stride_elements, valid_rows, valid_columns, column_tile - row_tile);
+        }
+    }
+    return nk_success_k;
+}
+
+#pragma endregion MXFP8E5M2 Floats
 
 #pragma region E2M3 Floats
 
@@ -3649,8 +4729,9 @@ NUMKONG_API nk_status_t nk_dots_pack_bf16_sapphireamx(           //
     // Only the window covering column 0 writes the shared header; later windows read it.
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
@@ -3773,8 +4854,9 @@ NUMKONG_API nk_status_t nk_dots_pack_i8_sapphireamx(           //
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
@@ -3900,8 +4982,9 @@ NUMKONG_API nk_status_t nk_dots_pack_u8_sapphireamx(           //
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
@@ -4011,9 +5094,41 @@ NUMKONG_API nk_status_t nk_dots_pack_e4m3_sapphireamx(           //
     nk_e4m3_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {
-        (nk_u8_t const *)b, b_stride, NUMKONG_NULL, 0, nk_e4m3_widen_bf16_sapphireamx_, nk_e4m3_sumsq_sapphireamx_};
-    return nk_dots_pack_through_bf16_sapphireamx_(rows, 1, column_count, depth, b_packed, columns_begin, columns_end);
+    nk_size_t const column_tiles_count = column_count / 16;
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, 32);
+    nk_size_t const column_remainder_count = column_count % 16;
+    nk_dots_bf16_pack_header_sapphireamx_(b_packed, 1, column_count, depth, columns_begin);
+    nk_bf16_t *tiles = (nk_bf16_t *)((char *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t *column_edge = (nk_bf16_t *)((char *)b_packed +
+                                           nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth));
+    nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + nk_dots_bf16_norms_offset_sapphireamx_(column_count, depth));
+
+    for (nk_size_t column_tile = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile < column_tiles_count && column_tile < nk_size_divide_round_up_(columns_end, 16); column_tile++) {
+        for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+            nk_size_t const depth_offset = depth_tile * 32;
+            nk_dots_bf16_a16x32_sapphireamx_t source_tile;
+            nk_dots_load_a_e4m3_sapphireamx_(&source_tile, b, b_stride, column_tile * 16, depth_offset, 16,
+                                             nk_min_of_two(depth - depth_offset, 32));
+            nk_dots_bf16_pack_tile_sapphireamx_(&source_tile,
+                                                tiles + (column_tile * depth_tiles_count + depth_tile) * 512);
+        }
+    }
+
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
+        for (nk_size_t row = 0; row < column_remainder_count; row++)
+            for (nk_size_t column = 0; column < depth; column += 32) {
+                nk_size_t const columns = nk_min_of_two(depth - column, 32);
+                _mm512_mask_storeu_epi16(
+                    column_edge + row * depth + column, nk_dots_bf16_valid_mask_sapphireamx_(columns),
+                    nk_e4m3_widen_bf16_sapphireamx_(b, b_stride, column_tiles_count * 16 + row, column, columns));
+            }
+    }
+
+    for (nk_size_t column = columns_begin; column < columns_end; column++)
+        norms[column] = nk_e4m3_sumsq_sapphireamx_(b, b_stride, column, depth);
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_e4m3_sapphireamx(   //
@@ -4021,9 +5136,15 @@ NUMKONG_API nk_status_t nk_dots_packed_e4m3_sapphireamx(   //
     nk_size_t row_count, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {
-        (nk_u8_t const *)a, a_stride, NUMKONG_NULL, 0, nk_e4m3_widen_bf16_sapphireamx_, nk_e4m3_sumsq_sapphireamx_};
-    return nk_gemm_packed_through_bf16_sapphireamx_(rows, 1, b_packed, c, row_count, columns, depth, c_stride);
+    return nk_gemm_packed_e4m3_sapphireamx_(a, b_packed, c, row_count, columns, depth, a_stride, c_stride);
+}
+
+NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_sapphireamx(            //
+    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
+    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
+    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
+    nk_assert_(stream == NUMKONG_NULL);
+    return nk_gram_e4m3_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_e5m2_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -4045,9 +5166,41 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_sapphireamx(           //
     nk_e5m2_t const *b, nk_size_t column_count, nk_size_t depth, //
     nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {
-        (nk_u8_t const *)b, b_stride, NUMKONG_NULL, 0, nk_e5m2_widen_bf16_sapphireamx_, nk_e5m2_sumsq_sapphireamx_};
-    return nk_dots_pack_through_bf16_sapphireamx_(rows, 1, column_count, depth, b_packed, columns_begin, columns_end);
+    nk_size_t const column_tiles_count = column_count / 16;
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, 32);
+    nk_size_t const column_remainder_count = column_count % 16;
+    nk_dots_bf16_pack_header_sapphireamx_(b_packed, 1, column_count, depth, columns_begin);
+    nk_bf16_t *tiles = (nk_bf16_t *)((char *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t *column_edge = (nk_bf16_t *)((char *)b_packed +
+                                           nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth));
+    nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + nk_dots_bf16_norms_offset_sapphireamx_(column_count, depth));
+
+    for (nk_size_t column_tile = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile < column_tiles_count && column_tile < nk_size_divide_round_up_(columns_end, 16); column_tile++) {
+        for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+            nk_size_t const depth_offset = depth_tile * 32;
+            nk_dots_bf16_a16x32_sapphireamx_t source_tile;
+            nk_dots_load_a_e5m2_sapphireamx_(&source_tile, b, b_stride, column_tile * 16, depth_offset, 16,
+                                             nk_min_of_two(depth - depth_offset, 32));
+            nk_dots_bf16_pack_tile_sapphireamx_(&source_tile,
+                                                tiles + (column_tile * depth_tiles_count + depth_tile) * 512);
+        }
+    }
+
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
+        for (nk_size_t row = 0; row < column_remainder_count; row++)
+            for (nk_size_t column = 0; column < depth; column += 32) {
+                nk_size_t const columns = nk_min_of_two(depth - column, 32);
+                _mm512_mask_storeu_epi16(
+                    column_edge + row * depth + column, nk_dots_bf16_valid_mask_sapphireamx_(columns),
+                    nk_e5m2_widen_bf16_sapphireamx_(b, b_stride, column_tiles_count * 16 + row, column, columns));
+            }
+    }
+
+    for (nk_size_t column = columns_begin; column < columns_end; column++)
+        norms[column] = nk_e5m2_sumsq_sapphireamx_(b, b_stride, column, depth);
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_e5m2_sapphireamx(   //
@@ -4055,9 +5208,7 @@ NUMKONG_API nk_status_t nk_dots_packed_e5m2_sapphireamx(   //
     nk_size_t row_count, nk_size_t columns, nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
     nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {
-        (nk_u8_t const *)a, a_stride, NUMKONG_NULL, 0, nk_e5m2_widen_bf16_sapphireamx_, nk_e5m2_sumsq_sapphireamx_};
-    return nk_gemm_packed_through_bf16_sapphireamx_(rows, 1, b_packed, c, row_count, columns, depth, c_stride);
+    return nk_gemm_packed_e5m2_sapphireamx_(a, b_packed, c, row_count, columns, depth, a_stride, c_stride);
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sapphireamx(            //
@@ -4065,23 +5216,11 @@ NUMKONG_API nk_status_t nk_dots_symmetric_e5m2_sapphireamx(            //
     nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
     nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {
-        (nk_u8_t const *)vectors, stride, NUMKONG_NULL, 0, nk_e5m2_widen_bf16_sapphireamx_, nk_e5m2_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, 1, vector_count, depth, result, result_stride, rows_begin, rows_end);
-}
-
-NUMKONG_API nk_status_t nk_dots_symmetric_e4m3_sapphireamx(            //
-    nk_e4m3_t const *vectors, nk_size_t vector_count, nk_size_t depth, //
-    nk_size_t stride, nk_f32_t *result, nk_size_t result_stride,       //
-    nk_size_t rows_begin, nk_size_t rows_end, nk_stream_t stream) {
-    nk_assert_(stream == NUMKONG_NULL);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {
-        (nk_u8_t const *)vectors, stride, NUMKONG_NULL, 0, nk_e4m3_widen_bf16_sapphireamx_, nk_e4m3_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, 1, vector_count, depth, result, result_stride, rows_begin, rows_end);
+    return nk_gram_e5m2_sapphireamx_(vectors, vector_count, depth, stride, result, result_stride, rows_begin, rows_end);
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_nvfp4_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_packed_bytes_bf16_sapphireamx_(column_count, depth);
+    *bytes = nk_dots_packed_bytes_scaled_sapphireamx_(16, 8, column_count, depth);
     return nk_success_k;
 }
 
@@ -4099,30 +5238,92 @@ NUMKONG_API nk_status_t nk_dots_pack_nvfp4_sapphireamx(nk_nvfp4_cref_t const *b,
                                                        nk_size_t columns_begin, nk_size_t columns_end,
                                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_nvfp4_k, b, b_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
-                                                  b_stride,
-                                                  b_unpacked.scales,
-                                                  b_unpacked.scales_stride,
-                                                  nk_nvfp4_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_dots_pack_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(b_unpacked.tensor_scale), column_count,
-                                                  depth, b_packed, columns_begin, columns_end);
+    nk_cross_operand_t const b_unpacked = nk_cross_operand_serial_(nk_nvfp4_k, b, b_stride);
+    nk_e2m1x2_t const *values = (nk_e2m1x2_t const *)b_unpacked.elements;
+    nk_ue4m3_t const *scales = (nk_ue4m3_t const *)b_unpacked.scales;
+    nk_size_t const scales_stride = b_unpacked.scales_stride;
+    nk_f32_t const tensor_scale = nk_cross_tensor_scale_serial_(b_unpacked.tensor_scale);
+    nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(tensor_scale, tensor_scale);
+    nk_size_t const column_tiles_count = column_count / 16;
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, 32);
+    nk_size_t const column_remainder_count = column_count % 16;
+    nk_dots_bf16_pack_header_sapphireamx_(b_packed, tensor_scale, column_count, depth, columns_begin);
+    nk_bf16_t *tiles = (nk_bf16_t *)((char *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t *column_edge = (nk_bf16_t *)((char *)b_packed +
+                                           nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth));
+    nk_dots_scaled_view_sapphireamx_t const view = nk_dots_scaled_view_sapphireamx_(b_packed, column_count, depth, 16,
+                                                                                    8);
+    nk_i32_t bases[16];
+
+    for (nk_size_t column_tile = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile < column_tiles_count && column_tile < nk_size_divide_round_up_(columns_end, 16); column_tile++) {
+        nk_dots_bases_nvfp4_sapphireamx_(scales, scales_stride, column_tile * 16, 16, 16, depth, bases);
+        for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+            nk_size_t const depth_offset = depth_tile * 32;
+            nk_dots_bf16_a16x32_sapphireamx_t source_tile;
+            nk_dots_load_a_nvfp4_sapphireamx_(&source_tile, values, b_stride, scales, scales_stride, bases,
+                                              column_tile * 16, depth_offset, 16,
+                                              nk_min_of_two(depth - depth_offset, 32));
+            nk_dots_bf16_pack_tile_sapphireamx_(&source_tile,
+                                                tiles + (column_tile * depth_tiles_count + depth_tile) * 512);
+        }
+    }
+
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
+        nk_dots_bases_nvfp4_sapphireamx_(scales, scales_stride, column_tiles_count * 16, column_remainder_count, 16,
+                                         depth, bases);
+        for (nk_size_t row = 0; row < column_remainder_count; row++)
+            for (nk_size_t column = 0; column < depth; column += 32) {
+                nk_size_t const columns = nk_min_of_two(depth - column, 32);
+                _mm512_mask_storeu_epi16(
+                    column_edge + row * depth + column, nk_dots_bf16_valid_mask_sapphireamx_(columns),
+                    nk_nvfp4_widen_bf16_sapphireamx_(values, b_stride, scales, scales_stride, bases[row],
+                                                     column_tiles_count * 16 + row, column, columns));
+            }
+    }
+
+    for (nk_size_t column = columns_begin; column < columns_end; column++) {
+        nk_i32_t spread;
+        nk_i32_t const base = nk_nvfp4_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+        view.norms[column] = nk_nvfp4_sumsq_sapphireamx_(values, b_stride, scales, scales_stride, base, column, depth) *
+                             factor.mantissa;
+        view.exponents[column] = base + factor.exponent / 2, view.spreads[column] = spread;
+        nk_dots_copy_row_b8_sapphireamx_(view.codes + column * view.row_bytes,
+                                         (nk_u8_t const *)values + column * b_stride, view.row_bytes);
+        nk_dots_copy_row_b8_sapphireamx_(view.scales + column * view.blocks,
+                                         (nk_u8_t const *)scales + column * scales_stride, view.blocks);
+    }
+    if (columns_end == column_count) nk_dots_scaled_pad_sapphireamx_(&view, column_count);
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_nvfp4_sapphireamx(nk_nvfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
-                                                         nk_size_t row_count, nk_size_t columns, nk_size_t depth,
+                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                          nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_nvfp4_k, a, a_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
-                                                  a_stride,
-                                                  a_unpacked.scales,
-                                                  a_unpacked.scales_stride,
-                                                  nk_nvfp4_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gemm_packed_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(a_unpacked.tensor_scale), b_packed, c,
-                                                    row_count, columns, depth, c_stride);
+    nk_cross_operand_t const a_unpacked = nk_cross_operand_serial_(nk_nvfp4_k, a, a_stride);
+    nk_e2m1x2_t const *values = (nk_e2m1x2_t const *)a_unpacked.elements;
+    nk_ue4m3_t const *scales = (nk_ue4m3_t const *)a_unpacked.scales;
+    nk_size_t const scales_stride = a_unpacked.scales_stride;
+    nk_f32_t const tensor_scale = nk_cross_tensor_scale_serial_(a_unpacked.tensor_scale);
+    nk_status_t const status = nk_gemm_packed_nvfp4_sapphireamx_(values, scales, b_packed, c, rows, columns, depth,
+                                                                 a_stride, scales_stride, c_stride);
+    if (status != nk_success_k) return status;
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 16,
+                                                                                 8);
+    nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(tensor_scale, header->tensor_scale);
+    nk_cross_tensor_factor_t const a_factor = nk_cross_tensor_factor_serial_(tensor_scale, tensor_scale);
+
+    for (nk_size_t row = 0; row < rows; row++) {
+        nk_i32_t row_spread;
+        nk_i32_t const row_base = nk_nvfp4_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+        nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
+        nk_dots_scaled_finish_row_dot_sapphireamx_(c_row, columns, factor.mantissa, row_base + a_factor.exponent / 2,
+                                                   b.exponents, 0, b.norms);
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_nvfp4_sapphireamx(nk_nvfp4_cref_t const *vectors, nk_size_t vector_count,
@@ -4130,19 +5331,41 @@ NUMKONG_API nk_status_t nk_dots_symmetric_nvfp4_sapphireamx(nk_nvfp4_cref_t cons
                                                             nk_size_t result_stride, nk_size_t rows_begin,
                                                             nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_nvfp4_k, vectors, stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
-                                                  stride,
-                                                  vectors_unpacked.scales,
-                                                  vectors_unpacked.scales_stride,
-                                                  nk_nvfp4_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
-                                             depth, result, result_stride, rows_begin, rows_end);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_serial_(nk_nvfp4_k, vectors, stride);
+    nk_e2m1x2_t const *values = (nk_e2m1x2_t const *)vectors_unpacked.elements;
+    nk_ue4m3_t const *scales = (nk_ue4m3_t const *)vectors_unpacked.scales;
+    nk_size_t const scales_stride = vectors_unpacked.scales_stride;
+    nk_f32_t const tensor_scale = nk_cross_tensor_scale_serial_(vectors_unpacked.tensor_scale);
+    nk_status_t const status = nk_gram_nvfp4_sapphireamx_(values, scales, vector_count, depth, stride, scales_stride,
+                                                          result, result_stride, rows_begin, rows_end);
+    if (status != nk_success_k) return status;
+    nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(tensor_scale, tensor_scale);
+    nk_i32_t column_exponents[256 + 4] = {0};
+    nk_f32_t column_norms[256 + 4] = {0};
+    for (nk_size_t chunk_start = rows_begin; chunk_start < vector_count && rows_begin < rows_end; chunk_start += 256) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk_start + 256, vector_count);
+        for (nk_size_t column = chunk_start; column < chunk_end; column++) {
+            nk_i32_t spread;
+            nk_i32_t const base = nk_nvfp4_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+            column_exponents[column - chunk_start] = base + factor.exponent / 2;
+        }
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
+            nk_size_t const column_first = chunk_start > row + 0 ? chunk_start : row + 0;
+            if (column_first >= chunk_end) continue;
+            nk_f32_t *result_row = (nk_f32_t *)((char *)result + row * result_stride);
+            nk_i32_t row_spread;
+            nk_i32_t const row_base = nk_nvfp4_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+            nk_dots_scaled_finish_row_dot_sapphireamx_(
+                result_row + column_first, chunk_end - column_first, factor.mantissa, row_base + factor.exponent / 2,
+                column_exponents + (column_first - chunk_start), 0, column_norms + (column_first - chunk_start));
+        }
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp4_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_dots_packed_bytes_bf16_sapphireamx_(column_count, depth);
+    *bytes = nk_dots_packed_bytes_scaled_sapphireamx_(32, 16, column_count, depth);
     return nk_success_k;
 }
 
@@ -4160,30 +5383,101 @@ NUMKONG_API nk_status_t nk_dots_pack_mxfp4_sapphireamx(nk_mxfp4_cref_t const *b,
                                                        nk_size_t columns_begin, nk_size_t columns_end,
                                                        nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_mxfp4_k, b, b_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
-                                                  b_stride,
-                                                  b_unpacked.scales,
-                                                  b_unpacked.scales_stride,
-                                                  nk_mxfp4_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_dots_pack_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(b_unpacked.tensor_scale), column_count,
-                                                  depth, b_packed, columns_begin, columns_end);
+    nk_cross_operand_t const b_unpacked = nk_cross_operand_serial_(nk_mxfp4_k, b, b_stride);
+    nk_e2m1x2_t const *values = (nk_e2m1x2_t const *)b_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)b_unpacked.scales;
+    nk_size_t const scales_stride = b_unpacked.scales_stride;
+    nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(1, 1);
+    nk_size_t const column_tiles_count = column_count / 16;
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, 32);
+    nk_size_t const column_remainder_count = column_count % 16;
+    nk_dots_bf16_pack_header_sapphireamx_(b_packed, 1, column_count, depth, columns_begin);
+    nk_bf16_t *tiles = (nk_bf16_t *)((char *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t *column_edge = (nk_bf16_t *)((char *)b_packed +
+                                           nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth));
+    nk_dots_scaled_view_sapphireamx_t const view = nk_dots_scaled_view_sapphireamx_(b_packed, column_count, depth, 32,
+                                                                                    16);
+    nk_i32_t bases[16];
+
+    for (nk_size_t column_tile = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile < column_tiles_count && column_tile < nk_size_divide_round_up_(columns_end, 16); column_tile++) {
+        nk_dots_bases_mxfp4_sapphireamx_(scales, scales_stride, column_tile * 16, 16, 16, depth, bases);
+        for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+            nk_size_t const depth_offset = depth_tile * 32;
+            nk_dots_bf16_a16x32_sapphireamx_t source_tile;
+            nk_dots_load_a_mxfp4_sapphireamx_(&source_tile, values, b_stride, scales, scales_stride, bases,
+                                              column_tile * 16, depth_offset, 16,
+                                              nk_min_of_two(depth - depth_offset, 32));
+            nk_dots_bf16_pack_tile_sapphireamx_(&source_tile,
+                                                tiles + (column_tile * depth_tiles_count + depth_tile) * 512);
+        }
+    }
+
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
+        nk_dots_bases_mxfp4_sapphireamx_(scales, scales_stride, column_tiles_count * 16, column_remainder_count, 16,
+                                         depth, bases);
+        for (nk_size_t row = 0; row < column_remainder_count; row++)
+            for (nk_size_t column = 0; column < depth; column += 32) {
+                nk_size_t const columns = nk_min_of_two(depth - column, 32);
+                _mm512_mask_storeu_epi16(
+                    column_edge + row * depth + column, nk_dots_bf16_valid_mask_sapphireamx_(columns),
+                    nk_mxfp4_widen_bf16_sapphireamx_(values, b_stride, scales, scales_stride, bases[row],
+                                                     column_tiles_count * 16 + row, column, columns));
+            }
+    }
+
+    for (nk_size_t column = columns_begin; column < columns_end; column++) {
+        nk_i32_t spread;
+        nk_i32_t const base = nk_mxfp4_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+        view.norms[column] = nk_mxfp4_sumsq_sapphireamx_(values, b_stride, scales, scales_stride, base, column, depth) *
+                             factor.mantissa;
+        view.exponents[column] = base + factor.exponent / 2, view.spreads[column] = spread;
+        nk_dots_copy_row_b8_sapphireamx_(view.codes + column * view.row_bytes,
+                                         (nk_u8_t const *)values + column * b_stride, view.row_bytes);
+        nk_dots_copy_row_b8_sapphireamx_(view.scales + column * view.blocks,
+                                         (nk_u8_t const *)scales + column * scales_stride, view.blocks);
+    }
+    if (columns_end == column_count) nk_dots_scaled_pad_sapphireamx_(&view, column_count);
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_mxfp4_sapphireamx(nk_mxfp4_cref_t const *a, void const *b_packed, nk_f32_t *c,
-                                                         nk_size_t row_count, nk_size_t columns, nk_size_t depth,
+                                                         nk_size_t rows, nk_size_t columns, nk_size_t depth,
                                                          nk_size_t a_stride, nk_size_t c_stride, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_mxfp4_k, a, a_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
-                                                  a_stride,
-                                                  a_unpacked.scales,
-                                                  a_unpacked.scales_stride,
-                                                  nk_mxfp4_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gemm_packed_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(a_unpacked.tensor_scale), b_packed, c,
-                                                    row_count, columns, depth, c_stride);
+    nk_cross_operand_t const a_unpacked = nk_cross_operand_serial_(nk_mxfp4_k, a, a_stride);
+    nk_e2m1x2_t const *values = (nk_e2m1x2_t const *)a_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)a_unpacked.scales;
+    nk_size_t const scales_stride = a_unpacked.scales_stride;
+    nk_status_t const status = nk_gemm_packed_mxfp4_sapphireamx_(values, scales, b_packed, c, rows, columns, depth,
+                                                                 a_stride, scales_stride, c_stride);
+    if (status != nk_success_k) return status;
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
+                                                                                 16);
+    nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
+
+    for (nk_size_t row = 0; row < rows; row++) {
+        nk_i32_t row_spread;
+        nk_i32_t const row_base = nk_mxfp4_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+        nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
+        nk_dots_scaled_finish_row_dot_sapphireamx_(c_row, columns, 1, row_base, b.exponents, 0, b.norms);
+        if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spread_max, 0,
+                                                 nk_dots_spread_limit_mxfp4_sapphireamx_k))
+            continue;
+        for (nk_size_t column = 0; column < columns; column++) {
+            if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, b.spreads[column], 0,
+                                                     nk_dots_spread_limit_mxfp4_sapphireamx_k))
+                continue;
+            nk_cross_wide_sum_t a_sumsq, b_sumsq;
+            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp4_serial_(
+                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            c_row[column] = nk_dot_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
+        }
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp4_sapphireamx(nk_mxfp4_cref_t const *vectors, nk_size_t vector_count,
@@ -4191,20 +5485,58 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp4_sapphireamx(nk_mxfp4_cref_t cons
                                                             nk_size_t result_stride, nk_size_t rows_begin,
                                                             nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_mxfp4_k, vectors, stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
-                                                  stride,
-                                                  vectors_unpacked.scales,
-                                                  vectors_unpacked.scales_stride,
-                                                  nk_mxfp4_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
-                                             depth, result, result_stride, rows_begin, rows_end);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_serial_(nk_mxfp4_k, vectors, stride);
+    nk_e2m1x2_t const *values = (nk_e2m1x2_t const *)vectors_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)vectors_unpacked.scales;
+    nk_size_t const scales_stride = vectors_unpacked.scales_stride;
+    nk_status_t const status = nk_gram_mxfp4_sapphireamx_(values, scales, vector_count, depth, stride, scales_stride,
+                                                          result, result_stride, rows_begin, rows_end);
+    if (status != nk_success_k) return status;
+    nk_i32_t column_exponents[256 + 4] = {0};
+    nk_i32_t column_spreads[256] = {0};
+    nk_f32_t column_norms[256 + 4] = {0};
+    for (nk_size_t chunk_start = rows_begin; chunk_start < vector_count && rows_begin < rows_end; chunk_start += 256) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk_start + 256, vector_count);
+        nk_i32_t column_spread_max = 0;
+        for (nk_size_t column = chunk_start; column < chunk_end; column++) {
+            nk_i32_t spread;
+            nk_i32_t const base = nk_mxfp4_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+            column_exponents[column - chunk_start] = base;
+            column_spreads[column - chunk_start] = spread;
+            column_spread_max = spread > column_spread_max ? spread : column_spread_max;
+        }
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
+            nk_size_t const column_first = chunk_start > row + 0 ? chunk_start : row + 0;
+            if (column_first >= chunk_end) continue;
+            nk_f32_t *result_row = (nk_f32_t *)((char *)result + row * result_stride);
+            nk_i32_t row_spread;
+            nk_i32_t const row_base = nk_mxfp4_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+            nk_dots_scaled_finish_row_dot_sapphireamx_(result_row + column_first, chunk_end - column_first, 1, row_base,
+                                                       column_exponents + (column_first - chunk_start), 0,
+                                                       column_norms + (column_first - chunk_start));
+            if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spread_max, 0,
+                                                     nk_dots_spread_limit_mxfp4_sapphireamx_k))
+                continue;
+            for (nk_size_t column = column_first; column < chunk_end; column++) {
+                if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spreads[column - chunk_start], 0,
+                                                         nk_dots_spread_limit_mxfp4_sapphireamx_k))
+                    continue;
+                nk_cross_wide_sum_t row_sumsq, column_sumsq;
+                nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp4_serial_(
+                    (nk_u8_t const *)values + row * stride, (nk_u8_t const *)scales + row * scales_stride,
+                    (nk_u8_t const *)values + column * stride, (nk_u8_t const *)scales + column * scales_stride, depth,
+                    &row_sumsq, &column_sumsq);
+                result_row[column] = nk_dot_from_wide_f32_serial_(dot, row_sumsq, column_sumsq);
+            }
+        }
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e4m3_sapphireamx(nk_size_t column_count, nk_size_t depth,
                                                                 nk_size_t *bytes) {
-    *bytes = nk_dots_packed_bytes_bf16_sapphireamx_(column_count, depth);
+    *bytes = nk_dots_packed_bytes_scaled_sapphireamx_(32, 32, column_count, depth);
     return nk_success_k;
 }
 
@@ -4222,31 +5554,103 @@ NUMKONG_API nk_status_t nk_dots_pack_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t c
                                                            nk_size_t columns_begin, nk_size_t columns_end,
                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_mxfp8e4m3_k, b, b_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
-                                                  b_stride,
-                                                  b_unpacked.scales,
-                                                  b_unpacked.scales_stride,
-                                                  nk_mxfp8e4m3_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_dots_pack_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(b_unpacked.tensor_scale), column_count,
-                                                  depth, b_packed, columns_begin, columns_end);
+    nk_cross_operand_t const b_unpacked = nk_cross_operand_serial_(nk_mxfp8e4m3_k, b, b_stride);
+    nk_e4m3_t const *values = (nk_e4m3_t const *)b_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)b_unpacked.scales;
+    nk_size_t const scales_stride = b_unpacked.scales_stride;
+    nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(1, 1);
+    nk_size_t const column_tiles_count = column_count / 16;
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, 32);
+    nk_size_t const column_remainder_count = column_count % 16;
+    nk_dots_bf16_pack_header_sapphireamx_(b_packed, 1, column_count, depth, columns_begin);
+    nk_bf16_t *tiles = (nk_bf16_t *)((char *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t *column_edge = (nk_bf16_t *)((char *)b_packed +
+                                           nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth));
+    nk_dots_scaled_view_sapphireamx_t const view = nk_dots_scaled_view_sapphireamx_(b_packed, column_count, depth, 32,
+                                                                                    32);
+    nk_i32_t bases[16];
+
+    for (nk_size_t column_tile = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile < column_tiles_count && column_tile < nk_size_divide_round_up_(columns_end, 16); column_tile++) {
+        nk_dots_bases_mxfp8e4m3_sapphireamx_(scales, scales_stride, column_tile * 16, 16, 16, depth, bases);
+        for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+            nk_size_t const depth_offset = depth_tile * 32;
+            nk_dots_bf16_a16x32_sapphireamx_t source_tile;
+            nk_dots_load_a_mxfp8e4m3_sapphireamx_(&source_tile, values, b_stride, scales, scales_stride, bases,
+                                                  column_tile * 16, depth_offset, 16,
+                                                  nk_min_of_two(depth - depth_offset, 32));
+            nk_dots_bf16_pack_tile_sapphireamx_(&source_tile,
+                                                tiles + (column_tile * depth_tiles_count + depth_tile) * 512);
+        }
+    }
+
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
+        nk_dots_bases_mxfp8e4m3_sapphireamx_(scales, scales_stride, column_tiles_count * 16, column_remainder_count, 16,
+                                             depth, bases);
+        for (nk_size_t row = 0; row < column_remainder_count; row++)
+            for (nk_size_t column = 0; column < depth; column += 32) {
+                nk_size_t const columns = nk_min_of_two(depth - column, 32);
+                _mm512_mask_storeu_epi16(
+                    column_edge + row * depth + column, nk_dots_bf16_valid_mask_sapphireamx_(columns),
+                    nk_mxfp8e4m3_widen_bf16_sapphireamx_(values, b_stride, scales, scales_stride, bases[row],
+                                                         column_tiles_count * 16 + row, column, columns));
+            }
+    }
+
+    for (nk_size_t column = columns_begin; column < columns_end; column++) {
+        nk_i32_t spread;
+        nk_i32_t const base = nk_mxfp8e4m3_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+        view.norms[column] = nk_mxfp8e4m3_sumsq_sapphireamx_(values, b_stride, scales, scales_stride, base, column,
+                                                             depth) *
+                             factor.mantissa;
+        view.exponents[column] = base + factor.exponent / 2, view.spreads[column] = spread;
+        nk_dots_copy_row_b8_sapphireamx_(view.codes + column * view.row_bytes,
+                                         (nk_u8_t const *)values + column * b_stride, view.row_bytes);
+        nk_dots_copy_row_b8_sapphireamx_(view.scales + column * view.blocks,
+                                         (nk_u8_t const *)scales + column * scales_stride, view.blocks);
+    }
+    if (columns_end == column_count) nk_dots_scaled_pad_sapphireamx_(&view, column_count);
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t const *a, void const *b_packed,
-                                                             nk_f32_t *c, nk_size_t row_count, nk_size_t columns,
+                                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                              nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
                                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_mxfp8e4m3_k, a, a_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
-                                                  a_stride,
-                                                  a_unpacked.scales,
-                                                  a_unpacked.scales_stride,
-                                                  nk_mxfp8e4m3_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gemm_packed_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(a_unpacked.tensor_scale), b_packed, c,
-                                                    row_count, columns, depth, c_stride);
+    nk_cross_operand_t const a_unpacked = nk_cross_operand_serial_(nk_mxfp8e4m3_k, a, a_stride);
+    nk_e4m3_t const *values = (nk_e4m3_t const *)a_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)a_unpacked.scales;
+    nk_size_t const scales_stride = a_unpacked.scales_stride;
+    nk_status_t const status = nk_gemm_packed_mxfp8e4m3_sapphireamx_(values, scales, b_packed, c, rows, columns, depth,
+                                                                     a_stride, scales_stride, c_stride);
+    if (status != nk_success_k) return status;
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
+                                                                                 32);
+    nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
+
+    for (nk_size_t row = 0; row < rows; row++) {
+        nk_i32_t row_spread;
+        nk_i32_t const row_base = nk_mxfp8e4m3_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+        nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
+        nk_dots_scaled_finish_row_dot_sapphireamx_(c_row, columns, 1, row_base, b.exponents, 0, b.norms);
+        if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spread_max, 0,
+                                                 nk_dots_spread_limit_mxfp8e4m3_sapphireamx_k))
+            continue;
+        for (nk_size_t column = 0; column < columns; column++) {
+            if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, b.spreads[column], 0,
+                                                     nk_dots_spread_limit_mxfp8e4m3_sapphireamx_k))
+                continue;
+            nk_cross_wide_sum_t a_sumsq, b_sumsq;
+            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e4m3_serial_(
+                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            c_row[column] = nk_dot_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
+        }
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cref_t const *vectors,
@@ -4255,20 +5659,58 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e4m3_sapphireamx(nk_mxfp8e4m3_cre
                                                                 nk_size_t result_stride, nk_size_t rows_begin,
                                                                 nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_mxfp8e4m3_k, vectors, stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
-                                                  stride,
-                                                  vectors_unpacked.scales,
-                                                  vectors_unpacked.scales_stride,
-                                                  nk_mxfp8e4m3_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
-                                             depth, result, result_stride, rows_begin, rows_end);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_serial_(nk_mxfp8e4m3_k, vectors, stride);
+    nk_e4m3_t const *values = (nk_e4m3_t const *)vectors_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)vectors_unpacked.scales;
+    nk_size_t const scales_stride = vectors_unpacked.scales_stride;
+    nk_status_t const status = nk_gram_mxfp8e4m3_sapphireamx_(
+        values, scales, vector_count, depth, stride, scales_stride, result, result_stride, rows_begin, rows_end);
+    if (status != nk_success_k) return status;
+    nk_i32_t column_exponents[256 + 4] = {0};
+    nk_i32_t column_spreads[256] = {0};
+    nk_f32_t column_norms[256 + 4] = {0};
+    for (nk_size_t chunk_start = rows_begin; chunk_start < vector_count && rows_begin < rows_end; chunk_start += 256) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk_start + 256, vector_count);
+        nk_i32_t column_spread_max = 0;
+        for (nk_size_t column = chunk_start; column < chunk_end; column++) {
+            nk_i32_t spread;
+            nk_i32_t const base = nk_mxfp8e4m3_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+            column_exponents[column - chunk_start] = base;
+            column_spreads[column - chunk_start] = spread;
+            column_spread_max = spread > column_spread_max ? spread : column_spread_max;
+        }
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
+            nk_size_t const column_first = chunk_start > row + 0 ? chunk_start : row + 0;
+            if (column_first >= chunk_end) continue;
+            nk_f32_t *result_row = (nk_f32_t *)((char *)result + row * result_stride);
+            nk_i32_t row_spread;
+            nk_i32_t const row_base = nk_mxfp8e4m3_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+            nk_dots_scaled_finish_row_dot_sapphireamx_(result_row + column_first, chunk_end - column_first, 1, row_base,
+                                                       column_exponents + (column_first - chunk_start), 0,
+                                                       column_norms + (column_first - chunk_start));
+            if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spread_max, 0,
+                                                     nk_dots_spread_limit_mxfp8e4m3_sapphireamx_k))
+                continue;
+            for (nk_size_t column = column_first; column < chunk_end; column++) {
+                if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spreads[column - chunk_start], 0,
+                                                         nk_dots_spread_limit_mxfp8e4m3_sapphireamx_k))
+                    continue;
+                nk_cross_wide_sum_t row_sumsq, column_sumsq;
+                nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e4m3_serial_(
+                    (nk_u8_t const *)values + row * stride, (nk_u8_t const *)scales + row * scales_stride,
+                    (nk_u8_t const *)values + column * stride, (nk_u8_t const *)scales + column * scales_stride, depth,
+                    &row_sumsq, &column_sumsq);
+                result_row[column] = nk_dot_from_wide_f32_serial_(dot, row_sumsq, column_sumsq);
+            }
+        }
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_mxfp8e5m2_sapphireamx(nk_size_t column_count, nk_size_t depth,
                                                                 nk_size_t *bytes) {
-    *bytes = nk_dots_packed_bytes_bf16_sapphireamx_(column_count, depth);
+    *bytes = nk_dots_packed_bytes_scaled_sapphireamx_(32, 32, column_count, depth);
     return nk_success_k;
 }
 
@@ -4286,31 +5728,103 @@ NUMKONG_API nk_status_t nk_dots_pack_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t c
                                                            nk_size_t columns_begin, nk_size_t columns_end,
                                                            nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const b_unpacked = nk_cross_operand_(nk_mxfp8e5m2_k, b, b_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)b_unpacked.elements,
-                                                  b_stride,
-                                                  b_unpacked.scales,
-                                                  b_unpacked.scales_stride,
-                                                  nk_mxfp8e5m2_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_dots_pack_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(b_unpacked.tensor_scale), column_count,
-                                                  depth, b_packed, columns_begin, columns_end);
+    nk_cross_operand_t const b_unpacked = nk_cross_operand_serial_(nk_mxfp8e5m2_k, b, b_stride);
+    nk_e5m2_t const *values = (nk_e5m2_t const *)b_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)b_unpacked.scales;
+    nk_size_t const scales_stride = b_unpacked.scales_stride;
+    nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_serial_(1, 1);
+    nk_size_t const column_tiles_count = column_count / 16;
+    nk_size_t const depth_tiles_count = nk_size_divide_round_up_(depth, 32);
+    nk_size_t const column_remainder_count = column_count % 16;
+    nk_dots_bf16_pack_header_sapphireamx_(b_packed, 1, column_count, depth, columns_begin);
+    nk_bf16_t *tiles = (nk_bf16_t *)((char *)b_packed + sizeof(nk_dots_amx_packed_header_t));
+    nk_bf16_t *column_edge = (nk_bf16_t *)((char *)b_packed +
+                                           nk_dots_bf16_column_edge_offset_sapphireamx_(column_count, depth));
+    nk_dots_scaled_view_sapphireamx_t const view = nk_dots_scaled_view_sapphireamx_(b_packed, column_count, depth, 32,
+                                                                                    32);
+    nk_i32_t bases[16];
+
+    for (nk_size_t column_tile = nk_size_divide_round_up_(columns_begin, 16);
+         column_tile < column_tiles_count && column_tile < nk_size_divide_round_up_(columns_end, 16); column_tile++) {
+        nk_dots_bases_mxfp8e5m2_sapphireamx_(scales, scales_stride, column_tile * 16, 16, 16, depth, bases);
+        for (nk_size_t depth_tile = 0; depth_tile < depth_tiles_count; depth_tile++) {
+            nk_size_t const depth_offset = depth_tile * 32;
+            nk_dots_bf16_a16x32_sapphireamx_t source_tile;
+            nk_dots_load_a_mxfp8e5m2_sapphireamx_(&source_tile, values, b_stride, scales, scales_stride, bases,
+                                                  column_tile * 16, depth_offset, 16,
+                                                  nk_min_of_two(depth - depth_offset, 32));
+            nk_dots_bf16_pack_tile_sapphireamx_(&source_tile,
+                                                tiles + (column_tile * depth_tiles_count + depth_tile) * 512);
+        }
+    }
+
+    if (column_remainder_count > 0 && column_tiles_count * 16 >= columns_begin &&
+        column_tiles_count * 16 < columns_end) {
+        nk_dots_bases_mxfp8e5m2_sapphireamx_(scales, scales_stride, column_tiles_count * 16, column_remainder_count, 16,
+                                             depth, bases);
+        for (nk_size_t row = 0; row < column_remainder_count; row++)
+            for (nk_size_t column = 0; column < depth; column += 32) {
+                nk_size_t const columns = nk_min_of_two(depth - column, 32);
+                _mm512_mask_storeu_epi16(
+                    column_edge + row * depth + column, nk_dots_bf16_valid_mask_sapphireamx_(columns),
+                    nk_mxfp8e5m2_widen_bf16_sapphireamx_(values, b_stride, scales, scales_stride, bases[row],
+                                                         column_tiles_count * 16 + row, column, columns));
+            }
+    }
+
+    for (nk_size_t column = columns_begin; column < columns_end; column++) {
+        nk_i32_t spread;
+        nk_i32_t const base = nk_mxfp8e5m2_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+        view.norms[column] = nk_mxfp8e5m2_sumsq_sapphireamx_(values, b_stride, scales, scales_stride, base, column,
+                                                             depth) *
+                             factor.mantissa;
+        view.exponents[column] = base + factor.exponent / 2, view.spreads[column] = spread;
+        nk_dots_copy_row_b8_sapphireamx_(view.codes + column * view.row_bytes,
+                                         (nk_u8_t const *)values + column * b_stride, view.row_bytes);
+        nk_dots_copy_row_b8_sapphireamx_(view.scales + column * view.blocks,
+                                         (nk_u8_t const *)scales + column * scales_stride, view.blocks);
+    }
+    if (columns_end == column_count) nk_dots_scaled_pad_sapphireamx_(&view, column_count);
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_packed_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t const *a, void const *b_packed,
-                                                             nk_f32_t *c, nk_size_t row_count, nk_size_t columns,
+                                                             nk_f32_t *c, nk_size_t rows, nk_size_t columns,
                                                              nk_size_t depth, nk_size_t a_stride, nk_size_t c_stride,
                                                              nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const a_unpacked = nk_cross_operand_(nk_mxfp8e5m2_k, a, a_stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)a_unpacked.elements,
-                                                  a_stride,
-                                                  a_unpacked.scales,
-                                                  a_unpacked.scales_stride,
-                                                  nk_mxfp8e5m2_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gemm_packed_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(a_unpacked.tensor_scale), b_packed, c,
-                                                    row_count, columns, depth, c_stride);
+    nk_cross_operand_t const a_unpacked = nk_cross_operand_serial_(nk_mxfp8e5m2_k, a, a_stride);
+    nk_e5m2_t const *values = (nk_e5m2_t const *)a_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)a_unpacked.scales;
+    nk_size_t const scales_stride = a_unpacked.scales_stride;
+    nk_status_t const status = nk_gemm_packed_mxfp8e5m2_sapphireamx_(values, scales, b_packed, c, rows, columns, depth,
+                                                                     a_stride, scales_stride, c_stride);
+    if (status != nk_success_k) return status;
+    nk_dots_amx_packed_header_t const *header = (nk_dots_amx_packed_header_t const *)b_packed;
+    nk_dots_scaled_view_sapphireamx_t const b = nk_dots_scaled_view_sapphireamx_(b_packed, header->columns, depth, 32,
+                                                                                 32);
+    nk_i32_t const column_spread_max = nk_dots_scaled_spread_max_sapphireamx_(b.spreads, b.padded);
+
+    for (nk_size_t row = 0; row < rows; row++) {
+        nk_i32_t row_spread;
+        nk_i32_t const row_base = nk_mxfp8e5m2_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+        nk_f32_t *c_row = (nk_f32_t *)((char *)c + row * c_stride);
+        nk_dots_scaled_finish_row_dot_sapphireamx_(c_row, columns, 1, row_base, b.exponents, 0, b.norms);
+        if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spread_max, 0,
+                                                 nk_dots_spread_limit_mxfp8e5m2_sapphireamx_k))
+            continue;
+        for (nk_size_t column = 0; column < columns; column++) {
+            if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, b.spreads[column], 0,
+                                                     nk_dots_spread_limit_mxfp8e5m2_sapphireamx_k))
+                continue;
+            nk_cross_wide_sum_t a_sumsq, b_sumsq;
+            nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e5m2_serial_(
+                (nk_u8_t const *)values + row * a_stride, (nk_u8_t const *)scales + row * scales_stride,
+                b.codes + column * b.row_bytes, b.scales + column * b.blocks, depth, &a_sumsq, &b_sumsq);
+            c_row[column] = nk_dot_from_wide_f32_serial_(dot, a_sumsq, b_sumsq);
+        }
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cref_t const *vectors,
@@ -4319,15 +5833,53 @@ NUMKONG_API nk_status_t nk_dots_symmetric_mxfp8e5m2_sapphireamx(nk_mxfp8e5m2_cre
                                                                 nk_size_t result_stride, nk_size_t rows_begin,
                                                                 nk_size_t rows_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_(nk_mxfp8e5m2_k, vectors, stride);
-    nk_dots_bf16_rows_sapphireamx_t const rows = {(nk_u8_t const *)vectors_unpacked.elements,
-                                                  stride,
-                                                  vectors_unpacked.scales,
-                                                  vectors_unpacked.scales_stride,
-                                                  nk_mxfp8e5m2_widen_bf16_sapphireamx_,
-                                                  nk_scaled_sumsq_sapphireamx_};
-    return nk_gram_through_bf16_sapphireamx_(rows, nk_cross_tensor_scale_(vectors_unpacked.tensor_scale), vector_count,
-                                             depth, result, result_stride, rows_begin, rows_end);
+    rows_end = nk_min_of_two(rows_end, vector_count);
+    nk_cross_operand_t const vectors_unpacked = nk_cross_operand_serial_(nk_mxfp8e5m2_k, vectors, stride);
+    nk_e5m2_t const *values = (nk_e5m2_t const *)vectors_unpacked.elements;
+    nk_ue8m0_t const *scales = (nk_ue8m0_t const *)vectors_unpacked.scales;
+    nk_size_t const scales_stride = vectors_unpacked.scales_stride;
+    nk_status_t const status = nk_gram_mxfp8e5m2_sapphireamx_(
+        values, scales, vector_count, depth, stride, scales_stride, result, result_stride, rows_begin, rows_end);
+    if (status != nk_success_k) return status;
+    nk_i32_t column_exponents[256 + 4] = {0};
+    nk_i32_t column_spreads[256] = {0};
+    nk_f32_t column_norms[256 + 4] = {0};
+    for (nk_size_t chunk_start = rows_begin; chunk_start < vector_count && rows_begin < rows_end; chunk_start += 256) {
+        nk_size_t const chunk_end = nk_min_of_two(chunk_start + 256, vector_count);
+        nk_i32_t column_spread_max = 0;
+        for (nk_size_t column = chunk_start; column < chunk_end; column++) {
+            nk_i32_t spread;
+            nk_i32_t const base = nk_mxfp8e5m2_base_sapphireamx_(scales, scales_stride, column, depth, &spread);
+            column_exponents[column - chunk_start] = base;
+            column_spreads[column - chunk_start] = spread;
+            column_spread_max = spread > column_spread_max ? spread : column_spread_max;
+        }
+        for (nk_size_t row = rows_begin; row < rows_end; row++) {
+            nk_size_t const column_first = chunk_start > row + 0 ? chunk_start : row + 0;
+            if (column_first >= chunk_end) continue;
+            nk_f32_t *result_row = (nk_f32_t *)((char *)result + row * result_stride);
+            nk_i32_t row_spread;
+            nk_i32_t const row_base = nk_mxfp8e5m2_base_sapphireamx_(scales, scales_stride, row, depth, &row_spread);
+            nk_dots_scaled_finish_row_dot_sapphireamx_(result_row + column_first, chunk_end - column_first, 1, row_base,
+                                                       column_exponents + (column_first - chunk_start), 0,
+                                                       column_norms + (column_first - chunk_start));
+            if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spread_max, 0,
+                                                     nk_dots_spread_limit_mxfp8e5m2_sapphireamx_k))
+                continue;
+            for (nk_size_t column = column_first; column < chunk_end; column++) {
+                if (!nk_dots_scaled_exceeds_sapphireamx_(row_spread, column_spreads[column - chunk_start], 0,
+                                                         nk_dots_spread_limit_mxfp8e5m2_sapphireamx_k))
+                    continue;
+                nk_cross_wide_sum_t row_sumsq, column_sumsq;
+                nk_cross_wide_sum_t const dot = nk_cross_scaled_exact_wide_mxfp8e5m2_serial_(
+                    (nk_u8_t const *)values + row * stride, (nk_u8_t const *)scales + row * scales_stride,
+                    (nk_u8_t const *)values + column * stride, (nk_u8_t const *)scales + column * scales_stride, depth,
+                    &row_sumsq, &column_sumsq);
+                result_row[column] = nk_dot_from_wide_f32_serial_(dot, row_sumsq, column_sumsq);
+            }
+        }
+    }
+    return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_dots_pack_size_e2m3_sapphireamx(nk_size_t column_count, nk_size_t depth, nk_size_t *bytes) {
@@ -4364,8 +5916,9 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m3_sapphireamx(           //
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
@@ -4495,8 +6048,9 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_sapphireamx(             //
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
@@ -4558,8 +6112,8 @@ NUMKONG_API nk_status_t nk_dots_pack_e2m1_sapphireamx(             //
     nk_f32_t *norms = (nk_f32_t *)((char *)b_packed + norms_offset);
     // Compute and store per-column norms for angular/euclidean distance
     for (nk_size_t col = columns_begin; col < columns_end; col++)
-        norms[col] = nk_dots_reduce_sumsq_e2m1_((nk_e2m1x2_t const *)((char const *)b + col * b_stride), depth,
-                                                sizeof(nk_e2m1x2_t));
+        norms[col] = nk_dots_reduce_sumsq_e2m1_serial_((nk_e2m1x2_t const *)((char const *)b + col * b_stride), depth,
+                                                       sizeof(nk_e2m1x2_t));
     return nk_success_k;
 }
 
@@ -4610,8 +6164,9 @@ NUMKONG_API nk_status_t nk_dots_pack_e3m2_sapphireamx(           //
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;

@@ -30,7 +30,7 @@
 #if NUMKONG_TARGET_NEONBFDOT
 
 #include "numkong/types.h"       // `nk_bf16_t`
-#include "numkong/cast/serial.h" // `nk_bf16_to_f32_`
+#include "numkong/cast/serial.h" // `nk_bf16_to_f32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -51,7 +51,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_neonbfdot(nk_bf16_t const *a, nk_bf16_t
     for (nk_size_t i = 0; i != n; ++i) {
         // Load a[i] and broadcast to f32
         nk_f32_t a_i_f32;
-        nk_bf16_to_f32_(a + i, &a_i_f32);
+        nk_bf16_to_f32_serial_(a + i, &a_i_f32);
         float32x4_t a_i_f32x4 = vdupq_n_f32(a_i_f32);
 
         // Inner sum
@@ -91,8 +91,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf1
     for (nk_size_t i = 0; i != n; ++i) {
         // Compute diff_i = a[i] - b[i] in f32
         nk_f32_t a_i_f32, b_i_f32;
-        nk_bf16_to_f32_(a + i, &a_i_f32);
-        nk_bf16_to_f32_(b + i, &b_i_f32);
+        nk_bf16_to_f32_serial_(a + i, &a_i_f32);
+        nk_bf16_to_f32_serial_(b + i, &b_i_f32);
         nk_f32_t diff_i = a_i_f32 - b_i_f32;
 
         // Inner sum
@@ -117,9 +117,9 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_neonbfdot(nk_bf16_t const *a, nk_bf1
         nk_f32_t inner_sum_tail = 0;
         for (; j < n; ++j) {
             nk_f32_t a_j_f32, b_j_f32, c_f32;
-            nk_bf16_to_f32_(a + j, &a_j_f32);
-            nk_bf16_to_f32_(b + j, &b_j_f32);
-            nk_bf16_to_f32_(c + i * n + j, &c_f32);
+            nk_bf16_to_f32_serial_(a + j, &a_j_f32);
+            nk_bf16_to_f32_serial_(b + j, &b_j_f32);
+            nk_bf16_to_f32_serial_(c + i * n + j, &c_f32);
             inner_sum_tail += c_f32 * (a_j_f32 - b_j_f32);
         }
 
@@ -147,8 +147,8 @@ NUMKONG_API nk_status_t nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, n
     for (nk_size_t i = 0; i != n; ++i) {
         // Load a[i] as complex (real, imag) and convert to f32
         nk_f32_t a_real, a_imag;
-        nk_bf16_to_f32_(&a_pairs[i].real, &a_real);
-        nk_bf16_to_f32_(&a_pairs[i].imag, &a_imag);
+        nk_bf16_to_f32_serial_(&a_pairs[i].real, &a_real);
+        nk_bf16_to_f32_serial_(&a_pairs[i].imag, &a_imag);
 
         // Inner sums for real and imaginary parts of c[i,j] * b[j]
         float32x4_t inner_sum_real_f32x4 = vdupq_n_f32(0);
@@ -180,10 +180,10 @@ NUMKONG_API nk_status_t nk_bilinear_bf16c_neonbfdot(nk_bf16c_t const *a_pairs, n
         nk_f32_t inner_sum_real_tail = 0, inner_sum_imag_tail = 0;
         for (; j < n; ++j) {
             nk_f32_t b_real, b_imag, c_real, c_imag;
-            nk_bf16_to_f32_(&b_pairs[j].real, &b_real);
-            nk_bf16_to_f32_(&b_pairs[j].imag, &b_imag);
-            nk_bf16_to_f32_(&c_pairs[i * n + j].real, &c_real);
-            nk_bf16_to_f32_(&c_pairs[i * n + j].imag, &c_imag);
+            nk_bf16_to_f32_serial_(&b_pairs[j].real, &b_real);
+            nk_bf16_to_f32_serial_(&b_pairs[j].imag, &b_imag);
+            nk_bf16_to_f32_serial_(&c_pairs[i * n + j].real, &c_real);
+            nk_bf16_to_f32_serial_(&c_pairs[i * n + j].imag, &c_imag);
             // Complex multiply: c * b
             inner_sum_real_tail += c_real * b_real - c_imag * b_imag;
             inner_sum_imag_tail += c_real * b_imag + c_imag * b_real;

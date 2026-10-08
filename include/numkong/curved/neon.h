@@ -30,7 +30,7 @@
 #if NUMKONG_ARCH_ARM64_NEON_
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h" // `nk_f16_to_f32_`
+#include "numkong/cast/serial.h" // `nk_f16_to_f32_serial_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -206,7 +206,7 @@ NUMKONG_API nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16_t const *c_row = c + row * n;
         nk_f32_t a_row;
-        nk_f16_to_f32_(a + row, &a_row);
+        nk_f16_to_f32_serial_(a + row, &a_row);
         float32x4_t inner_sum_f32x4 = vdupq_n_f32(0);
         nk_size_t column = 0;
         for (; column + 8 <= n; column += 8) {
@@ -222,8 +222,8 @@ NUMKONG_API nk_status_t nk_bilinear_f16_neon(nk_f16_t const *a, nk_f16_t const *
         nk_f32_t inner_sum = vaddvq_f32(inner_sum_f32x4);
         for (; column < n; ++column) {
             nk_f32_t b_val, c_val;
-            nk_f16_to_f32_(b + column, &b_val);
-            nk_f16_to_f32_(c_row + column, &c_val);
+            nk_f16_to_f32_serial_(b + column, &b_val);
+            nk_f16_to_f32_serial_(c_row + column, &c_val);
             inner_sum += c_val * b_val;
         }
         outer_sum += a_row * inner_sum;
@@ -239,8 +239,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t cons
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16_t const *c_row = c + row * n;
         nk_f32_t a_row, b_row;
-        nk_f16_to_f32_(a + row, &a_row);
-        nk_f16_to_f32_(b + row, &b_row);
+        nk_f16_to_f32_serial_(a + row, &a_row);
+        nk_f16_to_f32_serial_(b + row, &b_row);
         nk_f32_t diff_row = a_row - b_row;
         float32x4_t inner_sum_f32x4 = vdupq_n_f32(0);
         nk_size_t column = 0;
@@ -262,9 +262,9 @@ NUMKONG_API nk_status_t nk_mahalanobis_f16_neon(nk_f16_t const *a, nk_f16_t cons
         nk_f32_t inner_sum = vaddvq_f32(inner_sum_f32x4);
         for (; column < n; ++column) {
             nk_f32_t a_val, b_val, c_val;
-            nk_f16_to_f32_(a + column, &a_val);
-            nk_f16_to_f32_(b + column, &b_val);
-            nk_f16_to_f32_(c_row + column, &c_val);
+            nk_f16_to_f32_serial_(a + column, &a_val);
+            nk_f16_to_f32_serial_(b + column, &b_val);
+            nk_f16_to_f32_serial_(c_row + column, &c_val);
             inner_sum += c_val * (a_val - b_val);
         }
         outer_sum += diff_row * inner_sum;
@@ -283,8 +283,8 @@ NUMKONG_API nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_
     for (nk_size_t row = 0; row != n; ++row) {
         nk_f16c_t const *c_row = c_pairs + row * n;
         nk_f32_t a_real, a_imag;
-        nk_f16_to_f32_(&(a_pairs + row)->real, &a_real);
-        nk_f16_to_f32_(&(a_pairs + row)->imag, &a_imag);
+        nk_f16_to_f32_serial_(&(a_pairs + row)->real, &a_real);
+        nk_f16_to_f32_serial_(&(a_pairs + row)->imag, &a_imag);
         float32x4_t inner_sum_real_f32x4 = vdupq_n_f32(0);
         float32x4_t inner_sum_imag_f32x4 = vdupq_n_f32(0);
         nk_size_t column = 0;
@@ -316,10 +316,10 @@ NUMKONG_API nk_status_t nk_bilinear_f16c_neon(nk_f16c_t const *a_pairs, nk_f16c_
         nk_f32_t inner_sum_imag = vaddvq_f32(inner_sum_imag_f32x4);
         for (; column < n; ++column) {
             nk_f32_t b_real, b_imag, c_real, c_imag;
-            nk_f16_to_f32_(&(b_pairs + column)->real, &b_real);
-            nk_f16_to_f32_(&(b_pairs + column)->imag, &b_imag);
-            nk_f16_to_f32_(&(c_row + column)->real, &c_real);
-            nk_f16_to_f32_(&(c_row + column)->imag, &c_imag);
+            nk_f16_to_f32_serial_(&(b_pairs + column)->real, &b_real);
+            nk_f16_to_f32_serial_(&(b_pairs + column)->imag, &b_imag);
+            nk_f16_to_f32_serial_(&(c_row + column)->real, &c_real);
+            nk_f16_to_f32_serial_(&(c_row + column)->imag, &c_imag);
             inner_sum_real += c_real * b_real - c_imag * b_imag;
             inner_sum_imag += c_real * b_imag + c_imag * b_real;
         }

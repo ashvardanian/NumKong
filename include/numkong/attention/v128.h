@@ -50,8 +50,8 @@ NUMKONG_INLINE v128_t nk_attention_load_bf16x4_v128_(void const *plane_chunk) {
 NUMKONG_INLINE nk_size_t nk_attention_pack_size_v128_(nk_size_t key_value_head_count, nk_size_t depth,
                                                       nk_size_t token_count, nk_size_t segment_count,
                                                       nk_size_t element_bytes) {
-    return nk_attention_pack_bound_(key_value_head_count, token_count, segment_count, 1,
-                                    nk_size_round_up_to_multiple_(depth, 8) * element_bytes);
+    return nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
+                                           nk_size_round_up_to_multiple_(depth, 8) * element_bytes);
 }
 
 /** Raw strided-row repack, recording the packing @p capability: source encoding is preserved,
@@ -59,16 +59,16 @@ NUMKONG_INLINE nk_size_t nk_attention_pack_size_v128_(nk_size_t key_value_head_c
 NUMKONG_INLINE void nk_attention_pack_v128_(                               //
     void const *keys, void const *values, nk_size_t element_bytes,         //
     nk_size_t key_value_head_count, nk_size_t depth,                       //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths,      //
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths,              //
     nk_size_t segment_count, nk_size_t key_stride, nk_size_t value_stride, //
     void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_capability_t capability) {
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 8);
     nk_size_t const row_bytes = depth * element_bytes;
     nk_size_t const padded_row_bytes = depth_padded * element_bytes;
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 tasks_begin, 1, padded_row_bytes, capability);
+    nk_attention_pack_directory_serial_(key_value_packed, key_value_head_count, depth, key_offsets, key_lengths,
+                                        segment_count, tasks_begin, 1, padded_row_bytes, capability);
     char *payload_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
-                         nk_attention_pack_directory_size_(segment_count);
+                         nk_attention_pack_directory_size_serial_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     if (tasks_begin >= total_tasks) return;
@@ -80,11 +80,12 @@ NUMKONG_INLINE void nk_attention_pack_v128_(                               //
         nk_size_t const segment_idx = task_idx / key_value_head_count;
         nk_size_t const key_value_head_idx = task_idx % key_value_head_count;
         for (; payload_segment < segment_idx; payload_segment++)
-            payload_offset += nk_attention_pack_segment_bytes_(segment_lengths[payload_segment], key_value_head_count,
-                                                               1, padded_row_bytes);
-        nk_size_t const position_count = segment_lengths[segment_idx];
+            payload_offset += nk_attention_pack_segment_bytes_serial_(
+                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, payload_segment), key_value_head_count, 1,
+                padded_row_bytes);
+        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
         if (position_count == 0) continue;
-        nk_size_t const position_first = segment_offsets[segment_idx];
+        nk_size_t const position_first = key_offsets[segment_idx];
         nk_size_t const plane_bytes = position_count * padded_row_bytes;
         char *keys_plane = payload_base + payload_offset + key_value_head_idx * plane_bytes;
         char *values_plane = keys_plane + key_value_head_count * plane_bytes;

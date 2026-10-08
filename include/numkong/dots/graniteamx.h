@@ -265,8 +265,9 @@ NUMKONG_API nk_status_t nk_dots_pack_f16_graniteamx(            //
     // Write header with layout metadata
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;
@@ -846,8 +847,9 @@ NUMKONG_API nk_status_t nk_dots_pack_e5m2_graniteamx(            //
 
     nk_dots_amx_packed_header_t *header = (nk_dots_amx_packed_header_t *)b_packed;
     if (columns_begin == 0) {
+        nk_u32_t *header_words = (nk_u32_t *)header;
         for (nk_size_t word_index = 0; word_index < sizeof(*header) / sizeof(nk_u32_t); word_index++)
-            ((nk_u32_t *)header)[word_index] = 0;
+            header_words[word_index] = 0;
         header->tensor_scale = 1;
         header->columns = (nk_u32_t)column_count;
         header->depth = (nk_u32_t)depth;

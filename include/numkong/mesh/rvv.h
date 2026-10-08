@@ -35,7 +35,7 @@
 
 #include "numkong/types.h"
 #include "numkong/dot/rvv.h"
-#include "numkong/mesh/serial.h" // `nk_svd3x3_f32_`, `nk_rmsd_f16_`, `nk_kabsch_bf16_`, `nk_umeyama_f16_`
+#include "numkong/mesh/serial.h" // `nk_svd3x3_f32_serial_`, `nk_rmsd_f16_serial_`, `nk_kabsch_bf16_serial_`, `nk_umeyama_f16_serial_`
 
 #if defined(__clang__)
 #pragma clang attribute push(__attribute__((target("arch=+v"))), apply_to = function)
@@ -827,9 +827,9 @@ NUMKONG_API nk_status_t nk_kabsch_f32_rvv(nk_f32_t const *a, nk_f32_t const *b, 
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
         }
@@ -885,9 +885,9 @@ NUMKONG_API nk_status_t nk_kabsch_f64_rvv(nk_f64_t const *a, nk_f64_t const *b, 
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
         }
@@ -950,12 +950,12 @@ NUMKONG_API nk_status_t nk_umeyama_f32_rvv(nk_f32_t const *a, nk_f32_t const *b,
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation);
         nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
-        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8],
-                                                       sign_det);
+        nk_f64_t trace_ds = nk_sum_three_products_f64_serial_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0,
+                                                              svd_diagonal[8], sign_det);
         scale_factor = trace_ds / centered_norm_squared_a;
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -1017,12 +1017,12 @@ NUMKONG_API nk_status_t nk_umeyama_f64_rvv(nk_f64_t const *a, nk_f64_t const *b,
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation);
         nk_f64_t sign_det = det < 0 ? -1.0 : 1.0;
-        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8],
-                                                       sign_det);
+        nk_f64_t trace_ds = nk_sum_three_products_f64_serial_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0,
+                                                              svd_diagonal[8], sign_det);
         scale_factor = trace_ds / centered_norm_squared_a;
         if (det < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
@@ -1045,7 +1045,7 @@ NUMKONG_API nk_status_t nk_rmsd_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, nk
                                         nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation, nk_f32_t *scale,
                                         nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_rmsd_f16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
+    nk_rmsd_f16_serial_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
 }
 
@@ -1053,7 +1053,7 @@ NUMKONG_API nk_status_t nk_kabsch_f16_rvv(nk_f16_t const *a, nk_f16_t const *b, 
                                           nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
                                           nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_kabsch_f16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
+    nk_kabsch_f16_serial_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
 }
 
@@ -1061,7 +1061,7 @@ NUMKONG_API nk_status_t nk_umeyama_f16_rvv(nk_f16_t const *a, nk_f16_t const *b,
                                            nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
                                            nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_umeyama_f16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
+    nk_umeyama_f16_serial_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
 }
 
@@ -1069,7 +1069,7 @@ NUMKONG_API nk_status_t nk_rmsd_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *b,
                                          nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
                                          nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_rmsd_bf16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
+    nk_rmsd_bf16_serial_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
 }
 
@@ -1077,7 +1077,7 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const *
                                            nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
                                            nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_kabsch_bf16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
+    nk_kabsch_bf16_serial_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
 }
 
@@ -1085,7 +1085,7 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_rvv(nk_bf16_t const *a, nk_bf16_t const 
                                             nk_f32_t *a_centroid, nk_f32_t *b_centroid, nk_f32_t *rotation,
                                             nk_f32_t *scale, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_umeyama_bf16_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
+    nk_umeyama_bf16_serial_(a, b, points_count, a_centroid, b_centroid, rotation, scale, result);
     return nk_success_k;
 }
 

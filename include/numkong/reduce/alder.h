@@ -33,7 +33,7 @@ extern "C" {
 #pragma GCC target("avx2", "f16c", "fma", "bmi", "bmi2", "avxvnni")
 #endif
 
-NUMKONG_INLINE void nk_reduce_moments_u8_alder_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_u8_alder_( //
     nk_u8_t const *data, nk_size_t count,                   //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i zero_u8x32 = _mm256_setzero_si256();
@@ -70,10 +70,10 @@ NUMKONG_INLINE void nk_reduce_moments_u8_alder_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_u64x4);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u8_alder_strided_(             //
+NUMKONG_INLINE void nk_reduce_moments_strided_u8_alder_(             //
     nk_u8_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
+    __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_haswell_(stride_elements);
     __m256i zero_u8x32 = _mm256_setzero_si256();
     __m256i sum_u64x4 = _mm256_setzero_si256();
     __m256i sumsq_low_i32x8 = _mm256_setzero_si256();
@@ -114,27 +114,28 @@ NUMKONG_API nk_status_t nk_reduce_moments_u8_alder(         //
     nk_size_t stride_elements = stride / sizeof(nk_u8_t);
     int aligned = (stride % sizeof(nk_u8_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0) nk_reduce_moments_u8_strided_(data, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_strided_u8_serial_(data, count, stride, sum_ptr, sumsq_ptr);
     else {
         nk_size_t const chunk_limit = (nk_size_t)16384 * 32;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
             nk_u8_t const *chunk_ptr = data + start * stride_elements;
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_u64_t sum, sumsq;
-            if (stride_elements == 1) nk_reduce_moments_u8_alder_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            if (stride_elements == 1) nk_reduce_moments_contiguous_u8_alder_(chunk_ptr, chunk_count, &sum, &sumsq);
             else if (stride_elements <= 8)
-                nk_reduce_moments_u8_alder_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
-            else nk_reduce_moments_u8_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
+                nk_reduce_moments_strided_u8_alder_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_strided_u8_serial_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
             if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
             else
-                *sum_ptr = nk_u64_saturating_add_(*sum_ptr, sum),
-                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
+                *sum_ptr = nk_saturating_add_u64_serial_(*sum_ptr, sum),
+                *sumsq_ptr = nk_saturating_add_u64_serial_(*sumsq_ptr, sumsq);
         }
     }
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i16_alder_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_i16_alder_( //
     nk_i16_t const *data, nk_size_t count,                   //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i ones_i16x16 = _mm256_set1_epi16(1);
@@ -166,10 +167,10 @@ NUMKONG_INLINE void nk_reduce_moments_i16_alder_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_i64x4);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_i16_alder_strided_(             //
+NUMKONG_INLINE void nk_reduce_moments_strided_i16_alder_(             //
     nk_i16_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_i64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    __m256i stride_mask_i16x16 = nk_stride_blend_b16x16_(stride_elements);
+    __m256i stride_mask_i16x16 = nk_stride_blend_b16x16_haswell_(stride_elements);
     __m256i ones_i16x16 = _mm256_set1_epi16(1);
     __m256i sum_i64x4 = _mm256_setzero_si256();
     __m256i sumsq_i64x4 = _mm256_setzero_si256();
@@ -204,7 +205,8 @@ NUMKONG_API nk_status_t nk_reduce_moments_i16_alder(         //
     nk_size_t stride_elements = stride / sizeof(nk_i16_t);
     int aligned = (stride % sizeof(nk_i16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0) nk_reduce_moments_i16_strided_(data, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_strided_i16_serial_(data, count, stride, sum_ptr, sumsq_ptr);
     else {
         nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 16;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
@@ -212,20 +214,20 @@ NUMKONG_API nk_status_t nk_reduce_moments_i16_alder(         //
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_i64_t sum;
             nk_u64_t sumsq;
-            if (stride_elements == 1) nk_reduce_moments_i16_alder_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            if (stride_elements == 1) nk_reduce_moments_contiguous_i16_alder_(chunk_ptr, chunk_count, &sum, &sumsq);
             else if (stride_elements <= 8)
-                nk_reduce_moments_i16_alder_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
-            else nk_reduce_moments_i16_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
+                nk_reduce_moments_strided_i16_alder_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_strided_i16_serial_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
             if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
             else
-                *sum_ptr = nk_i64_saturating_add_(*sum_ptr, sum),
-                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
+                *sum_ptr = nk_saturating_add_i64_serial_(*sum_ptr, sum),
+                *sumsq_ptr = nk_saturating_add_u64_serial_(*sumsq_ptr, sumsq);
         }
     }
     return nk_success_k;
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u16_alder_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_u16_alder_( //
     nk_u16_t const *data, nk_size_t count,                   //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
     __m256i sum_u32x8 = _mm256_setzero_si256();
@@ -258,10 +260,10 @@ NUMKONG_INLINE void nk_reduce_moments_u16_alder_contiguous_( //
     *sumsq_ptr = (nk_u64_t)nk_reduce_add_i64x4_haswell_(sumsq_u64x4);
 }
 
-NUMKONG_INLINE void nk_reduce_moments_u16_alder_strided_(             //
+NUMKONG_INLINE void nk_reduce_moments_strided_u16_alder_(             //
     nk_u16_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_u64_t *sum_ptr, nk_u64_t *sumsq_ptr) {
-    __m256i stride_mask_i16x16 = nk_stride_blend_b16x16_(stride_elements);
+    __m256i stride_mask_i16x16 = nk_stride_blend_b16x16_haswell_(stride_elements);
     __m256i sum_u32x8 = _mm256_setzero_si256();
     __m256i sumsq_u64x4 = _mm256_setzero_si256();
     nk_size_t idx_scalars = 0;
@@ -305,21 +307,22 @@ NUMKONG_API nk_status_t nk_reduce_moments_u16_alder(         //
     nk_size_t stride_elements = stride / sizeof(nk_u16_t);
     int aligned = (stride % sizeof(nk_u16_t) == 0);
     if (count == 0) *sum_ptr = 0, *sumsq_ptr = 0;
-    else if (!aligned || stride_elements == 0) nk_reduce_moments_u16_strided_(data, count, stride, sum_ptr, sumsq_ptr);
+    else if (!aligned || stride_elements == 0)
+        nk_reduce_moments_strided_u16_serial_(data, count, stride, sum_ptr, sumsq_ptr);
     else {
         nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_U16_MAX + 1) * 8;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
             nk_u16_t const *chunk_ptr = data + start * stride_elements;
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_u64_t sum, sumsq;
-            if (stride_elements == 1) nk_reduce_moments_u16_alder_contiguous_(chunk_ptr, chunk_count, &sum, &sumsq);
+            if (stride_elements == 1) nk_reduce_moments_contiguous_u16_alder_(chunk_ptr, chunk_count, &sum, &sumsq);
             else if (stride_elements <= 8)
-                nk_reduce_moments_u16_alder_strided_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
-            else nk_reduce_moments_u16_strided_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
+                nk_reduce_moments_strided_u16_alder_(chunk_ptr, chunk_count, stride_elements, &sum, &sumsq);
+            else nk_reduce_moments_strided_u16_serial_(chunk_ptr, chunk_count, stride, &sum, &sumsq);
             if (start == 0) *sum_ptr = sum, *sumsq_ptr = sumsq;
             else
-                *sum_ptr = nk_u64_saturating_add_(*sum_ptr, sum),
-                *sumsq_ptr = nk_u64_saturating_add_(*sumsq_ptr, sumsq);
+                *sum_ptr = nk_saturating_add_u64_serial_(*sum_ptr, sum),
+                *sumsq_ptr = nk_saturating_add_u64_serial_(*sumsq_ptr, sumsq);
         }
     }
     return nk_success_k;
@@ -334,7 +337,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_u16_alder(         //
  *  and accumulate with @c _mm256_dpwssd_epi32 (signed i16 × signed i16 → i32).
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
-NUMKONG_INLINE void nk_reduce_moments_e3m2_alder_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_e3m2_alder_( //
     nk_e3m2_t const *data, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i const lut_low_byte_first_u8x32 = _mm256_set_epi8(                                                      //
@@ -417,10 +420,10 @@ NUMKONG_INLINE void nk_reduce_moments_e3m2_alder_contiguous_( //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e3m2_alder_strided_(             //
+NUMKONG_INLINE void nk_reduce_moments_strided_e3m2_alder_(             //
     nk_e3m2_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
+    __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_haswell_(stride_elements);
     __m256i const lut_low_byte_first_u8x32 = _mm256_set_epi8(                                                      //
         28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0,                                                     //
         28, 24, 20, 16, 14, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1, 0);                                                    //
@@ -471,7 +474,7 @@ NUMKONG_INLINE void nk_reduce_moments_e3m2_alder_strided_(             //
     nk_size_t remaining = count - idx_scalars / stride_elements;
     for (nk_size_t i = 0; i < remaining; ++i, ptr += stride_elements) {
         nk_f32_t val;
-        nk_e3m2_to_f32_(ptr, &val);
+        nk_e3m2_to_f32_serial_(ptr, &val);
         nk_i32_t ival = (nk_i32_t)(val * 16.0f);
         sum += ival;
         sumsq += ival * ival;
@@ -487,7 +490,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e3m2_alder(         //
     nk_size_t stride_elements = stride / sizeof(nk_e3m2_t);
     int aligned = (stride % sizeof(nk_e3m2_t) == 0);
     if (count == 0) *sum = 0, *sumsq = 0;
-    else if (!aligned || stride_elements == 0) nk_reduce_moments_e3m2_strided_(data, count, stride, sum, sumsq);
+    else if (!aligned || stride_elements == 0) nk_reduce_moments_strided_e3m2_serial_(data, count, stride, sum, sumsq);
     else {
         nk_size_t const chunk_limit = (nk_size_t)2048 * 32;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
@@ -495,11 +498,11 @@ NUMKONG_API nk_status_t nk_reduce_moments_e3m2_alder(         //
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_f32_t chunk_sum, chunk_sumsq;
             if (stride_elements == 1)
-                nk_reduce_moments_e3m2_alder_contiguous_(chunk_ptr, chunk_count, &chunk_sum, &chunk_sumsq);
+                nk_reduce_moments_contiguous_e3m2_alder_(chunk_ptr, chunk_count, &chunk_sum, &chunk_sumsq);
             else if (stride_elements <= 8)
-                nk_reduce_moments_e3m2_alder_strided_(chunk_ptr, chunk_count, stride_elements, &chunk_sum,
+                nk_reduce_moments_strided_e3m2_alder_(chunk_ptr, chunk_count, stride_elements, &chunk_sum,
                                                       &chunk_sumsq);
-            else nk_reduce_moments_e3m2_strided_(chunk_ptr, chunk_count, stride, &chunk_sum, &chunk_sumsq);
+            else nk_reduce_moments_strided_e3m2_serial_(chunk_ptr, chunk_count, stride, &chunk_sum, &chunk_sumsq);
             if (start == 0) *sum = chunk_sum, *sumsq = chunk_sumsq;
             else *sum += chunk_sum, *sumsq += chunk_sumsq;
         }
@@ -516,7 +519,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e3m2_alder(         //
  *  128, so it's safe as both u8 and i8.
  *  Final: sum = i32_sum / 16, sumsq = i32_sumsq / 256.
  */
-NUMKONG_INLINE void nk_reduce_moments_e2m3_alder_contiguous_( //
+NUMKONG_INLINE void nk_reduce_moments_contiguous_e2m3_alder_( //
     nk_e2m3_t const *data, nk_size_t count,                   //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
     __m256i const lut_low_u8x32 = _mm256_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, //
@@ -574,10 +577,10 @@ NUMKONG_INLINE void nk_reduce_moments_e2m3_alder_contiguous_( //
     *sumsq_ptr = (nk_f32_t)sumsq / 256.0f;
 }
 
-NUMKONG_INLINE void nk_reduce_moments_e2m3_alder_strided_(             //
+NUMKONG_INLINE void nk_reduce_moments_strided_e2m3_alder_(             //
     nk_e2m3_t const *data, nk_size_t count, nk_size_t stride_elements, //
     nk_f32_t *sum_ptr, nk_f32_t *sumsq_ptr) {
-    __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_(stride_elements);
+    __m256i stride_mask_u8x32 = nk_stride_blend_u1x32_haswell_(stride_elements);
     __m256i const lut_low_u8x32 = _mm256_set_epi8(30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0, //
                                                   30, 28, 26, 24, 22, 20, 18, 16, 14, 12, 10, 8, 6, 4, 2, 0);
     __m256i const lut_high_u8x32 = _mm256_set_epi8(120, 112, 104, 96, 88, 80, 72, 64, 60, 56, 52, 48, 44, 40, 36, 32,
@@ -614,7 +617,7 @@ NUMKONG_INLINE void nk_reduce_moments_e2m3_alder_strided_(             //
     nk_size_t remaining = count - idx_scalars / stride_elements;
     for (nk_size_t i = 0; i < remaining; ++i, ptr += stride_elements) {
         nk_f32_t val;
-        nk_e2m3_to_f32_(ptr, &val);
+        nk_e2m3_to_f32_serial_(ptr, &val);
         nk_i32_t ival = (nk_i32_t)(val * 16.0f);
         sum += ival;
         sumsq += ival * ival;
@@ -630,7 +633,7 @@ NUMKONG_API nk_status_t nk_reduce_moments_e2m3_alder(         //
     nk_size_t stride_elements = stride / sizeof(nk_e2m3_t);
     int aligned = (stride % sizeof(nk_e2m3_t) == 0);
     if (count == 0) *sum = 0, *sumsq = 0;
-    else if (!aligned || stride_elements == 0) nk_reduce_moments_e2m3_strided_(data, count, stride, sum, sumsq);
+    else if (!aligned || stride_elements == 0) nk_reduce_moments_strided_e2m3_serial_(data, count, stride, sum, sumsq);
     else {
         nk_size_t const chunk_limit = (nk_size_t)(NUMKONG_I16_MAX + 1) * 32;
         for (nk_size_t start = 0; start < count; start += chunk_limit) {
@@ -638,11 +641,11 @@ NUMKONG_API nk_status_t nk_reduce_moments_e2m3_alder(         //
             nk_size_t chunk_count = count - start < chunk_limit ? count - start : chunk_limit;
             nk_f32_t chunk_sum, chunk_sumsq;
             if (stride_elements == 1)
-                nk_reduce_moments_e2m3_alder_contiguous_(chunk_ptr, chunk_count, &chunk_sum, &chunk_sumsq);
+                nk_reduce_moments_contiguous_e2m3_alder_(chunk_ptr, chunk_count, &chunk_sum, &chunk_sumsq);
             else if (stride_elements <= 8)
-                nk_reduce_moments_e2m3_alder_strided_(chunk_ptr, chunk_count, stride_elements, &chunk_sum,
+                nk_reduce_moments_strided_e2m3_alder_(chunk_ptr, chunk_count, stride_elements, &chunk_sum,
                                                       &chunk_sumsq);
-            else nk_reduce_moments_e2m3_strided_(chunk_ptr, chunk_count, stride, &chunk_sum, &chunk_sumsq);
+            else nk_reduce_moments_strided_e2m3_serial_(chunk_ptr, chunk_count, stride, &chunk_sum, &chunk_sumsq);
             if (start == 0) *sum = chunk_sum, *sumsq = chunk_sumsq;
             else *sum += chunk_sum, *sumsq += chunk_sumsq;
         }

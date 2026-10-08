@@ -31,7 +31,7 @@
 
 #if NUMKONG_ARCH_CUDA_ || NUMKONG_ARCH_ROCM_
 
-#include "numkong/reduce/serial.h" // `nk_i4x2_get_`, `nk_u64_saturating_add_`
+#include "numkong/reduce/serial.h" // `nk_get_i4x2_serial_`, `nk_saturating_add_u64_serial_`
 #include "numkong/cast/simt.cuh"   // `nk_e5m2_to_f32_simt_`, `nk_e2m1_nibble_to_i8x2_simt_`
 
 #if defined(__cplusplus)
@@ -73,7 +73,7 @@ NUMKONG_DEVICE nk_size_t nk_reduce_lanes_simt_(void) { return (nk_size_t)gridDim
 /** Adds @p value to the U64 at @p slot, saturating, which no order of non-negative terms alters. */
 NUMKONG_DEVICE void nk_reduce_add_u64_simt_(nk_u64_t *slot, nk_u64_t value) {
     unsigned long long seen = *(unsigned long long volatile *)slot, prior;
-    while ((prior = atomicCAS((unsigned long long *)slot, seen, nk_u64_saturating_add_(seen, value))) != seen)
+    while ((prior = atomicCAS((unsigned long long *)slot, seen, nk_saturating_add_u64_serial_(seen, value))) != seen)
         seen = prior;
 }
 
@@ -81,7 +81,7 @@ NUMKONG_DEVICE void nk_reduce_add_u64_simt_(nk_u64_t *slot, nk_u64_t value) {
 NUMKONG_DEVICE void nk_reduce_add_i64_simt_(nk_i64_t *slot, nk_i64_t value) {
     unsigned long long seen = *(unsigned long long volatile *)slot, prior;
     while ((prior = atomicCAS((unsigned long long *)slot, seen,
-                              (unsigned long long)nk_i64_saturating_add_((nk_i64_t)seen, value))) != seen)
+                              (unsigned long long)nk_saturating_add_i64_serial_((nk_i64_t)seen, value))) != seen)
         seen = prior;
 }
 
@@ -105,9 +105,9 @@ NUMKONG_DEVICE nk_u64_t nk_reduce_raw_simt_(nk_dtype_t dtype, nk_reduce_argument
     unsigned char const *data = arguments->data;
     nk_size_t const stride = arguments->stride;
     switch (dtype) {
-    case nk_i4_k: return (nk_u8_t)nk_i4x2_get_(data[index / 2 * stride], (int)(index & 1));
+    case nk_i4_k: return (nk_u8_t)nk_get_i4x2_serial_(data[index / 2 * stride], (int)(index & 1));
     case nk_u4_k:
-    case nk_e2m1_k: return nk_u4x2_get_(data[index / 2 * stride], (int)(index & 1));
+    case nk_e2m1_k: return nk_get_u4x2_serial_(data[index / 2 * stride], (int)(index & 1));
     case nk_u1_k: return (data[index / 8 * stride] >> (7 - index % 8)) & 1u;
     default:
         return nk_reduce_load_simt_(data + index * stride, (unsigned)(nk_dtype_bits(dtype) / NUMKONG_BITS_PER_BYTE),
@@ -261,7 +261,7 @@ NUMKONG_DEVICE void nk_reduce_integer_moments_add_simt_(nk_reduce_integer_moment
                                                         nk_u64_t square) {
     nk_u64_t const sum_low = state->sum_low + low;
     state->sum_high += high + (sum_low < low);
-    state->sum_low = sum_low, state->sumsq = nk_u64_saturating_add_(state->sumsq, square);
+    state->sum_low = sum_low, state->sumsq = nk_saturating_add_u64_serial_(state->sumsq, square);
 }
 
 /** Adds the integer @p dtype value with @p raw bits, E2M1 as twice its value, an integer. */
@@ -274,10 +274,11 @@ NUMKONG_DEVICE void nk_reduce_integer_moments_raw_simt_(nk_dtype_t dtype, nk_u64
     case nk_u8_k:
     case nk_u16_k:
     case nk_u32_k: nk_reduce_integer_moments_add_simt_(state, raw, 0, raw * raw); return;
-    case nk_u64_k: nk_reduce_integer_moments_add_simt_(state, raw, 0, nk_u64_saturating_mul_(raw, raw)); return;
+    case nk_u64_k: nk_reduce_integer_moments_add_simt_(state, raw, 0, nk_saturating_mul_u64_serial_(raw, raw)); return;
     case nk_i64_k:
         value = (nk_i64_t)raw;
-        nk_reduce_integer_moments_add_simt_(state, raw, value >> 63, (nk_u64_t)nk_i64_saturating_mul_(value, value));
+        nk_reduce_integer_moments_add_simt_(state, raw, value >> 63,
+                                            (nk_u64_t)nk_saturating_mul_i64_serial_(value, value));
         return;
     default:
         value = dtype == nk_i16_k    ? (nk_i16_t)raw
@@ -421,6 +422,48 @@ NUMKONG_DEVICE void nk_reduce_f64_moments_merge_simt_(nk_reduce_f64_moments_t *s
 NUMKONG_DEVICE int nk_reduce_pairs_hold_simt_(nk_f32_t value) {
     return ((__float_as_uint(value) >> 23) & 0xFFu) - 77u <= 100u || value == 0;
 }
+
+/** Generates the moments kernel of @p input_type for @p isa_suffix, summing through @p moments_fn,
+ *  and its entry point, launched through the helpers of @p vendor, @c cuda or @c rocm . */
+#define nk_define_reduce_moments_simt_(input_type, input_value_type, moments_fn, sum_type, sumsq_type, isa_suffix, \
+                                       vendor)                                                                     \
+    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                             \
+        nk_reduce_moments_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                 \
+        moments_fn(nk_##input_type##_k, &arguments);                                                               \
+    }                                                                                                              \
+    NUMKONG_API nk_status_t nk_reduce_moments_##input_type##_##isa_suffix(                                         \
+        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##sum_type##_t *sum,          \
+        nk_##sumsq_type##_t *sumsq, nk_stream_t stream) {                                                          \
+        return nk_reduce_moments_launch_##vendor##_(                                                               \
+            (void const *)&nk_reduce_moments_##input_type##_##isa_suffix##_kernel_,                                \
+            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, sum, NUMKONG_NULL,   \
+                                      sumsq, NUMKONG_NULL),                                                        \
+            sizeof(nk_##sum_type##_t), sizeof(nk_##sumsq_type##_t), stream);                                       \
+    }
+
+/** Generates the entry point and the min/max and finishing kernels of @p input_type for
+ *  @p isa_suffix, their sides starting from the serial kernels' @p min_sentinel and
+ *  @p max_sentinel bits, launched through the helpers of @p vendor. */
+#define nk_define_reduce_minmax_simt_(input_type, input_value_type, output_type, min_sentinel, max_sentinel,        \
+                                      isa_suffix, vendor)                                                           \
+    static __global__ void __launch_bounds__(nk_reduce_threads_simt_k)                                              \
+        nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_(nk_reduce_arguments_t arguments) {                   \
+        nk_reduce_minmax_simt_(nk_##input_type##_k, &arguments);                                                    \
+    }                                                                                                               \
+    static __global__ void nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_(                           \
+        nk_reduce_arguments_t arguments) {                                                                          \
+        nk_reduce_minmax_finish_simt_(nk_##input_type##_k, min_sentinel, max_sentinel, &arguments);                 \
+    }                                                                                                               \
+    NUMKONG_API nk_status_t nk_reduce_minmax_##input_type##_##isa_suffix(                                           \
+        nk_##input_value_type##_t const *data, nk_size_t count, nk_size_t stride, nk_##output_type##_t *min_value,  \
+        nk_size_t *min_index, nk_##output_type##_t *max_value, nk_size_t *max_index, nk_stream_t stream) {          \
+        return nk_reduce_minmax_launch_##vendor##_(                                                                 \
+            (void const *)&nk_reduce_minmax_##input_type##_##isa_suffix##_kernel_,                                  \
+            (void const *)&nk_reduce_minmax_##input_type##_finish_##isa_suffix##_kernel_,                           \
+            nk_reduce_arguments_simt_(sizeof(nk_##input_value_type##_t), data, count, stride, min_value, min_index, \
+                                      max_value, max_index),                                                        \
+            stream);                                                                                                \
+    }
 
 #if defined(__cplusplus)
 } // extern "C"

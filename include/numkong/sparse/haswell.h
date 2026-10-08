@@ -219,7 +219,7 @@ NUMKONG_API nk_status_t nk_sparse_dot_u32f32_haswell(nk_u32_t const *a, nk_u32_t
 
     nk_f64_t vector_sum = nk_sparse_reduce_f64x4x2_haswell_(accumulator_low_f64x4, accumulator_high_f64x4);
     nk_f64_t tail_product = 0;
-    nk_sparse_dot_u32f32_(a + i, b + j, a_weights + i, b_weights + j, a_length - i, b_length - j, &tail_product);
+    nk_sparse_dot_u32f32_serial_(a + i, b + j, a_weights + i, b_weights + j, a_length - i, b_length - j, &tail_product);
     *product = vector_sum + tail_product;
     return nk_success_k;
 }

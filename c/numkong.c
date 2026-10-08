@@ -145,13 +145,13 @@ NUMKONG_API nk_status_t nk_stream_free_cuda(nk_stream_t stream) {
 #endif
 
 NUMKONG_API nk_status_t nk_cuda_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_cuda_capabilities_compiled_();
+    *capabilities = nk_capabilities_compiled_cuda_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_cuda_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
     nk_status_t const status = nk_cuda_capabilities_detected(ordinal, capabilities);
-    *capabilities &= nk_cuda_capabilities_compiled_();
+    *capabilities &= nk_capabilities_compiled_cuda_();
     return status;
 }
 
@@ -179,13 +179,13 @@ NUMKONG_API nk_status_t nk_stream_free_rocm(nk_stream_t stream) {
 #endif
 
 NUMKONG_API nk_status_t nk_rocm_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_rocm_capabilities_compiled_();
+    *capabilities = nk_capabilities_compiled_rocm_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_rocm_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
     nk_status_t const status = nk_rocm_capabilities_detected(ordinal, capabilities);
-    *capabilities &= nk_rocm_capabilities_compiled_();
+    *capabilities &= nk_capabilities_compiled_rocm_();
     return status;
 }
 
@@ -197,22 +197,22 @@ NUMKONG_API nk_status_t nk_metal_count_devices(nk_size_t *count) {
     return nk_missing_gpu_k;
 }
 NUMKONG_API nk_status_t nk_metal_capabilities_detected(nk_size_t ordinal, nk_capability_t *capabilities) {
-    return nk_metal_capabilities_detected_(ordinal, capabilities);
+    return nk_capabilities_detected_metal_(ordinal, capabilities);
 }
 NUMKONG_API nk_status_t nk_stream_init_metal(nk_size_t ordinal, nk_stream_t *stream) {
-    return nk_metal_stream_init_(ordinal, stream);
+    return nk_stream_init_metal_(ordinal, stream);
 }
-NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_metal_stream_free_(stream); }
+NUMKONG_API nk_status_t nk_stream_free_metal(nk_stream_t stream) { return nk_stream_free_metal_(stream); }
 #endif
 
 NUMKONG_API nk_status_t nk_metal_capabilities_compiled(nk_capability_t *capabilities) {
-    *capabilities = nk_metal_capabilities_compiled_();
+    *capabilities = nk_capabilities_compiled_metal_();
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_metal_capabilities_enabled(nk_size_t ordinal, nk_capability_t *capabilities) {
     nk_status_t const status = nk_metal_capabilities_detected(ordinal, capabilities);
-    *capabilities &= nk_metal_capabilities_compiled_();
+    *capabilities &= nk_capabilities_compiled_metal_();
     return status;
 }
 

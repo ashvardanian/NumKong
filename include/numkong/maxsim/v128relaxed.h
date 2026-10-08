@@ -33,9 +33,8 @@ extern "C" {
 #pragma clang attribute push(__attribute__((target("relaxed-simd"))), apply_to = function)
 #endif
 
-/** Coarse i8 kernel for WASM Relaxed SIMD as an @c nk_maxsim_coarse_dots_t. Uses
- *  relaxed_dot_i8x16_i7x16_add on documents biased by 64 into [1, 127], where every engine agrees,
- *  and subtracts 64 times each query's code sum. */
+/** Coarse i8 kernel for WASM Relaxed SIMD. Uses relaxed_dot_i8x16_i7x16_add on documents biased by
+ *  64 into [1, 127], where every engine agrees, and subtracts 64 times each query's code sum. */
 NUMKONG_INLINE void nk_maxsim_coarse_dots_v128relaxed_(   //
     nk_i8_t const *query_i8, nk_i8_t const *document_i8,  //
     nk_maxsim_vector_metadata_t const *document_metadata, //
@@ -86,13 +85,59 @@ NUMKONG_API nk_status_t nk_maxsim_packed_bf16_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(query_packed, nk_cap_v128relaxed_k) ||
-        !nk_maxsim_packed_by_(document_packed, nk_cap_v128relaxed_k))
+    if (!nk_maxsim_packed_by_serial_(query_packed, nk_cap_v128relaxed_k) ||
+        !nk_maxsim_packed_by_serial_(document_packed, nk_cap_v128relaxed_k))
         return nk_pack_mismatch_k;
 
-    *result = (nk_f32_t)nk_maxsim_packed_angular_(query_packed, document_packed, query_count, document_count, depth,
-                                                  nk_maxsim_coarse_dots_v128relaxed_,
-                                                  nk_maxsim_refine_bf16_v128relaxed_);
+    nk_maxsim_packed_regions_t regions = nk_maxsim_extract_packed_regions_serial_(query_packed, document_packed);
+    nk_f64_t const poison = nk_maxsim_packed_poison_serial_(&regions, query_count, document_count);
+    if (poison != 0) {
+        *result = (nk_f32_t)poison;
+        return nk_success_k;
+    }
+    nk_size_t const weights_stride = sizeof(nk_maxsim_vector_metadata_t) / sizeof(nk_f32_t);
+    nk_f32_t const residue = 0.5f * nk_sqrt_f32_serial_((nk_f32_t)depth);
+    nk_i32_t dots[32 * 128];
+    nk_u32_t candidates[128];
+    nk_f64_t total_angular_distance = 0.0, total_compensation = 0.0;
+
+    for (nk_size_t query_start = 0; query_start < query_count; query_start += 32) {
+        nk_size_t const query_tile = query_count - query_start < 32 ? query_count - query_start : 32;
+        nk_maxsim_screen_error_t errors[32];
+        nk_f32_t lower_bounds[32];
+        nk_f64_t best_cosines[32];
+        nk_maxsim_query_tile_begin_serial_(&regions, query_start, query_tile, residue, depth, errors, lower_bounds,
+                                           best_cosines);
+
+        for (nk_size_t document_start = 0; document_start < document_count; document_start += 128) {
+            nk_size_t const document_tile = document_count - document_start < 128 ? document_count - document_start
+                                                                                  : 128;
+            nk_maxsim_coarse_dots_v128relaxed_(regions.query_quantized + query_start * regions.depth_i8_padded,
+                                               regions.document_quantized + document_start * regions.depth_i8_padded,
+                                               regions.document_metadata + document_start, query_tile, document_tile,
+                                               regions.depth_i8_padded, dots);
+            nk_f32_t const *weights = &regions.document_metadata[document_start].screen_weight_f32;
+
+            for (nk_size_t query_index = 0; query_index < query_tile; query_index++) {
+                nk_size_t const query_global_index = query_start + query_index;
+                nk_size_t const candidate_count = nk_maxsim_screen_query_serial_(
+                    dots + query_index * document_tile, weights, weights_stride, document_tile, errors[query_index],
+                    &lower_bounds[query_index], candidates);
+                for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
+                    nk_size_t const document_index = document_start + candidates[candidate_index];
+                    nk_f64_t const dot = nk_maxsim_refine_bf16_v128relaxed_(
+                        regions.query_originals + query_global_index * regions.query_original_stride,
+                        regions.document_originals + document_index * regions.document_original_stride, depth);
+                    nk_maxsim_best_cosine_update_serial_(
+                        dot, regions.query_metadata[query_global_index].inverse_norm_f64,
+                        regions.document_metadata[document_index].inverse_norm_f64, &best_cosines[query_index]);
+                }
+            }
+        }
+
+        nk_maxsim_angular_accumulate_serial_(best_cosines, query_tile, &total_angular_distance, &total_compensation);
+    }
+    *result = (nk_f32_t)(total_angular_distance + total_compensation);
     return nk_success_k;
 }
 
@@ -100,12 +145,59 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f64_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(query_packed, nk_cap_v128relaxed_k) ||
-        !nk_maxsim_packed_by_(document_packed, nk_cap_v128relaxed_k))
+    if (!nk_maxsim_packed_by_serial_(query_packed, nk_cap_v128relaxed_k) ||
+        !nk_maxsim_packed_by_serial_(document_packed, nk_cap_v128relaxed_k))
         return nk_pack_mismatch_k;
 
-    *result = nk_maxsim_packed_angular_(query_packed, document_packed, query_count, document_count, depth,
-                                        nk_maxsim_coarse_dots_v128relaxed_, nk_maxsim_refine_f32_v128relaxed_);
+    nk_maxsim_packed_regions_t regions = nk_maxsim_extract_packed_regions_serial_(query_packed, document_packed);
+    nk_f64_t const poison = nk_maxsim_packed_poison_serial_(&regions, query_count, document_count);
+    if (poison != 0) {
+        *result = poison;
+        return nk_success_k;
+    }
+    nk_size_t const weights_stride = sizeof(nk_maxsim_vector_metadata_t) / sizeof(nk_f32_t);
+    nk_f32_t const residue = 0.5f * nk_sqrt_f32_serial_((nk_f32_t)depth);
+    nk_i32_t dots[32 * 128];
+    nk_u32_t candidates[128];
+    nk_f64_t total_angular_distance = 0.0, total_compensation = 0.0;
+
+    for (nk_size_t query_start = 0; query_start < query_count; query_start += 32) {
+        nk_size_t const query_tile = query_count - query_start < 32 ? query_count - query_start : 32;
+        nk_maxsim_screen_error_t errors[32];
+        nk_f32_t lower_bounds[32];
+        nk_f64_t best_cosines[32];
+        nk_maxsim_query_tile_begin_serial_(&regions, query_start, query_tile, residue, depth, errors, lower_bounds,
+                                           best_cosines);
+
+        for (nk_size_t document_start = 0; document_start < document_count; document_start += 128) {
+            nk_size_t const document_tile = document_count - document_start < 128 ? document_count - document_start
+                                                                                  : 128;
+            nk_maxsim_coarse_dots_v128relaxed_(regions.query_quantized + query_start * regions.depth_i8_padded,
+                                               regions.document_quantized + document_start * regions.depth_i8_padded,
+                                               regions.document_metadata + document_start, query_tile, document_tile,
+                                               regions.depth_i8_padded, dots);
+            nk_f32_t const *weights = &regions.document_metadata[document_start].screen_weight_f32;
+
+            for (nk_size_t query_index = 0; query_index < query_tile; query_index++) {
+                nk_size_t const query_global_index = query_start + query_index;
+                nk_size_t const candidate_count = nk_maxsim_screen_query_serial_(
+                    dots + query_index * document_tile, weights, weights_stride, document_tile, errors[query_index],
+                    &lower_bounds[query_index], candidates);
+                for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
+                    nk_size_t const document_index = document_start + candidates[candidate_index];
+                    nk_f64_t const dot = nk_maxsim_refine_f32_v128relaxed_(
+                        regions.query_originals + query_global_index * regions.query_original_stride,
+                        regions.document_originals + document_index * regions.document_original_stride, depth);
+                    nk_maxsim_best_cosine_update_serial_(
+                        dot, regions.query_metadata[query_global_index].inverse_norm_f64,
+                        regions.document_metadata[document_index].inverse_norm_f64, &best_cosines[query_index]);
+                }
+            }
+        }
+
+        nk_maxsim_angular_accumulate_serial_(best_cosines, query_tile, &total_angular_distance, &total_compensation);
+    }
+    *result = (total_angular_distance + total_compensation);
     return nk_success_k;
 }
 
@@ -113,27 +205,73 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_v128relaxed( //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count,
     nk_size_t depth, nk_f32_t *result, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(query_packed, nk_cap_v128relaxed_k) ||
-        !nk_maxsim_packed_by_(document_packed, nk_cap_v128relaxed_k))
+    if (!nk_maxsim_packed_by_serial_(query_packed, nk_cap_v128relaxed_k) ||
+        !nk_maxsim_packed_by_serial_(document_packed, nk_cap_v128relaxed_k))
         return nk_pack_mismatch_k;
 
-    *result = (nk_f32_t)nk_maxsim_packed_angular_(query_packed, document_packed, query_count, document_count, depth,
-                                                  nk_maxsim_coarse_dots_v128relaxed_,
-                                                  nk_maxsim_refine_f16_v128relaxed_);
+    nk_maxsim_packed_regions_t regions = nk_maxsim_extract_packed_regions_serial_(query_packed, document_packed);
+    nk_f64_t const poison = nk_maxsim_packed_poison_serial_(&regions, query_count, document_count);
+    if (poison != 0) {
+        *result = (nk_f32_t)poison;
+        return nk_success_k;
+    }
+    nk_size_t const weights_stride = sizeof(nk_maxsim_vector_metadata_t) / sizeof(nk_f32_t);
+    nk_f32_t const residue = 0.5f * nk_sqrt_f32_serial_((nk_f32_t)depth);
+    nk_i32_t dots[32 * 128];
+    nk_u32_t candidates[128];
+    nk_f64_t total_angular_distance = 0.0, total_compensation = 0.0;
+
+    for (nk_size_t query_start = 0; query_start < query_count; query_start += 32) {
+        nk_size_t const query_tile = query_count - query_start < 32 ? query_count - query_start : 32;
+        nk_maxsim_screen_error_t errors[32];
+        nk_f32_t lower_bounds[32];
+        nk_f64_t best_cosines[32];
+        nk_maxsim_query_tile_begin_serial_(&regions, query_start, query_tile, residue, depth, errors, lower_bounds,
+                                           best_cosines);
+
+        for (nk_size_t document_start = 0; document_start < document_count; document_start += 128) {
+            nk_size_t const document_tile = document_count - document_start < 128 ? document_count - document_start
+                                                                                  : 128;
+            nk_maxsim_coarse_dots_v128relaxed_(regions.query_quantized + query_start * regions.depth_i8_padded,
+                                               regions.document_quantized + document_start * regions.depth_i8_padded,
+                                               regions.document_metadata + document_start, query_tile, document_tile,
+                                               regions.depth_i8_padded, dots);
+            nk_f32_t const *weights = &regions.document_metadata[document_start].screen_weight_f32;
+
+            for (nk_size_t query_index = 0; query_index < query_tile; query_index++) {
+                nk_size_t const query_global_index = query_start + query_index;
+                nk_size_t const candidate_count = nk_maxsim_screen_query_serial_(
+                    dots + query_index * document_tile, weights, weights_stride, document_tile, errors[query_index],
+                    &lower_bounds[query_index], candidates);
+                for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
+                    nk_size_t const document_index = document_start + candidates[candidate_index];
+                    nk_f64_t const dot = nk_maxsim_refine_f16_v128relaxed_(
+                        regions.query_originals + query_global_index * regions.query_original_stride,
+                        regions.document_originals + document_index * regions.document_original_stride, depth);
+                    nk_maxsim_best_cosine_update_serial_(
+                        dot, regions.query_metadata[query_global_index].inverse_norm_f64,
+                        regions.document_metadata[document_index].inverse_norm_f64, &best_cosines[query_index]);
+                }
+            }
+        }
+
+        nk_maxsim_angular_accumulate_serial_(best_cosines, query_tile, &total_angular_distance, &total_compensation);
+    }
+    *result = (nk_f32_t)(total_angular_distance + total_compensation);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_size_bf16_v128relaxed(nk_size_t vector_count, nk_size_t depth,
                                                              nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_bf16_t), 16);
+    *bytes = nk_maxsim_pack_size_serial_(vector_count, depth, sizeof(nk_bf16_t), 16);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_bf16_v128relaxed(void const *packed, nk_size_t *vectors,
                                                                 nk_size_t *depth, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
+    if (!nk_maxsim_packed_by_serial_(packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_serial_(packed, vectors, depth);
     return nk_success_k;
 }
 
@@ -146,15 +284,15 @@ NUMKONG_API nk_status_t nk_maxsim_pack_bf16_v128relaxed(nk_bf16_t const *vectors
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f32_v128relaxed(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f32_t), 16);
+    *bytes = nk_maxsim_pack_size_serial_(vector_count, depth, sizeof(nk_f32_t), 16);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f32_v128relaxed(void const *packed, nk_size_t *vectors, nk_size_t *depth,
                                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
+    if (!nk_maxsim_packed_by_serial_(packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_serial_(packed, vectors, depth);
     return nk_success_k;
 }
 
@@ -166,15 +304,15 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_v128relaxed(nk_f32_t const *vectors, 
 }
 
 NUMKONG_API nk_status_t nk_maxsim_pack_size_f16_v128relaxed(nk_size_t vector_count, nk_size_t depth, nk_size_t *bytes) {
-    *bytes = nk_maxsim_pack_size_(vector_count, depth, sizeof(nk_f16_t), 16);
+    *bytes = nk_maxsim_pack_size_serial_(vector_count, depth, sizeof(nk_f16_t), 16);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_maxsim_packed_shape_f16_v128relaxed(void const *packed, nk_size_t *vectors, nk_size_t *depth,
                                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_maxsim_packed_by_(packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
-    nk_maxsim_packed_shape_(packed, vectors, depth);
+    if (!nk_maxsim_packed_by_serial_(packed, nk_cap_v128relaxed_k)) return nk_pack_mismatch_k;
+    nk_maxsim_packed_shape_serial_(packed, vectors, depth);
     return nk_success_k;
 }
 

@@ -527,13 +527,14 @@ std::array<nk::vector<typename nk::type_for<input_dtype_>::type>, 3> random_atte
 }
 
 /** Packs the keys and values of the one segment of @p shape, whose @p directory holds key offsets
- *  then lengths. */
+ *  then query offsets. */
 template <typename backend_type_, typename pack_kernel_type_, typename raw_type_>
 nk_status_t attention_pack(backend_type_ &backend, pack_kernel_type_ pack_fn, attention_shape_t shape,
                            raw_type_ const *keys, raw_type_ const *values, nk_u32_t const *directory, void *packed) {
     std::size_t const key_stride = shape.key_value_head_count * shape.depth * sizeof(raw_type_);
-    return backend.call(pack_fn, keys, values, shape.key_value_head_count, shape.depth, directory, directory + 1,
-                        std::size_t(1), key_stride, key_stride, packed, std::size_t(0), shape.key_value_head_count);
+    return backend.call(pack_fn, keys, values, shape.key_value_head_count, shape.depth, directory,
+                        static_cast<nk_u32_t const *>(nullptr), std::size_t(1), key_stride, key_stride, packed,
+                        std::size_t(0), shape.key_value_head_count);
 }
 
 /** Runs @p attention_fn over the one segment of @p shape under @p visibility_, queries aligned to
@@ -731,8 +732,8 @@ void measure_attention_gradients(loop_t &loop, environment_t const &env, backend
                             set.output.raw_values_data(), set.output_gradient.raw_values_data(),
                             set.log_sum_exp.raw_values_data(), set.query_gradient.raw_values_data(),
                             set.key_gradient.raw_values_data(), set.value_gradient.raw_values_data(), shape.head_count,
-                            shape.key_value_head_count, shape.depth, query_offsets, key_offsets, query_stride,
-                            output_stride, output_stride, gradient_stride, scale, attention_keys_before(visibility_),
+                            shape.key_value_head_count, shape.depth, query_offsets, query_stride, output_stride,
+                            output_stride, gradient_stride, scale, attention_keys_before(visibility_),
                             attention_keys_after(visibility_), std::size_t(0), shape.key_value_head_count);
     });
     if (timed) report_attention(loop, visibility_, shape, 10.0);

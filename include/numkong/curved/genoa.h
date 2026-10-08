@@ -15,7 +15,7 @@
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_`
+#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_serial_`
 #include "numkong/reduce/skylake.h" // `nk_reduce_add_f32x16_skylake_`
 
 #if defined(__cplusplus)
@@ -41,7 +41,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_genoa(nk_bf16_t const *a, nk_bf16_t con
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_f32;
-        nk_bf16_to_f32_(a + i, &a_f32);
+        nk_bf16_to_f32_serial_(a + i, &a_f32);
         __m512 a_f32x16 = _mm512_set1_ps(a_f32);
         __m512 cb_j_f32x16 = _mm512_setzero_ps();
         __m512i b_bf16x32, c_bf16x32;
@@ -77,8 +77,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_genoa(nk_bf16_t const *a, nk_bf16_t 
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_i, b_i;
-        nk_bf16_to_f32_(a + i, &a_i);
-        nk_bf16_to_f32_(b + i, &b_i);
+        nk_bf16_to_f32_serial_(a + i, &a_i);
+        nk_bf16_to_f32_serial_(b + i, &b_i);
         __m512 diff_i_f32x16 = _mm512_set1_ps(a_i - b_i);
         __m512 cdiff_j_f32x16 = _mm512_setzero_ps();
         __m512i a_j_bf16x32, b_j_bf16x32, c_bf16x32;
@@ -140,8 +140,8 @@ NUMKONG_API nk_status_t nk_bilinear_bf16c_genoa(nk_bf16c_t const *a, nk_bf16c_t 
 
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_i_real, a_i_imag;
-        nk_bf16_to_f32_(&a[i].real, &a_i_real);
-        nk_bf16_to_f32_(&a[i].imag, &a_i_imag);
+        nk_bf16_to_f32_serial_(&a[i].real, &a_i_real);
+        nk_bf16_to_f32_serial_(&a[i].imag, &a_i_imag);
         __m512 cb_j_real_f32x16 = _mm512_setzero_ps();
         __m512 cb_j_imag_f32x16 = _mm512_setzero_ps();
         __m512i b_bf16x32, c_bf16x32;

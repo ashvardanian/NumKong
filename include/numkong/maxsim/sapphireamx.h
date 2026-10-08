@@ -50,7 +50,7 @@
 #include "numkong/types.h"
 #include "numkong/dots/sapphireamx.h" // AMX tile types, configure, load, transpose
 #include "numkong/dot/skylake.h"      // `nk_dot_f32_through_f64_skylake_`, `nk_dot_f16_through_f32_skylake_`
-#include "numkong/maxsim/serial.h"    // `nk_maxsim_screen_error_`, `nk_maxsim_screen_candidates_`
+#include "numkong/maxsim/serial.h"    // `nk_maxsim_screen_error_serial_`, `nk_maxsim_screen_candidates_serial_`
 #include "numkong/maxsim/icelake.h"   // `nk_maxsim_pack_vector_f32_icelake_`
 #include "numkong/spatial/haswell.h"  // `nk_rsqrt_f32x4_haswell_`
 
@@ -202,7 +202,7 @@ NUMKONG_INLINE nk_size_t nk_maxsim_packed_bytes_bf16_sapphireamx_(nk_size_t vect
 
 #pragma endregion BF16 Floats
 
-/** Zero, or NaN when any of @p count F64 @p inverse_norms is NaN, like @c nk_maxsim_nan_poison_. */
+/** Zero, or NaN if @p count F64 @p inverse_norms hold NaN, like @c nk_maxsim_nan_poison_serial_. */
 NUMKONG_INLINE nk_f64_t nk_maxsim_nan_poison_f64_sapphireamx_(nk_f64_t const *inverse_norms, nk_size_t count) {
     __m512d poison_f64x8 = _mm512_setzero_pd();
     for (nk_size_t index = 0; index < count; index += 8) {
@@ -213,7 +213,7 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_nan_poison_f64_sapphireamx_(nk_f64_t const *in
     return _mm512_reduce_add_pd(poison_f64x8);
 }
 
-/** Zero, or NaN when any of @p count F32 @p inverse_norms is NaN, like @c nk_maxsim_nan_poison_. */
+/** Zero, or NaN if @p count F32 @p inverse_norms hold NaN, like @c nk_maxsim_nan_poison_serial_. */
 NUMKONG_INLINE nk_f32_t nk_maxsim_nan_poison_f32_sapphireamx_(nk_f32_t const *inverse_norms, nk_size_t count) {
     __m512 poison_f32x16 = _mm512_setzero_ps();
     for (nk_size_t index = 0; index < count; index += 16) {
@@ -309,23 +309,62 @@ NUMKONG_API nk_status_t nk_maxsim_pack_f32_sapphireamx( //
     return nk_success_k;
 }
 
-NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f32_sapphireamx_(void const *query, void const *document, nk_size_t depth) {
-    nk_f64_t dot;
-    nk_dot_f32_through_f64_skylake_((nk_f32_t const *)query, (nk_f32_t const *)document, depth, &dot);
-    return dot;
+/** The i8 dots of one query tile against @p group_tiles document tiles, 4 at a time or 1, into
+ *  @p group_dots with a row stride of a whole group, so each query's dots land contiguous. */
+NUMKONG_INLINE void nk_maxsim_group_dots_sapphireamx_(char const *query_a_side_base, char const *document_b_side_base,
+                                                      nk_size_t depth_tile_count, nk_size_t query_tile_index,
+                                                      nk_size_t document_tile_index, nk_size_t group_tiles,
+                                                      nk_i32_t group_dots[16][64]) {
+    if (group_tiles == 4) {
+        _tile_zero(4);
+        _tile_zero(5);
+        _tile_zero(6);
+        _tile_zero(7);
+
+        for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
+            nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
+
+            _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
+
+            nk_size_t document_tile_flat_0 = (document_tile_index + 0) * depth_tile_count + depth_step_index;
+            nk_size_t document_tile_flat_1 = (document_tile_index + 1) * depth_tile_count + depth_step_index;
+            nk_size_t document_tile_flat_2 = (document_tile_index + 2) * depth_tile_count + depth_step_index;
+            nk_size_t document_tile_flat_3 = (document_tile_index + 3) * depth_tile_count + depth_step_index;
+
+            _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_0 * 1024), 64);
+            _tile_dpbssd(4, 0, 1);
+            _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_1 * 1024), 64);
+            _tile_dpbssd(5, 0, 1);
+            _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_2 * 1024), 64);
+            _tile_dpbssd(6, 0, 1);
+            _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_3 * 1024), 64);
+            _tile_dpbssd(7, 0, 1);
+        }
+
+        _tile_stored(4, &group_dots[0][0], 256);
+        _tile_stored(5, &group_dots[0][16], 256);
+        _tile_stored(6, &group_dots[0][32], 256);
+        _tile_stored(7, &group_dots[0][48], 256);
+    }
+    else {
+        _tile_zero(4);
+        for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
+            nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
+            nk_size_t document_tile_flat_index = document_tile_index * depth_tile_count + depth_step_index;
+            _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
+            _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_index * 1024), 64);
+            _tile_dpbssd(4, 0, 1);
+        }
+        _tile_stored(4, &group_dots[0][0], 256);
+    }
 }
 
-NUMKONG_INLINE nk_f64_t nk_maxsim_refine_f16_sapphireamx_(void const *query, void const *document, nk_size_t depth) {
-    nk_f32_t dot;
-    nk_dot_f16_through_f32_skylake_((nk_f16_t const *)query, (nk_f16_t const *)document, depth, &dot);
-    return dot;
-}
-
-/** Σ minⱼ angular(qᵢ, dⱼ) over two i8 packs: screens 16 × 64 blocks with TDPBSSD, then refines with
- *  @p refine_dot every document the screen cannot rule out, matching an exhaustive search. */
-NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                                                   //
+/** Σ minⱼ angular(qᵢ, dⱼ) over two f32 packs: screens 16 × 64 blocks with TDPBSSD, then
+ *  refines with the full-precision dot every document the screen cannot rule out, matching
+ *  an exhaustive search. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_packed_f32_sapphireamx_(                                                  //
     void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count, //
-    nk_size_t depth, nk_maxsim_refine_dot_t refine_dot) {
+    nk_size_t depth) {
 
     nk_maxsim_sapphireamx_i8_header_t const *query_header = (nk_maxsim_sapphireamx_i8_header_t const *)query_packed;
     nk_maxsim_sapphireamx_i8_header_t const *document_header =
@@ -352,7 +391,7 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
                                                               query_header->screen_weights_offset);
     nk_f32_t const *document_screen_weights = (nk_f32_t const *)((char const *)document_packed +
                                                                  document_header->screen_weights_offset);
-    nk_f32_t const residue = 0.5f * nk_f32_sqrt_((nk_f32_t)depth);
+    nk_f32_t const residue = 0.5f * nk_sqrt_f32_serial_((nk_f32_t)depth);
     // The screen cannot rank NaN scores, so NaN vectors answer before it
     nk_f64_t const poison = nk_maxsim_nan_poison_f64_sapphireamx_(query_inverse_norms, query_count) +
                             nk_maxsim_nan_poison_f64_sapphireamx_(document_inverse_norms, document_count);
@@ -370,8 +409,8 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
         nk_f32_t lower_bounds[16];
         nk_f64_t best_cosines[16];
         for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
-            errors[query_in_tile] = nk_maxsim_screen_error_(query_screen_weights[query_row_start + query_in_tile],
-                                                            residue, depth);
+            errors[query_in_tile] = nk_maxsim_screen_error_serial_(
+                query_screen_weights[query_row_start + query_in_tile], residue, depth);
             lower_bounds[query_in_tile] = NUMKONG_F32_MIN;
             best_cosines[query_in_tile] = NUMKONG_F32_MIN;
         }
@@ -383,49 +422,8 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
         // 4 document tiles at a time, then 1 at a time
         while (document_tile_index < document_tile_count) {
             nk_size_t const group_tiles = document_tile_index + 4 <= document_tile_count ? 4 : 1;
-            if (group_tiles == 4) {
-                _tile_zero(4);
-                _tile_zero(5);
-                _tile_zero(6);
-                _tile_zero(7);
-
-                for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
-                    nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
-
-                    _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
-
-                    nk_size_t document_tile_flat_0 = (document_tile_index + 0) * depth_tile_count + depth_step_index;
-                    nk_size_t document_tile_flat_1 = (document_tile_index + 1) * depth_tile_count + depth_step_index;
-                    nk_size_t document_tile_flat_2 = (document_tile_index + 2) * depth_tile_count + depth_step_index;
-                    nk_size_t document_tile_flat_3 = (document_tile_index + 3) * depth_tile_count + depth_step_index;
-
-                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_0 * 1024), 64);
-                    _tile_dpbssd(4, 0, 1);
-                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_1 * 1024), 64);
-                    _tile_dpbssd(5, 0, 1);
-                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_2 * 1024), 64);
-                    _tile_dpbssd(6, 0, 1);
-                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_3 * 1024), 64);
-                    _tile_dpbssd(7, 0, 1);
-                }
-
-                // Row stride of a whole group, so each query's 64 dots land contiguous
-                _tile_stored(4, &group_dots[0][0], 256);
-                _tile_stored(5, &group_dots[0][16], 256);
-                _tile_stored(6, &group_dots[0][32], 256);
-                _tile_stored(7, &group_dots[0][48], 256);
-            }
-            else {
-                _tile_zero(4);
-                for (nk_size_t depth_step_index = 0; depth_step_index < depth_tile_count; depth_step_index++) {
-                    nk_size_t query_tile_flat_index = query_tile_index * depth_tile_count + depth_step_index;
-                    nk_size_t document_tile_flat_index = document_tile_index * depth_tile_count + depth_step_index;
-                    _tile_loadd(0, (void const *)(query_a_side_base + query_tile_flat_index * 1024), 64);
-                    _tile_loadd(1, (void const *)(document_b_side_base + document_tile_flat_index * 1024), 64);
-                    _tile_dpbssd(4, 0, 1);
-                }
-                _tile_stored(4, &group_dots[0][0], 256);
-            }
+            nk_maxsim_group_dots_sapphireamx_(query_a_side_base, document_b_side_base, depth_tile_count,
+                                              query_tile_index, document_tile_index, group_tiles, group_dots);
 
             // Raise each query's lower bound over the group, then refine what it cannot rule out
             nk_size_t const group_start = document_tile_index * 16;
@@ -435,17 +433,20 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
             nk_f32_t const *weights = document_screen_weights + group_start;
             for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
                 nk_size_t const query_index = query_row_start + query_in_tile;
-                nk_maxsim_screen_lower_bound_(group_dots[query_in_tile], 1, weights, 1, group_documents,
-                                              errors[query_in_tile], &lower_bounds[query_in_tile]);
-                nk_size_t const candidate_count = nk_maxsim_screen_candidates_(group_dots[query_in_tile], 1, weights, 1,
-                                                                               group_documents, errors[query_in_tile],
-                                                                               lower_bounds[query_in_tile], candidates);
+                nk_maxsim_screen_lower_bound_serial_(group_dots[query_in_tile], 1, weights, 1, group_documents,
+                                                     errors[query_in_tile], &lower_bounds[query_in_tile]);
+                nk_size_t const candidate_count = nk_maxsim_screen_candidates_serial_(
+                    group_dots[query_in_tile], 1, weights, 1, group_documents, errors[query_in_tile],
+                    lower_bounds[query_in_tile], candidates);
                 for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
                     nk_size_t const document_index = group_start + candidates[candidate_index];
-                    nk_f64_t cosine = refine_dot(query_originals + query_index * query_original_stride,
-                                                 document_originals + document_index * document_original_stride,
-                                                 depth) *
-                                      query_inverse_norms[query_index] * document_inverse_norms[document_index];
+                    nk_f64_t dot;
+                    nk_dot_f32_through_f64_skylake_(
+                        (nk_f32_t const *)(query_originals + query_index * query_original_stride),
+                        (nk_f32_t const *)(document_originals + document_index * document_original_stride), depth,
+                        &dot);
+                    nk_f64_t cosine = (nk_f64_t)dot * query_inverse_norms[query_index] *
+                                      document_inverse_norms[document_index];
                     // Two zero vectors are 0 apart, as in `spatials.h`
                     if (query_inverse_norms[query_index] == 0 && document_inverse_norms[document_index] == 0)
                         cosine = 1;
@@ -458,7 +459,114 @@ NUMKONG_INLINE nk_f64_t nk_maxsim_packed_i8_sapphireamx_(                       
         for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
             nk_f64_t angular = 1.0 - best_cosines[query_in_tile];
             if (angular < 0.0) angular = 0.0;
-            nk_f64_dot2_(&total_angular_distance_f64, &total_compensation_f64, angular, 1.0);
+            nk_dot2_f64_serial_(&total_angular_distance_f64, &total_compensation_f64, angular, 1.0);
+        }
+    }
+
+    return total_angular_distance_f64 + total_compensation_f64;
+}
+
+/** Σ minⱼ angular(qᵢ, dⱼ) over two f16 packs: screens 16 × 64 blocks with TDPBSSD, then
+ *  refines with the full-precision dot every document the screen cannot rule out, matching
+ *  an exhaustive search. */
+NUMKONG_INLINE nk_f64_t nk_maxsim_packed_f16_sapphireamx_(                                                  //
+    void const *query_packed, void const *document_packed, nk_size_t query_count, nk_size_t document_count, //
+    nk_size_t depth) {
+
+    nk_maxsim_sapphireamx_i8_header_t const *query_header = (nk_maxsim_sapphireamx_i8_header_t const *)query_packed;
+    nk_maxsim_sapphireamx_i8_header_t const *document_header =
+        (nk_maxsim_sapphireamx_i8_header_t const *)document_packed;
+
+    nk_size_t const depth_tile_count = query_header->depth_tile_count;
+    nk_size_t const query_tile_count = query_header->column_tile_count;
+    nk_size_t const document_tile_count = document_header->column_tile_count;
+
+    // Query loads from A-side (64B-aligned), documents from B-side
+    char const *query_a_side_base = (char const *)query_packed + query_header->a_side_offset;
+    char const *document_b_side_base = (char const *)document_packed + document_header->b_side_offset;
+
+    // Original vectors for refinement
+    char const *query_originals = (char const *)query_packed + query_header->originals_offset;
+    char const *document_originals = (char const *)document_packed + document_header->originals_offset;
+    nk_size_t const query_original_stride = query_header->original_stride;
+    nk_size_t const document_original_stride = document_header->original_stride;
+
+    nk_f64_t const *query_inverse_norms = (nk_f64_t const *)((char const *)query_packed + query_header->norms_offset);
+    nk_f64_t const *document_inverse_norms = (nk_f64_t const *)((char const *)document_packed +
+                                                                document_header->norms_offset);
+    nk_f32_t const *query_screen_weights = (nk_f32_t const *)((char const *)query_packed +
+                                                              query_header->screen_weights_offset);
+    nk_f32_t const *document_screen_weights = (nk_f32_t const *)((char const *)document_packed +
+                                                                 document_header->screen_weights_offset);
+    nk_f32_t const residue = 0.5f * nk_sqrt_f32_serial_((nk_f32_t)depth);
+    // The screen cannot rank NaN scores, so NaN vectors answer before it
+    nk_f64_t const poison = nk_maxsim_nan_poison_f64_sapphireamx_(query_inverse_norms, query_count) +
+                            nk_maxsim_nan_poison_f64_sapphireamx_(document_inverse_norms, document_count);
+    if (poison != 0) return poison;
+
+    nk_amx_tile_configure_sapphireamx_();
+
+    nk_f64_t total_angular_distance_f64 = 0.0, total_compensation_f64 = 0.0;
+
+    for (nk_size_t query_tile_index = 0; query_tile_index < query_tile_count; query_tile_index++) {
+        nk_size_t query_row_start = query_tile_index * 16;
+        nk_size_t valid_queries = (query_row_start + 16 <= query_count) ? 16 : (query_count - query_row_start);
+
+        nk_maxsim_screen_error_t errors[16];
+        nk_f32_t lower_bounds[16];
+        nk_f64_t best_cosines[16];
+        for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
+            errors[query_in_tile] = nk_maxsim_screen_error_serial_(
+                query_screen_weights[query_row_start + query_in_tile], residue, depth);
+            lower_bounds[query_in_tile] = NUMKONG_F32_MIN;
+            best_cosines[query_in_tile] = NUMKONG_F32_MIN;
+        }
+
+        nk_align_(64) nk_i32_t group_dots[16][64];
+        nk_u32_t candidates[64];
+        nk_size_t document_tile_index = 0;
+
+        // 4 document tiles at a time, then 1 at a time
+        while (document_tile_index < document_tile_count) {
+            nk_size_t const group_tiles = document_tile_index + 4 <= document_tile_count ? 4 : 1;
+            nk_maxsim_group_dots_sapphireamx_(query_a_side_base, document_b_side_base, depth_tile_count,
+                                              query_tile_index, document_tile_index, group_tiles, group_dots);
+
+            // Raise each query's lower bound over the group, then refine what it cannot rule out
+            nk_size_t const group_start = document_tile_index * 16;
+            nk_size_t const group_documents = group_start + group_tiles * 16 <= document_count
+                                                  ? group_tiles * 16
+                                                  : document_count - group_start;
+            nk_f32_t const *weights = document_screen_weights + group_start;
+            for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
+                nk_size_t const query_index = query_row_start + query_in_tile;
+                nk_maxsim_screen_lower_bound_serial_(group_dots[query_in_tile], 1, weights, 1, group_documents,
+                                                     errors[query_in_tile], &lower_bounds[query_in_tile]);
+                nk_size_t const candidate_count = nk_maxsim_screen_candidates_serial_(
+                    group_dots[query_in_tile], 1, weights, 1, group_documents, errors[query_in_tile],
+                    lower_bounds[query_in_tile], candidates);
+                for (nk_size_t candidate_index = 0; candidate_index < candidate_count; candidate_index++) {
+                    nk_size_t const document_index = group_start + candidates[candidate_index];
+                    nk_f32_t dot;
+                    nk_dot_f16_through_f32_skylake_(
+                        (nk_f16_t const *)(query_originals + query_index * query_original_stride),
+                        (nk_f16_t const *)(document_originals + document_index * document_original_stride), depth,
+                        &dot);
+                    nk_f64_t cosine = (nk_f64_t)dot * query_inverse_norms[query_index] *
+                                      document_inverse_norms[document_index];
+                    // Two zero vectors are 0 apart, as in `spatials.h`
+                    if (query_inverse_norms[query_index] == 0 && document_inverse_norms[document_index] == 0)
+                        cosine = 1;
+                    if (cosine > best_cosines[query_in_tile]) best_cosines[query_in_tile] = cosine;
+                }
+            }
+            document_tile_index += group_tiles;
+        }
+
+        for (nk_size_t query_in_tile = 0; query_in_tile < valid_queries; query_in_tile++) {
+            nk_f64_t angular = 1.0 - best_cosines[query_in_tile];
+            if (angular < 0.0) angular = 0.0;
+            nk_dot2_f64_serial_(&total_angular_distance_f64, &total_compensation_f64, angular, 1.0);
         }
     }
 
@@ -472,8 +580,7 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f32_sapphireamx( //
     if (((nk_maxsim_sapphireamx_i8_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
         ((nk_maxsim_sapphireamx_i8_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
         return nk_pack_mismatch_k;
-    *result = nk_maxsim_packed_i8_sapphireamx_(query_packed, document_packed, query_count, document_count, depth,
-                                               nk_maxsim_refine_f32_sapphireamx_);
+    *result = nk_maxsim_packed_f32_sapphireamx_(query_packed, document_packed, query_count, document_count, depth);
     return nk_success_k;
 }
 
@@ -559,8 +666,8 @@ NUMKONG_API nk_status_t nk_maxsim_packed_f16_sapphireamx( //
     if (((nk_maxsim_sapphireamx_i8_header_t const *)query_packed)->capability != nk_cap_sapphireamx_k ||
         ((nk_maxsim_sapphireamx_i8_header_t const *)document_packed)->capability != nk_cap_sapphireamx_k)
         return nk_pack_mismatch_k;
-    *result = (nk_f32_t)nk_maxsim_packed_i8_sapphireamx_(query_packed, document_packed, query_count, document_count,
-                                                         depth, nk_maxsim_refine_f16_sapphireamx_);
+    *result = (nk_f32_t)nk_maxsim_packed_f16_sapphireamx_(query_packed, document_packed, query_count, document_count,
+                                                          depth);
     return nk_success_k;
 }
 

@@ -41,20 +41,45 @@ NUMKONG_DEVICE nk_u32_t nk_dot_u8x4_cuda_(nk_u32_t a, nk_u32_t b, nk_u32_t sum) 
 enum {
     nk_cross_threads_f64_cuda_k = nk_cross_threads_simt_k,
     nk_cross_tile_f64_cuda_k = nk_cross_tile_simt_k,
-    nk_cross_threads_b32_cuda_k = nk_cross_threads_simt_k,
-    nk_cross_tile_b32_cuda_k = nk_cross_tile_simt_k,
-    nk_cross_threads_scaled_cuda_k = nk_cross_threads_simt_k,
-    nk_cross_tile_scaled_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_f32_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_f32_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_bf16_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_bf16_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_f16_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_f16_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_e5m2_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_e5m2_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_e4m3_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_e4m3_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_e3m2_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_e3m2_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_e2m3_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_e2m3_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_e2m1_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_e2m1_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_i8_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_i8_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_u8_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_u8_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_i4_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_i4_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_u4_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_u4_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_nvfp4_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_nvfp4_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_mxfp4_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_mxfp4_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_mxfp8e4m3_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_mxfp8e4m3_cuda_k = nk_cross_tile_simt_k,
+    nk_cross_threads_mxfp8e5m2_cuda_k = nk_cross_threads_simt_k,
+    nk_cross_tile_mxfp8e5m2_cuda_k = nk_cross_tile_simt_k,
 };
 
-/** Adds a × b into a running sum: one F64 FMA, or Dot2's TwoProd and TwoSum with both errors kept
- *  apart. */
-NUMKONG_DEVICE void nk_cross_step_f64_cuda_(nk_cross_accumulation_t accumulation, nk_f64_t a, nk_f64_t b, nk_f64_t *sum,
-                                            nk_f64_t *compensation) {
-    if (accumulation == nk_cross_accumulation_f64_k) {
-        *sum = __fma_rn(a, b, *sum);
-        return;
-    }
+/** Adds a × b into a running F64 sum with one FMA. */
+NUMKONG_DEVICE void nk_cross_step_fma_f64_cuda_(nk_f64_t a, nk_f64_t b, nk_f64_t *sum) { *sum = __fma_rn(a, b, *sum); }
+
+/** Adds a × b into a running sum through Dot2's TwoProd and TwoSum, with both errors kept apart. */
+NUMKONG_DEVICE void nk_cross_step_dot2_f64_cuda_(nk_f64_t a, nk_f64_t b, nk_f64_t *sum, nk_f64_t *compensation) {
     nk_f64_t const product = nk_f64_mul_rn_cuda_(a, b), product_error = __fma_rn(a, b, -product);
     nk_f64_t const total = nk_f64_add_rn_cuda_(*sum, product), virtual_addend = nk_f64_sub_rn_cuda_(total, *sum);
     nk_f64_t const augend_error = nk_f64_sub_rn_cuda_(*sum, nk_f64_sub_rn_cuda_(total, virtual_addend));
@@ -63,14 +88,9 @@ NUMKONG_DEVICE void nk_cross_step_f64_cuda_(nk_cross_accumulation_t accumulation
     *compensation = nk_f64_add_rn_cuda_(*compensation, nk_f64_add_rn_cuda_(sum_error, product_error));
 }
 
-/** Merges the running sum of lane `lane ^ offset` into this one, through TwoSum under Dot2. */
-NUMKONG_DEVICE void nk_cross_merge_lanes_f64_cuda_(nk_cross_accumulation_t accumulation, unsigned offset, nk_f64_t *sum,
-                                                   nk_f64_t *compensation) {
+/** Merges the running sum of lane `lane ^ offset` into this one, through TwoSum. */
+NUMKONG_DEVICE void nk_cross_merge_lanes_dot2_f64_cuda_(unsigned offset, nk_f64_t *sum, nk_f64_t *compensation) {
     nk_f64_t const other_sum = nk_shuffle_xor_f64_cuda_(*sum, offset);
-    if (accumulation == nk_cross_accumulation_f64_k) {
-        *sum = nk_f64_add_rn_cuda_(*sum, other_sum);
-        return;
-    }
     nk_f64_t const other_compensation = nk_shuffle_xor_f64_cuda_(*compensation, offset);
     nk_f64_t const total = nk_f64_add_rn_cuda_(*sum, other_sum), virtual_addend = nk_f64_sub_rn_cuda_(total, *sum);
     nk_f64_t const augend_error = nk_f64_sub_rn_cuda_(*sum, nk_f64_sub_rn_cuda_(total, virtual_addend));
@@ -79,9 +99,31 @@ NUMKONG_DEVICE void nk_cross_merge_lanes_f64_cuda_(nk_cross_accumulation_t accum
     *compensation = nk_f64_add_rn_cuda_(nk_f64_add_rn_cuda_(*compensation, other_compensation), sum_error);
 }
 
-/** Folds one staged slab into this thread's grid of F64 sums and their compensations. */
-NUMKONG_DEVICE void nk_cross_fold_slab_f64_cuda_(
-    nk_cross_accumulation_t accumulation, nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+/** Folds one staged slab into this thread's grid of F64 sums, one FMA per product. */
+NUMKONG_DEVICE void nk_cross_fold_slab_fma_f64_cuda_(
+    nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
+    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
+    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+#pragma unroll
+    for (unsigned offset = 0; offset < nk_cross_slab_simt_k; ++offset) {
+        nk_f64_t a_values[nk_cross_thread_tile_simt_k], b_values[nk_cross_thread_tile_simt_k];
+#pragma unroll
+        for (unsigned step = 0; step < nk_cross_thread_tile_simt_k; ++step)
+            a_values[step] = a_slab[offset][thread_row + nk_cross_grid_side_simt_k * step],
+            b_values[step] = b_slab[offset][thread_column + nk_cross_grid_side_simt_k * step];
+#pragma unroll
+        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
+#pragma unroll
+            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
+                nk_cross_step_fma_f64_cuda_(a_values[row_step], b_values[column_step], &sums[row_step][column_step]);
+    }
+}
+
+/** Folds one staged slab into this thread's grid of F64 sums and their Dot2 compensations. */
+NUMKONG_DEVICE void nk_cross_fold_slab_dot2_f64_cuda_(
+    nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
     nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
     nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
     nk_f64_t compensations[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
@@ -98,22 +140,51 @@ NUMKONG_DEVICE void nk_cross_fold_slab_f64_cuda_(
         for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
 #pragma unroll
             for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
-                nk_cross_step_f64_cuda_(accumulation, a_values[row_step], b_values[column_step],
-                                        &sums[row_step][column_step], &compensations[row_step][column_step]);
+                nk_cross_step_dot2_f64_cuda_(a_values[row_step], b_values[column_step], &sums[row_step][column_step],
+                                             &compensations[row_step][column_step]);
+    }
+}
+
+/** Squares the values this thread staged into the Dot2 norms of its rows, and for a Gram matrix of
+ *  its columns too. */
+NUMKONG_DEVICE void nk_cross_accumulate_norms_f64_cuda_(nk_diagonal_band_t band,
+                                                        nk_f64_t const a_values[nk_cross_loads_simt_k],
+                                                        nk_f64_t const b_values[nk_cross_loads_simt_k],
+                                                        nk_f64_t a_norms[nk_cross_loads_simt_k][2],
+                                                        nk_f64_t b_norms[nk_cross_loads_simt_k][2]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_step_dot2_f64_cuda_(a_values[step], a_values[step], &a_norms[step][0], &a_norms[step][1]);
+        if (nk_cross_symmetric_simt_(band))
+            nk_cross_step_dot2_f64_cuda_(b_values[step], b_values[step], &b_norms[step][0], &b_norms[step][1]);
+    }
+}
+
+/** Merges the Dot2 norms of the threads staging each row across its lanes, rounding each once. */
+NUMKONG_DEVICE void nk_cross_round_norms_f64_cuda_(nk_diagonal_band_t band, nk_f64_t a_norms[nk_cross_loads_simt_k][2],
+                                                   nk_f64_t b_norms[nk_cross_loads_simt_k][2],
+                                                   nk_f64_t a_rounded[nk_cross_loads_simt_k],
+                                                   nk_f64_t b_rounded[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+#pragma unroll
+        for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
+            nk_cross_merge_lanes_dot2_f64_cuda_(offset, &a_norms[step][0], &a_norms[step][1]);
+            if (nk_cross_symmetric_simt_(band))
+                nk_cross_merge_lanes_dot2_f64_cuda_(offset, &b_norms[step][0], &b_norms[step][1]);
+        }
+        a_rounded[step] = nk_f64_add_rn_cuda_(a_norms[step][0], a_norms[step][1]);
+        b_rounded[step] = nk_f64_add_rn_cuda_(b_norms[step][0], b_norms[step][1]);
     }
 }
 
 /**
- *  @brief The GEMM of one 64 × 64 output tile of F64 or F32 inputs, in F64 or Dot2.
- *  @param[in] dtype @c nk_f64_k or @c nk_f32_k, the rows' element type.
- *  @param[in] accumulation @c nk_cross_accumulation_dot2_k for F64 inputs and
- *      @c nk_cross_accumulation_f64_k for F32 ones; the norms always sum in Dot2.
+ *  @brief The GEMM of one 64 × 64 output tile of F64 inputs, in Dot2.
  *
  *  Tensor-core F64 MMA never exposes a product's rounding error, which Dot2 needs, and outside the
  *  8.0 and 9.0 datacenter parts it runs no faster than these FMAs.
  */
-NUMKONG_DEVICE void nk_cross_tile_f64_cuda_(nk_dtype_t dtype, nk_cross_accumulation_t accumulation,
-                                            nk_cross_triangle_t triangle, nk_cross_metric_t metric,
+NUMKONG_DEVICE void nk_cross_tile_f64_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
                                             nk_cross_tile_arguments_t const *arguments) {
     // One extra column breaks the 64-element stride that would put a slab's stores on one bank.
     __shared__ nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
@@ -123,43 +194,25 @@ NUMKONG_DEVICE void nk_cross_tile_f64_cuda_(nk_dtype_t dtype, nk_cross_accumulat
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
         nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
         nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
         nk_f64_t compensations[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
         nk_f64_t a_norms[nk_cross_loads_simt_k][2] = {{0}}, b_norms[nk_cross_loads_simt_k][2] = {{0}};
         for (nk_size_t slab = 0; slab < arguments->depth; slab += nk_cross_slab_simt_k) {
             nk_f64_t a_values[nk_cross_loads_simt_k], b_values[nk_cross_loads_simt_k];
-            nk_cross_stage_slab_f64_simt_(dtype, arguments, first_row, first_column, slab, a_slab, b_slab, a_values,
-                                          b_values);
+            nk_cross_stage_slab_f64_simt_(arguments, first_row, first_column, slab, a_slab, b_slab, a_values, b_values);
             if (metric != nk_cross_metric_dot_k)
-#pragma unroll
-                for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
-                    nk_cross_step_f64_cuda_(nk_cross_accumulation_dot2_k, a_values[step], a_values[step],
-                                            &a_norms[step][0], &a_norms[step][1]);
-                    if (triangle == nk_cross_triangle_upper_k)
-                        nk_cross_step_f64_cuda_(nk_cross_accumulation_dot2_k, b_values[step], b_values[step],
-                                                &b_norms[step][0], &b_norms[step][1]);
-                }
+                nk_cross_accumulate_norms_f64_cuda_(band, a_values, b_values, a_norms, b_norms);
             __syncthreads();
-            nk_cross_fold_slab_f64_cuda_(accumulation, a_slab, b_slab, sums, compensations);
+            nk_cross_fold_slab_dot2_f64_cuda_(a_slab, b_slab, sums, compensations);
             __syncthreads();
         }
         if (metric != nk_cross_metric_dot_k) {
             nk_f64_t a_rounded[nk_cross_loads_simt_k], b_rounded[nk_cross_loads_simt_k];
-#pragma unroll
-            for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
-#pragma unroll
-                for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
-                    nk_cross_merge_lanes_f64_cuda_(nk_cross_accumulation_dot2_k, offset, &a_norms[step][0],
-                                                   &a_norms[step][1]);
-                    if (triangle == nk_cross_triangle_upper_k)
-                        nk_cross_merge_lanes_f64_cuda_(nk_cross_accumulation_dot2_k, offset, &b_norms[step][0],
-                                                       &b_norms[step][1]);
-                }
-                a_rounded[step] = nk_f64_add_rn_cuda_(a_norms[step][0], a_norms[step][1]);
-                b_rounded[step] = nk_f64_add_rn_cuda_(b_norms[step][0], b_norms[step][1]);
-            }
-            nk_cross_publish_norms_f64_simt_(triangle, arguments, first_column, a_rounded, b_rounded, norms);
+            nk_cross_round_norms_f64_cuda_(band, a_norms, b_norms, a_rounded, b_rounded);
+            nk_cross_publish_norms_f64_simt_(band, arguments, first_column, a_rounded, b_rounded, norms);
         }
 #pragma unroll
         for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
@@ -167,145 +220,843 @@ NUMKONG_DEVICE void nk_cross_tile_f64_cuda_(nk_dtype_t dtype, nk_cross_accumulat
             for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
                 sums[row_step][column_step] = nk_f64_add_rn_cuda_(sums[row_step][column_step],
                                                                   compensations[row_step][column_step]);
-        nk_cross_store_tile_f64_simt_(triangle, metric, arguments, first_row, first_column, sums, norms);
+        nk_cross_store_tile_f64_simt_(band, metric, arguments, first_row, first_column, sums, norms);
     }
 }
 
-/** Folds one 32-bit word of each operand into @p sum, by the instruction @p accumulation names: FMA
- *  for F32 words, @c dp4a for bytes and for nibbles widened to bytes. */
-NUMKONG_DEVICE void nk_cross_fold_b32_cuda_(nk_cross_accumulation_t accumulation, nk_fui32_t *sum, nk_u32_t a,
-                                            nk_u32_t b) {
-    switch (accumulation) {
-    case nk_cross_accumulation_f32_k: sum->f = __fmaf_rn(__uint_as_float(a), __uint_as_float(b), sum->f); break;
-    case nk_cross_accumulation_i8x4_k:
-    case nk_cross_accumulation_i4x4_k: sum->i = nk_dot_i8x4_cuda_(a, b, sum->i); break;
-    default: sum->u = nk_dot_u8x4_cuda_(a, b, sum->u); break;
+/** The GEMM of one 64 × 64 output tile of F32 inputs, in F64 FMAs, with Dot2 norms. */
+NUMKONG_DEVICE void nk_cross_tile_f32_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                            nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-element stride that would put a slab's stores on one bank.
+    __shared__ nk_f64_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f64_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f64_t norms[2][nk_cross_tile_simt_k];
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_f64_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
+        nk_f64_t a_norms[nk_cross_loads_simt_k][2] = {{0}}, b_norms[nk_cross_loads_simt_k][2] = {{0}};
+        for (nk_size_t slab = 0; slab < arguments->depth; slab += nk_cross_slab_simt_k) {
+            nk_f64_t a_values[nk_cross_loads_simt_k], b_values[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_f32_simt_(arguments, first_row, first_column, slab, a_slab, b_slab, a_values, b_values);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f64_cuda_(band, a_values, b_values, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_fma_f64_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_f64_t a_rounded[nk_cross_loads_simt_k], b_rounded[nk_cross_loads_simt_k];
+            nk_cross_round_norms_f64_cuda_(band, a_norms, b_norms, a_rounded, b_rounded);
+            nk_cross_publish_norms_f64_simt_(band, arguments, first_column, a_rounded, b_rounded, norms);
+        }
+        nk_cross_store_tile_f64_simt_(band, metric, arguments, first_row, first_column, sums, norms);
     }
 }
 
-/** Adds lane `lane ^ offset`'s B32 sum into @p sum: in F32 for floats, wrapping for integers. */
-NUMKONG_DEVICE nk_fui32_t nk_cross_merge_lanes_b32_cuda_(nk_cross_accumulation_t accumulation, unsigned offset,
-                                                         nk_fui32_t sum) {
-    nk_fui32_t other;
-    other.u = nk_shuffle_xor_u32_cuda_(sum.u, offset);
-    if (accumulation == nk_cross_accumulation_f32_k) sum.f += other.f;
-    else sum.u += other.u;
-    return sum;
-}
-
-/** Folds one staged slab into this thread's grid of 32-bit sums. */
-NUMKONG_DEVICE void nk_cross_fold_slab_b32_cuda_(
-    nk_cross_accumulation_t accumulation, nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
-    nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
+/** Reads the words of this thread's rows and columns of a staged slab at @p offset. */
+NUMKONG_DEVICE void nk_cross_slab_words_cuda_(nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                              nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+                                              unsigned offset, nk_u32_t a_words[nk_cross_thread_tile_simt_k],
+                                              nk_u32_t b_words[nk_cross_thread_tile_simt_k]) {
     unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
     unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
 #pragma unroll
+    for (unsigned step = 0; step < nk_cross_thread_tile_simt_k; ++step)
+        a_words[step] = a_slab[offset][thread_row + nk_cross_grid_side_simt_k * step],
+        b_words[step] = b_slab[offset][thread_column + nk_cross_grid_side_simt_k * step];
+}
+
+/** Folds one word of each operand into @p sum as F32 words, by one FMA. */
+NUMKONG_DEVICE void nk_cross_fold_f32_cuda_(nk_fui32_t *sum, nk_u32_t a, nk_u32_t b) {
+    sum->f = __fmaf_rn(__uint_as_float(a), __uint_as_float(b), sum->f);
+}
+
+/** Folds one staged slab of F32 words into this thread's grid of 32-bit sums. */
+NUMKONG_DEVICE void nk_cross_fold_slab_f32_cuda_(
+    nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
+#pragma unroll
     for (unsigned offset = 0; offset < nk_cross_slab_simt_k; ++offset) {
         nk_u32_t a_words[nk_cross_thread_tile_simt_k], b_words[nk_cross_thread_tile_simt_k];
-#pragma unroll
-        for (unsigned step = 0; step < nk_cross_thread_tile_simt_k; ++step)
-            a_words[step] = a_slab[offset][thread_row + nk_cross_grid_side_simt_k * step],
-            b_words[step] = b_slab[offset][thread_column + nk_cross_grid_side_simt_k * step];
+        nk_cross_slab_words_cuda_(a_slab, b_slab, offset, a_words, b_words);
 #pragma unroll
         for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
 #pragma unroll
             for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
-                nk_cross_fold_b32_cuda_(accumulation, &sums[row_step][column_step], a_words[row_step],
-                                        b_words[column_step]);
+                nk_cross_fold_f32_cuda_(&sums[row_step][column_step], a_words[row_step], b_words[column_step]);
     }
 }
 
-/**
- *  @brief The GEMM of one 64 × 64 output tile of 16-bit or narrower inputs, folding 32-bit words.
- *  @param[in] dtype The rows' element type, which a float word decodes from.
- *  @param[in] accumulation How each word holds depth and which instruction folds it; the norms fold
- *      the same way.
- */
-NUMKONG_DEVICE void nk_cross_tile_b32_cuda_(nk_dtype_t dtype, nk_cross_accumulation_t accumulation,
-                                            nk_cross_triangle_t triangle, nk_cross_metric_t metric,
+/** Squares the words this thread staged into the norms of its rows, and for a Gram matrix of its
+ *  columns too. */
+NUMKONG_DEVICE void nk_cross_accumulate_norms_f32_cuda_(nk_diagonal_band_t band,
+                                                        nk_u32_t const a_words[nk_cross_loads_simt_k],
+                                                        nk_u32_t const b_words[nk_cross_loads_simt_k],
+                                                        nk_fui32_t a_norms[nk_cross_loads_simt_k],
+                                                        nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_fold_f32_cuda_(&a_norms[step], a_words[step], a_words[step]);
+        if (nk_cross_symmetric_simt_(band)) nk_cross_fold_f32_cuda_(&b_norms[step], b_words[step], b_words[step]);
+    }
+}
+
+/** Folds one word of each operand into @p sum as signed bytes, by @c dp4a. */
+NUMKONG_DEVICE void nk_cross_fold_i8x4_cuda_(nk_fui32_t *sum, nk_u32_t a, nk_u32_t b) {
+    sum->i = nk_dot_i8x4_cuda_(a, b, sum->i);
+}
+
+/** Folds one staged slab of signed bytes into this thread's grid of 32-bit sums. */
+NUMKONG_DEVICE void nk_cross_fold_slab_i8x4_cuda_(
+    nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
+#pragma unroll
+    for (unsigned offset = 0; offset < nk_cross_slab_simt_k; ++offset) {
+        nk_u32_t a_words[nk_cross_thread_tile_simt_k], b_words[nk_cross_thread_tile_simt_k];
+        nk_cross_slab_words_cuda_(a_slab, b_slab, offset, a_words, b_words);
+#pragma unroll
+        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
+#pragma unroll
+            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
+                nk_cross_fold_i8x4_cuda_(&sums[row_step][column_step], a_words[row_step], b_words[column_step]);
+    }
+}
+
+/** Squares the words this thread staged into the norms of its rows, and for a Gram matrix of its
+ *  columns too. */
+NUMKONG_DEVICE void nk_cross_accumulate_norms_i8x4_cuda_(nk_diagonal_band_t band,
+                                                         nk_u32_t const a_words[nk_cross_loads_simt_k],
+                                                         nk_u32_t const b_words[nk_cross_loads_simt_k],
+                                                         nk_fui32_t a_norms[nk_cross_loads_simt_k],
+                                                         nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_fold_i8x4_cuda_(&a_norms[step], a_words[step], a_words[step]);
+        if (nk_cross_symmetric_simt_(band)) nk_cross_fold_i8x4_cuda_(&b_norms[step], b_words[step], b_words[step]);
+    }
+}
+
+/** Folds one word of each operand into @p sum as unsigned bytes, by @c dp4a. */
+NUMKONG_DEVICE void nk_cross_fold_u8x4_cuda_(nk_fui32_t *sum, nk_u32_t a, nk_u32_t b) {
+    sum->u = nk_dot_u8x4_cuda_(a, b, sum->u);
+}
+
+/** Folds one staged slab of unsigned bytes into this thread's grid of 32-bit sums. */
+NUMKONG_DEVICE void nk_cross_fold_slab_u8x4_cuda_(
+    nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
+#pragma unroll
+    for (unsigned offset = 0; offset < nk_cross_slab_simt_k; ++offset) {
+        nk_u32_t a_words[nk_cross_thread_tile_simt_k], b_words[nk_cross_thread_tile_simt_k];
+        nk_cross_slab_words_cuda_(a_slab, b_slab, offset, a_words, b_words);
+#pragma unroll
+        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
+#pragma unroll
+            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step)
+                nk_cross_fold_u8x4_cuda_(&sums[row_step][column_step], a_words[row_step], b_words[column_step]);
+    }
+}
+
+/** Squares the words this thread staged into the norms of its rows, and for a Gram matrix of its
+ *  columns too. */
+NUMKONG_DEVICE void nk_cross_accumulate_norms_u8x4_cuda_(nk_diagonal_band_t band,
+                                                         nk_u32_t const a_words[nk_cross_loads_simt_k],
+                                                         nk_u32_t const b_words[nk_cross_loads_simt_k],
+                                                         nk_fui32_t a_norms[nk_cross_loads_simt_k],
+                                                         nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_fold_u8x4_cuda_(&a_norms[step], a_words[step], a_words[step]);
+        if (nk_cross_symmetric_simt_(band)) nk_cross_fold_u8x4_cuda_(&b_norms[step], b_words[step], b_words[step]);
+    }
+}
+
+/** Adds lane `lane ^ offset`'s F32 sum into @p sum. */
+NUMKONG_DEVICE nk_fui32_t nk_cross_merge_lanes_f32_cuda_(unsigned offset, nk_fui32_t sum) {
+    nk_fui32_t other;
+    other.u = nk_shuffle_xor_u32_cuda_(sum.u, offset);
+    sum.f += other.f;
+    return sum;
+}
+
+/** Adds lane `lane ^ offset`'s integer sum into @p sum, wrapping. */
+NUMKONG_DEVICE nk_fui32_t nk_cross_merge_lanes_u32_cuda_(unsigned offset, nk_fui32_t sum) {
+    nk_fui32_t other;
+    other.u = nk_shuffle_xor_u32_cuda_(sum.u, offset);
+    sum.u += other.u;
+    return sum;
+}
+
+/** Merges the F32 norms of the threads staging each row across its lanes. */
+NUMKONG_DEVICE void nk_cross_merge_norms_f32_cuda_(nk_diagonal_band_t band, nk_fui32_t a_norms[nk_cross_loads_simt_k],
+                                                   nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step)
+#pragma unroll
+        for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
+            a_norms[step] = nk_cross_merge_lanes_f32_cuda_(offset, a_norms[step]);
+            if (nk_cross_symmetric_simt_(band)) b_norms[step] = nk_cross_merge_lanes_f32_cuda_(offset, b_norms[step]);
+        }
+}
+
+/** Merges the integer norms of the threads staging each row across its lanes. */
+NUMKONG_DEVICE void nk_cross_merge_norms_u32_cuda_(nk_diagonal_band_t band, nk_fui32_t a_norms[nk_cross_loads_simt_k],
+                                                   nk_fui32_t b_norms[nk_cross_loads_simt_k]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step)
+#pragma unroll
+        for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
+            a_norms[step] = nk_cross_merge_lanes_u32_cuda_(offset, a_norms[step]);
+            if (nk_cross_symmetric_simt_(band)) b_norms[step] = nk_cross_merge_lanes_u32_cuda_(offset, b_norms[step]);
+        }
+}
+
+/** The GEMM of one 64 × 64 output tile of BF16 words, folded in F32. */
+NUMKONG_DEVICE void nk_cross_tile_bf16_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                             nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f32x1_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_bf16_f32x1_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f32_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of F16 words, folded in F32. */
+NUMKONG_DEVICE void nk_cross_tile_f16_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
                                             nk_cross_tile_arguments_t const *arguments) {
     // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
     __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
     __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
     __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
-    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_b32_dimensions_(accumulation));
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f32x1_simt_k);
 
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
         nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
         nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
         nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
         for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
             nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
-            nk_cross_stage_slab_b32_simt_(dtype, accumulation, arguments, first_row, first_column, slab, words, a_slab,
-                                          b_slab, a_words, b_words);
+            nk_cross_stage_slab_f16_f32x1_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                a_words, b_words);
             if (metric != nk_cross_metric_dot_k)
-#pragma unroll
-                for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
-                    nk_cross_fold_b32_cuda_(accumulation, &a_norms[step], a_words[step], a_words[step]);
-                    if (triangle == nk_cross_triangle_upper_k)
-                        nk_cross_fold_b32_cuda_(accumulation, &b_norms[step], b_words[step], b_words[step]);
-                }
+                nk_cross_accumulate_norms_f32_cuda_(band, a_words, b_words, a_norms, b_norms);
             __syncthreads();
-            nk_cross_fold_slab_b32_cuda_(accumulation, a_slab, b_slab, sums);
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, sums);
             __syncthreads();
         }
         if (metric != nk_cross_metric_dot_k) {
-#pragma unroll
-            for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step)
-#pragma unroll
-                for (unsigned offset = nk_cross_slab_simt_k / 2; offset != 0; offset >>= 1) {
-                    a_norms[step] = nk_cross_merge_lanes_b32_cuda_(accumulation, offset, a_norms[step]);
-                    if (triangle == nk_cross_triangle_upper_k)
-                        b_norms[step] = nk_cross_merge_lanes_b32_cuda_(accumulation, offset, b_norms[step]);
-                }
-            nk_cross_publish_norms_b32_simt_(triangle, arguments, first_column, a_norms, b_norms, norms);
+            nk_cross_merge_norms_f32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
         }
-        nk_cross_store_tile_b32_simt_(accumulation, triangle, metric, arguments, first_row, first_column, sums, norms);
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
     }
 }
 
-/** Rebases row `first + threadIdx.x` of @p count rows of codes and its scale row, from the first 64
- *  threads, into its slot of @p bases and @p spreads and, for a @p normalized metric, its squared
- *  norm relative to the base into @p norms; zeros past the rows. */
-NUMKONG_DEVICE void nk_cross_rebase_rows_cuda_(nk_f32_t (*load)(unsigned char const *, nk_size_t),
-                                               nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned block_size,
-                                               unsigned char const *rows, nk_size_t stride, unsigned char const *scales,
-                                               nk_size_t scales_stride, nk_size_t first, nk_size_t count,
-                                               nk_size_t depth, int normalized, nk_i32_t *bases, nk_i32_t *spreads,
-                                               nk_f32_t *norms) {
+/** The GEMM of one 64 × 64 output tile of E5M2 words, folded in F32. */
+NUMKONG_DEVICE void nk_cross_tile_e5m2_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                             nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f32x1_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e5m2_f32x1_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f32_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of E4M3 words, folded in F32. */
+NUMKONG_DEVICE void nk_cross_tile_e4m3_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                             nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f32x1_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e4m3_f32x1_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f32_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of E3M2 words, folded in F32. */
+NUMKONG_DEVICE void nk_cross_tile_e3m2_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                             nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f32x1_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e3m2_f32x1_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f32_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of E2M3 words, folded in F32. */
+NUMKONG_DEVICE void nk_cross_tile_e2m3_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                             nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f32x1_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e2m3_f32x1_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f32_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of E2M1 words, folded in F32. */
+NUMKONG_DEVICE void nk_cross_tile_e2m1_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                             nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_f32x1_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_e2m1_f32x1_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab,
+                                                 a_words, b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_f32_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_f32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_f32_simt_(band, metric, arguments, first_row, first_column, sums, norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of I8 words, folded by dp4a. */
+NUMKONG_DEVICE void nk_cross_tile_i8_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                           nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_b8x4_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_i8_b8x4_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab, a_words,
+                                              b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_i8x4_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_i8x4_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_u32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_integer_simt_(nk_cross_norm_i32_k, band, metric, arguments, first_row, first_column, sums,
+                                          norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of U8 words, folded by dp4a. */
+NUMKONG_DEVICE void nk_cross_tile_u8_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                           nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_b8x4_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_u8_b8x4_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab, a_words,
+                                              b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_u8x4_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_u8x4_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_u32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_integer_simt_(nk_cross_norm_u32_k, band, metric, arguments, first_row, first_column, sums,
+                                          norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of I4 words widened to bytes, folded by dp4a. */
+NUMKONG_DEVICE void nk_cross_tile_i4_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                           nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_b8x4_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_i4_i4x4_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab, a_words,
+                                              b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_i8x4_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_i8x4_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_u32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_integer_simt_(nk_cross_norm_i32_k, band, metric, arguments, first_row, first_column, sums,
+                                          norms);
+    }
+}
+
+/** The GEMM of one 64 × 64 output tile of U4 words widened to bytes, folded by dp4a. */
+NUMKONG_DEVICE void nk_cross_tile_u4_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                           nk_cross_tile_arguments_t const *arguments) {
+    // One extra column breaks the 64-word stride that would put a slab's stores on one bank.
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_fui32_t norms[2][nk_cross_tile_simt_k];
+    nk_size_t const words = nk_size_divide_round_up_(arguments->depth, nk_cross_dimensions_b8x4_simt_k);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        nk_fui32_t sums[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_fui32_t a_norms[nk_cross_loads_simt_k] = {{0}}, b_norms[nk_cross_loads_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < words; slab += nk_cross_slab_simt_k) {
+            nk_u32_t a_words[nk_cross_loads_simt_k], b_words[nk_cross_loads_simt_k];
+            nk_cross_stage_slab_u4_u4x4_simt_(arguments, first_row, first_column, slab, words, a_slab, b_slab, a_words,
+                                              b_words);
+            if (metric != nk_cross_metric_dot_k)
+                nk_cross_accumulate_norms_u8x4_cuda_(band, a_words, b_words, a_norms, b_norms);
+            __syncthreads();
+            nk_cross_fold_slab_u8x4_cuda_(a_slab, b_slab, sums);
+            __syncthreads();
+        }
+        if (metric != nk_cross_metric_dot_k) {
+            nk_cross_merge_norms_u32_cuda_(band, a_norms, b_norms);
+            nk_cross_publish_norms_b32_simt_(band, arguments, first_column, a_norms, b_norms, norms);
+        }
+        nk_cross_store_tile_integer_simt_(nk_cross_norm_u32_k, band, metric, arguments, first_row, first_column, sums,
+                                          norms);
+    }
+}
+
+/** Stages one slab of E2M1 codes of A and B as F32 bits, zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_stage_scaled_slab_e2m1_cuda_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab,
+                                                              arguments->depth, step);
+        a_slab[cell.offset][cell.tile_row] = cell.a_row ? __float_as_uint(nk_e2m1_load_f32_simt_(cell.a_row, cell.word))
+                                                        : 0;
+        b_slab[cell.offset][cell.tile_row] = cell.b_row ? __float_as_uint(nk_e2m1_load_f32_simt_(cell.b_row, cell.word))
+                                                        : 0;
+    }
+}
+
+/** Stages one slab of E4M3 codes of A and B as F32 bits, zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_stage_scaled_slab_e4m3_cuda_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab,
+                                                              arguments->depth, step);
+        a_slab[cell.offset][cell.tile_row] = cell.a_row ? __float_as_uint(nk_e4m3_load_f32_simt_(cell.a_row, cell.word))
+                                                        : 0;
+        b_slab[cell.offset][cell.tile_row] = cell.b_row ? __float_as_uint(nk_e4m3_load_f32_simt_(cell.b_row, cell.word))
+                                                        : 0;
+    }
+}
+
+/** Stages one slab of E5M2 codes of A and B as F32 bits, zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_stage_scaled_slab_e5m2_cuda_(
+    nk_cross_tile_arguments_t const *arguments, nk_size_t first_row, nk_size_t first_column, nk_size_t slab,
+    nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1],
+    nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1]) {
+#pragma unroll
+    for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
+        nk_cross_cell_simt_t const cell = nk_cross_cell_simt_(arguments, first_row, first_column, slab,
+                                                              arguments->depth, step);
+        a_slab[cell.offset][cell.tile_row] = cell.a_row ? __float_as_uint(nk_e5m2_load_f32_simt_(cell.a_row, cell.word))
+                                                        : 0;
+        b_slab[cell.offset][cell.tile_row] = cell.b_row ? __float_as_uint(nk_e5m2_load_f32_simt_(cell.b_row, cell.word))
+                                                        : 0;
+    }
+}
+
+/** Stages the UE8M0 scales of block @p block of the first 64 rows and columns relative to their
+ *  bases, zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_stage_scales_ue8m0_cuda_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t block,
+                                                      nk_i32_t const bases[2][nk_cross_tile_simt_k],
+                                                      nk_f32_t a_scales[nk_cross_tile_simt_k],
+                                                      nk_f32_t b_scales[nk_cross_tile_simt_k]) {
+    if (threadIdx.x >= nk_cross_tile_simt_k) return;
+    nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
+    a_scales[threadIdx.x] = row < arguments->rows_end
+                                ? nk_cross_relative_scale_ue8m0_simt_(
+                                      arguments->a_scales[row * arguments->a_scales_stride + block],
+                                      bases[0][threadIdx.x])
+                                : 0;
+    b_scales[threadIdx.x] = column < arguments->column_count
+                                ? nk_cross_relative_scale_ue8m0_simt_(
+                                      arguments->b_scales[column * arguments->b_scales_stride + block],
+                                      bases[1][threadIdx.x])
+                                : 0;
+}
+
+/** Stages the UE4M3 scales of block @p block of the first 64 rows and columns relative to their
+ *  bases, zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_stage_scales_ue4m3_cuda_(nk_cross_tile_arguments_t const *arguments, nk_size_t first_row,
+                                                      nk_size_t first_column, nk_size_t block,
+                                                      nk_i32_t const bases[2][nk_cross_tile_simt_k],
+                                                      nk_f32_t a_scales[nk_cross_tile_simt_k],
+                                                      nk_f32_t b_scales[nk_cross_tile_simt_k]) {
+    if (threadIdx.x >= nk_cross_tile_simt_k) return;
+    nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
+    a_scales[threadIdx.x] = row < arguments->rows_end
+                                ? nk_cross_relative_scale_ue4m3_simt_(
+                                      arguments->a_scales[row * arguments->a_scales_stride + block],
+                                      bases[0][threadIdx.x])
+                                : 0;
+    b_scales[threadIdx.x] = column < arguments->column_count
+                                ? nk_cross_relative_scale_ue4m3_simt_(
+                                      arguments->b_scales[column * arguments->b_scales_stride + block],
+                                      bases[1][threadIdx.x])
+                                : 0;
+}
+
+/** Rebases row `first + threadIdx.x` of @p count rows of nvfp4 codes and its scale row into its
+ *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
+ *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_rebase_rows_nvfp4_cuda_(unsigned char const *rows, nk_size_t stride,
+                                                     unsigned char const *scales, nk_size_t scales_stride,
+                                                     nk_size_t first, nk_size_t count, nk_size_t depth, int normalized,
+                                                     nk_cross_wide_sum_t const *packed_norms, nk_i32_t *bases,
+                                                     nk_i32_t *spreads, nk_f32_t *norms) {
     unsigned const slot = threadIdx.x % nk_cross_tile_simt_k;
     nk_size_t const row = first + slot;
     if (row >= count) {
         bases[slot] = 0, spreads[slot] = 0, norms[slot] = 0;
         return;
     }
-    nk_i32_t const base = nk_cross_scaled_base_simt_(split, scales + row * scales_stride, depth / block_size,
-                                                     &spreads[slot]);
+    nk_i32_t const base = nk_cross_scaled_base_ue4m3_simt_(scales + row * scales_stride, depth / 16, &spreads[slot]);
     bases[slot] = base;
-    norms[slot] = normalized ? nk_cross_scaled_norm_simt_(load, split, block_size, rows + row * stride,
-                                                          scales + row * scales_stride, depth, base)
-                             : 0;
+    if (!normalized) norms[slot] = 0;
+    else if (packed_norms) norms[slot] = packed_norms[row].sum;
+    else norms[slot] = nk_cross_scaled_norm_nvfp4_simt_(rows + row * stride, scales + row * scales_stride, depth, base);
+}
+
+/** Rebases row `first + threadIdx.x` of @p count rows of mxfp4 codes and its scale row into its
+ *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
+ *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp4_cuda_(unsigned char const *rows, nk_size_t stride,
+                                                     unsigned char const *scales, nk_size_t scales_stride,
+                                                     nk_size_t first, nk_size_t count, nk_size_t depth, int normalized,
+                                                     nk_cross_wide_sum_t const *packed_norms, nk_i32_t *bases,
+                                                     nk_i32_t *spreads, nk_f32_t *norms) {
+    unsigned const slot = threadIdx.x % nk_cross_tile_simt_k;
+    nk_size_t const row = first + slot;
+    if (row >= count) {
+        bases[slot] = 0, spreads[slot] = 0, norms[slot] = 0;
+        return;
+    }
+    nk_i32_t const base = nk_cross_scaled_base_ue8m0_simt_(scales + row * scales_stride, depth / 32, &spreads[slot]);
+    bases[slot] = base;
+    if (!normalized) norms[slot] = 0;
+    else if (packed_norms) norms[slot] = packed_norms[row].sum;
+    else norms[slot] = nk_cross_scaled_norm_mxfp4_simt_(rows + row * stride, scales + row * scales_stride, depth, base);
+}
+
+/** Rebases row `first + threadIdx.x` of @p count rows of mxfp8e4m3 codes and its scale row into its
+ *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
+ *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp8e4m3_cuda_(unsigned char const *rows, nk_size_t stride,
+                                                         unsigned char const *scales, nk_size_t scales_stride,
+                                                         nk_size_t first, nk_size_t count, nk_size_t depth,
+                                                         int normalized, nk_cross_wide_sum_t const *packed_norms,
+                                                         nk_i32_t *bases, nk_i32_t *spreads, nk_f32_t *norms) {
+    unsigned const slot = threadIdx.x % nk_cross_tile_simt_k;
+    nk_size_t const row = first + slot;
+    if (row >= count) {
+        bases[slot] = 0, spreads[slot] = 0, norms[slot] = 0;
+        return;
+    }
+    nk_i32_t const base = nk_cross_scaled_base_ue8m0_simt_(scales + row * scales_stride, depth / 32, &spreads[slot]);
+    bases[slot] = base;
+    if (!normalized) norms[slot] = 0;
+    else if (packed_norms) norms[slot] = packed_norms[row].sum;
+    else
+        norms[slot] = nk_cross_scaled_norm_mxfp8e4m3_simt_(rows + row * stride, scales + row * scales_stride, depth,
+                                                           base);
+}
+
+/** Rebases row `first + threadIdx.x` of @p count rows of mxfp8e5m2 codes and its scale row into its
+ *  slot of @p bases and @p spreads and, for a @p normalized metric, its squared norm relative to
+ *  the base into @p norms, read from @p packed_norms unless it is null; zeros past the rows. */
+NUMKONG_DEVICE void nk_cross_rebase_rows_mxfp8e5m2_cuda_(unsigned char const *rows, nk_size_t stride,
+                                                         unsigned char const *scales, nk_size_t scales_stride,
+                                                         nk_size_t first, nk_size_t count, nk_size_t depth,
+                                                         int normalized, nk_cross_wide_sum_t const *packed_norms,
+                                                         nk_i32_t *bases, nk_i32_t *spreads, nk_f32_t *norms) {
+    unsigned const slot = threadIdx.x % nk_cross_tile_simt_k;
+    nk_size_t const row = first + slot;
+    if (row >= count) {
+        bases[slot] = 0, spreads[slot] = 0, norms[slot] = 0;
+        return;
+    }
+    nk_i32_t const base = nk_cross_scaled_base_ue8m0_simt_(scales + row * scales_stride, depth / 32, &spreads[slot]);
+    bases[slot] = base;
+    if (!normalized) norms[slot] = 0;
+    else if (packed_norms) norms[slot] = packed_norms[row].sum;
+    else
+        norms[slot] = nk_cross_scaled_norm_mxfp8e5m2_simt_(rows + row * stride, scales + row * scales_stride, depth,
+                                                           base);
+}
+
+/** The tensor scales' products as mantissas and powers of two: A with B, A with A, and B with B. */
+typedef struct {
+    nk_cross_tensor_factor_t dot, a_squares, b_squares;
+} nk_cross_scaled_factors_cuda_t;
+
+NUMKONG_DEVICE nk_cross_scaled_factors_cuda_t
+nk_cross_scaled_factors_cuda_(nk_cross_tile_arguments_t const *arguments) {
+    nk_f32_t const a_tensor_scale = arguments->a_tensor_scale ? *arguments->a_tensor_scale : 1;
+    nk_f32_t const b_tensor_scale = arguments->b_tensor_scale ? *arguments->b_tensor_scale : 1;
+    nk_cross_scaled_factors_cuda_t factors;
+    factors.dot = nk_cross_tensor_factor_simt_(a_tensor_scale, b_tensor_scale);
+    factors.a_squares = nk_cross_tensor_factor_simt_(a_tensor_scale, a_tensor_scale);
+    factors.b_squares = nk_cross_tensor_factor_simt_(b_tensor_scale, b_tensor_scale);
+    return factors;
+}
+
+/** Packs row, column and tensor-factor products into the wide dot and squared norms of one output
+ *  from its F32 @p total, rebased by both bases. */
+NUMKONG_DEVICE void nk_cross_scaled_wide_cuda_(nk_f32_t total, nk_i32_t row_base, nk_i32_t column_base,
+                                               nk_f32_t row_norm, nk_f32_t column_norm,
+                                               nk_cross_scaled_factors_cuda_t const *factors, nk_cross_wide_sum_t *dot,
+                                               nk_cross_wide_sum_t *a_sumsq, nk_cross_wide_sum_t *b_sumsq) {
+    dot->sum = total * factors->dot.mantissa, dot->exponent = row_base + column_base + factors->dot.exponent;
+    a_sumsq->sum = row_norm * factors->a_squares.mantissa,
+    a_sumsq->exponent = 2 * row_base + factors->a_squares.exponent;
+    b_sumsq->sum = column_norm * factors->b_squares.mantissa,
+    b_sumsq->exponent = 2 * column_base + factors->b_squares.exponent;
+}
+
+/** Applies the tensor factors to wide sums that were computed exactly. */
+NUMKONG_DEVICE void nk_cross_scaled_apply_factors_cuda_(nk_cross_scaled_factors_cuda_t const *factors,
+                                                        nk_cross_wide_sum_t *dot, nk_cross_wide_sum_t *a_sumsq,
+                                                        nk_cross_wide_sum_t *b_sumsq) {
+    *dot = nk_cross_wide_times_simt_(*dot, factors->dot);
+    *a_sumsq = nk_cross_wide_times_simt_(*a_sumsq, factors->a_squares);
+    *b_sumsq = nk_cross_wide_times_simt_(*b_sumsq, factors->b_squares);
+}
+
+/** Adds the F32 partial sums of a block into the totals, times both relative scales, once the
+ *  block ends or the depth does. */
+NUMKONG_DEVICE void nk_cross_accumulate_scaled_cuda_(
+    nk_size_t slab, nk_size_t depth, nk_size_t block_size, nk_f32_t const a_scales[nk_cross_tile_simt_k],
+    nk_f32_t const b_scales[nk_cross_tile_simt_k],
+    nk_fui32_t partials[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k],
+    nk_f32_t totals[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k]) {
+    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
+    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+    if ((slab + nk_cross_slab_simt_k) % block_size != 0 && slab + nk_cross_slab_simt_k < depth) return;
+#pragma unroll
+    for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
+#pragma unroll
+        for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
+            totals[row_step][column_step] += partials[row_step][column_step].f *
+                                             a_scales[thread_row + nk_cross_grid_side_simt_k * row_step] *
+                                             b_scales[thread_column + nk_cross_grid_side_simt_k * column_step];
+            partials[row_step][column_step].f = 0;
+        }
 }
 
 /**
- *  @brief The GEMM of a block-scaled type in the rebased F32 of the serial backends, each block
- *      walking 64 × 64 output tiles with a stride of the grid.
- *  @param[in] load Element @p index of a row of codes, exactly as F32.
- *  @param[in] split A scale code as a mantissa and a power of two.
- *  @param[in] block_size Elements per scale.
+ *  @brief The GEMM of nvfp4 in the rebased F32 of the serial backends, each block walking 64 × 64
+ *      output tiles with a stride of the grid.
  *
  *  Rows and columns rebase to their largest scale exponent. Every 16-element slab lies inside one
  *  block, so its products gather in F32 partial sums that take both relative scales once the
  *  block ends, and the epilogue applies both bases and the tensor factor once. Outputs whose
- *  spreads leave the rebased window take exact wide sums instead.
+ *  spreads leave the rebased window take exact wide sums instead, and packed columns read their
+ *  rebased norms from the pack.
  */
-NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char const *, nk_size_t),
-                                               nk_f32_t (*split)(unsigned, nk_i32_t *), unsigned block_size,
-                                               nk_cross_triangle_t triangle, nk_cross_metric_t metric,
-                                               nk_cross_tile_arguments_t const *arguments) {
+NUMKONG_DEVICE void nk_cross_tile_nvfp4_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
     __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
     __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
     __shared__ nk_f32_t a_scales[nk_cross_tile_simt_k], b_scales[nk_cross_tile_simt_k];
@@ -313,78 +1064,36 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char co
     __shared__ nk_i32_t bases[2][nk_cross_tile_simt_k], spreads[2][nk_cross_tile_simt_k];
     unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
     unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
-    int const normalized = metric != nk_cross_metric_dot_k, packed = triangle == nk_cross_triangle_full_k;
+    int const normalized = metric != nk_cross_metric_dot_k, packed = !nk_cross_symmetric_simt_(band);
     nk_size_t const depth = arguments->depth;
-    nk_f32_t const a_tensor_scale = arguments->a_tensor_scale ? *arguments->a_tensor_scale : 1;
-    nk_f32_t const b_tensor_scale = arguments->b_tensor_scale ? *arguments->b_tensor_scale : 1;
-    nk_cross_tensor_factor_t const factor = nk_cross_tensor_factor_simt_(a_tensor_scale, b_tensor_scale);
-    nk_cross_tensor_factor_t const a_factor = nk_cross_tensor_factor_simt_(a_tensor_scale, a_tensor_scale);
-    nk_cross_tensor_factor_t const b_factor = nk_cross_tensor_factor_simt_(b_tensor_scale, b_tensor_scale);
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
 
     for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
         nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
         nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
-        if (triangle == nk_cross_triangle_upper_k && first_column + nk_cross_tile_simt_k <= first_row) continue;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
         // The first barrier retires the previous tile's epilogue reads, the second publishes these.
         __syncthreads();
         if (threadIdx.x < nk_cross_tile_simt_k)
-            nk_cross_rebase_rows_cuda_(load, split, block_size, arguments->a, arguments->a_stride, arguments->a_scales,
-                                       arguments->a_scales_stride, first_row, arguments->rows_end, depth, normalized,
-                                       bases[0], spreads[0], norms[0]);
-        else if (threadIdx.x < 2 * nk_cross_tile_simt_k) {
-            nk_cross_rebase_rows_cuda_(load, split, block_size, arguments->b, arguments->b_stride, arguments->b_scales,
-                                       arguments->b_scales_stride, first_column, arguments->column_count, depth,
-                                       normalized && !packed, bases[1], spreads[1], norms[1]);
-            // Packs keep their columns' squared norms in true units.
-            nk_size_t const column = first_column + threadIdx.x - nk_cross_tile_simt_k;
-            if (normalized && packed && column < arguments->column_count)
-                norms[1][threadIdx.x - nk_cross_tile_simt_k] = ((nk_f32_t const *)arguments->b_norms)[column];
-        }
+            nk_cross_rebase_rows_nvfp4_cuda_(arguments->a, arguments->a_stride, arguments->a_scales,
+                                             arguments->a_scales_stride, first_row, arguments->rows_end, depth,
+                                             normalized, NUMKONG_NULL, bases[0], spreads[0], norms[0]);
+        else if (threadIdx.x < 2 * nk_cross_tile_simt_k)
+            nk_cross_rebase_rows_nvfp4_cuda_(arguments->b, arguments->b_stride, arguments->b_scales,
+                                             arguments->b_scales_stride, first_column, arguments->column_count, depth,
+                                             normalized, (nk_cross_wide_sum_t const *)arguments->b_norms, bases[1],
+                                             spreads[1], norms[1]);
         __syncthreads();
         nk_fui32_t partials[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
         nk_f32_t totals[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
         for (nk_size_t slab = 0; slab < depth; slab += nk_cross_slab_simt_k) {
-#pragma unroll
-            for (unsigned step = 0; step < nk_cross_loads_simt_k; ++step) {
-                unsigned const element = threadIdx.x + step * nk_cross_threads_simt_k;
-                unsigned const tile_row = element / nk_cross_slab_simt_k, offset = element % nk_cross_slab_simt_k;
-                nk_size_t const index = slab + offset, row = first_row + tile_row, column = first_column + tile_row;
-                a_slab[offset][tile_row] = row < arguments->rows_end
-                                               ? __float_as_uint(load(arguments->a + row * arguments->a_stride, index))
-                                               : 0;
-                b_slab[offset][tile_row] = column < arguments->column_count
-                                               ? __float_as_uint(
-                                                     load(arguments->b + column * arguments->b_stride, index))
-                                               : 0;
-            }
-            nk_size_t const block = slab / block_size;
-            if (threadIdx.x < nk_cross_tile_simt_k) {
-                nk_size_t const row = first_row + threadIdx.x, column = first_column + threadIdx.x;
-                a_scales[threadIdx.x] = row < arguments->rows_end
-                                            ? nk_cross_relative_scale_simt_(
-                                                  split, arguments->a_scales[row * arguments->a_scales_stride + block],
-                                                  bases[0][threadIdx.x])
-                                            : 0;
-                b_scales[threadIdx.x] = column < arguments->column_count
-                                            ? nk_cross_relative_scale_simt_(
-                                                  split,
-                                                  arguments->b_scales[column * arguments->b_scales_stride + block],
-                                                  bases[1][threadIdx.x])
-                                            : 0;
-            }
+            nk_cross_stage_scaled_slab_e2m1_cuda_(arguments, first_row, first_column, slab, a_slab, b_slab);
+            nk_cross_stage_scales_ue4m3_cuda_(arguments, first_row, first_column, slab / 16, bases, a_scales, b_scales);
             __syncthreads();
-            nk_cross_fold_slab_b32_cuda_(nk_cross_accumulation_f32_k, a_slab, b_slab, partials);
-            if ((slab + nk_cross_slab_simt_k) % block_size == 0 || slab + nk_cross_slab_simt_k >= depth)
-#pragma unroll
-                for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step)
-#pragma unroll
-                    for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
-                        totals[row_step][column_step] +=
-                            partials[row_step][column_step].f *
-                            a_scales[thread_row + nk_cross_grid_side_simt_k * row_step] *
-                            b_scales[thread_column + nk_cross_grid_side_simt_k * column_step];
-                        partials[row_step][column_step].f = 0;
-                    }
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, partials);
+            nk_cross_accumulate_scaled_cuda_(slab, depth, 16, a_scales, b_scales, partials, totals);
             __syncthreads();
         }
 #pragma unroll
@@ -392,33 +1101,287 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char co
             unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
             nk_size_t const row = first_row + tile_row;
             if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
             nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
 #pragma unroll
             for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
                 unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
                 nk_size_t const column = first_column + tile_column;
-                if (column >= arguments->column_count || (!packed && column < row)) continue;
+                if (column < column_begin || column >= column_end) continue;
                 if (!packed && normalized && column == row) {
                     output[column] = 0;
                     continue;
                 }
-                nk_i32_t const row_base = bases[0][tile_row], column_base = bases[1][tile_column];
-                nk_cross_wide_sum_t dot = {totals[row_step][column_step] * factor.mantissa,
-                                           row_base + column_base + factor.exponent};
-                nk_cross_wide_sum_t a_sumsq = {norms[0][tile_row] * a_factor.mantissa,
-                                               2 * row_base + a_factor.exponent};
-                nk_cross_wide_sum_t b_sumsq = {norms[1][tile_column] * b_factor.mantissa,
-                                               2 * column_base + b_factor.exponent};
-                if (packed) b_sumsq.sum = norms[1][tile_column], b_sumsq.exponent = 0;
+                nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                nk_cross_scaled_wide_cuda_(totals[row_step][column_step], bases[0][tile_row], bases[1][tile_column],
+                                           norms[0][tile_row], norms[1][tile_column], &factors, &dot, &a_sumsq,
+                                           &b_sumsq);
                 if (nk_cross_scaled_exceeds_simt_(spreads[0][tile_row], spreads[1][tile_column], normalized)) {
-                    dot = nk_cross_scaled_exact_wide_simt_(
-                        load, split, block_size, arguments->a + row * arguments->a_stride,
+                    dot = nk_cross_scaled_exact_wide_nvfp4_simt_(
+                        arguments->a + row * arguments->a_stride,
                         arguments->a_scales + row * arguments->a_scales_stride,
                         arguments->b + column * arguments->b_stride,
                         arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
-                    dot = nk_cross_wide_times_simt_(dot, factor);
-                    a_sumsq = nk_cross_wide_times_simt_(a_sumsq, a_factor);
-                    b_sumsq = nk_cross_wide_times_simt_(b_sumsq, b_factor);
+                    nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
+                }
+                output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
+            }
+        }
+    }
+}
+
+/**
+ *  @brief The GEMM of mxfp4 in the rebased F32 of the serial backends, each block walking 64 × 64
+ *      output tiles with a stride of the grid.
+ *
+ *  Rows and columns rebase to their largest scale exponent. Every 16-element slab lies inside one
+ *  block, so its products gather in F32 partial sums that take both relative scales once the
+ *  block ends, and the epilogue applies both bases and the tensor factor once. Outputs whose
+ *  spreads leave the rebased window take exact wide sums instead, and packed columns read their
+ *  rebased norms from the pack.
+ */
+NUMKONG_DEVICE void nk_cross_tile_mxfp4_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                              nk_cross_tile_arguments_t const *arguments) {
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f32_t a_scales[nk_cross_tile_simt_k], b_scales[nk_cross_tile_simt_k];
+    __shared__ nk_f32_t norms[2][nk_cross_tile_simt_k];
+    __shared__ nk_i32_t bases[2][nk_cross_tile_simt_k], spreads[2][nk_cross_tile_simt_k];
+    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
+    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+    int const normalized = metric != nk_cross_metric_dot_k, packed = !nk_cross_symmetric_simt_(band);
+    nk_size_t const depth = arguments->depth;
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        // The first barrier retires the previous tile's epilogue reads, the second publishes these.
+        __syncthreads();
+        if (threadIdx.x < nk_cross_tile_simt_k)
+            nk_cross_rebase_rows_mxfp4_cuda_(arguments->a, arguments->a_stride, arguments->a_scales,
+                                             arguments->a_scales_stride, first_row, arguments->rows_end, depth,
+                                             normalized, NUMKONG_NULL, bases[0], spreads[0], norms[0]);
+        else if (threadIdx.x < 2 * nk_cross_tile_simt_k)
+            nk_cross_rebase_rows_mxfp4_cuda_(arguments->b, arguments->b_stride, arguments->b_scales,
+                                             arguments->b_scales_stride, first_column, arguments->column_count, depth,
+                                             normalized, (nk_cross_wide_sum_t const *)arguments->b_norms, bases[1],
+                                             spreads[1], norms[1]);
+        __syncthreads();
+        nk_fui32_t partials[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_f32_t totals[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < depth; slab += nk_cross_slab_simt_k) {
+            nk_cross_stage_scaled_slab_e2m1_cuda_(arguments, first_row, first_column, slab, a_slab, b_slab);
+            nk_cross_stage_scales_ue8m0_cuda_(arguments, first_row, first_column, slab / 32, bases, a_scales, b_scales);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, partials);
+            nk_cross_accumulate_scaled_cuda_(slab, depth, 32, a_scales, b_scales, partials, totals);
+            __syncthreads();
+        }
+#pragma unroll
+        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
+            unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
+                unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
+                nk_size_t const column = first_column + tile_column;
+                if (column < column_begin || column >= column_end) continue;
+                if (!packed && normalized && column == row) {
+                    output[column] = 0;
+                    continue;
+                }
+                nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                nk_cross_scaled_wide_cuda_(totals[row_step][column_step], bases[0][tile_row], bases[1][tile_column],
+                                           norms[0][tile_row], norms[1][tile_column], &factors, &dot, &a_sumsq,
+                                           &b_sumsq);
+                if (nk_cross_scaled_exceeds_simt_(spreads[0][tile_row], spreads[1][tile_column], normalized)) {
+                    dot = nk_cross_scaled_exact_wide_mxfp4_simt_(
+                        arguments->a + row * arguments->a_stride,
+                        arguments->a_scales + row * arguments->a_scales_stride,
+                        arguments->b + column * arguments->b_stride,
+                        arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
+                    nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
+                }
+                output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
+            }
+        }
+    }
+}
+
+/**
+ *  @brief The GEMM of mxfp8e4m3 in the rebased F32 of the serial backends, each block walking
+ *      64 × 64 output tiles with a stride of the grid.
+ *
+ *  Rows and columns rebase to their largest scale exponent. Every 16-element slab lies inside one
+ *  block, so its products gather in F32 partial sums that take both relative scales once the
+ *  block ends, and the epilogue applies both bases and the tensor factor once. Outputs whose
+ *  spreads leave the rebased window take exact wide sums instead, and packed columns read their
+ *  rebased norms from the pack.
+ */
+NUMKONG_DEVICE void nk_cross_tile_mxfp8e4m3_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                  nk_cross_tile_arguments_t const *arguments) {
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f32_t a_scales[nk_cross_tile_simt_k], b_scales[nk_cross_tile_simt_k];
+    __shared__ nk_f32_t norms[2][nk_cross_tile_simt_k];
+    __shared__ nk_i32_t bases[2][nk_cross_tile_simt_k], spreads[2][nk_cross_tile_simt_k];
+    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
+    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+    int const normalized = metric != nk_cross_metric_dot_k, packed = !nk_cross_symmetric_simt_(band);
+    nk_size_t const depth = arguments->depth;
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        // The first barrier retires the previous tile's epilogue reads, the second publishes these.
+        __syncthreads();
+        if (threadIdx.x < nk_cross_tile_simt_k)
+            nk_cross_rebase_rows_mxfp8e4m3_cuda_(arguments->a, arguments->a_stride, arguments->a_scales,
+                                                 arguments->a_scales_stride, first_row, arguments->rows_end, depth,
+                                                 normalized, NUMKONG_NULL, bases[0], spreads[0], norms[0]);
+        else if (threadIdx.x < 2 * nk_cross_tile_simt_k)
+            nk_cross_rebase_rows_mxfp8e4m3_cuda_(arguments->b, arguments->b_stride, arguments->b_scales,
+                                                 arguments->b_scales_stride, first_column, arguments->column_count,
+                                                 depth, normalized, (nk_cross_wide_sum_t const *)arguments->b_norms,
+                                                 bases[1], spreads[1], norms[1]);
+        __syncthreads();
+        nk_fui32_t partials[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_f32_t totals[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < depth; slab += nk_cross_slab_simt_k) {
+            nk_cross_stage_scaled_slab_e4m3_cuda_(arguments, first_row, first_column, slab, a_slab, b_slab);
+            nk_cross_stage_scales_ue8m0_cuda_(arguments, first_row, first_column, slab / 32, bases, a_scales, b_scales);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, partials);
+            nk_cross_accumulate_scaled_cuda_(slab, depth, 32, a_scales, b_scales, partials, totals);
+            __syncthreads();
+        }
+#pragma unroll
+        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
+            unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
+                unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
+                nk_size_t const column = first_column + tile_column;
+                if (column < column_begin || column >= column_end) continue;
+                if (!packed && normalized && column == row) {
+                    output[column] = 0;
+                    continue;
+                }
+                nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                nk_cross_scaled_wide_cuda_(totals[row_step][column_step], bases[0][tile_row], bases[1][tile_column],
+                                           norms[0][tile_row], norms[1][tile_column], &factors, &dot, &a_sumsq,
+                                           &b_sumsq);
+                if (nk_cross_scaled_exceeds_simt_(spreads[0][tile_row], spreads[1][tile_column], normalized)) {
+                    dot = nk_cross_scaled_exact_wide_mxfp8e4m3_simt_(
+                        arguments->a + row * arguments->a_stride,
+                        arguments->a_scales + row * arguments->a_scales_stride,
+                        arguments->b + column * arguments->b_stride,
+                        arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
+                    nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
+                }
+                output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
+            }
+        }
+    }
+}
+
+/**
+ *  @brief The GEMM of mxfp8e5m2 in the rebased F32 of the serial backends, each block walking 64 ×
+ *      64 output tiles with a stride of the grid.
+ *
+ *  Rows and columns rebase to their largest scale exponent. Every 16-element slab lies inside one
+ *  block, so its products gather in F32 partial sums that take both relative scales once the
+ *  block ends, and the epilogue applies both bases and the tensor factor once. Outputs whose
+ *  spreads leave the rebased window take exact wide sums instead, and packed columns read their
+ *  rebased norms from the pack.
+ */
+NUMKONG_DEVICE void nk_cross_tile_mxfp8e5m2_cuda_(nk_cross_metric_t metric, nk_diagonal_band_t band,
+                                                  nk_cross_tile_arguments_t const *arguments) {
+    __shared__ nk_u32_t a_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_u32_t b_slab[nk_cross_slab_simt_k][nk_cross_tile_simt_k + 1];
+    __shared__ nk_f32_t a_scales[nk_cross_tile_simt_k], b_scales[nk_cross_tile_simt_k];
+    __shared__ nk_f32_t norms[2][nk_cross_tile_simt_k];
+    __shared__ nk_i32_t bases[2][nk_cross_tile_simt_k], spreads[2][nk_cross_tile_simt_k];
+    unsigned const thread_column = threadIdx.x % nk_cross_grid_side_simt_k;
+    unsigned const thread_row = threadIdx.x / nk_cross_grid_side_simt_k;
+    int const normalized = metric != nk_cross_metric_dot_k, packed = !nk_cross_symmetric_simt_(band);
+    nk_size_t const depth = arguments->depth;
+    nk_cross_scaled_factors_cuda_t const factors = nk_cross_scaled_factors_cuda_(arguments);
+
+    for (nk_size_t tile = blockIdx.x; tile < arguments->tiles; tile += gridDim.x) {
+        nk_size_t const first_row = arguments->rows_begin + tile / arguments->column_tiles * nk_cross_tile_simt_k;
+        nk_size_t const first_column = tile % arguments->column_tiles * nk_cross_tile_simt_k;
+        if (nk_diagonal_band_tile_coverage_simt_(band, (nk_i64_t)first_row, nk_cross_tile_simt_k, first_column,
+                                                 nk_cross_tile_simt_k) == nk_diagonal_band_outside_k)
+            continue;
+        // The first barrier retires the previous tile's epilogue reads, the second publishes these.
+        __syncthreads();
+        if (threadIdx.x < nk_cross_tile_simt_k)
+            nk_cross_rebase_rows_mxfp8e5m2_cuda_(arguments->a, arguments->a_stride, arguments->a_scales,
+                                                 arguments->a_scales_stride, first_row, arguments->rows_end, depth,
+                                                 normalized, NUMKONG_NULL, bases[0], spreads[0], norms[0]);
+        else if (threadIdx.x < 2 * nk_cross_tile_simt_k)
+            nk_cross_rebase_rows_mxfp8e5m2_cuda_(arguments->b, arguments->b_stride, arguments->b_scales,
+                                                 arguments->b_scales_stride, first_column, arguments->column_count,
+                                                 depth, normalized, (nk_cross_wide_sum_t const *)arguments->b_norms,
+                                                 bases[1], spreads[1], norms[1]);
+        __syncthreads();
+        nk_fui32_t partials[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{{0}}};
+        nk_f32_t totals[nk_cross_thread_tile_simt_k][nk_cross_thread_tile_simt_k] = {{0}};
+        for (nk_size_t slab = 0; slab < depth; slab += nk_cross_slab_simt_k) {
+            nk_cross_stage_scaled_slab_e5m2_cuda_(arguments, first_row, first_column, slab, a_slab, b_slab);
+            nk_cross_stage_scales_ue8m0_cuda_(arguments, first_row, first_column, slab / 32, bases, a_scales, b_scales);
+            __syncthreads();
+            nk_cross_fold_slab_f32_cuda_(a_slab, b_slab, partials);
+            nk_cross_accumulate_scaled_cuda_(slab, depth, 32, a_scales, b_scales, partials, totals);
+            __syncthreads();
+        }
+#pragma unroll
+        for (unsigned row_step = 0; row_step < nk_cross_thread_tile_simt_k; ++row_step) {
+            unsigned const tile_row = thread_row + nk_cross_grid_side_simt_k * row_step;
+            nk_size_t const row = first_row + tile_row;
+            if (row >= arguments->rows_end) continue;
+            nk_size_t column_begin, column_end;
+            nk_diagonal_band_row_range_simt_(band, (nk_i64_t)row, arguments->column_count, &column_begin, &column_end);
+            nk_f32_t *output = (nk_f32_t *)((unsigned char *)arguments->c + row * arguments->c_stride);
+#pragma unroll
+            for (unsigned column_step = 0; column_step < nk_cross_thread_tile_simt_k; ++column_step) {
+                unsigned const tile_column = thread_column + nk_cross_grid_side_simt_k * column_step;
+                nk_size_t const column = first_column + tile_column;
+                if (column < column_begin || column >= column_end) continue;
+                if (!packed && normalized && column == row) {
+                    output[column] = 0;
+                    continue;
+                }
+                nk_cross_wide_sum_t dot, a_sumsq, b_sumsq;
+                nk_cross_scaled_wide_cuda_(totals[row_step][column_step], bases[0][tile_row], bases[1][tile_column],
+                                           norms[0][tile_row], norms[1][tile_column], &factors, &dot, &a_sumsq,
+                                           &b_sumsq);
+                if (nk_cross_scaled_exceeds_simt_(spreads[0][tile_row], spreads[1][tile_column], normalized)) {
+                    dot = nk_cross_scaled_exact_wide_mxfp8e5m2_simt_(
+                        arguments->a + row * arguments->a_stride,
+                        arguments->a_scales + row * arguments->a_scales_stride,
+                        arguments->b + column * arguments->b_stride,
+                        arguments->b_scales + column * arguments->b_scales_stride, depth, &a_sumsq, &b_sumsq);
+                    nk_cross_scaled_apply_factors_cuda_(&factors, &dot, &a_sumsq, &b_sumsq);
                 }
                 output[column] = nk_cross_scaled_metric_simt_(metric, dot, a_sumsq, b_sumsq);
             }
@@ -432,24 +1395,26 @@ NUMKONG_DEVICE void nk_cross_tile_scaled_cuda_(nk_f32_t (*load)(unsigned char co
  *  lanes' shares into one packed norm, which the pack generators call for every CUDA capability. */
 #pragma region Pack Norms
 
-NUMKONG_DEVICE nk_f64_t nk_f64_lane_sumsq_cuda_(unsigned char const *row, nk_size_t depth, unsigned lane) {
+NUMKONG_DEVICE nk_f64_t nk_f64_lane_sumsq_cuda_(unsigned char const *row, nk_size_t depth, unsigned lane,
+                                                unsigned char const *, nk_f32_t) {
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         unsigned long long bits = 0;
         for (unsigned byte = 0; byte < 8; ++byte) bits |= (unsigned long long)row[index * 8 + byte] << (byte * 8);
         nk_f64_t const value = __longlong_as_double((long long)bits);
-        nk_cross_step_f64_cuda_(nk_cross_accumulation_dot2_k, value, value, &sum, &compensation);
+        nk_cross_step_dot2_f64_cuda_(value, value, &sum, &compensation);
     }
     return nk_f64_add_rn_cuda_(sum, compensation);
 }
 
-NUMKONG_DEVICE nk_f64_t nk_f32_lane_sumsq_cuda_(unsigned char const *row, nk_size_t depth, unsigned lane) {
+NUMKONG_DEVICE nk_f64_t nk_f32_lane_sumsq_cuda_(unsigned char const *row, nk_size_t depth, unsigned lane,
+                                                unsigned char const *, nk_f32_t) {
     nk_f64_t sum = 0, compensation = 0;
     for (nk_size_t index = lane; index < depth; index += 32) {
         nk_u32_t bits = 0;
         for (unsigned byte = 0; byte < 4; ++byte) bits |= (nk_u32_t)row[index * 4 + byte] << (byte * 8);
         nk_f64_t const value = (nk_f64_t)__uint_as_float(bits);
-        nk_cross_step_f64_cuda_(nk_cross_accumulation_dot2_k, value, value, &sum, &compensation);
+        nk_cross_step_dot2_f64_cuda_(value, value, &sum, &compensation);
     }
     return nk_f64_add_rn_cuda_(sum, compensation);
 }
@@ -458,7 +1423,7 @@ NUMKONG_DEVICE nk_f64_t nk_f32_lane_sumsq_cuda_(unsigned char const *row, nk_siz
 NUMKONG_DEVICE nk_f64_t nk_cross_pack_norm_f64_cuda_(nk_f64_t share) {
     nk_f64_t compensation = 0;
     for (unsigned offset = 16; offset != 0; offset >>= 1)
-        nk_cross_merge_lanes_f64_cuda_(nk_cross_accumulation_dot2_k, offset, &share, &compensation);
+        nk_cross_merge_lanes_dot2_f64_cuda_(offset, &share, &compensation);
     return nk_f64_add_rn_cuda_(share, compensation);
 }
 
@@ -466,6 +1431,9 @@ NUMKONG_DEVICE nk_f64_t nk_cross_pack_norm_f64_cuda_(nk_f64_t share) {
 NUMKONG_DEVICE nk_f32_t nk_cross_pack_norm_f32_cuda_(nk_f64_t share) {
     return (nk_f32_t)nk_cross_pack_norm_f64_cuda_(share);
 }
+
+/** A block-scaled column's rebased norm, which lane 0 computes whole and alone stores. */
+NUMKONG_DEVICE nk_cross_wide_sum_t nk_cross_pack_norm_cross_wide_sum_cuda_(nk_cross_wide_sum_t norm) { return norm; }
 
 /** A column's U32 norm from each of 32 lanes' exact shares, truncated like the serial backends'. */
 NUMKONG_DEVICE nk_u32_t nk_cross_pack_norm_u32_cuda_(nk_u64_t share) {
@@ -564,10 +1532,11 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
  *
  *  @param[in] load_fn Device map from an input byte to its packed byte, the identity unless the
  *      multiply wants a remap.
- *  @param[in] norm_value_type The serial backends' norm type: @c f64, @c f32 or @c u32.
+ *  @param[in] norm_value_type The serial backends' norm type: @c f64, @c f32 or @c u32, or
+ *      @c cross_wide_sum for block-scaled columns, rebased to F32 with their base beside.
  *  @param[in] compute_norm_fn Device share of a column's sum of squares for one lane of 32, which
- *      @c nk_cross_pack_norm_f64_cuda_, @c nk_cross_pack_norm_f32_cuda_ or
- *      @c nk_cross_pack_norm_u32_cuda_ merges.
+ *      @c nk_cross_pack_norm_f64_cuda_, @c nk_cross_pack_norm_f32_cuda_,
+ *      @c nk_cross_pack_norm_u32_cuda_ or @c nk_cross_pack_norm_cross_wide_sum_cuda_ merges.
  *  @sa nk_define_cross_pack_ for the host original.
  */
 #define nk_define_cross_pack_rows_cuda_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,     \
@@ -605,25 +1574,22 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
                 destination[byte] = byte < depth_bytes ? load_fn(source[byte]) : 0;                                    \
             unsigned char const *source_scales = b_scales + column * b_scales_stride;                                  \
             for (nk_size_t byte = lane; byte < scales_stride; byte += 32)                                              \
-                scales[column * scales_stride + byte] = byte < nk_cross_scale_blocks_(nk_##input_type_name##_k, depth) \
-                                                            ? source_scales[byte]                                      \
-                                                            : 0;                                                       \
+                scales[column * scales_stride + byte] =                                                                \
+                    byte < nk_cross_scale_blocks_serial_(nk_##input_type_name##_k, depth) ? source_scales[byte] : 0;   \
             nk_##norm_value_type##_t const norm = nk_cross_pack_norm_##norm_value_type##_cuda_(                        \
-                scales_stride ? nk_cross_scaled_sumsq_simt_(nk_##input_type_name##_k, source, source_scales,           \
-                                                            tensor_scale, depth, lane, 32)                             \
-                              : compute_norm_fn(source, depth, lane));                                                 \
+                compute_norm_fn(source, depth, lane, source_scales, tensor_scale));                                    \
             if (lane == 0) norms[column] = norm;                                                                       \
         }                                                                                                              \
     }                                                                                                                  \
     NUMKONG_API nk_status_t nk_dots_pack_##input_type_name##_##isa_suffix(                                             \
         nk_cross_##input_type_name##_operand_t const *b_operand, nk_size_t column_count, nk_size_t depth,              \
         nk_size_t b_stride, void *b_packed, nk_size_t columns_begin, nk_size_t columns_end, nk_stream_t stream) {      \
-        nk_cross_operand_t const b = nk_cross_operand_(nk_##input_type_name##_k, b_operand, b_stride);                 \
+        nk_cross_operand_t const b = nk_cross_operand_serial_(nk_##input_type_name##_k, b_operand, b_stride);          \
         nk_size_t const depth_values_padded = nk_cross_padded_values_simt_(                                            \
             depth, depth_simd_dimensions, dimensions_per_value, sizeof(nk_##packed_value_type##_t));                   \
         nk_size_t const depth_bytes = depth / dimensions_per_value * sizeof(nk_##input_value_type##_t);                \
-        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                      \
-        if (!nk_cross_whole_blocks_(nk_##input_type_name##_k, depth) || (scales_stride && !b.scales))                  \
+        nk_size_t const scales_stride = nk_cross_scales_stride_serial_(nk_##input_type_name##_k, depth);               \
+        if (!nk_cross_whole_blocks_serial_(nk_##input_type_name##_k, depth) || (scales_stride && !b.scales))           \
             return nk_unexpected_dimensions_k;                                                                         \
         return nk_cross_pack_launch_cuda_((void const *)nk_dots_pack_##input_type_name##_##isa_suffix##_kernel_, &b,   \
                                           column_count, depth, depth_bytes, b_stride, b_packed, columns_begin,         \
@@ -632,14 +1598,14 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
     }
 
 /** The pack's size, shape reader and kernel, which always ship together, with the norm share of
- *  the input type, @c nk_<input_type_name>_lane_sumsq_. */
-#define nk_define_cross_pack_cuda_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,   \
-                                   norm_value_type, depth_simd_dimensions, dimensions_per_value)                \
-    nk_define_cross_pack_size_simt_(input_type_name, isa_suffix, packed_value_type, norm_value_type,            \
-                                    depth_simd_dimensions, dimensions_per_value)                                \
-    nk_define_cross_packed_shape_cuda_(input_type_name, isa_suffix)                                             \
-    nk_define_cross_pack_rows_cuda_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,  \
-                                    norm_value_type, nk_##input_type_name##_lane_sumsq_, depth_simd_dimensions, \
+ *  the input type, @c nk_<input_type_name>_lane_sumsq_simt_. */
+#define nk_define_cross_pack_cuda_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,        \
+                                   norm_value_type, depth_simd_dimensions, dimensions_per_value)                     \
+    nk_define_cross_pack_size_simt_(input_type_name, isa_suffix, packed_value_type, norm_value_type,                 \
+                                    depth_simd_dimensions, dimensions_per_value)                                     \
+    nk_define_cross_packed_shape_cuda_(input_type_name, isa_suffix)                                                  \
+    nk_define_cross_pack_rows_cuda_(input_type_name, isa_suffix, input_value_type, packed_value_type, load_fn,       \
+                                    norm_value_type, nk_##input_type_name##_lane_sumsq_simt_, depth_simd_dimensions, \
                                     dimensions_per_value)
 
 /**
@@ -647,15 +1613,14 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
  *      by @c nk_define_cross_pack_cuda_, with a kernel whose blocks stride the grid over tiles.
  *  @param[in] metric @c dot, @c angular or @c euclidean, naming both the entry and the epilogue.
  *  @param[in] tile The stem of the tile's function and launch shape, like @c b32_cuda or @c ampere.
- *  @param[in] ... The tile's own leading arguments, which precede the triangle, the metric
- *      and the launch arguments.
  *  @sa nk_define_cross_packed_ for the host original.
  */
 #define nk_define_cross_packed_cuda_(metric, input_type_name, isa_suffix, tile, input_value_type, packed_value_type,  \
-                                     result_value_type, depth_simd_dimensions, dimensions_per_value, ...)             \
+                                     result_value_type, depth_simd_dimensions, dimensions_per_value)                  \
     static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                             \
         nk_##metric##s_packed_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {       \
-        nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_full_k, nk_cross_metric_##metric##_k, &arguments);     \
+        nk_diagonal_band_t const band = {NUMKONG_SIZE_MAX, NUMKONG_SIZE_MAX};                                         \
+        nk_cross_tile_##tile##_(nk_cross_metric_##metric##_k, band, &arguments);                                      \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_packed_##input_type_name##_##isa_suffix(                                   \
         nk_cross_##input_type_name##_operand_t const *a_operand, void const *b_packed_buffer,                         \
@@ -664,10 +1629,10 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
         nk_size_t const row_bytes = nk_cross_padded_values_simt_(depth, depth_simd_dimensions, dimensions_per_value,  \
                                                                  sizeof(nk_##packed_value_type##_t)) *                \
                                     sizeof(nk_##packed_value_type##_t);                                               \
-        nk_size_t const scales_stride = nk_cross_scales_stride_(nk_##input_type_name##_k, depth);                     \
+        nk_size_t const scales_stride = nk_cross_scales_stride_serial_(nk_##input_type_name##_k, depth);              \
         nk_cross_packed_buffer_header_t const *header = (nk_cross_packed_buffer_header_t const *)b_packed_buffer;     \
         nk_u8_t const *b_rows = (nk_u8_t const *)(header + 1);                                                        \
-        nk_cross_operand_t const a = nk_cross_operand_(nk_##input_type_name##_k, a_operand, a_stride);                \
+        nk_cross_operand_t const a = nk_cross_operand_serial_(nk_##input_type_name##_k, a_operand, a_stride);         \
         nk_cross_operand_t const b = {b_rows, scales_stride ? b_rows + column_count * row_bytes : NUMKONG_NULL,       \
                                       scales_stride, &header->tensor_scale};                                          \
         return nk_cross_launch_cuda_(                                                                                 \
@@ -689,17 +1654,19 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
  */
 #define nk_define_cross_symmetric_cuda_(metric, input_type_name, isa_suffix, tile, input_value_type,                  \
                                         packed_value_type, result_value_type, depth_simd_dimensions,                  \
-                                        dimensions_per_value, ...)                                                    \
+                                        dimensions_per_value)                                                         \
     static __global__ void __launch_bounds__(nk_cross_threads_##tile##_k)                                             \
         nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_(nk_cross_tile_arguments_t arguments) {    \
-        nk_cross_tile_##tile##_(__VA_ARGS__, nk_cross_triangle_upper_k, nk_cross_metric_##metric##_k, &arguments);    \
+        nk_diagonal_band_t const band = {0, NUMKONG_SIZE_MAX};                                                        \
+        nk_cross_tile_##tile##_(nk_cross_metric_##metric##_k, band, &arguments);                                      \
     }                                                                                                                 \
     NUMKONG_API nk_status_t nk_##metric##s_symmetric_##input_type_name##_##isa_suffix(                                \
         nk_cross_##input_type_name##_operand_t const *vectors_operand, nk_size_t vector_count, nk_size_t depth,       \
         nk_size_t stride, nk_##result_value_type##_t *result, nk_size_t result_stride, nk_size_t rows_begin,          \
         nk_size_t rows_end, nk_stream_t stream) {                                                                     \
         rows_end = nk_min_of_two(rows_end, vector_count);                                                             \
-        nk_cross_operand_t const vectors = nk_cross_operand_(nk_##input_type_name##_k, vectors_operand, stride);      \
+        nk_cross_operand_t const vectors = nk_cross_operand_serial_(nk_##input_type_name##_k, vectors_operand,        \
+                                                                    stride);                                          \
         return nk_cross_launch_cuda_(                                                                                 \
             (void const *)nk_##metric##s_symmetric_##input_type_name##_##isa_suffix##_kernel_,                        \
             nk_cross_tile_##tile##_k, nk_cross_threads_##tile##_k, &vectors, &vectors, 0, result,                     \
@@ -710,11 +1677,11 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
 
 /** Both shapes of one metric on @p tile, packed and symmetric. */
 #define nk_define_cross_cuda_(metric, input_type_name, isa_suffix, tile, input_value_type, packed_value_type,       \
-                              result_value_type, depth_simd_dimensions, dimensions_per_value, ...)                  \
+                              result_value_type, depth_simd_dimensions, dimensions_per_value)                       \
     nk_define_cross_packed_cuda_(metric, input_type_name, isa_suffix, tile, input_value_type, packed_value_type,    \
-                                 result_value_type, depth_simd_dimensions, dimensions_per_value, __VA_ARGS__)       \
+                                 result_value_type, depth_simd_dimensions, dimensions_per_value)                    \
     nk_define_cross_symmetric_cuda_(metric, input_type_name, isa_suffix, tile, input_value_type, packed_value_type, \
-                                    result_value_type, depth_simd_dimensions, dimensions_per_value, __VA_ARGS__)
+                                    result_value_type, depth_simd_dimensions, dimensions_per_value)
 
 #pragma endregion Cross Macros
 
@@ -723,54 +1690,54 @@ NUMKONG_INLINE nk_status_t nk_cross_pack_launch_cuda_(void const *kernel, nk_cro
 #if NUMKONG_TARGET_CUDA
 nk_define_cross_pack_size_simt_(f64, cuda, f64, f64, 2, 1)
 nk_define_cross_packed_shape_cuda_(f64, cuda)
-nk_define_cross_pack_rows_cuda_(f64, cuda, f64, f64, nk_load_b8_, f64, nk_f64_lane_sumsq_cuda_, 2, 1)
-nk_define_cross_cuda_(dot, f64, cuda, f64_cuda, f64, f64, f64, 2, 1, nk_f64_k, nk_cross_accumulation_dot2_k)
+nk_define_cross_pack_rows_cuda_(f64, cuda, f64, f64, nk_load_b8_simt_, f64, nk_f64_lane_sumsq_cuda_, 2, 1)
+nk_define_cross_cuda_(dot, f64, cuda, f64_cuda, f64, f64, f64, 2, 1)
 nk_define_cross_pack_size_simt_(f32, cuda, f32, f64, 4, 1)
 nk_define_cross_packed_shape_cuda_(f32, cuda)
-nk_define_cross_pack_rows_cuda_(f32, cuda, f32, f32, nk_load_b8_, f64, nk_f32_lane_sumsq_cuda_, 4, 1)
-nk_define_cross_cuda_(dot, f32, cuda, f64_cuda, f32, f32, f64, 4, 1, nk_f32_k, nk_cross_accumulation_f64_k)
-nk_define_cross_pack_cuda_(bf16, cuda, bf16, bf16, nk_load_b8_, f32, 8, 1)
-nk_define_cross_cuda_(dot, bf16, cuda, b32_cuda, bf16, bf16, f32, 8, 1, nk_bf16_k, nk_cross_accumulation_f32_k)
-nk_define_cross_pack_cuda_(f16, cuda, f16, f16, nk_load_b8_, f32, 8, 1)
-nk_define_cross_cuda_(dot, f16, cuda, b32_cuda, f16, f16, f32, 8, 1, nk_f16_k, nk_cross_accumulation_f32_k)
-nk_define_cross_pack_cuda_(e5m2, cuda, e5m2, e5m2, nk_load_b8_, f32, 16, 1)
-nk_define_cross_cuda_(dot, e5m2, cuda, b32_cuda, e5m2, e5m2, f32, 16, 1, nk_e5m2_k, nk_cross_accumulation_f32_k)
-nk_define_cross_pack_cuda_(e4m3, cuda, e4m3, e4m3, nk_load_b8_, f32, 16, 1)
-nk_define_cross_cuda_(dot, e4m3, cuda, b32_cuda, e4m3, e4m3, f32, 16, 1, nk_e4m3_k, nk_cross_accumulation_f32_k)
-nk_define_cross_pack_cuda_(e3m2, cuda, e3m2, e3m2, nk_load_b8_, f32, 16, 1)
-nk_define_cross_cuda_(dot, e3m2, cuda, b32_cuda, e3m2, e3m2, f32, 16, 1, nk_e3m2_k, nk_cross_accumulation_f32_k)
-nk_define_cross_pack_cuda_(e2m3, cuda, e2m3, e2m3, nk_load_b8_, f32, 16, 1)
-nk_define_cross_cuda_(dot, e2m3, cuda, b32_cuda, e2m3, e2m3, f32, 16, 1, nk_e2m3_k, nk_cross_accumulation_f32_k)
-nk_define_cross_pack_cuda_(e2m1, cuda, e2m1x2, e2m1x2, nk_load_b8_, f32, 32, 2)
-nk_define_cross_cuda_(dot, e2m1, cuda, b32_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_k, nk_cross_accumulation_f32_k)
-nk_define_cross_pack_cuda_(i8, cuda, i8, i8, nk_load_b8_, u32, 16, 1)
-nk_define_cross_cuda_(dot, i8, cuda, b32_cuda, i8, i8, i32, 16, 1, nk_i8_k, nk_cross_accumulation_i8x4_k)
-nk_define_cross_pack_cuda_(u8, cuda, u8, u8, nk_load_b8_, u32, 16, 1)
-nk_define_cross_cuda_(dot, u8, cuda, b32_cuda, u8, u8, u32, 16, 1, nk_u8_k, nk_cross_accumulation_u8x4_k)
-nk_define_cross_pack_cuda_(i4, cuda, i4x2, i4x2, nk_load_b8_, u32, 32, 2)
-nk_define_cross_cuda_(dot, i4, cuda, b32_cuda, i4x2, i4x2, i32, 32, 2, nk_i4_k, nk_cross_accumulation_i4x4_k)
-nk_define_cross_pack_cuda_(u4, cuda, u4x2, u4x2, nk_load_b8_, u32, 32, 2)
-nk_define_cross_cuda_(dot, u4, cuda, b32_cuda, u4x2, u4x2, u32, 32, 2, nk_u4_k, nk_cross_accumulation_u4x4_k)
-nk_define_cross_pack_size_simt_(nvfp4, cuda, e2m1x2, f32, 32, 2)
+nk_define_cross_pack_rows_cuda_(f32, cuda, f32, f32, nk_load_b8_simt_, f64, nk_f32_lane_sumsq_cuda_, 4, 1)
+nk_define_cross_cuda_(dot, f32, cuda, f32_cuda, f32, f32, f64, 4, 1)
+nk_define_cross_pack_cuda_(bf16, cuda, bf16, bf16, nk_load_b8_simt_, f32, 8, 1)
+nk_define_cross_cuda_(dot, bf16, cuda, bf16_cuda, bf16, bf16, f32, 8, 1)
+nk_define_cross_pack_cuda_(f16, cuda, f16, f16, nk_load_b8_simt_, f32, 8, 1)
+nk_define_cross_cuda_(dot, f16, cuda, f16_cuda, f16, f16, f32, 8, 1)
+nk_define_cross_pack_cuda_(e5m2, cuda, e5m2, e5m2, nk_load_b8_simt_, f32, 16, 1)
+nk_define_cross_cuda_(dot, e5m2, cuda, e5m2_cuda, e5m2, e5m2, f32, 16, 1)
+nk_define_cross_pack_cuda_(e4m3, cuda, e4m3, e4m3, nk_load_b8_simt_, f32, 16, 1)
+nk_define_cross_cuda_(dot, e4m3, cuda, e4m3_cuda, e4m3, e4m3, f32, 16, 1)
+nk_define_cross_pack_cuda_(e3m2, cuda, e3m2, e3m2, nk_load_b8_simt_, f32, 16, 1)
+nk_define_cross_cuda_(dot, e3m2, cuda, e3m2_cuda, e3m2, e3m2, f32, 16, 1)
+nk_define_cross_pack_cuda_(e2m3, cuda, e2m3, e2m3, nk_load_b8_simt_, f32, 16, 1)
+nk_define_cross_cuda_(dot, e2m3, cuda, e2m3_cuda, e2m3, e2m3, f32, 16, 1)
+nk_define_cross_pack_cuda_(e2m1, cuda, e2m1x2, e2m1x2, nk_load_b8_simt_, f32, 32, 2)
+nk_define_cross_cuda_(dot, e2m1, cuda, e2m1_cuda, e2m1x2, e2m1x2, f32, 32, 2)
+nk_define_cross_pack_cuda_(i8, cuda, i8, i8, nk_load_b8_simt_, u32, 16, 1)
+nk_define_cross_cuda_(dot, i8, cuda, i8_cuda, i8, i8, i32, 16, 1)
+nk_define_cross_pack_cuda_(u8, cuda, u8, u8, nk_load_b8_simt_, u32, 16, 1)
+nk_define_cross_cuda_(dot, u8, cuda, u8_cuda, u8, u8, u32, 16, 1)
+nk_define_cross_pack_cuda_(i4, cuda, i4x2, i4x2, nk_load_b8_simt_, u32, 32, 2)
+nk_define_cross_cuda_(dot, i4, cuda, i4_cuda, i4x2, i4x2, i32, 32, 2)
+nk_define_cross_pack_cuda_(u4, cuda, u4x2, u4x2, nk_load_b8_simt_, u32, 32, 2)
+nk_define_cross_cuda_(dot, u4, cuda, u4_cuda, u4x2, u4x2, u32, 32, 2)
+nk_define_cross_pack_size_simt_(nvfp4, cuda, e2m1x2, cross_wide_sum, 32, 2)
 nk_define_cross_packed_shape_cuda_(nvfp4, cuda)
-nk_define_cross_pack_rows_cuda_(nvfp4, cuda, e2m1x2, e2m1x2, nk_load_b8_, f32, nk_e2m1_lane_sumsq_, 32, 2)
-nk_define_cross_cuda_(dot, nvfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_load_f32_,
-                      nk_ue4m3_split_simt_, 16)
-nk_define_cross_pack_size_simt_(mxfp4, cuda, e2m1x2, f32, 32, 2)
+nk_define_cross_pack_rows_cuda_(nvfp4, cuda, e2m1x2, e2m1x2, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_nvfp4_simt_, 32, 2)
+nk_define_cross_cuda_(dot, nvfp4, cuda, nvfp4_cuda, e2m1x2, e2m1x2, f32, 32, 2)
+nk_define_cross_pack_size_simt_(mxfp4, cuda, e2m1x2, cross_wide_sum, 32, 2)
 nk_define_cross_packed_shape_cuda_(mxfp4, cuda)
-nk_define_cross_pack_rows_cuda_(mxfp4, cuda, e2m1x2, e2m1x2, nk_load_b8_, f32, nk_e2m1_lane_sumsq_, 32, 2)
-nk_define_cross_cuda_(dot, mxfp4, cuda, scaled_cuda, e2m1x2, e2m1x2, f32, 32, 2, nk_e2m1_load_f32_,
-                      nk_ue8m0_split_simt_, 32)
-nk_define_cross_pack_size_simt_(mxfp8e4m3, cuda, e4m3, f32, 16, 1)
+nk_define_cross_pack_rows_cuda_(mxfp4, cuda, e2m1x2, e2m1x2, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_mxfp4_simt_, 32, 2)
+nk_define_cross_cuda_(dot, mxfp4, cuda, mxfp4_cuda, e2m1x2, e2m1x2, f32, 32, 2)
+nk_define_cross_pack_size_simt_(mxfp8e4m3, cuda, e4m3, cross_wide_sum, 16, 1)
 nk_define_cross_packed_shape_cuda_(mxfp8e4m3, cuda)
-nk_define_cross_pack_rows_cuda_(mxfp8e4m3, cuda, e4m3, e4m3, nk_load_b8_, f32, nk_e4m3_lane_sumsq_, 16, 1)
-nk_define_cross_cuda_(dot, mxfp8e4m3, cuda, scaled_cuda, e4m3, e4m3, f32, 16, 1, nk_e4m3_load_f32_,
-                      nk_ue8m0_split_simt_, 32)
-nk_define_cross_pack_size_simt_(mxfp8e5m2, cuda, e5m2, f32, 16, 1)
+nk_define_cross_pack_rows_cuda_(mxfp8e4m3, cuda, e4m3, e4m3, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_mxfp8e4m3_simt_, 16, 1)
+nk_define_cross_cuda_(dot, mxfp8e4m3, cuda, mxfp8e4m3_cuda, e4m3, e4m3, f32, 16, 1)
+nk_define_cross_pack_size_simt_(mxfp8e5m2, cuda, e5m2, cross_wide_sum, 16, 1)
 nk_define_cross_packed_shape_cuda_(mxfp8e5m2, cuda)
-nk_define_cross_pack_rows_cuda_(mxfp8e5m2, cuda, e5m2, e5m2, nk_load_b8_, f32, nk_e5m2_lane_sumsq_, 16, 1)
-nk_define_cross_cuda_(dot, mxfp8e5m2, cuda, scaled_cuda, e5m2, e5m2, f32, 16, 1, nk_e5m2_load_f32_,
-                      nk_ue8m0_split_simt_, 32)
+nk_define_cross_pack_rows_cuda_(mxfp8e5m2, cuda, e5m2, e5m2, nk_load_b8_simt_, cross_wide_sum,
+                                nk_cross_scaled_pack_norm_mxfp8e5m2_simt_, 16, 1)
+nk_define_cross_cuda_(dot, mxfp8e5m2, cuda, mxfp8e5m2_cuda, e5m2, e5m2, f32, 16, 1)
 #endif // NUMKONG_TARGET_CUDA
 
 #pragma endregion Baseline Kernels

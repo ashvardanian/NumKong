@@ -61,10 +61,10 @@ NUMKONG_INLINE void nk_each_add_bf16_v128_(nk_bf16_t const *a, nk_bf16_t const *
     }
     for (; i < n; ++i) {
         nk_f32_t ai, bi;
-        nk_bf16_to_f32_(a + i, &ai);
-        nk_bf16_to_f32_(b + i, &bi);
+        nk_bf16_to_f32_serial_(a + i, &ai);
+        nk_bf16_to_f32_serial_(b + i, &bi);
         nk_f32_t sum = ai + bi;
-        nk_f32_to_bf16_(&sum, result + i);
+        nk_f32_to_bf16_serial_(&sum, result + i);
     }
 }
 

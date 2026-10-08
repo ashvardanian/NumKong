@@ -10,8 +10,8 @@
 #define NUMKONG_EACH_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"   // `nk_f16_to_f32_`
-#include "numkong/reduce/serial.h" // `nk_reduce_moments_f32_strided_`
+#include "numkong/cast/serial.h"   // `nk_f16_to_f32_serial_`
+#include "numkong/reduce/serial.h" // `nk_reduce_moments_strided_f32_serial_`
 #include "numkong/scalar/serial.h" // `nk_f32_silu_serial_`
 
 #if defined(__cplusplus)
@@ -114,12 +114,12 @@ extern "C" {
 
 nk_define_each_sum_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_sum_f64_serial
 nk_define_each_sum_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_sum_f32_serial
-nk_define_each_sum_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)            // nk_each_sum_f16_serial
-nk_define_each_sum_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)         // nk_each_sum_bf16_serial
-nk_define_each_sum_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)         // nk_each_sum_e4m3_serial
-nk_define_each_sum_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)         // nk_each_sum_e5m2_serial
-nk_define_each_sum_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)         // nk_each_sum_e2m3_serial
-nk_define_each_sum_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)         // nk_each_sum_e3m2_serial
+nk_define_each_sum_(f16, f32, nk_f16_to_f32_serial_, nk_f32_to_f16_serial_)    // nk_each_sum_f16_serial
+nk_define_each_sum_(bf16, f32, nk_bf16_to_f32_serial_, nk_f32_to_bf16_serial_) // nk_each_sum_bf16_serial
+nk_define_each_sum_(e4m3, f32, nk_e4m3_to_f32_serial_, nk_f32_to_e4m3_serial_) // nk_each_sum_e4m3_serial
+nk_define_each_sum_(e5m2, f32, nk_e5m2_to_f32_serial_, nk_f32_to_e5m2_serial_) // nk_each_sum_e5m2_serial
+nk_define_each_sum_(e2m3, f32, nk_e2m3_to_f32_serial_, nk_f32_to_e2m3_serial_) // nk_each_sum_e2m3_serial
+nk_define_each_sum_(e3m2, f32, nk_e3m2_to_f32_serial_, nk_f32_to_e3m2_serial_) // nk_each_sum_e3m2_serial
 nk_define_each_sum_(i8, i64, nk_assign_from_to_, nk_i64_to_i8_serial_)   // nk_each_sum_i8_serial
 nk_define_each_sum_(u8, i64, nk_assign_from_to_, nk_i64_to_u8_serial_)   // nk_each_sum_u8_serial
 nk_define_each_sum_(i16, i64, nk_assign_from_to_, nk_i64_to_i16_serial_) // nk_each_sum_i16_serial
@@ -130,25 +130,25 @@ nk_define_each_sum_(u32, i64, nk_assign_from_to_, nk_i64_to_u32_serial_) // nk_e
 NUMKONG_API nk_status_t nk_each_sum_i64_serial(nk_i64_t const *a, nk_i64_t const *b, nk_size_t n, nk_i64_t *result,
                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) result[i] = nk_i64_saturating_add_(a[i], b[i]);
+    for (nk_size_t i = 0; i != n; ++i) result[i] = nk_saturating_add_i64_serial_(a[i], b[i]);
     return nk_success_k;
 }
 
 NUMKONG_API nk_status_t nk_each_sum_u64_serial(nk_u64_t const *a, nk_u64_t const *b, nk_size_t n, nk_u64_t *result,
                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    for (nk_size_t i = 0; i != n; ++i) result[i] = nk_u64_saturating_add_(a[i], b[i]);
+    for (nk_size_t i = 0; i != n; ++i) result[i] = nk_saturating_add_u64_serial_(a[i], b[i]);
     return nk_success_k;
 }
 
 nk_define_each_scale_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_scale_f64_serial
 nk_define_each_scale_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_scale_f32_serial
-nk_define_each_scale_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)            // nk_each_scale_f16_serial
-nk_define_each_scale_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)         // nk_each_scale_bf16_serial
-nk_define_each_scale_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)         // nk_each_scale_e4m3_serial
-nk_define_each_scale_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)         // nk_each_scale_e5m2_serial
-nk_define_each_scale_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)         // nk_each_scale_e2m3_serial
-nk_define_each_scale_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)         // nk_each_scale_e3m2_serial
+nk_define_each_scale_(f16, f32, nk_f16_to_f32_serial_, nk_f32_to_f16_serial_)    // nk_each_scale_f16_serial
+nk_define_each_scale_(bf16, f32, nk_bf16_to_f32_serial_, nk_f32_to_bf16_serial_) // nk_each_scale_bf16_serial
+nk_define_each_scale_(e4m3, f32, nk_e4m3_to_f32_serial_, nk_f32_to_e4m3_serial_) // nk_each_scale_e4m3_serial
+nk_define_each_scale_(e5m2, f32, nk_e5m2_to_f32_serial_, nk_f32_to_e5m2_serial_) // nk_each_scale_e5m2_serial
+nk_define_each_scale_(e2m3, f32, nk_e2m3_to_f32_serial_, nk_f32_to_e2m3_serial_) // nk_each_scale_e2m3_serial
+nk_define_each_scale_(e3m2, f32, nk_e3m2_to_f32_serial_, nk_f32_to_e3m2_serial_) // nk_each_scale_e3m2_serial
 nk_define_each_scale_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial_)   // nk_each_scale_i8_serial
 nk_define_each_scale_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial_)   // nk_each_scale_u8_serial
 nk_define_each_scale_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial_) // nk_each_scale_i16_serial
@@ -160,12 +160,12 @@ nk_define_each_scale_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial_)   // nk
 
 nk_define_each_blend_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_blend_f64_serial
 nk_define_each_blend_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_blend_f32_serial
-nk_define_each_blend_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)            // nk_each_blend_f16_serial
-nk_define_each_blend_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)         // nk_each_blend_bf16_serial
-nk_define_each_blend_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)         // nk_each_blend_e4m3_serial
-nk_define_each_blend_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)         // nk_each_blend_e5m2_serial
-nk_define_each_blend_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)         // nk_each_blend_e2m3_serial
-nk_define_each_blend_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)         // nk_each_blend_e3m2_serial
+nk_define_each_blend_(f16, f32, nk_f16_to_f32_serial_, nk_f32_to_f16_serial_)    // nk_each_blend_f16_serial
+nk_define_each_blend_(bf16, f32, nk_bf16_to_f32_serial_, nk_f32_to_bf16_serial_) // nk_each_blend_bf16_serial
+nk_define_each_blend_(e4m3, f32, nk_e4m3_to_f32_serial_, nk_f32_to_e4m3_serial_) // nk_each_blend_e4m3_serial
+nk_define_each_blend_(e5m2, f32, nk_e5m2_to_f32_serial_, nk_f32_to_e5m2_serial_) // nk_each_blend_e5m2_serial
+nk_define_each_blend_(e2m3, f32, nk_e2m3_to_f32_serial_, nk_f32_to_e2m3_serial_) // nk_each_blend_e2m3_serial
+nk_define_each_blend_(e3m2, f32, nk_e3m2_to_f32_serial_, nk_f32_to_e3m2_serial_) // nk_each_blend_e3m2_serial
 nk_define_each_blend_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial_)   // nk_each_blend_i8_serial
 nk_define_each_blend_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial_)   // nk_each_blend_u8_serial
 nk_define_each_blend_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial_) // nk_each_blend_i16_serial
@@ -177,12 +177,12 @@ nk_define_each_blend_(u64, f64, nk_f64_from_u64_, nk_f64_to_u64_serial_)   // nk
 
 nk_define_each_fma_(f64, f64, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_fma_f64_serial
 nk_define_each_fma_(f32, f32, nk_assign_from_to_, nk_assign_from_to_)    // nk_each_fma_f32_serial
-nk_define_each_fma_(f16, f32, nk_f16_to_f32_, nk_f32_to_f16_)            // nk_each_fma_f16_serial
-nk_define_each_fma_(bf16, f32, nk_bf16_to_f32_, nk_f32_to_bf16_)         // nk_each_fma_bf16_serial
-nk_define_each_fma_(e4m3, f32, nk_e4m3_to_f32_, nk_f32_to_e4m3_)         // nk_each_fma_e4m3_serial
-nk_define_each_fma_(e5m2, f32, nk_e5m2_to_f32_, nk_f32_to_e5m2_)         // nk_each_fma_e5m2_serial
-nk_define_each_fma_(e2m3, f32, nk_e2m3_to_f32_, nk_f32_to_e2m3_)         // nk_each_fma_e2m3_serial
-nk_define_each_fma_(e3m2, f32, nk_e3m2_to_f32_, nk_f32_to_e3m2_)         // nk_each_fma_e3m2_serial
+nk_define_each_fma_(f16, f32, nk_f16_to_f32_serial_, nk_f32_to_f16_serial_)    // nk_each_fma_f16_serial
+nk_define_each_fma_(bf16, f32, nk_bf16_to_f32_serial_, nk_f32_to_bf16_serial_) // nk_each_fma_bf16_serial
+nk_define_each_fma_(e4m3, f32, nk_e4m3_to_f32_serial_, nk_f32_to_e4m3_serial_) // nk_each_fma_e4m3_serial
+nk_define_each_fma_(e5m2, f32, nk_e5m2_to_f32_serial_, nk_f32_to_e5m2_serial_) // nk_each_fma_e5m2_serial
+nk_define_each_fma_(e2m3, f32, nk_e2m3_to_f32_serial_, nk_f32_to_e2m3_serial_) // nk_each_fma_e2m3_serial
+nk_define_each_fma_(e3m2, f32, nk_e3m2_to_f32_serial_, nk_f32_to_e3m2_serial_) // nk_each_fma_e3m2_serial
 nk_define_each_fma_(i8, f32, nk_assign_from_to_, nk_f32_to_i8_serial_)   // nk_each_fma_i8_serial
 nk_define_each_fma_(u8, f32, nk_assign_from_to_, nk_f32_to_u8_serial_)   // nk_each_fma_u8_serial
 nk_define_each_fma_(i16, f32, nk_assign_from_to_, nk_f32_to_i16_serial_) // nk_each_fma_i16_serial
@@ -367,9 +367,9 @@ NUMKONG_API nk_status_t nk_each_fma_f64c_serial(nk_f64c_t const *a, nk_f64c_t co
         return nk_success_k;                                                                                    \
     }
 
-nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_, nk_f32_to_e4m3_)
-nk_define_each_swiglu_(f16, nk_f16_to_f32_, nk_f32_to_f16_)
-nk_define_each_swiglu_(bf16, nk_bf16_to_f32_, nk_f32_to_bf16_)
+nk_define_each_swiglu_(e4m3, nk_e4m3_to_f32_serial_, nk_f32_to_e4m3_serial_)
+nk_define_each_swiglu_(f16, nk_f16_to_f32_serial_, nk_f32_to_f16_serial_)
+nk_define_each_swiglu_(bf16, nk_bf16_to_f32_serial_, nk_f32_to_bf16_serial_)
 nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
 #undef nk_define_each_swiglu_
 
@@ -399,7 +399,7 @@ nk_define_each_swiglu_(f32, nk_assign_from_to_, nk_assign_from_to_)
                 accumulator_type sum, sumsq;                                                                           \
                 moments(group_input, columns, sizeof(nk_##input_type##_t), &sum, &sumsq);                              \
                 nk_f64_t mean_square = (nk_f64_t)sumsq / (nk_f64_t)columns;                                            \
-                nk_f32_t inv_rms = (nk_f32_t)nk_f64_rsqrt_((nk_f32_t)mean_square + epsilon);                           \
+                nk_f32_t inv_rms = (nk_f32_t)nk_rsqrt_f64_serial_((nk_f32_t)mean_square + epsilon);                    \
                 for (nk_size_t c = 0; c != columns; ++c) {                                                             \
                     nk_f32_t value;                                                                                    \
                     load_and_convert(group_input + c, &value);                                                         \
@@ -438,25 +438,27 @@ NUMKONG_INLINE void nk_each_moments_u32_serial_(nk_u32_t const *data, nk_size_t 
     *sum = total, *sumsq = total_squares;
 }
 
-nk_define_each_rmsnorm_(rmsnorm, e4m3, e4m3, nk_f32_t, nk_reduce_moments_e4m3_strided_, nk_e4m3_to_f32_,
-                        nk_f32_to_e4m3_)
-nk_define_each_rmsnorm_(rmsnorm, f16, f16, nk_f32_t, nk_reduce_moments_f16_strided_, nk_f16_to_f32_, nk_f32_to_f16_)
-nk_define_each_rmsnorm_(rmsnorm, bf16, bf16, nk_f32_t, nk_reduce_moments_bf16_strided_, nk_bf16_to_f32_,
-                        nk_f32_to_bf16_)
-nk_define_each_rmsnorm_(rmsnorm, f32, f32, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
+nk_define_each_rmsnorm_(rmsnorm, e4m3, e4m3, nk_f32_t, nk_reduce_moments_strided_e4m3_serial_, nk_e4m3_to_f32_serial_,
+                        nk_f32_to_e4m3_serial_)
+nk_define_each_rmsnorm_(rmsnorm, f16, f16, nk_f32_t, nk_reduce_moments_strided_f16_serial_, nk_f16_to_f32_serial_,
+                        nk_f32_to_f16_serial_)
+nk_define_each_rmsnorm_(rmsnorm, bf16, bf16, nk_f32_t, nk_reduce_moments_strided_bf16_serial_, nk_bf16_to_f32_serial_,
+                        nk_f32_to_bf16_serial_)
+nk_define_each_rmsnorm_(rmsnorm, f32, f32, nk_f64_t, nk_reduce_moments_strided_f32_serial_, nk_assign_from_to_,
                         nk_assign_from_to_)
-nk_define_each_rmsnorm_(rmscast, f32, bf16, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
-                        nk_f32_to_bf16_)
-nk_define_each_rmsnorm_(rmscast, f32, f16, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_, nk_f32_to_f16_)
-nk_define_each_rmsnorm_(rmscast, f32, e4m3, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
-                        nk_f32_to_e4m3_)
-nk_define_each_rmsnorm_(rmscast, f32, e5m2, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
-                        nk_f32_to_e5m2_)
-nk_define_each_rmsnorm_(rmscast, f32, e2m3, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
-                        nk_f32_to_e2m3_)
-nk_define_each_rmsnorm_(rmscast, f32, e3m2, nk_f64_t, nk_reduce_moments_f32_strided_, nk_assign_from_to_,
-                        nk_f32_to_e3m2_)
-nk_define_each_rmsnorm_(rmscast, f64, f32, nk_f64_t, nk_reduce_moments_f64_strided_, nk_f64_to_f32_serial_,
+nk_define_each_rmsnorm_(rmscast, f32, bf16, nk_f64_t, nk_reduce_moments_strided_f32_serial_, nk_assign_from_to_,
+                        nk_f32_to_bf16_serial_)
+nk_define_each_rmsnorm_(rmscast, f32, f16, nk_f64_t, nk_reduce_moments_strided_f32_serial_, nk_assign_from_to_,
+                        nk_f32_to_f16_serial_)
+nk_define_each_rmsnorm_(rmscast, f32, e4m3, nk_f64_t, nk_reduce_moments_strided_f32_serial_, nk_assign_from_to_,
+                        nk_f32_to_e4m3_serial_)
+nk_define_each_rmsnorm_(rmscast, f32, e5m2, nk_f64_t, nk_reduce_moments_strided_f32_serial_, nk_assign_from_to_,
+                        nk_f32_to_e5m2_serial_)
+nk_define_each_rmsnorm_(rmscast, f32, e2m3, nk_f64_t, nk_reduce_moments_strided_f32_serial_, nk_assign_from_to_,
+                        nk_f32_to_e2m3_serial_)
+nk_define_each_rmsnorm_(rmscast, f32, e3m2, nk_f64_t, nk_reduce_moments_strided_f32_serial_, nk_assign_from_to_,
+                        nk_f32_to_e3m2_serial_)
+nk_define_each_rmsnorm_(rmscast, f64, f32, nk_f64_t, nk_reduce_moments_strided_f64_serial_, nk_f64_to_f32_serial_,
                         nk_assign_from_to_)
 nk_define_each_rmsnorm_(rmscast, i32, i8, nk_f64_t, nk_each_moments_i32_serial_, nk_assign_from_to_,
                         nk_f32_to_i8_serial_)

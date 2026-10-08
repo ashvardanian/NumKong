@@ -101,9 +101,9 @@ def test_attention_packed(dtype, tolerance, scenario, depth, threads, np_rng: np
     v_f32 = (np_rng.standard_normal((tokens, key_value_head_count * depth)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth, threads=threads)
+    kv = nk.attention_pack(k, v, key_offsets=offsets, depth=depth, threads=threads)
     assert kv.segments == len(lengths)
-    assert kv.heads == key_value_head_count
+    assert kv.key_value_head_count == key_value_head_count
     assert kv.depth == depth
     assert kv.tokens == tokens
 
@@ -129,6 +129,31 @@ def test_attention_packed(dtype, tolerance, scenario, depth, threads, np_rng: np
 
 
 @pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
+def test_attention_spare_slot_capacity(dtype, tolerance, np_rng: np.random.Generator):
+    """Slots wider than their keys, as a decode cache with room to grow has: the spare rows stay out of the pack."""
+    lengths, spare, query_counts = [37, 0, 12], [5, 3, 0], [3, 2, 1]
+    head_count, depth = 4, 64
+    key_offsets = np.array([0, *np.cumsum(np.array(lengths) + np.array(spare))], dtype=np.uint32)
+    query_offsets = np.array([0, *np.cumsum(query_counts)], dtype=np.uint32)
+    scale = 1.0 / np.sqrt(depth)
+
+    q_f32 = (np_rng.standard_normal((int(query_offsets[-1]), head_count * depth)) * 0.3).astype(np.float32)
+    k_f32 = (np_rng.standard_normal((int(key_offsets[-1]), head_count * depth)) * 0.3).astype(np.float32)
+    v_f32 = (np_rng.standard_normal((int(key_offsets[-1]), head_count * depth)) * 0.3).astype(np.float32)
+    q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
+
+    kv = nk.attention_pack(k, v, key_offsets=key_offsets, key_lengths=np.array(lengths, dtype=np.uint32), depth=depth)
+    assert kv.tokens == sum(lengths)
+    out = nk.attention_packed(q, kv, query_offsets=query_offsets, keys_after=0)
+
+    rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
+    expected = reference_attention(
+        *rounded, query_offsets, key_offsets, lengths, head_count, head_count, depth, scale, None, 0
+    )
+    np.testing.assert_allclose(np.from_dlpack(out), expected, atol=tolerance, rtol=tolerance)
+
+
+@pytest.mark.parametrize("dtype,tolerance", ATTENTION_DTYPES)
 @pytest.mark.parametrize("keys_before", [None, 4])
 def test_attention_causal_decode(dtype, tolerance, keys_before, np_rng: np.random.Generator):
     """A few trailing queries per segment against a longer cache: queries align to the end of the keys."""
@@ -143,7 +168,7 @@ def test_attention_causal_decode(dtype, tolerance, keys_before, np_rng: np.rando
     v_f32 = (np_rng.standard_normal((segment_count * length, head_count * depth)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=key_offsets, depth=depth, threads=1)
+    kv = nk.attention_pack(k, v, key_offsets=key_offsets, depth=depth, threads=1)
     out = nk.attention_packed(q, kv, query_offsets=query_offsets, keys_before=keys_before, keys_after=0, threads=1)
     result = np.from_dlpack(out)
 
@@ -177,7 +202,7 @@ def test_attention_pool(dtype, tolerance, np_rng: np.random.Generator):
     v_f32 = (np_rng.standard_normal((tokens, head_count * depth)) * 0.3).astype(np.float32)
     q, k, v = (nk.Tensor(x).astype(dtype) for x in (q_f32, k_f32, v_f32))
 
-    kv = nk.attention_pack(k, v, segment_offsets=kv_offsets, depth=depth, threads=1)
+    kv = nk.attention_pack(k, v, key_offsets=kv_offsets, depth=depth, threads=1)
     out = nk.attention_packed(q, kv, query_offsets=pool_offsets, threads=1)
     result = np.from_dlpack(out)
 
@@ -208,7 +233,7 @@ def test_attention_i8(np_rng: np.random.Generator):
     k = nk.Tensor(np_rng.integers(-31, 32, (tokens, head_count * depth)).astype(np.int8))
     v = nk.Tensor(np_rng.integers(-31, 32, (tokens, head_count * depth)).astype(np.int8))
 
-    kv = nk.attention_pack(k, v, segment_offsets=offsets, depth=depth, threads=0)
+    kv = nk.attention_pack(k, v, key_offsets=offsets, depth=depth, threads=0)
     rounded = [np.from_dlpack(t.astype("f32")).astype(np.float64) for t in (q, k, v)]
     for keys_before, keys_after in BANDS:
         out = nk.attention_packed(
@@ -281,7 +306,7 @@ def test_attention_packed_gradients(band, np_rng: np.random.Generator):
         for _ in range(2)
     )
     output_gradient = (np_rng.standard_normal((query_tokens, head_count * depth)) * 0.3).astype(np.float32)
-    kv = nk.attention_pack(k, v, segment_offsets=key_offsets, depth=depth, capabilities=nk.Capability.SERIAL)
+    kv = nk.attention_pack(k, v, key_offsets=key_offsets, depth=depth, capabilities=nk.Capability.SERIAL)
 
     log_sum_exp = np.empty((query_tokens, head_count), dtype=np.float32)
     out = nk.attention_packed(
@@ -293,7 +318,6 @@ def test_attention_packed_gradients(band, np_rng: np.random.Generator):
         q,
         kv,
         query_offsets=query_offsets,
-        key_offsets=key_offsets,
         output=out,
         output_gradient=output_gradient,
         log_sum_exp=log_sum_exp,
@@ -314,7 +338,7 @@ def test_attention_packed_gradients(band, np_rng: np.random.Generator):
 def test_attention_validation():
     offsets = np.array([0, 4], dtype=np.uint32)
     matrix = nk.Tensor(np.zeros((4, 128), dtype=np.float32)).astype("bf16")
-    kv = nk.attention_pack(matrix, matrix, segment_offsets=offsets, depth=128, threads=1)
+    kv = nk.attention_pack(matrix, matrix, key_offsets=offsets, depth=128, threads=1)
 
     with pytest.raises(TypeError):
         nk.attention_packed(matrix, "not-packed", query_offsets=offsets)
@@ -324,8 +348,12 @@ def test_attention_validation():
         nk.attention_packed(matrix, kv, query_offsets=np.array([0, 9], dtype=np.uint32), keys_after=0)
     with pytest.raises(TypeError):  # the old diagonal and window keywords are gone
         nk.attention_packed(matrix, kv, query_offsets=offsets, window=4)
+    with pytest.raises(ValueError):  # decreasing key offsets
+        nk.attention_pack(matrix, matrix, key_offsets=np.array([0, 4, 2], dtype=np.uint32), depth=128)
+    with pytest.raises(ValueError):  # a length past its slot
+        nk.attention_pack(matrix, matrix, key_offsets=offsets, key_lengths=np.array([5], dtype=np.uint32), depth=128)
     with pytest.raises(TypeError):  # missing depth for a 2-D input
-        nk.attention_pack(matrix, matrix, segment_offsets=offsets)
+        nk.attention_pack(matrix, matrix, key_offsets=offsets)
 
 
 def baseline_rope(x, cos, sin, head_count, depth):

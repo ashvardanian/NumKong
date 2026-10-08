@@ -15,7 +15,7 @@
 #if NUMKONG_ARCH_X8664_HASWELL_
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_`
+#include "numkong/cast/serial.h"    // `nk_bf16_to_f32_serial_`
 #include "numkong/cast/haswell.h"   // `nk_partial_load_bf16x8_to_f32x8_haswell_`
 #include "numkong/reduce/haswell.h" // `nk_reduce_add_f32x8_haswell_`
 
@@ -192,9 +192,9 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t c
     nk_assert_(stream == NUMKONG_NULL);
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
-        // The `nk_bf16_to_f32_` is cheaper than `nk_bf16x8_to_f32x8_haswell_`
+        // The `nk_bf16_to_f32_serial_` is cheaper than `nk_bf16x8_to_f32x8_haswell_`
         nk_f32_t a_f32;
-        nk_bf16_to_f32_(a + i, &a_f32);
+        nk_bf16_to_f32_serial_(a + i, &a_f32);
         __m256 a_f32x8 = _mm256_set1_ps(a_f32);
         __m256 cb_j_f32x8 = _mm256_setzero_ps();
         for (nk_size_t j = 0; j + 8 <= n; j += 8) {
@@ -212,7 +212,7 @@ NUMKONG_API nk_status_t nk_bilinear_bf16_haswell(nk_bf16_t const *a, nk_bf16_t c
     if (tail_length) {
         for (nk_size_t i = 0; i != n; ++i) {
             nk_f32_t a_i;
-            nk_bf16_to_f32_(a + i, &a_i);
+            nk_bf16_to_f32_serial_(a + i, &a_i);
             nk_b256_vec_t b_vec;
             nk_partial_load_bf16x8_to_f32x8_haswell_(b + tail_start, &b_vec, tail_length);
             __m256 b_f32x8 = b_vec.ymm_ps;
@@ -234,8 +234,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_
     __m256 sum_f32x8 = _mm256_setzero_ps();
     for (nk_size_t i = 0; i != n; ++i) {
         nk_f32_t a_i, b_i;
-        nk_bf16_to_f32_(a + i, &a_i);
-        nk_bf16_to_f32_(b + i, &b_i);
+        nk_bf16_to_f32_serial_(a + i, &a_i);
+        nk_bf16_to_f32_serial_(b + i, &b_i);
         __m256 diff_i_f32x8 = _mm256_sub_ps( //
             _mm256_set1_ps(a_i),             //
             _mm256_set1_ps(b_i));
@@ -257,8 +257,8 @@ NUMKONG_API nk_status_t nk_mahalanobis_bf16_haswell(nk_bf16_t const *a, nk_bf16_
     if (tail_length) {
         for (nk_size_t i = 0; i != n; ++i) {
             nk_f32_t a_i, b_i;
-            nk_bf16_to_f32_(a + i, &a_i);
-            nk_bf16_to_f32_(b + i, &b_i);
+            nk_bf16_to_f32_serial_(a + i, &a_i);
+            nk_bf16_to_f32_serial_(b + i, &b_i);
             nk_f32_t diff_i = a_i - b_i;
             nk_b256_vec_t a_tail_vec, b_tail_vec;
             nk_partial_load_bf16x8_to_f32x8_haswell_(a + tail_start, &a_tail_vec, tail_length);

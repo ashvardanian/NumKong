@@ -83,7 +83,7 @@ NUMKONG_INLINE nk_f64_t nk_reduce_stable_f64x8_skylake_(__m512d values_f64x8) {
     values.zmm_pd = values_f64x8;
     nk_f64_t sum = 0.0, compensation = 0.0;
     for (nk_size_t lane_index = 0; lane_index != 8; ++lane_index)
-        nk_accumulate_sum_f64_(&sum, &compensation, values.f64s[lane_index]);
+        nk_accumulate_sum_f64_serial_(&sum, &compensation, values.f64s[lane_index]);
     return sum + compensation;
 }
 
@@ -185,7 +185,7 @@ NUMKONG_INLINE void nk_load_shifted_f32x16_skylake_(nk_f32_t const *ptr, __mmask
  *
  *  Processes 5 xyz triplets per chunk, 15 fp32 lanes with lane 15 masked to zero, so the stride-3
  *  phase is identical across all chunks and no deinterleave is needed. Points are widened and
- *  shifted by the first one before any product, as @ref nk_centered_moments_finalize_f64_ expects.
+ *  shifted by the first one before any product, for @ref nk_centered_moments_finalize_f64_serial_.
  *
  *  The 9 H-cells come from three product accumulators a · b, a · rot1(b), a · rot2(b) demuxed
  *  post-loop by a-channel. Rotations of b happen in fp64 via permutex2var_pd on the already-widened
@@ -252,8 +252,8 @@ NUMKONG_INLINE void nk_centered_moments_f32_skylake_(nk_f32_t const *a, nk_f32_t
             channel_lanes_m8, product_rotation_2_f64x8[0], channel_indices_i64x8[j], product_rotation_2_f64x8[1]));
     }
     nk_f64_t norm_squared_a = _mm512_reduce_add_pd(_mm512_add_pd(norm_squared_a_f64x8[0], norm_squared_a_f64x8[1]));
-    nk_centered_moments_finalize_f64_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, centroid_a,
-                                      centroid_b, cross_covariance, centered_norm_squared_a);
+    nk_centered_moments_finalize_f64_serial_(n, pivot_a, pivot_b, sum_a, sum_b, covariance, norm_squared_a, centroid_a,
+                                             centroid_b, cross_covariance, centered_norm_squared_a);
 }
 
 /**
@@ -332,10 +332,10 @@ NUMKONG_INLINE void nk_centered_moments_finalize_f32x16_skylake_(nk_size_t n, nk
         covariance[j * 3 + (j + 1) % 3] = _mm512_mask_reduce_add_ps(channel_m16[j], moments_f32x16[4]);
         covariance[j * 3 + (j + 2) % 3] = _mm512_mask_reduce_add_ps(channel_m16[j], moments_f32x16[5]);
     }
-    nk_centered_moments_finalize_f32_(n, pivot_a, pivot_b, sum_a, sum_b, covariance,
-                                      _mm512_reduce_add_ps(moments_f32x16[2]), _mm512_reduce_add_ps(moments_f32x16[6]),
-                                      centroid_a, centroid_b, cross_covariance, centered_norm_squared_a,
-                                      centered_norm_squared_b);
+    nk_centered_moments_finalize_f32_serial_(n, pivot_a, pivot_b, sum_a, sum_b, covariance,
+                                             _mm512_reduce_add_ps(moments_f32x16[2]),
+                                             _mm512_reduce_add_ps(moments_f32x16[6]), centroid_a, centroid_b,
+                                             cross_covariance, centered_norm_squared_a, centered_norm_squared_b);
 }
 
 /** Centroids, centered cross-covariance, ‖a − ā‖² and ‖b − b̄‖² of f16 clouds,
@@ -345,7 +345,7 @@ NUMKONG_INLINE void nk_centered_moments_f16_skylake_(nk_f16_t const *a, nk_f16_t
                                                      nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
                                                      nk_f32_t *centered_norm_squared_b) {
     nk_f32_t pivot_a[3], pivot_b[3];
-    for (int j = 0; j != 3; ++j) nk_f16_to_f32_(a + j, pivot_a + j), nk_f16_to_f32_(b + j, pivot_b + j);
+    for (int j = 0; j != 3; ++j) nk_f16_to_f32_serial_(a + j, pivot_a + j), nk_f16_to_f32_serial_(b + j, pivot_b + j);
     __m512 const pivot_a_f32x16 = nk_triplets_f32x16_skylake_(pivot_a[0], pivot_a[1], pivot_a[2]);
     __m512 const pivot_b_f32x16 = nk_triplets_f32x16_skylake_(pivot_b[0], pivot_b[1], pivot_b[2]);
     __m512 moments_f32x16[7];
@@ -369,7 +369,7 @@ NUMKONG_INLINE void nk_centered_moments_bf16_skylake_(nk_bf16_t const *a, nk_bf1
                                                       nk_f32_t *cross_covariance, nk_f32_t *centered_norm_squared_a,
                                                       nk_f32_t *centered_norm_squared_b) {
     nk_f32_t pivot_a[3], pivot_b[3];
-    for (int j = 0; j != 3; ++j) nk_bf16_to_f32_(a + j, pivot_a + j), nk_bf16_to_f32_(b + j, pivot_b + j);
+    for (int j = 0; j != 3; ++j) nk_bf16_to_f32_serial_(a + j, pivot_a + j), nk_bf16_to_f32_serial_(b + j, pivot_b + j);
     __m512 const pivot_a_f32x16 = nk_triplets_f32x16_skylake_(pivot_a[0], pivot_a[1], pivot_a[2]);
     __m512 const pivot_b_f32x16 = nk_triplets_f32x16_skylake_(pivot_b[0], pivot_b[1], pivot_b[2]);
     __m512 moments_f32x16[7];
@@ -531,9 +531,9 @@ NUMKONG_API nk_status_t nk_kabsch_f32_skylake(nk_f32_t const *a, nk_f32_t const 
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
         }
@@ -800,9 +800,9 @@ NUMKONG_API nk_status_t nk_kabsch_f64_skylake(nk_f64_t const *a, nk_f64_t const 
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
-        if (nk_det3x3_f64_(optimal_rotation) < 0) {
+        if (nk_det3x3_f64_serial_(optimal_rotation) < 0) {
             svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
             nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
         }
@@ -864,13 +864,14 @@ NUMKONG_API nk_status_t nk_umeyama_f32_skylake(nk_f32_t const *a, nk_f32_t const
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
         // Scale factor: c = trace(D · S) / ‖a-ā‖², with reflection sign via d3.
-        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation);
         nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
+        nk_f64_t trace_ds = nk_sum_three_products_f64_serial_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0,
+                                                              svd_diagonal[8], d3);
         applied_scale = trace_ds / centered_norm_squared_a;
 
         if (det < 0) {
@@ -1057,13 +1058,14 @@ NUMKONG_API nk_status_t nk_umeyama_f64_skylake(nk_f64_t const *a, nk_f64_t const
     }
     else {
         nk_f64_t svd_left[9], svd_diagonal[9], svd_right[9];
-        nk_svd3x3_f64_(cross_covariance, svd_left, svd_diagonal, svd_right);
+        nk_svd3x3_f64_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
         nk_rotation_from_svd_f64_serial_(svd_left, svd_right, optimal_rotation);
 
         // Scale factor: c = trace(D · S) / (n * variance(a)), with reflection sign via d3.
-        nk_f64_t det = nk_det3x3_f64_(optimal_rotation);
+        nk_f64_t det = nk_det3x3_f64_serial_(optimal_rotation);
         nk_f64_t d3 = det < 0 ? -1.0 : 1.0;
-        nk_f64_t trace_ds = nk_sum_three_products_f64_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0, svd_diagonal[8], d3);
+        nk_f64_t trace_ds = nk_sum_three_products_f64_serial_(svd_diagonal[0], 1.0, svd_diagonal[4], 1.0,
+                                                              svd_diagonal[8], d3);
         c = trace_ds / centered_norm_squared_a;
 
         if (det < 0) {
@@ -1156,10 +1158,10 @@ NUMKONG_API nk_status_t nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const 
     if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
     nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
     nk_f32_t optimal_rotation[9];
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
-    if (nk_det3x3_f32_(optimal_rotation) < 0) {
+    if (nk_det3x3_f32_serial_(optimal_rotation) < 0) {
         svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
         nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
     }
@@ -1167,8 +1169,8 @@ NUMKONG_API nk_status_t nk_kabsch_f16_skylake(nk_f16_t const *a, nk_f16_t const 
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
     return nk_success_k;
 }
@@ -1195,10 +1197,10 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t con
     if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
     nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
     nk_f32_t optimal_rotation[9];
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
-    if (nk_det3x3_f32_(optimal_rotation) < 0) {
+    if (nk_det3x3_f32_serial_(optimal_rotation) < 0) {
         svd_right[2] = -svd_right[2], svd_right[5] = -svd_right[5], svd_right[8] = -svd_right[8];
         nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
     }
@@ -1206,8 +1208,8 @@ NUMKONG_API nk_status_t nk_kabsch_bf16_skylake(nk_bf16_t const *a, nk_bf16_t con
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
     if (scale) *scale = 1.0f;
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, 1.0f, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
     return nk_success_k;
 }
@@ -1234,14 +1236,15 @@ NUMKONG_API nk_status_t nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const
     if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
     nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
     nk_f32_t optimal_rotation[9];
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
 
     // Scale factor: c = trace(D · S) / ‖a-ā‖², with reflection sign via d3.
-    nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
+    nk_f32_t det = nk_det3x3_f32_serial_(optimal_rotation);
     nk_f32_t d3 = det < 0.0f ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = nk_sum_three_products_f32_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8], d3);
+    nk_f32_t trace_ds = nk_sum_three_products_f32_serial_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8],
+                                                          d3);
     nk_f32_t c = trace_ds / centered_norm_squared_a;
     if (scale) *scale = c;
 
@@ -1252,8 +1255,8 @@ NUMKONG_API nk_status_t nk_umeyama_f16_skylake(nk_f16_t const *a, nk_f16_t const
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
     return nk_success_k;
 }
@@ -1280,14 +1283,15 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t co
     if (b_centroid) b_centroid[0] = centroid_b[0], b_centroid[1] = centroid_b[1], b_centroid[2] = centroid_b[2];
 
     nk_f32_t svd_left[9], svd_diagonal[9], svd_right[9];
-    nk_svd3x3_f32_(cross_covariance, svd_left, svd_diagonal, svd_right);
+    nk_svd3x3_f32_serial_(cross_covariance, svd_left, svd_diagonal, svd_right);
     nk_f32_t optimal_rotation[9];
     nk_rotation_from_svd_f32_serial_(svd_left, svd_right, optimal_rotation);
 
     // Scale factor: c = trace(D · S) / ‖a-ā‖², with reflection sign via d3.
-    nk_f32_t det = nk_det3x3_f32_(optimal_rotation);
+    nk_f32_t det = nk_det3x3_f32_serial_(optimal_rotation);
     nk_f32_t d3 = det < 0.0f ? -1.0f : 1.0f;
-    nk_f32_t trace_ds = nk_sum_three_products_f32_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8], d3);
+    nk_f32_t trace_ds = nk_sum_three_products_f32_serial_(svd_diagonal[0], 1.0f, svd_diagonal[4], 1.0f, svd_diagonal[8],
+                                                          d3);
     nk_f32_t c = trace_ds / centered_norm_squared_a;
     if (scale) *scale = c;
 
@@ -1298,8 +1302,8 @@ NUMKONG_API nk_status_t nk_umeyama_bf16_skylake(nk_bf16_t const *a, nk_bf16_t co
     if (rotation)
         for (int j = 0; j < 9; ++j) rotation[j] = optimal_rotation[j];
 
-    nk_f32_t sum_squared = nk_folded_ssd_f32_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
-                                              centered_norm_squared_b);
+    nk_f32_t sum_squared = nk_folded_ssd_f32_serial_(optimal_rotation, c, cross_covariance, centered_norm_squared_a,
+                                                     centered_norm_squared_b);
     *result = _mm_cvtss_f32(_mm_sqrt_ps(_mm_set_ss(sum_squared / (nk_f32_t)n)));
     return nk_success_k;
 }

@@ -1000,7 +1000,7 @@ struct cudnn_attention_plan_t {
                            queries = shape.queries, keys = shape.keys;
         cudnnDataType_t const io_type = cudnn_data_type(dtype);
         scale = 1.0f / std::sqrt(float(depth)),
-        window = std::int32_t(std::min<nk_size_t>(attention_window(visibility), shape.keys));
+        window = std::int32_t(std::min<nk_size_t>(attention_keys_before(visibility), shape.keys - 1) + 1);
         key_bytes = std::size_t(keys * key_value_heads * depth) * nk_dtype_bits(dtype) / 8;
         uids = {std::int64_t(cudnn_uid_t::queries_k), std::int64_t(cudnn_uid_t::keys_k),
                 std::int64_t(cudnn_uid_t::values_k), std::int64_t(cudnn_uid_t::output_k)};
@@ -1178,8 +1178,8 @@ void run_attention_row_with_cudnn(environment_t const &env, std::string const &n
     };
     auto const pack = [key_bytes = plan->key_bytes](void const *keys, void const *values, std::size_t, std::size_t,
                                                     nk_u32_t const *, nk_u32_t const *, std::size_t, std::size_t,
-                                                    std::size_t, std::size_t, std::size_t, void *packed, std::size_t,
-                                                    std::size_t, nk_stream_t stream) {
+                                                    std::size_t, void *packed, std::size_t, std::size_t,
+                                                    nk_stream_t stream) {
         cudaMemcpyAsync(packed, keys, key_bytes, cudaMemcpyDeviceToDevice, (cudaStream_t)stream);
         return cudaMemcpyAsync(static_cast<char *>(packed) + key_bytes, values, key_bytes, cudaMemcpyDeviceToDevice,
                                (cudaStream_t)stream);

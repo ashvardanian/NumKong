@@ -139,7 +139,7 @@ static PyObject *implement_dense_metric( //
     {
         nk_scalar_buffer_t probe;
         probe.f64c.real = 0, probe.f64c.imag = 0;
-        if (!nk_scalar_buffer_from_f64c_(&probe.f64c, &probe, out_dtype)) {
+        if (!nk_scalar_buffer_from_f64c_serial_(&probe.f64c, &probe, out_dtype)) {
             PyErr_SetString(PyExc_ValueError, "Exporting to the provided dtype is not supported");
             goto cleanup;
         }
@@ -775,7 +775,7 @@ static PyObject *implement_cdist(                        //
     {
         nk_scalar_buffer_t probe;
         probe.f64c.real = 0, probe.f64c.imag = 0;
-        if (!nk_scalar_buffer_from_f64c_(&probe.f64c, &probe, out_dtype)) {
+        if (!nk_scalar_buffer_from_f64c_serial_(&probe.f64c, &probe, out_dtype)) {
             PyErr_SetString(PyExc_ValueError, "Exporting to the provided dtype is not supported");
             goto cleanup;
         }

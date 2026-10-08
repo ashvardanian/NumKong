@@ -10,7 +10,7 @@
 #define NUMKONG_SPATIAL_SERIAL_H
 
 #include "numkong/types.h"
-#include "numkong/scalar/serial.h" // `nk_f32_rsqrt_`
+#include "numkong/scalar/serial.h" // `nk_rsqrt_f32_serial_`
 #include "numkong/cast/serial.h"
 #include "numkong/dot/serial.h" // `nk_dot_f64x2_state_serial_t`
 
@@ -19,17 +19,17 @@ extern "C" {
 #endif
 
 /** Generates @c nk_sqeuclidean_<input_type>_, a squared distance with simple accumulation. */
-#define nk_define_sqeuclidean_(input_type, accumulator_type, output_type, load_and_convert)                        \
-    NUMKONG_INLINE void nk_sqeuclidean_##input_type##_(nk_##input_type##_t const *a, nk_##input_type##_t const *b, \
-                                                       nk_size_t n, nk_##output_type##_t *result) {                \
-        nk_##accumulator_type##_t sum = 0, a_value, b_value;                                                       \
-        for (nk_size_t i = 0; i != n; ++i) {                                                                       \
-            load_and_convert(a + i, &a_value);                                                                     \
-            load_and_convert(b + i, &b_value);                                                                     \
-            nk_##accumulator_type##_t diff = a_value - b_value;                                                    \
-            sum += diff * diff;                                                                                    \
-        }                                                                                                          \
-        *result = (nk_##output_type##_t)sum;                                                                       \
+#define nk_define_sqeuclidean_(input_type, accumulator_type, output_type, load_and_convert)                      \
+    NUMKONG_INLINE void nk_sqeuclidean_##input_type##_serial_(                                                   \
+        nk_##input_type##_t const *a, nk_##input_type##_t const *b, nk_size_t n, nk_##output_type##_t *result) { \
+        nk_##accumulator_type##_t sum = 0, a_value, b_value;                                                     \
+        for (nk_size_t i = 0; i != n; ++i) {                                                                     \
+            load_and_convert(a + i, &a_value);                                                                   \
+            load_and_convert(b + i, &b_value);                                                                   \
+            nk_##accumulator_type##_t diff = a_value - b_value;                                                  \
+            sum += diff * diff;                                                                                  \
+        }                                                                                                        \
+        *result = (nk_##output_type##_t)sum;                                                                     \
     }
 
 /** Generates @c nk_sqeuclidean_<input_type>_serial, the public kernel over its helper. */
@@ -38,7 +38,7 @@ extern "C" {
                                                                  nk_##input_type##_t const *b, nk_size_t n,          \
                                                                  nk_##output_type##_t *result, nk_stream_t stream) { \
         nk_assert_(stream == NUMKONG_NULL);                                                                          \
-        nk_sqeuclidean_##input_type##_(a, b, n, result);                                                             \
+        nk_sqeuclidean_##input_type##_serial_(a, b, n, result);                                                      \
         return nk_success_k;                                                                                         \
     }
 
@@ -49,7 +49,7 @@ extern "C" {
                                                                nk_##output_type##_t *result, nk_stream_t stream) { \
         nk_assert_(stream == NUMKONG_NULL);                                                                        \
         nk_##l2sq_output_type##_t distance_sq;                                                                     \
-        nk_sqeuclidean_##input_type##_(a, b, n, &distance_sq);                                                     \
+        nk_sqeuclidean_##input_type##_serial_(a, b, n, &distance_sq);                                              \
         *result = compute_sqrt((nk_##output_type##_t)distance_sq);                                                 \
         return nk_success_k;                                                                                       \
     }
@@ -86,27 +86,27 @@ extern "C" {
 #pragma GCC target("arch=armv8-a")
 #endif
 
-nk_define_sqeuclidean_(f32, f64, f64, nk_assign_from_to_) // nk_sqeuclidean_f32_
-nk_define_sqeuclidean_(f16, f32, f32, nk_f16_to_f32_)     // nk_sqeuclidean_f16_
-nk_define_sqeuclidean_(bf16, f32, f32, nk_bf16_to_f32_)   // nk_sqeuclidean_bf16_
-nk_define_sqeuclidean_(e4m3, f32, f32, nk_e4m3_to_f32_)   // nk_sqeuclidean_e4m3_
-nk_define_sqeuclidean_(e5m2, f32, f32, nk_e5m2_to_f32_)   // nk_sqeuclidean_e5m2_
-nk_define_sqeuclidean_(e2m3, f32, f32, nk_e2m3_to_f32_)   // nk_sqeuclidean_e2m3_
-nk_define_sqeuclidean_(e3m2, f32, f32, nk_e3m2_to_f32_)   // nk_sqeuclidean_e3m2_
-nk_define_sqeuclidean_(i8, i32, u32, nk_assign_from_to_)  // nk_sqeuclidean_i8_
-nk_define_sqeuclidean_(u8, u32, u32, nk_assign_from_to_)  // nk_sqeuclidean_u8_
+nk_define_sqeuclidean_(f32, f64, f64, nk_assign_from_to_)      // nk_sqeuclidean_f32_serial_
+nk_define_sqeuclidean_(f16, f32, f32, nk_f16_to_f32_serial_)   // nk_sqeuclidean_f16_serial_
+nk_define_sqeuclidean_(bf16, f32, f32, nk_bf16_to_f32_serial_) // nk_sqeuclidean_bf16_serial_
+nk_define_sqeuclidean_(e4m3, f32, f32, nk_e4m3_to_f32_serial_) // nk_sqeuclidean_e4m3_serial_
+nk_define_sqeuclidean_(e5m2, f32, f32, nk_e5m2_to_f32_serial_) // nk_sqeuclidean_e5m2_serial_
+nk_define_sqeuclidean_(e2m3, f32, f32, nk_e2m3_to_f32_serial_) // nk_sqeuclidean_e2m3_serial_
+nk_define_sqeuclidean_(e3m2, f32, f32, nk_e3m2_to_f32_serial_) // nk_sqeuclidean_e3m2_serial_
+nk_define_sqeuclidean_(i8, i32, u32, nk_assign_from_to_)       // nk_sqeuclidean_i8_serial_
+nk_define_sqeuclidean_(u8, u32, u32, nk_assign_from_to_)       // nk_sqeuclidean_u8_serial_
 
 #undef nk_define_sqeuclidean_
 
 /** Squared Euclidean distance between @p n F64 values, summed in Dot2. */
-NUMKONG_INLINE void nk_sqeuclidean_f64_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
+NUMKONG_INLINE void nk_sqeuclidean_f64_serial_(nk_f64_t const *a, nk_f64_t const *b, nk_size_t n, nk_f64_t *result) {
     nk_f64_t sum = 0, compensation = 0;
-    for (nk_size_t i = 0; i != n; ++i) nk_f64_dot2_(&sum, &compensation, a[i] - b[i], a[i] - b[i]);
+    for (nk_size_t i = 0; i != n; ++i) nk_dot2_f64_serial_(&sum, &compensation, a[i] - b[i], a[i] - b[i]);
     *result = sum + compensation;
 }
 
 /** Squared Euclidean distance between @p n packed I4 values, exact in I32. */
-NUMKONG_INLINE void nk_sqeuclidean_i4_(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_INLINE void nk_sqeuclidean_i4_serial_(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_assert_dims_(n, nk_i4_k);
     // i4 values are packed as nibbles: two 4-bit signed values per byte.
     // Sign extension: (nibble ^ 8) - 8 maps [0,15] to [-8,7]
@@ -124,7 +124,7 @@ NUMKONG_INLINE void nk_sqeuclidean_i4_(nk_i4x2_t const *a, nk_i4x2_t const *b, n
 }
 
 /** Squared Euclidean distance between @p n packed U4 values, exact in U32. */
-NUMKONG_INLINE void nk_sqeuclidean_u4_(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
+NUMKONG_INLINE void nk_sqeuclidean_u4_serial_(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result) {
     nk_assert_dims_(n, nk_u4_k);
     // u4 values are packed as nibbles: two 4-bit unsigned values per byte.
     // No sign extension needed - values are in [0,15].
@@ -158,62 +158,63 @@ NUMKONG_API nk_status_t nk_angular_f64_serial(nk_f64_t const *a, nk_f64_t const 
     nk_f64_t dot_product = 0, a_norm_sq = 0, b_norm_sq = 0;
     nk_f64_t dot_compensation = 0, a_compensation = 0, b_compensation = 0;
     for (nk_size_t i = 0; i != n; ++i) {
-        nk_f64_dot2_(&dot_product, &dot_compensation, a[i], b[i]);
-        nk_f64_dot2_(&a_norm_sq, &a_compensation, a[i], a[i]);
-        nk_f64_dot2_(&b_norm_sq, &b_compensation, b[i], b[i]);
+        nk_dot2_f64_serial_(&dot_product, &dot_compensation, a[i], b[i]);
+        nk_dot2_f64_serial_(&a_norm_sq, &a_compensation, a[i], a[i]);
+        nk_dot2_f64_serial_(&b_norm_sq, &b_compensation, b[i], b[i]);
     }
     dot_product += dot_compensation, a_norm_sq += a_compensation, b_norm_sq += b_compensation;
     if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
     else if (dot_product == 0) { *result = 1; }
     else {
-        nk_f64_t unclipped_distance = 1 - dot_product * nk_f64_rsqrt_(a_norm_sq) * nk_f64_rsqrt_(b_norm_sq);
+        nk_f64_t unclipped_distance = 1 -
+                                      dot_product * nk_rsqrt_f64_serial_(a_norm_sq) * nk_rsqrt_f64_serial_(b_norm_sq);
         *result = unclipped_distance > 0 ? unclipped_distance : 0;
     }
     return nk_success_k;
 }
 nk_define_sqeuclidean_serial_(f64, f64)                                    // nk_sqeuclidean_f64_serial
-nk_define_euclidean_(f64, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_) // nk_euclidean_f64_serial
+nk_define_euclidean_(f64, f64, f64, f64, nk_assign_from_to_, nk_sqrt_f64_serial_) // nk_euclidean_f64_serial
 
-nk_define_angular_(f32, f64, f64, nk_assign_from_to_, nk_f64_rsqrt_)       // nk_angular_f32_serial
+nk_define_angular_(f32, f64, f64, nk_assign_from_to_, nk_rsqrt_f64_serial_) // nk_angular_f32_serial
 nk_define_sqeuclidean_serial_(f32, f64)                                    // nk_sqeuclidean_f32_serial
-nk_define_euclidean_(f32, f64, f64, f64, nk_assign_from_to_, nk_f64_sqrt_) // nk_euclidean_f32_serial
+nk_define_euclidean_(f32, f64, f64, f64, nk_assign_from_to_, nk_sqrt_f64_serial_) // nk_euclidean_f32_serial
 
-nk_define_angular_(f16, f32, f32, nk_f16_to_f32_, nk_f32_rsqrt_)       // nk_angular_f16_serial
+nk_define_angular_(f16, f32, f32, nk_f16_to_f32_serial_, nk_rsqrt_f32_serial_) // nk_angular_f16_serial
 nk_define_sqeuclidean_serial_(f16, f32)                                // nk_sqeuclidean_f16_serial
-nk_define_euclidean_(f16, f32, f32, f32, nk_f16_to_f32_, nk_f32_sqrt_) // nk_euclidean_f16_serial
+nk_define_euclidean_(f16, f32, f32, f32, nk_f16_to_f32_serial_, nk_sqrt_f32_serial_) // nk_euclidean_f16_serial
 
-nk_define_angular_(bf16, f32, f32, nk_bf16_to_f32_, nk_f32_rsqrt_)       // nk_angular_bf16_serial
+nk_define_angular_(bf16, f32, f32, nk_bf16_to_f32_serial_, nk_rsqrt_f32_serial_) // nk_angular_bf16_serial
 nk_define_sqeuclidean_serial_(bf16, f32)                                 // nk_sqeuclidean_bf16_serial
-nk_define_euclidean_(bf16, f32, f32, f32, nk_bf16_to_f32_, nk_f32_sqrt_) // nk_euclidean_bf16_serial
+nk_define_euclidean_(bf16, f32, f32, f32, nk_bf16_to_f32_serial_, nk_sqrt_f32_serial_) // nk_euclidean_bf16_serial
 
-nk_define_angular_(e4m3, f32, f32, nk_e4m3_to_f32_, nk_f32_rsqrt_)       // nk_angular_e4m3_serial
+nk_define_angular_(e4m3, f32, f32, nk_e4m3_to_f32_serial_, nk_rsqrt_f32_serial_) // nk_angular_e4m3_serial
 nk_define_sqeuclidean_serial_(e4m3, f32)                                 // nk_sqeuclidean_e4m3_serial
-nk_define_euclidean_(e4m3, f32, f32, f32, nk_e4m3_to_f32_, nk_f32_sqrt_) // nk_euclidean_e4m3_serial
+nk_define_euclidean_(e4m3, f32, f32, f32, nk_e4m3_to_f32_serial_, nk_sqrt_f32_serial_) // nk_euclidean_e4m3_serial
 
-nk_define_angular_(e5m2, f32, f32, nk_e5m2_to_f32_, nk_f32_rsqrt_)       // nk_angular_e5m2_serial
+nk_define_angular_(e5m2, f32, f32, nk_e5m2_to_f32_serial_, nk_rsqrt_f32_serial_) // nk_angular_e5m2_serial
 nk_define_sqeuclidean_serial_(e5m2, f32)                                 // nk_sqeuclidean_e5m2_serial
-nk_define_euclidean_(e5m2, f32, f32, f32, nk_e5m2_to_f32_, nk_f32_sqrt_) // nk_euclidean_e5m2_serial
+nk_define_euclidean_(e5m2, f32, f32, f32, nk_e5m2_to_f32_serial_, nk_sqrt_f32_serial_) // nk_euclidean_e5m2_serial
 
-nk_define_angular_(e2m3, f32, f32, nk_e2m3_to_f32_, nk_f32_rsqrt_)       // nk_angular_e2m3_serial
+nk_define_angular_(e2m3, f32, f32, nk_e2m3_to_f32_serial_, nk_rsqrt_f32_serial_) // nk_angular_e2m3_serial
 nk_define_sqeuclidean_serial_(e2m3, f32)                                 // nk_sqeuclidean_e2m3_serial
-nk_define_euclidean_(e2m3, f32, f32, f32, nk_e2m3_to_f32_, nk_f32_sqrt_) // nk_euclidean_e2m3_serial
+nk_define_euclidean_(e2m3, f32, f32, f32, nk_e2m3_to_f32_serial_, nk_sqrt_f32_serial_) // nk_euclidean_e2m3_serial
 
-nk_define_angular_(e3m2, f32, f32, nk_e3m2_to_f32_, nk_f32_rsqrt_)       // nk_angular_e3m2_serial
+nk_define_angular_(e3m2, f32, f32, nk_e3m2_to_f32_serial_, nk_rsqrt_f32_serial_) // nk_angular_e3m2_serial
 nk_define_sqeuclidean_serial_(e3m2, f32)                                 // nk_sqeuclidean_e3m2_serial
-nk_define_euclidean_(e3m2, f32, f32, f32, nk_e3m2_to_f32_, nk_f32_sqrt_) // nk_euclidean_e3m2_serial
+nk_define_euclidean_(e3m2, f32, f32, f32, nk_e3m2_to_f32_serial_, nk_sqrt_f32_serial_) // nk_euclidean_e3m2_serial
 
-nk_define_angular_(i8, i32, f32, nk_assign_from_to_, nk_f32_rsqrt_)       // nk_angular_i8_serial
+nk_define_angular_(i8, i32, f32, nk_assign_from_to_, nk_rsqrt_f32_serial_) // nk_angular_i8_serial
 nk_define_sqeuclidean_serial_(i8, u32)                                    // nk_sqeuclidean_i8_serial
-nk_define_euclidean_(i8, i32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_) // nk_euclidean_i8_serial
+nk_define_euclidean_(i8, i32, u32, f32, nk_assign_from_to_, nk_sqrt_f32_serial_) // nk_euclidean_i8_serial
 
-nk_define_angular_(u8, u32, f32, nk_assign_from_to_, nk_f32_rsqrt_)       // nk_angular_u8_serial
+nk_define_angular_(u8, u32, f32, nk_assign_from_to_, nk_rsqrt_f32_serial_) // nk_angular_u8_serial
 nk_define_sqeuclidean_serial_(u8, u32)                                    // nk_sqeuclidean_u8_serial
-nk_define_euclidean_(u8, u32, u32, f32, nk_assign_from_to_, nk_f32_sqrt_) // nk_euclidean_u8_serial
+nk_define_euclidean_(u8, u32, u32, f32, nk_assign_from_to_, nk_sqrt_f32_serial_) // nk_euclidean_u8_serial
 
 NUMKONG_API nk_status_t nk_sqeuclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const *b, nk_size_t n, nk_u32_t *result,
                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_i4_(a, b, n, result);
+    nk_sqeuclidean_i4_serial_(a, b, n, result);
     return nk_success_k;
 }
 
@@ -221,8 +222,8 @@ NUMKONG_API nk_status_t nk_euclidean_i4_serial(nk_i4x2_t const *a, nk_i4x2_t con
                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
-    nk_sqeuclidean_i4_(a, b, n, &distance_sq);
-    *result = nk_f32_sqrt_((nk_f32_t)distance_sq);
+    nk_sqeuclidean_i4_serial_(a, b, n, &distance_sq);
+    *result = nk_sqrt_f32_serial_((nk_f32_t)distance_sq);
     return nk_success_k;
 }
 
@@ -244,8 +245,8 @@ NUMKONG_API nk_status_t nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const
     if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
     else if (dot_sum == 0) { *result = 1; }
     else {
-        nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_f32_rsqrt_((nk_f32_t)a_norm_sq) *
-                                        nk_f32_rsqrt_((nk_f32_t)b_norm_sq);
+        nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_rsqrt_f32_serial_((nk_f32_t)a_norm_sq) *
+                                        nk_rsqrt_f32_serial_((nk_f32_t)b_norm_sq);
         *result = unclipped > 0 ? unclipped : 0;
     }
     return nk_success_k;
@@ -254,7 +255,7 @@ NUMKONG_API nk_status_t nk_angular_i4_serial(nk_i4x2_t const *a, nk_i4x2_t const
 NUMKONG_API nk_status_t nk_sqeuclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const *b, nk_size_t n, nk_u32_t *result,
                                                  nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    nk_sqeuclidean_u4_(a, b, n, result);
+    nk_sqeuclidean_u4_serial_(a, b, n, result);
     return nk_success_k;
 }
 
@@ -262,8 +263,8 @@ NUMKONG_API nk_status_t nk_euclidean_u4_serial(nk_u4x2_t const *a, nk_u4x2_t con
                                                nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
     nk_u32_t distance_sq;
-    nk_sqeuclidean_u4_(a, b, n, &distance_sq);
-    *result = nk_f32_sqrt_((nk_f32_t)distance_sq);
+    nk_sqeuclidean_u4_serial_(a, b, n, &distance_sq);
+    *result = nk_sqrt_f32_serial_((nk_f32_t)distance_sq);
     return nk_success_k;
 }
 
@@ -285,8 +286,8 @@ NUMKONG_API nk_status_t nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const
     if (a_norm_sq == 0 && b_norm_sq == 0) { *result = 0; }
     else if (dot_sum == 0) { *result = 1; }
     else {
-        nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_f32_rsqrt_((nk_f32_t)a_norm_sq) *
-                                        nk_f32_rsqrt_((nk_f32_t)b_norm_sq);
+        nk_f32_t unclipped = 1.0f - (nk_f32_t)dot_sum * nk_rsqrt_f32_serial_((nk_f32_t)a_norm_sq) *
+                                        nk_rsqrt_f32_serial_((nk_f32_t)b_norm_sq);
         *result = unclipped > 0 ? unclipped : 0;
     }
     return nk_success_k;
@@ -311,10 +312,10 @@ NUMKONG_API nk_status_t nk_angular_u4_serial(nk_u4x2_t const *a, nk_u4x2_t const
 NUMKONG_INLINE void nk_angular_through_f32_from_dot_serial_(nk_b128_vec_t const *dots_vec, nk_f32_t query_sumsq,
                                                             nk_b128_vec_t const *target_sumsqs_vec,
                                                             nk_b128_vec_t *result_vec) {
-    nk_f32_t const query_rsqrt = nk_f32_rsqrt_(query_sumsq);
+    nk_f32_t const query_rsqrt = nk_rsqrt_f32_serial_(query_sumsq);
     for (int i = 0; i < 4; ++i) {
         nk_f32_t const dot = dots_vec->f32s[i], target_sumsq = target_sumsqs_vec->f32s[i];
-        nk_f32_t angular = 1.0f - dot * query_rsqrt * nk_f32_rsqrt_(target_sumsq);
+        nk_f32_t angular = 1.0f - dot * query_rsqrt * nk_rsqrt_f32_serial_(target_sumsq);
         if (dot != dot) angular = dot;
         else if (query_sumsq == 0 && target_sumsq == 0) angular = 0;
         else if (dot == 0 || query_sumsq == 0 || target_sumsq == 0) angular = 1;
@@ -329,8 +330,8 @@ NUMKONG_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t cons
                                                               nk_b128_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f32_t dist_sq = query_sumsq + target_sumsqs_vec->f32s[i] - 2.0f * dots_vec->f32s[i];
-        // `nk_f32_sqrt_` maps NaN to 0 like any other non-positive input
-        result_vec->f32s[i] = dist_sq != dist_sq ? dist_sq : nk_f32_sqrt_(dist_sq);
+        // `nk_sqrt_f32_serial_` maps NaN to 0 like any other non-positive input
+        result_vec->f32s[i] = dist_sq != dist_sq ? dist_sq : nk_sqrt_f32_serial_(dist_sq);
     }
 }
 
@@ -338,10 +339,10 @@ NUMKONG_INLINE void nk_euclidean_through_f32_from_dot_serial_(nk_b128_vec_t cons
 NUMKONG_INLINE void nk_angular_through_f64_from_dot_serial_(nk_b256_vec_t const *dots_vec, nk_f64_t query_sumsq,
                                                             nk_b256_vec_t const *target_sumsqs_vec,
                                                             nk_b256_vec_t *result_vec) {
-    nk_f64_t const query_rsqrt = nk_f64_rsqrt_(query_sumsq);
+    nk_f64_t const query_rsqrt = nk_rsqrt_f64_serial_(query_sumsq);
     for (int i = 0; i < 4; ++i) {
         nk_f64_t const dot = dots_vec->f64s[i], target_sumsq = target_sumsqs_vec->f64s[i];
-        nk_f64_t angular = 1.0 - dot * query_rsqrt * nk_f64_rsqrt_(target_sumsq);
+        nk_f64_t angular = 1.0 - dot * query_rsqrt * nk_rsqrt_f64_serial_(target_sumsq);
         if (dot != dot) angular = dot;
         else if (query_sumsq == 0 && target_sumsq == 0) angular = 0;
         else if (dot == 0 || query_sumsq == 0 || target_sumsq == 0) angular = 1;
@@ -355,7 +356,7 @@ NUMKONG_INLINE void nk_euclidean_through_f64_from_dot_serial_(nk_b256_vec_t cons
                                                               nk_b256_vec_t *result_vec) {
     for (int i = 0; i < 4; ++i) {
         nk_f64_t dist_sq = query_sumsq + target_sumsqs_vec->f64s[i] - 2.0 * dots_vec->f64s[i];
-        result_vec->f64s[i] = dist_sq != dist_sq ? dist_sq : nk_f64_sqrt_(dist_sq);
+        result_vec->f64s[i] = dist_sq != dist_sq ? dist_sq : nk_sqrt_f64_serial_(dist_sq);
     }
 }
 
@@ -371,7 +372,7 @@ NUMKONG_INLINE void nk_angular_through_i32_from_dot_serial_(nk_b128_vec_t const 
         nk_i64_t const dot = dots_vec->i32s[i];
         nk_u32_t const target_sumsq = target_sumsqs_vec->u32s[i];
         nk_u64_t const product = (nk_u64_t)query_sumsq * target_sumsq;
-        nk_f64_t const product_f64 = (nk_f64_t)product, root = nk_f64_sqrt_(product_f64);
+        nk_f64_t const product_f64 = (nk_f64_t)product, root = nk_sqrt_f64_serial_(product_f64);
         nk_f64_t angular;
         if (product == 0) angular = (query_sumsq | target_sumsq) != 0;
         else if (dot > 0) angular = (nk_f64_t)(product - (nk_u64_t)(dot * dot)) / (product_f64 + dot * root);
@@ -388,7 +389,7 @@ NUMKONG_INLINE void nk_euclidean_through_i32_from_dot_serial_(nk_b128_vec_t cons
     for (int i = 0; i < 4; ++i) {
         nk_i64_t const distance_sq = (nk_i64_t)query_sumsq + target_sumsqs_vec->u32s[i] -
                                      2 * (nk_i64_t)dots_vec->i32s[i];
-        result_vec->f32s[i] = (nk_f32_t)nk_f64_sqrt_((nk_f64_t)distance_sq);
+        result_vec->f32s[i] = (nk_f32_t)nk_sqrt_f64_serial_((nk_f64_t)distance_sq);
     }
 }
 
@@ -404,7 +405,9 @@ NUMKONG_INLINE void nk_angular_through_u32_from_dot_serial_(nk_b128_vec_t const 
         nk_f64_t const product_f64 = (nk_f64_t)product;
         nk_f64_t angular;
         if (product == 0) angular = (query_sumsq | target_sumsq) != 0;
-        else angular = (nk_f64_t)(product - dot * dot) / (product_f64 + (nk_f64_t)dot * nk_f64_sqrt_(product_f64));
+        else
+            angular = (nk_f64_t)(product - dot * dot) /
+                      (product_f64 + (nk_f64_t)dot * nk_sqrt_f64_serial_(product_f64));
         result_vec->f32s[i] = (nk_f32_t)angular;
     }
 }
@@ -416,7 +419,7 @@ NUMKONG_INLINE void nk_euclidean_through_u32_from_dot_serial_(nk_b128_vec_t cons
     for (int i = 0; i < 4; ++i) {
         nk_u64_t const distance_sq = (nk_u64_t)query_sumsq + target_sumsqs_vec->u32s[i] -
                                      2 * (nk_u64_t)dots_vec->u32s[i];
-        result_vec->f32s[i] = (nk_f32_t)nk_f64_sqrt_((nk_f64_t)distance_sq);
+        result_vec->f32s[i] = (nk_f32_t)nk_sqrt_f64_serial_((nk_f64_t)distance_sq);
     }
 }
 

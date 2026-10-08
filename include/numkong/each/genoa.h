@@ -16,8 +16,8 @@
 #if NUMKONG_TARGET_GENOA
 
 #include "numkong/types.h"
-#include "numkong/cast/serial.h"  // `nk_bf16_to_f32_`, `nk_f32_to_e4m3_`
-#include "numkong/reduce/genoa.h" // `nk_reduce_moments_bf16_genoa_chunked_`
+#include "numkong/cast/serial.h"  // `nk_bf16_to_f32_serial_`, `nk_f32_to_e4m3_serial_`
+#include "numkong/reduce/genoa.h" // `nk_reduce_moments_chunked_bf16_genoa_`
 
 #if defined(__cplusplus)
 extern "C" {
@@ -48,7 +48,7 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t 
             for (nk_size_t start = 0; start < columns; start += 64) {
                 nk_size_t const count = columns - start < 64 ? columns - start : 64;
                 nk_f32_t partial_sum, partial_sumsq;
-                nk_reduce_moments_bf16_genoa_chunked_(group_input + start, count, sizeof(nk_bf16_t), &partial_sum,
+                nk_reduce_moments_chunked_bf16_genoa_(group_input + start, count, sizeof(nk_bf16_t), &partial_sum,
                                                       &partial_sumsq);
                 sumsq += partial_sumsq;
             }
@@ -56,9 +56,9 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_bf16_genoa(nk_bf16_t const *x, nk_f32_t 
             nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             for (nk_size_t c = 0; c != columns; ++c) {
                 nk_f32_t value;
-                nk_bf16_to_f32_(group_input + c, &value);
+                nk_bf16_to_f32_serial_(group_input + c, &value);
                 nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_bf16_(&result, group_output + c);
+                nk_f32_to_bf16_serial_(&result, group_output + c);
             }
         }
     }
@@ -77,14 +77,14 @@ NUMKONG_API nk_status_t nk_each_rmsnorm_e4m3_genoa(nk_e4m3_t const *x, nk_f32_t 
             nk_e4m3_t const *group_input = x_row + group * columns;
             nk_e4m3_t *group_output = y_row + group * columns;
             nk_f32_t sum, sumsq;
-            nk_reduce_moments_e4m3_genoa_chunked_(group_input, columns, sizeof(nk_e4m3_t), &sum, &sumsq);
+            nk_reduce_moments_chunked_e4m3_genoa_(group_input, columns, sizeof(nk_e4m3_t), &sum, &sumsq);
             nk_f32_t mean_square = (nk_f32_t)((nk_f64_t)sumsq / (nk_f64_t)columns) + epsilon;
             nk_f32_t gain = _mm_cvtss_f32(_mm_div_ss(_mm_set_ss(1.0f), _mm_sqrt_ss(_mm_set_ss(mean_square))));
             for (nk_size_t c = 0; c != columns; ++c) {
                 nk_f32_t value;
-                nk_e4m3_to_f32_(group_input + c, &value);
+                nk_e4m3_to_f32_serial_(group_input + c, &value);
                 nk_f32_t result = value * gain * (gamma ? gamma[c] : 1.0f);
-                nk_f32_to_e4m3_(&result, group_output + c);
+                nk_f32_to_e4m3_serial_(&result, group_output + c);
             }
         }
     }

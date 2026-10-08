@@ -79,7 +79,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64m1_rvv_(vfloat64m1_t sum_f64m1, vfl
     return __riscv_vfmv_f_s_f64m1_f64(tentative_sum_f64m1) + __riscv_vfmv_f_s_f64m1_f64(accumulated_error_f64m1);
 }
 
-/** Dot2 step over the first @p vector_length lanes, sum += a × b, mirroring @c nk_f64_dot2_:
+/** Dot2 step over the first @p vector_length lanes, sum += a × b, mirroring @c nk_dot2_f64_serial_:
  *  TwoProd through FMA, then TwoSum, leaving the lanes past them undisturbed. */
 NUMKONG_INLINE void nk_dot2_f64m1_rvv_(vfloat64m1_t *sum_f64m1, vfloat64m1_t *compensation_f64m1, vfloat64m1_t a_f64m1,
                                        vfloat64m1_t b_f64m1, nk_size_t vector_length) {

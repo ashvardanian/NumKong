@@ -119,26 +119,26 @@ NUMKONG_API nk_status_t nk_attention_pack_size_e4m3_diamondamx(nk_size_t key_val
                                                                nk_size_t token_count, nk_size_t segment_count,
                                                                nk_size_t *bytes) {
     *bytes = depth > nk_attention_max_depth_diamondamx_k_
-                 ? nk_attention_pack_bound_(key_value_head_count, token_count, segment_count, 1,
-                                            depth * sizeof(nk_f32_t))
-                 : nk_attention_pack_bound_(key_value_head_count, token_count, segment_count, 64,
-                                            nk_size_round_up_to_multiple_(depth, 64));
+                 ? nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 1,
+                                                   depth * sizeof(nk_f32_t))
+                 : nk_attention_pack_bound_serial_(key_value_head_count, token_count, segment_count, 64,
+                                                   nk_size_round_up_to_multiple_(depth, 64));
     return nk_success_k;
 }
 
-NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_diamondamx(void const *key_value_packed, nk_size_t *heads,
-                                                                  nk_size_t *depth, nk_size_t *segments,
-                                                                  nk_stream_t stream) {
+NUMKONG_API nk_status_t nk_attention_packed_shape_e4m3_diamondamx(void const *key_value_packed,
+                                                                  nk_size_t *key_value_head_count, nk_size_t *depth,
+                                                                  nk_size_t *segments, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_attention_packed_by_(key_value_packed, nk_cap_diamondamx_k)) return nk_pack_mismatch_k;
-    nk_attention_packed_shape_(key_value_packed, heads, depth, segments);
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_diamondamx_k)) return nk_pack_mismatch_k;
+    nk_attention_packed_shape_serial_(key_value_packed, key_value_head_count, depth, segments);
     return nk_success_k;
 }
 
 /** Raw 1-byte packing shared by E4M3-native and I8: K transposed, V quad-interleaved. */
 NUMKONG_INLINE void nk_attention_pack_quad_diamondamx_(                                          //
     nk_i8_t const *keys, nk_i8_t const *values, nk_size_t key_value_head_count, nk_size_t depth, //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end) {
 
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
@@ -146,10 +146,10 @@ NUMKONG_INLINE void nk_attention_pack_quad_diamondamx_(                         
     nk_size_t const channel_tiles = depth_padded / 16;
     nk_size_t const tile_bytes = 1024;
 
-    nk_attention_pack_directory_(key_value_packed, key_value_head_count, depth, segment_lengths, segment_count,
-                                 tasks_begin, 64, depth_padded, nk_cap_diamondamx_k);
+    nk_attention_pack_directory_serial_(key_value_packed, key_value_head_count, depth, key_offsets, key_lengths,
+                                        segment_count, tasks_begin, 64, depth_padded, nk_cap_diamondamx_k);
     char *tiles_base = (char *)key_value_packed + sizeof(nk_attention_packed_header_t) +
-                       nk_attention_pack_directory_size_(segment_count);
+                       nk_attention_pack_directory_size_serial_(segment_count);
 
     nk_size_t const total_tasks = segment_count * key_value_head_count;
     if (tasks_begin >= total_tasks) return;
@@ -166,11 +166,12 @@ NUMKONG_INLINE void nk_attention_pack_quad_diamondamx_(                         
     for (nk_size_t task_idx = tasks_begin; task_idx < tasks_end; task_idx++) {
         nk_size_t const segment_idx = task_idx / key_value_head_count, h = task_idx % key_value_head_count;
         for (; tile_segment < segment_idx; tile_segment++)
-            tile_offset += nk_attention_pack_segment_bytes_(segment_lengths[tile_segment], key_value_head_count, 64,
-                                                            depth_padded);
-        nk_size_t const position_count = segment_lengths[segment_idx];
+            tile_offset += nk_attention_pack_segment_bytes_serial_(
+                nk_attention_pack_key_count_serial_(key_offsets, key_lengths, tile_segment), key_value_head_count, 64,
+                depth_padded);
+        nk_size_t const position_count = nk_attention_pack_key_count_serial_(key_offsets, key_lengths, segment_idx);
         if (position_count == 0) continue;
-        nk_size_t const position_first = segment_offsets[segment_idx];
+        nk_size_t const position_first = key_offsets[segment_idx];
         nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, 64);
         nk_size_t const bytes_per_head = position_count_padded * depth_padded;
 
@@ -241,18 +242,20 @@ NUMKONG_API nk_status_t nk_attention_pack_e4m3_diamondamx( //
     nk_e4m3_t const *keys, nk_e4m3_t const *values,
 
     nk_size_t key_value_head_count, nk_size_t depth, //
-    nk_u32_t const *segment_offsets, nk_u32_t const *segment_lengths, nk_size_t segment_count, nk_size_t key_stride,
+    nk_u32_t const *key_offsets, nk_u32_t const *key_lengths, nk_size_t segment_count, nk_size_t key_stride,
     nk_size_t value_stride, void *key_value_packed, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
+    nk_status_t const validation = nk_attention_pack_validate_serial_(key_value_head_count, depth, key_offsets,
+                                                                      key_lengths, segment_count);
+    if (validation != nk_success_k) return validation;
     if (depth > nk_attention_max_depth_diamondamx_k_) {
-        nk_attention_pack_serial_(keys, values, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_,
-                                  key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                                  key_stride, value_stride, key_value_packed, tasks_begin, tasks_end,
-                                  nk_cap_diamondamx_k);
+        nk_attention_pack_e4m3_serial_(keys, values, key_value_head_count, depth, key_offsets, key_lengths,
+                                       segment_count, key_stride, value_stride, key_value_packed, tasks_begin,
+                                       tasks_end, nk_cap_diamondamx_k);
         return nk_success_k;
     }
     nk_attention_pack_quad_diamondamx_((nk_i8_t const *)keys, (nk_i8_t const *)values, key_value_head_count, depth,
-                                       segment_offsets, segment_lengths, segment_count, key_stride, value_stride,
+                                       key_offsets, key_lengths, segment_count, key_stride, value_stride,
                                        key_value_packed, tasks_begin, tasks_end);
     return nk_success_k;
 }
@@ -532,7 +535,7 @@ NUMKONG_INLINE void nk_attention_task_e4m3_diamondamx_(
                             output_row + channel_idx, depth_tail_mask,
                             _mm512_mul_ps(_mm512_load_ps(accumulator_row + channel_idx), inv_sum_f32x16));
                     if (log_sum_exp)
-                        log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_(
+                        log_sum_exp[token * head_count + head_idx] = nk_attention_log_sum_exp_serial_(
                             row_maxima2[row_idx], row_sums[row_idx] / 256.0f);
                 }
                 for (nk_size_t row_idx = 0; row_idx < 16; row_idx++)
@@ -554,13 +557,13 @@ NUMKONG_INLINE void nk_attention_packed_e4m3_diamondamx_(                       
     nk_size_t query_stride, nk_size_t output_stride, nk_f32_t scale, nk_diagonal_band_t band,        //
     nk_size_t tasks_begin, nk_size_t tasks_end) {
     nk_attention_packed_header_t const *header = (nk_attention_packed_header_t const *)key_value_packed;
-    nk_assert_(header->depth == depth && header->heads == key_value_head_count && key_value_head_count != 0 &&
-               head_count % key_value_head_count == 0);
+    nk_assert_(header->depth == depth && header->key_value_head_count == key_value_head_count &&
+               key_value_head_count != 0 && head_count % key_value_head_count == 0);
     nk_size_t const segment_count = header->segments;
-    nk_u64_t const *tile_offsets = (nk_u64_t const *)((char const *)key_value_packed + sizeof(*header));
-    nk_u32_t const *segment_lengths = (nk_u32_t const *)(tile_offsets + segment_count + 1);
+    nk_u64_t const *tile_offsets = nk_attention_packed_payload_offsets_serial_(key_value_packed);
+    nk_u32_t const *key_lengths = nk_attention_packed_key_lengths_serial_(key_value_packed, segment_count);
     char const *tiles_base = (char const *)key_value_packed + sizeof(*header) +
-                             nk_attention_pack_directory_size_(segment_count);
+                             nk_attention_pack_directory_size_serial_(segment_count);
     nk_size_t const head_group_size = head_count / key_value_head_count;
     nk_size_t const depth_padded = nk_size_round_up_to_multiple_(depth, 64);
     nk_f32_t const scale2 = scale * NUMKONG_F32_LOG2E_;
@@ -580,14 +583,15 @@ NUMKONG_INLINE void nk_attention_packed_e4m3_diamondamx_(                       
     for (nk_size_t head_idx = 0; head_idx < head_count && tasks_begin < tasks_end; head_idx++) {
         nk_size_t const token_first = (tasks_begin + head_count - 1 - head_idx) / head_count;
         nk_size_t const token_end = (tasks_end + head_count - 1 - head_idx) / head_count;
-        for (nk_size_t segment = nk_attention_segment_of_(query_offsets, segment_count, token_first);
+        for (nk_size_t segment = nk_attention_segment_of_serial_(query_offsets, segment_count, token_first);
              segment < segment_count && query_offsets[segment] < token_end; segment++) {
             nk_size_t const query_first = query_offsets[segment], query_end = query_offsets[segment + 1];
             nk_size_t const row_begin = token_first > query_first ? token_first - query_first : 0;
             nk_size_t const row_end = (token_end < query_end ? token_end : query_end) - query_first;
             if (row_begin >= row_end) continue;
-            nk_size_t const position_count = segment_lengths[segment];
-            nk_i64_t const first_position = nk_attention_first_position_(query_end - query_first, position_count);
+            nk_size_t const position_count = key_lengths[segment];
+            nk_i64_t const first_position = nk_attention_first_position_serial_(query_end - query_first,
+                                                                                position_count);
             nk_size_t const position_count_padded = nk_size_round_up_to_multiple_(position_count, 64);
             nk_size_t const bytes_per_head = position_count_padded * depth_padded; // one byte per element
             nk_size_t const key_value_head_idx = head_idx / head_group_size;
@@ -612,12 +616,12 @@ NUMKONG_API nk_status_t nk_attention_packed_e4m3_diamondamx(                    
     nk_size_t output_stride, nk_f32_t scale, nk_size_t keys_before,              //
     nk_size_t keys_after, nk_size_t tasks_begin, nk_size_t tasks_end, nk_stream_t stream) {
     nk_assert_(stream == NUMKONG_NULL);
-    if (!nk_attention_packed_by_(key_value_packed, nk_cap_diamondamx_k)) return nk_pack_mismatch_k;
+    if (!nk_attention_packed_by_serial_(key_value_packed, nk_cap_diamondamx_k)) return nk_pack_mismatch_k;
     nk_diagonal_band_t const band = {keys_before, keys_after};
     if (depth > nk_attention_max_depth_diamondamx_k_)
-        nk_attention_serial_(queries, sizeof(nk_e4m3_t), &nk_attention_load_e4m3_serial_, key_value_packed, output,
-                             log_sum_exp, head_count, key_value_head_count, depth, query_offsets, query_stride,
-                             output_stride, scale, band, tasks_begin, tasks_end);
+        nk_attention_packed_e4m3_serial_(queries, key_value_packed, output, log_sum_exp, head_count,
+                                         key_value_head_count, depth, query_offsets, query_stride, output_stride, scale,
+                                         band, tasks_begin, tasks_end);
     else
         nk_attention_packed_e4m3_diamondamx_(queries, key_value_packed, output, log_sum_exp, head_count,
                                              key_value_head_count, depth, query_offsets, query_stride, output_stride,

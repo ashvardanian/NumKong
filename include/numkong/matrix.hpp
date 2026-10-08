@@ -268,8 +268,9 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
  *  @param[in] keys,values Token-major matrices, element (token, head, d) of @p keys at @p keys
  *      + token × @p key_stride + (head × depth + d) elements, likewise for @p values. Packing
  *      fuses no transposition, so depth-major K or V is transposed in a separate pass first.
- *  @param[in] segment_offsets Start token of each segment, @p segment_count + 1 prefix sums.
- *  @param[in] segment_lengths Live token counts, one per segment; zeros mark padding slots.
+ *  @param[in] key_offsets The @p segment_count + 1 slot boundaries, which must not decrease.
+ *  @param[in] key_lengths Keys each segment holds, at most its slot's width; zeros mark padding
+ *      slots. Null means every slot is full.
  *  @param[in] key_stride Bytes between tokens of @p keys.
  *  @param[in] value_stride Bytes between tokens of @p values.
  *  @param[out] key_value_packed 64-byte-aligned buffer of @c attention_pack_size bytes.
@@ -282,7 +283,7 @@ expected<std::size_t> attention_pack_size(std::size_t key_value_head_count, std:
  */
 template <numeric_dtype in_type_>
 status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_t key_value_head_count,
-                        std::size_t depth, std::uint32_t const *segment_offsets, std::uint32_t const *segment_lengths,
+                        std::size_t depth, std::uint32_t const *key_offsets, std::uint32_t const *key_lengths,
                         std::size_t segment_count, std::size_t key_stride, std::size_t value_stride,
                         void *key_value_packed, std::size_t tasks_begin = 0,
                         std::size_t tasks_end = std::numeric_limits<std::size_t>::max(),
@@ -293,37 +294,37 @@ status_t attention_pack(in_type_ const *keys, in_type_ const *values, std::size_
     if (capabilities) {
         if constexpr (std::is_same_v<in_type_, bf16_t>)
             return static_cast<status_t>(nk_attention_pack_bf16_best(
-                keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, f16_t>)
             return static_cast<status_t>(nk_attention_pack_f16_best(
-                keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, e4m3_t>)
             return static_cast<status_t>(nk_attention_pack_e4m3_best(
-                keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
         else if constexpr (std::is_same_v<in_type_, i8_t>)
             return static_cast<status_t>(nk_attention_pack_i8_best(
-                keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-                key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
+                keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+                value_stride, key_value_packed, tasks_begin, tasks_end, capabilities, stream));
     }
     if constexpr (std::is_same_v<in_type_, bf16_t>)
         return static_cast<status_t>(nk_attention_pack_bf16_serial(
-            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, f16_t>)
         return static_cast<status_t>(nk_attention_pack_f16_serial(
-            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, e4m3_t>)
         return static_cast<status_t>(nk_attention_pack_e4m3_serial(
-            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else if constexpr (std::is_same_v<in_type_, i8_t>)
         return static_cast<status_t>(nk_attention_pack_i8_serial(
-            keys_raw, values_raw, key_value_head_count, depth, segment_offsets, segment_lengths, segment_count,
-            key_stride, value_stride, key_value_packed, tasks_begin, tasks_end, stream));
+            keys_raw, values_raw, key_value_head_count, depth, key_offsets, key_lengths, segment_count, key_stride,
+            value_stride, key_value_packed, tasks_begin, tasks_end, stream));
     else return status_t::missing_kernel_k;
 }
 
@@ -531,14 +532,12 @@ class packed_attention {
     std::size_t segment_count_ = 0;
     [[no_unique_address]] allocator_type_ alloc_;
 
-    std::size_t allocated_bytes_() const noexcept { return size_bytes_ + (segment_count_ + 1) * sizeof(std::uint32_t); }
-
   public:
     packed_attention() noexcept = default;
     explicit packed_attention(allocator_type_ const &alloc) noexcept : alloc_(alloc) {}
 
     ~packed_attention() noexcept {
-        if (data_) alloc_traits::deallocate(alloc_, data_, allocated_bytes_());
+        if (data_) alloc_traits::deallocate(alloc_, data_, size_bytes_);
     }
 
     packed_attention(packed_attention &&o) noexcept
@@ -548,7 +547,7 @@ class packed_attention {
 
     packed_attention &operator=(packed_attention &&o) noexcept {
         if (this != &o) {
-            if (data_) alloc_traits::deallocate(alloc_, data_, allocated_bytes_());
+            if (data_) alloc_traits::deallocate(alloc_, data_, size_bytes_);
             if constexpr (alloc_traits::propagate_on_container_move_assignment::value) alloc_ = std::move(o.alloc_);
             data_ = std::exchange(o.data_, nullptr);
             size_bytes_ = std::exchange(o.size_bytes_, 0);
@@ -566,9 +565,10 @@ class packed_attention {
      *  @brief Size, allocate and pack a ragged batch of K and V tokens.
      *  @param[in] keys,values @b [tokens,key_value_heads,depth] views whose heads sit back to back
      *      along their depth stride, so a transposed depth packs without a copy.
-     *  @param[in] segment_offsets Start token of each segment, holding one more entry than
-     *      @p segment_lengths.
-     *  @param[in] segment_lengths Live token counts, one per segment; zeros mark padding slots.
+     *  @param[in] key_offsets The slot boundaries of the segments, one more than there are
+     *      segments, which must not decrease.
+     *  @param[in] key_lengths Keys each segment holds, at most its slot's width; zeros mark padding
+     *      slots. Empty means every slot is full.
      *  @param[in] alloc Allocator instance.
      *  @param[in] capabilities Capabilities to pack for; attend with the same ones.
      *  @return The pack; @c unexpected_dimensions_k when the views or segments disagree or overrun
@@ -577,39 +577,43 @@ class packed_attention {
     template <std::size_t max_rank_>
     static expected<packed_attention> make(tensor_view<value_type_, max_rank_> keys,
                                            tensor_view<value_type_, max_rank_> values,
-                                           vector_view<std::uint32_t> segment_offsets,
-                                           vector_view<std::uint32_t> segment_lengths, allocator_type_ alloc = {},
+                                           vector_view<std::uint32_t> key_offsets,
+                                           vector_view<std::uint32_t> key_lengths = {}, allocator_type_ alloc = {},
                                            nk_capability_t capabilities = default_capabilities()) noexcept {
-        std::size_t const segment_count = segment_lengths.size();
+        bool const has_lengths = key_lengths.data() != nullptr;
+        std::size_t const segment_count = key_offsets.size() ? key_offsets.size() - 1 : 0;
         bool shaped = attention_rows_supported_(keys) && attention_rows_supported_(values) &&
-                      segment_offsets.size() == segment_count + 1 && segment_offsets.is_contiguous() &&
-                      segment_lengths.is_contiguous();
+                      key_offsets.size() == segment_count + 1 && key_offsets.is_contiguous() &&
+                      (!has_lengths || (key_lengths.size() == segment_count && key_lengths.is_contiguous()));
         for (std::size_t axis = 0; shaped && axis < 3; ++axis) shaped = keys.extent(axis) == values.extent(axis);
-        for (std::size_t segment = 0; shaped && segment < segment_count; ++segment)
-            shaped = std::size_t {segment_offsets[segment]} + segment_lengths[segment] <= keys.extent(0);
+        std::size_t token_count = 0;
+        for (std::size_t segment = 0; shaped && segment < segment_count; ++segment) {
+            std::size_t const first = key_offsets[segment], slot_end = key_offsets[segment + 1];
+            shaped = first <= slot_end;
+            std::size_t const count = shaped ? (has_lengths ? key_lengths[segment] : slot_end - first) : 0;
+            shaped = shaped && count <= slot_end - first && first + count <= keys.extent(0);
+            token_count += count;
+        }
         if (!shaped) return {packed_attention(alloc), status_t::unexpected_dimensions_k};
 
         packed_attention pa(alloc);
         pa.key_value_head_count_ = keys.extent(1);
         pa.depth_ = keys.extent(2);
-        std::size_t token_count = 0;
-        for (std::size_t segment = 0; segment < segment_count; ++segment) token_count += segment_lengths[segment];
         auto size = attention_pack_size<value_type_>(pa.key_value_head_count_, pa.depth_, token_count, segment_count,
                                                      capabilities);
         if (!size) return {packed_attention(alloc), size.status};
         pa.size_bytes_ = size.value;
         pa.segment_count_ = segment_count;
-        pa.data_ = alloc_traits::allocate(pa.alloc_, pa.allocated_bytes_());
+        pa.data_ = alloc_traits::allocate(pa.alloc_, pa.size_bytes_);
         if (!pa.data_) return {packed_attention(alloc), status_t::bad_alloc_k};
 
         if (status_t status = attention_pack<value_type_>(keys.data(), values.data(), pa.key_value_head_count_,
-                                                          pa.depth_, segment_offsets.data(), segment_lengths.data(),
+                                                          pa.depth_, key_offsets.data(), key_lengths.data(),
                                                           segment_count, static_cast<std::size_t>(keys.stride_bytes(0)),
                                                           static_cast<std::size_t>(values.stride_bytes(0)), pa.data_, 0,
                                                           static_cast<std::size_t>(-1), capabilities);
             failed(status))
             return {packed_attention(alloc), status};
-        std::memcpy(pa.data_ + pa.size_bytes_, segment_offsets.data(), (segment_count + 1) * sizeof(std::uint32_t));
         return {std::move(pa), status_t::success_k};
     }
 
@@ -620,10 +624,22 @@ class packed_attention {
     void const *data() const noexcept { return data_; }
     std::size_t size_bytes() const noexcept { return size_bytes_; }
 
-    /** The pack-time segment offsets, which the view overloads take as the query offsets. */
-    vector_view<std::uint32_t> segment_offsets() const noexcept {
-        if (!data_) return {};
-        return {reinterpret_cast<std::uint32_t const *>(data_ + size_bytes_), segment_count_ + 1};
+    /** The pack's slot boundaries, which the view overloads take as the query offsets. */
+    vector_view<std::uint32_t> key_offsets() const noexcept {
+        std::uint32_t const *offsets = nullptr, *lengths = nullptr;
+        if (!data_ ||
+            failed(static_cast<status_t>(nk_attention_packed_segments(data_, segment_count_, &offsets, &lengths))))
+            return {};
+        return {offsets, segment_count_ + 1};
+    }
+
+    /** The keys each segment holds. */
+    vector_view<std::uint32_t> key_lengths() const noexcept {
+        std::uint32_t const *offsets = nullptr, *lengths = nullptr;
+        if (!data_ ||
+            failed(static_cast<status_t>(nk_attention_packed_segments(data_, segment_count_, &offsets, &lengths))))
+            return {};
+        return {lengths, segment_count_};
     }
 };
 

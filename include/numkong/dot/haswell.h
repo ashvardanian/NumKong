@@ -144,7 +144,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x4_haswell_(__m256d sum_f64x4, __m2
     return tentative_sum + (lower_error + upper_error + rounding_error);
 }
 
-/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_: TwoProd through FMA, then TwoSum. */
+/** Dot2 step, sum += a × b, mirroring @c nk_dot2_f64_serial_: TwoProd through FMA, then TwoSum. */
 NUMKONG_INLINE void nk_dot2_f64x4_haswell_(__m256d *sum_f64x4, __m256d *compensation_f64x4, __m256d a_f64x4,
                                            __m256d b_f64x4) {
     __m256d product_f64x4 = _mm256_mul_pd(a_f64x4, b_f64x4);
@@ -1427,7 +1427,7 @@ NUMKONG_API nk_status_t nk_dot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t 
     // Flip the sign bit in every second scalar before accumulation:
     sum_real_f32x8 = _mm256_castsi256_ps(_mm256_xor_si256(_mm256_castps_si256(sum_real_f32x8), sign_flip_i64x4));
     nk_f32c_t tail_result;
-    nk_dot_f16c_(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_dot_f16c_serial_(a_pairs, b_pairs, count_pairs, &tail_result);
     result->real = tail_result.real + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_real_f32x8);
     result->imag = tail_result.imag + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_imag_f32x8);
     return nk_success_k;
@@ -1452,7 +1452,7 @@ NUMKONG_API nk_status_t nk_vdot_f16c_haswell(nk_f16c_t const *a_pairs, nk_f16c_t
     // Flip the sign bit in every second scalar before accumulation:
     sum_imag_f32x8 = _mm256_castsi256_ps(_mm256_xor_si256(_mm256_castps_si256(sum_imag_f32x8), sign_flip_i64x4));
     nk_f32c_t tail_result;
-    nk_vdot_f16c_(a_pairs, b_pairs, count_pairs, &tail_result);
+    nk_vdot_f16c_serial_(a_pairs, b_pairs, count_pairs, &tail_result);
     result->real = tail_result.real + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_real_f32x8);
     result->imag = tail_result.imag + (nk_f32_t)nk_reduce_add_f32x8_haswell_(sum_imag_f32x8);
     return nk_success_k;

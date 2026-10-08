@@ -164,12 +164,12 @@ NUMKONG_INLINE void nk_jaccard_f32x4_from_dot_loongsonasx_(nk_b128_vec_t const *
                                                            nk_b128_vec_t const *target_pops_vec,
                                                            nk_b128_vec_t *result_vec) {
     __m128 dot_f32x4 = __lsx_vffint_s_wu(dots_vec->xmm);
-    __m128 query_f32x4 = nk_xvreplgr2vr_s_128_((nk_f32_t)query_pop);
+    __m128 query_f32x4 = nk_xvreplgr2vr_s_128_loongsonasx_((nk_f32_t)query_pop);
     __m128 target_f32x4 = __lsx_vffint_s_wu(target_pops_vec->xmm);
     __m128 union_f32x4 = __lsx_vfsub_s(__lsx_vfadd_s(query_f32x4, target_f32x4), dot_f32x4);
 
     __m128 zero_f32x4 = (__m128)__lsx_vreplgr2vr_w(0);
-    __m128 one_f32x4 = nk_xvreplgr2vr_s_128_(1.0f);
+    __m128 one_f32x4 = nk_xvreplgr2vr_s_128_loongsonasx_(1.0f);
     __m128i zero_union_mask_u32x4 = __lsx_vfcmp_ceq_s(union_f32x4, zero_f32x4);
     __m128 safe_union_f32x4 = (__m128)__lsx_vbitsel_v((__m128i)union_f32x4, (__m128i)one_f32x4, zero_union_mask_u32x4);
 

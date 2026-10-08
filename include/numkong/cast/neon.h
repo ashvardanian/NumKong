@@ -114,7 +114,7 @@ NUMKONG_INLINE void nk_load_b64_neon_(void const *src, nk_b64_vec_t *dst) { dst-
  *  `mov w; dup v.8h, w`, valid on plain `armv8-a+simd`. No-op on Clang, and skipped on MSVC, as
  *  neither is affected.
  */
-NUMKONG_INLINE uint16x8_t nk_u16x8_splat_(nk_u16_t bits) {
+NUMKONG_INLINE uint16x8_t nk_splat_u16x8_neon_(nk_u16_t bits) {
 #if defined(__GNUC__) || defined(__clang__)
     __asm__("" : "+r"(bits));
 #endif
@@ -1091,7 +1091,7 @@ NUMKONG_INLINE void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_
     // Fall back to serial for unsupported or i32 ↔ u32 (loses precision through f32)
     if (!from_ok || !to_ok || (from_type == nk_i32_k && to_type == nk_u32_k) ||
         (from_type == nk_u32_k && to_type == nk_i32_k)) {
-        nk_cast_elementwise_(from, from_type, n, to, to_type);
+        nk_cast_elementwise_serial_(from, from_type, n, to, to_type);
         return;
     }
 
@@ -1239,7 +1239,7 @@ NUMKONG_INLINE void nk_cast_elementwise_neon_(void const *from, nk_dtype_t from_
     }
 
     // Handle tail elements with serial fallback
-    if (tail) nk_cast_elementwise_(from_ptr, from_type, tail, to_ptr, to_type);
+    if (tail) nk_cast_elementwise_serial_(from_ptr, from_type, tail, to_ptr, to_type);
 }
 
 /** Reduce @p block_count f32s to `max(|x|)` via NEON (f32x4 horizontal max). */
@@ -1293,8 +1293,8 @@ NUMKONG_INLINE void nk_cast_block_scaled_neon_(void const *from, nk_u8_t const *
     if (to_has_tensor_scale) {
         to_tensor_scale_f32 = *to_tensor_scale;
         if (to_tensor_scale_f32 == 0.0f) {
-            nk_cast_block_scaled_through_f32_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
-                                              to_tensor_scale, to_format, count);
+            nk_cast_block_scaled_through_f32_serial_(from, from_scales, from_tensor_scale, from_format, to, to_scales,
+                                                     to_tensor_scale, to_format, count);
             return;
         }
     }
@@ -1335,7 +1335,7 @@ NUMKONG_INLINE void nk_cast_block_scaled_neon_(void const *from, nk_u8_t const *
             nk_cast_elementwise_neon_(scratch, nk_f32_k, chunk_count, dst, to_format->element_dtype);
         }
         else {
-            nk_f32_t element_max = nk_element_max_representable_(to_format->element_dtype);
+            nk_f32_t element_max = nk_element_max_representable_serial_(to_format->element_dtype);
             for (nk_size_t b = 0; b < chunk_count; b += to_block) {
                 nk_size_t valid = (chunk_count - b) < to_block ? (chunk_count - b) : to_block;
                 nk_f32_t block_amax = nk_block_amax_f32_neon_(scratch + b, valid);
@@ -1387,7 +1387,8 @@ NUMKONG_API nk_status_t nk_cast_neon(void const *from, nk_dtype_t from_dtype, vo
     nk_assert_(stream == NUMKONG_NULL);
     nk_block_scaled_format_t from_format = nk_block_scaled_format_of_dtype(from_dtype);
     nk_block_scaled_format_t to_format = nk_block_scaled_format_of_dtype(to_dtype);
-    nk_cast_operand_t const source = nk_cast_operand_(from_dtype, from), target = nk_cast_operand_(to_dtype, to);
+    nk_cast_operand_t const source = nk_cast_operand_serial_(from_dtype, from),
+                            target = nk_cast_operand_serial_(to_dtype, to);
     nk_cast_block_scaled_neon_(source.codes, source.scales, source.tensor_scale, &from_format, target.codes,
                                target.scales, target.tensor_scale, &to_format, count);
     return nk_success_k;

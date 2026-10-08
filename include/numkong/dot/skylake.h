@@ -126,7 +126,7 @@ NUMKONG_INLINE nk_f64_t nk_dot_stable_sum_f64x8_skylake_(__m512d sum_f64x8, __m5
     return nk_dot_stable_sum_f64x4_haswell_(tentative_sum_f64x4, accumulated_error_f64x4);
 }
 
-/** Dot2 step, sum += a × b, mirroring @c nk_f64_dot2_: TwoProd through FMA, then a masked
+/** Dot2 step, sum += a × b, mirroring @c nk_dot2_f64_serial_: TwoProd through FMA, then a masked
  *  Neumaier TwoSum, which subtracts the larger operand first. */
 NUMKONG_INLINE void nk_dot2_f64x8_skylake_(__m512d *sum_f64x8, __m512d *compensation_f64x8, __m512d a_f64x8,
                                            __m512d b_f64x8) {
@@ -719,7 +719,8 @@ NUMKONG_INLINE void nk_load_scaled_nvfp4x32_skylake_(void const *values, nk_u8_t
 NUMKONG_INLINE void nk_load_scaled_mxfp4x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
                                                      nk_dot_f32x32_operand_skylake_t *dst) {
     __m128i const codes_u8x16 = _mm_loadu_si128((__m128i const *)((nk_u8_t const *)values + offset / 2));
-    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
+    nk_f32_t const *scale_values = (nk_f32_t const *)scales;
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale_values[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(codes_u8x16), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e2m1x16_to_f32x16_skylake_(_mm_srli_si128(codes_u8x16, 8)), scale_f32x16);
 }
@@ -727,7 +728,8 @@ NUMKONG_INLINE void nk_load_scaled_mxfp4x32_skylake_(void const *values, nk_u8_t
 NUMKONG_INLINE void nk_load_scaled_mxfp6e2m3x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
                                                          nk_dot_f32x32_operand_skylake_t *dst) {
     __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
-    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
+    nk_f32_t const *scale_values = (nk_f32_t const *)scales;
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale_values[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e2m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e2m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
@@ -736,7 +738,8 @@ NUMKONG_INLINE void nk_load_scaled_mxfp6e2m3x32_skylake_(void const *values, nk_
 NUMKONG_INLINE void nk_load_scaled_mxfp6e3m2x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
                                                          nk_dot_f32x32_operand_skylake_t *dst) {
     __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
-    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
+    nk_f32_t const *scale_values = (nk_f32_t const *)scales;
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale_values[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e3m2x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e3m2x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
@@ -745,7 +748,8 @@ NUMKONG_INLINE void nk_load_scaled_mxfp6e3m2x32_skylake_(void const *values, nk_
 NUMKONG_INLINE void nk_load_scaled_mxfp8e4m3x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
                                                          nk_dot_f32x32_operand_skylake_t *dst) {
     __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
-    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
+    nk_f32_t const *scale_values = (nk_f32_t const *)scales;
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale_values[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e4m3x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e4m3x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
@@ -754,7 +758,8 @@ NUMKONG_INLINE void nk_load_scaled_mxfp8e4m3x32_skylake_(void const *values, nk_
 NUMKONG_INLINE void nk_load_scaled_mxfp8e5m2x32_skylake_(void const *values, nk_u8_t const *scales, nk_size_t offset,
                                                          nk_dot_f32x32_operand_skylake_t *dst) {
     __m256i const codes_u8x32 = _mm256_loadu_si256((__m256i const *)((nk_u8_t const *)values + offset));
-    __m512 const scale_f32x16 = _mm512_set1_ps(((nk_f32_t const *)scales)[offset / 32]);
+    nk_f32_t const *scale_values = (nk_f32_t const *)scales;
+    __m512 const scale_f32x16 = _mm512_set1_ps(scale_values[offset / 32]);
     dst->low_f32x16 = _mm512_mul_ps(nk_e5m2x16_to_f32x16_skylake_(_mm256_castsi256_si128(codes_u8x32)), scale_f32x16);
     dst->high_f32x16 = _mm512_mul_ps(nk_e5m2x16_to_f32x16_skylake_(_mm256_extracti128_si256(codes_u8x32, 1)),
                                      scale_f32x16);
